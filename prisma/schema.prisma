@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  DIRECTOR
+  MENTOR
+  STUDENT
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+}
+
+enum AttendanceType {
+  NORMAL
+  ABSENT
+  TARDY
+  EARLY_LEAVE
+  APPROVED_ABSENT
+}
+
+enum MeritType {
+  MERIT
+  DEMERIT
+}
+
+enum MentoringStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  RESCHEDULED
+}
+
+enum ConsultationStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum MessageType {
+  ATTENDANCE
+  ABSENT
+  MERIT_DEMERIT
+  MENTORING
+  MONTHLY_REPORT
+  CONSULTATION
+  CUSTOM
+}
+
+model User {
+  id         String      @id @default(cuid())
+  email      String      @unique
+  name       String
+  password   String
+  role       Role        @default(MENTOR)
+  students   Student[]   @relation("MentorStudents")
+  mentorings Mentoring[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}
+
+model Student {
+  id             String                 @id @default(cuid())
+  name           String
+  phone          String?
+  parentPhone    String
+  grade          String
+  school         String?
+  seat           String?
+  startDate      DateTime
+  endDate        DateTime?
+  status         StudentStatus          @default(ACTIVE)
+  mentorId       String?
+  mentor         User?                  @relation("MentorStudents", fields: [mentorId], references: [id])
+  schedules      AttendanceSchedule[]
+  attendances    AttendanceRecord[]
+  merits         MeritDemerit[]
+  mentorings     Mentoring[]
+  academicPlans  AcademicPlan[]
+  consultations  DirectorConsultation[]
+  messages       MessageLog[]
+  monthlyReports MonthlyReport[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+}
+
+model AttendanceSchedule {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  dayOfWeek Int // 0=일, 1=월, ..., 6=토
+  startTime String // "09:00"
+  endTime   String // "22:00"
+  createdAt DateTime @default(now())
+}
+
+model AttendanceRecord {
+  id        String         @id @default(cuid())
+  studentId String
+  student   Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date      DateTime       @db.Date
+  checkIn   DateTime?
+  checkOut  DateTime?
+  type      AttendanceType @default(NORMAL)
+  notes     String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@unique([studentId, date])
+}
+
+model MeritDemerit {
+  id          String    @id @default(cuid())
+  studentId   String
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date        DateTime  @db.Date
+  type        MeritType
+  points      Int
+  reason      String
+  category    String?
+  createdById String
+  createdAt   DateTime  @default(now())
+}
+
+model Mentoring {
+  id          String          @id @default(cuid())
+  studentId   String
+  student     Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  mentorId    String
+  mentor      User            @relation(fields: [mentorId], references: [id])
+  scheduledAt DateTime
+  actualDate  DateTime?
+  status      MentoringStatus @default(SCHEDULED)
+  notes       String?
+  feedback    String?
+  nextGoals   String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model AcademicPlan {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  year        Int
+  month       Int
+  weeklyGoals Json?
+  subjects    Json?
+  overallGoal String?
+  reflection  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([studentId, year, month])
+}
+
+model DirectorConsultation {
+  id          String             @id @default(cuid())
+  studentId   String
+  student     Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  scheduledAt DateTime?
+  actualDate  DateTime?
+  status      ConsultationStatus @default(SCHEDULED)
+  agenda      String?
+  notes       String?
+  outcome     String?
+  followUp    String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model MessageLog {
+  id            String        @id @default(cuid())
+  studentId     String
+  student       Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type          MessageType
+  recipient     String
+  recipientName String?
+  content       String
+  sentAt        DateTime      @default(now())
+  status        MessageStatus @default(PENDING)
+  errorMsg      String?
+}
+
+model MonthlyReport {
+  id              String    @id @default(cuid())
+  studentId       String
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  year            Int
+  month           Int
+  attendanceDays  Int       @default(0)
+  absentDays      Int       @default(0)
+  tardyCount      Int       @default(0)
+  earlyLeaveCount Int       @default(0)
+  totalMerits     Int       @default(0)
+  totalDemerits   Int       @default(0)
+  mentoringCount  Int       @default(0)
+  overallComment  String?
+  sentAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([studentId, year, month])
+}
