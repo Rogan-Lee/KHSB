@@ -17,6 +17,7 @@ import type { Role } from "@/generated/prisma";
 const ROLE_LABELS: Record<Role, string> = {
   DIRECTOR: "원장",
   MENTOR: "멘토",
+  STAFF: "운영조교",
   STUDENT: "원생",
 };
 
@@ -31,8 +32,8 @@ interface AppHeaderProps {
 
 export function AppHeader({ user, title }: AppHeaderProps) {
   return (
-    <header className="h-16 border-b bg-card flex items-center justify-between px-6">
-      <h1 className="text-lg font-semibold">{title}</h1>
+    <header className="h-14 border-b bg-card flex items-center justify-between px-6 sticky top-0 z-10">
+      <h1 className="text-[15px] font-semibold tracking-tight">{title}</h1>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent transition-colors">

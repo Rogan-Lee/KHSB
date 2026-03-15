@@ -38,6 +38,11 @@ export const GRADE_OPTIONS = [
   "N수", "기타",
 ];
 
+// "반송고2" → "반송고", "반송고3" → "반송고" (끝 숫자는 학년)
+export function parseSchool(school: string): string {
+  return school.replace(/\d+$/, "").trim();
+}
+
 export const MERIT_CATEGORIES = [
   "학습 태도",
   "출석",

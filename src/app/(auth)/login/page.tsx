@@ -36,16 +36,17 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/40">
-      <Card className="w-full max-w-sm shadow-lg">
-        <CardHeader className="text-center space-y-3">
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-background pointer-events-none" />
+      <Card className="w-full max-w-sm shadow-xl border-border/60 relative">
+        <CardHeader className="text-center space-y-3 pb-5">
           <div className="flex justify-center">
-            <div className="p-3 rounded-full bg-primary/10">
-              <BookOpen className="h-8 w-8 text-primary" />
+            <div className="p-3 rounded-2xl bg-primary/10 shadow-sm">
+              <BookOpen className="h-7 w-7 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl">독서실 관리 시스템</CardTitle>
-          <CardDescription>관리자 계정으로 로그인하세요</CardDescription>
+          <CardTitle className="text-xl tracking-tight">독서실 관리 시스템</CardTitle>
+          <CardDescription className="text-[13px]">관리자 계정으로 로그인하세요</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

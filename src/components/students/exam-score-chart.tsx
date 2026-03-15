@@ -1,0 +1,659 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import {
+  AreaChart, Area, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Cell,
+} from "recharts";
+import { createExamScore, deleteExamScore } from "@/actions/exam-scores";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Trash2, Plus, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import type { ExamScore, ExamType } from "@/generated/prisma";
+
+interface Props {
+  studentId: string;
+  initialScores: ExamScore[];
+}
+
+type ViewMode = "all" | "rawScore" | "grade" | "percentile";
+
+const EXAM_TYPE_LABELS: Record<ExamType, string> = {
+  OFFICIAL_MOCK: "공식 모의고사",
+  PRIVATE_MOCK: "사설 모의고사",
+  SCHOOL_EXAM: "학교 내신",
+};
+
+const SUBJECTS = ["국어", "수학", "영어", "한국사", "탐구1", "탐구2"];
+const EXAM_TYPES: ExamType[] = ["OFFICIAL_MOCK", "PRIVATE_MOCK", "SCHOOL_EXAM"];
+
+function fmtDate(d: Date | string) {
+  const dt = new Date(d);
+  return `${dt.getFullYear().toString().slice(2)}.${String(dt.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function gradeColor(g: number) {
+  if (g <= 2) return "#3B82F6";
+  if (g <= 4) return "#10B981";
+  if (g <= 6) return "#F59E0B";
+  return "#EF4444";
+}
+
+const DARK_TOOLTIP = {
+  contentStyle: {
+    background: "#1e293b",
+    border: "none",
+    borderRadius: "8px",
+    color: "white",
+    fontSize: 12,
+    padding: "8px 12px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+  },
+  itemStyle: { color: "#e2e8f0" },
+  labelStyle: { color: "#94a3b8", fontSize: 11, marginBottom: 4 },
+  cursor: { stroke: "#e2e8f0", strokeWidth: 1, strokeDasharray: "4 4" },
+};
+
+// 차트 공통 axis 스타일
+const AXIS_TICK = { fontSize: 11, fill: "#94a3b8" };
+
+// 데이터 범위 기반 동적 도메인 — 변화폭을 드라마틱하게 표현
+function dynDomain(vals: (number | undefined)[], absMin: number, absMax: number, pad: number): [number, number] {
+  const v = vals.filter((x): x is number => x != null);
+  if (!v.length) return [absMin, absMax];
+  return [
+    Math.max(absMin, Math.min(...v) - pad),
+    Math.min(absMax, Math.max(...v) + pad),
+  ];
+}
+
+function Trend({ current, prev }: { current?: number; prev?: number }) {
+  if (current == null || prev == null) return <span className="text-muted-foreground text-xs">—</span>;
+  const diff = current - prev;
+  if (diff > 0) return (
+    <span className="flex items-center gap-0.5 text-emerald-600 text-xs font-medium">
+      <TrendingUp className="h-3 w-3" /> +{diff.toFixed(1)}
+    </span>
+  );
+  if (diff < 0) return (
+    <span className="flex items-center gap-0.5 text-red-500 text-xs font-medium">
+      <TrendingDown className="h-3 w-3" /> {diff.toFixed(1)}
+    </span>
+  );
+  return <span className="flex items-center gap-0.5 text-muted-foreground text-xs"><Minus className="h-3 w-3" /> 0</span>;
+}
+
+export function ExamScoreChart({ studentId, initialScores }: Props) {
+  const [scores, setScores] = useState<ExamScore[]>(initialScores);
+  const [viewMode, setViewMode] = useState<ViewMode>("all");
+  const [filterType, setFilterType] = useState<ExamType | "ALL">("ALL");
+  const [filterSubject, setFilterSubject] = useState<string>("국어");
+  const [showForm, setShowForm] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const [form, setForm] = useState({
+    examType: "OFFICIAL_MOCK" as ExamType,
+    examName: "",
+    examDate: "",
+    subject: "국어",
+    rawScore: "",
+    grade: "",
+    percentile: "",
+    notes: "",
+  });
+
+  const filtered = scores.filter((s) => {
+    const typeOk = filterType === "ALL" || s.examType === filterType;
+    const subjectOk = s.subject === filterSubject;
+    return typeOk && subjectOk;
+  });
+
+  const chartData = [...filtered]
+    .sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime())
+    .map((s) => ({
+      label: fmtDate(s.examDate),
+      fullLabel: `${fmtDate(s.examDate)} ${s.examName}`,
+      rawScore: s.rawScore ?? undefined,
+      grade: s.grade ?? undefined,
+      // 막대 높이: 1등급=9(최대), 9등급=1(최소) — 높을수록 좋음을 시각적으로 표현
+      gradeBar: s.grade != null ? 10 - s.grade : undefined,
+      percentile: s.percentile != null ? Number(s.percentile.toFixed(1)) : undefined,
+    }));
+
+  const allSubjects = Array.from(new Set([...SUBJECTS, ...scores.map((s) => s.subject)]));
+
+  // 최근값 & 직전값 (KPI 카드용)
+  const last = chartData[chartData.length - 1];
+  const prev = chartData[chartData.length - 2];
+
+  function handleAdd() {
+    if (!form.examName || !form.examDate) {
+      toast.error("시험명과 날짜는 필수입니다");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const created = await createExamScore({
+          studentId,
+          examType: form.examType,
+          examName: form.examName,
+          examDate: form.examDate,
+          subject: form.subject,
+          rawScore: form.rawScore ? parseInt(form.rawScore) : undefined,
+          grade: form.grade ? parseInt(form.grade) : undefined,
+          percentile: form.percentile ? parseFloat(form.percentile) : undefined,
+          notes: form.notes || undefined,
+        });
+        setScores((prev) => [created, ...prev]);
+        setForm({ examType: "OFFICIAL_MOCK", examName: "", examDate: "", subject: "국어", rawScore: "", grade: "", percentile: "", notes: "" });
+        setShowForm(false);
+        toast.success("성적이 등록되었습니다");
+      } catch {
+        toast.error("등록 실패");
+      }
+    });
+  }
+
+  function handleDelete(id: string) {
+    startTransition(async () => {
+      try {
+        await deleteExamScore(id, studentId);
+        setScores((prev) => prev.filter((s) => s.id !== id));
+        toast.success("삭제되었습니다");
+      } catch {
+        toast.error("삭제 실패");
+      }
+    });
+  }
+
+  const VIEW_MODES: { key: ViewMode; label: string }[] = [
+    { key: "all", label: "전체" },
+    { key: "rawScore", label: "원점수" },
+    { key: "grade", label: "등급" },
+    { key: "percentile", label: "백분위" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* 필터 행 */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs text-muted-foreground shrink-0">시험 유형</span>
+          <div className="flex gap-1 flex-wrap">
+            {([["ALL", "전체"], ...EXAM_TYPES.map((t) => [t, EXAM_TYPE_LABELS[t]])] as [string, string][]).map(([v, label]) => (
+              <button
+                key={v}
+                onClick={() => setFilterType(v as ExamType | "ALL")}
+                className={cn(
+                  "px-2.5 py-1 text-xs rounded-md font-medium border transition-colors",
+                  filterType === v
+                    ? "bg-primary/10 text-primary border-primary/30"
+                    : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs text-muted-foreground shrink-0">과목</span>
+            <div className="flex gap-1 flex-wrap">
+              {allSubjects.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setFilterSubject(s)}
+                  className={cn(
+                    "px-2.5 py-1 text-xs rounded-md font-medium border transition-colors",
+                    filterSubject === s
+                      ? "bg-primary/10 text-primary border-primary/30"
+                      : "border-border text-muted-foreground hover:bg-muted"
+                  )}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1 shrink-0"
+            onClick={() => setShowForm((v) => !v)}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            성적 등록
+          </Button>
+        </div>
+      </div>
+
+      {/* 등록 폼 */}
+      {showForm && (
+        <div className="p-4 rounded-lg border bg-muted/20 space-y-3">
+          <p className="text-sm font-medium">성적 등록</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">시험 유형</label>
+              <select
+                value={form.examType}
+                onChange={(e) => setForm((f) => ({ ...f, examType: e.target.value as ExamType }))}
+                className="w-full border rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+              >
+                {EXAM_TYPES.map((t) => <option key={t} value={t}>{EXAM_TYPE_LABELS[t]}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">시험명 *</label>
+              <input
+                type="text" placeholder="6월 모의고사" value={form.examName}
+                onChange={(e) => setForm((f) => ({ ...f, examName: e.target.value }))}
+                className="w-full border rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">날짜 *</label>
+              <input
+                type="date" value={form.examDate}
+                onChange={(e) => setForm((f) => ({ ...f, examDate: e.target.value }))}
+                className="w-full border rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">과목</label>
+              <input
+                type="text" placeholder="국어" value={form.subject}
+                onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+                className="w-full border rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+                list="subject-list"
+              />
+              <datalist id="subject-list">{SUBJECTS.map((s) => <option key={s} value={s} />)}</datalist>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">원점수</label>
+              <input
+                type="number" placeholder="0~100" min={0} max={100} value={form.rawScore}
+                onChange={(e) => setForm((f) => ({ ...f, rawScore: e.target.value }))}
+                className="w-full border rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">등급</label>
+              <input
+                type="number" placeholder="1~9" min={1} max={9} value={form.grade}
+                onChange={(e) => setForm((f) => ({ ...f, grade: e.target.value }))}
+                className="w-full border rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">백분위</label>
+              <input
+                type="number" placeholder="0~100" min={0} max={100} step={0.1} value={form.percentile}
+                onChange={(e) => setForm((f) => ({ ...f, percentile: e.target.value }))}
+                className="w-full border rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+              />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-xs text-muted-foreground">메모</label>
+              <input
+                type="text" placeholder="특이사항..." value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                className="w-full border rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowForm(false)}>취소</Button>
+            <Button size="sm" className="h-7 text-xs" onClick={handleAdd} disabled={isPending}>등록</Button>
+          </div>
+        </div>
+      )}
+
+      {/* 뷰 탭 */}
+      <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
+        {VIEW_MODES.map((m) => (
+          <button
+            key={m.key}
+            onClick={() => setViewMode(m.key)}
+            className={cn(
+              "px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-150",
+              viewMode === m.key
+                ? "bg-card text-foreground shadow-[0_1px_3px_0_rgb(0,0,0,0.08)]"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {/* 데이터 없음 */}
+      {chartData.length === 0 ? (
+        <div className="flex items-center justify-center h-48 text-sm text-muted-foreground border rounded-lg bg-muted/20">
+          {filterSubject} 과목 데이터가 없습니다
+        </div>
+      ) : (
+        <>
+          {/* 전체 뷰 — KPI 카드 3개 + 스파크라인 */}
+          {viewMode === "all" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                {/* 원점수 카드 */}
+                <div className="rounded-lg border bg-card p-4 shadow-[0_1px_4px_0_rgb(0,0,0,0.06)]">
+                  <p className="text-xs text-muted-foreground mb-1">원점수</p>
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-2xl font-bold tracking-tight">
+                        {last?.rawScore != null ? last.rawScore : "—"}
+                        {last?.rawScore != null && <span className="text-sm font-normal text-muted-foreground ml-0.5">점</span>}
+                      </p>
+                      <Trend current={last?.rawScore} prev={prev?.rawScore} />
+                    </div>
+                  </div>
+                  <div className="mt-3 h-14">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData} margin={{ top: 2, right: 2, left: -30, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="g-raw-mini" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.2} />
+                            <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <YAxis domain={[0, 100]} hide />
+                        <Area type="monotone" dataKey="rawScore" stroke="#3B82F6" strokeWidth={1.5} fill="url(#g-raw-mini)" dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* 등급 카드 */}
+                <div className="rounded-lg border bg-card p-4 shadow-[0_1px_4px_0_rgb(0,0,0,0.06)]">
+                  <p className="text-xs text-muted-foreground mb-1">등급</p>
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-2xl font-bold tracking-tight" style={{ color: last?.grade ? gradeColor(last.grade) : undefined }}>
+                        {last?.grade != null ? last.grade : "—"}
+                        {last?.grade != null && <span className="text-sm font-normal text-muted-foreground ml-0.5">등급</span>}
+                      </p>
+                      {/* 등급은 낮을수록 좋으므로 부호 반전 */}
+                      {last?.grade != null && prev?.grade != null ? (
+                        <span className={cn("flex items-center gap-0.5 text-xs font-medium",
+                          last.grade < prev.grade ? "text-emerald-600" : last.grade > prev.grade ? "text-red-500" : "text-muted-foreground"
+                        )}>
+                          {last.grade < prev.grade
+                            ? <><TrendingUp className="h-3 w-3" /> {prev.grade - last.grade}등급 향상</>
+                            : last.grade > prev.grade
+                            ? <><TrendingDown className="h-3 w-3" /> {last.grade - prev.grade}등급 하락</>
+                            : <><Minus className="h-3 w-3" /> 유지</>}
+                        </span>
+                      ) : <span className="text-muted-foreground text-xs">—</span>}
+                    </div>
+                  </div>
+                  <div className="mt-3 h-14">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartData} margin={{ top: 2, right: 2, left: -30, bottom: 0 }} barSize={8}>
+                        <YAxis domain={[0, 9]} hide />
+                        <Bar dataKey="gradeBar" radius={[2, 2, 0, 0]}>
+                          {chartData.map((d, i) => (
+                            <Cell key={i} fill={d.grade ? gradeColor(d.grade) : "#e2e8f0"} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* 백분위 카드 */}
+                <div className="rounded-lg border bg-card p-4 shadow-[0_1px_4px_0_rgb(0,0,0,0.06)]">
+                  <p className="text-xs text-muted-foreground mb-1">백분위</p>
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-2xl font-bold tracking-tight">
+                        {last?.percentile != null ? last.percentile : "—"}
+                        {last?.percentile != null && <span className="text-sm font-normal text-muted-foreground ml-0.5">%</span>}
+                      </p>
+                      <Trend current={last?.percentile} prev={prev?.percentile} />
+                    </div>
+                  </div>
+                  <div className="mt-3 h-14">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData} margin={{ top: 2, right: 2, left: -30, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="g-pct-mini" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.2} />
+                            <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <YAxis domain={[0, 100]} hide />
+                        <Area type="monotone" dataKey="percentile" stroke="#8B5CF6" strokeWidth={1.5} fill="url(#g-pct-mini)" dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 원점수 뷰 */}
+          {viewMode === "rawScore" && (() => {
+            const domain = dynDomain(chartData.map(d => d.rawScore), 0, 100, 10);
+            return (
+              <div className="rounded-lg border bg-card p-5 shadow-[0_1px_4px_0_rgb(0,0,0,0.06)]">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm font-semibold">원점수 추이</p>
+                    <p className="text-xs text-muted-foreground">{filterSubject} · {filterType === "ALL" ? "전체" : EXAM_TYPE_LABELS[filterType]}</p>
+                  </div>
+                  {last?.rawScore != null && (
+                    <div className="text-right">
+                      <p className="text-xl font-bold text-blue-600">{last.rawScore}<span className="text-sm font-normal text-muted-foreground ml-0.5">점</span></p>
+                      <Trend current={last.rawScore} prev={prev?.rawScore} />
+                    </div>
+                  )}
+                </div>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} barSize={32}>
+                    <CartesianGrid strokeDasharray="0" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={false} />
+                    <YAxis
+                      domain={domain} tick={AXIS_TICK} tickLine={false} axisLine={false} width={28}
+                      tickFormatter={(v) => `${v}`}
+                    />
+                    <Tooltip
+                      {...DARK_TOOLTIP}
+                      formatter={(v) => [`${v}점`, "원점수"]}
+                      labelFormatter={(l, p) => p[0]?.payload?.fullLabel ?? l}
+                    />
+                    <Bar dataKey="rawScore" name="원점수" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
+
+          {/* 등급 뷰 */}
+          {viewMode === "grade" && (() => {
+            const gradeBarVals = chartData.map(d => d.gradeBar);
+            const domain = dynDomain(gradeBarVals, 0, 9, 1);
+            // Y축 tick: domain 안의 gradeBar 정수값만, 라벨은 실제 등급
+            const ticks = Array.from({ length: 9 }, (_, i) => i + 1)
+              .filter(v => v >= domain[0] && v <= domain[1]);
+            return (
+              <div className="rounded-lg border bg-card p-5 shadow-[0_1px_4px_0_rgb(0,0,0,0.06)]">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm font-semibold">등급 추이</p>
+                    <p className="text-xs text-muted-foreground">{filterSubject} · {filterType === "ALL" ? "전체" : EXAM_TYPE_LABELS[filterType]} · 막대 높을수록 좋음</p>
+                  </div>
+                  {last?.grade != null && (
+                    <div className="text-right">
+                      <p className="text-xl font-bold" style={{ color: gradeColor(last.grade) }}>
+                        {last.grade}<span className="text-sm font-normal text-muted-foreground ml-0.5">등급</span>
+                      </p>
+                      {prev?.grade != null ? (
+                        <span className={cn("flex items-center gap-0.5 text-xs font-medium justify-end",
+                          last.grade < prev.grade ? "text-emerald-600" : last.grade > prev.grade ? "text-red-500" : "text-muted-foreground"
+                        )}>
+                          {last.grade < prev.grade
+                            ? <><TrendingUp className="h-3 w-3" />{prev.grade - last.grade}등급 향상</>
+                            : last.grade > prev.grade
+                            ? <><TrendingDown className="h-3 w-3" />{last.grade - prev.grade}등급 하락</>
+                            : <><Minus className="h-3 w-3" />유지</>}
+                        </span>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }} barSize={32}>
+                    <CartesianGrid strokeDasharray="0" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={false} />
+                    <YAxis
+                      domain={domain}
+                      ticks={ticks}
+                      tick={AXIS_TICK} tickLine={false} axisLine={false} width={32}
+                      tickFormatter={(v) => `${10 - v}등급`}
+                    />
+                    <Tooltip
+                      {...DARK_TOOLTIP}
+                      formatter={(_v, _n, item) => [`${item.payload.grade}등급`, "등급"]}
+                      labelFormatter={(l, p) => p[0]?.payload?.fullLabel ?? l}
+                    />
+                    <Bar dataKey="gradeBar" name="등급" radius={[4, 4, 0, 0]}>
+                      {chartData.map((d, i) => (
+                        <Cell key={i} fill={d.grade ? gradeColor(d.grade) : "#e2e8f0"} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              {/* 등급 범례 */}
+              <div className="flex items-center gap-3 mt-3 flex-wrap">
+                {[
+                  { label: "1~2등급", color: "#3B82F6" },
+                  { label: "3~4등급", color: "#10B981" },
+                  { label: "5~6등급", color: "#F59E0B" },
+                  { label: "7~9등급", color: "#EF4444" },
+                ].map((c) => (
+                  <span key={c.label} className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: c.color }} />
+                    {c.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+            );
+          })()}
+
+          {/* 백분위 뷰 */}
+          {viewMode === "percentile" && (() => {
+            const domain = dynDomain(chartData.map(d => d.percentile), 0, 100, 10);
+            return (
+              <div className="rounded-lg border bg-card p-5 shadow-[0_1px_4px_0_rgb(0,0,0,0.06)]">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-sm font-semibold">백분위 추이</p>
+                    <p className="text-xs text-muted-foreground">{filterSubject} · {filterType === "ALL" ? "전체" : EXAM_TYPE_LABELS[filterType]}</p>
+                  </div>
+                  {last?.percentile != null && (
+                    <div className="text-right">
+                      <p className="text-xl font-bold text-violet-600">{last.percentile}<span className="text-sm font-normal text-muted-foreground ml-0.5">%</span></p>
+                      <Trend current={last.percentile} prev={prev?.percentile} />
+                    </div>
+                  )}
+                </div>
+                <ResponsiveContainer width="100%" height={260}>
+                  <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="g-pct" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.18} />
+                        <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="0" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={false} />
+                    <YAxis
+                      domain={domain} tick={AXIS_TICK} tickLine={false} axisLine={false} width={32}
+                      tickFormatter={(v) => `${v}%`}
+                    />
+                    <Tooltip
+                      {...DARK_TOOLTIP}
+                      formatter={(v) => [`${v}%`, "백분위"]}
+                      labelFormatter={(l, p) => p[0]?.payload?.fullLabel ?? l}
+                    />
+                    <Area
+                      type="monotone" dataKey="percentile" name="백분위"
+                      stroke="#8B5CF6" strokeWidth={2.5}
+                      fill="url(#g-pct)"
+                      dot={{ r: 4, fill: "#8B5CF6", strokeWidth: 2, stroke: "#fff" }}
+                      activeDot={{ r: 6, fill: "#8B5CF6", strokeWidth: 2, stroke: "#fff" }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
+        </>
+      )}
+
+      {/* 성적 목록 테이블 */}
+      {filtered.length > 0 && (
+        <div className="rounded-lg border overflow-hidden">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-muted/40 text-xs text-muted-foreground border-b">
+                <th className="px-3 py-2.5 text-left font-medium">날짜</th>
+                <th className="px-3 py-2.5 text-left font-medium">시험명</th>
+                <th className="px-3 py-2.5 text-left font-medium">유형</th>
+                <th className="px-3 py-2.5 text-right font-medium">원점수</th>
+                <th className="px-3 py-2.5 text-right font-medium">등급</th>
+                <th className="px-3 py-2.5 text-right font-medium">백분위</th>
+                <th className="px-3 py-2.5 w-8"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...filtered]
+                .sort((a, b) => new Date(b.examDate).getTime() - new Date(a.examDate).getTime())
+                .map((s) => (
+                  <tr key={s.id} className="border-t hover:bg-muted/30 transition-colors">
+                    <td className="px-3 py-2.5 whitespace-nowrap text-xs text-muted-foreground">
+                      {new Date(s.examDate).toLocaleDateString("ko-KR")}
+                    </td>
+                    <td className="px-3 py-2.5 font-medium">{s.examName}</td>
+                    <td className="px-3 py-2.5">
+                      <span className="text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
+                        {EXAM_TYPE_LABELS[s.examType]}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-medium tabular-nums">
+                      {s.rawScore != null ? `${s.rawScore}점` : <span className="text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      {s.grade ? (
+                        <span className="font-bold tabular-nums" style={{ color: gradeColor(s.grade) }}>
+                          {s.grade}등급
+                        </span>
+                      ) : <span className="text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-muted-foreground tabular-nums">
+                      {s.percentile != null ? `${s.percentile}%` : "—"}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <button
+                        onClick={() => handleDelete(s.id)}
+                        disabled={isPending}
+                        className="text-muted-foreground/50 hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

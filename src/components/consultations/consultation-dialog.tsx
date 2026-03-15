@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DateTimePickerInput } from "@/components/ui/time-picker";
 import { createConsultation } from "@/actions/consultations";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
@@ -73,8 +74,8 @@ export function ConsultationDialog({ students }: Props) {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="scheduledAt">예정 일시</Label>
-            <Input id="scheduledAt" name="scheduledAt" type="datetime-local" />
+            <Label>예정 일시</Label>
+            <DateTimePickerInput name="scheduledAt" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="agenda">면담 주제</Label>

@@ -71,8 +71,8 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       {/* Welcome */}
       <div>
-        <h2 className="text-2xl font-bold">안녕하세요, {session?.user?.name}님</h2>
-        <p className="text-muted-foreground mt-1">
+        <h2 className="text-xl font-semibold tracking-tight">안녕하세요, {session?.user?.name}님</h2>
+        <p className="text-sm text-muted-foreground mt-1">
           {now.toLocaleDateString("ko-KR", {
             year: "numeric",
             month: "long",
@@ -83,58 +83,58 @@ export default async function DashboardPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Link href="/students">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="flex items-center gap-3 pt-4">
-              <div className="p-2 rounded-lg bg-blue-100">
-                <Users className="h-6 w-6 text-blue-600" />
+          <Card className="hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5">
+            <CardContent className="flex items-center gap-3 pt-5 pb-5">
+              <div className="p-2 rounded-xl bg-indigo-50 border border-indigo-100">
+                <Users className="h-5 w-5 text-indigo-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{totalActive}</p>
-                <p className="text-sm text-muted-foreground">재원생</p>
+                <p className="text-2xl font-bold tracking-tight">{totalActive}</p>
+                <p className="text-xs text-muted-foreground">재원생</p>
               </div>
             </CardContent>
           </Card>
         </Link>
 
         <Link href="/attendance">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="flex items-center gap-3 pt-4">
-              <div className="p-2 rounded-lg bg-green-100">
-                <CheckCircle2 className="h-6 w-6 text-green-600" />
+          <Card className="hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5">
+            <CardContent className="flex items-center gap-3 pt-5 pb-5">
+              <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-100">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{normalCount}</p>
-                <p className="text-sm text-muted-foreground">오늘 출석</p>
+                <p className="text-2xl font-bold tracking-tight">{normalCount}</p>
+                <p className="text-xs text-muted-foreground">오늘 출석</p>
               </div>
             </CardContent>
           </Card>
         </Link>
 
         <Link href="/attendance">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="flex items-center gap-3 pt-4">
-              <div className="p-2 rounded-lg bg-red-100">
-                <XCircle className="h-6 w-6 text-red-600" />
+          <Card className="hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5">
+            <CardContent className="flex items-center gap-3 pt-5 pb-5">
+              <div className="p-2 rounded-xl bg-red-50 border border-red-100">
+                <XCircle className="h-5 w-5 text-red-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{absentCount}</p>
-                <p className="text-sm text-muted-foreground">오늘 결석</p>
+                <p className="text-2xl font-bold tracking-tight">{absentCount}</p>
+                <p className="text-xs text-muted-foreground">오늘 결석</p>
               </div>
             </CardContent>
           </Card>
         </Link>
 
         <Link href="/attendance">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="flex items-center gap-3 pt-4">
-              <div className="p-2 rounded-lg bg-orange-100">
-                <Clock className="h-6 w-6 text-orange-600" />
+          <Card className="hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5">
+            <CardContent className="flex items-center gap-3 pt-5 pb-5">
+              <div className="p-2 rounded-xl bg-amber-50 border border-amber-100">
+                <Clock className="h-5 w-5 text-amber-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{tardyCount}</p>
-                <p className="text-sm text-muted-foreground">오늘 지각</p>
+                <p className="text-2xl font-bold tracking-tight">{tardyCount}</p>
+                <p className="text-xs text-muted-foreground">오늘 지각</p>
               </div>
             </CardContent>
           </Card>

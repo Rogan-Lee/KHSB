@@ -1,37 +1,29 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, UserCheck, UserX, GraduationCap } from "lucide-react";
-import { formatDate } from "@/lib/utils";
-
-const STATUS_MAP = {
-  ACTIVE: { label: "재원", variant: "default" as const },
-  INACTIVE: { label: "휴원", variant: "secondary" as const },
-  GRADUATED: { label: "졸업", variant: "outline" as const },
-};
+import { StudentsScheduleTable } from "@/components/students/students-schedule-table";
+import { StudentsTable } from "@/components/students/students-table";
+import { CsvImport } from "@/components/students/csv-import";
 
 export default async function StudentsPage() {
   const students = await prisma.student.findMany({
-    include: { mentor: { select: { name: true } } },
-    orderBy: [{ status: "asc" }, { name: "asc" }],
+    include: {
+      mentor: { select: { name: true } },
+      schedules: true,
+    },
+    orderBy: [{ seat: { sort: "asc", nulls: "last" } }, { name: "asc" }],
   });
 
   const active = students.filter((s) => s.status === "ACTIVE").length;
   const inactive = students.filter((s) => s.status === "INACTIVE").length;
   const graduated = students.filter((s) => s.status === "GRADUATED").length;
+  const activeStudents = students.filter((s) => s.status === "ACTIVE");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4">
         <Card>
@@ -63,67 +55,41 @@ export default async function StudentsPage() {
         </Card>
       </div>
 
-      {/* Table */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>원생 목록</CardTitle>
+      <Tabs defaultValue="list">
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="list">원생 목록</TabsTrigger>
+            <TabsTrigger value="schedule">입퇴실 일정</TabsTrigger>
+            <TabsTrigger value="import">CSV 가져오기</TabsTrigger>
+          </TabsList>
           <Link href="/students/new">
             <Button size="sm">
               <Plus className="h-4 w-4 mr-1" />
               원생 등록
             </Button>
           </Link>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>이름</TableHead>
-                <TableHead>학년</TableHead>
-                <TableHead>좌석</TableHead>
-                <TableHead>연락처</TableHead>
-                <TableHead>학부모 연락처</TableHead>
-                <TableHead>담당 멘토</TableHead>
-                <TableHead>등원일</TableHead>
-                <TableHead>상태</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {students.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                    등록된 원생이 없습니다
-                  </TableCell>
-                </TableRow>
-              ) : (
-                students.map((student) => (
-                  <TableRow key={student.id}>
-                    <TableCell>
-                      <Link
-                        href={`/students/${student.id}`}
-                        className="font-medium hover:underline text-primary"
-                      >
-                        {student.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell>{student.grade}</TableCell>
-                    <TableCell>{student.seat || "-"}</TableCell>
-                    <TableCell>{student.phone || "-"}</TableCell>
-                    <TableCell>{student.parentPhone}</TableCell>
-                    <TableCell>{student.mentor?.name || "-"}</TableCell>
-                    <TableCell>{formatDate(student.startDate)}</TableCell>
-                    <TableCell>
-                      <Badge variant={STATUS_MAP[student.status].variant}>
-                        {STATUS_MAP[student.status].label}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        </div>
+
+        <TabsContent value="list" className="mt-3">
+          <Card>
+            <CardContent className="pt-4">
+              <StudentsTable students={students} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="schedule" className="mt-3">
+          <StudentsScheduleTable students={activeStudents} />
+        </TabsContent>
+
+        <TabsContent value="import" className="mt-3">
+          <Card>
+            <CardContent className="pt-5">
+              <CsvImport />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

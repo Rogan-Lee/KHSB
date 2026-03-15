@@ -5,7 +5,7 @@ import { ScheduleEditor } from "@/components/attendance/schedule-editor";
 export default async function AttendanceSchedulePage() {
   const students = await prisma.student.findMany({
     where: { status: "ACTIVE" },
-    include: { schedules: true },
+    include: { schedules: true, outings: true },
     orderBy: { name: "asc" },
   });
 

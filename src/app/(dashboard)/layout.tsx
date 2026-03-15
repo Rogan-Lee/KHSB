@@ -24,14 +24,14 @@ export default async function DashboardLayout({
   if (!session?.user) redirect("/login");
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      <AppSidebar />
-      <div className="ml-64 flex flex-col min-h-screen">
+    <div className="min-h-screen bg-background">
+      <AppSidebar role={session.user.role} />
+      <div className="ml-60 flex flex-col min-h-screen">
         <AppHeader
           user={session.user}
           title="독서실 관리 시스템"
         />
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-6 max-w-[1400px]">
           {children}
         </main>
       </div>

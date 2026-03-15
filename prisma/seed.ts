@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 import bcrypt from "bcryptjs";
@@ -36,19 +37,18 @@ async function main() {
 
   // 샘플 원생 생성
   const studentData = [
-    { name: "김지훈", grade: "고3", seat: "A-01", parentPhone: "010-1234-5678" },
-    { name: "이수연", grade: "고2", seat: "A-02", parentPhone: "010-2345-6789" },
-    { name: "박민준", grade: "N수", seat: "B-01", parentPhone: "010-3456-7890" },
-    { name: "최서아", grade: "고1", seat: "B-02", parentPhone: "010-4567-8901" },
-    { name: "정우성", grade: "고3", seat: "C-01", parentPhone: "010-5678-9012" },
+    { id: "seed-s001", name: "김지훈", grade: "고3", seat: "A-01", parentPhone: "010-1234-5678" },
+    { id: "seed-s002", name: "이수연", grade: "고2", seat: "A-02", parentPhone: "010-2345-6789" },
+    { id: "seed-s003", name: "박민준", grade: "N수", seat: "B-01", parentPhone: "010-3456-7890" },
+    { id: "seed-s004", name: "최서아", grade: "고1", seat: "B-02", parentPhone: "010-4567-8901" },
+    { id: "seed-s005", name: "정우성", grade: "고3", seat: "C-01", parentPhone: "010-5678-9012" },
   ];
 
   for (const data of studentData) {
     await prisma.student.upsert({
-      where: { id: `seed-${data.name}` },
+      where: { id: data.id },
       update: {},
       create: {
-        id: `seed-${data.name}`,
         ...data,
         startDate: new Date("2025-03-01"),
         mentorId: mentor.id,

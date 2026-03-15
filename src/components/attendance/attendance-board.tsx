@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
@@ -21,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { TimePickerInput } from "@/components/ui/time-picker";
 import { upsertAttendance } from "@/actions/attendance";
 import { formatTime } from "@/lib/utils";
 import { toast } from "sonner";
@@ -45,25 +45,96 @@ interface Props {
   today: string;
 }
 
-export function AttendanceBoard({ students, today }: Props) {
-  const todayDate = new Date(today).toISOString().split("T")[0];
-  const [selected, setSelected] = useState<StudentWithAttendance | null>(null);
+function AttendanceEditForm({
+  student,
+  todayDate,
+  onClose,
+}: {
+  student: StudentWithAttendance;
+  todayDate: string;
+  onClose: () => void;
+}) {
+  const attendance = student.attendances[0];
   const [isPending, startTransition] = useTransition();
+  const [checkIn, setCheckIn] = useState(
+    attendance?.checkIn ? new Date(attendance.checkIn).toTimeString().slice(0, 5) : ""
+  );
+  const [checkOut, setCheckOut] = useState(
+    attendance?.checkOut ? new Date(attendance.checkOut).toTimeString().slice(0, 5) : ""
+  );
 
   function handleSubmit(formData: FormData) {
     startTransition(async () => {
       try {
         formData.set("date", todayDate);
+        formData.set("checkIn", checkIn);
+        formData.set("checkOut", checkOut);
         await upsertAttendance(formData);
         toast.success("출결 기록이 저장되었습니다");
-        setSelected(null);
+        onClose();
       } catch {
         toast.error("저장에 실패했습니다");
       }
     });
   }
 
-  const attendance = selected?.attendances[0];
+  return (
+    <form action={handleSubmit} className="space-y-4">
+      <input type="hidden" name="studentId" value={student.id} />
+
+      <div className="space-y-2">
+        <Label>출결 유형</Label>
+        <Select name="type" defaultValue={attendance?.type || "NORMAL"}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="NORMAL">정상 출석</SelectItem>
+            <SelectItem value="ABSENT">결석</SelectItem>
+            <SelectItem value="TARDY">지각</SelectItem>
+            <SelectItem value="EARLY_LEAVE">조퇴</SelectItem>
+            <SelectItem value="APPROVED_ABSENT">공결</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label>입실 시간</Label>
+          <TimePickerInput value={checkIn} onChange={setCheckIn} className="w-full" />
+        </div>
+        <div className="space-y-2">
+          <Label>퇴실 시간</Label>
+          <TimePickerInput value={checkOut} onChange={setCheckOut} className="w-full" />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="notes">비고</Label>
+        <Textarea
+          id="notes"
+          name="notes"
+          defaultValue={attendance?.notes || ""}
+          placeholder="특이사항을 입력하세요"
+          rows={2}
+        />
+      </div>
+
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onClose}>
+          취소
+        </Button>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? "저장 중..." : "저장"}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+export function AttendanceBoard({ students, today }: Props) {
+  const todayDate = new Date(today).toISOString().split("T")[0];
+  const [selected, setSelected] = useState<StudentWithAttendance | null>(null);
 
   return (
     <>
@@ -123,74 +194,12 @@ export function AttendanceBoard({ students, today }: Props) {
             <DialogTitle>{selected?.name} 출결 기록</DialogTitle>
           </DialogHeader>
           {selected && (
-            <form action={handleSubmit} className="space-y-4">
-              <input type="hidden" name="studentId" value={selected.id} />
-
-              <div className="space-y-2">
-                <Label>출결 유형</Label>
-                <Select name="type" defaultValue={attendance?.type || "NORMAL"}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="NORMAL">정상 출석</SelectItem>
-                    <SelectItem value="ABSENT">결석</SelectItem>
-                    <SelectItem value="TARDY">지각</SelectItem>
-                    <SelectItem value="EARLY_LEAVE">조퇴</SelectItem>
-                    <SelectItem value="APPROVED_ABSENT">공결</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="checkIn">입실 시간</Label>
-                  <Input
-                    id="checkIn"
-                    name="checkIn"
-                    type="time"
-                    defaultValue={
-                      attendance?.checkIn
-                        ? new Date(attendance.checkIn).toTimeString().slice(0, 5)
-                        : ""
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="checkOut">퇴실 시간</Label>
-                  <Input
-                    id="checkOut"
-                    name="checkOut"
-                    type="time"
-                    defaultValue={
-                      attendance?.checkOut
-                        ? new Date(attendance.checkOut).toTimeString().slice(0, 5)
-                        : ""
-                    }
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="notes">비고</Label>
-                <Textarea
-                  id="notes"
-                  name="notes"
-                  defaultValue={attendance?.notes || ""}
-                  placeholder="특이사항을 입력하세요"
-                  rows={2}
-                />
-              </div>
-
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setSelected(null)}>
-                  취소
-                </Button>
-                <Button type="submit" disabled={isPending}>
-                  {isPending ? "저장 중..." : "저장"}
-                </Button>
-              </DialogFooter>
-            </form>
+            <AttendanceEditForm
+              key={selected.id}
+              student={selected}
+              todayDate={todayDate}
+              onClose={() => setSelected(null)}
+            />
           )}
         </DialogContent>
       </Dialog>

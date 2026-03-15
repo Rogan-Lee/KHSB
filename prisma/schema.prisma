@@ -10,6 +10,7 @@ datasource db {
 enum Role {
   DIRECTOR
   MENTOR
+  STAFF
   STUDENT
 }
 
@@ -61,39 +62,75 @@ enum MessageType {
   CUSTOM
 }
 
+enum CommunicationType {
+  PARENT_REQUEST  // 학부모 요청사항
+  STAFF_NOTE      // 운영진 전달사항
+}
+
+enum ExamType {
+  OFFICIAL_MOCK   // 공식 모의고사 (수능/평가원)
+  PRIVATE_MOCK    // 사설 모의고사
+  SCHOOL_EXAM     // 학교 내신
+}
+
+enum CalendarEventType {
+  SCHOOL_EXAM    // 학교 시험
+  SCHOOL_EVENT   // 학교 행사
+  PERSONAL       // 개인 일정
+  PLATFORM       // 플랫폼 일정
+}
+
 model User {
   id         String      @id @default(cuid())
   email      String      @unique
   name       String
   password   String
   role       Role        @default(MENTOR)
-  students   Student[]   @relation("MentorStudents")
-  mentorings Mentoring[]
+  students        Student[]        @relation("MentorStudents")
+  mentorings      Mentoring[]
+  mentorSchedules MentorSchedule[]
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 }
 
 model Student {
-  id             String                 @id @default(cuid())
-  name           String
-  phone          String?
-  parentPhone    String
-  grade          String
-  school         String?
-  seat           String?
-  startDate      DateTime
-  endDate        DateTime?
-  status         StudentStatus          @default(ACTIVE)
-  mentorId       String?
-  mentor         User?                  @relation("MentorStudents", fields: [mentorId], references: [id])
+  id                  String                 @id @default(cuid())
+  name                String
+  phone               String?
+  parentPhone         String
+  parentEmail         String?
+  grade               String
+  school              String?
+  classGroup          String?               // 반 (예: 정규반, 선택반)
+  seat                String?
+  startDate           DateTime
+  endDate             DateTime?
+  status              StudentStatus          @default(ACTIVE)
+  internalScoreRange  String?               // 내신 성적대 (예: "2~3등급")
+  mockScoreRange      String?               // 모의고사 성적대 (예: "3~4등급")
+  targetUniversity    String?               // 희망 대학
+  mentoringNotes      String?               // 멘토링 주의사항
+  academySchedule     String?               // 학원 스케줄 (텍스트)
+  studentInfo         String?               // 학생정보 (추가 메모)
+  selectedSubjects    String?               // 선택과목 (예: "수학, 영어, 사탐")
+  admissionType       String?               // 대학 입시 전형 (예: "수시 학종, 정시")
+  onlineLectures      String?               // 수강중인 인강 (예: "메가스터디 수학")
+  mentorId            String?
+  mentor              User?                  @relation("MentorStudents", fields: [mentorId], references: [id])
   schedules      AttendanceSchedule[]
   attendances    AttendanceRecord[]
+  outings        OutingSchedule[]
+  dailyOutings   DailyOuting[]
   merits         MeritDemerit[]
   mentorings     Mentoring[]
   academicPlans  AcademicPlan[]
   consultations  DirectorConsultation[]
   messages       MessageLog[]
   monthlyReports MonthlyReport[]
+  communications Communication[]
+  examScores     ExamScore[]
+  calendarEvents CalendarEvent[]
+  assignments    Assignment[]
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
 }
@@ -115,12 +152,38 @@ model AttendanceRecord {
   date      DateTime       @db.Date
   checkIn   DateTime?
   checkOut  DateTime?
+  outStart  DateTime?      // 실제 외출 시각
+  outEnd    DateTime?      // 실제 복귀 시각
   type      AttendanceType @default(NORMAL)
   notes     String?
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
   @@unique([studentId, date])
+}
+
+model OutingSchedule {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  dayOfWeek Int      // 0=일, 1=월, ..., 6=토
+  outStart  String   // "12:00" - 예정 외출 시각
+  outEnd    String   // "14:00" - 예정 복귀 시각
+  reason    String?  // "수학학원"
+  createdAt DateTime @default(now())
+}
+
+model DailyOuting {
+  id        String    @id @default(cuid())
+  studentId String
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date      DateTime  @db.Date
+  outStart  DateTime?
+  outEnd    DateTime?
+  reason    String?
+  createdAt DateTime  @default(now())
+
+  @@index([studentId, date])
 }
 
 model MeritDemerit {
@@ -137,19 +200,40 @@ model MeritDemerit {
 }
 
 model Mentoring {
-  id          String          @id @default(cuid())
-  studentId   String
-  student     Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  mentorId    String
-  mentor      User            @relation(fields: [mentorId], references: [id])
-  scheduledAt DateTime
-  actualDate  DateTime?
-  status      MentoringStatus @default(SCHEDULED)
-  notes       String?
-  feedback    String?
-  nextGoals   String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id                 String          @id @default(cuid())
+  studentId          String
+  student            Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  mentorId           String
+  mentor             User            @relation(fields: [mentorId], references: [id])
+  scheduledAt        DateTime
+  scheduledTimeStart String?         // "14:00"
+  scheduledTimeEnd   String?         // "15:00"
+  actualDate         DateTime?
+  actualStartTime    String?         // "14:05"
+  actualEndTime      String?         // "15:10"
+  status             MentoringStatus @default(SCHEDULED)
+  content            String?         // 오늘 멘토링 내용
+  previousIssues     String?         // 이전 회차에서 전달한 내용
+  improvements       String?         // 개선된 점
+  weaknesses         String?         // 부족한 점
+  nextGoals          String?         // 다음 멘토링 목표
+  notes              String?         // 기타 메모
+  feedbackSentAt     DateTime?       // 피드백 이메일 발송 시각
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+}
+
+model MentorSchedule {
+  id        String   @id @default(cuid())
+  mentorId  String
+  mentor    User     @relation(fields: [mentorId], references: [id])
+  dayOfWeek Int      // 0=일, 1=월, ..., 6=토
+  timeStart String   // "14:00"
+  timeEnd   String   // "18:00"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([mentorId, dayOfWeek])
 }
 
 model AcademicPlan {
@@ -215,4 +299,70 @@ model MonthlyReport {
   updatedAt       DateTime  @updatedAt
 
   @@unique([studentId, year, month])
+}
+
+model Communication {
+  id            String            @id @default(cuid())
+  studentId     String
+  student       Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type          CommunicationType
+  content       String
+  isChecked     Boolean           @default(false)
+  checkedAt     DateTime?
+  createdById   String
+  createdByName String
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+}
+
+model ExamScore {
+  id          String    @id @default(cuid())
+  studentId   String
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  examType    ExamType
+  examName    String
+  examDate    DateTime  @db.Date
+  subject     String
+  rawScore    Int?
+  grade       Int?
+  percentile  Float?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Assignment {
+  id            String    @id @default(cuid())
+  studentId     String
+  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  mentoringId   String?   // 연결된 멘토링 세션 (optional)
+  title         String    // 과제 제목
+  description   String?   // 상세 내용
+  subject       String?   // 과목 (수학, 영어, 국어 등)
+  dueDate       DateTime? @db.Date  // 마감일
+  isCompleted   Boolean   @default(false)
+  completedAt   DateTime?
+  completedNote String?   // 완료 메모
+  createdById   String
+  createdByName String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model CalendarEvent {
+  id            String            @id @default(cuid())
+  title         String
+  description   String?
+  startDate     DateTime
+  endDate       DateTime?
+  allDay        Boolean           @default(true)
+  type          CalendarEventType
+  studentId     String?
+  student       Student?          @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  schoolName    String?
+  color         String?
+  googleEventId String?
+  createdById   String
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 }

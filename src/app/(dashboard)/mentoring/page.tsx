@@ -1,31 +1,20 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { formatDate } from "@/lib/utils";
-import { Plus } from "lucide-react";
 import { NewMentoringDialog } from "@/components/mentoring/new-mentoring-dialog";
-
-const STATUS_MAP = {
-  SCHEDULED: { label: "예정", variant: "secondary" as const },
-  COMPLETED: { label: "완료", variant: "default" as const },
-  CANCELLED: { label: "취소", variant: "destructive" as const },
-  RESCHEDULED: { label: "일정변경", variant: "outline" as const },
-};
+import { TodayMentoringPanel } from "@/components/mentoring/today-mentoring-panel";
+import { MentoringList } from "@/components/mentoring/mentoring-list";
+import { getTodayWorkingMentors } from "@/actions/mentoring";
+import { Calendar } from "lucide-react";
 
 export default async function MentoringPage() {
   const session = await auth();
   const isDirector = session?.user?.role === "DIRECTOR";
+  // 로컬 날짜 기준 (출결 페이지와 동일)
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   const mentorings = await prisma.mentoring.findMany({
     where: isDirector ? undefined : { mentorId: session?.user?.id },
@@ -37,11 +26,21 @@ export default async function MentoringPage() {
     take: 50,
   });
 
+  const todaySlots = await getTodayWorkingMentors();
+
   const students = await prisma.student.findMany({
     where: { status: "ACTIVE" },
-    select: { id: true, name: true, grade: true },
+    select: { id: true, name: true, grade: true, school: true },
     orderBy: { name: "asc" },
   });
+
+  const mentors = isDirector
+    ? await prisma.user.findMany({
+        where: { role: { in: ["MENTOR", "STAFF", "DIRECTOR"] } },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      })
+    : [];
 
   const upcoming = mentorings.filter((m) => m.status === "SCHEDULED").length;
   const completed = mentorings.filter((m) => m.status === "COMPLETED").length;
@@ -63,57 +62,30 @@ export default async function MentoringPage() {
         </Card>
       </div>
 
+      {/* 오늘의 멘토링 추천 */}
+      <Card>
+        <CardContent className="pt-4">
+          <TodayMentoringPanel slots={todaySlots} today={today} />
+        </CardContent>
+      </Card>
+
+      {/* 스케줄 관리 링크 */}
+      <div className="flex justify-end">
+        <Link href="/mentoring/schedule">
+          <Button variant="outline" size="sm">
+            <Calendar className="h-4 w-4 mr-1.5" />
+            내 스케줄 관리
+          </Button>
+        </Link>
+      </div>
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>멘토링 목록</CardTitle>
           <NewMentoringDialog students={students} />
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>예정일</TableHead>
-                <TableHead>원생</TableHead>
-                {isDirector && <TableHead>멘토</TableHead>}
-                <TableHead>상태</TableHead>
-                <TableHead>메모</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mentorings.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    멘토링 기록이 없습니다
-                  </TableCell>
-                </TableRow>
-              ) : (
-                mentorings.map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell>{formatDate(m.scheduledAt)}</TableCell>
-                    <TableCell>
-                      <span className="font-medium">{m.student.name}</span>
-                      <span className="text-xs text-muted-foreground ml-1">{m.student.grade}</span>
-                    </TableCell>
-                    {isDirector && <TableCell>{m.mentor.name}</TableCell>}
-                    <TableCell>
-                      <Badge variant={STATUS_MAP[m.status].variant}>
-                        {STATUS_MAP[m.status].label}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground line-clamp-1 max-w-48">
-                      {m.notes || "-"}
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/mentoring/${m.id}`}>
-                        <Button variant="ghost" size="sm">기록 작성</Button>
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} />
         </CardContent>
       </Card>
     </div>

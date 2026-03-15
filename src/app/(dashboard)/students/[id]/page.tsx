@@ -3,8 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatDate, formatTime } from "@/lib/utils";
+import { formatDate, formatTime, parseSchool } from "@/lib/utils";
 import { StudentForm } from "@/components/students/student-form";
+import { StudentScheduleEditor } from "@/components/students/student-schedule-editor";
+import { CommunicationPanel } from "@/components/communications/communication-panel";
+import { ExamScoreChart } from "@/components/students/exam-score-chart";
+import { AssignmentPanel } from "@/components/assignments/assignment-panel";
 import {
   Table,
   TableBody,
@@ -33,29 +37,46 @@ export default async function StudentDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
+  const { id: rawId } = await params;
+  const id = decodeURIComponent(rawId);
 
-  const student = await prisma.student.findUnique({
-    where: { id },
-    include: {
-      mentor: { select: { id: true, name: true } },
-      attendances: { orderBy: { date: "desc" }, take: 30 },
-      merits: { orderBy: { date: "desc" }, take: 20 },
-      mentorings: {
-        orderBy: { scheduledAt: "desc" },
-        take: 10,
-        include: { mentor: { select: { name: true } } },
+  let student;
+  try {
+    student = await prisma.student.findUnique({
+      where: { id },
+      include: {
+        mentor: { select: { id: true, name: true } },
+        schedules: { orderBy: { dayOfWeek: "asc" } },
+        outings: { orderBy: { dayOfWeek: "asc" } },
+        attendances: { orderBy: { date: "desc" }, take: 30 },
+        merits: { orderBy: { date: "desc" }, take: 20 },
+        mentorings: {
+          orderBy: { scheduledAt: "desc" },
+          take: 10,
+          include: { mentor: { select: { name: true } } },
+        },
+        consultations: { orderBy: { scheduledAt: "desc" }, take: 10 },
+        communications: { orderBy: { createdAt: "desc" } },
+        examScores: { orderBy: { examDate: "desc" } },
+        assignments: { orderBy: { createdAt: "desc" } },
       },
-      consultations: { orderBy: { scheduledAt: "desc" }, take: 10 },
-    },
-  });
+    });
+  } catch (e) {
+    console.error("[StudentDetail] Prisma error:", e);
+    throw e;
+  }
 
   if (!student) notFound();
 
-  const mentors = await prisma.user.findMany({
-    where: { role: { in: ["DIRECTOR", "MENTOR"] } },
-    select: { id: true, name: true },
-  });
+  const [mentors, schoolRows] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: { in: ["DIRECTOR", "MENTOR"] } },
+      select: { id: true, name: true },
+    }),
+    prisma.student.findMany({ select: { school: true } }),
+  ]);
+
+  const schools = [...new Set(schoolRows.map((s) => parseSchool(s.school ?? "")).filter(Boolean))].sort();
 
   const totalMerits = student.merits
     .filter((m) => m.type === "MERIT")
@@ -116,10 +137,28 @@ export default async function StudentDetailPage({
       <Tabs defaultValue="info">
         <TabsList>
           <TabsTrigger value="info">기본 정보</TabsTrigger>
+          <TabsTrigger value="schedule">입퇴실 일정</TabsTrigger>
           <TabsTrigger value="attendance">출결 기록</TabsTrigger>
           <TabsTrigger value="merits">상벌점</TabsTrigger>
           <TabsTrigger value="mentoring">멘토링</TabsTrigger>
           <TabsTrigger value="consultation">면담</TabsTrigger>
+          <TabsTrigger value="assignments">
+            과제
+            {student.assignments.filter((a) => !a.isCompleted).length > 0 && (
+              <span className="ml-1.5 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                {student.assignments.filter((a) => !a.isCompleted).length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="communications">
+            요청/전달
+            {student.communications.filter((c) => !c.isChecked).length > 0 && (
+              <span className="ml-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                {student.communications.filter((c) => !c.isChecked).length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="scores">성적</TabsTrigger>
         </TabsList>
 
         <TabsContent value="info" className="mt-4">
@@ -128,7 +167,18 @@ export default async function StudentDetailPage({
               <CardTitle>기본 정보 수정</CardTitle>
             </CardHeader>
             <CardContent>
-              <StudentForm student={student} mentors={mentors} />
+              <StudentForm student={student} mentors={mentors} schools={schools} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="schedule" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>입퇴실 약속 일정</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <StudentScheduleEditor studentId={student.id} schedules={student.schedules} outings={student.outings} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -258,7 +308,7 @@ export default async function StudentDetailPage({
                           </Badge>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground line-clamp-1">
-                          {m.feedback || "-"}
+                          {m.notes || "-"}
                         </TableCell>
                       </TableRow>
                     ))
@@ -308,6 +358,49 @@ export default async function StudentDetailPage({
                   )}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="assignments" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>과제 관리</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AssignmentPanel
+                studentId={student.id}
+                studentName={student.name}
+                initialItems={student.assignments}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="communications" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>학부모 요청 / 운영진 전달사항</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CommunicationPanel
+                studentId={student.id}
+                initialItems={student.communications}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="scores" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>성적 관리</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ExamScoreChart
+                studentId={student.id}
+                initialScores={student.examScores}
+              />
             </CardContent>
           </Card>
         </TabsContent>
