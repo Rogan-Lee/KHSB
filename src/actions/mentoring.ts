@@ -304,7 +304,7 @@ export async function getTodayWorkingMentors(): Promise<MentorTodaySlot[]> {
   const now = new Date();
   const dayOfWeek = now.getDay(); // 로컬 요일 (0=일 ~ 6=토)
   const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // 로컬 자정
-  const isDirector = session.user.role === "DIRECTOR";
+  const isDirector = session.user.role === "DIRECTOR" || session.user.role === "ADMIN";
 
   // 오늘 근무하는 멘토 스케줄 조회
   const todaySchedules = await prisma.mentorSchedule.findMany({
@@ -401,7 +401,7 @@ export async function bulkCreateMentorings(studentIds: string[], mentorId: strin
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const isDirector = session.user.role === "DIRECTOR";
+  const isDirector = session.user.role === "DIRECTOR" || session.user.role === "ADMIN";
   const isOwnMentor = mentorId === session.user.id;
   if (!isDirector && !isOwnMentor) throw new Error("Unauthorized");
 
@@ -449,7 +449,7 @@ export async function quickStartMentoring(studentId: string, mentorId: string): 
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const isDirector = session.user.role === "DIRECTOR";
+  const isDirector = session.user.role === "DIRECTOR" || session.user.role === "ADMIN";
   const isOwnMentor = mentorId === session.user.id;
   if (!isDirector && !isOwnMentor) throw new Error("Unauthorized");
 

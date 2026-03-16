@@ -2,14 +2,15 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { MentorManager } from "@/components/mentors/mentor-manager";
+import { isFullAccess, STAFF_ROLES } from "@/lib/roles";
 
 export default async function MentorsPage() {
   const session = await auth();
-  if (session?.user?.role !== "DIRECTOR") redirect("/");
+  if (!isFullAccess(session?.user?.role)) redirect("/");
 
   const [mentors, schedules] = await Promise.all([
     prisma.user.findMany({
-      where: { role: { in: ["MENTOR", "STAFF", "DIRECTOR"] } },
+      where: { role: { in: [...STAFF_ROLES] } },
       select: { id: true, name: true, email: true, role: true },
       orderBy: { name: "asc" },
     }),

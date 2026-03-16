@@ -44,7 +44,7 @@ export async function importStudentsCSV(rows: CSVImportRow[]): Promise<ImportRes
     if (!trimmed) return null;
     if (mentorCache.has(trimmed)) return mentorCache.get(trimmed)!;
     const mentor = await prisma.user.findFirst({
-      where: { name: trimmed, role: { in: ["MENTOR", "STAFF", "DIRECTOR"] } },
+      where: { name: trimmed, role: { in: ["MENTOR", "STAFF", "DIRECTOR", "ADMIN"] } },
       select: { id: true },
     });
     if (mentor) mentorCache.set(trimmed, mentor.id);

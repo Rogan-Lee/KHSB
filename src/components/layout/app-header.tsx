@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import type { Role } from "@/generated/prisma";
 
 const ROLE_LABELS: Record<Role, string> = {
+  ADMIN: "어드민",
   DIRECTOR: "원장",
   MENTOR: "멘토",
   STAFF: "운영조교",

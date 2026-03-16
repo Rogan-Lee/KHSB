@@ -75,7 +75,7 @@ export function AppSidebar({ role }: { role?: string }) {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
         {navItems.map(renderLink)}
-        {role === "DIRECTOR" && (
+        {(role === "DIRECTOR" || role === "ADMIN") && (
           <>
             <div className="pt-2 pb-1 px-3">
               <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider">운영 관리</p>

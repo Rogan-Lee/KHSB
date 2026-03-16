@@ -149,10 +149,10 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{mentor.name}</span>
                         <Badge
-                          variant={mentor.role === "DIRECTOR" ? "default" : mentor.role === "STAFF" ? "outline" : "secondary"}
+                          variant={mentor.role === "ADMIN" || mentor.role === "DIRECTOR" ? "default" : mentor.role === "STAFF" ? "outline" : "secondary"}
                           className="text-xs"
                         >
-                          {mentor.role === "DIRECTOR" ? "원장" : mentor.role === "STAFF" ? "운영조교" : "멘토"}
+                          {mentor.role === "ADMIN" ? "어드민" : mentor.role === "DIRECTOR" ? "원장" : mentor.role === "STAFF" ? "운영조교" : "멘토"}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{mentor.email}</p>
@@ -167,7 +167,7 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
                     </button>
                     <button
                       onClick={() => handleDeleteMentor(mentor.id, mentor.name)}
-                      disabled={isPending || mentor.role === "DIRECTOR"}
+                      disabled={isPending || mentor.role === "DIRECTOR" || mentor.role === "ADMIN"}
                       className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-destructive transition-colors disabled:opacity-30"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -202,7 +202,8 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
                         <select name="role" defaultValue={mentor.role} className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
                           <option value="MENTOR">멘토</option>
                           <option value="STAFF">운영조교</option>
-                          <option value="DIRECTOR">원장 (어드민)</option>
+                          <option value="DIRECTOR">원장</option>
+                          <option value="ADMIN">어드민</option>
                         </select>
                       </div>
                       <div className="space-y-1">

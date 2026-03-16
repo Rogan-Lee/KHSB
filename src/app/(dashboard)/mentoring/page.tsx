@@ -8,10 +8,11 @@ import { TodayMentoringPanel } from "@/components/mentoring/today-mentoring-pane
 import { MentoringList } from "@/components/mentoring/mentoring-list";
 import { getTodayWorkingMentors } from "@/actions/mentoring";
 import { Calendar } from "lucide-react";
+import { isFullAccess } from "@/lib/roles";
 
 export default async function MentoringPage() {
   const session = await auth();
-  const isDirector = session?.user?.role === "DIRECTOR";
+  const isDirector = isFullAccess(session?.user?.role);
   // 로컬 날짜 기준 (출결 페이지와 동일)
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -36,7 +37,7 @@ export default async function MentoringPage() {
 
   const mentors = isDirector
     ? await prisma.user.findMany({
-        where: { role: { in: ["MENTOR", "STAFF", "DIRECTOR"] } },
+        where: { role: { in: ["MENTOR", "STAFF", "DIRECTOR", "ADMIN"] } },
         select: { id: true, name: true },
         orderBy: { name: "asc" },
       })

@@ -70,7 +70,7 @@ export default async function StudentDetailPage({
 
   const [mentors, schoolRows] = await Promise.all([
     prisma.user.findMany({
-      where: { role: { in: ["DIRECTOR", "MENTOR"] } },
+      where: { role: { in: ["ADMIN", "DIRECTOR", "MENTOR"] } },
       select: { id: true, name: true },
     }),
     prisma.student.findMany({ select: { school: true } }),

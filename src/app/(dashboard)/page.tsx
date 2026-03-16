@@ -162,7 +162,7 @@ export default async function DashboardPage() {
                       <div>
                         <span className="text-sm font-medium">{m.student.name}</span>
                         <span className="text-xs text-muted-foreground ml-1">{m.student.grade}</span>
-                        {session?.user?.role === "DIRECTOR" && (
+                        {(session?.user?.role === "DIRECTOR" || session?.user?.role === "ADMIN") && (
                           <span className="text-xs text-muted-foreground ml-1">· {m.mentor.name}</span>
                         )}
                       </div>
