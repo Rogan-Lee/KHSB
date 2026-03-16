@@ -154,6 +154,7 @@ export default async function MentoringDetailPage({
           <CardContent>
             <MentoringRecordForm
               mentoring={mentoring}
+              studentName={s.name}
               parentEmail={s.parentEmail}
               previousMentoring={previousMentoring}
             />
