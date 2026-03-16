@@ -9,10 +9,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { TimePickerInput } from "@/components/ui/time-picker";
-import { updateMentoring, sendFeedbackEmail } from "@/actions/mentoring";
+import { updateMentoring, sendFeedbackEmail, updateMentoringStatus } from "@/actions/mentoring";
 import { toast } from "sonner";
 import type { Mentoring } from "@/generated/prisma";
-import { Mail, CheckCircle2, Clock, ChevronDown, ChevronUp, History } from "lucide-react";
+import { Mail, CheckCircle2, ChevronDown, ChevronUp, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type PreviousMentoring = {
@@ -131,6 +131,17 @@ export function MentoringRecordForm({ mentoring, parentEmail, previousMentoring 
         toast.success("저장되었습니다");
       } catch {
         toast.error("저장에 실패했습니다");
+      }
+    });
+  }
+
+  function handleComplete() {
+    startTransition(async () => {
+      try {
+        await updateMentoringStatus(mentoring.id, "COMPLETED");
+        toast.success("완료 처리되었습니다");
+      } catch {
+        toast.error("처리에 실패했습니다");
       }
     });
   }
@@ -266,6 +277,18 @@ export function MentoringRecordForm({ mentoring, parentEmail, previousMentoring 
           <Button type="submit" disabled={isPending}>
             {isPending ? "저장 중..." : "저장"}
           </Button>
+          {mentoring.status === "SCHEDULED" && (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isPending}
+              onClick={handleComplete}
+              className="gap-1.5"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              완료 처리
+            </Button>
+          )}
 
           <div className="ml-auto flex items-center gap-2">
             {mentoring.feedbackSentAt && (

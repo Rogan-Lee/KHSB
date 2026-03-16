@@ -428,6 +428,23 @@ export async function deleteMentoring(id: string) {
   revalidatePath("/mentoring");
 }
 
+export async function bulkDeleteMentorings(ids: string[]) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  await prisma.mentoring.deleteMany({ where: { id: { in: ids } } });
+  revalidatePath("/mentoring");
+}
+
+export async function updateMentoringStatus(id: string, status: MentoringStatus) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  await prisma.mentoring.update({ where: { id }, data: { status } });
+  revalidatePath("/mentoring");
+  revalidatePath(`/mentoring/${id}`);
+}
+
 export async function quickStartMentoring(studentId: string, mentorId: string): Promise<string> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");

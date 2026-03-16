@@ -4,8 +4,7 @@ import { useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
 import {
@@ -15,10 +14,15 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent,
+  DropdownMenuSubTrigger, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2 } from "lucide-react";
-import { updateMentoring, deleteMentoring } from "@/actions/mentoring";
+import { MoreHorizontal, Trash2 } from "lucide-react";
+import { updateMentoringStatus, deleteMentoring, bulkDeleteMentorings } from "@/actions/mentoring";
 import { toast } from "sonner";
 
 const STATUS_MAP = {
@@ -52,101 +56,12 @@ function toLocalDateString(date: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function EditDialog({
-  mentoring,
-  open,
-  onClose,
-}: {
-  mentoring: Mentoring;
-  open: boolean;
-  onClose: () => void;
-}) {
-  const [isPending, startTransition] = useTransition();
-  const [status, setStatus] = useState<string>(mentoring.status);
-
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    formData.set("status", status);
-    startTransition(async () => {
-      try {
-        await updateMentoring(mentoring.id, formData);
-        toast.success("수정되었습니다");
-        onClose();
-      } catch {
-        toast.error("수정에 실패했습니다");
-      }
-    });
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>멘토링 수정</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>예정일</Label>
-            <Input
-              type="date"
-              name="scheduledAt"
-              defaultValue={toLocalDateString(mentoring.scheduledAt)}
-              required
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>시작 시간</Label>
-              <Input
-                type="time"
-                name="scheduledTimeStart"
-                defaultValue={mentoring.scheduledTimeStart ?? ""}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>종료 시간</Label>
-              <Input
-                type="time"
-                name="scheduledTimeEnd"
-                defaultValue={mentoring.scheduledTimeEnd ?? ""}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>상태</Label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(STATUS_MAP).map(([value, { label }]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>메모</Label>
-            <Textarea
-              name="notes"
-              defaultValue={mentoring.notes ?? ""}
-              rows={3}
-            />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>취소</Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "저장 중..." : "저장"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
+function getToday() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
-function DeleteDialog({
+function DeleteConfirmDialog({
   mentoring,
   open,
   onClose,
@@ -190,12 +105,96 @@ function DeleteDialog({
   );
 }
 
+function BulkDeleteConfirmDialog({
+  count,
+  open,
+  onClose,
+  onConfirm,
+  isPending,
+}: {
+  count: number;
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  isPending: boolean;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>멘토링 {count}건 삭제</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          선택한 멘토링 {count}건을 삭제합니다. 이 작업은 되돌릴 수 없습니다.
+        </p>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>취소</Button>
+          <Button variant="destructive" disabled={isPending} onClick={onConfirm}>
+            {isPending ? "삭제 중..." : `${count}건 삭제`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function KebabMenu({ mentoring, onDelete }: { mentoring: Mentoring; onDelete: () => void }) {
+  const [isPending, startTransition] = useTransition();
+
+  function changeStatus(status: keyof typeof STATUS_MAP) {
+    startTransition(async () => {
+      try {
+        await updateMentoringStatus(mentoring.id, status);
+        toast.success(`${STATUS_MAP[status].label}으로 변경되었습니다`);
+      } catch {
+        toast.error("상태 변경에 실패했습니다");
+      }
+    });
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={isPending}>
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>상태 변경</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {(Object.entries(STATUS_MAP) as [keyof typeof STATUS_MAP, { label: string }][]).map(([value, { label }]) => (
+              <DropdownMenuItem
+                key={value}
+                onClick={() => changeStatus(value)}
+                disabled={mentoring.status === value}
+              >
+                {label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="text-destructive focus:text-destructive"
+          onClick={onDelete}
+        >
+          삭제
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function MentoringList({ mentorings, mentors, isDirector }: Props) {
+  const today = getToday();
   const [selectedMentorId, setSelectedMentorId] = useState<string>("all");
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
-  const [editTarget, setEditTarget] = useState<Mentoring | null>(null);
+  const [dateFrom, setDateFrom] = useState<string>(today);
+  const [dateTo, setDateTo] = useState<string>(today);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<Mentoring | null>(null);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [isBulkPending, startBulkTransition] = useTransition();
 
   const filtered = mentorings.filter((m) => {
     if (selectedMentorId !== "all" && m.mentor.id !== selectedMentorId) return false;
@@ -204,6 +203,46 @@ export function MentoringList({ mentorings, mentors, isDirector }: Props) {
     if (dateTo && dateStr > dateTo) return false;
     return true;
   });
+
+  const filteredIds = filtered.map((m) => m.id);
+  const allSelected = filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
+  const someSelected = filteredIds.some((id) => selected.has(id));
+  const selectedCount = filteredIds.filter((id) => selected.has(id)).length;
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        filteredIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelected((prev) => new Set([...prev, ...filteredIds]));
+    }
+  }
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function handleBulkDelete() {
+    startBulkTransition(async () => {
+      try {
+        const ids = filteredIds.filter((id) => selected.has(id));
+        await bulkDeleteMentorings(ids);
+        setSelected(new Set());
+        setBulkDeleteOpen(false);
+        toast.success(`${ids.length}건 삭제되었습니다`);
+      } catch {
+        toast.error("삭제에 실패했습니다");
+      }
+    });
+  }
 
   return (
     <div className="space-y-3">
@@ -239,23 +278,43 @@ export function MentoringList({ mentorings, mentors, isDirector }: Props) {
           value={dateTo}
           onChange={(e) => setDateTo(e.target.value)}
         />
-        {(dateFrom || dateTo) && (
+        {(dateFrom !== today || dateTo !== today) && (
           <Button
             variant="ghost"
             size="sm"
             className="h-8 px-2 text-xs"
-            onClick={() => { setDateFrom(""); setDateTo(""); }}
+            onClick={() => { setDateFrom(today); setDateTo(today); }}
           >
-            초기화
+            오늘로
           </Button>
         )}
-        <span className="text-xs text-muted-foreground ml-auto">{filtered.length}건</span>
+        <div className="ml-auto flex items-center gap-2">
+          {someSelected && selectedCount > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 gap-1.5"
+              onClick={() => setBulkDeleteOpen(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {selectedCount}건 삭제
+            </Button>
+          )}
+          <span className="text-xs text-muted-foreground">{filtered.length}건</span>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={toggleAll}
+                  aria-label="전체 선택"
+                />
+              </TableHead>
               <TableHead className="whitespace-nowrap">예정일</TableHead>
               <TableHead className="whitespace-nowrap">원생</TableHead>
               {isDirector && <TableHead className="whitespace-nowrap">멘토</TableHead>}
@@ -268,13 +327,20 @@ export function MentoringList({ mentorings, mentors, isDirector }: Props) {
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={isDirector ? 7 : 6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={isDirector ? 8 : 7} className="text-center text-muted-foreground py-8">
                   멘토링 기록이 없습니다
                 </TableCell>
               </TableRow>
             ) : (
               filtered.map((m) => (
-                <TableRow key={m.id}>
+                <TableRow key={m.id} data-state={selected.has(m.id) ? "selected" : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selected.has(m.id)}
+                      onCheckedChange={() => toggleOne(m.id)}
+                      aria-label={`${m.student.name} 선택`}
+                    />
+                  </TableCell>
                   <TableCell className="whitespace-nowrap">{formatDate(m.scheduledAt)}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     <span className="font-medium">{m.student.name}</span>
@@ -299,22 +365,10 @@ export function MentoringList({ mentorings, mentors, isDirector }: Props) {
                       <Link href={`/mentoring/${m.id}`}>
                         <Button variant="ghost" size="sm">기록</Button>
                       </Link>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => setEditTarget(m)}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => setDeleteTarget(m)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <KebabMenu
+                        mentoring={m}
+                        onDelete={() => setDeleteTarget(m)}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>
@@ -324,20 +378,20 @@ export function MentoringList({ mentorings, mentors, isDirector }: Props) {
         </Table>
       </div>
 
-      {editTarget && (
-        <EditDialog
-          mentoring={editTarget}
-          open={!!editTarget}
-          onClose={() => setEditTarget(null)}
-        />
-      )}
       {deleteTarget && (
-        <DeleteDialog
+        <DeleteConfirmDialog
           mentoring={deleteTarget}
           open={!!deleteTarget}
           onClose={() => setDeleteTarget(null)}
         />
       )}
+      <BulkDeleteConfirmDialog
+        count={selectedCount}
+        open={bulkDeleteOpen}
+        onClose={() => setBulkDeleteOpen(false)}
+        onConfirm={handleBulkDelete}
+        isPending={isBulkPending}
+      />
     </div>
   );
 }
