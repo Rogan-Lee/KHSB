@@ -67,8 +67,8 @@ export function AppSidebar({ role }: { role?: string }) {
           <BookOpen className="h-3.5 w-3.5 text-primary-foreground" />
         </div>
         <div>
-          <p className="font-semibold text-[13px] tracking-tight">독서실 관리</p>
-          <p className="text-[10px] text-muted-foreground/70 leading-none mt-0.5 tracking-wide">STUDY ROOM MANAGER</p>
+          <p className="font-semibold text-[13px] tracking-tight">KHSB BackOffice</p>
+          <p className="text-[10px] text-muted-foreground/70 leading-none mt-0.5 tracking-wide">Admin System</p>
         </div>
       </div>
 
