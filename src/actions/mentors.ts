@@ -35,11 +35,14 @@ export async function updateMentor(id: string, formData: FormData) {
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
+  const role = formData.get("role") as string | null;
 
   if (!name || !email) throw new Error("필수 항목을 입력하세요");
 
-  const data: { name: string; email: string; password?: string } = { name, email };
+  const validRoles = ["MENTOR", "STAFF", "DIRECTOR"];
+  const data: { name: string; email: string; password?: string; role?: "MENTOR" | "STAFF" | "DIRECTOR" } = { name, email };
   if (password) data.password = await bcrypt.hash(password, 10);
+  if (role && validRoles.includes(role)) data.role = role as "MENTOR" | "STAFF" | "DIRECTOR";
 
   await prisma.user.update({ where: { id }, data });
   revalidatePath("/mentors");

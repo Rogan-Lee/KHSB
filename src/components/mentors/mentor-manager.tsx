@@ -196,9 +196,19 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
                         <Input name="email" type="email" defaultValue={mentor.email} required className="h-8 text-sm" />
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">새 비밀번호 (변경 시에만 입력)</Label>
-                      <Input name="password" type="password" placeholder="변경하지 않으면 빈칸" className="h-8 text-sm" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">역할 (권한)</Label>
+                        <select name="role" defaultValue={mentor.role} className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+                          <option value="MENTOR">멘토</option>
+                          <option value="STAFF">운영조교</option>
+                          <option value="DIRECTOR">원장 (어드민)</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">새 비밀번호 (변경 시에만 입력)</Label>
+                        <Input name="password" type="password" placeholder="변경하지 않으면 빈칸" className="h-8 text-sm" />
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <Button type="submit" size="sm" disabled={isPending}>저장</Button>

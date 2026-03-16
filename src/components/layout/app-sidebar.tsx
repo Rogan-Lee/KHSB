@@ -62,7 +62,7 @@ export function AppSidebar({ role }: { role?: string }) {
   return (
     <aside className="fixed left-0 top-0 h-screen w-60 bg-sidebar border-r border-sidebar-border flex flex-col shadow-[1px_0_0_0_var(--sidebar-border)]">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-[18px] border-b border-sidebar-border">
+      <div className="flex items-center gap-3 px-5 h-14 border-b border-sidebar-border">
         <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shadow-sm shrink-0">
           <BookOpen className="h-3.5 w-3.5 text-primary-foreground" />
         </div>
