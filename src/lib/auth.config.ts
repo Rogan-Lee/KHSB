@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 
 export const authConfig: NextAuthConfig = {
   session: { strategy: "jwt" },
+  trustHost: true,
   pages: {
     signIn: "/login",
   },
