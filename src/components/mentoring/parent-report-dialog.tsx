@@ -20,7 +20,7 @@ import {
 } from "@/actions/ai-enhance";
 import {
   Link2, Copy, Check, Send, MessageCircle,
-  Loader2, Sparkles, ArrowRight, ChevronDown, ChevronUp,
+  Loader2, Sparkles, ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -55,9 +55,6 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
   const [edited, setEdited] = useState<EditableContent>({
     content: "", improvements: "", weaknesses: "", nextGoals: "", notes: "",
   });
-  const [expandedFields, setExpandedFields] = useState<Set<string>>(
-    new Set(["content", "improvements", "weaknesses", "nextGoals"])
-  );
   const [reportUrl, setReportUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -70,14 +67,6 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
       weaknesses: nullToEmpty(data.weaknesses),
       nextGoals: nullToEmpty(data.nextGoals),
       notes: nullToEmpty(data.notes),
-    });
-  }
-
-  function toggleField(key: string) {
-    setExpandedFields((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
     });
   }
 
@@ -160,7 +149,7 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className={cn("max-w-md", step === "review" && "max-w-lg")}>
+      <DialogContent className={cn("max-w-md", step === "review" && "max-w-2xl w-[90vw]")}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="h-4 w-4" />
@@ -229,30 +218,19 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
           <div className="space-y-3 pt-1">
             <div className="flex items-center gap-1.5 text-primary">
               <Sparkles className="h-4 w-4" />
-              <p className="text-sm font-medium">AI가 내용을 다듬었습니다. 검토 후 수정하세요.</p>
+              <p className="text-sm font-medium">AI가 내용을 다듬었습니다. 직접 수정 후 생성하세요.</p>
             </div>
 
-            <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-[65vh] overflow-y-auto pr-1">
               {FIELD_LABELS.filter(({ key }) => edited[key]).map(({ key, label, rows }) => (
-                <div key={key} className="rounded-lg border overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => toggleField(key)}
-                    className="w-full flex items-center justify-between px-3 py-2 bg-muted/40 hover:bg-muted/70 transition-colors"
-                  >
-                    <span className="text-xs font-semibold text-muted-foreground">{label}</span>
-                    {expandedFields.has(key)
-                      ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
-                      : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
-                  </button>
-                  {expandedFields.has(key) && (
-                    <Textarea
-                      value={edited[key]}
-                      onChange={(e) => setEdited((prev) => ({ ...prev, [key]: e.target.value }))}
-                      rows={rows}
-                      className="border-0 rounded-none resize-y text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
-                    />
-                  )}
+                <div key={key} className="space-y-1">
+                  <p className="text-xs font-semibold text-muted-foreground px-0.5">{label}</p>
+                  <Textarea
+                    value={edited[key]}
+                    onChange={(e) => setEdited((prev) => ({ ...prev, [key]: e.target.value }))}
+                    rows={rows + 1}
+                    className="resize-y text-sm leading-relaxed"
+                  />
                 </div>
               ))}
             </div>

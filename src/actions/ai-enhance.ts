@@ -67,34 +67,33 @@ export async function enhanceMentoringWithAI(mentoringId: string): Promise<Enhan
 
   const completion = await groq.chat.completions.create({
     model: "llama-3.3-70b-versatile",
-    temperature: 0.6,
-    response_format: { type: "json_object" },
+    temperature: 0.3,
+    max_tokens: 1500,
     messages: [
       {
         role: "system",
-        content: `당신은 15년 경력의 대한민국 최고 입시 컨설턴트입니다. 멘토가 작성한 멘토링 기록을 바탕으로 학부모님께 전달할 전문적이고 따뜻한 리포트를 작성합니다.
+        content: `당신은 학부모 소통을 전담하는 입시 관리 전문가입니다.
+멘토가 작성한 메모를 학부모님께 전달하기 좋은 문체로 다듬는 역할을 합니다.
 
-작성 규칙:
-- 맞춤법과 문법을 정확하게 교정합니다
-- 전문적이면서도 학부모가 이해하기 쉬운 언어를 사용합니다
-- 학생의 성장 가능성과 노력을 긍정적으로 강조합니다
-- 추상적인 표현 대신 구체적인 내용으로 서술합니다
-- 입시 컨설팅 전문가다운 신뢰감 있는 어투를 사용합니다
-- 원본의 핵심 내용은 반드시 유지합니다
-- 없는 내용은 만들어내지 않습니다
-- 반드시 JSON 형식으로만 응답합니다`,
+반드시 지켜야 할 규칙:
+- 원본에 있는 사실과 내용만 사용합니다. 새로운 정보를 절대 추가하지 않습니다.
+- 맞춤법과 문장 부호를 교정합니다.
+- 구어체나 메모 형식을 "~하였습니다", "~드립니다" 같은 정중한 서술체로 바꿉니다.
+- 원본이 짧더라도 억지로 늘리지 않습니다. 원본 분량을 크게 벗어나지 않게 합니다.
+- 한자나 영어 단어는 한국어로 변환합니다.
+- 반드시 JSON 형식으로만 응답합니다.`,
       },
       {
         role: "user",
-        content: `다음 멘토링 기록을 전문적인 학부모 리포트 형식으로 다듬어주세요.
-해당 항목의 원본이 없으면 null을 반환하세요.
+        content: `학생: ${mentoring.student.name} (${mentoring.student.grade})
 
-학생: ${mentoring.student.name} (${mentoring.student.grade})
+아래 멘토 메모를 학부모님께 전달할 정중한 서술체로 다듬어 주세요.
+원본의 내용과 사실은 그대로 유지하고, 표현과 문체만 다듬어 주세요.
 
-원본 내용:
+원본 메모:
 ${rawContent}
 
-다음 JSON 형식으로 응답하세요:
+JSON 형식으로만 응답하세요 (원본이 없는 항목은 null):
 {
   "content": "다듬어진 오늘 멘토링 내용 또는 null",
   "improvements": "다듬어진 개선된 점 또는 null",
@@ -107,9 +106,12 @@ ${rawContent}
   });
 
   const raw = completion.choices[0]?.message?.content ?? "{}";
+  // ```json ... ``` 블록이 포함된 경우 추출
+  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) ?? raw.match(/(\{[\s\S]*\})/);
+  const jsonStr = jsonMatch ? jsonMatch[1] : raw;
   let enhanced: Partial<EnhancedMentoringContent>;
   try {
-    enhanced = JSON.parse(raw);
+    enhanced = JSON.parse(jsonStr.trim());
   } catch {
     throw new Error("AI 응답 파싱에 실패했습니다");
   }
