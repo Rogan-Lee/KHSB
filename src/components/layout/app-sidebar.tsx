@@ -17,6 +17,7 @@ import {
   Calendar,
   CalendarDays,
   UserCog,
+  LayoutList,
 } from "lucide-react";
 
 const navItems = [
@@ -28,6 +29,7 @@ const navItems = [
   { href: "/mentoring/schedule", label: "멘토 스케줄", icon: Calendar },
   { href: "/calendar", label: "캘린더", icon: CalendarDays },
   { href: "/assignments", label: "과제 관리", icon: ClipboardCheck },
+  { href: "/timetable", label: "시간표", icon: LayoutList },
   { href: "/consultations", label: "원장 면담", icon: FileText },
   { href: "/messages", label: "카카오 메시지", icon: MessageCircle },
   { href: "/reports", label: "월간 리포트", icon: BarChart3 },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -114,6 +115,7 @@ function StudentCombobox({
 }
 
 export function NewMentoringDialog({ students }: Props) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -125,10 +127,11 @@ export function NewMentoringDialog({ students }: Props) {
     formData.set("studentId", selectedId);
     startTransition(async () => {
       try {
-        await createMentoring(formData);
+        const { id } = await createMentoring(formData);
         toast.success("멘토링이 등록되었습니다");
         setOpen(false);
         setSelectedId("");
+        router.push(`/mentoring/${id}`);
       } catch {
         toast.error("저장에 실패했습니다");
       }
@@ -143,7 +146,7 @@ export function NewMentoringDialog({ students }: Props) {
           멘토링 등록
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>멘토링 일정 등록</DialogTitle>
         </DialogHeader>

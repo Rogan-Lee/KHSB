@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, CSSProperties } from "react";
-import { createPortal } from "react-dom";
+import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 // 15분 간격 시간 목록 (00:00 ~ 23:45)
@@ -53,49 +52,29 @@ export function TimePickerInput({
   size = "default",
 }: TimePickerInputProps) {
   const [open, setOpen] = useState(false);
+  const [showAbove, setShowAbove] = useState(false);
   const [inputVal, setInputVal] = useState(value);
-  const [dropStyle, setDropStyle] = useState<CSSProperties>({});
 
-  // 클로저 스테일 방지용 refs
-  const inputValRef = useRef(value);   // 현재 입력값 (항상 최신)
-  const lastValidRef = useRef(value);  // 마지막으로 커밋된 유효값
-
+  const inputValRef = useRef(value);
+  const lastValidRef = useRef(value);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
 
-  // value prop 변경 시 동기화 (부모에서 직접 변경한 경우)
   useEffect(() => {
     inputValRef.current = value;
     lastValidRef.current = value;
     setInputVal(value);
   }, [value]);
 
-  // 드롭다운 위치 계산
-  function calcDropStyle() {
-    if (!inputRef.current) return;
-    const rect = inputRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const base = {
-      position: "fixed" as const,
-      left: rect.left,
-      width: 112,
-      height: DROP_HEIGHT,
-      zIndex: 9999,
-    };
-    if (spaceBelow < DROP_HEIGHT + 8) {
-      setDropStyle({ ...base, bottom: window.innerHeight - rect.top + 4 });
-    } else {
-      setDropStyle({ ...base, top: rect.bottom + 4 });
-    }
-  }
-
   function openDrop() {
-    calcDropStyle();
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setShowAbove(window.innerHeight - rect.bottom < DROP_HEIGHT + 8);
+    }
     setOpen(true);
   }
 
-  // 열리면 선택 항목으로 스크롤
   useEffect(() => {
     if (!open) return;
     const id = requestAnimationFrame(() => {
@@ -104,7 +83,6 @@ export function TimePickerInput({
     return () => cancelAnimationFrame(id);
   }, [open]);
 
-  // 외부 pointerdown 시 닫기
   useEffect(() => {
     if (!open) return;
     function handlePointerDown(e: PointerEvent) {
@@ -120,19 +98,6 @@ export function TimePickerInput({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // 스크롤/리사이즈 시 위치 재계산
-  useEffect(() => {
-    if (!open) return;
-    window.addEventListener("scroll", calcDropStyle, true);
-    window.addEventListener("resize", calcDropStyle);
-    return () => {
-      window.removeEventListener("scroll", calcDropStyle, true);
-      window.removeEventListener("resize", calcDropStyle);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  /** 유효하면 커밋, 아니면 마지막 유효값으로 복원 */
   function commitOrRestore() {
     const cur = inputValRef.current;
     if (isValidTime(cur)) {
@@ -150,7 +115,7 @@ export function TimePickerInput({
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const v = e.target.value;
-    inputValRef.current = v; // ref 즉시 업데이트 (클로저 스테일 방지)
+    inputValRef.current = v;
     setInputVal(v);
     if (isValidTime(v)) {
       const n = normalize(v);
@@ -181,8 +146,6 @@ export function TimePickerInput({
   }
 
   function handleBlur() {
-    // blur 시 외부 pointerdown 핸들러가 이미 닫는 경우가 있으므로
-    // ref 값 기준으로 커밋 (스테일 클로저 없음)
     setTimeout(() => {
       if (dropRef.current?.contains(document.activeElement)) return;
       setOpen(false);
@@ -190,15 +153,12 @@ export function TimePickerInput({
     }, 0);
   }
 
-  /** 드롭다운 항목 선택 — blur 강제 없이 state만 업데이트 */
   function selectTime(t: string) {
-    // ref 먼저 업데이트 (handleBlur setTimeout이 최신값 참조)
     inputValRef.current = t;
     lastValidRef.current = t;
     onChange(t);
     setInputVal(t);
     setOpen(false);
-    // blur 강제 호출 제거: 호출하면 handleBlur 클로저가 스테일 inputVal을 캡처해 값을 덮어씀
   }
 
   const activeSlot = nearestSlot(value);
@@ -225,40 +185,45 @@ export function TimePickerInput({
         )}
       />
 
-      {open &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div
-            ref={dropRef}
-            style={dropStyle}
-            className="overflow-y-auto rounded-lg border bg-popover shadow-xl py-1"
-          >
-            {TIMES.map((t) => {
-              const isActive = t === activeSlot;
-              return (
-                <button
-                  key={t}
-                  ref={isActive ? selectedRef : undefined}
-                  type="button"
-                  // preventDefault로 input blur 방지, 그 후 selectTime 호출
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    selectTime(t);
-                  }}
-                  className={cn(
-                    "w-full text-left px-3 py-1.5 text-sm font-mono transition-colors",
-                    isActive
-                      ? "bg-primary text-primary-foreground font-medium"
-                      : "hover:bg-accent"
-                  )}
-                >
-                  {t}
-                </button>
-              );
-            })}
-          </div>,
-          document.body
-        )}
+      {open && (
+        <div
+          ref={dropRef}
+          style={{
+            position: "absolute",
+            ...(showAbove
+              ? { bottom: "calc(100% + 4px)" }
+              : { top: "calc(100% + 4px)" }),
+            left: 0,
+            width: 112,
+            maxHeight: DROP_HEIGHT,
+            zIndex: 50,
+          }}
+          className="overflow-y-auto rounded-lg border bg-popover shadow-xl py-1"
+        >
+          {TIMES.map((t) => {
+            const isActive = t === activeSlot;
+            return (
+              <button
+                key={t}
+                ref={isActive ? selectedRef : undefined}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  selectTime(t);
+                }}
+                className={cn(
+                  "w-full text-left px-3 py-1.5 text-sm font-mono transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground font-medium"
+                    : "hover:bg-accent"
+                )}
+              >
+                {t}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

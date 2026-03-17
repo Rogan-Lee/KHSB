@@ -10,6 +10,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/merit-demerit": "상벌점 관리",
   "/mentoring": "멘토링",
   "/academic-plans": "학업 플래닝",
+  "/timetable": "시간표",
   "/consultations": "원장 면담",
   "/messages": "카카오 메시지",
   "/reports": "월간 리포트",

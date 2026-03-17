@@ -12,8 +12,9 @@ import { TimePickerInput } from "@/components/ui/time-picker";
 import { updateMentoring, sendFeedbackEmail, updateMentoringStatus } from "@/actions/mentoring";
 import { toast } from "sonner";
 import type { Mentoring } from "@/generated/prisma";
-import { Mail, CheckCircle2, ChevronDown, ChevronUp, History } from "lucide-react";
+import { Mail, CheckCircle2, ChevronDown, ChevronUp, History, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ParentReportDialog } from "./parent-report-dialog";
 
 export type PreviousMentoring = {
   id: string;
@@ -30,6 +31,7 @@ export type PreviousMentoring = {
 
 interface Props {
   mentoring: Mentoring;
+  studentName: string;
   parentEmail?: string | null;
   previousMentoring?: PreviousMentoring | null;
 }
@@ -119,10 +121,11 @@ function PreviousMentoringCard({ prev }: { prev: PreviousMentoring }) {
   );
 }
 
-export function MentoringRecordForm({ mentoring, parentEmail, previousMentoring }: Props) {
+export function MentoringRecordForm({ mentoring, studentName, parentEmail, previousMentoring }: Props) {
   const [isPending, startTransition] = useTransition();
   const [actualStartTime, setActualStartTime] = useState(mentoring.actualStartTime ?? "");
   const [actualEndTime, setActualEndTime] = useState(mentoring.actualEndTime ?? "");
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
 
   function handleSubmit(formData: FormData) {
     startTransition(async () => {
@@ -273,7 +276,7 @@ export function MentoringRecordForm({ mentoring, parentEmail, previousMentoring 
           </div>
         </div>
 
-        <div className="flex items-center gap-3 pt-1">
+        <div className="flex items-center gap-3 pt-1 flex-wrap">
           <Button type="submit" disabled={isPending}>
             {isPending ? "저장 중..." : "저장"}
           </Button>
@@ -291,6 +294,16 @@ export function MentoringRecordForm({ mentoring, parentEmail, previousMentoring 
           )}
 
           <div className="ml-auto flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setReportDialogOpen(true)}
+              className="gap-1.5"
+            >
+              <Link2 className="h-4 w-4" />
+              학부모 리포트
+            </Button>
             {mentoring.feedbackSentAt && (
               <span className="flex items-center gap-1 text-xs text-green-600">
                 <CheckCircle2 className="h-3.5 w-3.5" />
@@ -314,6 +327,14 @@ export function MentoringRecordForm({ mentoring, parentEmail, previousMentoring 
           </div>
         </div>
       </form>
+
+      <ParentReportDialog
+        mentoringId={mentoring.id}
+        studentName={studentName}
+        open={reportDialogOpen}
+        onClose={() => setReportDialogOpen(false)}
+      />
+
     </div>
   );
 }

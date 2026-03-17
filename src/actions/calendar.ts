@@ -77,6 +77,7 @@ export async function updateCalendarEvent(
     endDate?: string;
     type?: CalendarEventType;
     schoolName?: string;
+    studentId?: string | null;
     color?: string | null;
   }
 ) {
@@ -92,11 +93,47 @@ export async function updateCalendarEvent(
       ...(data.endDate !== undefined ? { endDate: data.endDate ? new Date(data.endDate) : null } : {}),
       ...(data.type ? { type: data.type } : {}),
       ...(data.schoolName !== undefined ? { schoolName: data.schoolName } : {}),
+      ...(data.studentId !== undefined ? { studentId: data.studentId } : {}),
       ...(data.color !== undefined ? { color: data.color } : {}),
     },
   });
 
   revalidatePath("/calendar");
+}
+
+export async function getStudentUpcomingEvents(studentId: string, school: string | null) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const twoWeeksLater = new Date(today);
+  twoWeeksLater.setDate(twoWeeksLater.getDate() + 14);
+
+  // school 필드에서 순수 학교명 추출 (예: "반송고2" → "반송고")
+  const schoolName = school
+    ? school.replace(/\d+$/, "").trim()
+    : null;
+
+  const [schoolEvents, personalEvents] = await Promise.all([
+    schoolName
+      ? prisma.calendarEvent.findMany({
+          where: {
+            schoolName,
+            type: { in: ["SCHOOL_EXAM", "SCHOOL_EVENT"] },
+            startDate: { gte: today, lte: twoWeeksLater },
+          },
+          orderBy: { startDate: "asc" },
+        })
+      : Promise.resolve([]),
+    prisma.calendarEvent.findMany({
+      where: {
+        studentId,
+        type: "PERSONAL",
+        startDate: { gte: today, lte: twoWeeksLater },
+      },
+      orderBy: { startDate: "asc" },
+    }),
+  ]);
+
+  return { schoolEvents, personalEvents };
 }
 
 export async function deleteCalendarEvent(id: string) {
@@ -105,4 +142,38 @@ export async function deleteCalendarEvent(id: string) {
 
   await prisma.calendarEvent.delete({ where: { id } });
   revalidatePath("/calendar");
+}
+
+export async function getStudentCalendarEvents(params: {
+  studentId: string;
+  schoolName: string | null;
+  startDate: Date;
+  endDate: Date;
+}) {
+  const { studentId, schoolName, startDate, endDate } = params;
+
+  const [personalEvents, schoolEvents] = await Promise.all([
+    prisma.calendarEvent.findMany({
+      where: { studentId, startDate: { gte: startDate, lte: endDate } },
+      include: { student: { select: { id: true, name: true } } },
+      orderBy: { startDate: "asc" },
+    }),
+    schoolName
+      ? prisma.calendarEvent.findMany({
+          where: {
+            schoolName,
+            type: { in: ["SCHOOL_EXAM", "SCHOOL_EVENT"] },
+            startDate: { gte: startDate, lte: endDate },
+          },
+          include: { student: { select: { id: true, name: true } } },
+          orderBy: { startDate: "asc" },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const personalIds = new Set(personalEvents.map((e) => e.id));
+  return [
+    ...personalEvents,
+    ...schoolEvents.filter((e) => !personalIds.has(e.id)),
+  ];
 }

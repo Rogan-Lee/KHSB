@@ -5,7 +5,6 @@ import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { MentoringStatus } from "@/generated/prisma";
-import { redirect } from "next/navigation";
 
 const mentoringSchema = z.object({
   studentId: z.string(),
@@ -33,10 +32,11 @@ export async function createMentoring(formData: FormData) {
       notes: data.notes || null,
       status: "SCHEDULED",
     },
+    select: { id: true },
   });
 
   revalidatePath("/mentoring");
-  redirect(`/mentoring/${mentoring.id}`);
+  return { id: mentoring.id };
 }
 
 export async function updateMentoring(id: string, formData: FormData) {
