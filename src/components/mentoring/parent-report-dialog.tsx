@@ -43,11 +43,9 @@ async function uploadFile(file: File): Promise<string> {
 
 export function ParentReportDialog({ mentoringId, studentName, open, onClose }: Props) {
   const [isPending, startTransition] = useTransition();
-  const [studyPlanNote, setStudyPlanNote] = useState("");
   const [imageMode, setImageMode] = useState<ImageMode>("file");
   const [imageItems, setImageItems] = useState<ImageItem[]>([]);
   const [urlInput, setUrlInput] = useState("");
-  const [customNote, setCustomNote] = useState("");
   const [reportUrl, setReportUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -74,7 +72,6 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
   async function handleCreate() {
     startTransition(async () => {
       try {
-        // 파일 업로드
         const uploadedUrls: string[] = [];
         for (const item of imageItems) {
           if (item.type === "file") {
@@ -83,16 +80,13 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
           }
         }
 
-        // URL 입력 파싱
         const manualUrls = urlInput
           .split("\n")
           .map((u) => u.trim())
           .filter(Boolean);
 
         const { token } = await createParentReport(mentoringId, {
-          studyPlanNote: studyPlanNote.trim() || undefined,
           studyPlanImages: [...uploadedUrls, ...manualUrls],
-          customNote: customNote.trim() || undefined,
         });
         const origin = window.location.origin;
         setReportUrl(`${origin}/r/${token}`);
@@ -102,17 +96,17 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
     });
   }
 
-  async function handleKakaoShare(url: string, name: string) {
-    const text = `[KHSB] ${name} 멘토링 리포트를 확인해 주세요.\n${url}`;
+  async function handleShare(url: string) {
+    const shareText = `안녕하세요, ${studentName} 학부모님.\n오늘 멘토링 내용을 정리해 드립니다.\n아래 링크를 통해 확인해 주세요 👇\n\n${url}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: `${name} 멘토링 리포트`, text, url });
+        await navigator.share({ title: `${studentName} 멘토링 리포트`, text: shareText, url });
       } catch {
-        // 사용자가 공유 취소한 경우 무시
+        // 사용자가 공유 취소
       }
     } else {
-      await navigator.clipboard.writeText(text);
-      toast.success("링크가 복사되었습니다. 카카오톡에 붙여넣기 하세요.");
+      await navigator.clipboard.writeText(shareText);
+      toast.success("메시지가 복사되었습니다. 카카오톡에 붙여넣기 하세요.");
     }
   }
 
@@ -126,21 +120,17 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
     imageItems.forEach((item) => {
       if (item.type === "file") URL.revokeObjectURL(item.previewUrl);
     });
-    setStudyPlanNote("");
     setImageMode("file");
     setImageItems([]);
     setUrlInput("");
-    setCustomNote("");
     setReportUrl(null);
     setCopied(false);
     onClose();
   }
 
-  const smsText = reportUrl
-    ? `[KHSB] ${studentName} 멘토링 리포트를 확인해 주세요.\n${reportUrl}`
+  const shareText = reportUrl
+    ? `안녕하세요, ${studentName} 학부모님.\n오늘 멘토링 내용을 정리해 드립니다.\n아래 링크를 통해 확인해 주세요 👇\n\n${reportUrl}`
     : "";
-
-  const hasImages = imageItems.length > 0 || urlInput.trim().length > 0;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
@@ -155,30 +145,8 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
         {!reportUrl ? (
           <div className="space-y-4 pt-1">
             <p className="text-xs text-muted-foreground">
-              멘토링 내용이 포함된 링크를 생성합니다. 추가 내용을 입력하거나 바로 생성하세요.
+              멘토링 기록의 내용이 자동으로 포함됩니다. 학습 계획 이미지를 추가할 수 있습니다.
             </p>
-
-            {/* 학부모 안내 메시지 */}
-            <div className="space-y-1.5">
-              <Label className="text-xs">학부모 안내 메시지 (선택)</Label>
-              <Textarea
-                placeholder="학부모께 전달할 내용을 입력하세요..."
-                value={customNote}
-                onChange={(e) => setCustomNote(e.target.value)}
-                rows={3}
-              />
-            </div>
-
-            {/* 학습 계획 메모 */}
-            <div className="space-y-1.5">
-              <Label className="text-xs">학습 계획 메모 (선택)</Label>
-              <Textarea
-                placeholder="오늘의 학습 계획이나 목표를 입력하세요..."
-                value={studyPlanNote}
-                onChange={(e) => setStudyPlanNote(e.target.value)}
-                rows={2}
-              />
-            </div>
 
             {/* 학습 계획 이미지 */}
             <div className="space-y-2">
@@ -238,11 +206,7 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
                         item.type === "file" ? (
                           <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={item.previewUrl}
-                              alt=""
-                              className="w-full h-full object-cover"
-                            />
+                            <img src={item.previewUrl} alt="" className="w-full h-full object-cover" />
                             <button
                               type="button"
                               onClick={() => removeImage(idx)}
@@ -273,15 +237,9 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
             </div>
 
             <div className="flex gap-2 pt-1">
-              <Button
-                onClick={handleCreate}
-                disabled={isPending}
-                className="flex-1"
-              >
+              <Button onClick={handleCreate} disabled={isPending} className="flex-1">
                 {isPending
-                  ? hasImages && imageMode === "file" && imageItems.length > 0
-                    ? "업로드 중..."
-                    : "생성 중..."
+                  ? imageItems.length > 0 ? "업로드 중..." : "생성 중..."
                   : "링크 생성"}
               </Button>
               <Button variant="outline" onClick={handleClose}>취소</Button>
@@ -294,14 +252,11 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
               <p className="text-sm font-medium">리포트가 생성되었습니다</p>
             </div>
 
+            {/* 링크 복사 */}
             <div className="space-y-1.5">
               <Label className="text-xs">리포트 링크</Label>
               <div className="flex gap-2">
-                <Input
-                  value={reportUrl}
-                  readOnly
-                  className="text-xs font-mono bg-muted"
-                />
+                <Input value={reportUrl} readOnly className="text-xs font-mono bg-muted" />
                 <Button
                   variant="outline"
                   size="icon"
@@ -313,30 +268,33 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
               </div>
             </div>
 
+            {/* 발송 메시지 미리보기 */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">발송 메시지 미리보기</Label>
+              <div className="rounded-lg border bg-muted/50 p-3 text-xs whitespace-pre-wrap text-muted-foreground leading-relaxed">
+                {shareText}
+              </div>
+            </div>
+
             {/* 카카오톡 공유 */}
             <Button
               className="w-full gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold"
-              onClick={() => handleKakaoShare(reportUrl!, studentName)}
+              onClick={() => handleShare(reportUrl!)}
             >
               <MessageCircle className="h-4 w-4" />
               카카오톡으로 보내기
             </Button>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs">문자 메시지 템플릿</Label>
-              <div className="rounded-lg border bg-muted/50 p-3 text-xs font-mono whitespace-pre-wrap text-muted-foreground leading-relaxed">
-                {smsText}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full gap-1.5"
-                onClick={() => handleCopy(smsText)}
-              >
-                <Send className="h-3.5 w-3.5" />
-                {copied ? "복사됨!" : "문자 내용 복사"}
-              </Button>
-            </div>
+            {/* 문자 복사 */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-1.5"
+              onClick={() => handleCopy(shareText)}
+            >
+              <Send className="h-3.5 w-3.5" />
+              {copied ? "복사됨!" : "메시지 복사 (문자용)"}
+            </Button>
 
             <Button variant="outline" className="w-full" onClick={handleClose}>
               닫기
