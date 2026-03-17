@@ -1,16 +1,14 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDateTime } from "@/lib/utils";
 import { MessageSendPanel } from "@/components/messages/message-send-panel";
+import { KakaoMessagePanel } from "@/components/messages/kakao-message-panel";
 import { MessageCircle, CheckCircle2, XCircle } from "lucide-react";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -24,7 +22,9 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default async function MessagesPage() {
-  const [students, logs] = await Promise.all([
+  const session = await auth();
+
+  const [students, logs, currentUser] = await Promise.all([
     prisma.student.findMany({
       where: { status: "ACTIVE" },
       select: { id: true, name: true, grade: true, parentPhone: true },
@@ -35,10 +35,17 @@ export default async function MessagesPage() {
       orderBy: { sentAt: "desc" },
       take: 100,
     }),
+    session?.user?.id
+      ? prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { kakaoAccessToken: true },
+        })
+      : null,
   ]);
 
   const sent = logs.filter((l) => l.status === "SENT").length;
   const failed = logs.filter((l) => l.status === "FAILED").length;
+  const kakaoConnected = !!currentUser?.kakaoAccessToken;
 
   return (
     <div className="space-y-6">
@@ -73,17 +80,38 @@ export default async function MessagesPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-6">
-        {/* Send Panel */}
+        {/* 발송 패널 */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle>메시지 발송</CardTitle>
           </CardHeader>
           <CardContent>
-            <MessageSendPanel students={students} />
+            <Tabs defaultValue="kakao">
+              <TabsList className="mb-4 w-full">
+                <TabsTrigger value="kakao" className="flex-1 gap-1.5">
+                  <span className="text-yellow-500">●</span>
+                  카카오톡
+                  {kakaoConnected && (
+                    <span className="ml-1 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">연결됨</span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="bulk" className="flex-1">
+                  원생 일괄 발송
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="kakao">
+                <KakaoMessagePanel initialConnected={kakaoConnected} />
+              </TabsContent>
+
+              <TabsContent value="bulk">
+                <MessageSendPanel students={students} />
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
-        {/* Log */}
+        {/* 발송 이력 */}
         <Card>
           <CardHeader>
             <CardTitle>발송 이력</CardTitle>
@@ -114,10 +142,8 @@ export default async function MessagesPage() {
                       <TableCell>
                         <Badge
                           variant={
-                            log.status === "SENT"
-                              ? "default"
-                              : log.status === "FAILED"
-                              ? "destructive"
+                            log.status === "SENT" ? "default"
+                              : log.status === "FAILED" ? "destructive"
                               : "secondary"
                           }
                         >
