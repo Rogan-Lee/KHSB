@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { createParentReport } from "@/actions/parent-reports";
-import { Link2, Copy, Check, Send, Upload, X, ImageIcon, Globe } from "lucide-react";
+import { Link2, Copy, Check, Send, Upload, X, ImageIcon, Globe, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -99,6 +99,22 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "리포트 생성에 실패했습니다");
       }
+    });
+  }
+
+  function handleKakaoShare(url: string, name: string) {
+    if (!window.Kakao?.isInitialized()) {
+      toast.error("카카오 SDK가 로드되지 않았습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    window.Kakao.Share.sendDefault({
+      objectType: "text",
+      text: `[KHSB] ${name} 멘토링 리포트를 확인해 주세요.`,
+      link: {
+        mobileWebUrl: url,
+        webUrl: url,
+      },
+      buttonTitle: "리포트 보기",
     });
   }
 
@@ -298,6 +314,15 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
                 </Button>
               </div>
             </div>
+
+            {/* 카카오톡 공유 */}
+            <Button
+              className="w-full gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold"
+              onClick={() => handleKakaoShare(reportUrl!, studentName)}
+            >
+              <MessageCircle className="h-4 w-4" />
+              카카오톡으로 보내기
+            </Button>
 
             <div className="space-y-1.5">
               <Label className="text-xs">문자 메시지 템플릿</Label>
