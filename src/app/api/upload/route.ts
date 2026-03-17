@@ -19,9 +19,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "이미지 파일만 업로드할 수 있습니다" }, { status: 400 });
   }
 
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  console.log("[upload] token prefix:", token ? token.slice(0, 40) + "..." : "MISSING");
+
   try {
     const blob = await put(`study-plans/${Date.now()}-${file.name}`, file, {
       access: "public",
+      token,
     });
     return NextResponse.json({ url: blob.url });
   } catch (err) {
