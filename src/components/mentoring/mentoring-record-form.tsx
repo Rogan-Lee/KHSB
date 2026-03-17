@@ -265,12 +265,12 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="notes">기타 메모</Label>
+            <Label htmlFor="notes">학부모 안내 메시지</Label>
             <Textarea
               id="notes"
               name="notes"
               defaultValue={mentoring.notes ?? ""}
-              placeholder="학부모에게 전달할 내용, 특이사항 등..."
+              placeholder="학부모 리포트에 포함될 안내 메시지를 입력하세요..."
               rows={2}
             />
           </div>
