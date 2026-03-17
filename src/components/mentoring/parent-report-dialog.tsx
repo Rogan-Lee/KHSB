@@ -102,20 +102,18 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
     });
   }
 
-  function handleKakaoShare(url: string, name: string) {
-    if (!window.Kakao?.isInitialized()) {
-      toast.error("카카오 SDK가 로드되지 않았습니다. 잠시 후 다시 시도해주세요.");
-      return;
+  async function handleKakaoShare(url: string, name: string) {
+    const text = `[KHSB] ${name} 멘토링 리포트를 확인해 주세요.\n${url}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: `${name} 멘토링 리포트`, text, url });
+      } catch {
+        // 사용자가 공유 취소한 경우 무시
+      }
+    } else {
+      await navigator.clipboard.writeText(text);
+      toast.success("링크가 복사되었습니다. 카카오톡에 붙여넣기 하세요.");
     }
-    window.Kakao.Share.sendDefault({
-      objectType: "text",
-      text: `[KHSB] ${name} 멘토링 리포트를 확인해 주세요.`,
-      link: {
-        mobileWebUrl: url,
-        webUrl: url,
-      },
-      buttonTitle: "리포트 보기",
-    });
   }
 
   async function handleCopy(text: string) {
