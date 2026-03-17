@@ -4,14 +4,8 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { toast } from "sonner";
 import { MessageCircle, Plus, Pencil, Trash2, Check, X } from "lucide-react";
 import {
@@ -135,35 +129,28 @@ export function KakaoMessagePanel({ initialTemplates, students }: Props) {
         <div className="flex-1 flex flex-col space-y-3 min-h-0">
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">템플릿</p>
-            <Select value={selectedTemplateId} onValueChange={handleTemplateSelect}>
-              <SelectTrigger>
-                <SelectValue placeholder="템플릿 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                {templates.length === 0 && (
-                  <div className="py-3 text-center text-xs text-muted-foreground">등록된 템플릿 없음</div>
-                )}
-                {templates.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              options={templates.map((t) => ({ value: t.id, label: t.name }))}
+              value={selectedTemplateId}
+              onValueChange={handleTemplateSelect}
+              placeholder="템플릿 선택"
+              searchPlaceholder="템플릿 검색..."
+              emptyText="등록된 템플릿 없음"
+            />
           </div>
 
           <div className="space-y-1.5">
             <p className="text-xs font-medium text-muted-foreground">
               학생 <span className="text-[10px] text-muted-foreground/60">({"{"}name{"}"} 자동치환)</span>
             </p>
-            <Select value={selectedStudentId} onValueChange={handleStudentSelect}>
-              <SelectTrigger>
-                <SelectValue placeholder="학생 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                {students.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name} ({s.grade})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              options={students.map((s) => ({ value: s.id, label: `${s.name} (${s.grade})` }))}
+              value={selectedStudentId}
+              onValueChange={handleStudentSelect}
+              placeholder="학생 선택"
+              searchPlaceholder="이름 검색..."
+              emptyText="검색 결과 없음"
+            />
           </div>
 
           <div className="flex-1 flex flex-col space-y-1.5 min-h-0">
