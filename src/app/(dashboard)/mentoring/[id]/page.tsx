@@ -1,4 +1,7 @@
 import { notFound } from "next/navigation";
+import { getTimetableEntries, getStudentSchoolEvents } from "@/actions/timetable";
+import { DayView } from "@/components/timetable/day-view";
+import { TimetableGrid } from "@/components/timetable/timetable-grid";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +10,7 @@ import { CommunicationPanel } from "@/components/communications/communication-pa
 import { ExamScoreChart } from "@/components/students/exam-score-chart";
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatDate, parseSchool } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { AlertCircle } from "lucide-react";
 
 const STATUS_MAP = {
@@ -23,11 +26,6 @@ export default async function MentoringDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const twoWeeksLater = new Date(today);
-  twoWeeksLater.setDate(twoWeeksLater.getDate() + 21);
 
   const mentoring = await prisma.mentoring.findUnique({
     where: { id },
@@ -47,6 +45,13 @@ export default async function MentoringDetailPage({
   });
 
   if (!mentoring) notFound();
+
+  const evtFrom = new Date(); evtFrom.setMonth(evtFrom.getMonth() - 3);
+  const evtTo = new Date(); evtTo.setMonth(evtTo.getMonth() + 3);
+  const [timetableEntries, mentoringSchoolEvents] = await Promise.all([
+    getTimetableEntries(mentoring.studentId),
+    getStudentSchoolEvents(mentoring.studentId, evtFrom, evtTo),
+  ]);
 
   // 해당 학생의 직전 멘토링 (현재 제외, 상태 무관 — 가장 최근 기록)
   const previousMentoring: PreviousMentoring | null = await prisma.mentoring.findFirst({
@@ -71,20 +76,6 @@ export default async function MentoringDetailPage({
   });
 
   const s = mentoring.student;
-
-  // 학교 일정 조회 (해당 학교 + 개인 일정 없음, 앞뒤 2주)
-  // school 필드가 "반송고2" 형태일 수 있으므로 parseSchool로 순수 학교명 추출
-  const schoolName = s.school ? parseSchool(s.school) : null;
-  const schoolEvents = schoolName
-    ? await prisma.calendarEvent.findMany({
-        where: {
-          schoolName,
-          type: { in: ["SCHOOL_EXAM", "SCHOOL_EVENT"] },
-          startDate: { gte: today, lte: twoWeeksLater },
-        },
-        orderBy: { startDate: "asc" },
-      })
-    : [];
 
   return (
     <div className="space-y-4">
@@ -145,122 +136,111 @@ export default async function MentoringDetailPage({
         </Card>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-4 items-start">
-        {/* 기록 폼 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">멘토링 내용 기록</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MentoringRecordForm
-              mentoring={mentoring}
-              parentEmail={s.parentEmail}
-              previousMentoring={previousMentoring}
-            />
-          </CardContent>
-        </Card>
+      <Tabs defaultValue="record">
+        <TabsList>
+          <TabsTrigger value="record">멘토링 기록</TabsTrigger>
+          <TabsTrigger value="timetable">시간표</TabsTrigger>
+          <TabsTrigger value="assignments">
+            과제
+            {s.assignments.filter((a) => !a.isCompleted).length > 0 && (
+              <span className="ml-1.5 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                {s.assignments.filter((a) => !a.isCompleted).length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="communications">
+            요청/전달
+            {s.communications.filter((c) => !c.isChecked).length > 0 && (
+              <span className="ml-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                {s.communications.filter((c) => !c.isChecked).length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="scores">성적 추이</TabsTrigger>
+        </TabsList>
 
-        {/* 우측 패널: 요청/전달 + 성적 탭 */}
-        <Card>
-          <CardContent className="pt-4">
-            <Tabs defaultValue="assignments">
-              <TabsList className="w-full">
-                <TabsTrigger value="assignments" className="flex-1 text-xs">
-                  과제
-                  {s.assignments.filter((a) => !a.isCompleted).length > 0 && (
-                    <span className="ml-1.5 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                      {s.assignments.filter((a) => !a.isCompleted).length}
-                    </span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="communications" className="flex-1 text-xs">
-                  요청/전달
-                  {s.communications.filter((c) => !c.isChecked).length > 0 && (
-                    <span className="ml-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                      {s.communications.filter((c) => !c.isChecked).length}
-                    </span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="scores" className="flex-1 text-xs">성적 추이</TabsTrigger>
-                <TabsTrigger value="school" className="flex-1 text-xs">
-                  학교 일정
-                  {schoolEvents.length > 0 && (
-                    <span className="ml-1.5 bg-purple-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                      {schoolEvents.length}
-                    </span>
-                  )}
-                </TabsTrigger>
-              </TabsList>
+        <TabsContent value="record" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">멘토링 내용 기록</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MentoringRecordForm
+                mentoring={mentoring}
+                studentName={s.name}
+                parentEmail={s.parentEmail}
+                previousMentoring={previousMentoring}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-              <TabsContent value="assignments" className="mt-4">
-                <AssignmentPanel
-                  studentId={s.id}
-                  studentName={s.name}
-                  initialItems={s.assignments}
-                  mentoringId={mentoring.id}
-                  compact
-                />
-              </TabsContent>
+        <TabsContent value="timetable" className="mt-4">
+          <Tabs defaultValue="daily">
+            <TabsList className="mb-4">
+              <TabsTrigger value="daily">일간</TabsTrigger>
+              <TabsTrigger value="weekly">주간</TabsTrigger>
+            </TabsList>
+            <TabsContent value="daily">
+              <DayView
+                studentId={s.id}
+                entries={timetableEntries.map((e) => ({
+                  id: e.id,
+                  dayOfWeek: e.dayOfWeek,
+                  startTime: e.startTime,
+                  endTime: e.endTime,
+                  subject: e.subject,
+                  details: e.details ?? null,
+                  colorCode: e.colorCode,
+                  allDay: e.allDay,
+                }))}
+                initialDate={mentoring.scheduledAt.toISOString().slice(0, 10)}
+                schoolEvents={mentoringSchoolEvents}
+              />
+            </TabsContent>
+            <TabsContent value="weekly">
+              <TimetableGrid
+                studentId={s.id}
+                studentName={s.name}
+                initialEntries={timetableEntries.map((e) => ({
+                  id: e.id,
+                  dayOfWeek: e.dayOfWeek,
+                  startTime: e.startTime,
+                  endTime: e.endTime,
+                  subject: e.subject,
+                  details: e.details ?? null,
+                  colorCode: e.colorCode,
+                  allDay: e.allDay,
+                }))}
+                schoolEvents={mentoringSchoolEvents}
+              />
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
 
-              <TabsContent value="communications" className="mt-4">
-                <CommunicationPanel
-                  studentId={s.id}
-                  initialItems={s.communications}
-                  compact
-                />
-              </TabsContent>
+        <TabsContent value="assignments" className="mt-4">
+          <AssignmentPanel
+            studentId={s.id}
+            studentName={s.name}
+            initialItems={s.assignments}
+            mentoringId={mentoring.id}
+          />
+        </TabsContent>
 
-              <TabsContent value="scores" className="mt-4">
-                <ExamScoreChart
-                  studentId={s.id}
-                  initialScores={s.examScores}
-                />
-              </TabsContent>
+        <TabsContent value="communications" className="mt-4">
+          <CommunicationPanel
+            studentId={s.id}
+            initialItems={s.communications}
+          />
+        </TabsContent>
 
-              <TabsContent value="school" className="mt-4">
-                {!schoolName ? (
-                  <p className="text-sm text-muted-foreground text-center py-6">학교 정보가 없습니다</p>
-                ) : schoolEvents.length === 0 ? (
-                  <div className="text-center py-6 space-y-1">
-                    <p className="text-sm font-medium">{schoolName}</p>
-                    <p className="text-xs text-muted-foreground">앞으로 3주간 등록된 학교 일정이 없습니다</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground font-medium">{schoolName} · 앞으로 3주</p>
-                    {schoolEvents.map((ev) => {
-                      const start = new Date(ev.startDate);
-                      const isExam = ev.type === "SCHOOL_EXAM";
-                      return (
-                        <div
-                          key={ev.id}
-                          className={`p-2.5 rounded-lg border text-sm ${isExam ? "bg-red-50 border-red-200" : "bg-purple-50 border-purple-200"}`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <p className={`font-medium ${isExam ? "text-red-800" : "text-purple-800"}`}>{ev.title}</p>
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {start.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
-                                {ev.endDate && new Date(ev.endDate).toDateString() !== start.toDateString() && (
-                                  <span> ~ {new Date(ev.endDate).toLocaleDateString("ko-KR", { month: "long", day: "numeric" })}</span>
-                                )}
-                              </p>
-                              {ev.description && <p className="text-xs text-muted-foreground mt-0.5">{ev.description}</p>}
-                            </div>
-                            <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border font-medium ${isExam ? "bg-red-100 text-red-700 border-red-200" : "bg-purple-100 text-purple-700 border-purple-200"}`}>
-                              {isExam ? "시험" : "행사"}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      </div>
+        <TabsContent value="scores" className="mt-4">
+          <ExamScoreChart
+            studentId={s.id}
+            initialScores={s.examScores}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

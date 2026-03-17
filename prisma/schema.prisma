@@ -90,6 +90,8 @@ model User {
   students        Student[]        @relation("MentorStudents")
   mentorings      Mentoring[]
   mentorSchedules MentorSchedule[]
+  parentReports   ParentReport[]
+  timetableEntries TimetableEntry[]
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 }
@@ -125,15 +127,18 @@ model Student {
   merits         MeritDemerit[]
   mentorings     Mentoring[]
   academicPlans  AcademicPlan[]
+  parentReports  ParentReport[]
   consultations  DirectorConsultation[]
   messages       MessageLog[]
   monthlyReports MonthlyReport[]
   communications Communication[]
   examScores     ExamScore[]
   calendarEvents CalendarEvent[]
-  assignments    Assignment[]
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
+  assignments      Assignment[]
+  timetableEntries TimetableEntry[]
+  dailyPlans       DailyPlan[]
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
 }
 
 model AttendanceSchedule {
@@ -220,6 +225,7 @@ model Mentoring {
   nextGoals          String?         // 다음 멘토링 목표
   notes              String?         // 기타 메모
   feedbackSentAt     DateTime?       // 피드백 이메일 발송 시각
+  parentReports      ParentReport[]
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 }
@@ -366,4 +372,49 @@ model CalendarEvent {
   createdById   String
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
+}
+
+model ParentReport {
+  id              String    @id @default(cuid())
+  token           String    @unique @default(cuid())
+  studentId       String
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  mentoringId     String?
+  mentoring       Mentoring? @relation(fields: [mentoringId], references: [id], onDelete: SetNull)
+  studyPlanNote   String?     // 학습 계획 메모 (텍스트)
+  studyPlanImages String[]    // 학습 계획 이미지 URL 목록
+  customNote      String?     // 학부모께 전달할 메시지
+  createdById     String
+  createdBy       User      @relation(fields: [createdById], references: [id])
+  createdAt       DateTime  @default(now())
+}
+
+model TimetableEntry {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int      // 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 0=Sun
+  startTime   String   // "HH:MM"
+  endTime     String   // "HH:MM"
+  subject     String
+  details     String?
+  colorCode   String   @default("blue")
+  allDay      Boolean  @default(false)
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DailyPlan {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  items     Json     @default("[]") // [{ id, text, done, colorCode, duration? }]
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, date])
 }

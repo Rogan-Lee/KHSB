@@ -15,6 +15,7 @@ type EventWithStudent = CalendarEvent & {
 interface Props {
   initialEvents: EventWithStudent[];
   schools?: string[];
+  students?: { id: string; name: string; grade: string }[];
 }
 
 const EVENT_TYPE_CONFIG: Record<CalendarEventType, { label: string }> = {
@@ -66,7 +67,7 @@ function toDateStr(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
-export function CalendarView({ initialEvents, schools = [] }: Props) {
+export function CalendarView({ initialEvents, schools = [], students = [] }: Props) {
   const today = new Date();
   const [viewMode, setViewMode] = useState<"month" | "week">("month");
   const [year, setYear] = useState(today.getFullYear());
@@ -78,6 +79,7 @@ export function CalendarView({ initialEvents, schools = [] }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<CalendarEventType | "ALL">("ALL");
   const [filterSchool, setFilterSchool] = useState<string>("ALL");
+  const [filterStudent, setFilterStudent] = useState<string>("ALL");
   const [isPending, startTransition] = useTransition();
 
   const [form, setForm] = useState({
@@ -87,6 +89,7 @@ export function CalendarView({ initialEvents, schools = [] }: Props) {
     endDate: "",
     type: "SCHOOL_EXAM" as CalendarEventType,
     schoolName: "",
+    studentId: "",
     allDay: true,
     color: DEFAULT_COLOR,
   });
@@ -110,7 +113,8 @@ export function CalendarView({ initialEvents, schools = [] }: Props) {
       const end = e.endDate ? new Date(e.endDate).toISOString().split("T")[0] : start;
       const typeOk = filterType === "ALL" || e.type === filterType;
       const schoolOk = filterSchool === "ALL" || e.schoolName === filterSchool;
-      return ds >= start && ds <= end && typeOk && schoolOk;
+      const studentOk = filterStudent === "ALL" || e.studentId === filterStudent || e.type !== "PERSONAL";
+      return ds >= start && ds <= end && typeOk && schoolOk && studentOk;
     });
   }
 
@@ -126,7 +130,8 @@ export function CalendarView({ initialEvents, schools = [] }: Props) {
       const start = new Date(e.startDate).toISOString().split("T")[0];
       const end = e.endDate ? new Date(e.endDate).toISOString().split("T")[0] : start;
       const typeOk = filterType === "ALL" || e.type === filterType;
-      return end >= weekStartStr && start <= weekEndStr && typeOk;
+      const studentOk = filterStudent === "ALL" || e.studentId === filterStudent || e.type !== "PERSONAL";
+      return end >= weekStartStr && start <= weekEndStr && typeOk && studentOk;
     });
   }
 
@@ -197,10 +202,12 @@ export function CalendarView({ initialEvents, schools = [] }: Props) {
           allDay: form.allDay,
           type: form.type,
           schoolName: form.schoolName || undefined,
+          studentId: form.studentId || undefined,
           color: form.color,
         });
-        setEvents((prev) => [...prev, { ...created, student: null }]);
-        setForm({ title: "", description: "", startDate: selectedDate ?? "", endDate: "", type: "SCHOOL_EXAM", schoolName: "", allDay: true, color: DEFAULT_COLOR });
+        const linkedStudent = students.find((s) => s.id === form.studentId) ?? null;
+        setEvents((prev) => [...prev, { ...created, student: linkedStudent ? { id: linkedStudent.id, name: linkedStudent.name } : null }]);
+        setForm({ title: "", description: "", startDate: selectedDate ?? "", endDate: "", type: "SCHOOL_EXAM", schoolName: "", studentId: "", allDay: true, color: DEFAULT_COLOR });
         closeForm();
         toast.success("일정이 등록되었습니다");
       } catch {
@@ -218,6 +225,7 @@ export function CalendarView({ initialEvents, schools = [] }: Props) {
       endDate: event.endDate ? new Date(event.endDate).toISOString().split("T")[0] : "",
       type: event.type,
       schoolName: event.schoolName ?? "",
+      studentId: event.studentId ?? "",
       allDay: event.allDay,
       color: event.color ?? DEFAULT_COLOR,
     });
@@ -238,16 +246,18 @@ export function CalendarView({ initialEvents, schools = [] }: Props) {
           endDate: form.endDate || undefined,
           type: form.type,
           schoolName: form.schoolName || undefined,
+          studentId: form.studentId || null,
           color: form.color,
         });
+        const linkedStudent = students.find((s) => s.id === form.studentId) ?? null;
         setEvents((prev) =>
           prev.map((e) =>
             e.id === editingId
-              ? { ...e, title: form.title, description: form.description || null, startDate: new Date(form.startDate), endDate: form.endDate ? new Date(form.endDate) : null, type: form.type, schoolName: form.schoolName || null, color: form.color }
+              ? { ...e, title: form.title, description: form.description || null, startDate: new Date(form.startDate), endDate: form.endDate ? new Date(form.endDate) : null, type: form.type, schoolName: form.schoolName || null, studentId: form.studentId || null, student: linkedStudent ? { id: linkedStudent.id, name: linkedStudent.name } : null, color: form.color }
               : e
           )
         );
-        setForm({ title: "", description: "", startDate: selectedDate ?? "", endDate: "", type: "SCHOOL_EXAM", schoolName: "", allDay: true, color: DEFAULT_COLOR });
+        setForm({ title: "", description: "", startDate: selectedDate ?? "", endDate: "", type: "SCHOOL_EXAM", schoolName: "", studentId: "", allDay: true, color: DEFAULT_COLOR });
         closeForm();
         toast.success("수정되었습니다");
       } catch {
@@ -372,11 +382,32 @@ export function CalendarView({ initialEvents, schools = [] }: Props) {
             </select>
           )}
 
+          {/* 원생 필터 */}
+          {students.length > 0 && (
+            <select
+              value={filterStudent}
+              onChange={(e) => setFilterStudent(e.target.value)}
+              className="text-xs border rounded px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="ALL">모든 원생</option>
+              {students.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} · {s.grade}
+                </option>
+              ))}
+            </select>
+          )}
+
           <Button
             size="sm"
             className="h-7 text-xs gap-1"
             onClick={() => {
-              setForm((f) => ({ ...f, startDate: selectedDate ?? todayStr }));
+              setForm((f) => ({
+                ...f,
+                startDate: selectedDate ?? todayStr,
+                studentId: filterStudent !== "ALL" ? filterStudent : f.studentId,
+                type: filterStudent !== "ALL" ? "PERSONAL" : f.type,
+              }));
               setEditingId(null);
               setShowForm(true);
             }}
@@ -437,7 +468,7 @@ export function CalendarView({ initialEvents, schools = [] }: Props) {
                               style.bg, style.border, style.text
                             )}
                           >
-                            {e.title}
+                            {e.type === "PERSONAL" && e.student ? `${e.student.name}: ` : ""}{e.title}
                           </div>
                         );
                       })}
@@ -460,6 +491,7 @@ export function CalendarView({ initialEvents, schools = [] }: Props) {
                 editingId={editingId}
                 isPending={isPending}
                 allSchools={allSchools}
+                students={students}
                 onSubmit={editingId ? handleUpdate : handleAdd}
                 onClose={closeForm}
               />
@@ -485,6 +517,9 @@ export function CalendarView({ initialEvents, schools = [] }: Props) {
                             <div className="min-w-0">
                               <p className={cn("text-sm font-medium truncate", style.text)}>{e.title}</p>
                               {e.schoolName && <p className="text-xs text-muted-foreground">{e.schoolName}</p>}
+                              {e.type === "PERSONAL" && e.student && (
+                                <p className="text-xs text-muted-foreground">{e.student.name}</p>
+                              )}
                               {e.description && <p className="text-xs text-muted-foreground mt-0.5">{e.description}</p>}
                               <p className="text-[10px] text-muted-foreground/70 mt-1">{EVENT_TYPE_CONFIG[e.type].label}</p>
                             </div>
@@ -538,7 +573,9 @@ export function CalendarView({ initialEvents, schools = [] }: Props) {
                       <span className={cn("text-[10px] px-1.5 py-0.5 rounded border shrink-0", style.bg, style.border, style.text)}>
                         {EVENT_TYPE_CONFIG[e.type].label}
                       </span>
-                      <span className="text-xs truncate">{e.title}</span>
+                      <span className="text-xs truncate">
+                        {e.type === "PERSONAL" && e.student ? `${e.student.name}: ` : ""}{e.title}
+                      </span>
                     </div>
                   );
                 });
@@ -662,6 +699,7 @@ export function CalendarView({ initialEvents, schools = [] }: Props) {
                   editingId={editingId}
                   isPending={isPending}
                   allSchools={allSchools}
+                  students={students}
                   onSubmit={editingId ? handleUpdate : handleAdd}
                   onClose={closeForm}
                 />
@@ -681,6 +719,9 @@ export function CalendarView({ initialEvents, schools = [] }: Props) {
                     <p className="text-sm font-semibold">{hoveredEvent.title}</p>
                     {hoveredEvent.schoolName && (
                       <p className="text-xs text-muted-foreground mt-0.5">{hoveredEvent.schoolName}</p>
+                    )}
+                    {hoveredEvent.type === "PERSONAL" && hoveredEvent.student && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{hoveredEvent.student.name}</p>
                     )}
                     <p className="text-xs text-muted-foreground mt-1">
                       {new Date(hoveredEvent.startDate).toLocaleDateString("ko-KR", { month: "long", day: "numeric" })}
@@ -948,6 +989,7 @@ function EventForm({
   editingId,
   isPending,
   allSchools,
+  students,
   onSubmit,
   onClose,
 }: {
@@ -958,6 +1000,7 @@ function EventForm({
     endDate: string;
     type: CalendarEventType;
     schoolName: string;
+    studentId: string;
     allDay: boolean;
     color: string;
   };
@@ -965,6 +1008,7 @@ function EventForm({
   editingId: string | null;
   isPending: boolean;
   allSchools: string[];
+  students: { id: string; name: string; grade: string }[];
   onSubmit: () => void;
   onClose: () => void;
 }) {
@@ -991,24 +1035,41 @@ function EventForm({
         />
         <select
           value={form.type}
-          onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as CalendarEventType }))}
+          onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as CalendarEventType, studentId: "", schoolName: "" }))}
           className="w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
         >
           {(Object.keys(EVENT_TYPE_CONFIG) as CalendarEventType[]).map((t) => (
             <option key={t} value={t}>{EVENT_TYPE_CONFIG[t].label}</option>
           ))}
         </select>
-        <input
-          type="text"
-          placeholder="학교명 (선택)"
-          value={form.schoolName}
-          onChange={(e) => setForm((f) => ({ ...f, schoolName: e.target.value }))}
-          className="w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-          list="school-list-form"
-        />
-        <datalist id="school-list-form">
-          {allSchools.map((s) => <option key={s} value={s} />)}
-        </datalist>
+
+        {/* 학교 일정이면 학교명, 개인 일정이면 원생 선택 */}
+        {form.type === "PERSONAL" ? (
+          <select
+            value={form.studentId}
+            onChange={(e) => setForm((f) => ({ ...f, studentId: e.target.value }))}
+            className="w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+          >
+            <option value="">원생 선택 (선택)</option>
+            {students.map((s) => (
+              <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>
+            ))}
+          </select>
+        ) : (
+          <>
+            <input
+              type="text"
+              placeholder="학교명 (선택)"
+              value={form.schoolName}
+              onChange={(e) => setForm((f) => ({ ...f, schoolName: e.target.value }))}
+              className="w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+              list="school-list-form"
+            />
+            <datalist id="school-list-form">
+              {allSchools.map((s) => <option key={s} value={s} />)}
+            </datalist>
+          </>
+        )}
 
         {/* 컬러 선택 */}
         <div className="space-y-1.5">
