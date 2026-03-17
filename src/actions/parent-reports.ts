@@ -6,9 +6,7 @@ import { prisma } from "@/lib/prisma";
 export async function createParentReport(
   mentoringId: string,
   data: {
-    studyPlanNote?: string;
     studyPlanImages?: string[];
-    customNote?: string;
   }
 ) {
   const session = await auth();
@@ -16,7 +14,7 @@ export async function createParentReport(
 
   const mentoring = await prisma.mentoring.findUnique({
     where: { id: mentoringId },
-    select: { studentId: true },
+    select: { studentId: true, notes: true },
   });
   if (!mentoring) throw new Error("멘토링을 찾을 수 없습니다");
 
@@ -24,9 +22,8 @@ export async function createParentReport(
     data: {
       studentId: mentoring.studentId,
       mentoringId,
-      studyPlanNote: data.studyPlanNote || null,
       studyPlanImages: data.studyPlanImages ?? [],
-      customNote: data.customNote || null,
+      customNote: mentoring.notes || null,
       createdById: session.user.id,
     },
     select: { token: true },
