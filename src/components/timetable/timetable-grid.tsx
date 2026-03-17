@@ -190,7 +190,7 @@ export function TimetableGrid({
             startTime: minToTime(startMin),
             endTime: minToTime(endMin),
           });
-          setForm({ subject: "", details: "", colorCode: "blue" });
+          setForm({ subject: "", details: "", colorCode: "blue", allDay: false });
         }
         setDragCreate(null);
       }
