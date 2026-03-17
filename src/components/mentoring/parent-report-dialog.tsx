@@ -100,7 +100,7 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
     const shareText = `안녕하세요, ${studentName} 학부모님.\n오늘 멘토링 내용을 정리해 드립니다.\n아래 링크를 통해 확인해 주세요 👇\n\n${url}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: `${studentName} 멘토링 리포트`, text: shareText, url });
+        await navigator.share({ title: `${studentName} 멘토링 리포트`, text: shareText });
       } catch {
         // 사용자가 공유 취소
       }
