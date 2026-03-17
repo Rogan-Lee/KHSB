@@ -1,8 +1,9 @@
 "use client";
 
-import { Fragment, useState, useTransition } from "react";
+import { Fragment, useRef, useState, useTransition } from "react";
 import { saveAttendanceRecord, createDailyOuting, updateDailyOuting, deleteDailyOuting } from "@/actions/attendance";
 import { createMeritDemerit } from "@/actions/merit-demerit";
+import { createStudyPlanReport } from "@/actions/study-plan-reports";
 import { toast } from "sonner";
 import { cn, MERIT_CATEGORIES } from "@/lib/utils";
 import type { Assignment, AttendanceRecord, AttendanceSchedule, AttendanceType, Communication, DailyOuting, OutingSchedule, Student } from "@/generated/prisma";
@@ -89,7 +90,7 @@ function calcAutoType(
   return type;
 }
 
-type PanelTab = "attendance" | "assignments" | "communications" | "merit" | "schedule";
+type PanelTab = "attendance" | "assignments" | "communications" | "merit" | "schedule" | "studyplan";
 
 interface Props {
   students: StudentWithAttendance[];
@@ -315,6 +316,7 @@ export function AttendanceTable({ students, today }: Props) {
   const TABS: { key: PanelTab; label: string; badge?: number; badgeColor?: string }[] = [
     { key: "attendance", label: "입퇴실" },
     { key: "merit", label: "상벌점" },
+    { key: "studyplan", label: "공부계획" },
     { key: "assignments", label: "과제", badge: pendingAssignments, badgeColor: "bg-orange-500" },
     { key: "communications", label: "요청/전달", badge: pendingComms, badgeColor: "bg-red-500" },
     { key: "schedule", label: "일정" },
@@ -830,6 +832,10 @@ export function AttendanceTable({ students, today }: Props) {
                 <MeritPanel studentId={selected.id} studentName={selected.name} />
               )}
 
+              {panelTab === "studyplan" && (
+                <StudyPlanSharePanel studentId={selected.id} studentName={selected.name} />
+              )}
+
               {panelTab === "assignments" && (
                 <AssignmentPanel
                   studentId={selected.id}
@@ -1091,29 +1097,46 @@ function MeritPanel({ studentId, studentName }: { studentId: string; studentName
   const [category, setCategory] = useState("");
   const [reason, setReason] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [lastSaved, setLastSaved] = useState<{ type: "MERIT" | "DEMERIT"; points: number; reason: string } | null>(null);
 
   const todayStr = new Date().toISOString().split("T")[0];
 
   function handleSubmit() {
     if (!reason.trim()) { toast.error("사유를 입력하세요"); return; }
+    const savedType = type;
+    const savedPoints = points;
+    const savedReason = reason.trim();
     startTransition(async () => {
       try {
         const fd = new FormData();
         fd.append("studentId", studentId);
         fd.append("date", todayStr);
-        fd.append("type", type);
-        fd.append("points", String(points));
-        fd.append("reason", reason.trim());
+        fd.append("type", savedType);
+        fd.append("points", String(savedPoints));
+        fd.append("reason", savedReason);
         if (category) fd.append("category", category);
         await createMeritDemerit(fd);
         setReason("");
         setPoints(1);
         setCategory("");
-        toast.success(`${studentName}에게 ${type === "MERIT" ? "상점" : "벌점"} ${points}점 부여`);
+        setLastSaved({ type: savedType, points: savedPoints, reason: savedReason });
+        toast.success(`${studentName}에게 ${savedType === "MERIT" ? "상점" : "벌점"} ${savedPoints}점 부여`);
       } catch {
         toast.error("저장 실패");
       }
     });
+  }
+
+  async function handleShare() {
+    if (!lastSaved) return;
+    const typeLabel = lastSaved.type === "MERIT" ? "상점" : "벌점";
+    const text = `[강한선배 관리형 독서실] 안녕하세요 ${studentName} 학생이 ${typeLabel} ${lastSaved.points}점을 받았습니다.\n사유: ${lastSaved.reason}`;
+    if (navigator.share) {
+      try { await navigator.share({ text }); } catch { /* 취소 */ }
+    } else {
+      await navigator.clipboard.writeText(text);
+      toast.success("복사되었습니다. 카카오톡에 붙여넣기 하세요.");
+    }
   }
 
   const QUICK_POINTS = [1, 2, 3, 5, 10];
@@ -1221,6 +1244,122 @@ function MeritPanel({ studentId, studentName }: { studentId: string; studentName
         )}
       >
         {isPending ? "저장 중..." : `${type === "MERIT" ? "상점" : "벌점"} ${points}점 부여`}
+      </Button>
+
+      {lastSaved && (
+        <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
+          <div className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
+            <Check className="h-3.5 w-3.5" />
+            {lastSaved.type === "MERIT" ? "상점" : "벌점"} {lastSaved.points}점 부여 완료
+          </div>
+          <Button
+            size="sm"
+            className="w-full gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold"
+            onClick={handleShare}
+          >
+            카카오톡으로 학부모에게 알리기
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StudyPlanSharePanel({ studentId, studentName }: { studentId: string; studentName: string }) {
+  const [imageItems, setImageItems] = useState<{ file: File; previewUrl: string }[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    const newItems = files.map((file) => ({ file, previewUrl: URL.createObjectURL(file) }));
+    setImageItems((prev) => [...prev, ...newItems]);
+    e.target.value = "";
+  }
+
+  function removeImage(idx: number) {
+    setImageItems((prev) => {
+      URL.revokeObjectURL(prev[idx].previewUrl);
+      return prev.filter((_, i) => i !== idx);
+    });
+  }
+
+  async function handleShare() {
+    if (imageItems.length === 0) { toast.error("공유할 이미지를 선택하세요"); return; }
+    setIsUploading(true);
+    try {
+      const uploadedUrls: string[] = [];
+      for (const item of imageItems) {
+        const fd = new FormData();
+        fd.append("file", item.file);
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        if (!res.ok) throw new Error("업로드 실패");
+        const { url } = await res.json();
+        uploadedUrls.push(url as string);
+      }
+      const { token } = await createStudyPlanReport(studentId, uploadedUrls);
+      const reportUrl = `${window.location.origin}/sp/${token}`;
+      const text = `[강한선배 관리형 독서실] ${studentName} 학생의 공부 계획입니다.\n\n${reportUrl}`;
+      if (navigator.share) {
+        try { await navigator.share({ text }); } catch { /* 취소 */ }
+      } else {
+        await navigator.clipboard.writeText(text);
+        toast.success("복사되었습니다. 카카오톡에 붙여넣기 하세요.");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "공유에 실패했습니다");
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        공부 계획 이미지를 업로드하고 카카오톡으로 학부모에게 전송합니다.
+      </p>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={handleFileSelect}
+      />
+
+      <button
+        type="button"
+        onClick={() => fileInputRef.current?.click()}
+        className="w-full flex items-center justify-center gap-2 border-2 border-dashed rounded-lg py-4 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+      >
+        이미지 선택 (복수 선택 가능)
+      </button>
+
+      {imageItems.length > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          {imageItems.map((item, idx) => (
+            <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={item.previewUrl} alt="" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => removeImage(idx)}
+                className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <X className="h-3 w-3 text-white" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Button
+        onClick={handleShare}
+        disabled={isUploading || imageItems.length === 0}
+        className="w-full gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold"
+      >
+        {isUploading ? "업로드 중..." : "카카오톡으로 보내기"}
       </Button>
     </div>
   );
