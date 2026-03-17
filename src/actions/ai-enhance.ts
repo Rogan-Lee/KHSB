@@ -68,7 +68,7 @@ export async function enhanceMentoringWithAI(mentoringId: string): Promise<Enhan
   const completion = await groq.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     temperature: 0.3,
-    max_tokens: 1500,
+    max_tokens: 2000,
     messages: [
       {
         role: "system",
