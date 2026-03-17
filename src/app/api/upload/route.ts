@@ -19,9 +19,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "이미지 파일만 업로드할 수 있습니다" }, { status: 400 });
   }
 
-  const blob = await put(`study-plans/${Date.now()}-${file.name}`, file, {
-    access: "public",
-  });
-
-  return NextResponse.json({ url: blob.url });
+  try {
+    const blob = await put(`study-plans/${Date.now()}-${file.name}`, file, {
+      access: "public",
+    });
+    return NextResponse.json({ url: blob.url });
+  } catch (err) {
+    console.error("[upload] blob put error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
