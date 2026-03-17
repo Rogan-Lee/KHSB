@@ -91,6 +91,7 @@ model User {
   mentorings      Mentoring[]
   mentorSchedules MentorSchedule[]
   parentReports   ParentReport[]
+  timetableEntries TimetableEntry[]
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 }
@@ -133,9 +134,11 @@ model Student {
   communications Communication[]
   examScores     ExamScore[]
   calendarEvents CalendarEvent[]
-  assignments    Assignment[]
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
+  assignments      Assignment[]
+  timetableEntries TimetableEntry[]
+  dailyPlans       DailyPlan[]
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
 }
 
 model AttendanceSchedule {
@@ -384,4 +387,34 @@ model ParentReport {
   createdById     String
   createdBy       User      @relation(fields: [createdById], references: [id])
   createdAt       DateTime  @default(now())
+}
+
+model TimetableEntry {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int      // 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 0=Sun
+  startTime   String   // "HH:MM"
+  endTime     String   // "HH:MM"
+  subject     String
+  details     String?
+  colorCode   String   @default("blue")
+  allDay      Boolean  @default(false)
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DailyPlan {
+  id        String   @id @default(cuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  items     Json     @default("[]") // [{ id, text, done, colorCode, duration? }]
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([studentId, date])
 }

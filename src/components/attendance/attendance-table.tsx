@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { TimePickerInput } from "@/components/ui/time-picker";
 import { CommunicationPanel } from "@/components/communications/communication-panel";
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
+import { StudentCalendarPanel } from "@/components/calendar/student-calendar-panel";
 
 type StudentWithAttendance = Student & {
   attendances: AttendanceRecord[];
@@ -88,7 +89,7 @@ function calcAutoType(
   return type;
 }
 
-type PanelTab = "attendance" | "assignments" | "communications" | "merit";
+type PanelTab = "attendance" | "assignments" | "communications" | "merit" | "schedule";
 
 interface Props {
   students: StudentWithAttendance[];
@@ -316,6 +317,7 @@ export function AttendanceTable({ students, today }: Props) {
     { key: "merit", label: "상벌점" },
     { key: "assignments", label: "과제", badge: pendingAssignments, badgeColor: "bg-orange-500" },
     { key: "communications", label: "요청/전달", badge: pendingComms, badgeColor: "bg-red-500" },
+    { key: "schedule", label: "일정" },
   ];
 
   return (
@@ -842,6 +844,15 @@ export function AttendanceTable({ students, today }: Props) {
                   studentId={selected.id}
                   initialItems={selected.communications}
                   compact
+                />
+              )}
+
+              {panelTab === "schedule" && (
+                <StudentCalendarPanel
+                  key={selected.id}
+                  studentId={selected.id}
+                  studentName={selected.name}
+                  school={selected.school ?? null}
                 />
               )}
             </div>
