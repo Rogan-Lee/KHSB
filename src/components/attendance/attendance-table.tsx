@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useRef, useState, useTransition } from "react";
+import { Fragment, useEffect, useRef, useState, useTransition } from "react";
 import { saveAttendanceRecord, createDailyOuting, updateDailyOuting, deleteDailyOuting } from "@/actions/attendance";
 import { patchStudentTextFields, patchStudentCheckDate } from "@/actions/students";
 import { createMeritDemerit } from "@/actions/merit-demerit";
@@ -102,6 +102,24 @@ interface Props {
 export function AttendanceTable({ students, today }: Props) {
   const todayDate = new Date(today).toISOString().split("T")[0];
   const nowTime = nowHHMM();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Shift+휠로 가로 스크롤
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.shiftKey) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
+  function scrollBy(delta: number) {
+    scrollRef.current?.scrollBy({ left: delta, behavior: "smooth" });
+  }
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<PanelTab>("attendance");
   const [editValues, setEditValues] = useState({
@@ -409,7 +427,10 @@ export function AttendanceTable({ students, today }: Props) {
   return (
     <>
       {/* 테이블 — 가로 스크롤 */}
-      <div className="rounded-lg border overflow-hidden overflow-x-auto">
+      <div className="relative">
+        <button onClick={() => scrollBy(-240)} className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-6 flex items-center justify-center bg-background/80 border border-border rounded-r shadow-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">‹</button>
+        <button onClick={() => scrollBy(240)} className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-6 flex items-center justify-center bg-background/80 border border-border rounded-l shadow-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">›</button>
+      <div ref={scrollRef} className="rounded-lg border overflow-hidden overflow-x-auto mx-6">
         <table className="text-sm border-collapse min-w-max w-full">
           <thead>
             <tr className="border-b bg-muted/50 text-muted-foreground text-xs font-medium">
@@ -782,6 +803,7 @@ export function AttendanceTable({ students, today }: Props) {
           </tbody>
         </table>
       </div>
+      </div> {/* relative wrapper */}
 
       {/* 호버 툴팁 (position:fixed — overflow-hidden 테이블 밖에 렌더링) */}
       {tooltip && tooltip.text && (
