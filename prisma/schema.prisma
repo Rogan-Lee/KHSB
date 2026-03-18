@@ -121,6 +121,12 @@ model Student {
   selectedSubjects    String?               // 선택과목 (예: "수학, 영어, 사탐")
   admissionType       String?               // 대학 입시 전형 (예: "수시 학종, 정시")
   onlineLectures      String?               // 수강중인 인강 (예: "메가스터디 수학")
+  changeNote          String?               // 추후 변동 예정 사항
+  vocabTestDate       DateTime? @db.Date    // 영단어 테스트 일자
+  pledgeDate          DateTime? @db.Date    // 서약서 제출 일자
+  mockAnalysisDate    DateTime? @db.Date    // 모의고사 분석지 일자
+  schoolAnalysisDate  DateTime? @db.Date    // 내신 분석지 일자
+  plannerSentDate     DateTime? @db.Date    // 플래너 전송 일자
   mentorId            String?
   mentor              User?                  @relation("MentorStudents", fields: [mentorId], references: [id])
   schedules      AttendanceSchedule[]
@@ -439,4 +445,36 @@ model StudyPlanReport {
   images      String[]
   createdById String
   createdAt   DateTime @default(now())
+}
+
+enum HandoverPriority {
+  URGENT  // 긴급
+  NORMAL  // 일반
+}
+
+model Handover {
+  id          String           @id @default(cuid())
+  date        DateTime         @db.Date
+  content     String
+  priority    HandoverPriority @default(NORMAL)
+  category    String?          // 학생관련, 시설관련, 운영관련 등 자유 태그
+  isPinned    Boolean          @default(false)
+  authorId    String
+  authorName  String
+  reads       HandoverRead[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([date])
+}
+
+model HandoverRead {
+  id         String   @id @default(cuid())
+  handoverId String
+  handover   Handover @relation(fields: [handoverId], references: [id], onDelete: Cascade)
+  userId     String
+  userName   String
+  readAt     DateTime @default(now())
+
+  @@unique([handoverId, userId])
 }

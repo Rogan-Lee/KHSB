@@ -8,15 +8,17 @@ async function refreshIfNeeded(userId: string, user: { kakaoAccessToken: string;
   }
   if (!user.kakaoRefreshToken) return null;
 
+  const refreshParams: Record<string, string> = {
+    grant_type: "refresh_token",
+    client_id: process.env.KAKAO_REST_API_KEY!,
+    refresh_token: user.kakaoRefreshToken,
+  };
+  if (process.env.KAKAO_CLIENT_SECRET) refreshParams.client_secret = process.env.KAKAO_CLIENT_SECRET;
+
   const res = await fetch("https://kauth.kakao.com/oauth/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: process.env.KAKAO_REST_API_KEY!,
-      client_secret: process.env.KAKAO_CLIENT_SECRET ?? "",
-      refresh_token: user.kakaoRefreshToken,
-    }),
+    body: new URLSearchParams(refreshParams),
   });
 
   const data = await res.json();

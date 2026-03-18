@@ -168,6 +168,39 @@ export async function updateStudentStatus(
   revalidatePath(`/students/${id}`);
 }
 
+export async function patchStudentTextFields(
+  id: string,
+  fields: { studentInfo?: string; changeNote?: string; academySchedule?: string }
+) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  await prisma.student.update({
+    where: { id },
+    data: {
+      ...(fields.studentInfo !== undefined && { studentInfo: fields.studentInfo || null }),
+      ...(fields.changeNote !== undefined && { changeNote: fields.changeNote || null }),
+      ...(fields.academySchedule !== undefined && { academySchedule: fields.academySchedule || null }),
+    },
+  });
+  revalidatePath("/attendance");
+}
+
+type CheckDateKey = "vocabTestDate" | "pledgeDate" | "mockAnalysisDate" | "schoolAnalysisDate" | "plannerSentDate";
+
+export async function patchStudentCheckDate(
+  id: string,
+  key: CheckDateKey,
+  date: string | null  // "YYYY-MM-DD" or null to clear
+) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  await prisma.student.update({
+    where: { id },
+    data: { [key]: date ? new Date(date) : null },
+  });
+  revalidatePath("/attendance");
+}
+
 export async function getStudents() {
   return prisma.student.findMany({
     include: { mentor: { select: { id: true, name: true } } },
