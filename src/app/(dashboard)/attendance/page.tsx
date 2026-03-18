@@ -16,6 +16,7 @@ export default async function AttendancePage() {
       dailyOutings: { where: { date: today }, orderBy: { outStart: "asc" as const } },
       communications: { orderBy: { createdAt: "desc" as const } },
       assignments: { orderBy: { createdAt: "desc" as const } },
+      merits: { select: { type: true, points: true } },
     },
     orderBy: { seat: "asc" },
   });

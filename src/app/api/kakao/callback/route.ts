@@ -16,20 +16,22 @@ export async function GET(request: NextRequest) {
   }
 
   const clientId = process.env.KAKAO_REST_API_KEY!;
-  const clientSecret = process.env.KAKAO_CLIENT_SECRET ?? "";
+  const clientSecret = process.env.KAKAO_CLIENT_SECRET;
   const redirectUri = process.env.KAKAO_REDIRECT_URI!;
 
   try {
+    const params: Record<string, string> = {
+      grant_type: "authorization_code",
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      code,
+    };
+    if (clientSecret) params.client_secret = clientSecret;
+
     const tokenRes = await fetch("https://kauth.kakao.com/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
-        code,
-      }),
+      body: new URLSearchParams(params),
     });
 
     const tokenData = await tokenRes.json();

@@ -27,7 +27,7 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-background">
       <AppSidebar role={session.user.role} />
-      <div className="ml-60 flex flex-col min-h-screen">
+      <div className="ml-56 flex flex-col min-h-screen">
         <AppHeader
           user={session.user}
           title="독서실 관리 시스템"

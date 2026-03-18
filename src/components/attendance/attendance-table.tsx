@@ -2,12 +2,13 @@
 
 import { Fragment, useRef, useState, useTransition } from "react";
 import { saveAttendanceRecord, createDailyOuting, updateDailyOuting, deleteDailyOuting } from "@/actions/attendance";
+import { patchStudentTextFields, patchStudentCheckDate } from "@/actions/students";
 import { createMeritDemerit } from "@/actions/merit-demerit";
 import { createStudyPlanReport } from "@/actions/study-plan-reports";
 import { toast } from "sonner";
 import { cn, MERIT_CATEGORIES } from "@/lib/utils";
 import type { Assignment, AttendanceRecord, AttendanceSchedule, AttendanceType, Communication, DailyOuting, OutingSchedule, Student } from "@/generated/prisma";
-import { ArrowRightLeft, Check, ChevronDown, ChevronUp, ClipboardList, LogIn, LogOut, MessageSquare, Plus, Star, StickyNote, Trash2, X } from "lucide-react";
+import { ArrowRightLeft, Check, ChevronDown, ChevronUp, ClipboardList, LogIn, LogOut, MessageSquare, PanelRightOpen, Plus, Save, Star, StickyNote, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TimePickerInput } from "@/components/ui/time-picker";
 import { CommunicationPanel } from "@/components/communications/communication-panel";
@@ -21,6 +22,7 @@ type StudentWithAttendance = Student & {
   dailyOutings: DailyOuting[];
   communications: Communication[];
   assignments: Assignment[];
+  merits: { type: string; points: number }[];
 };
 
 const TYPE_OPTIONS: { value: AttendanceType; label: string }[] = [
@@ -133,14 +135,48 @@ export function AttendanceTable({ students, today }: Props) {
     return map;
   });
 
+
+  type StudentTextField = { studentInfo: string; changeNote: string; academySchedule: string };
+  const [localStudentFields, setLocalStudentFields] = useState<Map<string, StudentTextField>>(() => {
+    const map = new Map<string, StudentTextField>();
+    students.forEach((s) => map.set(s.id, {
+      studentInfo: s.studentInfo ?? "",
+      changeNote: s.changeNote ?? "",
+      academySchedule: s.academySchedule ?? "",
+    }));
+    return map;
+  });
+
+  type CheckDateKey = "vocabTestDate" | "pledgeDate" | "mockAnalysisDate" | "schoolAnalysisDate" | "plannerSentDate";
+  type CheckDateState = Record<CheckDateKey, string | null>; // "YYYY-MM-DD" or null
+
+  const [localCheckDates, setLocalCheckDates] = useState<Map<string, CheckDateState>>(() => {
+    const map = new Map<string, CheckDateState>();
+    const toISO = (d: Date | null | undefined) => d ? new Date(d).toISOString().split("T")[0] : null;
+    students.forEach((s) => map.set(s.id, {
+      vocabTestDate: toISO(s.vocabTestDate),
+      pledgeDate: toISO(s.pledgeDate),
+      mockAnalysisDate: toISO(s.mockAnalysisDate),
+      schoolAnalysisDate: toISO(s.schoolAnalysisDate),
+      plannerSentDate: toISO(s.plannerSentDate),
+    }));
+    return map;
+  });
+  const [checkDatePending, setCheckDatePending] = useState<string | null>(null); // "studentId:key"
+
+  type EditFocus = "attendance" | "notes" | "studentInfo" | "changeNote" | "academySchedule";
+  const [expandFocus, setExpandFocus] = useState<Map<string, EditFocus>>(new Map());
+  const [studentFieldPending, setStudentFieldPending] = useState<string | null>(null);
+  const [tooltip, setTooltip] = useState<{ text: string; rect: DOMRect } | null>(null);
+
   const [quickPending, setQuickPending] = useState<string | null>(null);
   const [expandedTimelines, setExpandedTimelines] = useState<Set<string>>(new Set());
 
   function toggleTimeline(id: string, e: React.MouseEvent) {
     e.stopPropagation();
     setExpandedTimelines((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      const next = new Set<string>();
+      if (!prev.has(id)) next.add(id); // 이미 열려있으면 닫기, 아니면 이것만 열기
       return next;
     });
   }
@@ -310,6 +346,54 @@ export function AttendanceTable({ students, today }: Props) {
     setQuickPending(null);
   }
 
+  async function saveStudentFields(student: StudentWithAttendance) {
+    const fields = localStudentFields.get(student.id) ?? { studentInfo: "", changeNote: "", academySchedule: "" };
+    setStudentFieldPending(student.id);
+    try {
+      await patchStudentTextFields(student.id, fields);
+      toast.success("저장되었습니다");
+    } catch { toast.error("저장 실패"); }
+    setStudentFieldPending(null);
+  }
+
+  const CHECK_ITEMS: { key: CheckDateKey; label: string }[] = [
+    { key: "vocabTestDate",      label: "영단어 테스트" },
+    { key: "pledgeDate",         label: "서약서 제출" },
+    { key: "mockAnalysisDate",   label: "모의고사 분석지" },
+    { key: "schoolAnalysisDate", label: "내신 분석지" },
+    { key: "plannerSentDate",    label: "플래너 전송" },
+  ];
+
+  function fmtCheckDate(iso: string): string {
+    const d = new Date(iso);
+    return `${d.getMonth() + 1}/${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  async function saveCheckDate(studentId: string, key: CheckDateKey, value: string | null) {
+    const pendingKey = `${studentId}:${key}`;
+    setCheckDatePending(pendingKey);
+    try {
+      await patchStudentCheckDate(studentId, key, value);
+      setLocalCheckDates((prev) => {
+        const m = new Map(prev);
+        m.set(studentId, { ...(m.get(studentId)!), [key]: value });
+        return m;
+      });
+    } catch { toast.error("저장 실패"); }
+    setCheckDatePending(null);
+  }
+
+  function expandAndFocus(id: string, focus: EditFocus, e: React.MouseEvent) {
+    e.stopPropagation();
+    setExpandedTimelines(new Set([id])); // 하나만 열기
+    setExpandFocus((prev) => { const m = new Map(prev); m.set(id, focus); return m; });
+  }
+
+  function showTooltip(e: React.MouseEvent, text: string) {
+    if (!text) return;
+    setTooltip({ text, rect: e.currentTarget.getBoundingClientRect() });
+  }
+
   const pendingAssignments = selected?.assignments.filter((a) => !a.isCompleted).length ?? 0;
   const pendingComms = selected?.communications.filter((c) => !c.isChecked).length ?? 0;
 
@@ -324,20 +408,27 @@ export function AttendanceTable({ students, today }: Props) {
 
   return (
     <>
-      {/* 테이블 — 항상 고정 */}
-      <div className="rounded-lg border overflow-hidden">
-        <table className="w-full text-sm border-collapse">
+      {/* 테이블 — 가로 스크롤 */}
+      <div className="rounded-lg border overflow-hidden overflow-x-auto">
+        <table className="text-sm border-collapse min-w-max w-full">
           <thead>
             <tr className="border-b bg-muted/50 text-muted-foreground text-xs font-medium">
               <th className="w-8 shrink-0" />
-              <th className="px-3 py-2.5 text-center w-12 shrink-0">좌석</th>
-              <th className="px-3 py-2.5 text-left">이름</th>
-              <th className="px-3 py-2.5 text-center w-24">입실 예정</th>
+              <th className="px-2 py-2.5 text-center w-16">상벌점</th>
+              <th className="px-3 py-2.5 text-center w-12">좌석</th>
+              <th className="px-3 py-2.5 text-left w-28">이름</th>
+              <th className="px-3 py-2.5 text-left w-24">학교·학년</th>
+              <th className="px-3 py-2.5 text-left w-32">특이사항</th>
+              <th className="px-3 py-2.5 text-left w-16">반</th>
+              <th className="px-3 py-2.5 text-center w-20">입실약속</th>
               <th className="px-3 py-2.5 text-left w-32">입실</th>
-              <th className="px-3 py-2.5 text-center w-24">퇴실 예정</th>
+              <th className="px-3 py-2.5 text-center w-20">퇴실약속</th>
               <th className="px-3 py-2.5 text-left w-32">퇴실</th>
-              <th className="px-3 py-2.5 text-left w-36">외출 예정</th>
-              <th className="px-3 py-2.5 text-left w-36">복귀 예정</th>
+              <th className="px-3 py-2.5 text-left w-36">입퇴실 메모</th>
+              <th className="px-3 py-2.5 text-left w-36">변동 예정</th>
+              <th className="px-3 py-2.5 text-left w-36">학원일정</th>
+              <th className="px-3 py-2.5 text-left w-32">외출</th>
+              <th className="px-3 py-2.5 text-left w-32">복귀</th>
             </tr>
           </thead>
           <tbody>
@@ -357,18 +448,21 @@ export function AttendanceTable({ students, today }: Props) {
               const commCount = student.communications.filter((c) => !c.isChecked).length;
               const assignCount = student.assignments.filter((a) => !a.isCompleted).length;
               const schoolGrade = [student.school, student.grade].filter(Boolean).join(" ");
+              const meritBalance = student.merits.reduce(
+                (sum, m) => sum + (m.type === "MERIT" ? m.points : -m.points), 0
+              );
+              const attNotes = student.attendances[0]?.notes ?? "";
 
               const isExpanded = expandedTimelines.has(student.id);
-              const isLate = !!(checkInTime && schedIn && toMinutes(checkInTime) >= toMinutes(schedIn) + 5);
-              const isEarlyLeave = !!(checkOutTime && schedOut && toMinutes(checkOutTime) < toMinutes(schedOut));
+
 
               return (
                 <Fragment key={student.id}>
                 <tr
-                  onClick={() => selectStudent(student)}
+                  onClick={(e) => toggleTimeline(student.id, e)}
                   className={cn(
                     "border-b transition-colors cursor-pointer",
-                    isSelected ? "bg-blue-50 border-l-2 border-l-blue-500" : "hover:bg-accent/50",
+                    isSelected ? "bg-blue-50 border-l-2 border-l-blue-500" : isExpanded ? "bg-muted/30" : "hover:bg-accent/50",
                     state === "NO_SCHEDULE" && "opacity-50"
                   )}
                 >
@@ -382,37 +476,74 @@ export function AttendanceTable({ students, today }: Props) {
                       {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                     </button>
                   </td>
+                  {/* 상벌점 */}
+                  <td className="px-2 py-3 text-center">
+                    <span className={cn(
+                      "text-sm font-semibold tabular-nums",
+                      meritBalance > 0 ? "text-blue-600" : meritBalance < 0 ? "text-red-600" : "text-muted-foreground"
+                    )}>
+                      {meritBalance > 0 ? `+${meritBalance}` : meritBalance === 0 ? "—" : meritBalance}
+                    </span>
+                  </td>
+
                   {/* 좌석 */}
                   <td className="px-3 py-3 text-center text-sm text-muted-foreground font-mono font-medium">
                     {student.seat ?? "—"}
                   </td>
 
-                  {/* 이름 + 학교/학년 + 배지 */}
+                  {/* 이름 + 배지 */}
                   <td className="px-3 py-3">
-                    <div className="flex items-center justify-between gap-2 min-w-0">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <p className="font-semibold text-sm truncate">{student.name}</p>
-                        {commCount > 0 && (
-                          <span className="flex items-center gap-0.5 bg-orange-100 text-orange-700 text-[10px] px-1.5 py-0.5 rounded-full border border-orange-200 font-medium shrink-0">
-                            <MessageSquare className="h-2.5 w-2.5" />{commCount}
-                          </span>
-                        )}
-                        {assignCount > 0 && (
-                          <span className="flex items-center gap-0.5 bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded-full border border-blue-200 font-medium shrink-0">
-                            <ClipboardList className="h-2.5 w-2.5" />{assignCount}
-                          </span>
-                        )}
-                      </div>
-                      <div className="shrink-0 flex items-center gap-1.5">
-                        {schoolGrade && (
-                          <span className="text-xs text-muted-foreground">{schoolGrade}</span>
-                        )}
-                        <span className={cn("inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] whitespace-nowrap", TYPE_BADGE[state])}>
-                          {state === "OUTING" && <ArrowRightLeft className="h-2.5 w-2.5" />}
-                          {getStateLabel(state)}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <p className="font-semibold text-sm truncate">{student.name}</p>
+                      <span className={cn("inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] whitespace-nowrap shrink-0", TYPE_BADGE[state])}>
+                        {state === "OUTING" && <ArrowRightLeft className="h-2.5 w-2.5" />}
+                        {getStateLabel(state)}
+                      </span>
+                      {commCount > 0 && (
+                        <span className="flex items-center gap-0.5 bg-orange-100 text-orange-700 text-[10px] px-1.5 py-0.5 rounded-full border border-orange-200 font-medium shrink-0">
+                          <MessageSquare className="h-2.5 w-2.5" />{commCount}
                         </span>
-                      </div>
+                      )}
+                      {assignCount > 0 && (
+                        <span className="flex items-center gap-0.5 bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded-full border border-blue-200 font-medium shrink-0">
+                          <ClipboardList className="h-2.5 w-2.5" />{assignCount}
+                        </span>
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); selectStudent(student); }}
+                        className={cn(
+                          "shrink-0 p-1 rounded transition-colors",
+                          isSelected ? "text-blue-600 bg-blue-100" : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                        )}
+                        title="상세 보기"
+                      >
+                        <PanelRightOpen className="h-3.5 w-3.5" />
+                      </button>
                     </div>
+                  </td>
+
+                  {/* 학교·학년 */}
+                  <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                    {schoolGrade || "—"}
+                  </td>
+
+                  {/* 특이사항 */}
+                  <td
+                    className="px-3 py-3 cursor-pointer"
+                    onClick={(e) => expandAndFocus(student.id, "studentInfo", e)}
+                    onMouseEnter={(e) => showTooltip(e, student.studentInfo ?? "")}
+                    onMouseLeave={() => setTooltip(null)}
+                  >
+                    {student.studentInfo ? (
+                      <span className="text-xs text-foreground truncate block max-w-[120px]">{student.studentInfo}</span>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </td>
+
+                  {/* 반 */}
+                  <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                    {student.classGroup || "—"}
                   </td>
 
                   {/* 입실 예정 */}
@@ -461,6 +592,48 @@ export function AttendanceTable({ students, today }: Props) {
                     </div>
                   </td>
 
+                  {/* 입퇴실 메모 */}
+                  <td
+                    className="px-3 py-3 cursor-pointer"
+                    onClick={(e) => expandAndFocus(student.id, "notes", e)}
+                    onMouseEnter={(e) => showTooltip(e, attNotes)}
+                    onMouseLeave={() => setTooltip(null)}
+                  >
+                    {attNotes ? (
+                      <span className="text-xs text-foreground truncate block max-w-[130px]">{attNotes}</span>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </td>
+
+                  {/* 변동 예정 */}
+                  <td
+                    className="px-3 py-3 cursor-pointer"
+                    onClick={(e) => expandAndFocus(student.id, "changeNote", e)}
+                    onMouseEnter={(e) => showTooltip(e, student.changeNote ?? "")}
+                    onMouseLeave={() => setTooltip(null)}
+                  >
+                    {student.changeNote ? (
+                      <span className="text-xs text-amber-700 truncate block max-w-[130px]">{student.changeNote}</span>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </td>
+
+                  {/* 학원일정 */}
+                  <td
+                    className="px-3 py-3 cursor-pointer"
+                    onClick={(e) => expandAndFocus(student.id, "academySchedule", e)}
+                    onMouseEnter={(e) => showTooltip(e, student.academySchedule ?? "")}
+                    onMouseLeave={() => setTooltip(null)}
+                  >
+                    {student.academySchedule ? (
+                      <span className="text-xs text-muted-foreground truncate block max-w-[130px]">{student.academySchedule}</span>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </td>
+
                   {/* 외출 예정 + 실제 외출 */}
                   <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-2">
@@ -507,82 +680,99 @@ export function AttendanceTable({ students, today }: Props) {
                   </td>
                 </tr>
 
-                {/* 타임라인 확장 행 */}
+                {/* 타임라인 + 인라인 편집 확장 행 */}
                 {isExpanded && (
-                  <tr className={cn("border-b", isSelected ? "bg-blue-50/60" : "bg-muted/30")}>
-                    <td colSpan={9} className="px-4 py-3">
-                      <div className="flex items-center gap-1 flex-wrap text-xs">
+                  <tr className={cn("border-b", isSelected ? "bg-blue-50/60" : "bg-muted/20")}>
+                    <td colSpan={16} className="px-4 py-4">
+                      {/* 인라인 편집 */}
+                      {(() => {
+                        const focus = expandFocus.get(student.id);
+                        const focusLabel: Record<EditFocus, string> = {
+                          attendance: "출결 상태", notes: "입퇴실 메모",
+                          studentInfo: "특이사항", changeNote: "변동 예정", academySchedule: "학원일정",
+                        };
+                        const isAttnActive = !focus || focus === "attendance" || focus === "notes";
+                        const isMemoActive = focus === "studentInfo" || focus === "changeNote" || focus === "academySchedule";
+                        return (
+                          <div className="pt-3 border-t" onClick={(e) => e.stopPropagation()}>
+                            {/* 편집 중 배지 */}
+                            {focus && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5 mb-2 w-fit">
+                                <span className="opacity-60">편집 중:</span> {focusLabel[focus]}
+                              </span>
+                            )}
+                            <div className="flex items-stretch gap-0 w-full">
+                              {/* 왼쪽: 체크 항목 */}
+                              <div className="flex flex-col justify-center gap-2 shrink-0 rounded-l-md border border-border bg-muted/30 px-4 py-3">
+                                {CHECK_ITEMS.map(({ key, label }) => {
+                                  const dateVal = localCheckDates.get(student.id)?.[key] ?? null;
+                                  const isPending = checkDatePending === `${student.id}:${key}`;
+                                  const todayISO = new Date().toISOString().split("T")[0];
+                                  return (
+                                    <div key={key} className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground w-24 shrink-0">{label}</span>
+                                      {dateVal ? (
+                                        <>
+                                          <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5">
+                                            <Check className="h-3 w-3" />{fmtCheckDate(dateVal)}
+                                          </span>
+                                          <button
+                                            onClick={() => saveCheckDate(student.id, key, null)}
+                                            disabled={isPending}
+                                            className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+                                          >
+                                            <X className="h-3 w-3" />
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <button
+                                          onClick={() => saveCheckDate(student.id, key, todayISO)}
+                                          disabled={isPending}
+                                          className="px-2 py-0.5 text-[10px] rounded border border-border bg-background hover:bg-accent text-muted-foreground font-medium transition-colors disabled:opacity-40"
+                                        >
+                                          {isPending ? "..." : "오늘"}
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
 
-                        {/* 입실 */}
-                        <div className={cn(
-                          "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border font-medium",
-                          checkInTime
-                            ? isLate
-                              ? "bg-orange-50 border-orange-200 text-orange-800"
-                              : "bg-green-50 border-green-200 text-green-800"
-                            : "bg-muted border-border text-muted-foreground"
-                        )}>
-                          <LogIn className="h-3 w-3 shrink-0" />
-                          <span className="font-mono">{checkInTime || "—"}</span>
-                          <span className="opacity-70">입실</span>
-                          {isLate && <span className="text-[10px] bg-orange-200 text-orange-800 rounded px-1">지각</span>}
-                        </div>
-
-                        {/* 외출/복귀 루프 */}
-                        {localOut.length > 0 ? localOut.map((o, i) => (
-                          <Fragment key={i}>
-                            <div className="h-px w-4 bg-border shrink-0" />
-                            <div className="flex items-center gap-1 bg-orange-50 border border-orange-200 text-orange-800 rounded-full px-2.5 py-1.5 font-medium">
-                              <ArrowRightLeft className="h-3 w-3 shrink-0" />
-                              <span className="font-mono">{o.outStart ? toTimeString(o.outStart) : "—"}</span>
-                              <span className="opacity-70">외출{localOut.length > 1 ? ` ${i + 1}` : ""}</span>
+                              {/* 오른쪽: 학생 메모 (flex-1, 나머지 공간 차지) */}
+                              <div className={cn(
+                                "flex items-stretch gap-3 flex-1 rounded-r-md border-y border-r px-4 py-3 transition-colors",
+                                isMemoActive ? "border-primary/30 bg-primary/[0.04]" : "border-border bg-muted/30"
+                              )}>
+                                {(
+                                  [
+                                    { key: "studentInfo", label: "특이사항", ph: "특이사항", af: focus === "studentInfo" },
+                                    { key: "changeNote",  label: "변동예정",  ph: "변동 예정", af: focus === "changeNote" },
+                                    { key: "academySchedule", label: "학원일정", ph: "학원일정", af: focus === "academySchedule" },
+                                  ] as { key: keyof StudentTextField; label: string; ph: string; af: boolean }[]
+                                ).map(({ key, label, ph, af }) => (
+                                  <div key={key} className="flex flex-col gap-1 flex-1 min-w-0">
+                                    <span className="text-[10px] text-muted-foreground font-medium">{label}</span>
+                                    <textarea
+                                      value={localStudentFields.get(student.id)?.[key] ?? ""}
+                                      onChange={(e) => setLocalStudentFields((prev) => { const m = new Map(prev); m.set(student.id, { ...(m.get(student.id) ?? { studentInfo: "", changeNote: "", academySchedule: "" }), [key]: e.target.value }); return m; })}
+                                      autoFocus={isExpanded && af}
+                                      placeholder={ph}
+                                      rows={4}
+                                      className={cn(
+                                        "w-full flex-1 border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none",
+                                        af && "ring-2 ring-primary"
+                                      )}
+                                    />
+                                  </div>
+                                ))}
+                                <button onClick={() => saveStudentFields(student)} disabled={studentFieldPending === student.id} className="flex items-center gap-1 px-3 py-2 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 font-medium disabled:opacity-50 transition-colors shrink-0 self-end">
+                                  <Save className="h-3 w-3" />{studentFieldPending === student.id ? "저장 중..." : "저장"}
+                                </button>
+                              </div>
                             </div>
-                            <div className="h-px w-4 bg-border shrink-0" />
-                            <div className={cn(
-                              "flex items-center gap-1 rounded-full px-2.5 py-1.5 border font-medium",
-                              o.outEnd
-                                ? "bg-green-50 border-green-200 text-green-800"
-                                : "bg-muted border-border text-muted-foreground"
-                            )}>
-                              <LogIn className="h-3 w-3 shrink-0" />
-                              <span className="font-mono">{o.outEnd ? toTimeString(o.outEnd) : "—"}</span>
-                              <span className="opacity-70">복귀</span>
-                            </div>
-                          </Fragment>
-                        )) : outSch ? (
-                          <>
-                            <div className="h-px w-4 bg-border shrink-0" />
-                            <div className="flex items-center gap-1 bg-muted border border-border text-muted-foreground rounded-full px-2.5 py-1.5">
-                              <ArrowRightLeft className="h-3 w-3 shrink-0" />
-                              <span className="font-mono">{outSch.outStart}</span>
-                              <span className="opacity-70">외출 예정</span>
-                            </div>
-                            <div className="h-px w-4 bg-border shrink-0" />
-                            <div className="flex items-center gap-1 bg-muted border border-border text-muted-foreground rounded-full px-2.5 py-1.5">
-                              <LogIn className="h-3 w-3 shrink-0" />
-                              <span className="font-mono">{outSch.outEnd}</span>
-                              <span className="opacity-70">복귀 예정</span>
-                            </div>
-                          </>
-                        ) : null}
-
-                        {/* 퇴실 */}
-                        <div className="h-px w-4 bg-border shrink-0" />
-                        <div className={cn(
-                          "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border font-medium",
-                          checkOutTime
-                            ? isEarlyLeave
-                              ? "bg-blue-50 border-blue-200 text-blue-800"
-                              : "bg-blue-50 border-blue-200 text-blue-800"
-                            : "bg-muted border-border text-muted-foreground"
-                        )}>
-                          <LogOut className="h-3 w-3 shrink-0" />
-                          <span className="font-mono">{checkOutTime || "—"}</span>
-                          <span className="opacity-70">퇴실</span>
-                          {isEarlyLeave && <span className="text-[10px] bg-blue-200 text-blue-800 rounded px-1">조퇴</span>}
-                        </div>
-
-                      </div>
+                          </div>
+                        );
+                      })()}
                     </td>
                   </tr>
                 )}
@@ -592,6 +782,23 @@ export function AttendanceTable({ students, today }: Props) {
           </tbody>
         </table>
       </div>
+
+      {/* 호버 툴팁 (position:fixed — overflow-hidden 테이블 밖에 렌더링) */}
+      {tooltip && tooltip.text && (
+        <div
+          style={{
+            position: "fixed",
+            top: tooltip.rect.top - 6,
+            left: tooltip.rect.left,
+            transform: "translateY(-100%)",
+            zIndex: 9999,
+            pointerEvents: "none",
+          }}
+          className="bg-popover border rounded-md shadow-lg px-2.5 py-1.5 text-xs text-popover-foreground max-w-xs whitespace-pre-wrap break-words"
+        >
+          {tooltip.text}
+        </div>
+      )}
 
       {/* 오버레이 패널 */}
       <div

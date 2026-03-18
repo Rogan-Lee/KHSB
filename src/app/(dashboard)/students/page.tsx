@@ -7,6 +7,7 @@ import { Plus, UserCheck, UserX, GraduationCap } from "lucide-react";
 import { StudentsScheduleTable } from "@/components/students/students-schedule-table";
 import { StudentsTable } from "@/components/students/students-table";
 import { CsvImport } from "@/components/students/csv-import";
+import { CsvImportScores } from "@/components/students/csv-import-scores";
 
 export default async function StudentsPage() {
   const students = await prisma.student.findMany({
@@ -60,7 +61,8 @@ export default async function StudentsPage() {
           <TabsList>
             <TabsTrigger value="list">원생 목록</TabsTrigger>
             <TabsTrigger value="schedule">입퇴실 일정</TabsTrigger>
-            <TabsTrigger value="import">CSV 가져오기</TabsTrigger>
+            <TabsTrigger value="import">원생 CSV 가져오기</TabsTrigger>
+            <TabsTrigger value="scores-import">성적 CSV 업로드</TabsTrigger>
           </TabsList>
           <Link href="/students/new">
             <Button size="sm">
@@ -86,6 +88,14 @@ export default async function StudentsPage() {
           <Card>
             <CardContent className="pt-5">
               <CsvImport />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="scores-import" className="mt-3">
+          <Card>
+            <CardContent className="pt-5">
+              <CsvImportScores />
             </CardContent>
           </Card>
         </TabsContent>
