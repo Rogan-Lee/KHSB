@@ -101,7 +101,6 @@ interface Props {
 
 export function AttendanceTable({ students, today }: Props) {
   const todayDate = new Date(today).toISOString().split("T")[0];
-  const nowTime = nowHHMM();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Shift+휠로 가로 스크롤
@@ -248,16 +247,27 @@ export function AttendanceTable({ students, today }: Props) {
 
   function getState(s: StudentWithAttendance) {
     const att = s.attendances[0];
+    const lt = localTimes.get(s.id);
+    const checkInTime = lt?.checkIn ?? toTimeString(att?.checkIn);
+    const hasCheckIn = !!checkInTime;
+
+    // 입실 기록이 없으면 결석
+    if (!hasCheckIn) {
+      if (!s.schedules.length) return "NO_SCHEDULE";
+      const type = lt?.type ?? (att?.type as string | undefined);
+      // 명시적으로 결석/공결로 설정된 경우는 그대로
+      if (type === "ABSENT" || type === "APPROVED_ABSENT") return type;
+      return "ABSENT";
+    }
+
+    // 입실한 경우: 실제 외출 기록(outStart 있고 outEnd 없음)이 있을 때만 외출중
     const outings = localOutings.get(s.id) ?? s.dailyOutings;
     const activeOuting = outings.find((o) => o.outStart && !o.outEnd);
     if (activeOuting) return "OUTING";
-    const sch = s.outings[0];
-    if (sch && (!att || att.type === "NORMAL") && nowTime >= sch.outStart && nowTime <= sch.outEnd) return "OUTING";
-    const lt = localTimes.get(s.id);
+
     const type = lt?.type ?? (att?.type as string | undefined);
     if (type) return type;
-    if (!s.schedules.length) return "NO_SCHEDULE";
-    return "UNRECORDED";
+    return "NORMAL";
   }
 
   function getStateLabel(state: string) {
@@ -784,7 +794,7 @@ export function AttendanceTable({ students, today }: Props) {
                                             disabled={isPending}
                                             className="px-2 py-0.5 text-[10px] rounded border border-border bg-background hover:bg-accent text-muted-foreground font-medium transition-colors disabled:opacity-40"
                                           >
-                                            {isPending ? "..." : "오늘"}
+                                            {isPending ? "..." : "확인"}
                                           </button>
                                           {/* 주간 항목이고 이전 날짜가 있으면 마지막 날짜 힌트 표시 */}
                                           {dateVal && WEEKLY_KEYS.has(key) && (
