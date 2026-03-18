@@ -185,7 +185,7 @@ export async function patchStudentTextFields(
   revalidatePath("/attendance");
 }
 
-type CheckDateKey = "vocabTestDate" | "pledgeDate" | "mockAnalysisDate" | "schoolAnalysisDate" | "plannerSentDate";
+type CheckDateKey = "vocabTestDate" | "pledgeDate" | "mockAnalysisDate" | "schoolAnalysisDate" | "plannerSentDate" | "weeklyPlanDate";
 
 export async function patchStudentCheckDate(
   id: string,

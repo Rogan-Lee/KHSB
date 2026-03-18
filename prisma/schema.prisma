@@ -122,11 +122,12 @@ model Student {
   admissionType       String?               // 대학 입시 전형 (예: "수시 학종, 정시")
   onlineLectures      String?               // 수강중인 인강 (예: "메가스터디 수학")
   changeNote          String?               // 추후 변동 예정 사항
-  vocabTestDate       DateTime? @db.Date    // 영단어 테스트 일자
-  pledgeDate          DateTime? @db.Date    // 서약서 제출 일자
+  vocabTestDate       DateTime? @db.Date    // 영단어 테스트 일자 (매주 화요일 초기화)
+  pledgeDate          DateTime? @db.Date    // 서약서 제출 일자 (최초 1회 영구 보존)
   mockAnalysisDate    DateTime? @db.Date    // 모의고사 분석지 일자
   schoolAnalysisDate  DateTime? @db.Date    // 내신 분석지 일자
-  plannerSentDate     DateTime? @db.Date    // 플래너 전송 일자
+  plannerSentDate     DateTime? @db.Date    // 플래너 전송 일자 (매주 화요일 초기화)
+  weeklyPlanDate      DateTime? @db.Date    // 주간 공부계획 일자 (매주 화요일 초기화)
   mentorId            String?
   mentor              User?                  @relation("MentorStudents", fields: [mentorId], references: [id])
   schedules      AttendanceSchedule[]

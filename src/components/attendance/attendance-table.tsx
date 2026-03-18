@@ -165,8 +165,29 @@ export function AttendanceTable({ students, today }: Props) {
     return map;
   });
 
-  type CheckDateKey = "vocabTestDate" | "pledgeDate" | "mockAnalysisDate" | "schoolAnalysisDate" | "plannerSentDate";
-  type CheckDateState = Record<CheckDateKey, string | null>; // "YYYY-MM-DD" or null
+  type CheckDateKey = "vocabTestDate" | "pledgeDate" | "mockAnalysisDate" | "schoolAnalysisDate" | "plannerSentDate" | "weeklyPlanDate";
+  type CheckDateState = Record<CheckDateKey, string | null>;
+
+  // 매주 화요일 초기화 대상 키
+  const WEEKLY_KEYS = new Set<CheckDateKey>(["vocabTestDate", "plannerSentDate", "weeklyPlanDate"]);
+
+  // 이번 주 화요일 기준일 계산
+  function getLastTuesday(): Date {
+    const now = new Date();
+    const day = now.getDay(); // 0=일, 1=월, 2=화 ...
+    const daysBack = day >= 2 ? day - 2 : day + 5;
+    const lastTue = new Date(now);
+    lastTue.setDate(now.getDate() - daysBack);
+    lastTue.setHours(0, 0, 0, 0);
+    return lastTue;
+  }
+
+  // 해당 항목이 "이번 주 완료" 상태인지 판단
+  function isDoneThisWeek(key: CheckDateKey, dateVal: string | null): boolean {
+    if (!dateVal) return false;
+    if (!WEEKLY_KEYS.has(key)) return true; // 서약서·분석지는 날짜 있으면 항상 완료
+    return new Date(dateVal) >= getLastTuesday();
+  }
 
   const [localCheckDates, setLocalCheckDates] = useState<Map<string, CheckDateState>>(() => {
     const map = new Map<string, CheckDateState>();
@@ -177,6 +198,7 @@ export function AttendanceTable({ students, today }: Props) {
       mockAnalysisDate: toISO(s.mockAnalysisDate),
       schoolAnalysisDate: toISO(s.schoolAnalysisDate),
       plannerSentDate: toISO(s.plannerSentDate),
+      weeklyPlanDate: toISO((s as unknown as Record<string, unknown>).weeklyPlanDate as Date | null | undefined),
     }));
     return map;
   });
@@ -374,12 +396,13 @@ export function AttendanceTable({ students, today }: Props) {
     setStudentFieldPending(null);
   }
 
-  const CHECK_ITEMS: { key: CheckDateKey; label: string }[] = [
-    { key: "vocabTestDate",      label: "영단어 테스트" },
-    { key: "pledgeDate",         label: "서약서 제출" },
-    { key: "mockAnalysisDate",   label: "모의고사 분석지" },
-    { key: "schoolAnalysisDate", label: "내신 분석지" },
-    { key: "plannerSentDate",    label: "플래너 전송" },
+  const CHECK_ITEMS: { key: CheckDateKey; label: string; permanent?: boolean }[] = [
+    { key: "weeklyPlanDate",     label: "주간 공부계획" },   // 매주 화요일 초기화
+    { key: "plannerSentDate",    label: "플래너 전송" },     // 매주 화요일 초기화
+    { key: "vocabTestDate",      label: "영단어 테스트" },   // 매주 화요일 초기화
+    { key: "pledgeDate",         label: "서약서 제출" },   // 수동 관리
+    { key: "mockAnalysisDate",   label: "모의고사 분석지" }, // 수동 관리
+    { key: "schoolAnalysisDate", label: "내신 분석지" },     // 수동 관리
   ];
 
   function fmtCheckDate(iso: string): string {
@@ -428,9 +451,13 @@ export function AttendanceTable({ students, today }: Props) {
     <>
       {/* 테이블 — 가로 스크롤 */}
       <div className="relative">
-        <button onClick={() => scrollBy(-240)} className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-6 flex items-center justify-center bg-background/80 border border-border rounded-r shadow-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">‹</button>
-        <button onClick={() => scrollBy(240)} className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-6 flex items-center justify-center bg-background/80 border border-border rounded-l shadow-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">›</button>
-      <div ref={scrollRef} className="rounded-lg border overflow-hidden overflow-x-auto mx-6">
+        <div className="absolute inset-y-0 left-0 flex flex-col pointer-events-none z-10">
+          <button onClick={() => scrollBy(-240)} style={{ position: "sticky", top: "calc(50vh - 16px)" }} className="pointer-events-auto h-8 w-6 flex items-center justify-center bg-background/80 border border-border rounded-r shadow-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">‹</button>
+        </div>
+        <div className="absolute inset-y-0 right-0 flex flex-col pointer-events-none z-10">
+          <button onClick={() => scrollBy(240)} style={{ position: "sticky", top: "calc(50vh - 16px)" }} className="pointer-events-auto h-8 w-6 flex items-center justify-center bg-background/80 border border-border rounded-l shadow-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">›</button>
+        </div>
+        <div ref={scrollRef} className="rounded-lg border overflow-hidden overflow-x-auto mx-6">
         <table className="text-sm border-collapse min-w-max w-full">
           <thead>
             <tr className="border-b bg-muted/50 text-muted-foreground text-xs font-medium">
@@ -725,34 +752,45 @@ export function AttendanceTable({ students, today }: Props) {
                             <div className="flex items-stretch gap-0 w-full">
                               {/* 왼쪽: 체크 항목 */}
                               <div className="flex flex-col justify-center gap-2 shrink-0 rounded-l-md border border-border bg-muted/30 px-4 py-3">
-                                {CHECK_ITEMS.map(({ key, label }) => {
+                                {CHECK_ITEMS.map(({ key, label, permanent }) => {
                                   const dateVal = localCheckDates.get(student.id)?.[key] ?? null;
                                   const isPending = checkDatePending === `${student.id}:${key}`;
                                   const todayISO = new Date().toISOString().split("T")[0];
+                                  const done = dateVal ? isDoneThisWeek(key, dateVal) : false;
                                   return (
                                     <div key={key} className="flex items-center gap-2">
                                       <span className="text-xs text-muted-foreground w-24 shrink-0">{label}</span>
-                                      {dateVal ? (
-                                        <>
+                                      {done ? (
+                                        permanent ? (
+                                          // 서약서: 완료 뱃지만, 취소 불가
                                           <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5">
-                                            <Check className="h-3 w-3" />{fmtCheckDate(dateVal)}
+                                            <Check className="h-3 w-3" />{fmtCheckDate(dateVal!)}
                                           </span>
+                                        ) : (
+                                          // 완료 뱃지 클릭 시 취소
                                           <button
                                             onClick={() => saveCheckDate(student.id, key, null)}
                                             disabled={isPending}
-                                            className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+                                            title="클릭하여 취소"
+                                            className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-40"
                                           >
-                                            <X className="h-3 w-3" />
+                                            <Check className="h-3 w-3" />{fmtCheckDate(dateVal!)}
                                           </button>
-                                        </>
+                                        )
                                       ) : (
-                                        <button
-                                          onClick={() => saveCheckDate(student.id, key, todayISO)}
-                                          disabled={isPending}
-                                          className="px-2 py-0.5 text-[10px] rounded border border-border bg-background hover:bg-accent text-muted-foreground font-medium transition-colors disabled:opacity-40"
-                                        >
-                                          {isPending ? "..." : "오늘"}
-                                        </button>
+                                        <div className="flex items-center gap-1.5">
+                                          <button
+                                            onClick={() => saveCheckDate(student.id, key, todayISO)}
+                                            disabled={isPending}
+                                            className="px-2 py-0.5 text-[10px] rounded border border-border bg-background hover:bg-accent text-muted-foreground font-medium transition-colors disabled:opacity-40"
+                                          >
+                                            {isPending ? "..." : "오늘"}
+                                          </button>
+                                          {/* 주간 항목이고 이전 날짜가 있으면 마지막 날짜 힌트 표시 */}
+                                          {dateVal && WEEKLY_KEYS.has(key) && (
+                                            <span className="text-[10px] text-muted-foreground/60">마지막: {fmtCheckDate(dateVal)}</span>
+                                          )}
+                                        </div>
                                       )}
                                     </div>
                                   );
