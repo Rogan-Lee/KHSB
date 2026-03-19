@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { CalendarEventType } from "@/generated/prisma";
+import { todayKST } from "@/lib/utils";
 import {
   createGoogleCalendarEvent,
   updateGoogleCalendarEvent,
@@ -134,8 +135,7 @@ export async function updateCalendarEvent(
 }
 
 export async function getStudentUpcomingEvents(studentId: string, school: string | null) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = todayKST();
   const twoWeeksLater = new Date(today);
   twoWeeksLater.setDate(twoWeeksLater.getDate() + 14);
 

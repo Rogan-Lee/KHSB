@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { MentoringStatus } from "@/generated/prisma";
+import { todayKST, nowKSTTimeString } from "@/lib/utils";
 
 const mentoringSchema = z.object({
   studentId: z.string(),
@@ -125,10 +126,9 @@ export type MatchCandidate = {
 };
 
 export async function getMentoringMatches(mentorId: string, date?: string): Promise<MatchCandidate[]> {
-  // 로컬 자정 기준으로 날짜 계산 (출결 페이지와 동일)
-  const now = date ? new Date(date) : new Date();
-  const dayOfWeek = now.getDay();
-  const targetDate = date ? new Date(date) : new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+  const dayOfWeek = date ? new Date(date).getUTCDay() : kstNow.getUTCDay();
+  const targetDate = date ? new Date(date) : todayKST();
 
   // 해당 멘토의 오늘 스케줄이 없으면 빈 배열 반환
   const mentorSchedule = await prisma.mentorSchedule.findUnique({
@@ -155,7 +155,7 @@ export async function getMentoringMatches(mentorId: string, date?: string): Prom
   });
 
   // 외출 중인 학생 필터링
-  const nowTime = new Date().toTimeString().slice(0, 5);
+  const nowTime = nowKSTTimeString();
   const presentStudents = attendances.filter((a) => {
     // 실제 외출 기록 중이면 제외
     if (a.outStart && !a.outEnd) return false;
@@ -182,8 +182,7 @@ export async function getMentoringMatches(mentorId: string, date?: string): Prom
 
   const lastMap = new Map(lastMentorings.map((m) => [m.studentId, m.scheduledAt]));
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = todayKST();
 
   const candidates: MatchCandidate[] = presentStudents.map((a) => {
     const lastDate = lastMap.get(a.studentId) ?? null;
@@ -300,10 +299,9 @@ export async function getTodayWorkingMentors(): Promise<MentorTodaySlot[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  // 출결 페이지와 동일한 방식으로 날짜 계산 (로컬 자정 기준)
-  const now = new Date();
-  const dayOfWeek = now.getDay(); // 로컬 요일 (0=일 ~ 6=토)
-  const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // 로컬 자정
+  const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+  const dayOfWeek = kstNow.getUTCDay();
+  const targetDate = todayKST();
   const isDirector = session.user.role === "DIRECTOR" || session.user.role === "ADMIN";
 
   // 오늘 근무하는 멘토 스케줄 조회
@@ -316,7 +314,7 @@ export async function getTodayWorkingMentors(): Promise<MentorTodaySlot[]> {
   if (todaySchedules.length === 0) return [];
 
   // 현재 재실 중인 학생 조회 (외출 스케줄 포함)
-  const nowTime = new Date().toTimeString().slice(0, 5);
+  const nowTime = nowKSTTimeString();
   const attendances = await prisma.attendanceRecord.findMany({
     where: {
       date: targetDate,
@@ -354,8 +352,7 @@ export async function getTodayWorkingMentors(): Promise<MentorTodaySlot[]> {
     lastMentorings.forEach((m) => lastMap.set(m.studentId, m.scheduledAt));
   }
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = todayKST();
 
   return todaySchedules.map((s) => {
     const candidates: MatchCandidate[] = presentAttendances.map((a) => {

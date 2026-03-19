@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { HandoverPriority } from "@/generated/prisma";
+import { todayKST } from "@/lib/utils";
 
 // ── 조회 ──────────────────────────────────────────────────────────────────────
 
@@ -29,9 +30,8 @@ export async function getRecentHandovers(days = 14) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const since = new Date();
+  const since = todayKST();
   since.setDate(since.getDate() - days);
-  since.setHours(0, 0, 0, 0);
 
   return prisma.handover.findMany({
     where: { date: { gte: since } },
@@ -62,8 +62,7 @@ export async function getTodayHandover() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = todayKST();
 
   return prisma.handover.findFirst({
     where: { date: today },
@@ -109,8 +108,7 @@ export async function createFullHandover(data: {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const today = data.date ? new Date(data.date) : new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = data.date ? new Date(data.date) : todayKST();
 
   const handover = await prisma.handover.create({
     data: {

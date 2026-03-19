@@ -2,17 +2,19 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardContent } from "@/components/ui/card";
 import { AttendanceTable } from "@/components/attendance/attendance-table";
 import { CheckCircle2, XCircle, Clock, LogOut, Minus } from "lucide-react";
+import { todayKST } from "@/lib/utils";
 
 export default async function AttendancePage() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = todayKST();
+  const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+  const dayOfWeek = kstNow.getUTCDay();
 
   const students = await prisma.student.findMany({
     where: { status: "ACTIVE" },
     include: {
       attendances: { where: { date: today } },
-      schedules: { where: { dayOfWeek: today.getDay() } },
-      outings: { where: { dayOfWeek: today.getDay() } },
+      schedules: { where: { dayOfWeek } },
+      outings: { where: { dayOfWeek } },
       dailyOutings: { where: { date: today }, orderBy: { outStart: "asc" as const } },
       communications: { orderBy: { createdAt: "desc" as const } },
       assignments: { orderBy: { createdAt: "desc" as const } },
@@ -35,6 +37,7 @@ export default async function AttendancePage() {
     month: "long",
     day: "numeric",
     weekday: "short",
+    timeZone: "Asia/Seoul",
   });
 
   return (

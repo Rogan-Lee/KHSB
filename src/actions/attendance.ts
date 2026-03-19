@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AttendanceType } from "@/generated/prisma";
+import { todayKST } from "@/lib/utils";
 
 const recordSchema = z.object({
   studentId: z.string(),
@@ -17,7 +18,7 @@ const recordSchema = z.object({
 
 function toDateTime(dateStr: string, timeStr?: string) {
   if (!timeStr) return null;
-  return new Date(`${dateStr}T${timeStr}:00`);
+  return new Date(`${dateStr}T${timeStr}:00+09:00`);
 }
 
 export async function upsertAttendance(formData: FormData) {
@@ -55,8 +56,9 @@ export async function upsertAttendance(formData: FormData) {
 }
 
 export async function getTodayAttendance() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = todayKST();
+  const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+  const dayOfWeek = kstNow.getUTCDay();
 
   const students = await prisma.student.findMany({
     where: { status: "ACTIVE" },
@@ -65,7 +67,7 @@ export async function getTodayAttendance() {
         where: { date: today },
       },
       schedules: {
-        where: { dayOfWeek: today.getDay() },
+        where: { dayOfWeek },
       },
     },
     orderBy: { name: "asc" },
@@ -94,7 +96,7 @@ export async function saveAttendanceRecord(data: {
 
   function toDateTime(dateStr: string, timeStr?: string) {
     if (!timeStr) return null;
-    return new Date(`${dateStr}T${timeStr}:00`);
+    return new Date(`${dateStr}T${timeStr}:00+09:00`);
   }
 
   await prisma.attendanceRecord.upsert({
@@ -154,7 +156,7 @@ export async function saveOutingRecord(data: {
 
   function toDateTime(dateStr: string, timeStr?: string) {
     if (!timeStr) return undefined;
-    return new Date(`${dateStr}T${timeStr}:00`);
+    return new Date(`${dateStr}T${timeStr}:00+09:00`);
   }
 
   const outStartDt = toDateTime(data.date, data.outStart);
@@ -202,7 +204,7 @@ export async function saveOutingSchedules(
 
 function toDateTimeLocal(dateStr: string, timeStr?: string) {
   if (!timeStr) return null;
-  return new Date(`${dateStr}T${timeStr}:00`);
+  return new Date(`${dateStr}T${timeStr}:00+09:00`);
 }
 
 export async function createDailyOuting(data: {
