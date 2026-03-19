@@ -152,7 +152,6 @@ export function AttendanceTable({ students, today }: Props) {
     return map;
   });
 
-
   type StudentTextField = { studentInfo: string; changeNote: string; academySchedule: string };
   const [localStudentFields, setLocalStudentFields] = useState<Map<string, StudentTextField>>(() => {
     const map = new Map<string, StudentTextField>();
@@ -203,22 +202,20 @@ export function AttendanceTable({ students, today }: Props) {
   });
   const [checkDatePending, setCheckDatePending] = useState<string | null>(null); // "studentId:key"
 
-  type EditFocus = "attendance" | "notes" | "studentInfo" | "changeNote" | "academySchedule";
+  type EditFocus = "attendance" | "notes" | "changeNote" | "academySchedule";
   const [expandFocus, setExpandFocus] = useState<Map<string, EditFocus>>(new Map());
   const [studentFieldPending, setStudentFieldPending] = useState<string | null>(null);
+  const [expandedTimelines, setExpandedTimelines] = useState<Set<string>>(new Set());
+
   const [tooltip, setTooltip] = useState<{ text: string; rect: DOMRect } | null>(null);
 
   const [quickPending, setQuickPending] = useState<string | null>(null);
-  const [expandedTimelines, setExpandedTimelines] = useState<Set<string>>(new Set());
 
-  function toggleTimeline(id: string, e: React.MouseEvent) {
-    e.stopPropagation();
-    setExpandedTimelines((prev) => {
-      const next = new Set<string>();
-      if (!prev.has(id)) next.add(id); // 이미 열려있으면 닫기, 아니면 이것만 열기
-      return next;
-    });
-  }
+  type InlineTimeEdit = { studentId: string; field: "checkIn" | "checkOut"; value: string };
+  const [inlineTimeEdit, setInlineTimeEdit] = useState<InlineTimeEdit | null>(null);
+
+  type InlineOutingEdit = { studentId: string; field: "outStart" | "outEnd"; value: string };
+  const [inlineOutingEdit, setInlineOutingEdit] = useState<InlineOutingEdit | null>(null);
 
   const sorted = [...students].sort((a, b) => {
     const na = parseInt(a.seat ?? "9999");
@@ -302,9 +299,19 @@ export function AttendanceTable({ students, today }: Props) {
     });
   }
 
-  async function quickSaveField(student: StudentWithAttendance, field: "checkIn" | "checkOut") {
+  function startInlineEdit(student: StudentWithAttendance, field: "checkIn" | "checkOut") {
     if (quickPending) return;
-    const time = nowHHMM();
+    setInlineTimeEdit({ studentId: student.id, field, value: nowHHMM() });
+  }
+
+  async function confirmInlineEdit(student: StudentWithAttendance) {
+    if (!inlineTimeEdit || inlineTimeEdit.studentId !== student.id) return;
+    await quickSaveField(student, inlineTimeEdit.field, inlineTimeEdit.value);
+    setInlineTimeEdit(null);
+  }
+
+  async function quickSaveField(student: StudentWithAttendance, field: "checkIn" | "checkOut", time: string = nowHHMM()) {
+    if (quickPending) return;
     const curr = localTimes.get(student.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType };
 
     let newType: AttendanceType = curr.type;
@@ -341,9 +348,8 @@ export function AttendanceTable({ students, today }: Props) {
     setQuickPending(null);
   }
 
-  async function quickStartOuting(student: StudentWithAttendance) {
+  async function quickStartOuting(student: StudentWithAttendance, time: string = nowHHMM()) {
     if (quickPending) return;
-    const time = nowHHMM();
     setQuickPending(student.id);
     try {
       const created = await createDailyOuting({ studentId: student.id, date: todayDate, outStart: time });
@@ -357,12 +363,11 @@ export function AttendanceTable({ students, today }: Props) {
     setQuickPending(null);
   }
 
-  async function quickEndOuting(student: StudentWithAttendance) {
+  async function quickEndOuting(student: StudentWithAttendance, time: string = nowHHMM()) {
     if (quickPending) return;
     const outings = localOutings.get(student.id) ?? [];
     const active = outings.find((o) => o.outStart && !o.outEnd);
     if (!active?.id) return;
-    const time = nowHHMM();
     setQuickPending(student.id);
     try {
       await updateDailyOuting(active.id, { date: todayDate, outEnd: time });
@@ -396,16 +401,6 @@ export function AttendanceTable({ students, today }: Props) {
     setQuickPending(null);
   }
 
-  async function saveStudentFields(student: StudentWithAttendance) {
-    const fields = localStudentFields.get(student.id) ?? { studentInfo: "", changeNote: "", academySchedule: "" };
-    setStudentFieldPending(student.id);
-    try {
-      await patchStudentTextFields(student.id, fields);
-      toast.success("저장되었습니다");
-    } catch { toast.error("저장 실패"); }
-    setStudentFieldPending(null);
-  }
-
   const CHECK_ITEMS: { key: CheckDateKey; label: string; permanent?: boolean }[] = [
     { key: "weeklyPlanDate",     label: "주간 공부계획" },   // 매주 화요일 초기화
     { key: "plannerSentDate",    label: "플래너 전송" },     // 매주 화요일 초기화
@@ -420,6 +415,31 @@ export function AttendanceTable({ students, today }: Props) {
     return `${d.getMonth() + 1}/${String(d.getDate()).padStart(2, "0")}`;
   }
 
+  function toggleTimeline(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setExpandedTimelines((prev) => {
+      const next = new Set<string>();
+      if (!prev.has(id)) next.add(id);
+      return next;
+    });
+  }
+
+  function expandAndFocus(id: string, focus: EditFocus, e: React.MouseEvent) {
+    e.stopPropagation();
+    setExpandedTimelines(new Set([id]));
+    setExpandFocus((prev) => { const m = new Map(prev); m.set(id, focus); return m; });
+  }
+
+  async function saveStudentFields(student: StudentWithAttendance) {
+    const fields = localStudentFields.get(student.id) ?? { studentInfo: "", changeNote: "", academySchedule: "" };
+    setStudentFieldPending(student.id);
+    try {
+      await patchStudentTextFields(student.id, fields);
+      toast.success("저장되었습니다");
+    } catch { toast.error("저장 실패"); }
+    setStudentFieldPending(null);
+  }
+
   async function saveCheckDate(studentId: string, key: CheckDateKey, value: string | null) {
     const pendingKey = `${studentId}:${key}`;
     setCheckDatePending(pendingKey);
@@ -432,12 +452,6 @@ export function AttendanceTable({ students, today }: Props) {
       });
     } catch { toast.error("저장 실패"); }
     setCheckDatePending(null);
-  }
-
-  function expandAndFocus(id: string, focus: EditFocus, e: React.MouseEvent) {
-    e.stopPropagation();
-    setExpandedTimelines(new Set([id])); // 하나만 열기
-    setExpandFocus((prev) => { const m = new Map(prev); m.set(id, focus); return m; });
   }
 
   function showTooltip(e: React.MouseEvent, text: string) {
@@ -475,18 +489,18 @@ export function AttendanceTable({ students, today }: Props) {
               <th className="px-2 py-2.5 text-center w-16">상벌점</th>
               <th className="px-3 py-2.5 text-center w-12">좌석</th>
               <th className="px-3 py-2.5 text-left w-28">이름</th>
+              <th className="px-3 py-2.5 text-center w-28">플래너 전송</th>
               <th className="px-3 py-2.5 text-left w-24">학교·학년</th>
-              <th className="px-3 py-2.5 text-left w-32">특이사항</th>
               <th className="px-3 py-2.5 text-left w-16">반</th>
               <th className="px-3 py-2.5 text-center w-20">입실약속</th>
-              <th className="px-3 py-2.5 text-left w-32">입실</th>
+              <th className="px-3 py-2.5 text-left w-36">입실</th>
               <th className="px-3 py-2.5 text-center w-20">퇴실약속</th>
-              <th className="px-3 py-2.5 text-left w-32">퇴실</th>
+              <th className="px-3 py-2.5 text-left w-36">퇴실</th>
+              <th className="px-3 py-2.5 text-left w-40">외출</th>
+              <th className="px-3 py-2.5 text-left w-40">복귀</th>
               <th className="px-3 py-2.5 text-left w-36">입퇴실 메모</th>
-              <th className="px-3 py-2.5 text-left w-36">변동 예정</th>
+              <th className="px-3 py-2.5 text-left w-36">추후 변동 예정</th>
               <th className="px-3 py-2.5 text-left w-36">학원일정</th>
-              <th className="px-3 py-2.5 text-left w-32">외출</th>
-              <th className="px-3 py-2.5 text-left w-32">복귀</th>
             </tr>
           </thead>
           <tbody>
@@ -499,10 +513,8 @@ export function AttendanceTable({ students, today }: Props) {
               const checkOutTime = lt?.checkOut ?? "";
               const schedIn = student.schedules[0]?.startTime;
               const schedOut = student.schedules[0]?.endTime;
-              const outSch = student.outings[0];
               const localOut = localOutings.get(student.id) ?? [];
               const activeOuting = localOut.find((o) => o.outStart && !o.outEnd);
-              const lastOuting = localOut[localOut.length - 1];
               const commCount = student.communications.filter((c) => !c.isChecked).length;
               const assignCount = student.assignments.filter((a) => !a.isCompleted).length;
               const schoolGrade = [student.school, student.grade].filter(Boolean).join(" ");
@@ -510,9 +522,10 @@ export function AttendanceTable({ students, today }: Props) {
                 (sum, m) => sum + (m.type === "MERIT" ? m.points : -m.points), 0
               );
               const attNotes = student.attendances[0]?.notes ?? "";
-
               const isExpanded = expandedTimelines.has(student.id);
-
+              const plannerDate = localCheckDates.get(student.id)?.plannerSentDate ?? null;
+              const plannerDone = isDoneThisWeek("plannerSentDate", plannerDate);
+              const plannerPending = checkDatePending === `${student.id}:plannerSentDate`;
 
               return (
                 <Fragment key={student.id}>
@@ -580,23 +593,31 @@ export function AttendanceTable({ students, today }: Props) {
                     </div>
                   </td>
 
+                  {/* 플래너 전송 */}
+                  <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                    {plannerDone ? (
+                      <button
+                        onClick={() => saveCheckDate(student.id, "plannerSentDate", null)}
+                        disabled={plannerPending}
+                        title="클릭하여 취소"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-40"
+                      >
+                        <Check className="h-3 w-3" />{fmtCheckDate(plannerDate!)}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => saveCheckDate(student.id, "plannerSentDate", new Date().toISOString().split("T")[0])}
+                        disabled={plannerPending}
+                        className="px-2 py-0.5 text-[10px] rounded border border-border bg-background hover:bg-accent text-muted-foreground font-medium transition-colors disabled:opacity-40"
+                      >
+                        {plannerPending ? "..." : "확인"}
+                      </button>
+                    )}
+                  </td>
+
                   {/* 학교·학년 */}
                   <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">
                     {schoolGrade || "—"}
-                  </td>
-
-                  {/* 특이사항 */}
-                  <td
-                    className="px-3 py-3 cursor-pointer"
-                    onClick={(e) => expandAndFocus(student.id, "studentInfo", e)}
-                    onMouseEnter={(e) => showTooltip(e, student.studentInfo ?? "")}
-                    onMouseLeave={() => setTooltip(null)}
-                  >
-                    {student.studentInfo ? (
-                      <span className="text-xs text-foreground truncate block max-w-[120px]">{student.studentInfo}</span>
-                    ) : (
-                      <span className="text-gray-300">—</span>
-                    )}
                   </td>
 
                   {/* 반 */}
@@ -606,25 +627,55 @@ export function AttendanceTable({ students, today }: Props) {
 
                   {/* 입실 예정 */}
                   <td className="px-3 py-3 text-center">
-                    <span className="text-sm font-mono text-muted-foreground">
+                    <span className={cn(
+                      "text-sm font-mono",
+                      !checkInTime && schedIn ? "text-red-500 font-medium" :
+                      checkInTime && lt?.type === "TARDY" ? "text-amber-600 font-semibold underline decoration-dotted" :
+                      "text-muted-foreground"
+                    )}>
                       {schedIn ?? <span className="text-gray-300">—</span>}
                     </span>
                   </td>
 
                   {/* 입실 실제 + 지금 */}
                   <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
-                      <span className={cn("text-sm font-mono tabular-nums w-10 text-right", checkInTime ? "text-foreground font-semibold" : "text-gray-300")}>
-                        {checkInTime || "—"}
-                      </span>
-                      <button
-                        onClick={() => quickSaveField(student, "checkIn")}
-                        disabled={isQuickLoading}
-                        className="flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 shrink-0 transition-colors disabled:opacity-40 font-medium"
-                      >
-                        <LogIn className="h-3 w-3" />지금
-                      </button>
-                    </div>
+                    {inlineTimeEdit?.studentId === student.id && inlineTimeEdit.field === "checkIn" ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="time"
+                          value={inlineTimeEdit.value}
+                          onChange={(e) => setInlineTimeEdit((prev) => prev ? { ...prev, value: e.target.value } : null)}
+                          className="text-xs border rounded px-1 py-0.5 w-28 font-mono focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+                        />
+                        <button
+                          onClick={() => confirmInlineEdit(student)}
+                          disabled={isQuickLoading}
+                          className="p-0.5 text-green-700 hover:text-green-900 disabled:opacity-40"
+                          title="저장"
+                        ><Check className="h-3.5 w-3.5" /></button>
+                        <button
+                          onClick={() => setInlineTimeEdit(null)}
+                          className="p-0.5 text-muted-foreground hover:text-foreground"
+                          title="취소"
+                        ><X className="h-3.5 w-3.5" /></button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "text-sm font-mono tabular-nums w-10 text-right",
+                          checkInTime ? "text-foreground font-semibold" : "text-gray-300"
+                        )}>
+                          {checkInTime || "—"}
+                        </span>
+                        <button
+                          onClick={() => startInlineEdit(student, "checkIn")}
+                          disabled={isQuickLoading}
+                          className="flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 shrink-0 transition-colors disabled:opacity-40 font-medium"
+                        >
+                          <LogIn className="h-3 w-3" />지금
+                        </button>
+                      </div>
+                    )}
                   </td>
 
                   {/* 퇴실 예정 */}
@@ -636,17 +687,137 @@ export function AttendanceTable({ students, today }: Props) {
 
                   {/* 퇴실 실제 + 지금 */}
                   <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    {inlineTimeEdit?.studentId === student.id && inlineTimeEdit.field === "checkOut" ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="time"
+                          value={inlineTimeEdit.value}
+                          onChange={(e) => setInlineTimeEdit((prev) => prev ? { ...prev, value: e.target.value } : null)}
+                          className="text-xs border rounded px-1 py-0.5 w-28 font-mono focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+                        />
+                        <button
+                          onClick={() => confirmInlineEdit(student)}
+                          disabled={isQuickLoading}
+                          className="p-0.5 text-green-700 hover:text-green-900 disabled:opacity-40"
+                          title="저장"
+                        ><Check className="h-3.5 w-3.5" /></button>
+                        <button
+                          onClick={() => setInlineTimeEdit(null)}
+                          className="p-0.5 text-muted-foreground hover:text-foreground"
+                          title="취소"
+                        ><X className="h-3.5 w-3.5" /></button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className={cn("text-sm font-mono tabular-nums w-10 text-right", checkOutTime ? "text-foreground font-semibold" : "text-gray-300")}>
+                          {checkOutTime || "—"}
+                        </span>
+                        <button
+                          onClick={() => startInlineEdit(student, "checkOut")}
+                          disabled={isQuickLoading || !checkInTime}
+                          className="flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 shrink-0 transition-colors disabled:opacity-40 font-medium"
+                        >
+                          <LogOut className="h-3 w-3" />지금
+                        </button>
+                      </div>
+                    )}
+                  </td>
+
+                  {/* 외출 — 여러 외출 기록 표시 */}
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-2">
-                      <span className={cn("text-sm font-mono tabular-nums w-10 text-right", checkOutTime ? "text-foreground font-semibold" : "text-gray-300")}>
-                        {checkOutTime || "—"}
-                      </span>
-                      <button
-                        onClick={() => quickSaveField(student, "checkOut")}
-                        disabled={isQuickLoading || !checkInTime}
-                        className="flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 shrink-0 transition-colors disabled:opacity-40 font-medium"
-                      >
-                        <LogOut className="h-3 w-3" />지금
-                      </button>
+                      <div className="flex flex-col gap-1">
+                        {localOut.length > 0 ? localOut.map((o, i) => (
+                          <span key={o.id ?? i} className={cn(
+                            "text-xs font-mono tabular-nums",
+                            o.outStart && !o.outEnd ? "text-orange-600 font-semibold" : "text-muted-foreground"
+                          )}>
+                            {toTimeString(o.outStart) || "—"}
+                          </span>
+                        )) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </div>
+                      {!activeOuting && (
+                        inlineOutingEdit?.studentId === student.id && inlineOutingEdit.field === "outStart" ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="time"
+                              value={inlineOutingEdit.value}
+                              onChange={(e) => setInlineOutingEdit((prev) => prev ? { ...prev, value: e.target.value } : null)}
+                              className="text-xs border rounded px-1 py-0.5 w-28 font-mono focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+                            />
+                            <button
+                              onClick={() => { quickStartOuting(student, inlineOutingEdit.value); setInlineOutingEdit(null); }}
+                              disabled={isQuickLoading}
+                              className="p-0.5 text-green-700 hover:text-green-900 disabled:opacity-40"
+                              title="저장"
+                            ><Check className="h-3.5 w-3.5" /></button>
+                            <button
+                              onClick={() => setInlineOutingEdit(null)}
+                              className="p-0.5 text-muted-foreground hover:text-foreground"
+                              title="취소"
+                            ><X className="h-3.5 w-3.5" /></button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setInlineOutingEdit({ studentId: student.id, field: "outStart", value: nowHHMM() })}
+                            disabled={isQuickLoading || !checkInTime}
+                            className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] rounded bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 shrink-0 transition-colors disabled:opacity-40 font-medium"
+                          >
+                            <ArrowRightLeft className="h-2.5 w-2.5" />외출
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </td>
+
+                  {/* 복귀 — 여러 외출 기록에 대한 복귀 시간 */}
+                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-col gap-1">
+                        {localOut.length > 0 ? localOut.map((o, i) => (
+                          <span key={o.id ?? i} className={cn(
+                            "text-xs font-mono tabular-nums",
+                            o.outEnd ? "text-foreground font-semibold" : "text-gray-300"
+                          )}>
+                            {o.outEnd ? toTimeString(o.outEnd) : "—"}
+                          </span>
+                        )) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </div>
+                      {activeOuting && (
+                        inlineOutingEdit?.studentId === student.id && inlineOutingEdit.field === "outEnd" ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="time"
+                              value={inlineOutingEdit.value}
+                              onChange={(e) => setInlineOutingEdit((prev) => prev ? { ...prev, value: e.target.value } : null)}
+                              className="text-xs border rounded px-1 py-0.5 w-28 font-mono focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+                            />
+                            <button
+                              onClick={() => { quickEndOuting(student, inlineOutingEdit.value); setInlineOutingEdit(null); }}
+                              disabled={isQuickLoading}
+                              className="p-0.5 text-green-700 hover:text-green-900 disabled:opacity-40"
+                              title="저장"
+                            ><Check className="h-3.5 w-3.5" /></button>
+                            <button
+                              onClick={() => setInlineOutingEdit(null)}
+                              className="p-0.5 text-muted-foreground hover:text-foreground"
+                              title="취소"
+                            ><X className="h-3.5 w-3.5" /></button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setInlineOutingEdit({ studentId: student.id, field: "outEnd", value: nowHHMM() })}
+                            disabled={isQuickLoading || !checkInTime}
+                            className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] rounded bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 shrink-0 transition-colors disabled:opacity-40 font-medium"
+                          >
+                            <LogIn className="h-2.5 w-2.5" />복귀
+                          </button>
+                        )
+                      )}
                     </div>
                   </td>
 
@@ -664,7 +835,7 @@ export function AttendanceTable({ students, today }: Props) {
                     )}
                   </td>
 
-                  {/* 변동 예정 */}
+                  {/* 추후 변동 예정 */}
                   <td
                     className="px-3 py-3 cursor-pointer"
                     onClick={(e) => expandAndFocus(student.id, "changeNote", e)}
@@ -692,76 +863,28 @@ export function AttendanceTable({ students, today }: Props) {
                     )}
                   </td>
 
-                  {/* 외출 예정 + 실제 외출 */}
-                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-mono text-muted-foreground w-10 text-right">
-                        {outSch?.outStart ?? <span className="text-gray-300">—</span>}
-                      </span>
-                      {activeOuting ? (
-                        <span className="text-sm font-mono font-semibold text-orange-600">
-                          {toTimeString(activeOuting.outStart)}
-                        </span>
-                      ) : lastOuting?.outStart ? (
-                        <span className="text-sm font-mono text-muted-foreground">
-                          {toTimeString(lastOuting.outStart)}
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => quickStartOuting(student)}
-                          disabled={isQuickLoading || !checkInTime}
-                          className="flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 shrink-0 transition-colors disabled:opacity-40 font-medium"
-                        >
-                          <ArrowRightLeft className="h-3 w-3" />외출
-                        </button>
-                      )}
-                    </div>
-                  </td>
-
-                  {/* 복귀 예정 + 실제 복귀 */}
-                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-mono text-muted-foreground w-10 text-right">
-                        {outSch?.outEnd ?? <span className="text-gray-300">—</span>}
-                      </span>
-                      <span className={cn("text-sm font-mono tabular-nums w-10", lastOuting?.outEnd ? "text-foreground font-semibold" : "text-gray-300")}>
-                        {lastOuting?.outEnd ? toTimeString(lastOuting.outEnd) : "—"}
-                      </span>
-                      <button
-                        onClick={() => quickEndOuting(student)}
-                        disabled={isQuickLoading || !activeOuting || !checkInTime}
-                        className="flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 shrink-0 transition-colors disabled:opacity-40 font-medium"
-                      >
-                        <LogIn className="h-3 w-3" />지금
-                      </button>
-                    </div>
-                  </td>
                 </tr>
 
                 {/* 타임라인 + 인라인 편집 확장 행 */}
                 {isExpanded && (
                   <tr className={cn("border-b", isSelected ? "bg-blue-50/60" : "bg-muted/20")}>
                     <td colSpan={16} className="px-4 py-4">
-                      {/* 인라인 편집 */}
                       {(() => {
                         const focus = expandFocus.get(student.id);
                         const focusLabel: Record<EditFocus, string> = {
                           attendance: "출결 상태", notes: "입퇴실 메모",
-                          studentInfo: "특이사항", changeNote: "변동 예정", academySchedule: "학원일정",
+                          changeNote: "추후 변동 예정", academySchedule: "학원일정",
                         };
-                        const isAttnActive = !focus || focus === "attendance" || focus === "notes";
-                        const isMemoActive = focus === "studentInfo" || focus === "changeNote" || focus === "academySchedule";
                         return (
                           <div className="pt-3 border-t" onClick={(e) => e.stopPropagation()}>
-                            {/* 편집 중 배지 */}
                             {focus && (
                               <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5 mb-2 w-fit">
                                 <span className="opacity-60">편집 중:</span> {focusLabel[focus]}
                               </span>
                             )}
-                            <div className="flex items-stretch gap-0 w-full">
+                            <div className="flex items-stretch gap-3 w-full">
                               {/* 왼쪽: 체크 항목 */}
-                              <div className="flex flex-col justify-center gap-2 shrink-0 rounded-l-md border border-border bg-muted/30 px-4 py-3">
+                              <div className="flex flex-col justify-center gap-2 shrink-0 rounded-md border border-border bg-muted/30 px-4 py-3">
                                 {CHECK_ITEMS.map(({ key, label, permanent }) => {
                                   const dateVal = localCheckDates.get(student.id)?.[key] ?? null;
                                   const isPending = checkDatePending === `${student.id}:${key}`;
@@ -772,12 +895,10 @@ export function AttendanceTable({ students, today }: Props) {
                                       <span className="text-xs text-muted-foreground w-24 shrink-0">{label}</span>
                                       {done ? (
                                         permanent ? (
-                                          // 서약서: 완료 뱃지만, 취소 불가
                                           <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5">
                                             <Check className="h-3 w-3" />{fmtCheckDate(dateVal!)}
                                           </span>
                                         ) : (
-                                          // 완료 뱃지 클릭 시 취소
                                           <button
                                             onClick={() => saveCheckDate(student.id, key, null)}
                                             disabled={isPending}
@@ -796,7 +917,6 @@ export function AttendanceTable({ students, today }: Props) {
                                           >
                                             {isPending ? "..." : "확인"}
                                           </button>
-                                          {/* 주간 항목이고 이전 날짜가 있으면 마지막 날짜 힌트 표시 */}
                                           {dateVal && WEEKLY_KEYS.has(key) && (
                                             <span className="text-[10px] text-muted-foreground/60">마지막: {fmtCheckDate(dateVal)}</span>
                                           )}
@@ -807,34 +927,42 @@ export function AttendanceTable({ students, today }: Props) {
                                 })}
                               </div>
 
-                              {/* 오른쪽: 학생 메모 (flex-1, 나머지 공간 차지) */}
-                              <div className={cn(
-                                "flex items-stretch gap-3 flex-1 rounded-r-md border-y border-r px-4 py-3 transition-colors",
-                                isMemoActive ? "border-primary/30 bg-primary/[0.04]" : "border-border bg-muted/30"
-                              )}>
+                              {/* 가운데: 요청/전달 */}
+                              <div className="w-72 shrink-0 rounded-md border border-border bg-muted/30 px-3 py-3 overflow-y-auto max-h-56">
+                                <CommunicationPanel
+                                  studentId={student.id}
+                                  initialItems={student.communications}
+                                  compact
+                                />
+                              </div>
+
+                              {/* 오른쪽: 학원일정 + 추후 변동 예정 */}
+                              <div className="flex-1 min-w-[320px] flex flex-col gap-2">
                                 {(
                                   [
-                                    { key: "studentInfo", label: "특이사항", ph: "특이사항", af: focus === "studentInfo" },
-                                    { key: "changeNote",  label: "변동예정",  ph: "변동 예정", af: focus === "changeNote" },
                                     { key: "academySchedule", label: "학원일정", ph: "학원일정", af: focus === "academySchedule" },
+                                    { key: "changeNote", label: "추후 변동 예정", ph: "추후 변동 예정", af: focus === "changeNote" },
                                   ] as { key: keyof StudentTextField; label: string; ph: string; af: boolean }[]
                                 ).map(({ key, label, ph, af }) => (
-                                  <div key={key} className="flex flex-col gap-1 flex-1 min-w-0">
+                                  <div key={key} className={cn(
+                                    "flex flex-col gap-1 rounded-md border px-3 py-2 flex-1 transition-colors",
+                                    af ? "border-primary/30 bg-primary/[0.04]" : "border-border bg-muted/30"
+                                  )}>
                                     <span className="text-[10px] text-muted-foreground font-medium">{label}</span>
                                     <textarea
                                       value={localStudentFields.get(student.id)?.[key] ?? ""}
                                       onChange={(e) => setLocalStudentFields((prev) => { const m = new Map(prev); m.set(student.id, { ...(m.get(student.id) ?? { studentInfo: "", changeNote: "", academySchedule: "" }), [key]: e.target.value }); return m; })}
                                       autoFocus={isExpanded && af}
                                       placeholder={ph}
-                                      rows={4}
+                                      rows={2}
                                       className={cn(
-                                        "w-full flex-1 border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none",
+                                        "w-full flex-1 border rounded-md px-2 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none",
                                         af && "ring-2 ring-primary"
                                       )}
                                     />
                                   </div>
                                 ))}
-                                <button onClick={() => saveStudentFields(student)} disabled={studentFieldPending === student.id} className="flex items-center gap-1 px-3 py-2 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 font-medium disabled:opacity-50 transition-colors shrink-0 self-end">
+                                <button onClick={() => saveStudentFields(student)} disabled={studentFieldPending === student.id} className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 font-medium disabled:opacity-50 transition-colors shrink-0">
                                   <Save className="h-3 w-3" />{studentFieldPending === student.id ? "저장 중..." : "저장"}
                                 </button>
                               </div>

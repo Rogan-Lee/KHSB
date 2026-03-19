@@ -34,7 +34,7 @@ function formatRelative(date: Date) {
 
 export function CommunicationPanel({ studentId, initialItems, compact = false }: Props) {
   const [items, setItems] = useState<Communication[]>(initialItems);
-  const [activeType, setActiveType] = useState<"PARENT_REQUEST" | "STAFF_NOTE">("PARENT_REQUEST");
+  const [activeType, setActiveType] = useState<"PARENT_REQUEST" | "STAFF_NOTE">("STAFF_NOTE");
   const [content, setContent] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [showChecked, setShowChecked] = useState(false);
@@ -47,21 +47,8 @@ export function CommunicationPanel({ studentId, initialItems, compact = false }:
     if (!content.trim()) return;
     startTransition(async () => {
       try {
-        await createCommunication(studentId, activeType, content.trim());
-        // optimistic: 실제 리로드 없이 로컬 추가
-        const newItem: Communication = {
-          id: crypto.randomUUID(),
-          studentId,
-          type: activeType,
-          content: content.trim(),
-          isChecked: false,
-          checkedAt: null,
-          createdById: "",
-          createdByName: "나",
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        setItems((prev) => [newItem, ...prev]);
+        const created = await createCommunication(studentId, activeType, content.trim());
+        setItems((prev) => [created, ...prev]);
         setContent("");
         setShowForm(false);
         toast.success("등록되었습니다");

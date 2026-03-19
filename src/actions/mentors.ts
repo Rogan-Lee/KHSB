@@ -3,7 +3,6 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import bcrypt from "bcryptjs";
 import { isFullAccess } from "@/lib/roles";
 
 async function assertDirector() {
@@ -16,15 +15,13 @@ export async function createMentor(formData: FormData) {
 
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
   const role = (formData.get("role") as string) || "MENTOR";
 
-  if (!name || !email || !password) throw new Error("필수 항목을 입력하세요");
+  if (!name || !email) throw new Error("필수 항목을 입력하세요");
   if (role !== "MENTOR" && role !== "STAFF") throw new Error("올바르지 않은 역할입니다");
 
-  const hashed = await bcrypt.hash(password, 10);
   await prisma.user.create({
-    data: { name, email, password: hashed, role: role as "MENTOR" | "STAFF" },
+    data: { name, email, role: role as "MENTOR" | "STAFF" },
   });
 
   revalidatePath("/mentors");
@@ -35,14 +32,12 @@ export async function updateMentor(id: string, formData: FormData) {
 
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
   const role = formData.get("role") as string | null;
 
   if (!name || !email) throw new Error("필수 항목을 입력하세요");
 
   const validRoles = ["MENTOR", "STAFF", "DIRECTOR", "ADMIN"];
-  const data: { name: string; email: string; password?: string; role?: "MENTOR" | "STAFF" | "DIRECTOR" | "ADMIN" } = { name, email };
-  if (password) data.password = await bcrypt.hash(password, 10);
+  const data: { name: string; email: string; role?: "MENTOR" | "STAFF" | "DIRECTOR" | "ADMIN" } = { name, email };
   if (role && validRoles.includes(role)) data.role = role as "MENTOR" | "STAFF" | "DIRECTOR" | "ADMIN";
 
   await prisma.user.update({ where: { id }, data });
