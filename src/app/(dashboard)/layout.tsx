@@ -1,7 +1,7 @@
-import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AppHeader } from "@/components/layout/app-header";
+import { getUser } from "@/lib/auth";
 
 const PAGE_TITLES: Record<string, string> = {
   "/": "대시보드",
@@ -21,15 +21,15 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect("/login");
+  const user = await getUser();
+  if (!user) redirect("/sign-in");
 
   return (
     <div className="min-h-screen bg-background">
-      <AppSidebar role={session.user.role} />
+      <AppSidebar role={user.role} />
       <div className="ml-56 flex flex-col min-h-screen">
         <AppHeader
-          user={session.user}
+          user={{ name: user.name, email: user.email, role: user.role }}
           title="독서실 관리 시스템"
         />
         <main className="flex-1 p-6 max-w-[1400px]">

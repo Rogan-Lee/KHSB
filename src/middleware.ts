@@ -1,24 +1,15 @@
-import NextAuth from "next-auth";
-import { authConfig } from "@/lib/auth.config";
-import { NextResponse } from "next/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-const { auth } = NextAuth(authConfig);
+const isPublicRoute = createRouteMatcher([
+  "/sign-in(.*)",
+  "/r/(.*)",   // 학부모 리포트 공개 페이지
+  "/sp/(.*)",  // 공부계획 리포트 공개 페이지
+]);
 
-export default auth((req) => {
-  const isLoggedIn = !!req.auth;
-  const isLoginPage = req.nextUrl.pathname === "/login";
-  const isApiAuth = req.nextUrl.pathname.startsWith("/api/auth");
-  const isPublicReport = req.nextUrl.pathname.startsWith("/r/");
-
-  if (isApiAuth) return NextResponse.next();
-  if (isPublicReport) return NextResponse.next();
-  if (!isLoggedIn && !isLoginPage) {
-    return NextResponse.redirect(new URL("/login", req.url));
+export default clerkMiddleware(async (auth, req) => {
+  if (!isPublicRoute(req)) {
+    await auth.protect();
   }
-  if (isLoggedIn && isLoginPage) {
-    return NextResponse.redirect(new URL("/", req.url));
-  }
-  return NextResponse.next();
 });
 
 export const config = {

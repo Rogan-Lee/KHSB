@@ -206,10 +206,6 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
                           <option value="ADMIN">어드민</option>
                         </select>
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">새 비밀번호 (변경 시에만 입력)</Label>
-                        <Input name="password" type="password" placeholder="변경하지 않으면 빈칸" className="h-8 text-sm" />
-                      </div>
                     </div>
                     <div className="flex gap-2">
                       <Button type="submit" size="sm" disabled={isPending}>저장</Button>
@@ -304,10 +300,6 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
               <div className="space-y-1">
                 <Label className="text-xs">이메일 *</Label>
                 <Input name="email" type="email" required className="h-8 text-sm" placeholder="staff@example.com" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">초기 비밀번호 *</Label>
-                <Input name="password" type="password" required className="h-8 text-sm" placeholder="초기 비밀번호 설정" />
               </div>
               <div className="flex gap-2">
                 <Button type="submit" size="sm" disabled={isPending}>등록</Button>

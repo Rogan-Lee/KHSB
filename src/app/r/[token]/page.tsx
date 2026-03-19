@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { getParentReport } from "@/actions/parent-reports";
-import { BookOpen, GraduationCap, User, Calendar, Clock, CheckCircle2, TrendingUp, TrendingDown, Target, FileText, MessageSquare } from "lucide-react";
+import { getStudentAnalytics } from "@/actions/analytics";
+import { BookOpen, GraduationCap, User, Calendar, Clock, CheckCircle2, TrendingUp, TrendingDown, Target, FileText, MessageSquare, BarChart3 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default async function ParentReportPage({
   params,
@@ -13,6 +15,8 @@ export default async function ParentReportPage({
   if (!report) notFound();
 
   const { student, mentoring, studyPlanNote, studyPlanImages, customNote } = report;
+
+  const analytics = await getStudentAnalytics(student.id);
 
   const dateStr = mentoring
     ? new Date(mentoring.actualDate ?? mentoring.scheduledAt).toLocaleDateString("ko-KR", {
@@ -193,6 +197,81 @@ export default async function ParentReportPage({
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* 성적 현황 */}
+        {analytics && analytics.subjects.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+            <div className="px-5 py-4 border-b border-gray-50">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-indigo-500 shrink-0" />
+                <p className="text-sm font-bold text-gray-800">성적 현황</p>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              {/* stats row */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-indigo-50 rounded-xl p-3 text-center">
+                  <p className="text-lg font-bold text-indigo-700">
+                    {analytics.avgImprovement !== null
+                      ? `${analytics.avgImprovement > 0 ? "+" : ""}${analytics.avgImprovement}`
+                      : "-"}
+                  </p>
+                  <p className="text-[10px] text-indigo-500 mt-0.5">평균 등급 변화</p>
+                </div>
+                <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                  <p className="text-lg font-bold text-emerald-700">
+                    {analytics.mentoringCount}회
+                  </p>
+                  <p className="text-[10px] text-emerald-500 mt-0.5">멘토링 횟수</p>
+                </div>
+                <div className="bg-violet-50 rounded-xl p-3 text-center">
+                  <p className="text-lg font-bold text-violet-700">
+                    {analytics.studyHours > 0 ? `${analytics.studyHours}h` : "-"}
+                  </p>
+                  <p className="text-[10px] text-violet-500 mt-0.5">총 재원 시간</p>
+                </div>
+              </div>
+
+              {/* subject table */}
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-xs text-gray-400">
+                    <th className="text-left py-2 font-medium">과목</th>
+                    <th className="text-center py-2 font-medium">처음</th>
+                    <th className="text-center py-2 font-medium">최근</th>
+                    <th className="text-center py-2 font-medium">변화</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics.subjects.map((s) => (
+                    <tr key={s.subject} className="border-b last:border-0">
+                      <td className="py-2 font-medium text-gray-800">{s.subject}</td>
+                      <td className="py-2 text-center text-gray-400 text-xs">
+                        {s.firstGrade ? `${s.firstGrade}등급` : "-"}
+                      </td>
+                      <td className="py-2 text-center text-gray-400 text-xs">
+                        {s.latestGrade ? `${s.latestGrade}등급` : "-"}
+                      </td>
+                      <td className="py-2 text-center">
+                        {s.improvement !== null ? (
+                          <span className={cn(
+                            "font-semibold text-xs px-1.5 py-0.5 rounded",
+                            s.improvement > 0 ? "text-emerald-700 bg-emerald-50" :
+                            s.improvement < 0 ? "text-red-700 bg-red-50" :
+                            "text-gray-500 bg-gray-100"
+                          )}>
+                            {s.improvement > 0 ? `▲ ${s.improvement}` :
+                             s.improvement < 0 ? `▼ ${Math.abs(s.improvement)}` : "변동없음"}
+                          </span>
+                        ) : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

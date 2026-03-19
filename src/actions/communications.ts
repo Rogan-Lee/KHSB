@@ -20,7 +20,7 @@ export async function createCommunication(
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  await prisma.communication.create({
+  const created = await prisma.communication.create({
     data: {
       studentId,
       type,
@@ -32,6 +32,7 @@ export async function createCommunication(
 
   revalidatePath(`/students/${studentId}`);
   revalidatePath("/attendance");
+  return created;
 }
 
 export async function checkCommunication(id: string, studentId: string) {

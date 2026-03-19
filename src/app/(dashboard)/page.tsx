@@ -13,6 +13,11 @@ import {
   CalendarDays,
 } from "lucide-react";
 import Link from "next/link";
+import { getRecentHandovers, getStaffList } from "@/actions/handover";
+import { getChecklistTemplates } from "@/actions/checklist-templates";
+import { getMonthlyNotes } from "@/actions/monthly-notes";
+import { getTodos } from "@/actions/todos";
+import { DashboardWrapper } from "@/components/dashboard/dashboard-wrapper";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -29,6 +34,12 @@ export default async function DashboardPage() {
     upcomingMentorings,
     recentMerits,
     upcomingConsultations,
+    recentHandovers,
+    templates,
+    monthlyNotes,
+    students,
+    staffList,
+    todos,
   ] = await Promise.all([
     prisma.student.count({ where: { status: "ACTIVE" } }),
     prisma.attendanceRecord.findMany({
@@ -39,9 +50,7 @@ export default async function DashboardPage() {
       where: {
         status: "SCHEDULED",
         scheduledAt: { gte: now },
-        ...(session?.user?.role === "MENTOR"
-          ? { mentorId: session.user.id }
-          : {}),
+        ...(session?.user?.role === "MENTOR" ? { mentorId: session.user.id } : {}),
       },
       include: {
         student: { select: { name: true, grade: true } },
@@ -61,34 +70,36 @@ export default async function DashboardPage() {
       orderBy: { scheduledAt: "asc" },
       take: 5,
     }),
+    getRecentHandovers(7),
+    getChecklistTemplates(),
+    getMonthlyNotes(year, month),
+    prisma.student.findMany({
+      where: { status: "ACTIVE" },
+      select: { id: true, name: true, grade: true },
+      orderBy: { name: "asc" },
+    }),
+    getStaffList(),
+    getTodos(),
   ]);
 
   const normalCount = todayAttendances.filter((a) => a.type === "NORMAL").length;
   const absentCount = todayAttendances.filter((a) => a.type === "ABSENT").length;
   const tardyCount = todayAttendances.filter((a) => a.type === "TARDY").length;
 
-  return (
-    <div className="space-y-6">
-      {/* Welcome */}
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight">안녕하세요, {session?.user?.name}님</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          {now.toLocaleDateString("ko-KR", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-            weekday: "long",
-          })}
-        </p>
-      </div>
+  const unreadCount = recentHandovers.filter(
+    (h) => h.authorId !== session?.user?.id && !h.reads.some((r) => r.userId === session?.user?.id)
+  ).length;
 
+  // Normal dashboard content
+  const dashboardContent = (
+    <div className="space-y-6">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Link href="/students">
           <Card className="hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5">
             <CardContent className="flex items-center gap-3 pt-5 pb-5">
-              <div className="p-2 rounded-xl bg-indigo-50 border border-indigo-100">
-                <Users className="h-5 w-5 text-indigo-600" />
+              <div className="p-2 rounded-xl bg-[#eaf2fe]">
+                <Users className="h-5 w-5 text-[#0066ff]" />
               </div>
               <div>
                 <p className="text-2xl font-bold tracking-tight">{totalActive}</p>
@@ -101,8 +112,8 @@ export default async function DashboardPage() {
         <Link href="/attendance">
           <Card className="hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5">
             <CardContent className="flex items-center gap-3 pt-5 pb-5">
-              <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-100">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              <div className="p-2 rounded-xl bg-[#d9f7eb]">
+                <CheckCircle2 className="h-5 w-5 text-[#00985a]" />
               </div>
               <div>
                 <p className="text-2xl font-bold tracking-tight">{normalCount}</p>
@@ -115,8 +126,8 @@ export default async function DashboardPage() {
         <Link href="/attendance">
           <Card className="hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5">
             <CardContent className="flex items-center gap-3 pt-5 pb-5">
-              <div className="p-2 rounded-xl bg-red-50 border border-red-100">
-                <XCircle className="h-5 w-5 text-red-500" />
+              <div className="p-2 rounded-xl bg-red-50">
+                <XCircle className="h-5 w-5 text-[#ff4242]" />
               </div>
               <div>
                 <p className="text-2xl font-bold tracking-tight">{absentCount}</p>
@@ -129,8 +140,8 @@ export default async function DashboardPage() {
         <Link href="/attendance">
           <Card className="hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5">
             <CardContent className="flex items-center gap-3 pt-5 pb-5">
-              <div className="p-2 rounded-xl bg-amber-50 border border-amber-100">
-                <Clock className="h-5 w-5 text-amber-600" />
+              <div className="p-2 rounded-xl bg-[#fed9c4]">
+                <Clock className="h-5 w-5 text-[#ff5e00]" />
               </div>
               <div>
                 <p className="text-2xl font-bold tracking-tight">{tardyCount}</p>
@@ -151,9 +162,7 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             {upcomingMentorings.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">
-                예정된 멘토링이 없습니다
-              </p>
+              <p className="text-sm text-muted-foreground py-4 text-center">예정된 멘토링이 없습니다</p>
             ) : (
               <div className="space-y-2">
                 {upcomingMentorings.map((m) => (
@@ -166,9 +175,7 @@ export default async function DashboardPage() {
                           <span className="text-xs text-muted-foreground ml-1">· {m.mentor.name}</span>
                         )}
                       </div>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDate(m.scheduledAt)}
-                      </span>
+                      <span className="text-xs text-muted-foreground">{formatDate(m.scheduledAt)}</span>
                     </div>
                   </Link>
                 ))}
@@ -185,9 +192,7 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             {upcomingConsultations.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">
-                예정된 면담이 없습니다
-              </p>
+              <p className="text-sm text-muted-foreground py-4 text-center">예정된 면담이 없습니다</p>
             ) : (
               <div className="space-y-2">
                 {upcomingConsultations.map((c) => (
@@ -214,24 +219,19 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             {recentMerits.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">
-                최근 상벌점 내역이 없습니다
-              </p>
+              <p className="text-sm text-muted-foreground py-4 text-center">최근 상벌점 내역이 없습니다</p>
             ) : (
               <div className="space-y-2">
                 {recentMerits.map((m) => (
                   <div key={m.id} className="flex items-center justify-between py-2 border-b last:border-0">
                     <div className="flex items-center gap-2">
-                      <Badge
-                        variant={m.type === "MERIT" ? "default" : "destructive"}
-                        className="text-xs"
-                      >
+                      <Badge variant={m.type === "MERIT" ? "default" : "destructive"} className="text-xs">
                         {m.type === "MERIT" ? "상점" : "벌점"}
                       </Badge>
                       <span className="text-sm font-medium">{m.student.name}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-sm font-medium ${m.type === "MERIT" ? "text-green-600" : "text-red-600"}`}>
+                      <span className={`text-sm font-medium ${m.type === "MERIT" ? "text-[#00985a]" : "text-[#ff4242]"}`}>
                         {m.type === "MERIT" ? "+" : "-"}{m.points}
                       </span>
                       <span className="text-xs text-muted-foreground">{formatDate(m.date)}</span>
@@ -250,16 +250,12 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             {todayAttendances.filter((a) => a.checkIn).length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">
-                오늘 입실 기록이 없습니다
-              </p>
+              <p className="text-sm text-muted-foreground py-4 text-center">오늘 입실 기록이 없습니다</p>
             ) : (
               <div className="space-y-1 max-h-48 overflow-y-auto">
                 {todayAttendances
                   .filter((a) => a.checkIn)
-                  .sort((a, b) =>
-                    new Date(a.checkIn!).getTime() - new Date(b.checkIn!).getTime()
-                  )
+                  .sort((a, b) => new Date(a.checkIn!).getTime() - new Date(b.checkIn!).getTime())
                   .map((a) => (
                     <div key={a.id} className="flex items-center justify-between py-1.5 border-b last:border-0 text-sm">
                       <span className="font-medium">{a.student.name}</span>
@@ -278,5 +274,24 @@ export default async function DashboardPage() {
         </Card>
       </div>
     </div>
+  );
+
+  return (
+    <DashboardWrapper
+      handovers={recentHandovers as Parameters<typeof DashboardWrapper>[0]["handovers"]}
+      templates={templates}
+      monthlyNotes={monthlyNotes as Parameters<typeof DashboardWrapper>[0]["monthlyNotes"]}
+      students={students}
+      staffList={staffList}
+      currentUserId={session?.user?.id ?? ""}
+      currentUserName={session?.user?.name ?? ""}
+      userName={session?.user?.name ?? ""}
+      year={year}
+      month={month}
+      unreadCount={unreadCount}
+      todos={todos as Parameters<typeof DashboardWrapper>[0]["todos"]}
+    >
+      {dashboardContent}
+    </DashboardWrapper>
   );
 }

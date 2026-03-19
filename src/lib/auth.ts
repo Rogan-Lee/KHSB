@@ -1,56 +1,38 @@
-import NextAuth from "next-auth";
-import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
+import { auth as clerkAuth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "./prisma";
-import type { Role } from "../generated/prisma";
-import { authConfig } from "./auth.config";
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
-  ...authConfig,
-  providers: [
-    Credentials({
-      credentials: {
-        email: { label: "이메일", type: "email" },
-        password: { label: "비밀번호", type: "password" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+// Clerk 인증 기반으로 Prisma User를 반환
+// - clerkId로 먼저 조회
+// - 없으면 email로 기존 유저 조회 후 clerkId 연결 (기존 계정 마이그레이션)
+// - 둘 다 없으면 신규 생성 (기본 role: MENTOR)
+export async function getUser() {
+  const { userId: clerkId } = await clerkAuth();
+  if (!clerkId) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
-        });
+  let user = await prisma.user.findUnique({ where: { clerkId } });
+  if (user) return user;
 
-        if (!user) return null;
+  const clerkUser = await currentUser();
+  if (!clerkUser) return null;
 
-        const isValid = await bcrypt.compare(
-          credentials.password as string,
-          user.password
-        );
-        if (!isValid) return null;
+  const email = clerkUser.emailAddresses[0]?.emailAddress ?? "";
+  const firstName = clerkUser.firstName ?? "";
+  const lastName = clerkUser.lastName ?? "";
+  const name = `${lastName}${firstName}`.trim() || email.split("@")[0] || "사용자";
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        };
-      },
-    }),
-  ],
-  callbacks: {
-    jwt({ token, user }) {
-      if (user) {
-        token.role = (user as { role: Role }).role;
-        token.id = user.id;
-      }
-      return token;
-    },
-    session({ session, token }) {
-      if (session.user) {
-        session.user.role = token.role as Role;
-        session.user.id = token.id as string;
-      }
-      return session;
-    },
-  },
-});
+  // upsert: 이메일로 기존 계정 연동 or 신규 생성 (race condition 방지)
+  user = await prisma.user.upsert({
+    where: { email },
+    update: { clerkId },
+    create: { clerkId, email, name, role: "MENTOR" },
+  });
+  return user;
+}
+
+// 기존 server action들과의 호환성 레이어
+// session.user.id / session.user.role / session.user.name 그대로 사용 가능
+export async function auth() {
+  const user = await getUser();
+  if (!user) return null;
+  return { user };
+}

@@ -37,7 +37,7 @@ export async function getParentReport(token: string) {
     where: { token },
     include: {
       student: {
-        select: { name: true, grade: true, school: true },
+        select: { id: true, name: true, grade: true, school: true },
       },
       mentoring: {
         select: {

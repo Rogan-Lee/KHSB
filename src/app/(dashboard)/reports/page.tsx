@@ -1,3 +1,5 @@
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +19,10 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ year?: string; month?: string }>;
 }) {
+  const session = await auth();
+  if (!session?.user) redirect("/sign-in");
+  if (session.user.role !== "DIRECTOR" && session.user.role !== "ADMIN") redirect("/");
+
   const params = await searchParams;
   const now = new Date();
   const year = Number(params.year) || now.getFullYear();

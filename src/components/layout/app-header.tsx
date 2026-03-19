@@ -1,6 +1,6 @@
 "use client";
 
-import { signOut } from "next-auth/react";
+import { useClerk } from "@clerk/nextjs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -11,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LogOut, User } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import type { Role } from "@/generated/prisma";
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -32,39 +31,38 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ user, title }: AppHeaderProps) {
+  const { signOut } = useClerk();
+
   return (
-    <header className="h-14 border-b bg-card flex items-center justify-between px-6 sticky top-0 z-10">
-      <h1 className="text-[15px] font-semibold tracking-tight">{title}</h1>
+    <header className="h-14 border-b border-[#e1e2e4] bg-white flex items-center justify-between px-6 sticky top-0 z-10">
+      <h1 className="text-[15px] font-semibold text-[#1e2124] tracking-tight">{title}</h1>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent transition-colors">
-            <Avatar className="h-8 w-8">
-              <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
+          <button className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 hover:bg-[#f4f4f5] transition-colors">
+            <Avatar className="h-7 w-7">
+              <AvatarFallback className="text-[11px] bg-[#eaf2fe] text-[#005eeb] font-semibold">
                 {user.name.slice(0, 2)}
               </AvatarFallback>
             </Avatar>
             <div className="text-left hidden sm:block">
-              <p className="text-sm font-medium leading-none">{user.name}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{user.email}</p>
+              <p className="text-[13px] font-medium text-[#1e2124] leading-none">{user.name}</p>
+              <p className="text-[11px] text-[#6d7882] mt-0.5">{ROLE_LABELS[user.role]}</p>
             </div>
-            <Badge variant="secondary" className="text-xs hidden sm:inline-flex">
-              {ROLE_LABELS[user.role]}
-            </Badge>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuLabel>내 계정</DropdownMenuLabel>
+          <DropdownMenuLabel className="text-[13px]">내 계정</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled>
-            <User className="mr-2 h-4 w-4" />
+          <DropdownMenuItem disabled className="text-[13px]">
+            <User className="mr-2 h-3.5 w-3.5" />
             프로필 설정
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className="text-destructive"
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="text-[13px] text-destructive focus:text-destructive"
+            onClick={() => signOut({ redirectUrl: "/sign-in" })}
           >
-            <LogOut className="mr-2 h-4 w-4" />
+            <LogOut className="mr-2 h-3.5 w-3.5" />
             로그아웃
           </DropdownMenuItem>
         </DropdownMenuContent>

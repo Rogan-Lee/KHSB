@@ -85,7 +85,8 @@ model User {
   id         String      @id @default(cuid())
   email      String      @unique
   name       String
-  password   String
+  password   String?     // Clerk 마이그레이션 후 미사용
+  clerkId    String?     @unique
   role       Role        @default(MENTOR)
   students        Student[]        @relation("MentorStudents")
   mentorings      Mentoring[]
@@ -148,6 +149,7 @@ model Student {
   timetableEntries TimetableEntry[]
   dailyPlans       DailyPlan[]
   studyPlanReports StudyPlanReport[]
+  monthlyNotes     MonthlyNote[]
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
 }
@@ -453,18 +455,80 @@ enum HandoverPriority {
   NORMAL  // 일반
 }
 
-model Handover {
-  id          String           @id @default(cuid())
-  date        DateTime         @db.Date
+enum ShiftType {
+  OPEN   // 오픈 전용
+  CLOSE  // 마감 전용
+  ALL    // 공통
+}
+
+model ChecklistTemplate {
+  id        String    @id @default(cuid())
+  title     String
+  shiftType ShiftType @default(ALL)
+  order     Int       @default(0)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model HandoverTask {
+  id           String    @id @default(cuid())
+  handoverId   String
+  handover     Handover  @relation(fields: [handoverId], references: [id], onDelete: Cascade)
+  title        String
+  content      String    @default("")
+  assigneeId   String?
+  assigneeName String?
+  order        Int       @default(0)
+  isCompleted  Boolean   @default(false)
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+}
+
+model HandoverChecklist {
+  id         String   @id @default(cuid())
+  handoverId String
+  handover   Handover @relation(fields: [handoverId], references: [id], onDelete: Cascade)
+  templateId String?
+  title      String
+  shiftType  String   @default("ALL")
+  isChecked  Boolean  @default(false)
+  order      Int      @default(0)
+}
+
+model MonthlyNote {
+  id          String   @id @default(cuid())
+  year        Int
+  month       Int
+  studentId   String?
+  student     Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  studentName String
   content     String
-  priority    HandoverPriority @default(NORMAL)
-  category    String?          // 학생관련, 시설관련, 운영관련 등 자유 태그
-  isPinned    Boolean          @default(false)
   authorId    String
   authorName  String
-  reads       HandoverRead[]
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([year, month])
+}
+
+model Handover {
+  id                   String              @id @default(cuid())
+  date                 DateTime            @db.Date
+  content              String              @default("") // 당일 근무 내용
+  priority             HandoverPriority    @default(NORMAL)
+  category             String?
+  isPinned             Boolean             @default(false)
+  authorId             String
+  authorName           String
+  recipientId          String?             // 수신 담당자 ID
+  recipientName        String?             // 수신 담당자 이름
+  tasks                HandoverTask[]
+  checklist            HandoverChecklist[]
+  monthlyNotesSnapshot Json?
+  reads                HandoverRead[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 
   @@index([date])
 }
@@ -478,4 +542,35 @@ model HandoverRead {
   readAt     DateTime @default(now())
 
   @@unique([handoverId, userId])
+}
+
+model Todo {
+  id           String    @id @default(cuid())
+  title        String
+  content      String?
+  dueDate      DateTime? @db.Date
+  priority     String    @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
+  isCompleted  Boolean   @default(false)
+  completedAt  DateTime?
+  authorId     String
+  authorName   String
+  assigneeId   String?
+  assigneeName String?
+  category     String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([authorId])
+  @@index([assigneeId])
+}
+
+// Google Calendar OAuth 토큰 저장 (싱글톤, id="singleton")
+model GoogleCalendarToken {
+  id           String   @id @default("singleton")
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  calendarId   String   @default("primary")
+  connectedBy  String   // 연동한 사용자 이름
+  updatedAt    DateTime @updatedAt
 }

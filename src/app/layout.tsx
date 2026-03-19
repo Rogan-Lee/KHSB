@@ -1,18 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { KakaoSdkLoader } from "@/components/kakao-sdk-loader";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import { ClerkProvider } from "@clerk/nextjs";
+import { koKR } from "@clerk/localizations";
 
 export const metadata: Metadata = {
   title: "독서실 관리 시스템",
@@ -25,14 +16,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-        <Toaster richColors position="top-right" />
-        <KakaoSdkLoader />
-      </body>
-    </html>
+    <ClerkProvider localization={koKR}>
+      <html lang="ko" suppressHydrationWarning>
+        <body className="antialiased">
+          {children}
+          <Toaster richColors position="top-right" />
+          <KakaoSdkLoader />
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
