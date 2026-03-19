@@ -145,6 +145,7 @@ export function AttendanceBoard({ students, today }: Props) {
               month: "long",
               day: "numeric",
               weekday: "short",
+              timeZone: "Asia/Seoul",
             })})
           </CardTitle>
         </CardHeader>

@@ -1303,6 +1303,7 @@ function OutingTablePanel({
     }))
   );
   const [isPending, startTransition] = useTransition();
+  const [deleteConfirmIdx, setDeleteConfirmIdx] = useState<number | null>(null);
 
   const numRows = Math.max(scheduledOutings.length, rows.length);
 
@@ -1355,7 +1356,7 @@ function OutingTablePanel({
           onDelete?.(row.id);
         }
         setRows((prev) => prev.filter((_, i) => i !== idx));
-        toast.success("삭제되었습니다");
+        toast.success("외출 기록이 삭제되었습니다");
       } catch {
         toast.error("삭제 실패");
       }
@@ -1459,14 +1460,32 @@ function OutingTablePanel({
                                 <Check className="h-3.5 w-3.5" />
                               </button>
                             )}
-                            <button
-                              onClick={() => deleteRow(i)}
-                              disabled={isPending}
-                              title="삭제"
-                              className="text-muted-foreground hover:text-destructive transition-colors"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                            {deleteConfirmIdx === i ? (
+                              <>
+                                <button
+                                  onClick={() => { deleteRow(i); setDeleteConfirmIdx(null); }}
+                                  disabled={isPending}
+                                  className="text-[10px] px-1.5 py-0.5 bg-destructive text-white rounded"
+                                >
+                                  삭제
+                                </button>
+                                <button
+                                  onClick={() => setDeleteConfirmIdx(null)}
+                                  className="text-[10px] px-1.5 py-0.5 bg-muted rounded"
+                                >
+                                  취소
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => setDeleteConfirmIdx(i)}
+                                disabled={isPending}
+                                title="삭제"
+                                className="text-muted-foreground hover:text-destructive transition-colors"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
                         )}
                       </td>

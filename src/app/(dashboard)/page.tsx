@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatDate, formatTime } from "@/lib/utils";
+import { formatDate, formatTime, todayKST } from "@/lib/utils";
 import {
   Users,
   CheckCircle2,
@@ -21,12 +21,10 @@ import { DashboardWrapper } from "@/components/dashboard/dashboard-wrapper";
 
 export default async function DashboardPage() {
   const session = await auth();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
+  const today = todayKST();
+  const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+  const year = kstNow.getUTCFullYear();
+  const month = kstNow.getUTCMonth() + 1;
 
   const [
     totalActive,
@@ -49,7 +47,7 @@ export default async function DashboardPage() {
     prisma.mentoring.findMany({
       where: {
         status: "SCHEDULED",
-        scheduledAt: { gte: now },
+        scheduledAt: { gte: kstNow },
         ...(session?.user?.role === "MENTOR" ? { mentorId: session.user.id } : {}),
       },
       include: {
