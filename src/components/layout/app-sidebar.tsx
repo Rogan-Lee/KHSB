@@ -21,6 +21,7 @@ import {
   LayoutList,
   ArrowLeftRight,
   ListTodo,
+  NotebookText,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType };
@@ -57,6 +58,7 @@ const navSections: NavSection[] = [
     label: "운영",
     items: [
       { href: "/calendar", label: "캘린더", icon: CalendarDays },
+      { href: "/meeting-minutes", label: "회의록", icon: NotebookText },
       { href: "/messages", label: "카카오 메시지", icon: MessageCircle },
     ],
   },
