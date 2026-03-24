@@ -12,7 +12,7 @@ export interface GoogleCalendarEvent {
   allDay: boolean;
 }
 
-// Google Calendar 이벤트 목록 조회
+// Google Calendar 이벤트 목록 조회 (페이지네이션으로 전체 조회)
 export async function fetchGoogleCalendarEvents(
   startDate: Date,
   endDate: Date
@@ -22,16 +22,23 @@ export async function fetchGoogleCalendarEvents(
   try {
     const { calendar, calendarId } = await getGoogleCalendarClient();
 
-    const res = await calendar.events.list({
-      calendarId,
-      timeMin: startDate.toISOString(),
-      timeMax: endDate.toISOString(),
-      singleEvents: true,
-      orderBy: "startTime",
-      maxResults: 200,
-    });
+    const allItems: calendar_v3.Schema$Event[] = [];
+    let pageToken: string | undefined;
+    do {
+      const res = await calendar.events.list({
+        calendarId,
+        timeMin: startDate.toISOString(),
+        timeMax: endDate.toISOString(),
+        singleEvents: true,
+        orderBy: "startTime",
+        maxResults: 500,
+        pageToken,
+      });
+      allItems.push(...(res.data.items ?? []));
+      pageToken = res.data.nextPageToken ?? undefined;
+    } while (pageToken);
 
-    const items = res.data.items ?? [];
+    const items = allItems;
 
     return items
       .filter((e) => e.id && e.summary)
@@ -68,6 +75,16 @@ export async function fetchGoogleCalendarEvents(
     console.error("[Google Calendar] fetchGoogleCalendarEvents error:", err);
     return [];
   }
+}
+
+// 특정 연/월의 Google Calendar 이벤트 조회 (클라이언트 동적 로딩용)
+export async function fetchGoogleCalendarEventsForMonth(
+  year: number,
+  month: number // 0-indexed
+): Promise<GoogleCalendarEvent[]> {
+  const start = new Date(year, month, 1);
+  const end = new Date(year, month + 1, 0, 23, 59, 59);
+  return fetchGoogleCalendarEvents(start, end);
 }
 
 // Google Calendar 이벤트 생성

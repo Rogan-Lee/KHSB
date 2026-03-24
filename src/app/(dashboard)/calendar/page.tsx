@@ -12,8 +12,8 @@ export default async function CalendarPage({
   searchParams: Promise<{ google_connected?: string; google_error?: string }>;
 }) {
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 3, 0);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 7, 0);
 
   const [session, events, schoolRows, studentRows] = await Promise.all([
     auth(),
