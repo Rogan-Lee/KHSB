@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "@/components/ui/sonner";
-import { KakaoSdkLoader } from "@/components/kakao-sdk-loader";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "독서실 관리 시스템",
-  description: "관리형 독서실 원생 종합 관리 시스템",
+  description: "관리형 독서실 원생 관리 시스템",
 };
 
 export default function RootLayout({
@@ -30,8 +28,6 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
-        <Toaster richColors position="top-right" />
-        <KakaoSdkLoader />
       </body>
     </html>
   );

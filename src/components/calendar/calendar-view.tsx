@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "@/actions/calendar";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, X, Calendar, LayoutGrid } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, X, Calendar, LayoutGrid, RefreshCw } from "lucide-react";
 import type { CalendarEvent, CalendarEventType } from "@/generated/prisma";
+import type { GoogleCalendarEvent } from "@/actions/google-calendar";
+import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent, fetchGoogleCalendarEventsForMonth } from "@/actions/google-calendar";
 
 type EventWithStudent = CalendarEvent & {
   student: { id: string; name: string } | null;
@@ -16,6 +19,8 @@ interface Props {
   initialEvents: EventWithStudent[];
   schools?: string[];
   students?: { id: string; name: string; grade: string }[];
+  googleEvents?: GoogleCalendarEvent[];
+  googleCalendarConfigured?: boolean;
 }
 
 const EVENT_TYPE_CONFIG: Record<CalendarEventType, { label: string }> = {
@@ -27,6 +32,7 @@ const EVENT_TYPE_CONFIG: Record<CalendarEventType, { label: string }> = {
 
 // 노션 태그 컬러 팔레트
 const NOTION_COLORS: Record<string, { label: string; bg: string; border: string; text: string; dot: string }> = {
+  google: { label: "Google", bg: "bg-[#e8f0fe]", border: "border-[#c5d8fd]", text: "text-[#1a73e8]", dot: "bg-[#4285f4]" },
   gray:   { label: "회색", bg: "bg-gray-100",   border: "border-gray-200",   text: "text-gray-700",   dot: "bg-gray-400"   },
   red:    { label: "빨강", bg: "bg-red-100",    border: "border-red-200",    text: "text-red-700",    dot: "bg-red-400"    },
   orange: { label: "주황", bg: "bg-orange-100", border: "border-orange-200", text: "text-orange-700", dot: "bg-orange-400" },
@@ -67,8 +73,10 @@ function toDateStr(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
-export function CalendarView({ initialEvents, schools = [], students = [] }: Props) {
+export function CalendarView({ initialEvents, schools = [], students = [], googleEvents = [], googleCalendarConfigured = false }: Props) {
   const today = new Date();
+  const router = useRouter();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<"month" | "week">("month");
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -81,6 +89,42 @@ export function CalendarView({ initialEvents, schools = [], students = [] }: Pro
   const [filterSchool, setFilterSchool] = useState<string>("ALL");
   const [filterStudent, setFilterStudent] = useState<string>("ALL");
   const [isPending, startTransition] = useTransition();
+  const [showGoogleEvents, setShowGoogleEvents] = useState(googleCalendarConfigured);
+  const [removedGoogleIds, setRemovedGoogleIds] = useState<Set<string>>(new Set());
+  const [googleEventOverrides, setGoogleEventOverrides] = useState<Record<string, { title: string; description: string | null; startDate: Date; endDate: Date | null; allDay: boolean }>>({});
+  // 동적으로 추가 로드된 Google 이벤트 (초기 prop 범위 밖 이동 시)
+  const [extraGoogleEvents, setExtraGoogleEvents] = useState<GoogleCalendarEvent[]>([]);
+  const [loadedMonths, setLoadedMonths] = useState<Set<string>>(() => {
+    const loaded = new Set<string>();
+    const now = new Date();
+    for (let i = -6; i <= 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      loaded.add(`${d.getFullYear()}-${d.getMonth()}`);
+    }
+    return loaded;
+  });
+
+  // Google Calendar 이벤트를 로컬 EventWithStudent 형태로 변환
+  function googleToDisplayEvent(e: GoogleCalendarEvent): EventWithStudent {
+    const ov = googleEventOverrides[e.googleEventId];
+    return {
+      id: `g_${e.googleEventId}`,
+      title: ov?.title ?? e.title,
+      description: ov !== undefined ? ov.description : (e.description ?? null),
+      startDate: ov?.startDate ?? new Date(e.startDate),
+      endDate: ov !== undefined ? ov.endDate : (e.endDate ? new Date(e.endDate) : null),
+      allDay: ov?.allDay ?? e.allDay,
+      type: "PLATFORM" as CalendarEventType,
+      studentId: null,
+      student: null,
+      schoolName: null,
+      color: "google",
+      googleEventId: e.googleEventId,
+      createdById: "",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }
 
   const [form, setForm] = useState({
     title: "",
@@ -92,6 +136,7 @@ export function CalendarView({ initialEvents, schools = [], students = [] }: Pro
     studentId: "",
     allDay: true,
     color: DEFAULT_COLOR,
+    syncToGoogle: googleCalendarConfigured,
   });
 
   // ── 월간 뷰 계산 ──
@@ -106,9 +151,11 @@ export function CalendarView({ initialEvents, schools = [], students = [] }: Pro
     return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   }
 
+  const allGoogleEvents = [...googleEvents, ...extraGoogleEvents.filter(e => !googleEvents.some(g => g.googleEventId === e.googleEventId))];
+
   function eventsOnDay(day: number) {
     const ds = dateStr(day);
-    return events.filter((e) => {
+    const local = events.filter((e) => {
       const start = new Date(e.startDate).toISOString().split("T")[0];
       const end = e.endDate ? new Date(e.endDate).toISOString().split("T")[0] : start;
       const typeOk = filterType === "ALL" || e.type === filterType;
@@ -116,6 +163,11 @@ export function CalendarView({ initialEvents, schools = [], students = [] }: Pro
       const studentOk = filterStudent === "ALL" || e.studentId === filterStudent || e.type !== "PERSONAL";
       return ds >= start && ds <= end && typeOk && schoolOk && studentOk;
     });
+    const goog = showGoogleEvents ? allGoogleEvents.filter((e) => {
+      const end = e.endDate ?? e.startDate;
+      return ds >= e.startDate && ds <= end && !removedGoogleIds.has(e.googleEventId);
+    }).map(googleToDisplayEvent) : [];
+    return [...local, ...goog];
   }
 
   // ── 주간 뷰 계산 ──
@@ -126,13 +178,18 @@ export function CalendarView({ initialEvents, schools = [], students = [] }: Pro
   const weekEndStr = toDateStr(addDays(weekStart, 6));
 
   function eventsInWeek() {
-    return events.filter((e) => {
+    const local = events.filter((e) => {
       const start = new Date(e.startDate).toISOString().split("T")[0];
       const end = e.endDate ? new Date(e.endDate).toISOString().split("T")[0] : start;
       const typeOk = filterType === "ALL" || e.type === filterType;
       const studentOk = filterStudent === "ALL" || e.studentId === filterStudent || e.type !== "PERSONAL";
       return end >= weekStartStr && start <= weekEndStr && typeOk && studentOk;
     });
+    const goog = showGoogleEvents ? allGoogleEvents.filter((e) => {
+      const end = e.endDate ?? e.startDate;
+      return end >= weekStartStr && e.startDate <= weekEndStr && !removedGoogleIds.has(e.googleEventId);
+    }).map(googleToDisplayEvent) : [];
+    return [...local, ...goog];
   }
 
   // 학교 행 목록: schools prop + 이벤트에서 추출한 schoolName
@@ -159,18 +216,43 @@ export function CalendarView({ initialEvents, schools = [], students = [] }: Pro
   }
 
   const selectedEvents = selectedDate
-    ? events.filter((e) => {
-        const start = new Date(e.startDate).toISOString().split("T")[0];
-        const end = e.endDate ? new Date(e.endDate).toISOString().split("T")[0] : start;
-        return selectedDate >= start && selectedDate <= end;
-      })
+    ? [
+        ...events.filter((e) => {
+          const start = new Date(e.startDate).toISOString().split("T")[0];
+          const end = e.endDate ? new Date(e.endDate).toISOString().split("T")[0] : start;
+          return selectedDate >= start && selectedDate <= end;
+        }),
+        ...(showGoogleEvents ? allGoogleEvents.filter((e) => {
+          const end = e.endDate ?? e.startDate;
+          return selectedDate >= e.startDate && selectedDate <= end && !removedGoogleIds.has(e.googleEventId);
+        }).map(googleToDisplayEvent) : []),
+      ]
     : [];
 
+  function loadMonthIfNeeded(newYear: number, newMonth: number) {
+    const key = `${newYear}-${newMonth}`;
+    if (googleCalendarConfigured && !loadedMonths.has(key)) {
+      fetchGoogleCalendarEventsForMonth(newYear, newMonth).then((events) => {
+        setExtraGoogleEvents((prev) => [
+          ...prev,
+          ...events.filter((e) => !prev.some((p) => p.googleEventId === e.googleEventId)),
+        ]);
+        setLoadedMonths((prev) => new Set([...prev, key]));
+      });
+    }
+  }
+
   function prevMonth() {
+    const newYear = month === 0 ? year - 1 : year;
+    const newMonth = month === 0 ? 11 : month - 1;
+    loadMonthIfNeeded(newYear, newMonth);
     if (month === 0) { setYear((y) => y - 1); setMonth(11); }
     else setMonth((m) => m - 1);
   }
   function nextMonth() {
+    const newYear = month === 11 ? year + 1 : year;
+    const newMonth = month === 11 ? 0 : month + 1;
+    loadMonthIfNeeded(newYear, newMonth);
     if (month === 11) { setYear((y) => y + 1); setMonth(0); }
     else setMonth((m) => m + 1);
   }
@@ -204,16 +286,21 @@ export function CalendarView({ initialEvents, schools = [], students = [] }: Pro
           schoolName: form.schoolName || undefined,
           studentId: form.studentId || undefined,
           color: form.color,
+          syncToGoogle: form.syncToGoogle,
         });
         const linkedStudent = students.find((s) => s.id === form.studentId) ?? null;
         setEvents((prev) => [...prev, { ...created, student: linkedStudent ? { id: linkedStudent.id, name: linkedStudent.name } : null }]);
-        setForm({ title: "", description: "", startDate: selectedDate ?? "", endDate: "", type: "SCHOOL_EXAM", schoolName: "", studentId: "", allDay: true, color: DEFAULT_COLOR });
+        setForm({ title: "", description: "", startDate: selectedDate ?? "", endDate: "", type: "SCHOOL_EXAM", schoolName: "", studentId: "", allDay: true, color: DEFAULT_COLOR, syncToGoogle: googleCalendarConfigured });
         closeForm();
         toast.success("일정이 등록되었습니다");
       } catch {
         toast.error("등록 실패");
       }
     });
+  }
+
+  function isGoogleEvent(event: EventWithStudent) {
+    return event.id.startsWith("g_");
   }
 
   function handleEdit(event: EventWithStudent) {
@@ -228,6 +315,7 @@ export function CalendarView({ initialEvents, schools = [], students = [] }: Pro
       studentId: event.studentId ?? "",
       allDay: event.allDay,
       color: event.color ?? DEFAULT_COLOR,
+      syncToGoogle: false,
     });
     setShowForm(true);
   }
@@ -239,25 +327,46 @@ export function CalendarView({ initialEvents, schools = [], students = [] }: Pro
     }
     startTransition(async () => {
       try {
-        await updateCalendarEvent(editingId, {
-          title: form.title,
-          description: form.description || undefined,
-          startDate: form.startDate,
-          endDate: form.endDate || undefined,
-          type: form.type,
-          schoolName: form.schoolName || undefined,
-          studentId: form.studentId || null,
-          color: form.color,
-        });
-        const linkedStudent = students.find((s) => s.id === form.studentId) ?? null;
-        setEvents((prev) =>
-          prev.map((e) =>
-            e.id === editingId
-              ? { ...e, title: form.title, description: form.description || null, startDate: new Date(form.startDate), endDate: form.endDate ? new Date(form.endDate) : null, type: form.type, schoolName: form.schoolName || null, studentId: form.studentId || null, student: linkedStudent ? { id: linkedStudent.id, name: linkedStudent.name } : null, color: form.color }
-              : e
-          )
-        );
-        setForm({ title: "", description: "", startDate: selectedDate ?? "", endDate: "", type: "SCHOOL_EXAM", schoolName: "", studentId: "", allDay: true, color: DEFAULT_COLOR });
+        if (editingId.startsWith("g_")) {
+          const googleEventId = editingId.slice(2);
+          await updateGoogleCalendarEvent(googleEventId, {
+            title: form.title,
+            description: form.description || undefined,
+            startDate: form.startDate,
+            endDate: form.endDate || undefined,
+            allDay: form.allDay,
+          });
+          setGoogleEventOverrides((prev) => ({
+            ...prev,
+            [googleEventId]: {
+              title: form.title,
+              description: form.description || null,
+              startDate: new Date(form.startDate),
+              endDate: form.endDate ? new Date(form.endDate) : null,
+              allDay: form.allDay,
+            },
+          }));
+        } else {
+          await updateCalendarEvent(editingId, {
+            title: form.title,
+            description: form.description || undefined,
+            startDate: form.startDate,
+            endDate: form.endDate || undefined,
+            type: form.type,
+            schoolName: form.schoolName || undefined,
+            studentId: form.studentId || null,
+            color: form.color,
+          });
+          const linkedStudent = students.find((s) => s.id === form.studentId) ?? null;
+          setEvents((prev) =>
+            prev.map((e) =>
+              e.id === editingId
+                ? { ...e, title: form.title, description: form.description || null, startDate: new Date(form.startDate), endDate: form.endDate ? new Date(form.endDate) : null, type: form.type, schoolName: form.schoolName || null, studentId: form.studentId || null, student: linkedStudent ? { id: linkedStudent.id, name: linkedStudent.name } : null, color: form.color }
+                : e
+            )
+          );
+        }
+        setForm({ title: "", description: "", startDate: selectedDate ?? "", endDate: "", type: "SCHOOL_EXAM", schoolName: "", studentId: "", allDay: true, color: DEFAULT_COLOR, syncToGoogle: googleCalendarConfigured });
         closeForm();
         toast.success("수정되었습니다");
       } catch {
@@ -269,8 +378,14 @@ export function CalendarView({ initialEvents, schools = [], students = [] }: Pro
   function handleDelete(id: string) {
     startTransition(async () => {
       try {
-        await deleteCalendarEvent(id);
-        setEvents((prev) => prev.filter((e) => e.id !== id));
+        if (id.startsWith("g_")) {
+          const googleEventId = id.slice(2);
+          await deleteGoogleCalendarEvent(googleEventId);
+          setRemovedGoogleIds((prev) => new Set([...prev, googleEventId]));
+        } else {
+          await deleteCalendarEvent(id);
+          setEvents((prev) => prev.filter((e) => e.id !== id));
+        }
         toast.success("삭제되었습니다");
       } catch {
         toast.error("삭제 실패");
@@ -398,6 +513,35 @@ export function CalendarView({ initialEvents, schools = [], students = [] }: Pro
             </select>
           )}
 
+          {googleCalendarConfigured && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowGoogleEvents((v) => !v)}
+                className={cn(
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded border text-xs transition-colors",
+                  showGoogleEvents
+                    ? "bg-[#e8f0fe] border-[#c5d8fd] text-[#1a73e8]"
+                    : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                <span className="font-bold tracking-tight">G</span>
+                Google
+              </button>
+              <button
+                onClick={() => {
+                  setIsRefreshing(true);
+                  router.refresh();
+                  setTimeout(() => setIsRefreshing(false), 1000);
+                }}
+                disabled={isRefreshing}
+                title="Google Calendar 새로고침"
+                className="p-1.5 rounded border border-border text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={cn("h-3 w-3", isRefreshing && "animate-spin")} />
+              </button>
+            </div>
+          )}
+
           <Button
             size="sm"
             className="h-7 text-xs gap-1"
@@ -494,6 +638,7 @@ export function CalendarView({ initialEvents, schools = [], students = [] }: Pro
                 students={students}
                 onSubmit={editingId ? handleUpdate : handleAdd}
                 onClose={closeForm}
+                googleCalendarConfigured={googleCalendarConfigured}
               />
             ) : selectedDate ? (
               <div className="rounded-lg border p-4 space-y-3">
@@ -524,12 +669,17 @@ export function CalendarView({ initialEvents, schools = [], students = [] }: Pro
                               <p className="text-[10px] text-muted-foreground/70 mt-1">{EVENT_TYPE_CONFIG[e.type].label}</p>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
-                              <button onClick={() => handleEdit(e)} disabled={isPending} className="text-muted-foreground hover:text-primary transition-colors">
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                              <button onClick={() => handleDelete(e.id)} disabled={isPending} className="text-muted-foreground hover:text-destructive transition-colors">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                              {isGoogleEvent(e) && (
+                                <span className="text-[10px] font-bold text-[#1a73e8] bg-[#e8f0fe] px-1.5 py-0.5 rounded">G</span>
+                              )}
+                              <>
+                                <button onClick={() => handleEdit(e)} disabled={isPending} className="text-muted-foreground hover:text-primary transition-colors">
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button onClick={() => handleDelete(e.id)} disabled={isPending} className="text-muted-foreground hover:text-destructive transition-colors">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </>
                             </div>
                           </div>
                         </div>
@@ -702,6 +852,7 @@ export function CalendarView({ initialEvents, schools = [], students = [] }: Pro
                   students={students}
                   onSubmit={editingId ? handleUpdate : handleAdd}
                   onClose={closeForm}
+                  googleCalendarConfigured={googleCalendarConfigured}
                 />
               </div>
             ) : hoveredEvent ? (
@@ -736,6 +887,9 @@ export function CalendarView({ initialEvents, schools = [], students = [] }: Pro
                   </button>
                 </div>
                 <div className="flex gap-2 pt-1 border-t">
+                  {isGoogleEvent(hoveredEvent) && (
+                    <span className="text-[10px] font-bold text-[#1a73e8] bg-[#e8f0fe] px-1.5 py-0.5 rounded self-center">G</span>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -992,6 +1146,7 @@ function EventForm({
   students,
   onSubmit,
   onClose,
+  googleCalendarConfigured,
 }: {
   form: {
     title: string;
@@ -1003,6 +1158,7 @@ function EventForm({
     studentId: string;
     allDay: boolean;
     color: string;
+    syncToGoogle: boolean;
   };
   setForm: React.Dispatch<React.SetStateAction<typeof form>>;
   editingId: string | null;
@@ -1011,6 +1167,7 @@ function EventForm({
   students: { id: string; name: string; grade: string }[];
   onSubmit: () => void;
   onClose: () => void;
+  googleCalendarConfigured?: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -1033,73 +1190,77 @@ function EventForm({
           endDate={form.endDate}
           onChange={(start, end) => setForm((f) => ({ ...f, startDate: start, endDate: end }))}
         />
-        <select
-          value={form.type}
-          onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as CalendarEventType, studentId: "", schoolName: "" }))}
-          className="w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-        >
-          {(Object.keys(EVENT_TYPE_CONFIG) as CalendarEventType[]).map((t) => (
-            <option key={t} value={t}>{EVENT_TYPE_CONFIG[t].label}</option>
-          ))}
-        </select>
-
-        {/* 학교 일정이면 학교명, 개인 일정이면 원생 선택 */}
-        {form.type === "PERSONAL" ? (
-          <select
-            value={form.studentId}
-            onChange={(e) => setForm((f) => ({ ...f, studentId: e.target.value }))}
-            className="w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-          >
-            <option value="">원생 선택 (선택)</option>
-            {students.map((s) => (
-              <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>
-            ))}
-          </select>
-        ) : (
+        {!editingId?.startsWith("g_") && (
           <>
-            <input
-              type="text"
-              placeholder="학교명 (선택)"
-              value={form.schoolName}
-              onChange={(e) => setForm((f) => ({ ...f, schoolName: e.target.value }))}
+            <select
+              value={form.type}
+              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as CalendarEventType, studentId: "", schoolName: "" }))}
               className="w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-              list="school-list-form"
-            />
-            <datalist id="school-list-form">
-              {allSchools.map((s) => <option key={s} value={s} />)}
-            </datalist>
+            >
+              {(Object.keys(EVENT_TYPE_CONFIG) as CalendarEventType[]).map((t) => (
+                <option key={t} value={t}>{EVENT_TYPE_CONFIG[t].label}</option>
+              ))}
+            </select>
+
+            {/* 학교 일정이면 학교명, 개인 일정이면 원생 선택 */}
+            {form.type === "PERSONAL" ? (
+              <select
+                value={form.studentId}
+                onChange={(e) => setForm((f) => ({ ...f, studentId: e.target.value }))}
+                className="w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+              >
+                <option value="">원생 선택 (선택)</option>
+                {students.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>
+                ))}
+              </select>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  placeholder="학교명 (선택)"
+                  value={form.schoolName}
+                  onChange={(e) => setForm((f) => ({ ...f, schoolName: e.target.value }))}
+                  className="w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+                  list="school-list-form"
+                />
+                <datalist id="school-list-form">
+                  {allSchools.map((s) => <option key={s} value={s} />)}
+                </datalist>
+              </>
+            )}
+
+            {/* 컬러 선택 */}
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">카드 색상</label>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {Object.entries(NOTION_COLORS).map(([key, c]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    title={c.label}
+                    onClick={() => setForm((f) => ({ ...f, color: key }))}
+                    className={cn(
+                      "w-5 h-5 rounded-full transition-all duration-150 border-2",
+                      c.dot,
+                      form.color === key
+                        ? "border-foreground scale-125 shadow-sm"
+                        : "border-transparent hover:scale-110 opacity-70 hover:opacity-100"
+                    )}
+                  />
+                ))}
+              </div>
+              <div className={cn(
+                "inline-flex text-xs px-2 py-0.5 rounded border",
+                NOTION_COLORS[form.color]?.bg ?? "bg-blue-100",
+                NOTION_COLORS[form.color]?.border ?? "border-blue-200",
+                NOTION_COLORS[form.color]?.text ?? "text-blue-700"
+              )}>
+                {form.title || "미리보기"}
+              </div>
+            </div>
           </>
         )}
-
-        {/* 컬러 선택 */}
-        <div className="space-y-1.5">
-          <label className="text-xs text-muted-foreground">카드 색상</label>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {Object.entries(NOTION_COLORS).map(([key, c]) => (
-              <button
-                key={key}
-                type="button"
-                title={c.label}
-                onClick={() => setForm((f) => ({ ...f, color: key }))}
-                className={cn(
-                  "w-5 h-5 rounded-full transition-all duration-150 border-2",
-                  c.dot,
-                  form.color === key
-                    ? "border-foreground scale-125 shadow-sm"
-                    : "border-transparent hover:scale-110 opacity-70 hover:opacity-100"
-                )}
-              />
-            ))}
-          </div>
-          <div className={cn(
-            "inline-flex text-xs px-2 py-0.5 rounded border",
-            NOTION_COLORS[form.color]?.bg ?? "bg-blue-100",
-            NOTION_COLORS[form.color]?.border ?? "border-blue-200",
-            NOTION_COLORS[form.color]?.text ?? "text-blue-700"
-          )}>
-            {form.title || "미리보기"}
-          </div>
-        </div>
 
         <textarea
           placeholder="설명 (선택)"
@@ -1108,6 +1269,25 @@ function EventForm({
           className="w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background resize-none min-h-[56px]"
         />
       </div>
+      {/* Google Calendar 동기화 토글 (새 이벤트에서만, Google 설정된 경우만) */}
+      {!editingId && googleCalendarConfigured && (
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <div
+            onClick={() => setForm((f) => ({ ...f, syncToGoogle: !f.syncToGoogle }))}
+            className={cn(
+              "relative w-8 h-4.5 rounded-full transition-colors",
+              form.syncToGoogle ? "bg-[#1a73e8]" : "bg-muted-foreground/30"
+            )}
+          >
+            <span className={cn(
+              "absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow transition-transform",
+              form.syncToGoogle ? "translate-x-4" : "translate-x-0.5"
+            )} />
+          </div>
+          <span className="text-xs text-muted-foreground">Google Calendar에 동기화</span>
+        </label>
+      )}
+
       <div className="flex justify-end gap-2">
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onClose}>취소</Button>
         <Button size="sm" className="h-7 text-xs" onClick={onSubmit} disabled={isPending}>
