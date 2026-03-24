@@ -564,6 +564,32 @@ model Todo {
   @@index([assigneeId])
 }
 
+model MeetingMinutes {
+  id         String               @id @default(cuid())
+  title      String
+  date       DateTime             @db.Date
+  content    String               @default("")
+  attendees  String[]             // 참석자 이름 목록
+  authorId   String
+  authorName String
+  reads      MeetingMinutesRead[]
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  @@index([date])
+}
+
+model MeetingMinutesRead {
+  id               String         @id @default(cuid())
+  meetingMinutesId String
+  meetingMinutes   MeetingMinutes @relation(fields: [meetingMinutesId], references: [id], onDelete: Cascade)
+  userId           String
+  userName         String
+  readAt           DateTime       @default(now())
+
+  @@unique([meetingMinutesId, userId])
+}
+
 // Google Calendar OAuth 토큰 저장 (싱글톤, id="singleton")
 model GoogleCalendarToken {
   id           String   @id @default("singleton")
