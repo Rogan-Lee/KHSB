@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, X, Calendar, LayoutGrid, RefreshCw } from "lucide-react";
 import type { CalendarEvent, CalendarEventType } from "@/generated/prisma";
 import type { GoogleCalendarEvent } from "@/actions/google-calendar";
-import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from "@/actions/google-calendar";
+import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent, fetchGoogleCalendarEventsForMonth } from "@/actions/google-calendar";
 
 type EventWithStudent = CalendarEvent & {
   student: { id: string; name: string } | null;
@@ -92,6 +92,17 @@ export function CalendarView({ initialEvents, schools = [], students = [], googl
   const [showGoogleEvents, setShowGoogleEvents] = useState(googleCalendarConfigured);
   const [removedGoogleIds, setRemovedGoogleIds] = useState<Set<string>>(new Set());
   const [googleEventOverrides, setGoogleEventOverrides] = useState<Record<string, { title: string; description: string | null; startDate: Date; endDate: Date | null; allDay: boolean }>>({});
+  // 동적으로 추가 로드된 Google 이벤트 (초기 prop 범위 밖 이동 시)
+  const [extraGoogleEvents, setExtraGoogleEvents] = useState<GoogleCalendarEvent[]>([]);
+  const [loadedMonths, setLoadedMonths] = useState<Set<string>>(() => {
+    const loaded = new Set<string>();
+    const now = new Date();
+    for (let i = -6; i <= 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      loaded.add(`${d.getFullYear()}-${d.getMonth()}`);
+    }
+    return loaded;
+  });
 
   // Google Calendar 이벤트를 로컬 EventWithStudent 형태로 변환
   function googleToDisplayEvent(e: GoogleCalendarEvent): EventWithStudent {
@@ -140,6 +151,8 @@ export function CalendarView({ initialEvents, schools = [], students = [], googl
     return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   }
 
+  const allGoogleEvents = [...googleEvents, ...extraGoogleEvents.filter(e => !googleEvents.some(g => g.googleEventId === e.googleEventId))];
+
   function eventsOnDay(day: number) {
     const ds = dateStr(day);
     const local = events.filter((e) => {
@@ -150,7 +163,7 @@ export function CalendarView({ initialEvents, schools = [], students = [], googl
       const studentOk = filterStudent === "ALL" || e.studentId === filterStudent || e.type !== "PERSONAL";
       return ds >= start && ds <= end && typeOk && schoolOk && studentOk;
     });
-    const goog = showGoogleEvents ? googleEvents.filter((e) => {
+    const goog = showGoogleEvents ? allGoogleEvents.filter((e) => {
       const end = e.endDate ?? e.startDate;
       return ds >= e.startDate && ds <= end && !removedGoogleIds.has(e.googleEventId);
     }).map(googleToDisplayEvent) : [];
@@ -172,7 +185,7 @@ export function CalendarView({ initialEvents, schools = [], students = [], googl
       const studentOk = filterStudent === "ALL" || e.studentId === filterStudent || e.type !== "PERSONAL";
       return end >= weekStartStr && start <= weekEndStr && typeOk && studentOk;
     });
-    const goog = showGoogleEvents ? googleEvents.filter((e) => {
+    const goog = showGoogleEvents ? allGoogleEvents.filter((e) => {
       const end = e.endDate ?? e.startDate;
       return end >= weekStartStr && e.startDate <= weekEndStr && !removedGoogleIds.has(e.googleEventId);
     }).map(googleToDisplayEvent) : [];
@@ -209,18 +222,37 @@ export function CalendarView({ initialEvents, schools = [], students = [], googl
           const end = e.endDate ? new Date(e.endDate).toISOString().split("T")[0] : start;
           return selectedDate >= start && selectedDate <= end;
         }),
-        ...(showGoogleEvents ? googleEvents.filter((e) => {
+        ...(showGoogleEvents ? allGoogleEvents.filter((e) => {
           const end = e.endDate ?? e.startDate;
           return selectedDate >= e.startDate && selectedDate <= end && !removedGoogleIds.has(e.googleEventId);
         }).map(googleToDisplayEvent) : []),
       ]
     : [];
 
+  function loadMonthIfNeeded(newYear: number, newMonth: number) {
+    const key = `${newYear}-${newMonth}`;
+    if (googleCalendarConfigured && !loadedMonths.has(key)) {
+      fetchGoogleCalendarEventsForMonth(newYear, newMonth).then((events) => {
+        setExtraGoogleEvents((prev) => [
+          ...prev,
+          ...events.filter((e) => !prev.some((p) => p.googleEventId === e.googleEventId)),
+        ]);
+        setLoadedMonths((prev) => new Set([...prev, key]));
+      });
+    }
+  }
+
   function prevMonth() {
+    const newYear = month === 0 ? year - 1 : year;
+    const newMonth = month === 0 ? 11 : month - 1;
+    loadMonthIfNeeded(newYear, newMonth);
     if (month === 0) { setYear((y) => y - 1); setMonth(11); }
     else setMonth((m) => m - 1);
   }
   function nextMonth() {
+    const newYear = month === 11 ? year + 1 : year;
+    const newMonth = month === 11 ? 0 : month + 1;
+    loadMonthIfNeeded(newYear, newMonth);
     if (month === 11) { setYear((y) => y + 1); setMonth(0); }
     else setMonth((m) => m + 1);
   }
