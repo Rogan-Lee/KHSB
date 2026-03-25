@@ -1,22 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { formatDate } from "@/lib/utils";
 import { ConsultationDialog } from "@/components/consultations/consultation-dialog";
-
-const STATUS_MAP = {
-  SCHEDULED: { label: "예정", variant: "secondary" as const },
-  COMPLETED: { label: "완료", variant: "default" as const },
-  CANCELLED: { label: "취소", variant: "destructive" as const },
-};
+import { ConsultationsTable } from "@/components/consultations/consultations-table";
 
 export default async function ConsultationsPage() {
   const [consultations, students] = await Promise.all([
@@ -50,45 +35,7 @@ export default async function ConsultationsPage() {
           <ConsultationDialog students={students} />
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>예정일</TableHead>
-                <TableHead>원생</TableHead>
-                <TableHead>상태</TableHead>
-                <TableHead>주제</TableHead>
-                <TableHead>결과</TableHead>
-                <TableHead>사후조치</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {consultations.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    면담 기록이 없습니다
-                  </TableCell>
-                </TableRow>
-              ) : (
-                consultations.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell>{c.scheduledAt ? formatDate(c.scheduledAt) : "-"}</TableCell>
-                    <TableCell>
-                      <span className="font-medium">{c.student.name}</span>
-                      <span className="text-xs text-muted-foreground ml-1">{c.student.grade}</span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={STATUS_MAP[c.status].variant}>
-                        {STATUS_MAP[c.status].label}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm max-w-32 line-clamp-1">{c.agenda || "-"}</TableCell>
-                    <TableCell className="text-sm max-w-32 line-clamp-1">{c.outcome || "-"}</TableCell>
-                    <TableCell className="text-sm max-w-32 line-clamp-1">{c.followUp || "-"}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <ConsultationsTable consultations={consultations} />
         </CardContent>
       </Card>
     </div>

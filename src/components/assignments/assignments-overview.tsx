@@ -4,7 +4,8 @@ import { useState } from "react";
 import { AssignmentPanel } from "./assignment-panel";
 import { cn } from "@/lib/utils";
 import type { Assignment } from "@/generated/prisma";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 interface StudentWithAssignments {
   id: string;
@@ -61,15 +62,18 @@ function StudentRow({ student }: { student: StudentWithAssignments }) {
 
 export function AssignmentsOverview({ students }: Props) {
   const [filter, setFilter] = useState<"all" | "pending">("pending");
+  const [query, setQuery] = useState("");
 
+  const q = query.trim().toLowerCase();
   const filtered = students.filter((s) => {
-    if (filter === "pending") return s.assignments.some((a) => !a.isCompleted);
+    if (filter === "pending" && !s.assignments.some((a) => !a.isCompleted)) return false;
+    if (q && !s.name.toLowerCase().includes(q)) return false;
     return true;
   });
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         {(["pending", "all"] as const).map((f) => (
           <button
             key={f}
@@ -84,7 +88,21 @@ export function AssignmentsOverview({ students }: Props) {
             {f === "pending" ? "미완료 있는 원생" : "전체 원생"}
           </button>
         ))}
-        <span className="text-xs text-muted-foreground ml-1">{filtered.length}명</span>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="이름 검색..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pl-8 h-7 w-40 text-sm"
+          />
+          {query && (
+            <button onClick={() => setQuery("")} className="absolute right-2 top-1.5 text-muted-foreground hover:text-foreground">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <span className="text-xs text-muted-foreground">{filtered.length}명</span>
       </div>
 
       {filtered.length === 0 ? (

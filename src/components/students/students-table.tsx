@@ -29,7 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, ArrowLeftRight, LogOut, ChevronRight } from "lucide-react";
+import { MoreHorizontal, ArrowLeftRight, LogOut, ChevronRight, Search, X } from "lucide-react";
 import { checkoutStudent, moveStudentSeat, swapStudentSeats } from "@/actions/students";
 import { toast } from "sonner";
 import type { Student, User, AttendanceSchedule } from "@/generated/prisma";
@@ -193,12 +193,15 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
   const router = useRouter();
   const [seatDialog, setSeatDialog] = useState<StudentWithRelations | null>(null);
   const [checkoutDialog, setCheckoutDialog] = useState<StudentWithRelations | null>(null);
+  const [query, setQuery] = useState("");
 
   function handleDialogClose(refresh = false) {
     setSeatDialog(null);
     setCheckoutDialog(null);
     if (refresh) router.refresh();
   }
+
+  const q = query.trim().toLowerCase();
 
   // 좌석번호(숫자 문자열) → student 맵
   const seatMap = new Map<string, StudentWithRelations>();
@@ -213,22 +216,47 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
 
   // 1~89 순서대로 행 생성, 그 뒤에 좌석 미배정 원생 추가
   type Row = { type: "student"; student: StudentWithRelations } | { type: "empty"; seatNum: string };
-  const rows: Row[] = [];
+  const allRows: Row[] = [];
   for (let i = 1; i <= TOTAL_SEATS; i++) {
     const key = String(i);
     const student = seatMap.get(key);
-    if (student) {
-      rows.push({ type: "student", student });
-    } else {
-      rows.push({ type: "empty", seatNum: key });
-    }
+    if (student) allRows.push({ type: "student", student });
+    else allRows.push({ type: "empty", seatNum: key });
   }
-  for (const s of noSeatStudents) {
-    rows.push({ type: "student", student: s });
-  }
+  for (const s of noSeatStudents) allRows.push({ type: "student", student: s });
+
+  const rows = q
+    ? allRows.filter(
+        (r) =>
+          r.type === "student" &&
+          [r.student.name, r.student.school, r.student.grade, r.student.mentor?.name, r.student.seat, r.student.phone, r.student.parentPhone]
+            .some((v) => v?.toLowerCase().includes(q))
+      )
+    : allRows;
 
   return (
     <>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="이름, 학교, 멘토, 연락처 검색..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pl-8 h-8 w-64 text-sm"
+          />
+          {query && (
+            <button onClick={() => setQuery("")} className="absolute right-2 top-2 text-muted-foreground hover:text-foreground">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        {q && (
+          <span className="text-xs text-muted-foreground">
+            {rows.length}명 검색됨
+          </span>
+        )}
+      </div>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>

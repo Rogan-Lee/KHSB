@@ -22,6 +22,7 @@ import {
   ArrowLeftRight,
   ListTodo,
   NotebookText,
+  CalendarClock,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType };
@@ -49,6 +50,7 @@ const navSections: NavSection[] = [
     label: "멘토링",
     items: [
       { href: "/mentoring", label: "멘토링", icon: MessageSquare },
+      { href: "/mentoring-plan", label: "주간 멘토링 계획", icon: CalendarClock },
       { href: "/timetable", label: "시간표", icon: LayoutList },
       { href: "/consultations", label: "원장 면담", icon: FileText },
       { href: "/mentoring/schedule", label: "멘토 스케줄", icon: Calendar },

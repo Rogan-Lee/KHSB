@@ -21,7 +21,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { MoreHorizontal, Trash2 } from "lucide-react";
+import { MoreHorizontal, Search, Trash2, X } from "lucide-react";
 import { updateMentoringStatus, deleteMentoring, bulkDeleteMentorings } from "@/actions/mentoring";
 import { toast } from "sonner";
 
@@ -195,12 +195,15 @@ export function MentoringList({ mentorings, mentors, isDirector }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<Mentoring | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
+  const [query, setQuery] = useState("");
 
+  const q = query.trim().toLowerCase();
   const filtered = mentorings.filter((m) => {
     if (selectedMentorId !== "all" && m.mentor.id !== selectedMentorId) return false;
     const dateStr = toLocalDateString(m.scheduledAt);
     if (dateFrom && dateStr < dateFrom) return false;
     if (dateTo && dateStr > dateTo) return false;
+    if (q && !m.student.name.toLowerCase().includes(q)) return false;
     return true;
   });
 
@@ -288,6 +291,20 @@ export function MentoringList({ mentorings, mentors, isDirector }: Props) {
             오늘로
           </Button>
         )}
+        <div className="relative ml-2">
+          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="원생 이름 검색..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pl-8 h-8 w-44 text-sm"
+          />
+          {query && (
+            <button onClick={() => setQuery("")} className="absolute right-2 top-2 text-muted-foreground hover:text-foreground">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
         <div className="ml-auto flex items-center gap-2">
           {someSelected && selectedCount > 0 && (
             <Button
