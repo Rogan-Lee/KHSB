@@ -570,6 +570,7 @@ model MeetingMinutes {
   date       DateTime             @db.Date
   content    String               @default("")
   attendees  String[]             // 참석자 이름 목록
+  team       String               @default("운영팀")  // "멘토링팀" | "운영팀"
   authorId   String
   authorName String
   reads      MeetingMinutesRead[]
@@ -577,6 +578,7 @@ model MeetingMinutes {
   updatedAt  DateTime             @updatedAt
 
   @@index([date])
+  @@index([team])
 }
 
 model MeetingMinutesRead {
@@ -588,6 +590,14 @@ model MeetingMinutesRead {
   readAt           DateTime       @default(now())
 
   @@unique([meetingMinutesId, userId])
+}
+
+// Google Sheets 연동 설정 (싱글톤, id="singleton")
+model GoogleSheetsConfig {
+  id        String   @id @default("singleton")
+  sheetUrl  String   // Google Sheets 전체 URL
+  sheetName String?  // 시트(탭) 이름 — null이면 첫 번째 시트
+  updatedAt DateTime @updatedAt
 }
 
 // Google Calendar OAuth 토큰 저장 (싱글톤, id="singleton")

@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
+export type MeetingTeam = "멘토링팀" | "운영팀";
+
 export async function getMeetingMinutesList() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
@@ -21,6 +23,7 @@ export async function createMeetingMinutes(data: {
   date: string;
   content: string;
   attendees: string[];
+  team: MeetingTeam;
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
@@ -31,6 +34,7 @@ export async function createMeetingMinutes(data: {
       date: new Date(data.date),
       content: data.content.trim(),
       attendees: data.attendees.filter((a) => a.trim()),
+      team: data.team,
       authorId: session.user.id,
       authorName: session.user.name ?? "알 수 없음",
     },
@@ -50,6 +54,7 @@ export async function updateMeetingMinutes(
     date?: string;
     content?: string;
     attendees?: string[];
+    team?: MeetingTeam;
   }
 ) {
   const session = await auth();
@@ -72,6 +77,7 @@ export async function updateMeetingMinutes(
       ...(data.date !== undefined && { date: new Date(data.date) }),
       ...(data.content !== undefined && { content: data.content.trim() }),
       ...(data.attendees !== undefined && { attendees: data.attendees.filter((a) => a.trim()) }),
+      ...(data.team !== undefined && { team: data.team }),
     },
     include: {
       reads: { select: { userId: true, userName: true, readAt: true } },
