@@ -8,7 +8,7 @@ import { getMeritsByRange } from "@/actions/merit-demerit";
 import { formatDate } from "@/lib/utils";
 import { Search, ChevronDown, ChevronUp } from "lucide-react";
 
-type Record = {
+type MeritRecord = {
   id: string;
   date: Date;
   type: "MERIT" | "DEMERIT";
@@ -24,7 +24,7 @@ type StudentGroup = {
   grade: string;
   merits: number;
   demerits: number;
-  records: Record[];
+  records: MeritRecord[];
 };
 
 // 빠른 날짜 프리셋
@@ -131,7 +131,7 @@ export function MeritRangeReport() {
 
   const [from, setFrom] = useState(firstOfMonth);
   const [to, setTo] = useState(today);
-  const [results, setResults] = useState<Record[] | null>(null);
+  const [results, setResults] = useState<MeritRecord[] | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function applyPreset(f: string, t: string) {
@@ -143,7 +143,7 @@ export function MeritRangeReport() {
   function handleSearch() {
     startTransition(async () => {
       const data = await getMeritsByRange(from, to);
-      setResults(data as Record[]);
+      setResults(data as MeritRecord[]);
     });
   }
 
