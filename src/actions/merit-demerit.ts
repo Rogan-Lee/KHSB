@@ -58,6 +58,21 @@ export async function getMeritDemerits(studentId?: string) {
   });
 }
 
+export async function getMeritsByRange(from: string, to: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  toDate.setHours(23, 59, 59, 999);
+
+  return prisma.meritDemerit.findMany({
+    where: { date: { gte: fromDate, lte: toDate } },
+    include: { student: { select: { id: true, name: true, grade: true } } },
+    orderBy: [{ student: { name: "asc" } }, { date: "asc" }],
+  });
+}
+
 export async function getStudentPointSummary() {
   const students = await prisma.student.findMany({
     where: { status: "ACTIVE" },

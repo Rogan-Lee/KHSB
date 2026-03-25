@@ -1,7 +1,10 @@
 import { google } from "googleapis";
 import { prisma } from "./prisma";
 
-const SCOPES = ["https://www.googleapis.com/auth/calendar"];
+const SCOPES = [
+  "https://www.googleapis.com/auth/calendar",
+  "https://www.googleapis.com/auth/spreadsheets.readonly",
+];
 
 function createOAuth2Client() {
   return new google.auth.OAuth2(
@@ -50,6 +53,31 @@ export async function getGoogleCalendarClient() {
   });
 
   return { calendar: google.calendar({ version: "v3", auth: oauth2Client }), calendarId: token.calendarId };
+}
+
+export async function getGoogleSheetsClient() {
+  const token = await prisma.googleCalendarToken.findUnique({ where: { id: "singleton" } });
+  if (!token) throw new Error("Google 계정이 연동되지 않았습니다");
+
+  const oauth2Client = createOAuth2Client();
+  oauth2Client.setCredentials({
+    access_token: token.accessToken,
+    refresh_token: token.refreshToken,
+    expiry_date: token.expiresAt.getTime(),
+  });
+
+  oauth2Client.on("tokens", async (newTokens) => {
+    await prisma.googleCalendarToken.update({
+      where: { id: "singleton" },
+      data: {
+        accessToken: newTokens.access_token!,
+        ...(newTokens.refresh_token ? { refreshToken: newTokens.refresh_token } : {}),
+        ...(newTokens.expiry_date ? { expiresAt: new Date(newTokens.expiry_date) } : {}),
+      },
+    });
+  });
+
+  return google.sheets({ version: "v4", auth: oauth2Client });
 }
 
 export async function isGoogleCalendarConfigured(): Promise<boolean> {

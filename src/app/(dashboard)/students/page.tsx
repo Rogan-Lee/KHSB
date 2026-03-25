@@ -8,15 +8,25 @@ import { StudentsScheduleTable } from "@/components/students/students-schedule-t
 import { StudentsTable } from "@/components/students/students-table";
 import { CsvImport } from "@/components/students/csv-import";
 import { CsvImportScores } from "@/components/students/csv-import-scores";
+import { SheetsImport } from "@/components/students/sheets-import";
+import { getGoogleSheetsConfig } from "@/actions/google-sheets";
+import { isGoogleCalendarConfigured, getGoogleAuthUrl, isOAuthAppConfigured } from "@/lib/google-calendar";
 
 export default async function StudentsPage() {
-  const students = await prisma.student.findMany({
-    include: {
-      mentor: { select: { name: true } },
-      schedules: true,
-    },
-    orderBy: [{ seat: { sort: "asc", nulls: "last" } }, { name: "asc" }],
-  });
+  const [students, studentsSheetConfig, scoresSheetConfig, googleConnected] = await Promise.all([
+    prisma.student.findMany({
+      include: {
+        mentor: { select: { name: true } },
+        schedules: true,
+      },
+      orderBy: [{ seat: { sort: "asc", nulls: "last" } }, { name: "asc" }],
+    }),
+    getGoogleSheetsConfig("students"),
+    getGoogleSheetsConfig("scores"),
+    isGoogleCalendarConfigured(),
+  ]);
+
+  const googleAuthUrl = isOAuthAppConfigured() ? getGoogleAuthUrl() : "";
 
   const active = students.filter((s) => s.status === "ACTIVE").length;
   const inactive = students.filter((s) => s.status === "INACTIVE").length;
@@ -63,6 +73,7 @@ export default async function StudentsPage() {
             <TabsTrigger value="schedule">입퇴실 일정</TabsTrigger>
             <TabsTrigger value="import">원생 CSV 가져오기</TabsTrigger>
             <TabsTrigger value="scores-import">성적 CSV 업로드</TabsTrigger>
+            <TabsTrigger value="sheets">구글 시트 연동</TabsTrigger>
           </TabsList>
           <Link href="/students/new">
             <Button size="sm">
@@ -96,6 +107,19 @@ export default async function StudentsPage() {
           <Card>
             <CardContent className="pt-5">
               <CsvImportScores />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="sheets" className="mt-3">
+          <Card>
+            <CardContent className="pt-5">
+              <SheetsImport
+                studentsConfig={studentsSheetConfig ? { sheetUrl: studentsSheetConfig.sheetUrl, sheetName: studentsSheetConfig.sheetName } : null}
+                scoresConfig={scoresSheetConfig ? { sheetUrl: scoresSheetConfig.sheetUrl, sheetName: scoresSheetConfig.sheetName } : null}
+                googleAuthUrl={googleAuthUrl}
+                isGoogleConnected={googleConnected}
+              />
             </CardContent>
           </Card>
         </TabsContent>

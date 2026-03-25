@@ -11,7 +11,7 @@ import { ExamScoreChart } from "@/components/students/exam-score-chart";
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/utils";
-import { AlertCircle } from "lucide-react";
+import { StudentInfoReveal } from "@/components/mentoring/student-info-reveal";
 
 const STATUS_MAP = {
   SCHEDULED: { label: "예정", variant: "secondary" as const },
@@ -33,8 +33,9 @@ export default async function MentoringDetailPage({
       student: {
         select: {
           id: true, name: true, grade: true, school: true,
-          mentoringNotes: true, internalScoreRange: true,
+          mentoringNotes: true, studentInfo: true, internalScoreRange: true,
           mockScoreRange: true, targetUniversity: true, parentEmail: true,
+          academySchedule: true, selectedSubjects: true, admissionType: true, onlineLectures: true,
           communications: { orderBy: { createdAt: "desc" } },
           examScores: { orderBy: { examDate: "desc" } },
           assignments: { orderBy: { createdAt: "desc" } },
@@ -115,27 +116,6 @@ export default async function MentoringDetailPage({
         </CardContent>
       </Card>
 
-      {/* 학생 학습 정보 */}
-      {(s.mentoringNotes || s.internalScoreRange || s.mockScoreRange || s.targetUniversity) && (
-        <Card className="border-orange-200 bg-orange-50/50">
-          <CardContent className="pt-3 pb-3">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-orange-500 mt-0.5 shrink-0" />
-              <div className="space-y-1 text-sm w-full">
-                {s.mentoringNotes && (
-                  <p className="font-medium text-orange-800">{s.mentoringNotes}</p>
-                )}
-                <div className="grid grid-cols-3 gap-3 text-xs text-muted-foreground mt-1">
-                  {s.internalScoreRange && <span>내신 {s.internalScoreRange}</span>}
-                  {s.mockScoreRange && <span>모의 {s.mockScoreRange}</span>}
-                  {s.targetUniversity && <span>목표 {s.targetUniversity}</span>}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <Tabs defaultValue="record">
         <TabsList>
           <TabsTrigger value="record">멘토링 기록</TabsTrigger>
@@ -157,6 +137,7 @@ export default async function MentoringDetailPage({
             )}
           </TabsTrigger>
           <TabsTrigger value="scores">성적 추이</TabsTrigger>
+          <TabsTrigger value="studentinfo">학생 정보</TabsTrigger>
         </TabsList>
 
         <TabsContent value="record" className="mt-4">
@@ -239,6 +220,23 @@ export default async function MentoringDetailPage({
             studentId={s.id}
             initialScores={s.examScores}
           />
+        </TabsContent>
+        <TabsContent value="studentinfo" className="mt-4">
+          <Card className="border-border bg-muted/20">
+            <CardContent className="pt-4 pb-4">
+              <StudentInfoReveal
+                mentoringNotes={s.mentoringNotes}
+                internalScoreRange={s.internalScoreRange}
+                mockScoreRange={s.mockScoreRange}
+                targetUniversity={s.targetUniversity}
+                studentInfo={s.studentInfo}
+                academySchedule={s.academySchedule}
+                selectedSubjects={s.selectedSubjects}
+                admissionType={s.admissionType}
+                onlineLectures={s.onlineLectures}
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

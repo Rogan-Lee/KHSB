@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,12 +13,135 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createMeritDemerit } from "@/actions/merit-demerit";
-import { MERIT_CATEGORIES } from "@/lib/utils";
+import { MERIT_CATEGORIES, cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { MessageCircle, Check } from "lucide-react";
+import { MessageCircle, Check, Search, X, ChevronDown } from "lucide-react";
+
+type Student = { id: string; name: string; grade: string };
+
+function StudentCombobox({
+  students,
+  value,
+  onChange,
+}: {
+  students: Student[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selected = students.find((s) => s.id === value);
+  const filtered = query.trim()
+    ? students.filter(
+        (s) =>
+          s.name.includes(query.trim()) ||
+          s.grade.includes(query.trim())
+      )
+    : students;
+
+  // 외부 클릭 시 닫기
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function handleSelect(id: string) {
+    onChange(id);
+    setOpen(false);
+    setQuery("");
+  }
+
+  function handleOpen() {
+    setOpen(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }
+
+  return (
+    <div ref={containerRef} className="relative">
+      {/* 트리거 버튼 */}
+      <button
+        type="button"
+        onClick={handleOpen}
+        className={cn(
+          "flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
+          "hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+          !selected && "text-muted-foreground"
+        )}
+      >
+        <span>{selected ? `${selected.name} (${selected.grade})` : "원생 선택"}</span>
+        <div className="flex items-center gap-1 text-muted-foreground">
+          {selected && (
+            <span
+              role="button"
+              onClick={(e) => { e.stopPropagation(); onChange(""); }}
+              className="hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </span>
+          )}
+          <ChevronDown className="h-4 w-4" />
+        </div>
+      </button>
+
+      {/* 드롭다운 */}
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
+          {/* 검색 입력 */}
+          <div className="flex items-center gap-2 border-b px-3 py-2">
+            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="이름 또는 학년 검색..."
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            />
+            {query && (
+              <button type="button" onClick={() => setQuery("")}>
+                <X className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+              </button>
+            )}
+          </div>
+
+          {/* 목록 */}
+          <div className="max-h-52 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-muted-foreground">검색 결과 없음</p>
+            ) : (
+              filtered.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => handleSelect(s.id)}
+                  className={cn(
+                    "flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors",
+                    s.id === value && "bg-accent font-medium"
+                  )}
+                >
+                  <span>{s.name}</span>
+                  <span className="text-xs text-muted-foreground">{s.grade}</span>
+                  {s.id === value && <Check className="ml-auto h-3.5 w-3.5" />}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface Props {
-  students: { id: string; name: string; grade: string }[];
+  students: Student[];
 }
 
 interface LastRecord {
@@ -31,13 +154,19 @@ interface LastRecord {
 export function MeritForm({ students }: Props) {
   const [isPending, startTransition] = useTransition();
   const [lastRecord, setLastRecord] = useState<LastRecord | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState("");
 
   function handleSubmit(formData: FormData) {
-    const studentId = formData.get("studentId") as string;
+    formData.set("studentId", selectedStudentId);
     const type = formData.get("type") as "MERIT" | "DEMERIT";
     const points = Number(formData.get("points"));
     const reason = formData.get("reason") as string;
-    const student = students.find((s) => s.id === studentId);
+    const student = students.find((s) => s.id === selectedStudentId);
+
+    if (!selectedStudentId) {
+      toast.error("원생을 선택해주세요");
+      return;
+    }
 
     startTransition(async () => {
       try {
@@ -73,18 +202,11 @@ export function MeritForm({ students }: Props) {
       <form action={handleSubmit} className="space-y-3">
         <div className="space-y-1.5">
           <Label>원생</Label>
-          <Select name="studentId" required>
-            <SelectTrigger>
-              <SelectValue placeholder="원생 선택" />
-            </SelectTrigger>
-            <SelectContent>
-              {students.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name} ({s.grade})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <StudentCombobox
+            students={students}
+            value={selectedStudentId}
+            onChange={setSelectedStudentId}
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-2">

@@ -8,8 +8,9 @@ import { createStudyPlanReport } from "@/actions/study-plan-reports";
 import { toast } from "sonner";
 import { cn, MERIT_CATEGORIES } from "@/lib/utils";
 import type { Assignment, AttendanceRecord, AttendanceSchedule, AttendanceType, Communication, DailyOuting, OutingSchedule, Student } from "@/generated/prisma";
-import { ArrowRightLeft, Check, ChevronDown, ChevronUp, ClipboardList, LogIn, LogOut, MessageSquare, PanelRightOpen, Plus, Save, Star, StickyNote, Trash2, X } from "lucide-react";
+import { ArrowRightLeft, Check, ChevronDown, ChevronUp, ClipboardList, LogIn, LogOut, MessageSquare, PanelRightOpen, Plus, Save, Search, Star, StickyNote, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { TimePickerInput } from "@/components/ui/time-picker";
 import { CommunicationPanel } from "@/components/communications/communication-panel";
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
@@ -217,11 +218,27 @@ export function AttendanceTable({ students, today }: Props) {
   type InlineOutingEdit = { studentId: string; field: "outStart" | "outEnd"; value: string };
   const [inlineOutingEdit, setInlineOutingEdit] = useState<InlineOutingEdit | null>(null);
 
+  const [query, setQuery] = useState("");
+
+  // 현재 시각 (매분 갱신) — 입실 임박 하이라이트용
+  const [nowMinutes, setNowMinutes] = useState(() => toMinutes(nowHHMM()));
+  useEffect(() => {
+    const id = setInterval(() => setNowMinutes(toMinutes(nowHHMM())), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const sorted = [...students].sort((a, b) => {
     const na = parseInt(a.seat ?? "9999");
     const nb = parseInt(b.seat ?? "9999");
     return isNaN(na) || isNaN(nb) ? (a.seat ?? "").localeCompare(b.seat ?? "") : na - nb;
   });
+
+  const q = query.trim().toLowerCase();
+  const displayStudents = q
+    ? sorted.filter((s) =>
+        [s.name, s.school, s.grade, s.seat].some((v) => v?.toLowerCase().includes(q))
+      )
+    : sorted;
 
   const selected = sorted.find((s) => s.id === selectedId) ?? null;
 
@@ -473,6 +490,26 @@ export function AttendanceTable({ students, today }: Props) {
 
   return (
     <>
+      {/* 검색 */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="이름, 학교, 학년, 좌석 검색..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pl-8 h-8 w-60 text-sm"
+          />
+          {query && (
+            <button onClick={() => setQuery("")} className="absolute right-2 top-2 text-muted-foreground hover:text-foreground">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        {q && (
+          <span className="text-xs text-muted-foreground">{displayStudents.length}명 검색됨</span>
+        )}
+      </div>
       {/* 테이블 — 가로 스크롤 */}
       <div className="relative">
         <div className="absolute inset-y-0 left-0 flex flex-col pointer-events-none z-10">
@@ -504,7 +541,7 @@ export function AttendanceTable({ students, today }: Props) {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((student) => {
+            {displayStudents.map((student) => {
               const state = getState(student);
               const isSelected = selectedId === student.id;
               const isQuickLoading = quickPending === student.id;
@@ -523,6 +560,15 @@ export function AttendanceTable({ students, today }: Props) {
               );
               const attNotes = student.attendances[0]?.notes ?? "";
               const isExpanded = expandedTimelines.has(student.id);
+              // 입실 임박: 아직 미입실 + 예정 입실 0~10분 이내
+              const schedInDiff = schedIn ? toMinutes(schedIn) - nowMinutes : null;
+              const isCheckInImminent =
+                !checkInTime &&
+                schedInDiff !== null &&
+                schedInDiff >= 0 &&
+                schedInDiff <= 10 &&
+                lt?.type !== "ABSENT" &&
+                lt?.type !== "APPROVED_ABSENT";
               const plannerDate = localCheckDates.get(student.id)?.plannerSentDate ?? null;
               const plannerDone = isDoneThisWeek("plannerSentDate", plannerDate);
               const plannerPending = checkDatePending === `${student.id}:plannerSentDate`;
@@ -534,7 +580,8 @@ export function AttendanceTable({ students, today }: Props) {
                   className={cn(
                     "border-b transition-colors cursor-pointer",
                     isSelected ? "bg-blue-50 border-l-2 border-l-blue-500" : isExpanded ? "bg-muted/30" : "hover:bg-accent/50",
-                    state === "NO_SCHEDULE" && "opacity-50"
+                    state === "NO_SCHEDULE" && "opacity-50",
+                    isCheckInImminent && !isSelected && "bg-red-50/60 hover:bg-red-50"
                   )}
                 >
                   {/* 타임라인 토글 */}
