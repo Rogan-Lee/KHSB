@@ -29,7 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, ArrowLeftRight, LogOut, ChevronRight, Search, X } from "lucide-react";
+import { MoreHorizontal, ArrowLeftRight, LogOut, ChevronRight, Search, X, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { checkoutStudent, moveStudentSeat, swapStudentSeats } from "@/actions/students";
 import { toast } from "sonner";
 import type { Student, User, AttendanceSchedule } from "@/generated/prisma";
@@ -44,6 +44,16 @@ const STATUS_MAP = {
   INACTIVE: { label: "휴원", variant: "secondary" as const },
   GRADUATED: { label: "졸업", variant: "outline" as const },
 };
+
+type SortKey = "seat" | "name" | "school" | "startDate" | "status";
+type SortDir = "asc" | "desc";
+
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (col !== sortKey) return <ArrowUpDown className="inline h-3 w-3 ml-1 opacity-30" />;
+  return sortDir === "asc"
+    ? <ArrowUp className="inline h-3 w-3 ml-1 text-foreground" />
+    : <ArrowDown className="inline h-3 w-3 ml-1 text-foreground" />;
+}
 
 // ── 좌석 변경 다이얼로그 ──────────────────────────────
 function SeatChangeDialog({
@@ -194,6 +204,17 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
   const [seatDialog, setSeatDialog] = useState<StudentWithRelations | null>(null);
   const [checkoutDialog, setCheckoutDialog] = useState<StudentWithRelations | null>(null);
   const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("seat");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
 
   function handleDialogClose(refresh = false) {
     setSeatDialog(null);
@@ -225,7 +246,9 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
   }
   for (const s of noSeatStudents) allRows.push({ type: "student", student: s });
 
-  const rows = q
+  const isDefaultSort = sortKey === "seat" && sortDir === "asc";
+
+  const filtered = q
     ? allRows.filter(
         (r) =>
           r.type === "student" &&
@@ -233,6 +256,47 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
             .some((v) => v?.toLowerCase().includes(q))
       )
     : allRows;
+
+  const rows = isDefaultSort && !q
+    ? filtered
+    : (() => {
+        const studentRows = filtered.filter((r): r is { type: "student"; student: StudentWithRelations } => r.type === "student");
+        if (isDefaultSort) return studentRows;
+        return [...studentRows].sort((a, b) => {
+          let cmp = 0;
+          const sa = a.student;
+          const sb = b.student;
+          switch (sortKey) {
+            case "seat": {
+              const na = sa.seat ? parseInt(sa.seat, 10) : Infinity;
+              const nb = sb.seat ? parseInt(sb.seat, 10) : Infinity;
+              cmp = (isNaN(na) ? Infinity : na) - (isNaN(nb) ? Infinity : nb);
+              break;
+            }
+            case "name":
+              cmp = sa.name.localeCompare(sb.name, "ko");
+              break;
+            case "school": {
+              const schoolA = sa.school || "";
+              const schoolB = sb.school || "";
+              cmp = schoolA.localeCompare(schoolB, "ko");
+              if (cmp === 0) {
+                const gradeA = sa.grade || "";
+                const gradeB = sb.grade || "";
+                cmp = gradeA.localeCompare(gradeB, "ko");
+              }
+              break;
+            }
+            case "startDate":
+              cmp = new Date(sa.startDate).getTime() - new Date(sb.startDate).getTime();
+              break;
+            case "status":
+              cmp = sa.status.localeCompare(sb.status);
+              break;
+          }
+          return sortDir === "asc" ? cmp : -cmp;
+        });
+      })();
 
   return (
     <>
@@ -261,14 +325,24 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-14 whitespace-nowrap">좌석</TableHead>
-              <TableHead className="whitespace-nowrap">이름</TableHead>
-              <TableHead className="whitespace-nowrap">학교/학년</TableHead>
+              <TableHead className="w-14 whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("seat")}>
+                좌석<SortIcon col="seat" sortKey={sortKey} sortDir={sortDir} />
+              </TableHead>
+              <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("name")}>
+                이름<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
+              </TableHead>
+              <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("school")}>
+                학교/학년<SortIcon col="school" sortKey={sortKey} sortDir={sortDir} />
+              </TableHead>
               <TableHead className="whitespace-nowrap">연락처</TableHead>
               <TableHead className="whitespace-nowrap">학부모 연락처</TableHead>
               <TableHead className="whitespace-nowrap">담당 멘토</TableHead>
-              <TableHead className="whitespace-nowrap">등원일</TableHead>
-              <TableHead className="whitespace-nowrap">상태</TableHead>
+              <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("startDate")}>
+                등원일<SortIcon col="startDate" sortKey={sortKey} sortDir={sortDir} />
+              </TableHead>
+              <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("status")}>
+                상태<SortIcon col="status" sortKey={sortKey} sortDir={sortDir} />
+              </TableHead>
               <TableHead className="w-8"></TableHead>
               <TableHead className="w-8"></TableHead>
             </TableRow>

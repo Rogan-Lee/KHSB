@@ -7,6 +7,8 @@ import { useDraft } from "@/hooks/use-draft";
 import { type MeetingTeam, createMeetingMinutes, updateMeetingMinutes, deleteMeetingMinutes, markMeetingMinutesRead } from "@/actions/meeting-minutes";
 import { Plus, Pencil, Trash2, CheckCheck, ChevronDown, ChevronUp, Users, X, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MarkdownEditor } from "@/components/ui/markdown-editor";
+import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -206,12 +208,10 @@ function MeetingForm({
       {/* 내용 */}
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground">회의 내용</label>
-        <textarea
+        <MarkdownEditor
           value={form.content}
-          onChange={(e) => updateForm({ content: e.target.value })}
+          onChange={(v) => updateForm({ content: v })}
           placeholder="회의 내용, 결정 사항, 액션 아이템 등을 입력하세요"
-          rows={8}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
         />
       </div>
 
@@ -298,9 +298,7 @@ function MinutesCard({
               ))}
             </div>
           )}
-          <div className="text-sm whitespace-pre-wrap leading-relaxed text-[#1e2124]">
-            {m.content || <span className="text-muted-foreground italic">내용 없음</span>}
-          </div>
+          <MarkdownViewer source={m.content} />
           {m.reads.length > 0 && (
             <div className="pt-2 border-t">
               <p className="text-[11px] text-muted-foreground mb-1.5">확인한 사람</p>

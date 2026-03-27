@@ -9,6 +9,10 @@ function assertDirector(role?: string) {
   if (role !== "DIRECTOR" && role !== "ADMIN") throw new Error("Unauthorized");
 }
 
+function assertDirectorOrMentor(role?: string) {
+  if (role !== "DIRECTOR" && role !== "ADMIN" && role !== "MENTOR") throw new Error("Unauthorized");
+}
+
 export type WeeklyPlanStudent = {
   id: string;
   name: string;
@@ -36,7 +40,7 @@ export type WeeklyPlanMentor = {
 export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMentor[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
-  assertDirector(session.user.role);
+  assertDirectorOrMentor(session.user.role);
 
   const weekStartDate = new Date(weekStart);
   const weekEndDate = new Date(weekStartDate.getTime() + 7 * 24 * 60 * 60 * 1000);
