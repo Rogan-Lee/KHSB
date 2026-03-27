@@ -48,7 +48,7 @@ export default async function MentoringPage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3 md:gap-4">
         <Card>
           <CardContent className="pt-4">
             <p className="text-sm text-muted-foreground">예정된 멘토링</p>
