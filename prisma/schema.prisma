@@ -85,7 +85,6 @@ model User {
   id         String      @id @default(cuid())
   email      String      @unique
   name       String
-  password   String?     // Clerk 마이그레이션 후 미사용
   clerkId    String?     @unique
   role       Role        @default(MENTOR)
   students        Student[]        @relation("MentorStudents")

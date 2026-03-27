@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useDraft } from "@/hooks/use-draft";
 import {
   Plus, CheckSquare, Square, Pencil, Trash2, AlertTriangle,
   Calendar, User, ChevronDown, ChevronUp, X, Check, Settings2,
@@ -59,6 +60,16 @@ function isOverdue(d: Date | null, done: boolean) {
 }
 
 // ── 폼 ────────────────────────────────────────────────────────────────────────
+type TodoFormDraft = {
+  title: string;
+  content: string;
+  dueDate: string;
+  priority: string;
+  assigneeId: string;
+  assigneeName: string;
+  category: string;
+};
+
 function TodoForm({
   initial, staffList, onDone, onCancel,
 }: {
@@ -68,20 +79,30 @@ function TodoForm({
   onCancel: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
-  const [title, setTitle] = useState(initial?.title ?? "");
-  const [content, setContent] = useState(initial?.content ?? "");
-  const [dueDate, setDueDate] = useState(
-    initial?.dueDate ? new Date(initial.dueDate).toISOString().slice(0, 10) : ""
-  );
-  const [priority, setPriority] = useState(initial?.priority ?? "NORMAL");
-  const [assigneeId, setAssigneeId] = useState(initial?.assigneeId ?? "");
-  const [assigneeName, setAssigneeName] = useState(initial?.assigneeName ?? "");
-  const [category, setCategory] = useState(initial?.category ?? "");
+
+  const draftKey = initial ? `todo-form-edit-${initial.id}` : "todo-form-new";
+  const [draft, setDraft, clearDraft] = useDraft<TodoFormDraft>(draftKey, {
+    title: initial?.title ?? "",
+    content: initial?.content ?? "",
+    dueDate: initial?.dueDate ? new Date(initial.dueDate).toISOString().slice(0, 10) : "",
+    priority: initial?.priority ?? "NORMAL",
+    assigneeId: initial?.assigneeId ?? "",
+    assigneeName: initial?.assigneeName ?? "",
+    category: initial?.category ?? "",
+  });
+
+  const { title, content, dueDate, priority, assigneeId, assigneeName, category } = draft;
+  const setTitle = (v: string) => setDraft((d) => ({ ...d, title: v }));
+  const setContent = (v: string) => setDraft((d) => ({ ...d, content: v }));
+  const setDueDate = (v: string) => setDraft((d) => ({ ...d, dueDate: v }));
+  const setPriority = (v: string) => setDraft((d) => ({ ...d, priority: v }));
+  const setAssigneeId = (v: string) => setDraft((d) => ({ ...d, assigneeId: v }));
+  const setAssigneeName = (v: string) => setDraft((d) => ({ ...d, assigneeName: v }));
+  const setCategory = (v: string) => setDraft((d) => ({ ...d, category: v }));
 
   function handleAssignee(id: string) {
     const staff = staffList.find((s) => s.id === id);
-    setAssigneeId(id);
-    setAssigneeName(staff?.name ?? "");
+    setDraft((d) => ({ ...d, assigneeId: id, assigneeName: staff?.name ?? "" }));
   }
 
   function handleSubmit() {
@@ -95,6 +116,7 @@ function TodoForm({
         } else {
           result = await createTodo(payload) as unknown as Todo;
         }
+        clearDraft();
         onDone(result);
         toast.success(initial ? "수정되었습니다" : "등록되었습니다");
       } catch (err) { toast.error(err instanceof Error ? err.message : "처리 실패"); }

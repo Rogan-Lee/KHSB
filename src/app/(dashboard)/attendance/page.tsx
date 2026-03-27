@@ -48,7 +48,7 @@ export default async function AttendancePage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-3">
         <Card>
           <CardContent className="flex items-center gap-2 pt-4 pb-3">
             <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0" />

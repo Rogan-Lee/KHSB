@@ -75,7 +75,15 @@ const directorSection: NavSection = {
   ],
 };
 
-export function AppSidebar({ role }: { role?: string }) {
+export function AppSidebar({
+  role,
+  mobile,
+  onClose,
+}: {
+  role?: string;
+  mobile?: boolean;
+  onClose?: () => void;
+}) {
   const pathname = usePathname();
 
   const allNavItems = [
@@ -102,6 +110,7 @@ export function AppSidebar({ role }: { role?: string }) {
       <Link
         key={href}
         href={href}
+        onClick={mobile ? onClose : undefined}
         className={cn(
           "flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors duration-100",
           isActive
@@ -132,7 +141,10 @@ export function AppSidebar({ role }: { role?: string }) {
   );
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[240px] bg-white border-r border-[#e1e2e4] flex flex-col">
+    <aside className={cn(
+      "h-screen w-[240px] bg-white border-r border-[#e1e2e4] flex flex-col",
+      !mobile && "fixed left-0 top-0"
+    )}>
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 h-14 border-b border-[#e1e2e4] shrink-0">
         <div className="w-7 h-7 rounded-lg bg-[#0066ff] flex items-center justify-center shrink-0">
