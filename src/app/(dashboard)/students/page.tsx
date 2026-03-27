@@ -18,6 +18,7 @@ export default async function StudentsPage() {
       include: {
         mentor: { select: { name: true } },
         schedules: true,
+        outings: true,
       },
       orderBy: [{ seat: { sort: "asc", nulls: "last" } }, { name: "asc" }],
     }),
@@ -36,7 +37,7 @@ export default async function StudentsPage() {
   return (
     <div className="space-y-4">
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 md:gap-4">
         <Card>
           <CardContent className="flex items-center gap-3 pt-4">
             <UserCheck className="h-8 w-8 text-green-600" />
