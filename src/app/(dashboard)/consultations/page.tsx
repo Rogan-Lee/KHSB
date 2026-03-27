@@ -1,9 +1,13 @@
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConsultationDialog } from "@/components/consultations/consultation-dialog";
-import { ConsultationsTable } from "@/components/consultations/consultations-table";
+import { ConsultationsList } from "@/components/consultations/consultations-table";
 
 export default async function ConsultationsPage() {
+  const session = await auth();
+  if (!session?.user) redirect("/sign-in");
+
   const [consultations, students] = await Promise.all([
     prisma.directorConsultation.findMany({
       include: { student: { select: { id: true, name: true, grade: true } } },
@@ -16,28 +20,38 @@ export default async function ConsultationsPage() {
     }),
   ]);
 
-  const upcoming = consultations.filter((c) => c.status === "SCHEDULED").length;
+  const scheduled = consultations.filter((c) => c.status === "SCHEDULED").length;
+  const completed = consultations.filter((c) => c.status === "COMPLETED").length;
+  const total = consultations.length;
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">예정된 면담</p>
-            <p className="text-2xl font-bold">{upcoming}건</p>
-          </CardContent>
-        </Card>
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold">원장 면담</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            원생별 면담 일정을 관리하고 결과를 기록합니다.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-100">
+              예정 {scheduled}
+            </span>
+            <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-medium border border-emerald-100">
+              완료 {completed}
+            </span>
+            <span className="px-2.5 py-1 rounded-full bg-muted text-muted-foreground font-medium border">
+              전체 {total}
+            </span>
+          </div>
+          <ConsultationDialog students={students} />
+        </div>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>원장 면담 기록</CardTitle>
-          <ConsultationDialog students={students} />
-        </CardHeader>
-        <CardContent>
-          <ConsultationsTable consultations={consultations} />
-        </CardContent>
-      </Card>
+      {/* List */}
+      <ConsultationsList consultations={consultations} />
     </div>
   );
 }

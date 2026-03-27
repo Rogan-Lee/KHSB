@@ -17,7 +17,9 @@ export default async function MentoringPlanPage() {
   if (!session?.user) redirect("/sign-in");
 
   const role = session.user.role;
-  if (role !== "DIRECTOR" && role !== "ADMIN") redirect("/");
+  if (role !== "DIRECTOR" && role !== "ADMIN" && role !== "MENTOR") redirect("/");
+
+  const readonly = role === "MENTOR";
 
   const weekStart = getNextMondayKST();
   const [mentors, allStudents] = await Promise.all([
@@ -37,7 +39,7 @@ export default async function MentoringPlanPage() {
           멘토 근무 일정과 담당 원생 입실 예정을 바탕으로 차주 멘토링을 계획합니다.
         </p>
       </div>
-      <WeeklyPlanBoard initialMentors={mentors} initialWeekStart={weekStart} allStudents={allStudents} />
+      <WeeklyPlanBoard initialMentors={mentors} initialWeekStart={weekStart} allStudents={allStudents} readonly={readonly} />
     </div>
   );
 }

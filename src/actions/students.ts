@@ -168,6 +168,23 @@ export async function updateStudentStatus(
   revalidatePath(`/students/${id}`);
 }
 
+export async function updateStudentSeat(studentId: string, seat: string | null) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  // 같은 좌석을 이미 쓰는 학생이 있으면 먼저 비움
+  if (seat) {
+    await prisma.student.updateMany({
+      where: { seat, id: { not: studentId } },
+      data: { seat: null },
+    });
+  }
+
+  await prisma.student.update({ where: { id: studentId }, data: { seat } });
+  revalidatePath("/seat-map");
+  revalidatePath("/students");
+}
+
 export async function patchStudentTextFields(
   id: string,
   fields: { studentInfo?: string; changeNote?: string; academySchedule?: string }

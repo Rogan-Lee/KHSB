@@ -86,10 +86,12 @@ export function WeeklyPlanBoard({
   initialMentors,
   initialWeekStart,
   allStudents,
+  readonly = false,
 }: {
   initialMentors: WeeklyPlanMentor[];
   initialWeekStart: string;
   allStudents: AllStudent[];
+  readonly?: boolean;
 }) {
   const [weekStart, setWeekStart] = useState(initialWeekStart);
   const [mentors, setMentors] = useState(initialMentors);
@@ -247,6 +249,7 @@ export function WeeklyPlanBoard({
                   allStudents={allStudents}
                   isLast={i === mentors.length - 1}
                   isPending={isPending}
+                  readonly={readonly}
                   onSchedule={(sid, dow) => handleSchedule(sid, mentor.id, dow)}
                   onCancel={handleCancel}
                   onEditSchedule={() => setEditMentor(mentor)}
@@ -258,12 +261,14 @@ export function WeeklyPlanBoard({
         </div>
       )}
 
-      {/* ── Schedule Edit Sheet ── */}
-      <ScheduleEditSheet
-        mentor={editMentor}
-        onClose={() => setEditMentor(null)}
-        onSaved={() => refresh(weekStart)}
-      />
+      {/* ── Schedule Edit Sheet (admin/director only) ── */}
+      {!readonly && (
+        <ScheduleEditSheet
+          mentor={editMentor}
+          onClose={() => setEditMentor(null)}
+          onSaved={() => refresh(weekStart)}
+        />
+      )}
 
     </>
   );
@@ -278,6 +283,7 @@ function MentorRow({
   allStudents,
   isLast,
   isPending,
+  readonly,
   onSchedule,
   onCancel,
   onEditSchedule,
@@ -287,6 +293,7 @@ function MentorRow({
   allStudents: AllStudent[];
   isLast: boolean;
   isPending: boolean;
+  readonly: boolean;
   onSchedule: (studentId: string, dayOfWeek: number) => void;
   onCancel: (mentoringId: string) => void;
   onEditSchedule: () => void;
@@ -311,13 +318,15 @@ function MentorRow({
               )}
             </p>
           </div>
-          <button
-            onClick={onEditSchedule}
-            className="text-muted-foreground hover:text-foreground transition-colors mt-0.5 shrink-0"
-            title="근무 스케줄 편집"
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-          </button>
+          {!readonly && (
+            <button
+              onClick={onEditSchedule}
+              className="text-muted-foreground hover:text-foreground transition-colors mt-0.5 shrink-0"
+              title="근무 스케줄 편집"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
         {/* Work days summary */}
         {mentor.workDays.length > 0 && (
@@ -358,6 +367,7 @@ function MentorRow({
             students={mentor.students}
             extraStudents={extraStudents}
             isPending={isPending}
+            readonly={readonly}
             onSchedule={(sid) => onSchedule(sid, dow)}
             onCancel={onCancel}
             onAddAndSchedule={(student) => onAddAndSchedule(student, dow)}
@@ -378,6 +388,7 @@ function DayCell({
   students,
   extraStudents,
   isPending,
+  readonly,
   onSchedule,
   onCancel,
   onAddAndSchedule,
@@ -387,6 +398,7 @@ function DayCell({
   students: WeeklyPlanStudent[];
   extraStudents: AllStudent[];
   isPending: boolean;
+  readonly: boolean;
   onSchedule: (studentId: string) => void;
   onCancel: (mentoringId: string) => void;
   onAddAndSchedule: (student: AllStudent) => void;
@@ -444,39 +456,55 @@ function DayCell({
             >
               <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
               <span className="truncate flex-1">{s.name}</span>
-              <button
-                onClick={() => onCancel(m.id)}
-                disabled={isPending}
-                className="shrink-0 text-blue-400 hover:text-red-500 transition-colors disabled:opacity-40 opacity-0 group-hover:opacity-100"
-                title="삭제"
-              >
-                <X className="h-3 w-3" />
-              </button>
+              {!readonly && (
+                <button
+                  onClick={() => onCancel(m.id)}
+                  disabled={isPending}
+                  className="shrink-0 text-blue-400 hover:text-red-500 transition-colors disabled:opacity-40 opacity-0 group-hover:opacity-100"
+                  title="삭제"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
           );
         })}
 
-        {/* Expected students (clickable to schedule) */}
-        {expectedUnscheduled.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => onSchedule(s.id)}
-            disabled={isPending}
-            className={cn(
-              "w-full flex items-center gap-1 px-2 py-1 rounded-md border text-xs font-medium transition-all",
-              "cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
-              PRIORITY_COLORS[s.priority]
-            )}
-            title={`클릭하여 멘토링 배정 (마지막: ${s.daysSinceLast === null ? "기록없음" : s.daysSinceLast + "일 전"})`}
-          >
-            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
-            <span className="truncate flex-1 text-left">{s.name}</span>
-            <span className="text-[10px] opacity-50">{s.grade}</span>
-          </button>
-        ))}
+        {/* Expected students (clickable to schedule, or display-only when readonly) */}
+        {expectedUnscheduled.map((s) =>
+          readonly ? (
+            <div
+              key={s.id}
+              className={cn(
+                "w-full flex items-center gap-1 px-2 py-1 rounded-md border text-xs font-medium",
+                PRIORITY_COLORS[s.priority]
+              )}
+            >
+              <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
+              <span className="truncate flex-1 text-left">{s.name}</span>
+              <span className="text-[10px] opacity-50">{s.grade}</span>
+            </div>
+          ) : (
+            <button
+              key={s.id}
+              onClick={() => onSchedule(s.id)}
+              disabled={isPending}
+              className={cn(
+                "w-full flex items-center gap-1 px-2 py-1 rounded-md border text-xs font-medium transition-all",
+                "cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
+                PRIORITY_COLORS[s.priority]
+              )}
+              title={`클릭하여 멘토링 배정 (마지막: ${s.daysSinceLast === null ? "기록없음" : s.daysSinceLast + "일 전"})`}
+            >
+              <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
+              <span className="truncate flex-1 text-left">{s.name}</span>
+              <span className="text-[10px] opacity-50">{s.grade}</span>
+            </button>
+          )
+        )}
 
-        {/* Add button — always shown, with search */}
-        <Popover open={popoverOpen} onOpenChange={(o) => { setPopoverOpen(o); if (!o) setQuery(""); }}>
+        {/* Add button — hidden in readonly mode */}
+        {!readonly && <Popover open={popoverOpen} onOpenChange={(o) => { setPopoverOpen(o); if (!o) setQuery(""); }}>
           <PopoverTrigger asChild>
             <button
               disabled={isPending}
@@ -558,7 +586,7 @@ function DayCell({
               )}
             </div>
           </PopoverContent>
-        </Popover>
+        </Popover>}
       </div>
     </td>
   );

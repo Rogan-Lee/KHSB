@@ -23,6 +23,7 @@ import {
   ListTodo,
   NotebookText,
   CalendarClock,
+  MapPin,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType };
@@ -42,6 +43,7 @@ const navSections: NavSection[] = [
     label: "원생",
     items: [
       { href: "/students", label: "원생 관리", icon: Users },
+      { href: "/seat-map", label: "좌석 배치도", icon: MapPin },
       { href: "/merit-demerit", label: "상벌점", icon: Star },
       { href: "/assignments", label: "과제 관리", icon: ClipboardCheck },
     ],
