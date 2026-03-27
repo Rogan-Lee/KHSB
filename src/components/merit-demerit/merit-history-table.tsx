@@ -7,7 +7,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
-import { Search, X } from "lucide-react";
+import { Search, X, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 
 type MeritRecord = {
   id: string;
@@ -19,18 +19,50 @@ type MeritRecord = {
   student: { name: string; grade: string };
 };
 
+type SortKey = "date" | "name" | "points";
+type SortDir = "asc" | "desc";
+
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (col !== sortKey) return <ArrowUpDown className="inline h-3 w-3 ml-1 opacity-30" />;
+  return sortDir === "asc"
+    ? <ArrowUp className="inline h-3 w-3 ml-1 text-foreground" />
+    : <ArrowDown className="inline h-3 w-3 ml-1 text-foreground" />;
+}
+
 export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
   const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("points");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
   const q = query.trim().toLowerCase();
 
-  const filtered = q
-    ? records.filter(
-        (r) =>
-          r.student.name.toLowerCase().includes(q) ||
-          r.reason.toLowerCase().includes(q) ||
-          (r.category ?? "").toLowerCase().includes(q)
-      )
-    : records;
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  }
+
+  const filtered = (
+    q
+      ? records.filter(
+          (r) =>
+            r.student.name.toLowerCase().includes(q) ||
+            r.reason.toLowerCase().includes(q) ||
+            (r.category ?? "").toLowerCase().includes(q)
+        )
+      : [...records]
+  ).sort((a, b) => {
+    let cmp = 0;
+    if (sortKey === "date") cmp = new Date(a.date).getTime() - new Date(b.date).getTime();
+    else if (sortKey === "points") cmp = a.points - b.points;
+    else if (sortKey === "name") cmp = a.student.name.localeCompare(b.student.name, "ko");
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const thClass = "cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap";
 
   return (
     <div className="space-y-3">
@@ -55,10 +87,16 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>날짜</TableHead>
-            <TableHead>이름</TableHead>
+            <TableHead className={thClass} onClick={() => handleSort("date")}>
+              날짜<SortIcon col="date" sortKey={sortKey} sortDir={sortDir} />
+            </TableHead>
+            <TableHead className={thClass} onClick={() => handleSort("name")}>
+              이름<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
+            </TableHead>
             <TableHead>구분</TableHead>
-            <TableHead>점수</TableHead>
+            <TableHead className={thClass} onClick={() => handleSort("points")}>
+              점수<SortIcon col="points" sortKey={sortKey} sortDir={sortDir} />
+            </TableHead>
             <TableHead>카테고리</TableHead>
             <TableHead>사유</TableHead>
           </TableRow>

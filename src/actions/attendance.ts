@@ -142,6 +142,7 @@ export async function saveAttendanceSchedule(
 
   revalidatePath("/attendance/schedule");
   revalidatePath(`/students/${studentId}`);
+  revalidatePath("/students");
 }
 
 // 외출 시각 기록 (실제 외출 시작 / 복귀)
@@ -181,6 +182,31 @@ export async function saveOutingRecord(data: {
   revalidatePath(`/students/${data.studentId}`);
 }
 
+// 입퇴실 일정 + 외출 일정 원자적 저장 (트랜잭션)
+export async function saveScheduleAndOutings(
+  studentId: string,
+  schedules: { dayOfWeek: number; startTime: string; endTime: string }[],
+  outings: { dayOfWeek: number; outStart: string; outEnd: string; reason?: string }[]
+) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  await prisma.$transaction([
+    prisma.attendanceSchedule.deleteMany({ where: { studentId } }),
+    ...(schedules.length > 0
+      ? [prisma.attendanceSchedule.createMany({ data: schedules.map((s) => ({ ...s, studentId })) })]
+      : []),
+    prisma.outingSchedule.deleteMany({ where: { studentId } }),
+    ...(outings.length > 0
+      ? [prisma.outingSchedule.createMany({ data: outings.map((o) => ({ ...o, studentId })) })]
+      : []),
+  ]);
+
+  revalidatePath("/attendance/schedule");
+  revalidatePath(`/students/${studentId}`);
+  revalidatePath("/students");
+}
+
 // 외출 일정 저장 (주간 반복)
 export async function saveOutingSchedules(
   studentId: string,
@@ -198,6 +224,7 @@ export async function saveOutingSchedules(
 
   revalidatePath("/attendance");
   revalidatePath(`/students/${studentId}`);
+  revalidatePath("/students");
 }
 
 // ── DailyOuting (복수 외출 기록) ──
