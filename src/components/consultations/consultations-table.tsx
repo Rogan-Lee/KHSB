@@ -1,17 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import { DateTimePickerInput } from "@/components/ui/time-picker";
 import { updateConsultation } from "@/actions/consultations";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -68,104 +58,18 @@ function formatKST(date: Date): string {
   return `${m}월 ${d}일 (${dow})${timeStr}`;
 }
 
-// ─── Edit Dialog ─────────────────────────────────────────────────────────────
-
-function EditDialog({ consultation, onClose }: { consultation: Consultation; onClose: () => void }) {
-  const [isPending, startTransition] = useTransition();
-
-  function handleSubmit(formData: FormData) {
-    startTransition(async () => {
-      try {
-        await updateConsultation(consultation.id, formData);
-        toast.success("저장되었습니다");
-        onClose();
-      } catch {
-        toast.error("저장에 실패했습니다");
-      }
-    });
-  }
-
-  return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <span>{consultation.student.name}</span>
-            <span className="text-sm font-normal text-muted-foreground">{consultation.student.grade}</span>
-          </DialogTitle>
-        </DialogHeader>
-        <form action={handleSubmit} className="space-y-4 pt-1">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">예정 일시</Label>
-              <DateTimePickerInput
-                name="scheduledAt"
-                defaultValue={consultation.scheduledAt?.toISOString().slice(0, 16) ?? ""}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">실제 일시</Label>
-              <DateTimePickerInput
-                name="actualDate"
-                defaultValue={(consultation.actualDate as Date | null | undefined)?.toISOString().slice(0, 16) ?? ""}
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">상태</Label>
-            <Select name="status" defaultValue={consultation.status}>
-              <SelectTrigger className="h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="SCHEDULED">예정</SelectItem>
-                <SelectItem value="COMPLETED">완료</SelectItem>
-                <SelectItem value="CANCELLED">취소</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">면담 주제</Label>
-            <Textarea name="agenda" defaultValue={consultation.agenda ?? ""} rows={2} className="text-sm resize-none" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">결과</Label>
-            <Textarea name="outcome" defaultValue={consultation.outcome ?? ""} rows={2} className="text-sm resize-none" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">사후조치</Label>
-            <Textarea name="followUp" defaultValue={consultation.followUp ?? ""} rows={2} className="text-sm resize-none" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">메모</Label>
-            <Textarea name="notes" defaultValue={(consultation.notes as string | null | undefined) ?? ""} rows={2} className="text-sm resize-none" />
-          </div>
-          <DialogFooter className="pt-1">
-            <Button type="button" variant="outline" size="sm" onClick={onClose}>취소</Button>
-            <Button type="submit" size="sm" disabled={isPending}>
-              {isPending ? "저장 중..." : "저장"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ─── Consultation Card ────────────────────────────────────────────────────────
 
 function ConsultationCard({
   c,
   isPending,
-  onEdit,
   onQuickStatus,
-  onProgress,
+  onNavigate,
 }: {
   c: Consultation;
   isPending: boolean;
-  onEdit: () => void;
   onQuickStatus: (status: "COMPLETED" | "CANCELLED") => void;
-  onProgress: () => void;
+  onNavigate: () => void;
 }) {
   const cfg = STATUS_CONFIG[c.status];
 
@@ -193,7 +97,7 @@ function ConsultationCard({
             {c.status === "SCHEDULED" && (
               <>
                 <button
-                  onClick={onProgress}
+                  onClick={onNavigate}
                   disabled={isPending}
                   title="면담 진행"
                   className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 transition-colors disabled:opacity-40"
@@ -222,7 +126,7 @@ function ConsultationCard({
               </>
             )}
             <button
-              onClick={onEdit}
+              onClick={onNavigate}
               title="수정"
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
@@ -269,7 +173,6 @@ export function ConsultationsList({ consultations }: { consultations: Consultati
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<Status | "ALL">("ALL");
-  const [editTarget, setEditTarget] = useState<Consultation | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const q = query.trim().toLowerCase();
@@ -360,17 +263,13 @@ export function ConsultationsList({ consultations }: { consultations: Consultati
               key={c.id}
               c={c}
               isPending={isPending}
-              onEdit={() => setEditTarget(c)}
               onQuickStatus={(status) => quickStatus(c.id, status)}
-              onProgress={() => router.push(`/consultations/${c.id}`)}
+              onNavigate={() => router.push(`/consultations/${c.id}`)}
             />
           ))}
         </div>
       )}
 
-      {editTarget && (
-        <EditDialog consultation={editTarget} onClose={() => setEditTarget(null)} />
-      )}
     </div>
   );
 }
