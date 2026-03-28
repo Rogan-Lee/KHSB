@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -332,12 +333,13 @@ export default async function StudentDetailPage({
                     <TableHead>상태</TableHead>
                     <TableHead>주제</TableHead>
                     <TableHead>결과</TableHead>
+                    <TableHead className="w-[60px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {student.consultations.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
                         면담 기록이 없습니다
                       </TableCell>
                     </TableRow>
@@ -353,6 +355,14 @@ export default async function StudentDetailPage({
                         </TableCell>
                         <TableCell>{c.agenda || "-"}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{c.outcome || "-"}</TableCell>
+                        <TableCell>
+                          <Link
+                            href={`/consultations/${c.id}`}
+                            className="text-sm text-primary hover:underline"
+                          >
+                            수정
+                          </Link>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
