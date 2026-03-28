@@ -1,24 +1,19 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { ConsultationDialog } from "@/components/consultations/consultation-dialog";
 import { ConsultationsList } from "@/components/consultations/consultations-table";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import Link from "next/link";
 
 export default async function ConsultationsPage() {
   const session = await auth();
   if (!session?.user) redirect("/sign-in");
 
-  const [consultations, students] = await Promise.all([
-    prisma.directorConsultation.findMany({
-      include: { student: { select: { id: true, name: true, grade: true } } },
-      orderBy: { scheduledAt: "desc" },
-    }),
-    prisma.student.findMany({
-      where: { status: "ACTIVE" },
-      select: { id: true, name: true, grade: true },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+  const consultations = await prisma.directorConsultation.findMany({
+    include: { student: { select: { id: true, name: true, grade: true } } },
+    orderBy: { scheduledAt: "desc" },
+  });
 
   const scheduled = consultations.filter((c) => c.status === "SCHEDULED").length;
   const completed = consultations.filter((c) => c.status === "COMPLETED").length;
@@ -46,7 +41,12 @@ export default async function ConsultationsPage() {
               전체 {total}
             </span>
           </div>
-          <ConsultationDialog students={students} />
+          <Link href="/consultations/new">
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-1" />
+              면담 등록
+            </Button>
+          </Link>
         </div>
       </div>
 
