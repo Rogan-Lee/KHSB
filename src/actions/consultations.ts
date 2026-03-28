@@ -53,3 +53,27 @@ export async function getConsultations() {
     orderBy: { scheduledAt: "desc" },
   });
 }
+
+export async function getStudentConsultationHistory(studentId: string, excludeId?: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  return prisma.directorConsultation.findMany({
+    where: {
+      studentId,
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+      status: "COMPLETED",
+    },
+    orderBy: { scheduledAt: "desc" },
+    take: 5,
+    select: {
+      id: true,
+      scheduledAt: true,
+      actualDate: true,
+      agenda: true,
+      outcome: true,
+      followUp: true,
+      notes: true,
+    },
+  });
+}

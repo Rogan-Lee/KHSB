@@ -21,7 +21,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { MoreHorizontal, Search, Trash2, X } from "lucide-react";
+import { ArrowUp, ArrowDown, ArrowUpDown, MoreHorizontal, Search, Trash2, X } from "lucide-react";
 import { updateMentoringStatus, deleteMentoring, bulkDeleteMentorings } from "@/actions/mentoring";
 import { toast } from "sonner";
 
@@ -31,6 +31,16 @@ const STATUS_MAP = {
   CANCELLED: { label: "취소", variant: "destructive" as const },
   RESCHEDULED: { label: "일정변경", variant: "outline" as const },
 };
+
+type SortKey = "scheduledAt" | "studentName" | "status";
+type SortDir = "asc" | "desc";
+
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (col !== sortKey) return <ArrowUpDown className="inline h-3 w-3 ml-1 opacity-30" />;
+  return sortDir === "asc"
+    ? <ArrowUp className="inline h-3 w-3 ml-1 text-foreground" />
+    : <ArrowDown className="inline h-3 w-3 ml-1 text-foreground" />;
+}
 
 type Mentoring = {
   id: string;
@@ -196,6 +206,17 @@ export function MentoringList({ mentorings, mentors, isDirector }: Props) {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
   const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("scheduledAt");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  }
 
   const q = query.trim().toLowerCase();
   const filtered = mentorings.filter((m) => {
@@ -205,6 +226,12 @@ export function MentoringList({ mentorings, mentors, isDirector }: Props) {
     if (dateTo && dateStr > dateTo) return false;
     if (q && !m.student.name.toLowerCase().includes(q)) return false;
     return true;
+  }).sort((a, b) => {
+    let cmp = 0;
+    if (sortKey === "scheduledAt") cmp = new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
+    else if (sortKey === "studentName") cmp = a.student.name.localeCompare(b.student.name, "ko");
+    else if (sortKey === "status") cmp = a.status.localeCompare(b.status);
+    return sortDir === "asc" ? cmp : -cmp;
   });
 
   const filteredIds = filtered.map((m) => m.id);
@@ -332,11 +359,17 @@ export function MentoringList({ mentorings, mentors, isDirector }: Props) {
                   aria-label="전체 선택"
                 />
               </TableHead>
-              <TableHead className="whitespace-nowrap">예정일</TableHead>
-              <TableHead className="whitespace-nowrap">원생</TableHead>
+              <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("scheduledAt")}>
+                예정일<SortIcon col="scheduledAt" sortKey={sortKey} sortDir={sortDir} />
+              </TableHead>
+              <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("studentName")}>
+                원생<SortIcon col="studentName" sortKey={sortKey} sortDir={sortDir} />
+              </TableHead>
               {isDirector && <TableHead className="whitespace-nowrap">멘토</TableHead>}
               <TableHead className="whitespace-nowrap">시간</TableHead>
-              <TableHead className="whitespace-nowrap">상태</TableHead>
+              <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("status")}>
+                상태<SortIcon col="status" sortKey={sortKey} sortDir={sortDir} />
+              </TableHead>
               <TableHead>메모</TableHead>
               <TableHead></TableHead>
             </TableRow>

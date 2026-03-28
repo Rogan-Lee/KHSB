@@ -1,7 +1,6 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
-import bcrypt from "bcryptjs";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -9,28 +8,24 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  // 원장 계정 생성
-  const directorPassword = await bcrypt.hash("admin1234", 10);
+  // 원장 계정 생성 (Clerk 인증 사용 — password 필드 없음)
   const director = await prisma.user.upsert({
     where: { email: "director@studyroom.kr" },
     update: {},
     create: {
       email: "director@studyroom.kr",
       name: "원장님",
-      password: directorPassword,
       role: "DIRECTOR",
     },
   });
 
   // 멘토 계정 생성
-  const mentorPassword = await bcrypt.hash("mentor1234", 10);
   const mentor = await prisma.user.upsert({
     where: { email: "mentor1@studyroom.kr" },
     update: {},
     create: {
       email: "mentor1@studyroom.kr",
       name: "김멘토",
-      password: mentorPassword,
       role: "MENTOR",
     },
   });
@@ -58,8 +53,8 @@ async function main() {
   }
 
   console.log("✅ Seed completed");
-  console.log("📧 원장:", director.email, "/ 비밀번호: admin1234");
-  console.log("📧 멘토:", mentor.email, "/ 비밀번호: mentor1234");
+  console.log("📧 원장:", director.email);
+  console.log("📧 멘토:", mentor.email);
 }
 
 main()

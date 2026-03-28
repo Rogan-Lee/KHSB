@@ -151,7 +151,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Detail panels */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         {/* Upcoming mentorings */}
         <Card>
           <CardHeader className="flex flex-row items-center gap-2">

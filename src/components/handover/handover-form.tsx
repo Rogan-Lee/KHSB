@@ -148,39 +148,51 @@ export function HandoverForm({ editingHandover, templates, monthlyNotes, staffLi
       }));
   });
 
-  // ── localStorage 드래프트 (편집 모드가 아닐 때만) ──────────────────────────
+  const editDraftKey = editingHandover ? `handover-form-edit-${editingHandover.id}` : null;
+
+  // ── localStorage 드래프트 복원 ────────────────────────────────────────────
   useEffect(() => {
-    if (editingHandover) return;
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const { content, tasks: dt, checklist: dc } = JSON.parse(raw);
-        if (content) setWorkContent(content);
-        if (Array.isArray(dt) && dt.length) setTasks(dt.map((t: TaskDraft) => ({ ...t, _key: t._key || crypto.randomUUID() })));
-        // 루틴 체크 상태 복원 (대시보드에서 체크한 것 반영)
-        if (Array.isArray(dc) && dc.length) {
-          setChecklist((prev) => prev.map((item) => {
-            const found = dc.find((d: { templateId: string; isChecked: boolean }) => d.templateId === item.templateId);
-            return found ? { ...item, isChecked: found.isChecked } : item;
-          }));
+    if (editingHandover) {
+      if (!editDraftKey) return;
+      try {
+        const raw = localStorage.getItem(editDraftKey);
+        if (raw) {
+          const { content, tasks: dt } = JSON.parse(raw);
+          if (content !== undefined) setWorkContent(content);
+          if (Array.isArray(dt) && dt.length) setTasks(dt.map((t: TaskDraft) => ({ ...t, _key: t._key || crypto.randomUUID() })));
         }
-      }
-    } catch { /* ignore */ }
+      } catch { /* ignore */ }
+    } else {
+      try {
+        const raw = localStorage.getItem(DRAFT_KEY);
+        if (raw) {
+          const { content, tasks: dt, checklist: dc } = JSON.parse(raw);
+          if (content) setWorkContent(content);
+          if (Array.isArray(dt) && dt.length) setTasks(dt.map((t: TaskDraft) => ({ ...t, _key: t._key || crypto.randomUUID() })));
+          if (Array.isArray(dc) && dc.length) {
+            setChecklist((prev) => prev.map((item) => {
+              const found = dc.find((d: { templateId: string; isChecked: boolean }) => d.templateId === item.templateId);
+              return found ? { ...item, isChecked: found.isChecked } : item;
+            }));
+          }
+        }
+      } catch { /* ignore */ }
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── localStorage 드래프트 저장 ────────────────────────────────────────────
   useEffect(() => {
-    if (editingHandover) return;
     try {
-      const existing = localStorage.getItem(DRAFT_KEY);
-      const parsed = existing ? JSON.parse(existing) : {};
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({
-        ...parsed,
-        content: workContent,
-        tasks,
-      }));
+      if (editingHandover && editDraftKey) {
+        localStorage.setItem(editDraftKey, JSON.stringify({ content: workContent, tasks }));
+      } else if (!editingHandover) {
+        const existing = localStorage.getItem(DRAFT_KEY);
+        const parsed = existing ? JSON.parse(existing) : {};
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...parsed, content: workContent, tasks }));
+      }
     } catch { /* ignore */ }
-  }, [workContent, tasks, editingHandover]);
+  }, [workContent, tasks, editingHandover, editDraftKey]);
 
   function toggleRecipient(staff: Staff) {
     setRecipients((prev) =>
@@ -291,7 +303,10 @@ export function HandoverForm({ editingHandover, templates, monthlyNotes, staffLi
           });
           toast.success("인수인계가 저장되었습니다");
         }
-        try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+        try {
+          localStorage.removeItem(DRAFT_KEY);
+          if (editDraftKey) localStorage.removeItem(editDraftKey);
+        } catch { /* ignore */ }
         onDone();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "저장 실패");

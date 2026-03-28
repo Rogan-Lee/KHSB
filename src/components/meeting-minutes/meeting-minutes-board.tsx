@@ -3,9 +3,12 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
+import { useDraft } from "@/hooks/use-draft";
 import { type MeetingTeam, createMeetingMinutes, updateMeetingMinutes, deleteMeetingMinutes, markMeetingMinutesRead } from "@/actions/meeting-minutes";
 import { Plus, Pencil, Trash2, CheckCheck, ChevronDown, ChevronUp, Users, X, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MarkdownEditor } from "@/components/ui/markdown-editor";
+import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -67,6 +70,7 @@ type FormState = { title: string; date: string; content: string; attendees: stri
 function MeetingForm({
   initialForm,
   isEdit,
+  draftKey,
   staffList,
   onSubmit,
   onCancel,
@@ -74,19 +78,32 @@ function MeetingForm({
 }: {
   initialForm: FormState;
   isEdit: boolean;
+  draftKey: string;
   staffList: { id: string; name: string }[];
   onSubmit: (form: FormState) => void;
   onCancel: () => void;
   isPending: boolean;
 }) {
-  const [form, setForm] = useState<FormState>(initialForm);
+  const [draft, , clearDraft] = useDraft<FormState>(draftKey, initialForm);
+  const [form, setForm] = useState<FormState>(draft);
   const [attendeeInput, setAttendeeInput] = useState("");
+
+  function updateForm(partial: Partial<FormState>) {
+    const next = { ...form, ...partial };
+    setForm(next);
+    try { sessionStorage.setItem(`draft:${draftKey}`, JSON.stringify(next)); } catch {}
+  }
 
   function addAttendee() {
     const name = attendeeInput.trim();
     if (!name || form.attendees.includes(name)) return;
-    setForm((f) => ({ ...f, attendees: [...f.attendees, name] }));
+    updateForm({ attendees: [...form.attendees, name] });
     setAttendeeInput("");
+  }
+
+  function handleSubmitWithClear(f: FormState) {
+    clearDraft();
+    onSubmit(f);
   }
 
   return (
@@ -99,7 +116,7 @@ function MeetingForm({
           <input
             type="text"
             value={form.title}
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+            onChange={(e) => updateForm({ title: e.target.value })}
             placeholder="회의 제목"
             className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
@@ -109,7 +126,7 @@ function MeetingForm({
           <input
             type="date"
             value={form.date}
-            onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+            onChange={(e) => updateForm({ date: e.target.value })}
             className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
@@ -123,7 +140,7 @@ function MeetingForm({
             <button
               key={t}
               type="button"
-              onClick={() => setForm((f) => ({ ...f, team: t }))}
+              onClick={() => updateForm({ team: t })}
               className={cn(
                 "px-4 py-1.5 text-sm rounded-lg border transition-colors",
                 form.team === t
@@ -161,7 +178,7 @@ function MeetingForm({
               type="button"
               onClick={() => {
                 if (!form.attendees.includes(s.name))
-                  setForm((f) => ({ ...f, attendees: [...f.attendees, s.name] }));
+                  updateForm({ attendees: [...form.attendees, s.name] });
               }}
               className={cn(
                 "text-[11px] px-2 py-0.5 rounded-full border transition-colors",
@@ -179,7 +196,7 @@ function MeetingForm({
             {form.attendees.map((name) => (
               <span key={name} className="flex items-center gap-1 text-xs bg-[#eaf2fe] text-[#005eeb] px-2 py-0.5 rounded-full">
                 {name}
-                <button onClick={() => setForm((f) => ({ ...f, attendees: f.attendees.filter((a) => a !== name) }))} className="hover:text-red-500">
+                <button onClick={() => updateForm({ attendees: form.attendees.filter((a) => a !== name) })} className="hover:text-red-500">
                   <X className="h-3 w-3" />
                 </button>
               </span>
@@ -191,12 +208,10 @@ function MeetingForm({
       {/* 내용 */}
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground">회의 내용</label>
-        <textarea
+        <MarkdownEditor
           value={form.content}
-          onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
+          onChange={(v) => updateForm({ content: v })}
           placeholder="회의 내용, 결정 사항, 액션 아이템 등을 입력하세요"
-          rows={8}
-          className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
         />
       </div>
 
@@ -205,7 +220,7 @@ function MeetingForm({
           취소
         </button>
         <button
-          onClick={() => onSubmit(form)}
+          onClick={() => handleSubmitWithClear(form)}
           disabled={isPending}
           className="px-4 py-2 text-sm bg-[#0066ff] text-white rounded-lg hover:bg-[#0052cc] transition-colors disabled:opacity-50"
         >
@@ -283,9 +298,7 @@ function MinutesCard({
               ))}
             </div>
           )}
-          <div className="text-sm whitespace-pre-wrap leading-relaxed text-[#1e2124]">
-            {m.content || <span className="text-muted-foreground italic">내용 없음</span>}
-          </div>
+          <MarkdownViewer source={m.content} />
           {m.reads.length > 0 && (
             <div className="pt-2 border-t">
               <p className="text-[11px] text-muted-foreground mb-1.5">확인한 사람</p>
@@ -541,6 +554,7 @@ export function MeetingMinutesBoard({
         <MeetingForm
           initialForm={editForm}
           isEdit={!!editingId}
+          draftKey={editingId ? `meeting-minutes-edit-${editingId}` : "meeting-minutes-new"}
           staffList={staffList}
           onSubmit={handleSubmit}
           onCancel={() => { setShowForm(false); setEditingId(null); }}

@@ -6,7 +6,46 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { getMeritsByRange } from "@/actions/merit-demerit";
 import { formatDate } from "@/lib/utils";
-import { Search, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+
+type SortKey = "name" | "merits" | "demerits" | "net" | "count";
+type SortDir = "asc" | "desc";
+
+function SortButton({
+  label,
+  col,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  col: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (k: SortKey) => void;
+}) {
+  const active = col === sortKey;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(col)}
+      className={`flex items-center gap-0.5 text-xs px-2 py-1 rounded-md border transition-colors ${
+        active ? "bg-muted border-foreground/30 font-medium" : "hover:bg-muted"
+      }`}
+    >
+      {label}
+      {active ? (
+        sortDir === "asc" ? (
+          <ArrowUp className="h-3 w-3" />
+        ) : (
+          <ArrowDown className="h-3 w-3" />
+        )
+      ) : (
+        <ArrowUpDown className="h-3 w-3 opacity-30" />
+      )}
+    </button>
+  );
+}
 
 type MeritRecord = {
   id: string;
@@ -133,6 +172,17 @@ export function MeritRangeReport() {
   const [to, setTo] = useState(today);
   const [results, setResults] = useState<MeritRecord[] | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [sortKey, setSortKey] = useState<SortKey>("net");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  }
 
   function applyPreset(f: string, t: string) {
     setFrom(f);
@@ -166,7 +216,15 @@ export function MeritRangeReport() {
           acc[r.student.id].records.push(r);
           return acc;
         }, {})
-      ).sort((a, b) => b.demerits - a.demerits)
+      ).sort((a, b) => {
+        let cmp = 0;
+        if (sortKey === "name") cmp = a.name.localeCompare(b.name, "ko");
+        else if (sortKey === "merits") cmp = a.merits - b.merits;
+        else if (sortKey === "demerits") cmp = a.demerits - b.demerits;
+        else if (sortKey === "net") cmp = (a.merits - a.demerits) - (b.merits - b.demerits);
+        else if (sortKey === "count") cmp = a.records.length - b.records.length;
+        return sortDir === "asc" ? cmp : -cmp;
+      })
     : [];
 
   const totalMerits = groups.reduce((s, g) => s + g.merits, 0);
@@ -231,11 +289,21 @@ export function MeritRangeReport() {
               해당 기간에 상벌점 내역이 없습니다
             </p>
           ) : (
-            <div className="space-y-2">
-              {groups.map((g) => (
-                <StudentRow key={g.id} group={g} />
-              ))}
-            </div>
+            <>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs text-muted-foreground mr-1">정렬:</span>
+                <SortButton label="순점수" col="net" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortButton label="상점" col="merits" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortButton label="벌점" col="demerits" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortButton label="이름" col="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                <SortButton label="건수" col="count" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              </div>
+              <div className="space-y-2">
+                {groups.map((g) => (
+                  <StudentRow key={g.id} group={g} />
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}
