@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -247,66 +247,67 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
         </div>
 
         {/* 피드백 내용 */}
-        <div className="border-t pt-4 space-y-4">
+        <div className="border-t pt-4 space-y-5">
+          {/* hidden inputs for MarkdownEditor fields */}
+          <input type="hidden" name="content" value={draft.content} />
+          <input type="hidden" name="improvements" value={draft.improvements} />
+          <input type="hidden" name="weaknesses" value={draft.weaknesses} />
+          <input type="hidden" name="nextGoals" value={draft.nextGoals} />
+          <input type="hidden" name="notes" value={draft.notes} />
+
           <div className="space-y-1.5">
-            <Label htmlFor="content">오늘 멘토링 내용</Label>
-            <Textarea
-              id="content"
-              name="content"
-              value={draft.content}
-              onChange={(e) => setDraft((d) => ({ ...d, content: e.target.value }))}
-              placeholder="오늘 다룬 주제, 내용, 진행 상황..."
-              rows={4}
-            />
+            <Label>오늘 멘토링 내용</Label>
+            <div className="min-h-[220px] border rounded-lg overflow-hidden">
+              <MarkdownEditor
+                value={draft.content}
+                onChange={(v) => setDraft((d) => ({ ...d, content: v }))}
+                placeholder="오늘 다룬 주제, 내용, 진행 상황..."
+              />
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="improvements">개선된 점</Label>
-              <Textarea
-                id="improvements"
-                name="improvements"
+          <div className="space-y-1.5">
+            <Label>개선된 점</Label>
+            <div className="min-h-[160px] border rounded-lg overflow-hidden">
+              <MarkdownEditor
                 value={draft.improvements}
-                onChange={(e) => setDraft((d) => ({ ...d, improvements: e.target.value }))}
+                onChange={(v) => setDraft((d) => ({ ...d, improvements: v }))}
                 placeholder="지난 번보다 나아진 부분..."
-                rows={3}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="weaknesses">부족한 점</Label>
-              <Textarea
-                id="weaknesses"
-                name="weaknesses"
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>부족한 점</Label>
+            <div className="min-h-[160px] border rounded-lg overflow-hidden">
+              <MarkdownEditor
                 value={draft.weaknesses}
-                onChange={(e) => setDraft((d) => ({ ...d, weaknesses: e.target.value }))}
+                onChange={(v) => setDraft((d) => ({ ...d, weaknesses: v }))}
                 placeholder="여전히 부족하거나 보완이 필요한 부분..."
-                rows={3}
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="nextGoals">다음 멘토링 목표</Label>
-            <Textarea
-              id="nextGoals"
-              name="nextGoals"
-              value={draft.nextGoals}
-              onChange={(e) => setDraft((d) => ({ ...d, nextGoals: e.target.value }))}
-              placeholder="다음 멘토링까지 달성해야 할 목표와 과제..."
-              rows={3}
-            />
+            <Label>다음 멘토링 목표</Label>
+            <div className="min-h-[160px] border rounded-lg overflow-hidden">
+              <MarkdownEditor
+                value={draft.nextGoals}
+                onChange={(v) => setDraft((d) => ({ ...d, nextGoals: v }))}
+                placeholder="다음 멘토링까지 달성해야 할 목표와 과제..."
+              />
+            </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="notes">학부모 안내 메시지</Label>
-            <Textarea
-              id="notes"
-              name="notes"
-              value={draft.notes}
-              onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
-              placeholder="학부모 리포트에 포함될 안내 메시지를 입력하세요..."
-              rows={2}
-            />
+            <Label>학부모 안내 메시지</Label>
+            <div className="min-h-[150px] border rounded-lg overflow-hidden">
+              <MarkdownEditor
+                value={draft.notes}
+                onChange={(v) => setDraft((d) => ({ ...d, notes: v }))}
+                placeholder="학부모 리포트에 포함될 안내 메시지를 입력하세요..."
+              />
+            </div>
           </div>
         </div>
 

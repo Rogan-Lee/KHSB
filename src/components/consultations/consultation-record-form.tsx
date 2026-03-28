@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { TimePickerInput } from "@/components/ui/time-picker";
+import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { updateConsultation } from "@/actions/consultations";
 import { toast } from "sonner";
 import { History, ChevronDown, ChevronUp, CalendarDays, ClipboardList, MessageSquare } from "lucide-react";
@@ -233,46 +233,30 @@ export function ConsultationRecordForm({
 
         <div className="space-y-1.5">
           <Label className="text-sm">면담 주제</Label>
-          <Textarea
-            value={agenda}
-            onChange={(e) => setAgenda(e.target.value)}
-            placeholder="면담 주제를 입력하세요..."
-            rows={3}
-            className="resize-none"
-          />
+          <div className="min-h-[200px] border rounded-lg overflow-hidden">
+            <MarkdownEditor value={agenda} onChange={setAgenda} placeholder="면담 주제를 입력하세요..." />
+          </div>
         </div>
 
         <div className="space-y-1.5">
           <Label className="text-sm">결과</Label>
-          <Textarea
-            value={outcome}
-            onChange={(e) => setOutcome(e.target.value)}
-            placeholder="면담 결과를 입력하세요..."
-            rows={3}
-            className="resize-none"
-          />
+          <div className="min-h-[200px] border rounded-lg overflow-hidden">
+            <MarkdownEditor value={outcome} onChange={setOutcome} placeholder="면담 결과를 입력하세요..." />
+          </div>
         </div>
 
         <div className="space-y-1.5">
           <Label className="text-sm">사후조치</Label>
-          <Textarea
-            value={followUp}
-            onChange={(e) => setFollowUp(e.target.value)}
-            placeholder="사후조치 사항을 입력하세요..."
-            rows={2}
-            className="resize-none"
-          />
+          <div className="min-h-[150px] border rounded-lg overflow-hidden">
+            <MarkdownEditor value={followUp} onChange={setFollowUp} placeholder="사후조치 사항을 입력하세요..." />
+          </div>
         </div>
 
         <div className="space-y-1.5">
           <Label className="text-sm">메모</Label>
-          <Textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="기타 메모..."
-            rows={2}
-            className="resize-none"
-          />
+          <div className="min-h-[150px] border rounded-lg overflow-hidden">
+            <MarkdownEditor value={notes} onChange={setNotes} placeholder="기타 메모..." />
+          </div>
         </div>
       </div>
 
