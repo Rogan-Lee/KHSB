@@ -15,6 +15,7 @@ import type { Mentoring } from "@/generated/prisma";
 import { Mail, CheckCircle2, ChevronDown, ChevronUp, History, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ParentReportDialog } from "./parent-report-dialog";
+import { useDraft } from "@/hooks/use-draft";
 
 export type PreviousMentoring = {
   id: string;
@@ -35,6 +36,16 @@ interface Props {
   parentEmail?: string | null;
   previousMentoring?: PreviousMentoring | null;
 }
+
+type MentoringDraft = {
+  content: string;
+  improvements: string;
+  weaknesses: string;
+  nextGoals: string;
+  notes: string;
+  actualStartTime: string;
+  actualEndTime: string;
+};
 
 function NowButton({ onSet }: { onSet: (t: string) => void }) {
   function handleClick() {
@@ -123,14 +134,30 @@ function PreviousMentoringCard({ prev }: { prev: PreviousMentoring }) {
 
 export function MentoringRecordForm({ mentoring, studentName, parentEmail, previousMentoring }: Props) {
   const [isPending, startTransition] = useTransition();
-  const [actualStartTime, setActualStartTime] = useState(mentoring.actualStartTime ?? "");
-  const [actualEndTime, setActualEndTime] = useState(mentoring.actualEndTime ?? "");
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+
+  const [draft, setDraft, clearDraft] = useDraft<MentoringDraft>(
+    `mentoring-record-${mentoring.id}`,
+    {
+      content: mentoring.content ?? "",
+      improvements: mentoring.improvements ?? "",
+      weaknesses: mentoring.weaknesses ?? "",
+      nextGoals: mentoring.nextGoals ?? "",
+      notes: mentoring.notes ?? "",
+      actualStartTime: mentoring.actualStartTime ?? "",
+      actualEndTime: mentoring.actualEndTime ?? "",
+    }
+  );
+
+  const defaultActualDate = mentoring.actualDate
+    ? new Date(mentoring.actualDate).toISOString().split("T")[0]
+    : "";
 
   function handleSubmit(formData: FormData) {
     startTransition(async () => {
       try {
         await updateMentoring(mentoring.id, formData);
+        clearDraft();
         toast.success("저장되었습니다");
       } catch {
         toast.error("저장에 실패했습니다");
@@ -160,10 +187,6 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
       }
     });
   }
-
-  const defaultActualDate = mentoring.actualDate
-    ? new Date(mentoring.actualDate).toISOString().split("T")[0]
-    : "";
 
   return (
     <div className="space-y-5">
@@ -202,18 +225,24 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label>실제 시작 시각</Label>
-              <NowButton onSet={setActualStartTime} />
+              <NowButton onSet={(v) => setDraft((d) => ({ ...d, actualStartTime: v }))} />
             </div>
-            <input type="hidden" name="actualStartTime" value={actualStartTime} />
-            <TimePickerInput value={actualStartTime} onChange={setActualStartTime} />
+            <input type="hidden" name="actualStartTime" value={draft.actualStartTime} />
+            <TimePickerInput
+              value={draft.actualStartTime}
+              onChange={(v) => setDraft((d) => ({ ...d, actualStartTime: v }))}
+            />
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <Label>실제 종료 시각</Label>
-              <NowButton onSet={setActualEndTime} />
+              <NowButton onSet={(v) => setDraft((d) => ({ ...d, actualEndTime: v }))} />
             </div>
-            <input type="hidden" name="actualEndTime" value={actualEndTime} />
-            <TimePickerInput value={actualEndTime} onChange={setActualEndTime} />
+            <input type="hidden" name="actualEndTime" value={draft.actualEndTime} />
+            <TimePickerInput
+              value={draft.actualEndTime}
+              onChange={(v) => setDraft((d) => ({ ...d, actualEndTime: v }))}
+            />
           </div>
         </div>
 
@@ -224,7 +253,8 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
             <Textarea
               id="content"
               name="content"
-              defaultValue={mentoring.content ?? ""}
+              value={draft.content}
+              onChange={(e) => setDraft((d) => ({ ...d, content: e.target.value }))}
               placeholder="오늘 다룬 주제, 내용, 진행 상황..."
               rows={4}
             />
@@ -236,7 +266,8 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
               <Textarea
                 id="improvements"
                 name="improvements"
-                defaultValue={mentoring.improvements ?? ""}
+                value={draft.improvements}
+                onChange={(e) => setDraft((d) => ({ ...d, improvements: e.target.value }))}
                 placeholder="지난 번보다 나아진 부분..."
                 rows={3}
               />
@@ -246,7 +277,8 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
               <Textarea
                 id="weaknesses"
                 name="weaknesses"
-                defaultValue={mentoring.weaknesses ?? ""}
+                value={draft.weaknesses}
+                onChange={(e) => setDraft((d) => ({ ...d, weaknesses: e.target.value }))}
                 placeholder="여전히 부족하거나 보완이 필요한 부분..."
                 rows={3}
               />
@@ -258,7 +290,8 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
             <Textarea
               id="nextGoals"
               name="nextGoals"
-              defaultValue={mentoring.nextGoals ?? ""}
+              value={draft.nextGoals}
+              onChange={(e) => setDraft((d) => ({ ...d, nextGoals: e.target.value }))}
               placeholder="다음 멘토링까지 달성해야 할 목표와 과제..."
               rows={3}
             />
@@ -269,7 +302,8 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
             <Textarea
               id="notes"
               name="notes"
-              defaultValue={mentoring.notes ?? ""}
+              value={draft.notes}
+              onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
               placeholder="학부모 리포트에 포함될 안내 메시지를 입력하세요..."
               rows={2}
             />

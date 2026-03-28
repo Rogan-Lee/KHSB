@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User } from "lucide-react";
+import { LogOut, Menu, User } from "lucide-react";
 import type { Role } from "@/generated/prisma";
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -28,14 +28,24 @@ interface AppHeaderProps {
     role: Role;
   };
   title: string;
+  onMenuClick?: () => void;
 }
 
-export function AppHeader({ user, title }: AppHeaderProps) {
+export function AppHeader({ user, title, onMenuClick }: AppHeaderProps) {
   const { signOut } = useClerk();
 
   return (
-    <header className="h-14 border-b border-[#e1e2e4] bg-white flex items-center justify-between px-6 sticky top-0 z-10">
-      <h1 className="text-[15px] font-semibold text-[#1e2124] tracking-tight">{title}</h1>
+    <header className="h-14 border-b border-[#e1e2e4] bg-white flex items-center justify-between px-4 md:px-6 sticky top-0 z-10">
+      <div className="flex items-center gap-2">
+        <button
+          className="md:hidden p-1.5 rounded-lg hover:bg-[#f4f4f5] transition-colors"
+          onClick={onMenuClick}
+          aria-label="메뉴 열기"
+        >
+          <Menu className="h-5 w-5 text-[#464c53]" />
+        </button>
+        <h1 className="text-[15px] font-semibold text-[#1e2124] tracking-tight">{title}</h1>
+      </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 hover:bg-[#f4f4f5] transition-colors">

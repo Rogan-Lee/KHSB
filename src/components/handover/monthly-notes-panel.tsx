@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { useDraft } from "@/hooks/use-draft";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, X, Search } from "lucide-react";
@@ -43,11 +44,26 @@ export function MonthlyNotesPanel({
   const [isPending, startTransition] = useTransition();
   const [showForm, setShowForm] = useState(false);
   const [studentQuery, setStudentQuery] = useState("");
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [manualName, setManualName] = useState("");
-  const [content, setContent] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const [formDraft, setFormDraft, clearFormDraft] = useDraft<{
+    content: string;
+    manualName: string;
+    selectedStudent: Student | null;
+  }>(`monthly-notes-form-${year}-${month}`, {
+    content: "",
+    manualName: "",
+    selectedStudent: null,
+  });
+
+  const content = formDraft.content;
+  const selectedStudent = formDraft.selectedStudent;
+  const manualName = formDraft.manualName;
+
+  const setContent = (v: string) => setFormDraft((d) => ({ ...d, content: v }));
+  const setSelectedStudent = (s: Student | null) => setFormDraft((d) => ({ ...d, selectedStudent: s }));
+  const setManualName = (v: string) => setFormDraft((d) => ({ ...d, manualName: v }));
 
   const isAdmin = currentUserRole === "DIRECTOR" || currentUserRole === "ADMIN";
 
@@ -73,10 +89,8 @@ export function MonthlyNotesPanel({
           content: content.trim(),
         });
         setNotes((prev) => [created as MonthlyNote, ...prev]);
-        setContent("");
+        clearFormDraft();
         setStudentQuery("");
-        setSelectedStudent(null);
-        setManualName("");
         setShowForm(false);
         toast.success("특이사항이 등록되었습니다");
       } catch (err) {
@@ -196,7 +210,7 @@ export function MonthlyNotesPanel({
               <Plus className="h-3 w-3" />
               등록
             </Button>
-            <Button size="sm" variant="outline" onClick={() => { setShowForm(false); setSelectedStudent(null); setManualName(""); setContent(""); setStudentQuery(""); }} className="h-7 text-xs">
+            <Button size="sm" variant="outline" onClick={() => { setShowForm(false); clearFormDraft(); setStudentQuery(""); }} className="h-7 text-xs">
               취소
             </Button>
           </div>

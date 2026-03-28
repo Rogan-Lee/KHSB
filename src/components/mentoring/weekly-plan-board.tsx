@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Copy, Check, Settings2, Plus, X, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, Check, Settings2, Plus, X, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 
 // Mon-Sun display order for Korean work week
@@ -80,12 +80,18 @@ function buildSummaryText(weekStart: string, mentors: WeeklyPlanMentor[]): strin
 // Main Board
 // ─────────────────────────────────────────────────────────────────────────────
 
+type AllStudent = { id: string; name: string; grade: string; mentorId: string | null };
+
 export function WeeklyPlanBoard({
   initialMentors,
   initialWeekStart,
+  allStudents,
+  readonly = false,
 }: {
   initialMentors: WeeklyPlanMentor[];
   initialWeekStart: string;
+  allStudents: AllStudent[];
+  readonly?: boolean;
 }) {
   const [weekStart, setWeekStart] = useState(initialWeekStart);
   const [mentors, setMentors] = useState(initialMentors);
@@ -123,6 +129,8 @@ export function WeeklyPlanBoard({
         toast.success("일정이 추가되었습니다.");
       } catch {
         toast.error("오류가 발생했습니다.");
+        // 낙관적 상태를 DB와 동기화 (실패 시 롤백)
+        try { setMentors(await getWeeklyPlanData(weekStart)); } catch { /* 무시 */ }
       }
     });
   }
@@ -148,6 +156,34 @@ export function WeeklyPlanBoard({
     } catch {
       toast.error("복사 실패");
     }
+  }
+
+  function handleAddAndSchedule(student: AllStudent, mentorId: string, dayOfWeek: number) {
+    // 로컬 state에 즉시 추가 (UI 피드백)
+    setMentors((prev) =>
+      prev.map((m) => {
+        if (m.id !== mentorId) return m;
+        if (m.students.some((s) => s.id === student.id)) return m;
+        return {
+          ...m,
+          students: [
+            ...m.students,
+            {
+              id: student.id,
+              name: student.name,
+              grade: student.grade,
+              priority: 1 as const,
+              daysSinceLast: null,
+              lastMentoringDate: null,
+              expectedDays: [],
+              scheduledMentorings: [],
+            },
+          ],
+        };
+      })
+    );
+    // 멘토링 일정 배정 (DB 저장 + 새로고침)
+    handleSchedule(student.id, mentorId, dayOfWeek);
   }
 
   const { label, dayDates } = formatWeekHeader(weekStart);
@@ -210,11 +246,14 @@ export function WeeklyPlanBoard({
                 <MentorRow
                   key={mentor.id}
                   mentor={mentor}
+                  allStudents={allStudents}
                   isLast={i === mentors.length - 1}
                   isPending={isPending}
+                  readonly={readonly}
                   onSchedule={(sid, dow) => handleSchedule(sid, mentor.id, dow)}
                   onCancel={handleCancel}
                   onEditSchedule={() => setEditMentor(mentor)}
+                  onAddAndSchedule={(student, dow) => handleAddAndSchedule(student, mentor.id, dow)}
                 />
               ))}
             </tbody>
@@ -222,12 +261,15 @@ export function WeeklyPlanBoard({
         </div>
       )}
 
-      {/* ── Schedule Edit Sheet ── */}
-      <ScheduleEditSheet
-        mentor={editMentor}
-        onClose={() => setEditMentor(null)}
-        onSaved={() => refresh(weekStart)}
-      />
+      {/* ── Schedule Edit Sheet (admin/director only) ── */}
+      {!readonly && (
+        <ScheduleEditSheet
+          mentor={editMentor}
+          onClose={() => setEditMentor(null)}
+          onSaved={() => refresh(weekStart)}
+        />
+      )}
+
     </>
   );
 }
@@ -238,21 +280,29 @@ export function WeeklyPlanBoard({
 
 function MentorRow({
   mentor,
+  allStudents,
   isLast,
   isPending,
+  readonly,
   onSchedule,
   onCancel,
   onEditSchedule,
+  onAddAndSchedule,
 }: {
   mentor: WeeklyPlanMentor;
+  allStudents: AllStudent[];
   isLast: boolean;
   isPending: boolean;
+  readonly: boolean;
   onSchedule: (studentId: string, dayOfWeek: number) => void;
   onCancel: (mentoringId: string) => void;
   onEditSchedule: () => void;
+  onAddAndSchedule: (student: AllStudent, dayOfWeek: number) => void;
 }) {
   const workDayMap = new Map(mentor.workDays.map((w) => [w.dayOfWeek, w]));
   const totalScheduled = mentor.students.reduce((n, s) => n + s.scheduledMentorings.length, 0);
+  const mentorStudentIds = new Set(mentor.students.map((s) => s.id));
+  const extraStudents = allStudents.filter((s) => !mentorStudentIds.has(s.id));
 
   return (
     <tr className={cn("align-top", !isLast && "border-b")}>
@@ -268,13 +318,15 @@ function MentorRow({
               )}
             </p>
           </div>
-          <button
-            onClick={onEditSchedule}
-            className="text-muted-foreground hover:text-foreground transition-colors mt-0.5 shrink-0"
-            title="근무 스케줄 편집"
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-          </button>
+          {!readonly && (
+            <button
+              onClick={onEditSchedule}
+              className="text-muted-foreground hover:text-foreground transition-colors mt-0.5 shrink-0"
+              title="근무 스케줄 편집"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
         {/* Work days summary */}
         {mentor.workDays.length > 0 && (
@@ -313,9 +365,12 @@ function MentorRow({
             dow={dow}
             workDay={workDay}
             students={mentor.students}
+            extraStudents={extraStudents}
             isPending={isPending}
+            readonly={readonly}
             onSchedule={(sid) => onSchedule(sid, dow)}
             onCancel={onCancel}
+            onAddAndSchedule={(student) => onAddAndSchedule(student, dow)}
           />
         );
       })}
@@ -331,17 +386,26 @@ function DayCell({
   dow,
   workDay,
   students,
+  extraStudents,
   isPending,
+  readonly,
   onSchedule,
   onCancel,
+  onAddAndSchedule,
 }: {
   dow: number;
   workDay: { id: string; dayOfWeek: number; timeStart: string; timeEnd: string };
   students: WeeklyPlanStudent[];
+  extraStudents: AllStudent[];
   isPending: boolean;
+  readonly: boolean;
   onSchedule: (studentId: string) => void;
   onCancel: (mentoringId: string) => void;
+  onAddAndSchedule: (student: AllStudent) => void;
 }) {
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
   const scheduledStudents = students.filter((s) =>
     s.scheduledMentorings.some((m) => m.dayOfWeek === dow)
   );
@@ -355,6 +419,24 @@ function DayCell({
       !s.expectedDays.includes(dow) &&
       !s.scheduledMentorings.some((m) => m.dayOfWeek === dow)
   );
+
+  const q = query.trim();
+  const scheduledIds = new Set(scheduledStudents.map((s) => s.id));
+
+  const filteredOther = q
+    ? otherUnscheduled.filter((s) => s.name.includes(q) || s.grade.includes(q))
+    : otherUnscheduled;
+
+  const filteredExtra = q
+    ? extraStudents.filter(
+        (s) => !scheduledIds.has(s.id) && (s.name.includes(q) || s.grade.includes(q))
+      )
+    : [];
+
+  function handleClose() {
+    setPopoverOpen(false);
+    setQuery("");
+  }
 
   return (
     <td className="px-2.5 py-2.5 align-top">
@@ -374,77 +456,137 @@ function DayCell({
             >
               <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
               <span className="truncate flex-1">{s.name}</span>
-              <button
-                onClick={() => onCancel(m.id)}
-                disabled={isPending}
-                className="shrink-0 text-blue-400 hover:text-red-500 transition-colors disabled:opacity-40 opacity-0 group-hover:opacity-100"
-                title="삭제"
-              >
-                <X className="h-3 w-3" />
-              </button>
+              {!readonly && (
+                <button
+                  onClick={() => onCancel(m.id)}
+                  disabled={isPending}
+                  className="shrink-0 text-blue-400 hover:text-red-500 transition-colors disabled:opacity-40 opacity-0 group-hover:opacity-100"
+                  title="삭제"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
           );
         })}
 
-        {/* Expected students (clickable to schedule) */}
-        {expectedUnscheduled.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => onSchedule(s.id)}
-            disabled={isPending}
-            className={cn(
-              "w-full flex items-center gap-1 px-2 py-1 rounded-md border text-xs font-medium transition-all",
-              "cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
-              PRIORITY_COLORS[s.priority]
-            )}
-            title={`클릭하여 멘토링 배정 (마지막: ${s.daysSinceLast === null ? "기록없음" : s.daysSinceLast + "일 전"})`}
-          >
-            <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
-            <span className="truncate flex-1 text-left">{s.name}</span>
-            <span className="text-[10px] opacity-50">{s.grade}</span>
-          </button>
-        ))}
-
-        {/* Add other students (not expected this day) */}
-        {otherUnscheduled.length > 0 && (
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                disabled={isPending}
-                className="w-full flex items-center justify-center gap-1 px-2 py-1 rounded-md border border-dashed border-muted-foreground/30 text-[11px] text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground transition-colors disabled:opacity-50"
-              >
-                <Plus className="h-3 w-3" />
-                {otherUnscheduled.length}명 더
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-48 p-1.5" align="start">
-              <p className="text-[10px] text-muted-foreground px-2 pb-1.5">입실 예정 없는 담당 학생</p>
-              <div className="space-y-0.5">
-                {otherUnscheduled.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => onSchedule(s.id)}
-                    disabled={isPending}
-                    className={cn(
-                      "w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted/60 transition-colors text-left",
-                      "disabled:opacity-50"
-                    )}
-                  >
-                    <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
-                    <span className="flex-1 font-medium">{s.name}</span>
-                    <span className="text-muted-foreground">{s.grade}</span>
-                    <span className={cn(
-                      "text-[10px] px-1 rounded-sm border",
-                      s.priority === 1 ? "bg-red-50 border-red-200 text-red-700" :
-                      s.priority === 2 ? "bg-amber-50 border-amber-200 text-amber-700" :
-                      "bg-emerald-50 border-emerald-200 text-emerald-700"
-                    )}>P{s.priority}</span>
-                  </button>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
+        {/* Expected students (clickable to schedule, or display-only when readonly) */}
+        {expectedUnscheduled.map((s) =>
+          readonly ? (
+            <div
+              key={s.id}
+              className={cn(
+                "w-full flex items-center gap-1 px-2 py-1 rounded-md border text-xs font-medium",
+                PRIORITY_COLORS[s.priority]
+              )}
+            >
+              <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
+              <span className="truncate flex-1 text-left">{s.name}</span>
+              <span className="text-[10px] opacity-50">{s.grade}</span>
+            </div>
+          ) : (
+            <button
+              key={s.id}
+              onClick={() => onSchedule(s.id)}
+              disabled={isPending}
+              className={cn(
+                "w-full flex items-center gap-1 px-2 py-1 rounded-md border text-xs font-medium transition-all",
+                "cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
+                PRIORITY_COLORS[s.priority]
+              )}
+              title={`클릭하여 멘토링 배정 (마지막: ${s.daysSinceLast === null ? "기록없음" : s.daysSinceLast + "일 전"})`}
+            >
+              <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
+              <span className="truncate flex-1 text-left">{s.name}</span>
+              <span className="text-[10px] opacity-50">{s.grade}</span>
+            </button>
+          )
         )}
+
+        {/* Add button — hidden in readonly mode */}
+        {!readonly && <Popover open={popoverOpen} onOpenChange={(o) => { setPopoverOpen(o); if (!o) setQuery(""); }}>
+          <PopoverTrigger asChild>
+            <button
+              disabled={isPending}
+              className="w-full flex items-center justify-center gap-1 px-2 py-1 rounded-md border border-dashed border-muted-foreground/30 text-[11px] text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              <Plus className="h-3 w-3" />
+              {otherUnscheduled.length > 0 ? `${otherUnscheduled.length}명 더` : "추가"}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-52 p-2" align="start">
+            {/* Search input */}
+            <div className="flex items-center gap-1.5 border rounded-md px-2 py-1 mb-2">
+              <Search className="h-3 w-3 text-muted-foreground shrink-0" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="이름 또는 학년..."
+                className="flex-1 text-xs bg-transparent outline-none placeholder:text-muted-foreground"
+                autoFocus
+              />
+              {query && (
+                <button onClick={() => setQuery("")} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+
+            <div className="max-h-52 overflow-y-auto space-y-0.5">
+              {/* 담당 학생 (입실 예정 없는 날) */}
+              {filteredOther.length > 0 && (
+                <>
+                  {q && <p className="text-[10px] text-muted-foreground px-2 pb-1">담당 학생</p>}
+                  {filteredOther.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => { onSchedule(s.id); handleClose(); }}
+                      disabled={isPending}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted/60 transition-colors text-left disabled:opacity-50"
+                    >
+                      <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
+                      <span className="flex-1 font-medium">{s.name}</span>
+                      <span className="text-muted-foreground">{s.grade}</span>
+                      <span className={cn(
+                        "text-[10px] px-1 rounded-sm border",
+                        s.priority === 1 ? "bg-red-50 border-red-200 text-red-700" :
+                        s.priority === 2 ? "bg-amber-50 border-amber-200 text-amber-700" :
+                        "bg-emerald-50 border-emerald-200 text-emerald-700"
+                      )}>P{s.priority}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {/* 담당 외 학생 (검색 시에만) */}
+              {filteredExtra.length > 0 && (
+                <>
+                  {filteredOther.length > 0 && <div className="border-t my-1" />}
+                  <p className="text-[10px] text-muted-foreground px-2 pb-1">다른 학생</p>
+                  {filteredExtra.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => { onAddAndSchedule(s); handleClose(); }}
+                      disabled={isPending}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted/60 transition-colors text-left disabled:opacity-50"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0" />
+                      <span className="flex-1 font-medium">{s.name}</span>
+                      <span className="text-muted-foreground">{s.grade}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {/* 빈 상태 */}
+              {filteredOther.length === 0 && filteredExtra.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-3">
+                  {q ? "검색 결과 없음" : "배정할 학생이 없습니다"}
+                </p>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>}
       </div>
     </td>
   );
@@ -615,3 +757,4 @@ function ScheduleEditSheet({
     </Sheet>
   );
 }
+

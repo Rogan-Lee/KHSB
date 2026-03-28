@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
+import { useDraft } from "@/hooks/use-draft";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -154,7 +155,13 @@ interface LastRecord {
 export function MeritForm({ students }: Props) {
   const [isPending, startTransition] = useTransition();
   const [lastRecord, setLastRecord] = useState<LastRecord | null>(null);
-  const [selectedStudentId, setSelectedStudentId] = useState("");
+
+  const [draft, setDraft, clearDraft] = useDraft("merit-form-draft", {
+    selectedStudentId: "",
+    reason: "",
+  });
+  const { selectedStudentId } = draft;
+  const setSelectedStudentId = (v: string) => setDraft((d) => ({ ...d, selectedStudentId: v }));
 
   function handleSubmit(formData: FormData) {
     formData.set("studentId", selectedStudentId);
@@ -171,6 +178,7 @@ export function MeritForm({ students }: Props) {
     startTransition(async () => {
       try {
         await createMeritDemerit(formData);
+        clearDraft();
         toast.success("상벌점이 부여되었습니다");
         if (student) {
           setLastRecord({ studentName: student.name, type, points, reason });
@@ -255,7 +263,15 @@ export function MeritForm({ students }: Props) {
 
         <div className="space-y-1.5">
           <Label htmlFor="reason">사유 *</Label>
-          <Textarea id="reason" name="reason" required placeholder="사유를 입력하세요" rows={2} />
+          <Textarea
+          id="reason"
+          name="reason"
+          required
+          placeholder="사유를 입력하세요"
+          rows={2}
+          value={draft.reason}
+          onChange={(e) => setDraft((d) => ({ ...d, reason: e.target.value }))}
+        />
         </div>
 
         <Button type="submit" disabled={isPending} className="w-full">
