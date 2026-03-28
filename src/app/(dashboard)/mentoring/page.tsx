@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { NewMentoringDialog } from "@/components/mentoring/new-mentoring-dialog";
+import { Plus } from "lucide-react";
 import { TodayMentoringPanel } from "@/components/mentoring/today-mentoring-panel";
 import { MentoringList } from "@/components/mentoring/mentoring-list";
 import { getTodayWorkingMentors } from "@/actions/mentoring";
@@ -28,12 +28,6 @@ export default async function MentoringPage() {
   });
 
   const todaySlots = await getTodayWorkingMentors();
-
-  const students = await prisma.student.findMany({
-    where: { status: "ACTIVE" },
-    select: { id: true, name: true, grade: true, school: true },
-    orderBy: { name: "asc" },
-  });
 
   const mentors = isDirector
     ? await prisma.user.findMany({
@@ -83,7 +77,12 @@ export default async function MentoringPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>멘토링 목록</CardTitle>
-          <NewMentoringDialog students={students} />
+          <Link href="/mentoring/new">
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-1" />
+              멘토링 등록
+            </Button>
+          </Link>
         </CardHeader>
         <CardContent>
           <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} />
