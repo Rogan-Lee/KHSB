@@ -540,7 +540,7 @@ export function SeatMapBoard({ students }: { students: StudentInfo[] }) {
           studentId,
           seat: seatStr,
           swapWithId: currentOccupant.id,
-          swapWithSeat: selectedStudent.seat,
+          swapWithSeat: selectedStudent.seat!,
         });
         await swapStudentSeats(currentOccupant.id, studentId);
         setDialogSeat(null);
