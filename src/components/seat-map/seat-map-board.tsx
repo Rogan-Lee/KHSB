@@ -3,7 +3,7 @@
 import { useState, useTransition, useOptimistic } from "react";
 import { cn } from "@/lib/utils";
 import { updateStudentSeat, swapStudentSeats } from "@/actions/students";
-import { X, ArrowRightLeft, Search, Check } from "lucide-react";
+import { X, ArrowRightLeft, Search, Check, Printer } from "lucide-react";
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
 
@@ -245,32 +245,41 @@ function SeatCell({
 }) {
   const occupied = !!student;
   return (
-    <div style={{ width: "100%", height: SEAT_H, flexShrink: 0, position: "relative" }}>
-      <button
-        onClick={onClick}
-        style={{ height: SEAT_H, position: "absolute", inset: 0 }}
-        className={cn(
-          "rounded-lg border flex flex-col items-center justify-center text-center",
-          "transition-all duration-150 select-none",
-          occupied
-            ? "border-[#0066ff] bg-[#eaf2fe] hover:bg-[#dbeafe] hover:border-[#005eeb]"
-            : "border-[#d1d5db] bg-[#f9fafb] hover:border-[#9ca3af] hover:bg-[#f3f4f6]",
-          className
-        )}
-      >
-        <span className={cn(
-          "text-[11px] font-bold leading-none",
-          occupied ? "text-[#005eeb]" : "text-[#9ca3af]"
-        )}>
-          {num}
-        </span>
-        <span className={cn(
-          "text-[11px] leading-tight mt-1 truncate px-1 max-w-full",
-          occupied ? "text-[#1e2124] font-medium" : "text-[#d1d5db]"
-        )}>
-          {student?.name ?? "–"}
-        </span>
-      </button>
+    <div style={{ width: "100%", height: SEAT_H, flexShrink: 0 }} className="flex gap-0">
+      {/* 체크박스 3개 — 인쇄용 (화면에서는 숨김, 인쇄 시 표시) */}
+      <div className="hidden print:flex flex-col justify-center gap-[3px] pr-[3px] flex-shrink-0">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="w-[10px] h-[10px] border border-[#4a90d9] bg-white" />
+        ))}
+      </div>
+      {/* 좌석 셀 */}
+      <div className="flex-1 relative" style={{ height: SEAT_H }}>
+        <button
+          onClick={onClick}
+          style={{ height: SEAT_H, position: "absolute", inset: 0 }}
+          className={cn(
+            "rounded-lg border flex flex-col items-center justify-center text-center",
+            "transition-all duration-150 select-none print:rounded-none print:border-[#333]",
+            occupied
+              ? "border-[#0066ff] bg-[#eaf2fe] hover:bg-[#dbeafe] hover:border-[#005eeb] print:bg-white"
+              : "border-[#d1d5db] bg-[#f9fafb] hover:border-[#9ca3af] hover:bg-[#f3f4f6] print:bg-white",
+            className
+          )}
+        >
+          <span className={cn(
+            "text-[11px] font-bold leading-none print:text-black",
+            occupied ? "text-[#005eeb]" : "text-[#9ca3af] print:text-[#666]"
+          )}>
+            {num}
+          </span>
+          <span className={cn(
+            "text-[11px] leading-tight mt-1 truncate px-1 max-w-full print:text-black",
+            occupied ? "text-[#1e2124] font-medium" : "text-[#d1d5db] print:text-[#ccc]"
+          )}>
+            {student?.name ?? "–"}
+          </span>
+        </button>
+      </div>
     </div>
   );
 }
@@ -558,10 +567,18 @@ export function SeatMapBoard({ students }: { students: StudentInfo[] }) {
 
   const dialogStudent = dialogSeat !== null ? seatMap.get(String(dialogSeat)) : undefined;
 
+  const todayStr = new Date().toLocaleDateString("ko-KR", {
+    year: "numeric", month: "long", day: "numeric", weekday: "short",
+  });
+
+  function handlePrint() {
+    window.print();
+  }
+
   return (
     <div>
-      {/* 요약 */}
-      <div className="flex items-center gap-4 mb-5 flex-wrap">
+      {/* 요약 — 인쇄 시 숨김 */}
+      <div className="flex items-center gap-4 mb-5 flex-wrap print:hidden">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded border border-[#0066ff] bg-[#eaf2fe]" />
           <span className="text-xs text-muted-foreground">배정됨 ({occupiedCount}석)</span>
@@ -571,13 +588,22 @@ export function SeatMapBoard({ students }: { students: StudentInfo[] }) {
           <span className="text-xs text-muted-foreground">빈 좌석 ({totalSeats - occupiedCount}석)</span>
         </div>
         <span className="text-xs text-muted-foreground">전체 {totalSeats}석</span>
-        <span className="text-xs text-muted-foreground ml-auto">
-          좌석을 클릭하면 원생을 배정/변경할 수 있습니다
-        </span>
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-xs text-muted-foreground">
+            좌석을 클릭하면 원생을 배정/변경할 수 있습니다
+          </span>
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-lg hover:bg-muted transition-colors"
+          >
+            <Printer className="h-3.5 w-3.5" />
+            인쇄
+          </button>
+        </div>
       </div>
 
-      {/* 탭 */}
-      <div className="flex gap-1 mb-5 border-b">
+      {/* 탭 — 인쇄 시 숨김 */}
+      <div className="flex gap-1 mb-5 border-b print:hidden">
         {(["K", "H"] as const).map((tab) => (
           <button
             key={tab}
@@ -594,13 +620,38 @@ export function SeatMapBoard({ students }: { students: StudentInfo[] }) {
         ))}
       </div>
 
+      {/* 인쇄 헤더 — 화면에서는 숨김, 인쇄 시 표시 */}
+      <div className="hidden print:flex items-center justify-between mb-4">
+        <h2 className="text-lg font-bold">{activeTab}룸</h2>
+        <span className="text-sm">날짜: {todayStr}</span>
+      </div>
+
       {/* 룸 맵 */}
-      <div className="pb-6">
+      <div className="pb-6 print:pb-2">
         {activeTab === "K" ? (
           <KRoom seatMap={seatMap} onSeatClick={setDialogSeat} />
         ) : (
           <HRoom seatMap={seatMap} onSeatClick={setDialogSeat} />
         )}
+      </div>
+
+      {/* 인쇄용 가이드 — 화면에서는 숨김 */}
+      <div className="hidden print:block border-t pt-3 mt-2">
+        <div className="flex items-center gap-6 text-xs">
+          <span className="font-bold">* Guide</span>
+          <div className="flex items-center gap-1">
+            <div className="w-[10px] h-[10px] border border-[#4a90d9]" />
+            <span>휴대폰</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-[10px] h-[10px] border border-[#4a90d9]" />
+            <span>플래너</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-[10px] h-[10px] border border-[#4a90d9]" />
+            <span>주간 학습 계획</span>
+          </div>
+        </div>
       </div>
 
       {/* 배정 모달 */}
