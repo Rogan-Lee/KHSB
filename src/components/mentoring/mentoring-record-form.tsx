@@ -231,6 +231,7 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
             <TimePickerInput
               value={draft.actualStartTime}
               onChange={(v) => setDraft((d) => ({ ...d, actualStartTime: v }))}
+              minHour={7}
             />
           </div>
           <div className="space-y-1.5">
@@ -242,6 +243,7 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
             <TimePickerInput
               value={draft.actualEndTime}
               onChange={(v) => setDraft((d) => ({ ...d, actualEndTime: v }))}
+              minHour={7}
             />
           </div>
         </div>
