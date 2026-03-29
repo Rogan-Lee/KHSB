@@ -3,13 +3,17 @@
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
-// 15분 간격 시간 목록 (00:00 ~ 23:45)
-const TIMES: string[] = [];
-for (let h = 0; h < 24; h++) {
-  for (const m of [0, 15, 30, 45]) {
-    TIMES.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+// 15분 간격 시간 목록 생성
+function buildTimes(minHour = 0): string[] {
+  const list: string[] = [];
+  for (let h = minHour; h < 24; h++) {
+    for (const m of [0, 15, 30, 45]) {
+      list.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    }
   }
+  return list;
 }
+const ALL_TIMES = buildTimes(0);
 
 const DROP_HEIGHT = 208;
 
@@ -40,6 +44,7 @@ interface TimePickerInputProps {
   className?: string;
   placeholder?: string;
   size?: "sm" | "default";
+  minHour?: number;
 }
 
 export function TimePickerInput({
@@ -50,7 +55,9 @@ export function TimePickerInput({
   className,
   placeholder = "--:--",
   size = "default",
+  minHour = 0,
 }: TimePickerInputProps) {
+  const TIMES = minHour > 0 ? buildTimes(minHour) : ALL_TIMES;
   const [open, setOpen] = useState(false);
   const [showAbove, setShowAbove] = useState(false);
   const [inputVal, setInputVal] = useState(value);
