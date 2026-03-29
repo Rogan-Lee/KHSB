@@ -196,8 +196,8 @@ export default async function DashboardPage() {
                 {upcomingConsultations.map((c) => (
                   <div key={c.id} className="flex items-center justify-between py-2 border-b last:border-0">
                     <div>
-                      <span className="text-sm font-medium">{c.student.name}</span>
-                      <span className="text-xs text-muted-foreground ml-1">{c.student.grade}</span>
+                      <span className="text-sm font-medium">{c.student?.name ?? c.prospectName ?? "—"}</span>
+                      <span className="text-xs text-muted-foreground ml-1">{c.student?.grade ?? c.prospectGrade}</span>
                     </div>
                     <span className="text-xs text-muted-foreground">
                       {c.scheduledAt ? formatDate(c.scheduledAt) : "-"}

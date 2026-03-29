@@ -53,34 +53,49 @@ export default async function ConsultationDetailPage({
   if (!consultation) notFound();
 
   const s = consultation.student;
+  const isProspect = !s;
 
-  const evtFrom = new Date(); evtFrom.setMonth(evtFrom.getMonth() - 3);
-  const evtTo = new Date(); evtTo.setMonth(evtTo.getMonth() + 3);
+  let timetableEntries: Awaited<ReturnType<typeof getTimetableEntries>> = [];
+  let schoolEvents: Awaited<ReturnType<typeof getStudentSchoolEvents>> = [];
+  let previousConsultations: Array<{
+    id: string;
+    scheduledAt: Date | null;
+    actualDate: Date | null;
+    agenda: string | null;
+    outcome: string | null;
+    followUp: string | null;
+    notes: string | null;
+  }> = [];
 
-  const [timetableEntries, schoolEvents] = await Promise.all([
-    getTimetableEntries(s.id),
-    getStudentSchoolEvents(s.id, evtFrom, evtTo),
-  ]);
+  if (s) {
+    const evtFrom = new Date(); evtFrom.setMonth(evtFrom.getMonth() - 3);
+    const evtTo = new Date(); evtTo.setMonth(evtTo.getMonth() + 3);
 
-  // 이전 완료된 면담 기록 (현재 제외, 최근 5건)
-  const previousConsultations = await prisma.directorConsultation.findMany({
-    where: {
-      studentId: s.id,
-      id: { not: id },
-      status: "COMPLETED",
-    },
-    orderBy: { scheduledAt: "desc" },
-    take: 5,
-    select: {
-      id: true,
-      scheduledAt: true,
-      actualDate: true,
-      agenda: true,
-      outcome: true,
-      followUp: true,
-      notes: true,
-    },
-  });
+    [timetableEntries, schoolEvents] = await Promise.all([
+      getTimetableEntries(s.id),
+      getStudentSchoolEvents(s.id, evtFrom, evtTo),
+    ]);
+
+    // 이전 완료된 면담 기록 (현재 제외, 최근 5건)
+    previousConsultations = await prisma.directorConsultation.findMany({
+      where: {
+        studentId: s.id,
+        id: { not: id },
+        status: "COMPLETED",
+      },
+      orderBy: { scheduledAt: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        scheduledAt: true,
+        actualDate: true,
+        agenda: true,
+        outcome: true,
+        followUp: true,
+        notes: true,
+      },
+    });
+  }
 
   const statusCfg = STATUS_CONFIG[consultation.status] ?? STATUS_CONFIG.SCHEDULED;
 
@@ -104,18 +119,32 @@ export default async function ConsultationDetailPage({
           <div>
             <p className="text-muted-foreground text-xs">원생</p>
             <p className="font-medium">
-              {s.name}{" "}
-              <span className="text-muted-foreground text-xs">({s.grade})</span>
+              {s ? s.name : consultation.prospectName ?? "—"}{" "}
+              {(s?.grade || consultation.prospectGrade) && (
+                <span className="text-muted-foreground text-xs">({s?.grade ?? consultation.prospectGrade})</span>
+              )}
+              {isProspect && (
+                <Badge variant="outline" className="ml-1.5 text-[10px] bg-amber-50 text-amber-700 border-amber-200">신규 상담</Badge>
+              )}
             </p>
           </div>
-          <div>
-            <p className="text-muted-foreground text-xs">학교</p>
-            <p className="font-medium">{s.school || "—"}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground text-xs">학부모 이메일</p>
-            <p className="text-xs">{s.parentEmail || <span className="text-muted-foreground">미등록</span>}</p>
-          </div>
+          {s ? (
+            <>
+              <div>
+                <p className="text-muted-foreground text-xs">학교</p>
+                <p className="font-medium">{s.school || "—"}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs">학부모 이메일</p>
+                <p className="text-xs">{s.parentEmail || <span className="text-muted-foreground">미등록</span>}</p>
+              </div>
+            </>
+          ) : (
+            <div>
+              <p className="text-muted-foreground text-xs">연락처</p>
+              <p className="font-medium">{consultation.prospectPhone || "—"}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -123,25 +152,29 @@ export default async function ConsultationDetailPage({
       <Tabs defaultValue="record">
         <TabsList>
           <TabsTrigger value="record">면담 기록</TabsTrigger>
-          <TabsTrigger value="timetable">시간표</TabsTrigger>
-          <TabsTrigger value="assignments">
-            과제
-            {s.assignments.filter((a) => !a.isCompleted).length > 0 && (
-              <span className="ml-1.5 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                {s.assignments.filter((a) => !a.isCompleted).length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="communications">
-            요청/전달
-            {s.communications.filter((c) => !c.isChecked).length > 0 && (
-              <span className="ml-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                {s.communications.filter((c) => !c.isChecked).length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="scores">성적 추이</TabsTrigger>
-          <TabsTrigger value="studentinfo">학생 정보</TabsTrigger>
+          {s && (
+            <>
+              <TabsTrigger value="timetable">시간표</TabsTrigger>
+              <TabsTrigger value="assignments">
+                과제
+                {s.assignments.filter((a) => !a.isCompleted).length > 0 && (
+                  <span className="ml-1.5 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                    {s.assignments.filter((a) => !a.isCompleted).length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="communications">
+                요청/전달
+                {s.communications.filter((c) => !c.isChecked).length > 0 && (
+                  <span className="ml-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                    {s.communications.filter((c) => !c.isChecked).length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="scores">성적 추이</TabsTrigger>
+              <TabsTrigger value="studentinfo">학생 정보</TabsTrigger>
+            </>
+          )}
         </TabsList>
 
         <TabsContent value="record" className="mt-4">
@@ -164,92 +197,96 @@ export default async function ConsultationDetailPage({
           </Card>
         </TabsContent>
 
-        <TabsContent value="timetable" className="mt-4">
-          <Tabs defaultValue="daily">
-            <TabsList className="mb-4">
-              <TabsTrigger value="daily">일간</TabsTrigger>
-              <TabsTrigger value="weekly">주간</TabsTrigger>
-            </TabsList>
-            <TabsContent value="daily">
-              <DayView
-                studentId={s.id}
-                entries={timetableEntries.map((e) => ({
-                  id: e.id,
-                  dayOfWeek: e.dayOfWeek,
-                  startTime: e.startTime,
-                  endTime: e.endTime,
-                  subject: e.subject,
-                  details: e.details ?? null,
-                  colorCode: e.colorCode,
-                  allDay: e.allDay,
-                }))}
-                initialDate={
-                  consultation.scheduledAt
-                    ? consultation.scheduledAt.toISOString().slice(0, 10)
-                    : undefined
-                }
-                schoolEvents={schoolEvents}
-              />
+        {s && (
+          <>
+            <TabsContent value="timetable" className="mt-4">
+              <Tabs defaultValue="daily">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="daily">일간</TabsTrigger>
+                  <TabsTrigger value="weekly">주간</TabsTrigger>
+                </TabsList>
+                <TabsContent value="daily">
+                  <DayView
+                    studentId={s.id}
+                    entries={timetableEntries.map((e) => ({
+                      id: e.id,
+                      dayOfWeek: e.dayOfWeek,
+                      startTime: e.startTime,
+                      endTime: e.endTime,
+                      subject: e.subject,
+                      details: e.details ?? null,
+                      colorCode: e.colorCode,
+                      allDay: e.allDay,
+                    }))}
+                    initialDate={
+                      consultation.scheduledAt
+                        ? consultation.scheduledAt.toISOString().slice(0, 10)
+                        : undefined
+                    }
+                    schoolEvents={schoolEvents}
+                  />
+                </TabsContent>
+                <TabsContent value="weekly">
+                  <TimetableGrid
+                    studentId={s.id}
+                    studentName={s.name}
+                    initialEntries={timetableEntries.map((e) => ({
+                      id: e.id,
+                      dayOfWeek: e.dayOfWeek,
+                      startTime: e.startTime,
+                      endTime: e.endTime,
+                      subject: e.subject,
+                      details: e.details ?? null,
+                      colorCode: e.colorCode,
+                      allDay: e.allDay,
+                    }))}
+                    schoolEvents={schoolEvents}
+                  />
+                </TabsContent>
+              </Tabs>
             </TabsContent>
-            <TabsContent value="weekly">
-              <TimetableGrid
+
+            <TabsContent value="assignments" className="mt-4">
+              <AssignmentPanel
                 studentId={s.id}
                 studentName={s.name}
-                initialEntries={timetableEntries.map((e) => ({
-                  id: e.id,
-                  dayOfWeek: e.dayOfWeek,
-                  startTime: e.startTime,
-                  endTime: e.endTime,
-                  subject: e.subject,
-                  details: e.details ?? null,
-                  colorCode: e.colorCode,
-                  allDay: e.allDay,
-                }))}
-                schoolEvents={schoolEvents}
+                initialItems={s.assignments}
               />
             </TabsContent>
-          </Tabs>
-        </TabsContent>
 
-        <TabsContent value="assignments" className="mt-4">
-          <AssignmentPanel
-            studentId={s.id}
-            studentName={s.name}
-            initialItems={s.assignments}
-          />
-        </TabsContent>
-
-        <TabsContent value="communications" className="mt-4">
-          <CommunicationPanel
-            studentId={s.id}
-            initialItems={s.communications}
-          />
-        </TabsContent>
-
-        <TabsContent value="scores" className="mt-4">
-          <ExamScoreChart
-            studentId={s.id}
-            initialScores={s.examScores}
-          />
-        </TabsContent>
-
-        <TabsContent value="studentinfo" className="mt-4">
-          <Card className="border-border bg-muted/20">
-            <CardContent className="pt-4 pb-4">
-              <StudentInfoReveal
-                mentoringNotes={s.mentoringNotes}
-                internalScoreRange={s.internalScoreRange}
-                mockScoreRange={s.mockScoreRange}
-                targetUniversity={s.targetUniversity}
-                studentInfo={s.studentInfo}
-                academySchedule={s.academySchedule}
-                selectedSubjects={s.selectedSubjects}
-                admissionType={s.admissionType}
-                onlineLectures={s.onlineLectures}
+            <TabsContent value="communications" className="mt-4">
+              <CommunicationPanel
+                studentId={s.id}
+                initialItems={s.communications}
               />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </TabsContent>
+
+            <TabsContent value="scores" className="mt-4">
+              <ExamScoreChart
+                studentId={s.id}
+                initialScores={s.examScores}
+              />
+            </TabsContent>
+
+            <TabsContent value="studentinfo" className="mt-4">
+              <Card className="border-border bg-muted/20">
+                <CardContent className="pt-4 pb-4">
+                  <StudentInfoReveal
+                    mentoringNotes={s.mentoringNotes}
+                    internalScoreRange={s.internalScoreRange}
+                    mockScoreRange={s.mockScoreRange}
+                    targetUniversity={s.targetUniversity}
+                    studentInfo={s.studentInfo}
+                    academySchedule={s.academySchedule}
+                    selectedSubjects={s.selectedSubjects}
+                    admissionType={s.admissionType}
+                    onlineLectures={s.onlineLectures}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </>
+        )}
       </Tabs>
     </div>
   );
