@@ -32,7 +32,7 @@ const STATUS_MAP = {
   RESCHEDULED: { label: "일정변경", variant: "outline" as const },
 };
 
-type SortKey = "scheduledAt" | "studentName" | "status";
+type SortKey = "scheduledAt" | "studentName" | "mentorName" | "time" | "status";
 type SortDir = "asc" | "desc";
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
@@ -230,6 +230,8 @@ export function MentoringList({ mentorings, mentors, isDirector }: Props) {
     let cmp = 0;
     if (sortKey === "scheduledAt") cmp = new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
     else if (sortKey === "studentName") cmp = a.student.name.localeCompare(b.student.name, "ko");
+    else if (sortKey === "mentorName") cmp = a.mentor.name.localeCompare(b.mentor.name, "ko");
+    else if (sortKey === "time") cmp = (a.scheduledTimeStart ?? "").localeCompare(b.scheduledTimeStart ?? "");
     else if (sortKey === "status") cmp = a.status.localeCompare(b.status);
     return sortDir === "asc" ? cmp : -cmp;
   });
@@ -365,8 +367,14 @@ export function MentoringList({ mentorings, mentors, isDirector }: Props) {
               <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("studentName")}>
                 원생<SortIcon col="studentName" sortKey={sortKey} sortDir={sortDir} />
               </TableHead>
-              {isDirector && <TableHead className="whitespace-nowrap">멘토</TableHead>}
-              <TableHead className="whitespace-nowrap">시간</TableHead>
+              {isDirector && (
+                <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("mentorName")}>
+                  멘토<SortIcon col="mentorName" sortKey={sortKey} sortDir={sortDir} />
+                </TableHead>
+              )}
+              <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("time")}>
+                시간<SortIcon col="time" sortKey={sortKey} sortDir={sortDir} />
+              </TableHead>
               <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("status")}>
                 상태<SortIcon col="status" sortKey={sortKey} sortDir={sortDir} />
               </TableHead>

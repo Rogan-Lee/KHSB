@@ -156,4 +156,14 @@ body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+  [data-print-hide] {
+    display: none !important;
+  }
+  [data-print-main] {
+    margin-left: 0 !important;
+  }
+  [data-print-content] {
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
 }
