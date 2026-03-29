@@ -87,6 +87,7 @@ model User {
   name       String
   clerkId    String?     @unique
   role       Role        @default(MENTOR)
+  isMentor   Boolean     @default(false)
   students        Student[]        @relation("MentorStudents")
   mentorings      Mentoring[]
   mentorSchedules MentorSchedule[]
