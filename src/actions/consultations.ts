@@ -10,10 +10,19 @@ export async function createConsultation(formData: FormData) {
   if (!session?.user) throw new Error("Unauthorized");
 
   const raw = Object.fromEntries(formData.entries());
+  const studentId = (raw.studentId as string) || null;
+  const prospectName = (raw.prospectName as string) || null;
+
+  if (!studentId && !prospectName) {
+    throw new Error("원생을 선택하거나 신규 상담 정보를 입력하세요");
+  }
 
   await prisma.directorConsultation.create({
     data: {
-      studentId: raw.studentId as string,
+      studentId,
+      prospectName,
+      prospectGrade: (raw.prospectGrade as string) || null,
+      prospectPhone: (raw.prospectPhone as string) || null,
       scheduledAt: raw.scheduledAt ? new Date(raw.scheduledAt as string) : null,
       agenda: (raw.agenda as string) || null,
       status: "SCHEDULED",
@@ -51,7 +60,21 @@ export async function getConsultations() {
       student: { select: { id: true, name: true, grade: true } },
     },
     orderBy: { scheduledAt: "desc" },
-  });
+  }) as Promise<Array<{
+    id: string;
+    studentId: string | null;
+    prospectName: string | null;
+    prospectGrade: string | null;
+    prospectPhone: string | null;
+    scheduledAt: Date | null;
+    actualDate: Date | null;
+    status: ConsultationStatus;
+    agenda: string | null;
+    notes: string | null;
+    outcome: string | null;
+    followUp: string | null;
+    student: { id: string; name: string; grade: string } | null;
+  }>>;
 }
 
 export async function getStudentConsultationHistory(studentId: string, excludeId?: string) {
