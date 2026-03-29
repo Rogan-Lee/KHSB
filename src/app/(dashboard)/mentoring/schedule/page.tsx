@@ -9,7 +9,7 @@ export default async function MentorSchedulePage() {
 
   const mentors = isDirector
     ? await prisma.user.findMany({
-        where: { role: { in: ["MENTOR", "DIRECTOR", "ADMIN"] } },
+        where: { isMentor: true },
         select: { id: true, name: true },
         orderBy: { name: "asc" },
       })
