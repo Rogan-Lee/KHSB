@@ -24,7 +24,7 @@ export default async function MentoringPage() {
       mentor: { select: { id: true, name: true } },
     },
     orderBy: { scheduledAt: "desc" },
-    take: 50,
+    take: 200,
   });
 
   const todaySlots = await getTodayWorkingMentors();
