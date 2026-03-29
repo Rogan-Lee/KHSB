@@ -199,8 +199,8 @@ function KebabMenu({ mentoring, onDelete }: { mentoring: Mentoring; onDelete: ()
 export function MentoringList({ mentorings, mentors, isDirector }: Props) {
   const today = getToday();
   const [selectedMentorId, setSelectedMentorId] = useState<string>("all");
-  const [dateFrom, setDateFrom] = useState<string>(today);
-  const [dateTo, setDateTo] = useState<string>(today);
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<Mentoring | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -310,16 +310,24 @@ export function MentoringList({ mentorings, mentors, isDirector }: Props) {
           value={dateTo}
           onChange={(e) => setDateTo(e.target.value)}
         />
-        {(dateFrom !== today || dateTo !== today) && (
+        {(dateFrom || dateTo) && (
           <Button
             variant="ghost"
             size="sm"
             className="h-8 px-2 text-xs"
-            onClick={() => { setDateFrom(today); setDateTo(today); }}
+            onClick={() => { setDateFrom(""); setDateTo(""); }}
           >
-            오늘로
+            전체
           </Button>
         )}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2 text-xs"
+          onClick={() => { setDateFrom(today); setDateTo(today); }}
+        >
+          오늘
+        </Button>
         <div className="relative ml-2">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
           <Input
