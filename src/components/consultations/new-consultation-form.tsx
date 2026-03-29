@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DateTimePickerInput } from "@/components/ui/time-picker";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
@@ -97,16 +98,32 @@ function StudentCombobox({
 
 export function NewConsultationForm({ students }: Props) {
   const router = useRouter();
+  const [mode, setMode] = useState<"registered" | "prospect">("registered");
   const [studentId, setStudentId] = useState("");
+  const [prospectName, setProspectName] = useState("");
+  const [prospectGrade, setProspectGrade] = useState("");
+  const [prospectPhone, setProspectPhone] = useState("");
   const [agenda, setAgenda] = useState("");
   const [isPending, startTransition] = useTransition();
 
+  const isValid = mode === "registered" ? !!studentId : !!prospectName.trim();
+
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!studentId) { toast.error("원생을 선택하세요"); return; }
+    if (!isValid) {
+      toast.error(mode === "registered" ? "원생을 선택하세요" : "이름을 입력하세요");
+      return;
+    }
 
     const fd = new FormData(e.currentTarget);
-    fd.set("studentId", studentId);
+    if (mode === "registered") {
+      fd.set("studentId", studentId);
+    } else {
+      fd.delete("studentId");
+      fd.set("prospectName", prospectName);
+      fd.set("prospectGrade", prospectGrade);
+      fd.set("prospectPhone", prospectPhone);
+    }
     fd.set("agenda", agenda);
 
     startTransition(async () => {
@@ -138,12 +155,67 @@ export function NewConsultationForm({ students }: Props) {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Mode toggle */}
+        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 border w-fit">
+          <button
+            type="button"
+            onClick={() => { setMode("registered"); setProspectName(""); setProspectGrade(""); setProspectPhone(""); }}
+            className={cn(
+              "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
+              mode === "registered" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            재원생
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode("prospect"); setStudentId(""); }}
+            className={cn(
+              "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
+              mode === "prospect" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            신규 상담
+          </button>
+        </div>
+
         {/* 원생 & 일시 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">원생</Label>
-            <StudentCombobox students={students} value={studentId} onChange={setStudentId} />
-          </div>
+          {mode === "registered" ? (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">원생</Label>
+              <StudentCombobox students={students} value={studentId} onChange={setStudentId} />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">이름 *</Label>
+                <Input
+                  value={prospectName}
+                  onChange={(e) => setProspectName(e.target.value)}
+                  placeholder="상담 학생 이름"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">학년</Label>
+                  <Input
+                    value={prospectGrade}
+                    onChange={(e) => setProspectGrade(e.target.value)}
+                    placeholder="예: 고2"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">연락처</Label>
+                  <Input
+                    value={prospectPhone}
+                    onChange={(e) => setProspectPhone(e.target.value)}
+                    placeholder="학부모 또는 학생"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
           <div className="space-y-2">
             <Label className="text-sm font-medium">예정 일시</Label>
             <DateTimePickerInput name="scheduledAt" />
@@ -168,7 +240,7 @@ export function NewConsultationForm({ students }: Props) {
           <Button type="button" variant="outline" onClick={() => router.back()}>
             취소
           </Button>
-          <Button type="submit" disabled={isPending || !studentId}>
+          <Button type="submit" disabled={isPending || !isValid}>
             {isPending ? "저장 중..." : "면담 등록"}
           </Button>
         </div>

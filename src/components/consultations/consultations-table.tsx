@@ -43,7 +43,9 @@ type Consultation = {
   notes?: string | null;
   outcome: string | null;
   followUp: string | null;
-  student: { id: string; name: string; grade: string };
+  student: { id: string; name: string; grade: string } | null;
+  prospectName?: string | null;
+  prospectGrade?: string | null;
 };
 
 function formatKST(date: Date): string {
@@ -86,8 +88,13 @@ function ConsultationCard({
         {/* Top row */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="font-semibold text-sm">{c.student.name}</span>
-            <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">{c.student.grade}</span>
+            <span className="font-semibold text-sm">{c.student?.name ?? c.prospectName ?? "—"}</span>
+            {(c.student?.grade || c.prospectGrade) && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">{c.student?.grade ?? c.prospectGrade}</span>
+            )}
+            {!c.student && c.prospectName && (
+              <span className="text-xs px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">신규</span>
+            )}
             <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium", cfg.badge)}>
               {cfg.label}
             </span>
@@ -178,7 +185,9 @@ export function ConsultationsList({ consultations }: { consultations: Consultati
   const q = query.trim().toLowerCase();
 
   const filtered = consultations.filter((c) => {
-    const matchesQuery = !q || c.student.name.toLowerCase().includes(q) || c.student.grade.toLowerCase().includes(q);
+    const name = c.student?.name ?? c.prospectName ?? "";
+    const grade = c.student?.grade ?? c.prospectGrade ?? "";
+    const matchesQuery = !q || name.toLowerCase().includes(q) || grade.toLowerCase().includes(q);
     const matchesStatus = statusFilter === "ALL" || c.status === statusFilter;
     return matchesQuery && matchesStatus;
   });

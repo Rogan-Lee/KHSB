@@ -13,7 +13,20 @@ export default async function ConsultationsPage() {
   const consultations = await prisma.directorConsultation.findMany({
     include: { student: { select: { id: true, name: true, grade: true } } },
     orderBy: { scheduledAt: "desc" },
-  });
+  }) as Array<{
+    id: string;
+    studentId: string | null;
+    prospectName: string | null;
+    prospectGrade: string | null;
+    scheduledAt: Date | null;
+    actualDate: Date | null;
+    status: "SCHEDULED" | "COMPLETED" | "CANCELLED";
+    agenda: string | null;
+    notes: string | null;
+    outcome: string | null;
+    followUp: string | null;
+    student: { id: string; name: string; grade: string } | null;
+  }>;
 
   const scheduled = consultations.filter((c) => c.status === "SCHEDULED").length;
   const completed = consultations.filter((c) => c.status === "COMPLETED").length;
