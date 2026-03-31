@@ -29,8 +29,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, ArrowLeftRight, LogOut, ChevronRight, Search, X, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
-import { checkoutStudent, moveStudentSeat, swapStudentSeats } from "@/actions/students";
+import { MoreHorizontal, ArrowLeftRight, LogOut, LogIn, ChevronRight, Search, X, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { checkoutStudent, readmitStudent, moveStudentSeat, swapStudentSeats } from "@/actions/students";
 import { toast } from "sonner";
 import type { Student, User, AttendanceSchedule } from "@/generated/prisma";
 
@@ -43,6 +43,7 @@ const STATUS_MAP = {
   ACTIVE: { label: "재원", variant: "default" as const },
   INACTIVE: { label: "휴원", variant: "secondary" as const },
   GRADUATED: { label: "졸업", variant: "outline" as const },
+  WITHDRAWN: { label: "퇴원", variant: "destructive" as const },
 };
 
 type SortKey = "seat" | "name" | "school" | "startDate" | "status";
@@ -206,20 +207,23 @@ function loadStudentFilters() {
 
 export function StudentsTable({ students }: { students: StudentWithRelations[] }) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [seatDialog, setSeatDialog] = useState<StudentWithRelations | null>(null);
   const [checkoutDialog, setCheckoutDialog] = useState<StudentWithRelations | null>(null);
   const saved = typeof window !== "undefined" ? loadStudentFilters() : {};
   const [query, setQuery] = useState<string>(saved.q ?? "");
-  const [showInactive, setShowInactive] = useState<boolean>(saved.inactive ?? false);
+  const [showWithdrawn, setShowWithdrawn] = useState<boolean>(saved.withdrawn ?? false);
   const [sortKey, setSortKey] = useState<SortKey>(saved.sort ?? "seat");
   const [sortDir, setSortDir] = useState<SortDir>(saved.dir ?? "asc");
 
   useEffect(() => {
-    try { sessionStorage.setItem(STUDENTS_FILTER_KEY, JSON.stringify({ q: query, inactive: showInactive, sort: sortKey, dir: sortDir })); } catch {}
-  }, [query, showInactive, sortKey, sortDir]);
+    try { sessionStorage.setItem(STUDENTS_FILTER_KEY, JSON.stringify({ q: query, withdrawn: showWithdrawn, sort: sortKey, dir: sortDir })); } catch {}
+  }, [query, showWithdrawn, sortKey, sortDir]);
 
-  // 퇴원생 필터
-  const visibleStudents = showInactive ? students : students.filter((s) => s.status === "ACTIVE");
+  // 퇴원생 보기 모드: WITHDRAWN만 표시 / 기본: WITHDRAWN 제외
+  const visibleStudents = showWithdrawn
+    ? students.filter((s) => s.status === "WITHDRAWN")
+    : students.filter((s) => s.status !== "WITHDRAWN");
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -228,6 +232,18 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
       setSortKey(key);
       setSortDir("asc");
     }
+  }
+
+  function handleReadmit(student: StudentWithRelations) {
+    startTransition(async () => {
+      try {
+        await readmitStudent(student.id);
+        toast.success(`${student.name} 재입실 처리 완료`);
+        router.refresh();
+      } catch {
+        toast.error("재입실 처리 실패");
+      }
+    });
   }
 
   function handleDialogClose(refresh = false) {
@@ -335,14 +351,14 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
           </span>
         )}
         <button
-          onClick={() => setShowInactive((v) => !v)}
+          onClick={() => setShowWithdrawn((v) => !v)}
           className={`ml-auto px-3 py-1 text-xs rounded-lg border transition-colors ${
-            showInactive
-              ? "bg-orange-50 text-orange-700 border-orange-200"
+            showWithdrawn
+              ? "bg-red-50 text-red-700 border-red-200"
               : "text-muted-foreground border-transparent hover:border-border"
           }`}
         >
-          {showInactive ? "퇴원생 포함 중" : "퇴원생 포함"}
+          {showWithdrawn ? "← 재원생 보기" : "퇴원생 보기"}
         </button>
       </div>
       <div className="overflow-x-auto">
@@ -419,18 +435,27 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setSeatDialog(student)}>
-                          <ArrowLeftRight className="h-3.5 w-3.5 mr-2" />
-                          좌석 변경
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-red-600 focus:text-red-600"
-                          onClick={() => setCheckoutDialog(student)}
-                        >
-                          <LogOut className="h-3.5 w-3.5 mr-2" />
-                          퇴실 처리
-                        </DropdownMenuItem>
+                        {student.status === "WITHDRAWN" ? (
+                          <DropdownMenuItem onClick={() => handleReadmit(student)}>
+                            <LogIn className="h-3.5 w-3.5 mr-2" />
+                            재입실 처리
+                          </DropdownMenuItem>
+                        ) : (
+                          <>
+                            <DropdownMenuItem onClick={() => setSeatDialog(student)}>
+                              <ArrowLeftRight className="h-3.5 w-3.5 mr-2" />
+                              좌석 변경
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-600"
+                              onClick={() => setCheckoutDialog(student)}
+                            >
+                              <LogOut className="h-3.5 w-3.5 mr-2" />
+                              퇴실 처리
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

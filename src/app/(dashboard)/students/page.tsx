@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, UserCheck, UserX, GraduationCap } from "lucide-react";
+import { Plus, UserCheck, UserX, GraduationCap, LogOut } from "lucide-react";
 import { StudentsScheduleTable } from "@/components/students/students-schedule-table";
 import { StudentsTable } from "@/components/students/students-table";
 import { CsvImport } from "@/components/students/csv-import";
@@ -31,13 +31,14 @@ export default async function StudentsPage() {
 
   const active = students.filter((s) => s.status === "ACTIVE").length;
   const inactive = students.filter((s) => s.status === "INACTIVE").length;
+  const withdrawn = students.filter((s) => s.status === "WITHDRAWN").length;
   const graduated = students.filter((s) => s.status === "GRADUATED").length;
   const activeStudents = students.filter((s) => s.status === "ACTIVE");
 
   return (
     <div className="space-y-4">
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-2 md:gap-4">
+      <div className="grid grid-cols-4 gap-2 md:gap-4">
         <Card>
           <CardContent className="flex items-center gap-3 pt-4">
             <UserCheck className="h-8 w-8 text-green-600" />
@@ -53,6 +54,15 @@ export default async function StudentsPage() {
             <div>
               <p className="text-2xl font-bold">{inactive}</p>
               <p className="text-sm text-muted-foreground">휴원생</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 pt-4">
+            <LogOut className="h-8 w-8 text-red-500" />
+            <div>
+              <p className="text-2xl font-bold">{withdrawn}</p>
+              <p className="text-sm text-muted-foreground">퇴원생</p>
             </div>
           </CardContent>
         </Card>
