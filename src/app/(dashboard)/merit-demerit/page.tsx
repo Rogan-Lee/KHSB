@@ -27,7 +27,8 @@ export default async function MeritDemeritPage() {
         <Card>
           <CardHeader className="flex flex-row items-center gap-2">
             <Trophy className="h-5 w-5 text-yellow-500" />
-            <CardTitle className="text-base">순점수 랭킹</CardTitle>
+            <CardTitle className="text-base">이달의 순점수 랭킹</CardTitle>
+            <span className="text-xs text-muted-foreground ml-auto">매월 1일 초기화</span>
           </CardHeader>
           <CardContent>
             <MeritRanking />
