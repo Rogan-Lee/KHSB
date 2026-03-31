@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatDate } from "@/lib/utils";
+import { formatDate, cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -38,6 +38,18 @@ type StudentWithRelations = Student & {
   mentor: Pick<User, "name"> | null;
   schedules: AttendanceSchedule[];
 };
+
+// 이번 주 화요일 기준 단어시험 응시 여부 판단
+function isVocabDone(vocabTestDate: Date | null | undefined): boolean {
+  if (!vocabTestDate) return false;
+  const now = new Date();
+  const day = now.getDay();
+  const daysBack = day >= 2 ? day - 2 : day + 5;
+  const lastTue = new Date(now);
+  lastTue.setDate(now.getDate() - daysBack);
+  lastTue.setHours(0, 0, 0, 0);
+  return new Date(vocabTestDate) >= lastTue;
+}
 
 const STATUS_MAP = {
   ACTIVE: { label: "재원", variant: "default" as const },
@@ -487,7 +499,10 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
                   <TableCell className="font-mono text-xs whitespace-nowrap">
                     {student.seat || <span className="text-muted-foreground/50">-</span>}
                   </TableCell>
-                  <TableCell className="font-medium whitespace-nowrap">{student.name}</TableCell>
+                  <TableCell className={cn("font-medium whitespace-nowrap", !isVocabDone(student.vocabTestDate) && student.status === "ACTIVE" && "text-orange-600")} title={!isVocabDone(student.vocabTestDate) && student.status === "ACTIVE" ? "단어시험 미응시" : undefined}>
+                    {student.name}
+                    {!isVocabDone(student.vocabTestDate) && student.status === "ACTIVE" && <span className="ml-1 text-[10px]">📝</span>}
+                  </TableCell>
                   <TableCell className="text-sm whitespace-nowrap">
                     <span>{[student.school, student.grade].filter(Boolean).join(" ") || "-"}</span>
                     {student.classGroup && (
