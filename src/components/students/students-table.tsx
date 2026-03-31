@@ -30,7 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, ArrowLeftRight, LogOut, LogIn, ChevronRight, Search, X, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
-import { checkoutStudent, readmitStudent, moveStudentSeat, swapStudentSeats } from "@/actions/students";
+import { checkoutStudent, readmitStudent, moveStudentSeat, swapStudentSeats, updateStudentSeat } from "@/actions/students";
 import { toast } from "sonner";
 import type { Student, User, AttendanceSchedule } from "@/generated/prisma";
 
@@ -197,6 +197,87 @@ function CheckoutDialog({
   );
 }
 
+// ── 재입실 다이얼로그 ──────────────────────────────
+function ReadmitDialog({
+  student,
+  allStudents,
+  open,
+  onClose,
+}: {
+  student: StudentWithRelations;
+  allStudents: StudentWithRelations[];
+  open: boolean;
+  onClose: (refresh?: boolean) => void;
+}) {
+  // 퇴원 전 좌석 기록 (현재 seat 필드에 남아있을 수 있음 — 없으면 빈칸)
+  const lastSeat = student.seat?.trim() || "";
+  const [newSeat, setNewSeat] = useState(lastSeat);
+  const [isPending, startTransition] = useTransition();
+
+  // 해당 좌석에 현재 다른 학생이 있는지 확인
+  const occupant = newSeat
+    ? allStudents.find((s) => s.seat === newSeat && s.id !== student.id && s.status === "ACTIVE") ?? null
+    : null;
+
+  function handleReadmit() {
+    if (occupant) {
+      toast.error(`${newSeat}번 좌석에 ${occupant.name}이(가) 있습니다. 다른 좌석을 선택하세요.`);
+      return;
+    }
+    startTransition(async () => {
+      try {
+        await readmitStudent(student.id);
+        if (newSeat) await updateStudentSeat(student.id, newSeat);
+        toast.success(`${student.name} 재입실 완료${newSeat ? ` (${newSeat}번 좌석)` : ""}`);
+        onClose(true);
+      } catch {
+        toast.error("재입실 처리 실패");
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>재입실 처리 — {student.name}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          {lastSeat && (
+            <div className="text-sm text-muted-foreground">
+              퇴원 전 좌석: <span className="font-mono font-medium text-foreground">{lastSeat}번</span>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label>좌석 번호</Label>
+            <Input
+              value={newSeat}
+              onChange={(e) => setNewSeat(e.target.value)}
+              placeholder="좌석 번호 입력 (비워두면 미배정)"
+              autoFocus
+            />
+          </div>
+          {occupant && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <span className="font-medium">{newSeat}번</span> 좌석에 <span className="font-medium">{occupant.name}</span>이(가) 있습니다.
+              다른 좌석을 선택하세요.
+            </div>
+          )}
+          {newSeat && !occupant && (
+            <p className="text-xs text-green-600">빈 좌석입니다.</p>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onClose()} disabled={isPending}>취소</Button>
+          <Button onClick={handleReadmit} disabled={isPending || !!occupant}>
+            {isPending ? "처리 중..." : "재입실"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 const TOTAL_SEATS = 89;
 
 // ── 메인 테이블 ──────────────────────────────────────
@@ -234,47 +315,42 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
     }
   }
 
-  function handleReadmit(student: StudentWithRelations) {
-    startTransition(async () => {
-      try {
-        await readmitStudent(student.id);
-        toast.success(`${student.name} 재입실 처리 완료`);
-        router.refresh();
-      } catch {
-        toast.error("재입실 처리 실패");
-      }
-    });
-  }
+  const [readmitDialog, setReadmitDialog] = useState<StudentWithRelations | null>(null);
 
   function handleDialogClose(refresh = false) {
     setSeatDialog(null);
     setCheckoutDialog(null);
+    setReadmitDialog(null);
     if (refresh) router.refresh();
   }
 
   const q = query.trim().toLowerCase();
 
   // 좌석번호(숫자 문자열) → student 맵
-  const seatMap = new Map<string, StudentWithRelations>();
-  const noSeatStudents: StudentWithRelations[] = [];
-  for (const s of visibleStudents) {
-    if (s.seat?.trim()) {
-      seatMap.set(s.seat.trim(), s);
-    } else {
-      noSeatStudents.push(s);
-    }
-  }
-
-  // 1~89 순서대로 행 생성, 그 뒤에 좌석 미배정 원생 추가
   type Row = { type: "student"; student: StudentWithRelations } | { type: "empty"; seatNum: string };
   const allRows: Row[] = [];
-  for (let i = 1; i <= TOTAL_SEATS; i++) {
-    const key = String(i);
-    const student = seatMap.get(key);
-    if (student) allRows.push({ type: "student", student });
-    else allRows.push({ type: "empty", seatNum: key });
+
+  if (showWithdrawn) {
+    // 퇴원생 모드: 학생만 이름순으로 (빈 좌석 행 불필요)
+    [...visibleStudents]
+      .sort((a, b) => a.name.localeCompare(b.name, "ko"))
+      .forEach((s) => allRows.push({ type: "student", student: s }));
+  } else {
+    // 재원 모드: 좌석 순서 + 빈 좌석 표시
+    const seatMap = new Map<string, StudentWithRelations>();
+    const noSeatStudents: StudentWithRelations[] = [];
+    for (const s of visibleStudents) {
+      if (s.seat?.trim()) seatMap.set(s.seat.trim(), s);
+      else noSeatStudents.push(s);
+    }
+    for (let i = 1; i <= TOTAL_SEATS; i++) {
+      const key = String(i);
+      const student = seatMap.get(key);
+      if (student) allRows.push({ type: "student", student });
+      else allRows.push({ type: "empty", seatNum: key });
+    }
+    for (const s of noSeatStudents) allRows.push({ type: "student", student: s });
   }
-  for (const s of noSeatStudents) allRows.push({ type: "student", student: s });
 
   const isDefaultSort = sortKey === "seat" && sortDir === "asc";
 
@@ -436,7 +512,7 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         {student.status === "WITHDRAWN" ? (
-                          <DropdownMenuItem onClick={() => handleReadmit(student)}>
+                          <DropdownMenuItem onClick={() => setReadmitDialog(student)}>
                             <LogIn className="h-3.5 w-3.5 mr-2" />
                             재입실 처리
                           </DropdownMenuItem>
@@ -481,6 +557,14 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
         <CheckoutDialog
           student={checkoutDialog}
           open={!!checkoutDialog}
+          onClose={(refresh) => handleDialogClose(refresh)}
+        />
+      )}
+      {readmitDialog && (
+        <ReadmitDialog
+          student={readmitDialog}
+          allStudents={students}
+          open={!!readmitDialog}
           onClose={(refresh) => handleDialogClose(refresh)}
         />
       )}

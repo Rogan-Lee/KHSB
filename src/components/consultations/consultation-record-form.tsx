@@ -7,6 +7,7 @@ import { TimePickerInput } from "@/components/ui/time-picker";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { updateConsultation } from "@/actions/consultations";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { History, ChevronDown, ChevronUp, CalendarDays, ClipboardList, MessageSquare } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -29,8 +30,20 @@ interface Props {
   outcome: string | null;
   followUp: string | null;
   notes: string | null;
+  consultationType: string | null;
+  consultationCategory: string | null;
   previousConsultations: PastConsultation[];
 }
+
+const TYPE_OPTIONS = [
+  { value: "STUDENT", label: "학생 상담" },
+  { value: "PARENT", label: "학부모 상담" },
+];
+const CATEGORY_OPTIONS = [
+  { value: "ENROLLED", label: "재원생" },
+  { value: "NEW_ADMISSION", label: "신규 입실" },
+  { value: "CONSIDERING", label: "등록 고민" },
+];
 
 function formatKST(date: Date): string {
   const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
@@ -118,10 +131,14 @@ export function ConsultationRecordForm({
   outcome: initialOutcome,
   followUp: initialFollowUp,
   notes: initialNotes,
+  consultationType: initialType,
+  consultationCategory: initialCategory,
   previousConsultations,
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [consultType, setConsultType] = useState(initialType ?? "STUDENT");
+  const [consultCategory, setConsultCategory] = useState(initialCategory ?? "ENROLLED");
 
   const saved = typeof window !== "undefined" ? loadDraft(consultationId) : null;
   const defaultDatetime = saved
@@ -156,6 +173,8 @@ export function ConsultationRecordForm({
   function buildFd(status?: string) {
     const fd = new FormData();
     if (actualDateCombined) fd.set("actualDate", actualDateCombined);
+    fd.set("type", consultType);
+    fd.set("category", consultCategory);
     fd.set("agenda", agenda);
     fd.set("outcome", outcome);
     fd.set("followUp", followUp);
@@ -209,6 +228,34 @@ export function ConsultationRecordForm({
 
       {/* Form */}
       <div className="space-y-4">
+        {/* 유형 / 분류 선택 */}
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">상담 유형</p>
+            <div className="flex items-center gap-0.5 bg-muted/50 rounded-lg p-1 border">
+              {TYPE_OPTIONS.map((opt) => (
+                <button key={opt.value} type="button" onClick={() => setConsultType(opt.value)}
+                  className={cn("px-3 py-1 text-xs font-medium rounded-md transition-colors",
+                    consultType === opt.value ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">상담 분류</p>
+            <div className="flex items-center gap-0.5 bg-muted/50 rounded-lg p-1 border">
+              {CATEGORY_OPTIONS.map((opt) => (
+                <button key={opt.value} type="button" onClick={() => setConsultCategory(opt.value)}
+                  className={cn("px-3 py-1 text-xs font-medium rounded-md transition-colors",
+                    consultCategory === opt.value ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {scheduledAt && (
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <CalendarDays className="h-4 w-4" />
