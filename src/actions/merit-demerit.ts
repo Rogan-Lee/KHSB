@@ -38,6 +38,31 @@ export async function createMeritDemerit(formData: FormData) {
   revalidatePath(`/students/${data.studentId}`);
 }
 
+export async function updateMeritDemerit(id: string, formData: FormData) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const raw = Object.fromEntries(formData.entries());
+  const data = meritSchema.omit({ studentId: true }).parse(raw);
+
+  const record = await prisma.meritDemerit.findUnique({ where: { id } });
+  if (!record) throw new Error("Not found");
+
+  await prisma.meritDemerit.update({
+    where: { id },
+    data: {
+      date: new Date(data.date),
+      type: data.type,
+      points: data.points,
+      reason: data.reason,
+      category: data.category || null,
+    },
+  });
+
+  revalidatePath("/merit-demerit");
+  revalidatePath(`/students/${record.studentId}`);
+}
+
 export async function deleteMeritDemerit(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
@@ -74,6 +99,10 @@ export async function getMeritsByRange(from: string, to: string) {
 }
 
 export async function getStudentPointSummary() {
+  // 매월 1일 초기화: 현재 월의 상벌점만 집계
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
   const students = await prisma.student.findMany({
     where: { status: "ACTIVE" },
     select: {
@@ -81,6 +110,7 @@ export async function getStudentPointSummary() {
       name: true,
       grade: true,
       merits: {
+        where: { date: { gte: monthStart } },
         select: { type: true, points: true },
       },
     },
