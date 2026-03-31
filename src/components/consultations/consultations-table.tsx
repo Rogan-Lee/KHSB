@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { updateConsultation } from "@/actions/consultations";
 import { toast } from "sonner";
@@ -176,11 +176,21 @@ function ConsultationCard({
 
 // ─── Main List ────────────────────────────────────────────────────────────────
 
+const CONSULT_FILTER_KEY = "consultations-list-filters";
+function loadConsultFilters() {
+  try { return JSON.parse(sessionStorage.getItem(CONSULT_FILTER_KEY) ?? "{}"); } catch { return {}; }
+}
+
 export function ConsultationsList({ consultations }: { consultations: Consultation[] }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<Status | "ALL">("ALL");
+  const saved = typeof window !== "undefined" ? loadConsultFilters() : {};
+  const [query, setQuery] = useState<string>(saved.q ?? "");
+  const [statusFilter, setStatusFilter] = useState<Status | "ALL">(saved.status ?? "ALL");
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    try { sessionStorage.setItem(CONSULT_FILTER_KEY, JSON.stringify({ q: query, status: statusFilter })); } catch {}
+  }, [query, statusFilter]);
 
   const q = query.trim().toLowerCase();
 

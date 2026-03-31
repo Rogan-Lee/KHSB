@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -199,14 +199,24 @@ function CheckoutDialog({
 const TOTAL_SEATS = 89;
 
 // ── 메인 테이블 ──────────────────────────────────────
+const STUDENTS_FILTER_KEY = "students-table-filters";
+function loadStudentFilters() {
+  try { return JSON.parse(sessionStorage.getItem(STUDENTS_FILTER_KEY) ?? "{}"); } catch { return {}; }
+}
+
 export function StudentsTable({ students }: { students: StudentWithRelations[] }) {
   const router = useRouter();
   const [seatDialog, setSeatDialog] = useState<StudentWithRelations | null>(null);
   const [checkoutDialog, setCheckoutDialog] = useState<StudentWithRelations | null>(null);
-  const [query, setQuery] = useState("");
-  const [showInactive, setShowInactive] = useState(false);
-  const [sortKey, setSortKey] = useState<SortKey>("seat");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const saved = typeof window !== "undefined" ? loadStudentFilters() : {};
+  const [query, setQuery] = useState<string>(saved.q ?? "");
+  const [showInactive, setShowInactive] = useState<boolean>(saved.inactive ?? false);
+  const [sortKey, setSortKey] = useState<SortKey>(saved.sort ?? "seat");
+  const [sortDir, setSortDir] = useState<SortDir>(saved.dir ?? "asc");
+
+  useEffect(() => {
+    try { sessionStorage.setItem(STUDENTS_FILTER_KEY, JSON.stringify({ q: query, inactive: showInactive, sort: sortKey, dir: sortDir })); } catch {}
+  }, [query, showInactive, sortKey, sortDir]);
 
   // 퇴원생 필터
   const visibleStudents = showInactive ? students : students.filter((s) => s.status === "ACTIVE");
