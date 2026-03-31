@@ -2,15 +2,21 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { updateConsultation } from "@/actions/consultations";
+import { generateFollowUpMessage } from "@/actions/ai-followup";
+import { createConsultationReport } from "@/actions/consultation-reports";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
-  Search, X, Pencil, CheckCircle, XCircle, CalendarDays, MessageSquare, ClipboardList, Play, ChevronDown, ChevronUp,
+  Search, X, Pencil, CheckCircle, XCircle, CalendarDays, MessageSquare, ClipboardList, Play,
+  ChevronDown, ChevronUp, Sparkles, Send, Copy, RefreshCw, Loader2, Link2, MessageCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 
+// ─── 카카오 친구 선택 + 전송 다이얼로그 ─────────────────────────────────
 type Status = "SCHEDULED" | "COMPLETED" | "CANCELLED";
 
 const STATUS_CONFIG: Record<Status, {
@@ -84,8 +90,32 @@ function ConsultationCard({
   onNavigate: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [msgOpen, setMsgOpen] = useState(false);
+  const [msgText, setMsgText] = useState("");
+  const [isGenerating, startGenerate] = useTransition();
+  const [msgGenerated, setMsgGenerated] = useState(false);
   const cfg = STATUS_CONFIG[c.status];
   const hasContent = !!(c.agenda || c.outcome || c.followUp || c.notes);
+
+  function handleGenerate() {
+    startGenerate(async () => {
+      try {
+        const result = await generateFollowUpMessage(c.id);
+        setMsgText(result.message);
+        setMsgGenerated(true);
+      } catch {
+        toast.error("메시지 생성 실패");
+      }
+    });
+  }
+
+  function handleCopy() {
+    navigator.clipboard.writeText(msgText);
+    toast.success("복사됨");
+  }
+
+  const [reportUrl, setReportUrl] = useState<string | null>(null);
+  const [isCreatingReport, startCreateReport] = useTransition();
 
   return (
     <div className={cn(
@@ -193,15 +223,101 @@ function ConsultationCard({
           </div>
         )}
 
-        {/* Toggle */}
-        {hasContent && (
-          <button
-            onClick={() => setExpanded((v) => !v)}
-            className="flex items-center gap-1 mt-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            {expanded ? "접기" : "내용 보기"}
-          </button>
+        {/* Toggle + AI 메시지 버튼 */}
+        <div className="flex items-center gap-3 mt-2">
+          {hasContent && (
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              {expanded ? "접기" : "내용 보기"}
+            </button>
+          )}
+          {hasContent && (
+            <button
+              onClick={() => setMsgOpen((v) => !v)}
+              className={cn(
+                "flex items-center gap-1 text-xs transition-colors",
+                msgOpen ? "text-violet-700" : "text-violet-500 hover:text-violet-700"
+              )}
+            >
+              <Sparkles className="h-3 w-3" />
+              {msgOpen ? "메시지 닫기" : "AI 메시지"}
+            </button>
+          )}
+        </div>
+
+        {/* AI 팔로업 메시지 인라인 패널 */}
+        {msgOpen && (
+          <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50/50 p-3 space-y-2">
+            {!msgGenerated && !reportUrl ? (
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-violet-600 flex-1">상담 내용 기반 팔로업 리포트를 생성합니다</p>
+                <Button size="sm" onClick={handleGenerate} disabled={isGenerating}
+                  className="bg-violet-600 hover:bg-violet-700 text-white gap-1.5 h-7 text-xs">
+                  {isGenerating ? <><RefreshCw className="h-3 w-3 animate-spin" />생성 중...</> : <><Sparkles className="h-3 w-3" />생성</>}
+                </Button>
+              </div>
+            ) : reportUrl ? (
+              /* 리포트 링크 생성 완료 */
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-green-600 text-xs font-medium">
+                  <Link2 className="h-3 w-3" />리포트 링크가 생성되었습니다
+                </div>
+                <div className="flex gap-2">
+                  <input value={reportUrl} readOnly className="flex-1 text-xs font-mono bg-white border rounded px-2 py-1.5" />
+                  <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(reportUrl); toast.success("링크 복사됨"); }} className="gap-1 h-7 text-xs">
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+                <div className="rounded-lg border bg-white p-3 text-xs text-muted-foreground whitespace-pre-wrap max-h-24 overflow-y-auto">
+                  {`안녕하세요, ${c.student?.name ?? c.prospectName ?? ""}님.\n상담 내용을 정리해 드립니다.\n아래 링크를 통해 확인해 주세요 👇\n\n${reportUrl}`}
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => {
+                    const shareText = `안녕하세요, ${c.student?.name ?? c.prospectName ?? ""}님.\n상담 내용을 정리해 드립니다.\n아래 링크를 통해 확인해 주세요 👇\n\n${reportUrl}`;
+                    if (navigator.share) {
+                      navigator.share({ title: "강한선배 상담 안내", text: shareText });
+                    } else {
+                      navigator.clipboard.writeText(shareText);
+                      toast.success("메시지가 복사되었습니다");
+                    }
+                  }} className="flex-1 bg-[#FEE500] hover:bg-[#FDD835] text-[#3C1E1E] gap-1.5 h-8 text-xs">
+                    <MessageCircle className="h-3.5 w-3.5" />카카오톡으로 보내기
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => { setReportUrl(null); setMsgGenerated(false); setMsgText(""); }} className="h-8 text-xs">
+                    다시 생성
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              /* 메시지 편집 → 리포트 생성 */
+              <>
+                <Textarea value={msgText} onChange={(e) => setMsgText(e.target.value)}
+                  rows={10} className="bg-white text-sm resize-none" />
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={handleGenerate} disabled={isGenerating} className="gap-1 h-7 text-xs">
+                    <RefreshCw className={cn("h-3 w-3", isGenerating && "animate-spin")} />재생성
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1 h-7 text-xs">
+                    <Copy className="h-3 w-3" />복사
+                  </Button>
+                  <Button size="sm" disabled={!msgText.trim() || isCreatingReport} onClick={() => {
+                    startCreateReport(async () => {
+                      try {
+                        const { token } = await createConsultationReport(c.id, msgText);
+                        setReportUrl(`${window.location.origin}/cr/${token}`);
+                      } catch { toast.error("리포트 생성 실패"); }
+                    });
+                  }} className="ml-auto gap-1 h-7 text-xs">
+                    {isCreatingReport ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />}
+                    리포트 링크 생성
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
         )}
       </div>
     </div>
