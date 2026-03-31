@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/select";
 import { formatDate } from "@/lib/utils";
 import { Search, X, ArrowUp, ArrowDown, ArrowUpDown, Pencil, Trash2 } from "lucide-react";
-import { updateMeritDemerit, deleteMeritDemerit } from "@/actions/merit-demerit";
+import { Checkbox } from "@/components/ui/checkbox";
+import { updateMeritDemerit, deleteMeritDemerit, bulkDeleteMeritDemerits } from "@/actions/merit-demerit";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -145,6 +146,8 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
   const [sortKey, setSortKey] = useState<SortKey>(saved.sort ?? "points");
   const [sortDir, setSortDir] = useState<SortDir>(saved.dir ?? "desc");
   const [editTarget, setEditTarget] = useState<MeritRecord | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [isBulkPending, startBulkTransition] = useTransition();
 
   useEffect(() => {
     try { sessionStorage.setItem(MERIT_FILTER_KEY, JSON.stringify({ q: query, sort: sortKey, dir: sortDir })); } catch {}
@@ -178,6 +181,32 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
     return sortDir === "asc" ? cmp : -cmp;
   });
 
+  const filteredIds = filtered.map((m) => m.id);
+  const allSelected = filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
+  const selectedCount = filteredIds.filter((id) => selected.has(id)).length;
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelected((prev) => { const next = new Set(prev); filteredIds.forEach((id) => next.delete(id)); return next; });
+    } else {
+      setSelected((prev) => new Set([...prev, ...filteredIds]));
+    }
+  }
+  function toggleOne(id: string) {
+    setSelected((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  }
+  function handleBulkDelete() {
+    if (!confirm(`${selectedCount}건을 삭제하시겠습니까?`)) return;
+    startBulkTransition(async () => {
+      try {
+        await bulkDeleteMeritDemerits(filteredIds.filter((id) => selected.has(id)));
+        setSelected(new Set());
+        toast.success(`${selectedCount}건 삭제됨`);
+        router.refresh();
+      } catch { toast.error("삭제 실패"); }
+    });
+  }
+
   const thClass = "cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap";
 
   return (
@@ -198,11 +227,19 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
           )}
         </div>
         {q && <span className="text-xs text-muted-foreground">{filtered.length}건 검색됨</span>}
+        {selectedCount > 0 && (
+          <Button variant="destructive" size="sm" className="ml-auto h-8 gap-1.5" onClick={handleBulkDelete} disabled={isBulkPending}>
+            <Trash2 className="h-3.5 w-3.5" />{selectedCount}건 삭제
+          </Button>
+        )}
       </div>
 
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-10">
+              <Checkbox checked={allSelected} onCheckedChange={toggleAll} aria-label="전체 선택" />
+            </TableHead>
             <TableHead className={thClass} onClick={() => handleSort("date")}>
               날짜<SortIcon col="date" sortKey={sortKey} sortDir={sortDir} />
             </TableHead>
@@ -221,13 +258,16 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
         <TableBody>
           {filtered.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                 {q ? "검색 결과가 없습니다" : "상벌점 내역이 없습니다"}
               </TableCell>
             </TableRow>
           ) : (
             filtered.map((m) => (
-              <TableRow key={m.id}>
+              <TableRow key={m.id} data-state={selected.has(m.id) ? "selected" : undefined}>
+                <TableCell>
+                  <Checkbox checked={selected.has(m.id)} onCheckedChange={() => toggleOne(m.id)} />
+                </TableCell>
                 <TableCell>{formatDate(m.date)}</TableCell>
                 <TableCell>
                   <span className="font-medium">{m.student.name}</span>

@@ -75,6 +75,15 @@ export async function deleteMeritDemerit(id: string) {
   revalidatePath(`/students/${record.studentId}`);
 }
 
+export async function bulkDeleteMeritDemerits(ids: string[]) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  if (!ids.length) return;
+
+  await prisma.meritDemerit.deleteMany({ where: { id: { in: ids } } });
+  revalidatePath("/merit-demerit");
+}
+
 export async function getMeritDemerits(studentId?: string) {
   return prisma.meritDemerit.findMany({
     where: studentId ? { studentId } : undefined,
