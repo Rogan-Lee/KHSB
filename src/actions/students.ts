@@ -117,10 +117,23 @@ export async function checkoutStudent(id: string) {
 
   await prisma.student.update({
     where: { id },
-    data: { status: "INACTIVE", seat: null },
+    data: { status: "WITHDRAWN", seat: null },
   });
   revalidatePath("/students");
   revalidatePath("/seat-map");
+}
+
+// 재입실 처리: 퇴원 학생을 다시 활성 상태로 전환
+export async function readmitStudent(id: string) {
+  const session = await auth();
+  if (!session?.user || session.user.role === "STUDENT")
+    throw new Error("Unauthorized");
+
+  await prisma.student.update({
+    where: { id },
+    data: { status: "ACTIVE" },
+  });
+  revalidatePath("/students");
 }
 
 // 좌석 이동 (빈 자리로)
