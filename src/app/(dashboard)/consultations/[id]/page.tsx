@@ -191,6 +191,8 @@ export default async function ConsultationDetailPage({
                 outcome={consultation.outcome}
                 followUp={consultation.followUp}
                 notes={consultation.notes}
+                consultationType={(consultation as Record<string, unknown>).type as string | null ?? null}
+                consultationCategory={(consultation as Record<string, unknown>).category as string | null ?? null}
                 previousConsultations={previousConsultations}
               />
             </CardContent>

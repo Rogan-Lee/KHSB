@@ -96,9 +96,23 @@ function StudentCombobox({
   );
 }
 
+type CType = "STUDENT" | "PARENT";
+type CCategory = "ENROLLED" | "NEW_ADMISSION" | "CONSIDERING";
+
+const TYPE_OPTIONS: { value: CType; label: string }[] = [
+  { value: "STUDENT", label: "학생 상담" },
+  { value: "PARENT", label: "학부모 상담" },
+];
+const CATEGORY_OPTIONS: { value: CCategory; label: string }[] = [
+  { value: "ENROLLED", label: "재원생" },
+  { value: "NEW_ADMISSION", label: "신규 입실" },
+  { value: "CONSIDERING", label: "등록 고민" },
+];
+
 export function NewConsultationForm({ students }: Props) {
   const router = useRouter();
-  const [mode, setMode] = useState<"registered" | "prospect">("registered");
+  const [consultType, setConsultType] = useState<CType>("STUDENT");
+  const [consultCategory, setConsultCategory] = useState<CCategory>("ENROLLED");
   const [studentId, setStudentId] = useState("");
   const [prospectName, setProspectName] = useState("");
   const [prospectGrade, setProspectGrade] = useState("");
@@ -106,17 +120,20 @@ export function NewConsultationForm({ students }: Props) {
   const [agenda, setAgenda] = useState("");
   const [isPending, startTransition] = useTransition();
 
-  const isValid = mode === "registered" ? !!studentId : !!prospectName.trim();
+  const isRegistered = consultCategory === "ENROLLED";
+  const isValid = isRegistered ? !!studentId : !!prospectName.trim();
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!isValid) {
-      toast.error(mode === "registered" ? "원생을 선택하세요" : "이름을 입력하세요");
+      toast.error(isRegistered ? "원생을 선택하세요" : "이름을 입력하세요");
       return;
     }
 
     const fd = new FormData(e.currentTarget);
-    if (mode === "registered") {
+    fd.set("type", consultType);
+    fd.set("category", consultCategory);
+    if (isRegistered) {
       fd.set("studentId", studentId);
     } else {
       fd.delete("studentId");
@@ -155,33 +172,56 @@ export function NewConsultationForm({ students }: Props) {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Mode toggle */}
-        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 border w-fit">
-          <button
-            type="button"
-            onClick={() => { setMode("registered"); setProspectName(""); setProspectGrade(""); setProspectPhone(""); }}
-            className={cn(
-              "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
-              mode === "registered" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            재원생
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMode("prospect"); setStudentId(""); }}
-            className={cn(
-              "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
-              mode === "prospect" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            신규 상담
-          </button>
+        {/* 상담 유형 + 분류 */}
+        <div className="flex flex-wrap items-center gap-4">
+          {/* 유형: 학생/학부모 */}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">상담 유형</Label>
+            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 border">
+              {TYPE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setConsultType(opt.value)}
+                  className={cn(
+                    "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
+                    consultType === opt.value ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 분류: 재원생/신규 입실/등록 고민 */}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">상담 분류</Label>
+            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 border">
+              {CATEGORY_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    setConsultCategory(opt.value);
+                    if (opt.value === "ENROLLED") { setProspectName(""); setProspectGrade(""); setProspectPhone(""); }
+                    else { setStudentId(""); }
+                  }}
+                  className={cn(
+                    "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
+                    consultCategory === opt.value ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* 원생 & 일시 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {mode === "registered" ? (
+          {isRegistered ? (
             <div className="space-y-2">
               <Label className="text-sm font-medium">원생</Label>
               <StudentCombobox students={students} value={studentId} onChange={setStudentId} />
