@@ -493,16 +493,15 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
               return (
                 <TableRow
                   key={student.id}
-                  className="cursor-pointer hover:bg-accent/50 transition-colors"
+                  className={cn("cursor-pointer hover:bg-accent/50 transition-colors",
+                    !isVocabDone(student.vocabTestDate) && student.status === "ACTIVE" && "bg-orange-50")}
+                  title={!isVocabDone(student.vocabTestDate) && student.status === "ACTIVE" ? "단어시험 미응시" : undefined}
                   onClick={() => router.push(`/students/${student.id}`)}
                 >
                   <TableCell className="font-mono text-xs whitespace-nowrap">
                     {student.seat || <span className="text-muted-foreground/50">-</span>}
                   </TableCell>
-                  <TableCell className={cn("font-medium whitespace-nowrap", !isVocabDone(student.vocabTestDate) && student.status === "ACTIVE" && "text-orange-600")} title={!isVocabDone(student.vocabTestDate) && student.status === "ACTIVE" ? "단어시험 미응시" : undefined}>
-                    {student.name}
-                    {!isVocabDone(student.vocabTestDate) && student.status === "ACTIVE" && <span className="ml-1 text-[10px]">📝</span>}
-                  </TableCell>
+                  <TableCell className="font-medium whitespace-nowrap">{student.name}</TableCell>
                   <TableCell className="text-sm whitespace-nowrap">
                     <span>{[student.school, student.grade].filter(Boolean).join(" ") || "-"}</span>
                     {student.classGroup && (
