@@ -23,7 +23,8 @@ type StudentWithAttendance = Student & {
   dailyOutings: DailyOuting[];
   communications: Communication[];
   assignments: Assignment[];
-  merits: { type: string; points: number }[];
+  merits: { type: string; points: number; date: Date }[];
+  vocabEnrollment?: { isActive: boolean } | null;
 };
 
 const TYPE_OPTIONS: { value: AttendanceType; label: string }[] = [
@@ -575,6 +576,8 @@ export function AttendanceTable({ students, today }: Props) {
               const plannerDone = isDoneThisWeek("plannerSentDate", plannerDate);
               const plannerPending = checkDatePending === `${student.id}:plannerSentDate`;
 
+              // 영단어 시험 대상자 여부 (VocabTestEnrollment 기반)
+              const isVocabTarget = student.vocabEnrollment?.isActive ?? false;
               const vocabChecks = localCheckDates.get(student.id);
               const vocabDone = vocabChecks ? isDoneThisWeek("vocabTestDate", vocabChecks.vocabTestDate) : false;
 
@@ -587,7 +590,7 @@ export function AttendanceTable({ students, today }: Props) {
                     isSelected ? "bg-blue-50 border-l-2 border-l-blue-500" : isExpanded ? "bg-muted/30" : "hover:bg-accent/50",
                     state === "NO_SCHEDULE" && "opacity-50",
                     isCheckInImminent && !isSelected && "bg-red-50/60 hover:bg-red-50",
-                    !vocabDone && !isSelected && !isCheckInImminent && "bg-orange-50/60"
+                    isVocabTarget && !vocabDone && !isSelected && !isCheckInImminent && "bg-orange-50/60"
                   )}
                 >
                   {/* 타임라인 토글 */}
