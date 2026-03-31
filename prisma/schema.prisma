@@ -48,6 +48,17 @@ enum ConsultationStatus {
   CANCELLED
 }
 
+enum ConsultationType {
+  STUDENT       // 학생 상담
+  PARENT        // 학부모 상담
+}
+
+enum ConsultationCategory {
+  ENROLLED      // 재원생
+  NEW_ADMISSION // 신규 입실
+  CONSIDERING   // 등록 고민
+}
+
 enum MessageStatus {
   PENDING
   SENT
@@ -280,6 +291,8 @@ model DirectorConsultation {
   prospectName  String?            // 미등록(신규 상담) 원생 이름
   prospectGrade String?            // 미등록 원생 학년
   prospectPhone String?            // 미등록 원생 연락처
+  type          ConsultationType   @default(STUDENT)
+  category      ConsultationCategory @default(ENROLLED)
   scheduledAt   DateTime?
   actualDate    DateTime?
   status        ConsultationStatus @default(SCHEDULED)

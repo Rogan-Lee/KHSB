@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { ConsultationStatus } from "@/generated/prisma";
+import { ConsultationStatus, ConsultationType, ConsultationCategory } from "@/generated/prisma";
 
 export async function createConsultation(formData: FormData) {
   const session = await auth();
@@ -23,6 +23,8 @@ export async function createConsultation(formData: FormData) {
       prospectName,
       prospectGrade: (raw.prospectGrade as string) || null,
       prospectPhone: (raw.prospectPhone as string) || null,
+      type: (raw.type as ConsultationType) || "STUDENT",
+      category: (raw.category as ConsultationCategory) || "ENROLLED",
       scheduledAt: raw.scheduledAt ? new Date(raw.scheduledAt as string) : null,
       agenda: (raw.agenda as string) || null,
       status: "SCHEDULED",
@@ -43,6 +45,8 @@ export async function updateConsultation(id: string, formData: FormData) {
   if (raw.scheduledAt) data.scheduledAt = new Date(raw.scheduledAt as string);
   if (raw.actualDate) data.actualDate = new Date(raw.actualDate as string);
   if (raw.status) data.status = raw.status as ConsultationStatus;
+  if (raw.type) data.type = raw.type as ConsultationType;
+  if (raw.category) data.category = raw.category as ConsultationCategory;
   if ("agenda" in raw) data.agenda = (raw.agenda as string) || null;
   if ("outcome" in raw) data.outcome = (raw.outcome as string) || null;
   if ("followUp" in raw) data.followUp = (raw.followUp as string) || null;
