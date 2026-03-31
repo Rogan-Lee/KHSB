@@ -181,8 +181,8 @@ function CheckoutDialog({
             )}
             의 퇴실을 처리합니다.
           </p>
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 text-xs">
-            모든 데이터(출결 기록, 멘토링 기록 등)가 영구 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 text-xs">
+            좌석이 반납되고 비활성 상태로 전환됩니다. 멘토링, 출결 등 기록은 보존됩니다.
           </div>
         </div>
         <DialogFooter>
@@ -204,8 +204,12 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
   const [seatDialog, setSeatDialog] = useState<StudentWithRelations | null>(null);
   const [checkoutDialog, setCheckoutDialog] = useState<StudentWithRelations | null>(null);
   const [query, setQuery] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("seat");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  // 퇴원생 필터
+  const visibleStudents = showInactive ? students : students.filter((s) => s.status === "ACTIVE");
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -227,7 +231,7 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
   // 좌석번호(숫자 문자열) → student 맵
   const seatMap = new Map<string, StudentWithRelations>();
   const noSeatStudents: StudentWithRelations[] = [];
-  for (const s of students) {
+  for (const s of visibleStudents) {
     if (s.seat?.trim()) {
       seatMap.set(s.seat.trim(), s);
     } else {
@@ -320,6 +324,16 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
             {rows.length}명 검색됨
           </span>
         )}
+        <button
+          onClick={() => setShowInactive((v) => !v)}
+          className={`ml-auto px-3 py-1 text-xs rounded-lg border transition-colors ${
+            showInactive
+              ? "bg-orange-50 text-orange-700 border-orange-200"
+              : "text-muted-foreground border-transparent hover:border-border"
+          }`}
+        >
+          {showInactive ? "퇴원생 포함 중" : "퇴원생 포함"}
+        </button>
       </div>
       <div className="overflow-x-auto">
         <Table>

@@ -38,20 +38,20 @@ export async function updateConsultation(id: string, formData: FormData) {
 
   const raw = Object.fromEntries(formData.entries());
 
-  await prisma.directorConsultation.update({
-    where: { id },
-    data: {
-      scheduledAt: raw.scheduledAt ? new Date(raw.scheduledAt as string) : undefined,
-      actualDate: raw.actualDate ? new Date(raw.actualDate as string) : undefined,
-      status: raw.status as ConsultationStatus | undefined,
-      agenda: (raw.agenda as string) || null,
-      notes: (raw.notes as string) || null,
-      outcome: (raw.outcome as string) || null,
-      followUp: (raw.followUp as string) || null,
-    },
-  });
+  // 전달된 필드만 업데이트 (FormData에 키가 있으면 값 적용, 없으면 건드리지 않음)
+  const data: Record<string, unknown> = {};
+  if (raw.scheduledAt) data.scheduledAt = new Date(raw.scheduledAt as string);
+  if (raw.actualDate) data.actualDate = new Date(raw.actualDate as string);
+  if (raw.status) data.status = raw.status as ConsultationStatus;
+  if ("agenda" in raw) data.agenda = (raw.agenda as string) || null;
+  if ("outcome" in raw) data.outcome = (raw.outcome as string) || null;
+  if ("followUp" in raw) data.followUp = (raw.followUp as string) || null;
+  if ("notes" in raw) data.notes = (raw.notes as string) || null;
+
+  await prisma.directorConsultation.update({ where: { id }, data });
 
   revalidatePath("/consultations");
+  revalidatePath(`/consultations/${id}`);
 }
 
 export async function getConsultations() {

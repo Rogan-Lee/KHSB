@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -196,18 +196,47 @@ function KebabMenu({ mentoring, onDelete }: { mentoring: Mentoring; onDelete: ()
   );
 }
 
+const FILTER_STORAGE_KEY = "mentoring-list-filters";
+
+type FilterState = {
+  mentor: string;
+  from: string;
+  to: string;
+  q: string;
+  sort: SortKey;
+  dir: SortDir;
+};
+
+function loadFilters(): Partial<FilterState> {
+  try { return JSON.parse(sessionStorage.getItem(FILTER_STORAGE_KEY) ?? "{}"); } catch { return {}; }
+}
+
+function saveFilters(f: FilterState) {
+  try { sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(f)); } catch { /* ignore */ }
+}
+
 export function MentoringList({ mentorings, mentors, isDirector }: Props) {
   const today = getToday();
-  const [selectedMentorId, setSelectedMentorId] = useState<string>("all");
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
+
+  // sessionStorage에서 필터 복원
+  const saved = typeof window !== "undefined" ? loadFilters() : {};
+
+  const [selectedMentorId, setSelectedMentorId] = useState<string>(saved.mentor ?? "all");
+  const [dateFrom, setDateFrom] = useState<string>(saved.from ?? "");
+  const [dateTo, setDateTo] = useState<string>(saved.to ?? "");
+  const [query, setQuery] = useState(saved.q ?? "");
+  const [sortKey, setSortKey] = useState<SortKey>(saved.sort ?? "scheduledAt");
+  const [sortDir, setSortDir] = useState<SortDir>(saved.dir ?? "desc");
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<Mentoring | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
-  const [query, setQuery] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("scheduledAt");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  // 필터 변경 시 sessionStorage에 저장
+  useEffect(() => {
+    saveFilters({ mentor: selectedMentorId, from: dateFrom, to: dateTo, q: query, sort: sortKey, dir: sortDir });
+  }, [selectedMentorId, dateFrom, dateTo, query, sortKey, sortDir]);
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
