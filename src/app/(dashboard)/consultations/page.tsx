@@ -18,6 +18,8 @@ export default async function ConsultationsPage() {
     studentId: string | null;
     prospectName: string | null;
     prospectGrade: string | null;
+    type: "STUDENT" | "PARENT" | null;
+    category: "ENROLLED" | "NEW_ADMISSION" | "CONSIDERING" | null;
     scheduledAt: Date | null;
     actualDate: Date | null;
     status: "SCHEDULED" | "COMPLETED" | "CANCELLED";
