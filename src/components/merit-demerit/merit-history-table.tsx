@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,10 +29,20 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; s
     : <ArrowDown className="inline h-3 w-3 ml-1 text-foreground" />;
 }
 
+const MERIT_FILTER_KEY = "merit-history-filters";
+function loadMeritFilters() {
+  try { return JSON.parse(sessionStorage.getItem(MERIT_FILTER_KEY) ?? "{}"); } catch { return {}; }
+}
+
 export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
-  const [query, setQuery] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("points");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const saved = typeof window !== "undefined" ? loadMeritFilters() : {};
+  const [query, setQuery] = useState<string>(saved.q ?? "");
+  const [sortKey, setSortKey] = useState<SortKey>(saved.sort ?? "points");
+  const [sortDir, setSortDir] = useState<SortDir>(saved.dir ?? "desc");
+
+  useEffect(() => {
+    try { sessionStorage.setItem(MERIT_FILTER_KEY, JSON.stringify({ q: query, sort: sortKey, dir: sortDir })); } catch {}
+  }, [query, sortKey, sortDir]);
 
   const q = query.trim().toLowerCase();
 
