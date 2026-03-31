@@ -45,6 +45,7 @@ const navSections: NavSection[] = [
       { href: "/students", label: "원생 관리", icon: Users },
       { href: "/seat-map", label: "좌석 배치도", icon: MapPin },
       { href: "/merit-demerit", label: "상벌점", icon: Star },
+      { href: "/vocab-test", label: "영단어 시험", icon: BookOpen },
       { href: "/assignments", label: "과제 관리", icon: ClipboardCheck },
     ],
   },
