@@ -18,7 +18,6 @@ export default async function MentoringPage() {
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   const mentorings = await prisma.mentoring.findMany({
-    where: isDirector ? undefined : { mentorId: session?.user?.id },
     include: {
       student: { select: { id: true, name: true, grade: true } },
       mentor: { select: { id: true, name: true } },
