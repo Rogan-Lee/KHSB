@@ -19,6 +19,7 @@ enum StudentStatus {
   ACTIVE
   INACTIVE
   GRADUATED
+  WITHDRAWN    // 퇴원
 }
 
 enum AttendanceType {

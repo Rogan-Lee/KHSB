@@ -23,6 +23,7 @@ const STATUS_MAP = {
   ACTIVE: { label: "재원", variant: "default" as const },
   INACTIVE: { label: "휴원", variant: "secondary" as const },
   GRADUATED: { label: "졸업", variant: "outline" as const },
+  WITHDRAWN: { label: "퇴원", variant: "destructive" as const },
 };
 
 const ATTENDANCE_TYPE_MAP = {
