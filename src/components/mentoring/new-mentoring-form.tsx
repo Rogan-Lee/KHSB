@@ -175,9 +175,9 @@ export function NewMentoringForm({ students }: Props) {
 
         {/* 버튼 */}
         <div className="flex items-center gap-3 pt-4 border-t">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
-            취소
-          </Button>
+          <Link href="/mentoring">
+            <Button type="button" variant="outline">취소</Button>
+          </Link>
           <Button type="submit" disabled={isPending || !studentId}>
             {isPending ? "저장 중..." : "멘토링 등록"}
           </Button>

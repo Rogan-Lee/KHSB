@@ -9,6 +9,7 @@ import { updateConsultation } from "@/actions/consultations";
 import { toast } from "sonner";
 import { History, ChevronDown, ChevronUp, CalendarDays, ClipboardList, MessageSquare } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 type PastConsultation = {
   id: string;
@@ -167,8 +168,9 @@ export function ConsultationRecordForm({
     startTransition(async () => {
       try {
         await updateConsultation(consultationId, buildFd());
-        saveDraftStorage(consultationId, currentDraft());
+        clearDraftStorage(consultationId);
         toast.success("저장되었습니다");
+        router.refresh();
       } catch {
         toast.error("저장에 실패했습니다");
       }
@@ -178,10 +180,15 @@ export function ConsultationRecordForm({
   function handleComplete() {
     startTransition(async () => {
       try {
-        await updateConsultation(consultationId, buildFd("COMPLETED"));
+        // 1) 내용 먼저 저장
+        await updateConsultation(consultationId, buildFd());
+        // 2) 상태만 완료로 변경
+        const statusFd = new FormData();
+        statusFd.set("status", "COMPLETED");
+        await updateConsultation(consultationId, statusFd);
         clearDraftStorage(consultationId);
         toast.success("면담이 완료 처리되었습니다");
-        router.push("/consultations");
+        window.location.href = "/consultations";
       } catch {
         toast.error("처리에 실패했습니다");
       }

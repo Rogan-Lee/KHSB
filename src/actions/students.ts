@@ -109,14 +109,18 @@ export async function deleteStudent(id: string) {
   redirect("/students");
 }
 
-// 퇴실 처리: 학생 데이터 전체 삭제 (좌석 반환)
+// 퇴실 처리: 소프트 삭제 (상태 변경 + 좌석 반납, 데이터는 보존)
 export async function checkoutStudent(id: string) {
   const session = await auth();
   if (!session?.user || session.user.role === "STUDENT")
     throw new Error("Unauthorized");
 
-  await prisma.student.delete({ where: { id } });
+  await prisma.student.update({
+    where: { id },
+    data: { status: "INACTIVE", seat: null },
+  });
   revalidatePath("/students");
+  revalidatePath("/seat-map");
 }
 
 // 좌석 이동 (빈 자리로)
