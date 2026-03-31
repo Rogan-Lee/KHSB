@@ -162,6 +162,8 @@ model Student {
   dailyPlans       DailyPlan[]
   studyPlanReports StudyPlanReport[]
   monthlyNotes     MonthlyNote[]
+  vocabEnrollment  VocabTestEnrollment?
+  vocabScores      VocabTestScore[]
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
 }
@@ -477,6 +479,39 @@ model ConsultationReport {
   recipientName    String?
   createdById      String
   createdAt        DateTime            @default(now())
+}
+
+enum VocabEnrollReason {
+  AUTO_GRADE3       // 고3 영어 3등급 이하 자동
+  PARENT_REQUEST    // 학부모 신청
+  MENTOR_ASSIGNED   // 멘토 지정
+  CUSTOM            // 기타
+}
+
+model VocabTestEnrollment {
+  id           String            @id @default(cuid())
+  studentId    String
+  student      Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  reason       VocabEnrollReason @default(CUSTOM)
+  isActive     Boolean           @default(true)
+  enrolledById String
+  enrolledAt   DateTime          @default(now())
+  unenrolledAt DateTime?
+
+  @@unique([studentId])
+}
+
+model VocabTestScore {
+  id           String   @id @default(cuid())
+  studentId    String
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  testDate     DateTime @db.Date
+  totalWords   Int
+  correctWords Int
+  score        Float    // 백분율 (correctWords / totalWords * 100)
+  notes        String?
+  createdById  String
+  createdAt    DateTime @default(now())
 }
 
 enum HandoverPriority {
