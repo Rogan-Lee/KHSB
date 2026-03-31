@@ -12,6 +12,8 @@ import { AssignmentPanel } from "@/components/assignments/assignment-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/utils";
 import { StudentInfoReveal } from "@/components/mentoring/student-info-reveal";
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
 const STATUS_MAP = {
   SCHEDULED: { label: "예정", variant: "secondary" as const },
@@ -81,6 +83,12 @@ export default async function MentoringDetailPage({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
+        <Link
+          href="/mentoring"
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Link>
         <h2 className="text-xl font-bold">멘토링 기록</h2>
         <Badge variant={STATUS_MAP[mentoring.status].variant}>
           {STATUS_MAP[mentoring.status].label}
