@@ -555,9 +555,11 @@ export function AttendanceTable({ students, today }: Props) {
               const commCount = student.communications.filter((c) => !c.isChecked).length;
               const assignCount = student.assignments.filter((a) => !a.isCompleted).length;
               const schoolGrade = [student.school, student.grade].filter(Boolean).join(" ");
-              const meritBalance = student.merits.reduce(
-                (sum, m) => sum + (m.type === "MERIT" ? m.points : -m.points), 0
-              );
+              // 이달 상벌점만 집계 (매월 1일 초기화)
+              const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
+              const meritBalance = student.merits
+                .filter((m) => new Date(m.date) >= monthStart)
+                .reduce((sum, m) => sum + (m.type === "MERIT" ? m.points : -m.points), 0);
               const attNotes = student.attendances[0]?.notes ?? "";
               const isExpanded = expandedTimelines.has(student.id);
               // 입실 임박: 아직 미입실 + 예정 입실 0~10분 이내
