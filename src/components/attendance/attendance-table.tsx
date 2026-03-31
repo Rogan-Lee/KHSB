@@ -612,7 +612,16 @@ export function AttendanceTable({ students, today }: Props) {
                   {/* 이름 + 배지 */}
                   <td className="px-3 py-3">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <p className="font-semibold text-sm truncate">{student.name}</p>
+                      {(() => {
+                        const checks = localCheckDates.get(student.id);
+                        const vocabDone = checks ? isDoneThisWeek("vocabTestDate", checks.vocabTestDate) : false;
+                        return (
+                          <p className={cn("font-semibold text-sm truncate", !vocabDone && "text-orange-600")} title={!vocabDone ? "단어시험 미응시" : undefined}>
+                            {student.name}
+                            {!vocabDone && <span className="ml-1 text-[10px]">📝</span>}
+                          </p>
+                        );
+                      })()}
                       <span className={cn("inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] whitespace-nowrap shrink-0", TYPE_BADGE[state])}>
                         {state === "OUTING" && <ArrowRightLeft className="h-2.5 w-2.5" />}
                         {getStateLabel(state)}
