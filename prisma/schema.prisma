@@ -300,6 +300,7 @@ model DirectorConsultation {
   notes         String?
   outcome       String?
   followUp      String?
+  reports       ConsultationReport[]
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 }
@@ -465,6 +466,17 @@ model StudyPlanReport {
   images      String[]
   createdById String
   createdAt   DateTime @default(now())
+}
+
+model ConsultationReport {
+  id               String              @id @default(cuid())
+  token            String              @unique @default(cuid())
+  consultationId   String
+  consultation     DirectorConsultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  content          String              // AI 생성 팔로업 메시지 본문
+  recipientName    String?
+  createdById      String
+  createdAt        DateTime            @default(now())
 }
 
 enum HandoverPriority {
