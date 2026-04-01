@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { AppSidebar } from "./app-sidebar";
 import { AppHeader } from "./app-header";
+import { getCurrentPlan } from "@/lib/features";
 import type { Role } from "@/generated/prisma";
 
 interface DashboardShellProps {
@@ -13,20 +14,21 @@ interface DashboardShellProps {
 }
 
 export function DashboardShell({ user, children }: DashboardShellProps) {
+  const plan = getCurrentPlan();
   const [open, setOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-background">
       {/* Desktop sidebar — 인쇄 시 숨김 (globals.css @media print) */}
       <div className="hidden md:block" data-print-hide>
-        <AppSidebar role={user.role} />
+        <AppSidebar role={user.role} plan={plan} />
       </div>
 
       {/* Mobile sidebar (Sheet) */}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="p-0 w-[240px] [&>button]:hidden">
           <VisuallyHidden><SheetTitle>내비게이션 메뉴</SheetTitle></VisuallyHidden>
-          <AppSidebar role={user.role} mobile onClose={() => setOpen(false)} />
+          <AppSidebar role={user.role} plan={plan} mobile onClose={() => setOpen(false)} />
         </SheetContent>
       </Sheet>
 
