@@ -207,7 +207,6 @@ async function fetchSheetData(sheetUrl: string, sheetName: string | null): Promi
 export async function getGoogleSheetsConfig(type: SheetType) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
-  requireFullAccess(session.user.role);
 
   return prisma.googleSheetsConfig.findUnique({ where: { id: type } });
 }
