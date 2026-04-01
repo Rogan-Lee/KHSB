@@ -5,6 +5,9 @@ import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 export async function getAssignments(studentId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   return prisma.assignment.findMany({
     where: { studentId },
     orderBy: { createdAt: "desc" },

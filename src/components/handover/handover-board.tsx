@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { deleteHandover, markHandoverRead, togglePin, toggleHandoverTask } from "@/actions/handover";
 import { HandoverForm } from "@/components/handover/handover-form";
+import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import Link from "next/link";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -77,6 +78,7 @@ function HandoverFeedCard({ h, currentUserId, onEdit, onDelete, onRead, onToggle
 }) {
   const [showReaders, setShowReaders] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [contentExpanded, setContentExpanded] = useState(false);
   const isRead = h.reads.some((r) => r.userId === currentUserId);
   const isAuthor = h.authorId === currentUserId;
   const isUrgent = h.priority === "URGENT";
@@ -128,7 +130,27 @@ function HandoverFeedCard({ h, currentUserId, onEdit, onDelete, onRead, onToggle
                 })}
               </div>
             )}
-            {h.content && <p className="text-sm leading-snug whitespace-pre-wrap break-words line-clamp-2">{h.content}</p>}
+            {h.content && (
+              <div>
+                {contentExpanded ? (
+                  <div className="text-sm">
+                    <MarkdownViewer source={h.content} />
+                    <button onClick={() => setContentExpanded(false)} className="text-[11px] text-primary hover:underline mt-1 flex items-center gap-0.5">
+                      <ChevronUp className="h-3 w-3" />접기
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => setContentExpanded(true)} className="w-full text-left">
+                    <p className="text-sm leading-snug whitespace-pre-wrap break-words line-clamp-2">{h.content}</p>
+                    {h.content.split("\n").length > 2 || h.content.length > 100 ? (
+                      <span className="text-[11px] text-primary hover:underline mt-0.5 flex items-center gap-0.5">
+                        <ChevronDown className="h-3 w-3" />전체 보기
+                      </span>
+                    ) : null}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           {/* Actions */}
           <div className="flex items-center gap-0.5 shrink-0">

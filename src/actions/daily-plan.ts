@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 export type PlanItem = {
@@ -12,6 +13,9 @@ export type PlanItem = {
 };
 
 export async function getDailyPlan(studentId: string, date: Date) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   const start = new Date(date);
   start.setHours(0, 0, 0, 0);
 
@@ -33,6 +37,9 @@ export async function upsertDailyPlan(
   items: PlanItem[],
   notes: string
 ) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   const start = new Date(date);
   start.setHours(0, 0, 0, 0);
 

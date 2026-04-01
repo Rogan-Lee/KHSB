@@ -7,26 +7,26 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 const studentSchema = z.object({
-  name: z.string().min(1, "이름을 입력하세요"),
-  phone: z.string().optional(),
-  parentPhone: z.string().min(1, "학부모 연락처를 입력하세요"),
-  parentEmail: z.string().optional(),
-  grade: z.string().min(1, "학년을 선택하세요"),
-  school: z.string().optional(),
-  classGroup: z.string().optional(),
-  seat: z.string().optional(),
+  name: z.string().min(1, "이름을 입력하세요").max(50),
+  phone: z.string().max(20).optional(),
+  parentPhone: z.string().min(1, "학부모 연락처를 입력하세요").max(20),
+  parentEmail: z.string().email("올바른 이메일 형식이 아닙니다").max(100).optional().or(z.literal("")),
+  grade: z.string().min(1, "학년을 선택하세요").max(10),
+  school: z.string().max(50).optional(),
+  classGroup: z.string().max(50).optional(),
+  seat: z.string().max(10).optional(),
   startDate: z.string().min(1, "등원일을 입력하세요"),
   endDate: z.string().optional(),
   mentorId: z.string().optional(),
-  internalScoreRange: z.string().optional(),
-  mockScoreRange: z.string().optional(),
-  targetUniversity: z.string().optional(),
-  mentoringNotes: z.string().optional(),
-  academySchedule: z.string().optional(),
-  studentInfo: z.string().optional(),
-  selectedSubjects: z.string().optional(),
-  admissionType: z.string().optional(),
-  onlineLectures: z.string().optional(),
+  internalScoreRange: z.string().max(50).optional(),
+  mockScoreRange: z.string().max(50).optional(),
+  targetUniversity: z.string().max(100).optional(),
+  mentoringNotes: z.string().max(2000).optional(),
+  academySchedule: z.string().max(1000).optional(),
+  studentInfo: z.string().max(2000).optional(),
+  selectedSubjects: z.string().max(500).optional(),
+  admissionType: z.string().max(100).optional(),
+  onlineLectures: z.string().max(1000).optional(),
 });
 
 export async function createStudent(formData: FormData) {
@@ -236,6 +236,9 @@ export async function patchStudentCheckDate(
 }
 
 export async function getStudents() {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   return prisma.student.findMany({
     include: { mentor: { select: { id: true, name: true } } },
     orderBy: [{ status: "asc" }, { name: "asc" }],
@@ -243,6 +246,9 @@ export async function getStudents() {
 }
 
 export async function getStudent(id: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   return prisma.student.findUnique({
     where: { id },
     include: {

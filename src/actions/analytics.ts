@@ -153,6 +153,9 @@ export async function getOverallAnalytics(): Promise<OverallAnalytics> {
 }
 
 export async function getStudentAnalytics(studentId: string): Promise<StudentAnalytics | null> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   const student = await prisma.student.findUnique({
     where: { id: studentId },
     include: {

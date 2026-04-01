@@ -16,6 +16,9 @@ export async function getCalendarEvents(params?: {
   startDate?: Date;
   endDate?: Date;
 }) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   const where: Record<string, unknown> = {};
 
   if (params?.studentId) {
@@ -135,6 +138,9 @@ export async function updateCalendarEvent(
 }
 
 export async function getStudentUpcomingEvents(studentId: string, school: string | null) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   const today = todayKST();
   const twoWeeksLater = new Date(today);
   twoWeeksLater.setDate(twoWeeksLater.getDate() + 14);
@@ -189,6 +195,9 @@ export async function getStudentCalendarEvents(params: {
   startDate: Date;
   endDate: Date;
 }) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   const { studentId, schoolName, startDate, endDate } = params;
 
   const [personalEvents, schoolEvents] = await Promise.all([

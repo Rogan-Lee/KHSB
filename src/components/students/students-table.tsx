@@ -465,6 +465,7 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
               <TableHead className="whitespace-nowrap">연락처</TableHead>
               <TableHead className="whitespace-nowrap">학부모 연락처</TableHead>
               <TableHead className="whitespace-nowrap">담당 멘토</TableHead>
+              <TableHead className="whitespace-nowrap">특이사항</TableHead>
               <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("startDate")}>
                 등원일<SortIcon col="startDate" sortKey={sortKey} sortDir={sortDir} />
               </TableHead>
@@ -481,7 +482,7 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
                 return (
                   <TableRow key={`empty-${row.seatNum}`} className="bg-muted/20">
                     <TableCell className="font-mono text-xs text-muted-foreground">{row.seatNum}</TableCell>
-                    <TableCell colSpan={8} className="text-xs text-muted-foreground/60 italic">
+                    <TableCell colSpan={9} className="text-xs text-muted-foreground/60 italic">
                       빈 자리
                     </TableCell>
                     <TableCell />
@@ -511,6 +512,13 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
                   <TableCell className="text-sm whitespace-nowrap">{student.phone || "-"}</TableCell>
                   <TableCell className="text-sm whitespace-nowrap">{student.parentPhone}</TableCell>
                   <TableCell className="text-sm whitespace-nowrap">{student.mentor?.name || "-"}</TableCell>
+                  <TableCell className="max-w-[200px]" title={student.studentInfo || undefined}>
+                    {student.studentInfo ? (
+                      <span className="text-xs text-muted-foreground line-clamp-1">{student.studentInfo}</span>
+                    ) : (
+                      <span className="text-muted-foreground/40 text-xs">-</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-sm whitespace-nowrap">{formatDate(student.startDate)}</TableCell>
                   <TableCell>
                     <Badge variant={STATUS_MAP[student.status].variant}>
