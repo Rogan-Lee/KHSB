@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { startOfMonth, endOfMonth } from "date-fns";
+import { requireStaff } from "@/lib/roles";
 
 export async function generateMonthlyReport(
   studentId: string,
@@ -12,6 +13,7 @@ export async function generateMonthlyReport(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   const start = startOfMonth(new Date(year, month - 1));
   const end = endOfMonth(new Date(year, month - 1));
@@ -88,6 +90,10 @@ export async function markReportSent(id: string) {
 }
 
 export async function getMonthlyReports(year: number, month: number) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
   return prisma.monthlyReport.findMany({
     where: { year, month },
     include: {
