@@ -4,10 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ConsultationStatus, ConsultationType, ConsultationCategory } from "@/generated/prisma";
+import { requireFullAccess } from "@/lib/roles";
 
 export async function createConsultation(formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
 
   const raw = Object.fromEntries(formData.entries());
   const studentId = (raw.studentId as string) || null;
@@ -23,8 +25,12 @@ export async function createConsultation(formData: FormData) {
       prospectName,
       prospectGrade: (raw.prospectGrade as string) || null,
       prospectPhone: (raw.prospectPhone as string) || null,
-      type: (raw.type as ConsultationType) || "STUDENT",
-      category: (raw.category as ConsultationCategory) || "ENROLLED",
+      type: Object.values(ConsultationType).includes(raw.type as ConsultationType)
+        ? (raw.type as ConsultationType)
+        : "STUDENT",
+      category: Object.values(ConsultationCategory).includes(raw.category as ConsultationCategory)
+        ? (raw.category as ConsultationCategory)
+        : "ENROLLED",
       scheduledAt: raw.scheduledAt ? new Date(raw.scheduledAt as string) : null,
       agenda: (raw.agenda as string) || null,
       status: "SCHEDULED",
@@ -37,6 +43,7 @@ export async function createConsultation(formData: FormData) {
 export async function updateConsultation(id: string, formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
 
   const raw = Object.fromEntries(formData.entries());
 
@@ -59,6 +66,10 @@ export async function updateConsultation(id: string, formData: FormData) {
 }
 
 export async function getConsultations() {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
+
   return prisma.directorConsultation.findMany({
     include: {
       student: { select: { id: true, name: true, grade: true } },

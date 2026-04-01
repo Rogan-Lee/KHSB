@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { MentoringStatus } from "@/generated/prisma";
 import { todayKST, nowKSTTimeString } from "@/lib/utils";
+import { requireOwnerOrFullAccess, requireStaff } from "@/lib/roles";
 
 const mentoringSchema = z.object({
   studentId: z.string(),
@@ -43,6 +44,11 @@ export async function createMentoring(formData: FormData) {
 export async function updateMentoring(id: string, formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+
+  // 소유권 검증: 본인의 멘토링이거나 DIRECTOR/ADMIN만 수정 가능
+  const existing = await prisma.mentoring.findUnique({ where: { id }, select: { mentorId: true } });
+  if (!existing) throw new Error("멘토링을 찾을 수 없습니다");
+  requireOwnerOrFullAccess(existing.mentorId, session.user.id, session.user.role);
 
   const raw = Object.fromEntries(formData.entries());
 
@@ -93,6 +99,9 @@ export async function getMentorings(mentorId?: string) {
 }
 
 export async function getMentoring(id: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   return prisma.mentoring.findUnique({
     where: { id },
     include: {
@@ -267,11 +276,17 @@ export async function saveMentorSchedule(dayOfWeek: number, timeStart: string, t
 }
 
 export async function deleteMentorSchedule(id: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   await prisma.mentorSchedule.delete({ where: { id } });
   revalidatePath("/mentoring/schedule");
 }
 
 export async function getMentorWeeklySchedules(mentorId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   return prisma.mentorSchedule.findMany({
     where: { mentorId },
     orderBy: { dayOfWeek: "asc" },
@@ -279,6 +294,9 @@ export async function getMentorWeeklySchedules(mentorId: string) {
 }
 
 export async function getAllMentorSchedulesToday(dayOfWeek: number) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   return prisma.mentorSchedule.findMany({
     where: { dayOfWeek },
     include: { mentor: { select: { id: true, name: true } } },
@@ -421,6 +439,10 @@ export async function deleteMentoring(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
+  const existing = await prisma.mentoring.findUnique({ where: { id }, select: { mentorId: true } });
+  if (!existing) throw new Error("멘토링을 찾을 수 없습니다");
+  requireOwnerOrFullAccess(existing.mentorId, session.user.id, session.user.role);
+
   await prisma.mentoring.delete({ where: { id } });
   revalidatePath("/mentoring");
 }
@@ -429,6 +451,9 @@ export async function bulkDeleteMentorings(ids: string[]) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
+  // DIRECTOR/ADMIN만 일괄 삭제 가능
+  requireStaff(session.user.role);
+
   await prisma.mentoring.deleteMany({ where: { id: { in: ids } } });
   revalidatePath("/mentoring");
 }
@@ -436,6 +461,10 @@ export async function bulkDeleteMentorings(ids: string[]) {
 export async function updateMentoringStatus(id: string, status: MentoringStatus) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+
+  const existing = await prisma.mentoring.findUnique({ where: { id }, select: { mentorId: true } });
+  if (!existing) throw new Error("멘토링을 찾을 수 없습니다");
+  requireOwnerOrFullAccess(existing.mentorId, session.user.id, session.user.role);
 
   await prisma.mentoring.update({ where: { id }, data: { status } });
   revalidatePath("/mentoring");

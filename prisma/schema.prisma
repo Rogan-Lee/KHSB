@@ -656,6 +656,55 @@ model MeetingMinutesRead {
   @@unique([meetingMinutesId, userId])
 }
 
+enum RequestStatus {
+  PENDING     // 대기
+  IN_PROGRESS // 진행중
+  DONE        // 완료
+  ON_HOLD     // 보류
+}
+
+enum RequestCategory {
+  BUG         // 버그
+  FEATURE     // 기능요청
+  IMPROVEMENT // 개선
+}
+
+enum RequestPriority {
+  URGENT // 긴급
+  NORMAL // 일반
+}
+
+model FeatureRequest {
+  id          String          @id @default(cuid())
+  title       String
+  description String?         // 마크다운
+  status      RequestStatus   @default(PENDING)
+  category    RequestCategory @default(FEATURE)
+  priority    RequestPriority @default(NORMAL)
+  relatedPage String?         // 관련 페이지 slug
+  requester   String?         // 요청자 (카톡으로 보낸 사람)
+  authorId    String
+  authorName  String
+  comments    FeatureRequestComment[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([status])
+}
+
+model FeatureRequestComment {
+  id               String         @id @default(cuid())
+  content          String
+  featureRequestId String
+  featureRequest   FeatureRequest @relation(fields: [featureRequestId], references: [id], onDelete: Cascade)
+  authorId         String
+  authorName       String
+  authorRole       String         // 역할 배지 표시용
+  createdAt        DateTime       @default(now())
+
+  @@index([featureRequestId])
+}
+
 // Google Sheets 연동 설정 (싱글톤, id="singleton")
 model GoogleSheetsConfig {
   id        String   @id @default("singleton")

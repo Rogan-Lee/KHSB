@@ -1,5 +1,6 @@
 "use server";
 
+import { auth } from "@/lib/auth";
 import { getGoogleCalendarClient, isGoogleCalendarConfigured } from "@/lib/google-calendar";
 import type { calendar_v3 } from "googleapis";
 
@@ -17,6 +18,9 @@ export async function fetchGoogleCalendarEvents(
   startDate: Date,
   endDate: Date
 ): Promise<GoogleCalendarEvent[]> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   if (!(await isGoogleCalendarConfigured())) return [];
 
   try {
@@ -95,6 +99,9 @@ export async function createGoogleCalendarEvent(data: {
   endDate?: string;
   allDay?: boolean;
 }): Promise<string | null> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   if (!(await isGoogleCalendarConfigured())) return null;
 
   try {
@@ -136,6 +143,9 @@ export async function updateGoogleCalendarEvent(
     allDay?: boolean;
   }
 ): Promise<void> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   if (!(await isGoogleCalendarConfigured())) return;
 
   try {
@@ -170,6 +180,9 @@ export async function updateGoogleCalendarEvent(
 
 // Google Calendar 이벤트 삭제
 export async function deleteGoogleCalendarEvent(googleEventId: string): Promise<void> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   if (!(await isGoogleCalendarConfigured())) return;
 
   try {

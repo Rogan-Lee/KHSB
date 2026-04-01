@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import {
   Plus,
   Trash2,
@@ -327,11 +327,10 @@ export function HandoverForm({ editingHandover, templates, monthlyNotes, staffLi
             <Pencil className="h-3.5 w-3.5" />
             당일 근무 내용
           </div>
-          <Textarea
+          <MarkdownEditor
             value={workContent}
-            onChange={(e) => setWorkContent(e.target.value)}
+            onChange={setWorkContent}
             placeholder="오늘 근무 중 주요 처리 사항, 학생 이슈 등을 자유롭게 작성하세요..."
-            className="resize-none text-sm leading-relaxed flex-1 min-h-[200px]"
           />
         </div>
 

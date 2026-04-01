@@ -85,6 +85,9 @@ export async function bulkDeleteMeritDemerits(ids: string[]) {
 }
 
 export async function getMeritDemerits(studentId?: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   return prisma.meritDemerit.findMany({
     where: studentId ? { studentId } : undefined,
     include: { student: { select: { id: true, name: true, grade: true } } },
@@ -108,6 +111,9 @@ export async function getMeritsByRange(from: string, to: string) {
 }
 
 export async function getStudentPointSummary() {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
   // 매월 1일 초기화: 현재 월의 상벌점만 집계
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);

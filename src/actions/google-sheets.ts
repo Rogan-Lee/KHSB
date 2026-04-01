@@ -1,6 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { requireFullAccess } from "@/lib/roles";
 import { getGoogleSheetsClient, isOAuthAppConfigured } from "@/lib/google-calendar";
 import { type CSVImportRow } from "./import";
 import { type ExamScoreCSVRow } from "./exam-scores";
@@ -203,10 +205,18 @@ async function fetchSheetData(sheetUrl: string, sheetName: string | null): Promi
 // ─── Server Actions ───────────────────────────────────────────────────────────
 
 export async function getGoogleSheetsConfig(type: SheetType) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
+
   return prisma.googleSheetsConfig.findUnique({ where: { id: type } });
 }
 
 export async function saveGoogleSheetsConfig(type: SheetType, url: string, sheetName?: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
+
   if (!extractSpreadsheetId(url)) throw new Error("유효한 Google Sheets URL이 아닙니다");
   await prisma.googleSheetsConfig.upsert({
     where: { id: type },
@@ -216,6 +226,10 @@ export async function saveGoogleSheetsConfig(type: SheetType, url: string, sheet
 }
 
 export async function clearGoogleSheetsConfig(type: SheetType) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
+
   await prisma.googleSheetsConfig.deleteMany({ where: { id: type } });
 }
 
@@ -238,6 +252,10 @@ function handleSheetError(err: unknown): SheetError {
 }
 
 export async function readStudentsFromSheet(): Promise<ReadStudentsResult> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
+
   if (!isOAuthAppConfigured()) return { ok: false, error: "Google OAuth가 설정되지 않았습니다" };
   const config = await prisma.googleSheetsConfig.findUnique({ where: { id: "students" } });
   if (!config) return { ok: false, error: "연동된 원생관리 시트가 없습니다" };
@@ -251,6 +269,10 @@ export async function readStudentsFromSheet(): Promise<ReadStudentsResult> {
 }
 
 export async function readScoresFromSheet(): Promise<ReadScoresResult> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
+
   if (!isOAuthAppConfigured()) return { ok: false, error: "Google OAuth가 설정되지 않았습니다" };
   const config = await prisma.googleSheetsConfig.findUnique({ where: { id: "scores" } });
   if (!config) return { ok: false, error: "연동된 성적 시트가 없습니다" };

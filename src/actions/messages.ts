@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { MessageType } from "@/generated/prisma";
+import { requireStaff } from "@/lib/roles";
 
 interface SendMessageParams {
   studentId: string;
@@ -16,6 +17,7 @@ interface SendMessageParams {
 export async function sendMessage(params: SendMessageParams) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   // 카카오 알림톡 API 연동 (추후 구현)
   // const result = await sendKakaoAlimtalk(params);
@@ -42,6 +44,7 @@ export async function sendBulkMessages(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   const students = await prisma.student.findMany({
     where: { id: { in: studentIds } },
@@ -64,6 +67,10 @@ export async function sendBulkMessages(
 }
 
 export async function getMessageLogs(studentId?: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
   return prisma.messageLog.findMany({
     where: studentId ? { studentId } : undefined,
     include: {

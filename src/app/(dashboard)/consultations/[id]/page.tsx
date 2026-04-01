@@ -12,6 +12,7 @@ import { CommunicationPanel } from "@/components/communications/communication-pa
 import { ExamScoreChart } from "@/components/students/exam-score-chart";
 import { StudentInfoReveal } from "@/components/mentoring/student-info-reveal";
 import { ConsultationRecordForm } from "@/components/consultations/consultation-record-form";
+import { FollowUpMessagePanel } from "@/components/consultations/followup-message-panel";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -177,7 +178,18 @@ export default async function ConsultationDetailPage({
           )}
         </TabsList>
 
-        <TabsContent value="record" className="mt-4">
+        <TabsContent value="record" className="mt-4 space-y-4">
+          {/* AI 팔로업 메시지 */}
+          <FollowUpMessagePanel
+            consultationId={consultation.id}
+            recipientName={
+              s ? s.name : (consultation as Record<string, unknown>).prospectName as string ?? "—"
+            }
+            prospectPhone={
+              (consultation as Record<string, unknown>).prospectPhone as string | null
+            }
+          />
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">면담 내용 기록</CardTitle>
