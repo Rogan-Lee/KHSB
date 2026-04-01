@@ -153,9 +153,7 @@ export async function getOverallAnalytics(): Promise<OverallAnalytics> {
 }
 
 export async function getStudentAnalytics(studentId: string): Promise<StudentAnalytics | null> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-
+  // 공개 페이지(/r/[token])에서도 호출되므로 auth 체크 생략
   const student = await prisma.student.findUnique({
     where: { id: studentId },
     include: {
