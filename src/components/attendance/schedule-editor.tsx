@@ -32,7 +32,8 @@ type OutingEntry = { outStart: string; outEnd: string; reason: string };
 
 type DayRow = {
   enabled: boolean;
-  flexible: boolean;
+  flexStart: boolean;
+  flexEnd: boolean;
   startTime: string;
   endTime: string;
   outings: OutingEntry[];
@@ -42,15 +43,15 @@ function initRows(schedules: AttendanceSchedule[], outings: OutingSchedule[]): R
   const map: Record<number, DayRow> = {};
   for (const d of DAYS) {
     const sch = schedules.find((s) => s.dayOfWeek === d.value);
-    const isFlexible = sch?.startTime === "FLEXIBLE";
     const dayOutings = outings
       .filter((o) => o.dayOfWeek === d.value)
       .map((o) => ({ outStart: o.outStart, outEnd: o.outEnd, reason: o.reason ?? "" }));
     map[d.value] = {
       enabled: !!sch,
-      flexible: isFlexible,
-      startTime: isFlexible ? "09:00" : (sch?.startTime ?? "09:00"),
-      endTime: isFlexible ? "22:00" : (sch?.endTime ?? "22:00"),
+      flexStart: sch?.startTime === "FLEXIBLE",
+      flexEnd: sch?.endTime === "FLEXIBLE",
+      startTime: sch?.startTime === "FLEXIBLE" ? "09:00" : (sch?.startTime ?? "09:00"),
+      endTime: sch?.endTime === "FLEXIBLE" ? "22:00" : (sch?.endTime ?? "22:00"),
       outings: dayOutings,
     };
   }
@@ -104,12 +105,12 @@ export function ScheduleEditor({ students }: Props) {
     });
   }
 
-  function toggleFlexible(studentId: string, day: number, checked: boolean) {
+  function toggleFlex(studentId: string, day: number, field: "flexStart" | "flexEnd", checked: boolean) {
     setRowMap((prev) => ({
       ...prev,
       [studentId]: {
         ...prev[studentId],
-        [day]: { ...prev[studentId][day], flexible: checked },
+        [day]: { ...prev[studentId][day], [field]: checked },
       },
     }));
   }
@@ -118,8 +119,8 @@ export function ScheduleEditor({ students }: Props) {
     const rows = rowMap[studentId];
     const schedules = DAYS.filter((d) => rows[d.value].enabled).map((d) => ({
       dayOfWeek: d.value,
-      startTime: rows[d.value].flexible ? "FLEXIBLE" : rows[d.value].startTime,
-      endTime: rows[d.value].flexible ? "FLEXIBLE" : rows[d.value].endTime,
+      startTime: rows[d.value].flexStart ? "FLEXIBLE" : rows[d.value].startTime,
+      endTime: rows[d.value].flexEnd ? "FLEXIBLE" : rows[d.value].endTime,
     }));
     const outings = DAYS.flatMap((d) =>
       rows[d.value].enabled
@@ -159,10 +160,12 @@ export function ScheduleEditor({ students }: Props) {
                 <span className="text-xs text-muted-foreground shrink-0">{student.grade}</span>
                 <div className="flex gap-1 flex-wrap">
                   {enabledDays.map((d) => {
-                    const isFlexible = rows[d.value].flexible;
+                    const fs = rows[d.value].flexStart;
+                    const fe = rows[d.value].flexEnd;
+                    const tag = fs && fe ? "(자율)" : fs ? "(입실 자율)" : fe ? "(퇴실 자율)" : "";
                     return (
-                      <Badge key={d.value} variant="secondary" className={`text-xs ${isFlexible ? "bg-violet-100 text-violet-700" : ""}`}>
-                        {d.label}{isFlexible ? "(자율)" : ""}
+                      <Badge key={d.value} variant="secondary" className={`text-xs ${tag ? "bg-violet-100 text-violet-700" : ""}`}>
+                        {d.label}{tag}
                       </Badge>
                     );
                   })}
@@ -204,43 +207,36 @@ export function ScheduleEditor({ students }: Props) {
                               />
                             </td>
                             <td className="px-3 py-2.5 font-medium whitespace-nowrap">
-                              <div className="flex items-center gap-2">
-                                <span className={row.enabled ? "" : "text-muted-foreground"}>{d.label}요일</span>
-                                {row.enabled && (
-                                  <label className="flex items-center gap-1 cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      checked={row.flexible}
-                                      onChange={(e) => toggleFlexible(student.id, d.value, e.target.checked)}
-                                      className="w-3 h-3 accent-violet-500"
-                                    />
-                                    <span className="text-[10px] text-violet-600">자율</span>
-                                  </label>
-                                )}
-                              </div>
+                              <span className={row.enabled ? "" : "text-muted-foreground"}>{d.label}요일</span>
                             </td>
                             <td className="px-3 py-2.5">
-                              {row.flexible ? (
-                                <span className="text-xs text-violet-600 font-medium">자율</span>
+                              {row.enabled && (
+                                <label className="flex items-center gap-1 cursor-pointer mb-1">
+                                  <input type="checkbox" checked={row.flexStart}
+                                    onChange={(e) => toggleFlex(student.id, d.value, "flexStart", e.target.checked)}
+                                    className="w-3 h-3 accent-violet-500" />
+                                  <span className="text-[10px] text-violet-600">자율</span>
+                                </label>
+                              )}
+                              {row.flexStart ? (
+                                <span className="text-xs text-violet-600 font-medium">자율(미정)</span>
                               ) : (
-                                <TimePickerInput
-                                  value={row.startTime}
-                                  onChange={(v) => updateDay(student.id, d.value, "startTime", v)}
-                                  disabled={!row.enabled}
-                                  size="sm"
-                                />
+                                <TimePickerInput value={row.startTime} onChange={(v) => updateDay(student.id, d.value, "startTime", v)} disabled={!row.enabled} size="sm" />
                               )}
                             </td>
                             <td className="px-3 py-2.5">
-                              {row.flexible ? (
-                                <span className="text-xs text-violet-600 font-medium">자율</span>
+                              {row.enabled && (
+                                <label className="flex items-center gap-1 cursor-pointer mb-1">
+                                  <input type="checkbox" checked={row.flexEnd}
+                                    onChange={(e) => toggleFlex(student.id, d.value, "flexEnd", e.target.checked)}
+                                    className="w-3 h-3 accent-violet-500" />
+                                  <span className="text-[10px] text-violet-600">자율</span>
+                                </label>
+                              )}
+                              {row.flexEnd ? (
+                                <span className="text-xs text-violet-600 font-medium">자율(미정)</span>
                               ) : (
-                                <TimePickerInput
-                                  value={row.endTime}
-                                  onChange={(v) => updateDay(student.id, d.value, "endTime", v)}
-                                  disabled={!row.enabled}
-                                  size="sm"
-                                />
+                                <TimePickerInput value={row.endTime} onChange={(v) => updateDay(student.id, d.value, "endTime", v)} disabled={!row.enabled} size="sm" />
                               )}
                             </td>
                             <td className="px-3 py-2 space-y-1.5">
