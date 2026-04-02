@@ -9,9 +9,11 @@ import { createStudyPlanReport } from "@/actions/study-plan-reports";
 import { toast } from "sonner";
 import { cn, MERIT_CATEGORIES } from "@/lib/utils";
 import type { Assignment, AttendanceRecord, AttendanceSchedule, AttendanceType, Communication, DailyOuting, OutingSchedule, Student } from "@/generated/prisma";
-import { ArrowRightLeft, Check, ChevronDown, ChevronUp, ClipboardList, LogIn, LogOut, MessageSquare, PanelRightOpen, Plus, Save, Search, Star, StickyNote, Trash2, X } from "lucide-react";
+import { ArrowRightLeft, Check, ChevronDown, ChevronUp, ClipboardList, LogIn, LogOut, MessageSquare, PanelRightOpen, Pin, Plus, Save, Search, Star, StickyNote, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { TimePickerInput } from "@/components/ui/time-picker";
 import { CommunicationPanel } from "@/components/communications/communication-panel";
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
@@ -140,6 +142,8 @@ export function AttendanceTable({ students, today }: Props) {
   }
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<PanelTab>("attendance");
+  const [infoModalId, setInfoModalId] = useState<string | null>(null);
+  const [infoModalText, setInfoModalText] = useState("");
   const [editValues, setEditValues] = useState({
     checkIn: "", checkOut: "",
     type: "NORMAL" as AttendanceType, notes: "",
@@ -284,15 +288,15 @@ export function AttendanceTable({ students, today }: Props) {
     const hasCheckIn = !!checkInTime;
 
     // 자율입퇴실 여부
-    const isFlexible = s.schedules.length > 0 && s.schedules[0].startTime === "FLEXIBLE";
+    const isFlexStart = s.schedules.length > 0 && s.schedules[0].startTime === "FLEXIBLE";
 
-    // 입실 기록이 없으면 결석 (자율은 미기록)
+    // 입실 기록이 없으면 결석 (입실 자율은 미기록)
     if (!hasCheckIn) {
       if (!s.schedules.length) return "NO_SCHEDULE";
       const type = lt?.type ?? (att?.type as string | undefined);
       // 명시적으로 결석/공결로 설정된 경우는 그대로
       if (type === "ABSENT" || type === "APPROVED_ABSENT") return type;
-      if (isFlexible) return "FLEXIBLE";
+      if (isFlexStart) return "FLEXIBLE";
       return "ABSENT";
     }
 
@@ -561,6 +565,7 @@ export function AttendanceTable({ students, today }: Props) {
               <th className="px-3 py-2.5 text-left w-36">입퇴실 메모</th>
               <th className="px-3 py-2.5 text-left w-36">추후 변동 예정</th>
               <th className="px-3 py-2.5 text-left w-36">학원일정</th>
+              <th className="px-3 py-2.5 text-left w-36">특이사항</th>
             </tr>
           </thead>
           <tbody>
@@ -674,22 +679,41 @@ export function AttendanceTable({ students, today }: Props) {
                   {/* 플래너 전송 */}
                   <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                     {plannerDone ? (
-                      <button
-                        onClick={() => saveCheckDate(student.id, "plannerSentDate", null)}
-                        disabled={plannerPending}
-                        title="클릭하여 취소"
-                        className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-40"
-                      >
-                        <Check className="h-3 w-3" />{fmtCheckDate(plannerDate!)}
-                      </button>
+                      <div className="inline-flex items-center gap-1">
+                        <input
+                          type="date"
+                          value={plannerDate ?? ""}
+                          onChange={(e) => saveCheckDate(student.id, "plannerSentDate", e.target.value || null)}
+                          disabled={plannerPending}
+                          className="text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5 w-[115px] focus:outline-none focus:ring-1 focus:ring-green-400 disabled:opacity-40"
+                        />
+                        <button
+                          onClick={() => saveCheckDate(student.id, "plannerSentDate", null)}
+                          disabled={plannerPending}
+                          title="취소"
+                          className="p-0.5 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-40"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
                     ) : (
-                      <button
-                        onClick={() => saveCheckDate(student.id, "plannerSentDate", new Date().toISOString().split("T")[0])}
-                        disabled={plannerPending}
-                        className="px-2 py-0.5 text-[10px] rounded border border-border bg-background hover:bg-accent text-muted-foreground font-medium transition-colors disabled:opacity-40"
-                      >
-                        {plannerPending ? "..." : "확인"}
-                      </button>
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          onClick={() => saveCheckDate(student.id, "plannerSentDate", new Date().toISOString().split("T")[0])}
+                          disabled={plannerPending}
+                          className="px-2 py-0.5 text-[10px] rounded border border-border bg-background hover:bg-accent text-muted-foreground font-medium transition-colors disabled:opacity-40"
+                        >
+                          {plannerPending ? "..." : "오늘"}
+                        </button>
+                        <input
+                          type="date"
+                          value=""
+                          onChange={(e) => { if (e.target.value) saveCheckDate(student.id, "plannerSentDate", e.target.value); }}
+                          disabled={plannerPending}
+                          className="text-xs text-muted-foreground bg-background border border-border rounded px-1 py-0.5 w-7 focus:outline-none disabled:opacity-40 cursor-pointer"
+                          title="날짜 직접 선택"
+                        />
+                      </div>
                     )}
                   </td>
 
@@ -941,12 +965,27 @@ export function AttendanceTable({ students, today }: Props) {
                     )}
                   </td>
 
+                  {/* 특이사항 */}
+                  <td
+                    className="px-3 py-3 cursor-pointer"
+                    onClick={(e) => { e.stopPropagation(); setInfoModalId(student.id); setInfoModalText(student.studentInfo ?? ""); }}
+                  >
+                    {student.studentInfo ? (
+                      <div className="flex items-center gap-1">
+                        <Pin className="h-3 w-3 text-violet-500 shrink-0" />
+                        <span className="text-xs text-foreground truncate block max-w-[130px]">{student.studentInfo}</span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </td>
+
                 </tr>
 
                 {/* 타임라인 + 인라인 편집 확장 행 */}
                 {isExpanded && (
                   <tr className={cn("border-b", isSelected ? "bg-blue-50/60" : "bg-muted/20")}>
-                    <td colSpan={16} className="px-4 py-4">
+                    <td colSpan={17} className="px-4 py-4">
                       {(() => {
                         const focus = expandFocus.get(student.id);
                         const focusLabel: Record<EditFocus, string> = {
@@ -1075,6 +1114,54 @@ export function AttendanceTable({ students, today }: Props) {
           {tooltip.text}
         </div>
       )}
+
+      {/* 특이사항 모달 */}
+      <Dialog
+        open={!!infoModalId}
+        onOpenChange={(open) => { if (!open) setInfoModalId(null); }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pin className="h-4 w-4 text-violet-500" />
+              {students.find((s) => s.id === infoModalId)?.name} 특이사항
+            </DialogTitle>
+          </DialogHeader>
+          <Textarea
+            value={infoModalText}
+            onChange={(e) => setInfoModalText(e.target.value)}
+            placeholder="학생 특이사항, 성향, 주의사항 등..."
+            rows={6}
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setInfoModalId(null)}
+            >
+              닫기
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                if (!infoModalId) return;
+                startTransition(async () => {
+                  try {
+                    await patchStudentTextFields(infoModalId, { studentInfo: infoModalText });
+                    toast.success("특이사항이 저장되었습니다");
+                    setInfoModalId(null);
+                  } catch {
+                    toast.error("저장 실패");
+                  }
+                });
+              }}
+              disabled={isPending}
+            >
+              {isPending ? "저장 중..." : "저장"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 오버레이 패널 */}
       <div
