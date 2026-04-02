@@ -59,6 +59,7 @@ type Props = {
   mentorings: Mentoring[];
   mentors: Mentor[];
   isDirector: boolean;
+  currentUserId?: string;
 };
 
 function toLocalDateString(date: Date) {
@@ -215,13 +216,15 @@ function saveFilters(f: FilterState) {
   try { sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(f)); } catch { /* ignore */ }
 }
 
-export function MentoringList({ mentorings, mentors, isDirector }: Props) {
+export function MentoringList({ mentorings, mentors, isDirector, currentUserId }: Props) {
   const today = getToday();
 
-  // sessionStorage에서 필터 복원
+  // sessionStorage에서 필터 복원, 없으면 현재 로그인 사용자로 기본 필터
   const saved = typeof window !== "undefined" ? loadFilters() : {};
+  const hasSavedMentor = typeof window !== "undefined" && sessionStorage.getItem(FILTER_STORAGE_KEY) !== null;
+  const defaultMentor = hasSavedMentor ? (saved.mentor ?? "all") : (currentUserId || "all");
 
-  const [selectedMentorId, setSelectedMentorId] = useState<string>(saved.mentor ?? "all");
+  const [selectedMentorId, setSelectedMentorId] = useState<string>(defaultMentor);
   const [dateFrom, setDateFrom] = useState<string>(saved.from ?? "");
   const [dateTo, setDateTo] = useState<string>(saved.to ?? "");
   const [query, setQuery] = useState(saved.q ?? "");
