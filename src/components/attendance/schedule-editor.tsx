@@ -32,6 +32,7 @@ type OutingEntry = { outStart: string; outEnd: string; reason: string };
 
 type DayRow = {
   enabled: boolean;
+  flexible: boolean;
   startTime: string;
   endTime: string;
   outings: OutingEntry[];
@@ -41,13 +42,15 @@ function initRows(schedules: AttendanceSchedule[], outings: OutingSchedule[]): R
   const map: Record<number, DayRow> = {};
   for (const d of DAYS) {
     const sch = schedules.find((s) => s.dayOfWeek === d.value);
+    const isFlexible = sch?.startTime === "FLEXIBLE";
     const dayOutings = outings
       .filter((o) => o.dayOfWeek === d.value)
       .map((o) => ({ outStart: o.outStart, outEnd: o.outEnd, reason: o.reason ?? "" }));
     map[d.value] = {
       enabled: !!sch,
-      startTime: sch?.startTime ?? "09:00",
-      endTime: sch?.endTime ?? "22:00",
+      flexible: isFlexible,
+      startTime: isFlexible ? "09:00" : (sch?.startTime ?? "09:00"),
+      endTime: isFlexible ? "22:00" : (sch?.endTime ?? "22:00"),
       outings: dayOutings,
     };
   }
@@ -101,12 +104,22 @@ export function ScheduleEditor({ students }: Props) {
     });
   }
 
+  function toggleFlexible(studentId: string, day: number, checked: boolean) {
+    setRowMap((prev) => ({
+      ...prev,
+      [studentId]: {
+        ...prev[studentId],
+        [day]: { ...prev[studentId][day], flexible: checked },
+      },
+    }));
+  }
+
   function save(studentId: string) {
     const rows = rowMap[studentId];
     const schedules = DAYS.filter((d) => rows[d.value].enabled).map((d) => ({
       dayOfWeek: d.value,
-      startTime: rows[d.value].startTime,
-      endTime: rows[d.value].endTime,
+      startTime: rows[d.value].flexible ? "FLEXIBLE" : rows[d.value].startTime,
+      endTime: rows[d.value].flexible ? "FLEXIBLE" : rows[d.value].endTime,
     }));
     const outings = DAYS.flatMap((d) =>
       rows[d.value].enabled
@@ -145,9 +158,14 @@ export function ScheduleEditor({ students }: Props) {
                 <span className="font-medium text-sm shrink-0">{student.name}</span>
                 <span className="text-xs text-muted-foreground shrink-0">{student.grade}</span>
                 <div className="flex gap-1 flex-wrap">
-                  {enabledDays.map((d) => (
-                    <Badge key={d.value} variant="secondary" className="text-xs">{d.label}</Badge>
-                  ))}
+                  {enabledDays.map((d) => {
+                    const isFlexible = rows[d.value].flexible;
+                    return (
+                      <Badge key={d.value} variant="secondary" className={`text-xs ${isFlexible ? "bg-violet-100 text-violet-700" : ""}`}>
+                        {d.label}{isFlexible ? "(자율)" : ""}
+                      </Badge>
+                    );
+                  })}
                   {enabledDays.length === 0 && <span className="text-xs text-muted-foreground">일정 없음</span>}
                 </div>
                 {outingCount > 0 && (
@@ -186,23 +204,44 @@ export function ScheduleEditor({ students }: Props) {
                               />
                             </td>
                             <td className="px-3 py-2.5 font-medium whitespace-nowrap">
-                              <span className={row.enabled ? "" : "text-muted-foreground"}>{d.label}요일</span>
+                              <div className="flex items-center gap-2">
+                                <span className={row.enabled ? "" : "text-muted-foreground"}>{d.label}요일</span>
+                                {row.enabled && (
+                                  <label className="flex items-center gap-1 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={row.flexible}
+                                      onChange={(e) => toggleFlexible(student.id, d.value, e.target.checked)}
+                                      className="w-3 h-3 accent-violet-500"
+                                    />
+                                    <span className="text-[10px] text-violet-600">자율</span>
+                                  </label>
+                                )}
+                              </div>
                             </td>
                             <td className="px-3 py-2.5">
-                              <TimePickerInput
-                                value={row.startTime}
-                                onChange={(v) => updateDay(student.id, d.value, "startTime", v)}
-                                disabled={!row.enabled}
-                                size="sm"
-                              />
+                              {row.flexible ? (
+                                <span className="text-xs text-violet-600 font-medium">자율</span>
+                              ) : (
+                                <TimePickerInput
+                                  value={row.startTime}
+                                  onChange={(v) => updateDay(student.id, d.value, "startTime", v)}
+                                  disabled={!row.enabled}
+                                  size="sm"
+                                />
+                              )}
                             </td>
                             <td className="px-3 py-2.5">
-                              <TimePickerInput
-                                value={row.endTime}
-                                onChange={(v) => updateDay(student.id, d.value, "endTime", v)}
-                                disabled={!row.enabled}
-                                size="sm"
-                              />
+                              {row.flexible ? (
+                                <span className="text-xs text-violet-600 font-medium">자율</span>
+                              ) : (
+                                <TimePickerInput
+                                  value={row.endTime}
+                                  onChange={(v) => updateDay(student.id, d.value, "endTime", v)}
+                                  disabled={!row.enabled}
+                                  size="sm"
+                                />
+                              )}
                             </td>
                             <td className="px-3 py-2 space-y-1.5">
                               {row.outings.map((o, idx) => (

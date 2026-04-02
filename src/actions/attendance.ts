@@ -99,24 +99,57 @@ export async function saveAttendanceRecord(data: {
     return new Date(`${dateStr}T${timeStr}:00+09:00`);
   }
 
+  let targetDate = data.date;
+
+  // 자정 이후 퇴실 처리: 오늘 checkIn이 없고, 퇴실만 입력 중이면
+  // 어제 레코드에 퇴실을 기록
+  if (data.checkOut && !data.checkIn) {
+    const today = new Date(data.date);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const yesterdayRecord = await prisma.attendanceRecord.findUnique({
+      where: {
+        studentId_date: { studentId: data.studentId, date: yesterday },
+      },
+      select: { checkIn: true, checkOut: true },
+    });
+
+    // 어제 입실은 있고 퇴실이 없으면 → 어제 레코드에 퇴실 기록
+    if (yesterdayRecord?.checkIn && !yesterdayRecord.checkOut) {
+      const yesterdayStr = yesterday.toISOString().split("T")[0];
+      await prisma.attendanceRecord.update({
+        where: {
+          studentId_date: { studentId: data.studentId, date: yesterday },
+        },
+        data: {
+          checkOut: toDateTime(yesterdayStr, data.checkOut),
+        },
+      });
+      revalidatePath("/attendance");
+      revalidatePath(`/students/${data.studentId}`);
+      return;
+    }
+  }
+
   await prisma.attendanceRecord.upsert({
     where: {
       studentId_date: {
         studentId: data.studentId,
-        date: new Date(data.date),
+        date: new Date(targetDate),
       },
     },
     create: {
       studentId: data.studentId,
-      date: new Date(data.date),
-      checkIn: toDateTime(data.date, data.checkIn),
-      checkOut: toDateTime(data.date, data.checkOut),
+      date: new Date(targetDate),
+      checkIn: toDateTime(targetDate, data.checkIn),
+      checkOut: toDateTime(targetDate, data.checkOut),
       type: data.type,
       notes: data.notes || null,
     },
     update: {
-      checkIn: toDateTime(data.date, data.checkIn),
-      checkOut: toDateTime(data.date, data.checkOut),
+      checkIn: toDateTime(targetDate, data.checkIn),
+      checkOut: toDateTime(targetDate, data.checkOut),
       type: data.type,
       notes: data.notes || null,
     },

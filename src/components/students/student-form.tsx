@@ -18,10 +18,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { ChevronDown } from "lucide-react";
 import type { Student, User } from "@/generated/prisma";
 
+const TOTAL_SEATS = 89;
+
 interface StudentFormProps {
   student?: Student;
   mentors: Pick<User, "id" | "name">[];
   schools?: string[];
+  occupiedSeats?: string[];
 }
 
 function SchoolCombobox({ name, defaultValue, options }: { name: string; defaultValue?: string; options: string[] }) {
@@ -67,7 +70,7 @@ function SchoolCombobox({ name, defaultValue, options }: { name: string; default
   );
 }
 
-export function StudentForm({ student, mentors, schools = [] }: StudentFormProps) {
+export function StudentForm({ student, mentors, schools = [], occupiedSeats = [] }: StudentFormProps) {
   const [isPending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -157,7 +160,22 @@ export function StudentForm({ student, mentors, schools = [] }: StudentFormProps
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="seat">좌석번호</Label>
-          <Input id="seat" name="seat" defaultValue={student?.seat || ""} placeholder="A-01" />
+          <Select name="seat" defaultValue={student?.seat || "none"}>
+            <SelectTrigger>
+              <SelectValue placeholder="좌석 선택" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">미배정</SelectItem>
+              {Array.from({ length: TOTAL_SEATS }, (_, i) => String(i + 1)).map((num) => {
+                const isOccupied = occupiedSeats.includes(num);
+                return (
+                  <SelectItem key={num} value={num} disabled={isOccupied}>
+                    {num}번{isOccupied ? " (사용중)" : ""}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
         </div>
         <div />
       </div>
