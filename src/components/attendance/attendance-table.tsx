@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { saveAttendanceRecord, createDailyOuting, updateDailyOuting, deleteDailyOuting } from "@/actions/attendance";
 import { patchStudentTextFields, patchStudentCheckDate } from "@/actions/students";
 import { createMeritDemerit } from "@/actions/merit-demerit";
@@ -43,6 +44,7 @@ const TYPE_BADGE: Record<string, string> = {
   APPROVED_ABSENT: "bg-gray-100 text-gray-600 border-gray-200",
   UNRECORDED: "bg-yellow-100 text-yellow-800 border-yellow-200",
   NO_SCHEDULE: "bg-gray-50 text-gray-400 border-gray-100",
+  FLEXIBLE: "bg-violet-50 text-violet-600 border-violet-200",
   OUTING: "bg-orange-100 text-orange-700 border-orange-200",
 };
 
@@ -104,6 +106,21 @@ interface Props {
 export function AttendanceTable({ students, today }: Props) {
   const todayDate = new Date(today).toISOString().split("T")[0];
   const scrollRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  // 자정 넘김 감지: 서버에서 받은 날짜와 현재 KST 날짜가 다르면 자동 새로고침
+  useEffect(() => {
+    const check = () => {
+      const now = new Date();
+      const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+      const kstDate = kst.toISOString().split("T")[0];
+      if (kstDate !== todayDate) {
+        router.refresh();
+      }
+    };
+    const timer = setInterval(check, 60_000); // 1분마다 체크
+    return () => clearInterval(timer);
+  }, [todayDate, router]);
 
   // Shift+휠로 가로 스크롤
   useEffect(() => {
@@ -266,12 +283,16 @@ export function AttendanceTable({ students, today }: Props) {
     const checkInTime = lt?.checkIn ?? toTimeString(att?.checkIn);
     const hasCheckIn = !!checkInTime;
 
-    // 입실 기록이 없으면 결석
+    // 자율입퇴실 여부
+    const isFlexible = s.schedules.length > 0 && s.schedules[0].startTime === "FLEXIBLE";
+
+    // 입실 기록이 없으면 결석 (자율은 미기록)
     if (!hasCheckIn) {
       if (!s.schedules.length) return "NO_SCHEDULE";
       const type = lt?.type ?? (att?.type as string | undefined);
       // 명시적으로 결석/공결로 설정된 경우는 그대로
       if (type === "ABSENT" || type === "APPROVED_ABSENT") return type;
+      if (isFlexible) return "FLEXIBLE";
       return "ABSENT";
     }
 
@@ -288,6 +309,7 @@ export function AttendanceTable({ students, today }: Props) {
   function getStateLabel(state: string) {
     if (state === "OUTING") return "외출 중";
     if (state === "NO_SCHEDULE") return "비등원일";
+    if (state === "FLEXIBLE") return "자율(미정)";
     if (state === "UNRECORDED") return "미기록";
     return TYPE_OPTIONS.find((o) => o.value === state)?.label ?? state;
   }
@@ -338,10 +360,10 @@ export function AttendanceTable({ students, today }: Props) {
     if (!isFixed) {
       if (field === "checkIn") {
         const schedIn = student.schedules[0]?.startTime;
-        newType = (schedIn && toMinutes(time) >= toMinutes(schedIn) + 5) ? "TARDY" : "NORMAL";
+        newType = (schedIn && schedIn !== "FLEXIBLE" && toMinutes(time) >= toMinutes(schedIn) + 5) ? "TARDY" : "NORMAL";
       } else if (field === "checkOut") {
         const schedOut = student.schedules[0]?.endTime;
-        if (schedOut && toMinutes(time) < toMinutes(schedOut)) {
+        if (schedOut && schedOut !== "FLEXIBLE" && toMinutes(time) < toMinutes(schedOut)) {
           newType = "EARLY_LEAVE";
         }
       }
@@ -564,7 +586,7 @@ export function AttendanceTable({ students, today }: Props) {
               const attNotes = student.attendances[0]?.notes ?? "";
               const isExpanded = expandedTimelines.has(student.id);
               // 입실 임박: 아직 미입실 + 예정 입실 0~10분 이내
-              const schedInDiff = schedIn ? toMinutes(schedIn) - nowMinutes : null;
+              const schedInDiff = schedIn && schedIn !== "FLEXIBLE" ? toMinutes(schedIn) - nowMinutes : null;
               const isCheckInImminent =
                 !checkInTime &&
                 schedInDiff !== null &&
@@ -1115,8 +1137,8 @@ export function AttendanceTable({ students, today }: Props) {
                 const schedOut = selected.schedules[0]?.endTime;
                 const outSch = selected.outings[0];
                 const panelLocalOut = localOutings.get(selected.id) ?? [];
-                const isLate = !!(editValues.checkIn && schedIn && toMinutes(editValues.checkIn) >= toMinutes(schedIn) + 5);
-                const isEarlyLeave = !!(editValues.checkOut && schedOut && toMinutes(editValues.checkOut) < toMinutes(schedOut));
+                const isLate = !!(editValues.checkIn && schedIn && schedIn !== "FLEXIBLE" && toMinutes(editValues.checkIn) >= toMinutes(schedIn) + 5);
+                const isEarlyLeave = !!(editValues.checkOut && schedOut && schedOut !== "FLEXIBLE" && toMinutes(editValues.checkOut) < toMinutes(schedOut));
                 const mergedOutings = panelLocalOut
                   .filter((lo): lo is { id: string; outStart: Date | null; outEnd: Date | null } => lo.id !== null)
                   .map((lo) => {
@@ -1159,7 +1181,9 @@ export function AttendanceTable({ students, today }: Props) {
                               )}
                             </div>
                             {schedIn && (
-                              <span className="text-xs text-muted-foreground font-mono">예정 {schedIn}</span>
+                              <span className="text-xs text-muted-foreground font-mono">
+                                예정 {schedIn === "FLEXIBLE" ? "자율(미정)" : schedIn}
+                              </span>
                             )}
                           </div>
                           <div className="flex items-center gap-2">
