@@ -18,7 +18,7 @@ const DAYS = [
 ];
 
 type OutingEntry = { outStart: string; outEnd: string; reason: string };
-type DayState = { enabled: boolean; startTime: string; endTime: string; outings: OutingEntry[] };
+type DayState = { enabled: boolean; flexible: boolean; startTime: string; endTime: string; outings: OutingEntry[] };
 type ScheduleMap = Record<number, DayState>;
 
 type StudentWithSchedule = Student & { schedules: AttendanceSchedule[]; outings: OutingSchedule[] };
@@ -27,13 +27,15 @@ function buildScheduleMap(schedules: AttendanceSchedule[], outings: OutingSchedu
   const map: ScheduleMap = {};
   for (const d of DAYS) {
     const s = schedules.find((sc) => sc.dayOfWeek === d.value);
+    const isFlexible = s?.startTime === "FLEXIBLE";
     const dayOutings = outings
       .filter((o) => o.dayOfWeek === d.value)
       .map((o) => ({ outStart: o.outStart, outEnd: o.outEnd, reason: o.reason ?? "" }));
     map[d.value] = {
       enabled: !!s,
-      startTime: s?.startTime ?? "09:00",
-      endTime: s?.endTime ?? "22:00",
+      flexible: isFlexible,
+      startTime: isFlexible ? "09:00" : (s?.startTime ?? "09:00"),
+      endTime: isFlexible ? "22:00" : (s?.endTime ?? "22:00"),
       outings: dayOutings,
     };
   }
@@ -99,11 +101,15 @@ export function StudentsScheduleTable({ students }: Props) {
     }));
   }
 
+  function toggleFlexible(day: number) {
+    setEditMap((prev) => ({ ...prev, [day]: { ...prev[day], flexible: !prev[day].flexible } }));
+  }
+
   function save(studentId: string) {
     const schedules = DAYS.filter((d) => editMap[d.value]?.enabled).map((d) => ({
       dayOfWeek: d.value,
-      startTime: editMap[d.value].startTime,
-      endTime: editMap[d.value].endTime,
+      startTime: editMap[d.value].flexible ? "FLEXIBLE" : editMap[d.value].startTime,
+      endTime: editMap[d.value].flexible ? "FLEXIBLE" : editMap[d.value].endTime,
     }));
     const allOutings = DAYS.filter((d) => editMap[d.value]?.enabled).flatMap((d) =>
       editMap[d.value].outings
@@ -166,18 +172,33 @@ export function StudentsScheduleTable({ students }: Props) {
                           </label>
                           {day?.enabled && (
                             <>
-                              <TimePickerInput
-                                value={day.startTime}
-                                onChange={(v) => updateTime(d.value, "startTime", v)}
-                                size="sm"
-                                className="w-full"
-                              />
-                              <TimePickerInput
-                                value={day.endTime}
-                                onChange={(v) => updateTime(d.value, "endTime", v)}
-                                size="sm"
-                                className="w-full"
-                              />
+                              <label className="flex items-center gap-1 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={day.flexible}
+                                  onChange={() => toggleFlexible(d.value)}
+                                  className="w-3 h-3 accent-violet-500"
+                                />
+                                <span className="text-[10px] text-violet-600">자율</span>
+                              </label>
+                              {day.flexible ? (
+                                <span className="text-xs text-violet-600 font-medium text-center py-1">자율입퇴실</span>
+                              ) : (
+                                <>
+                                  <TimePickerInput
+                                    value={day.startTime}
+                                    onChange={(v) => updateTime(d.value, "startTime", v)}
+                                    size="sm"
+                                    className="w-full"
+                                  />
+                                  <TimePickerInput
+                                    value={day.endTime}
+                                    onChange={(v) => updateTime(d.value, "endTime", v)}
+                                    size="sm"
+                                    className="w-full"
+                                  />
+                                </>
+                              )}
 
                               {/* 외출 일정 */}
                               {day.outings.map((o, i) => (
@@ -267,15 +288,19 @@ export function StudentsScheduleTable({ students }: Props) {
                   return (
                     <td key={d.value} className="px-2 py-2.5 text-center">
                       {s.enabled ? (
-                        <div className="text-xs space-y-0.5">
-                          <div className="text-foreground font-medium">{s.startTime}</div>
-                          <div className="text-muted-foreground">~{s.endTime}</div>
-                          {s.outings.map((o, i) => (
-                            <div key={i} className="text-[10px] text-orange-500">
-                              외출 {o.outStart}~{o.outEnd}
-                            </div>
-                          ))}
-                        </div>
+                        s.flexible ? (
+                          <span className="text-xs text-violet-600 font-medium">자율</span>
+                        ) : (
+                          <div className="text-xs space-y-0.5">
+                            <div className="text-foreground font-medium">{s.startTime}</div>
+                            <div className="text-muted-foreground">~{s.endTime}</div>
+                            {s.outings.map((o, i) => (
+                              <div key={i} className="text-[10px] text-orange-500">
+                                외출 {o.outStart}~{o.outEnd}
+                              </div>
+                            ))}
+                          </div>
+                        )
                       ) : (
                         <span className="text-gray-300 text-xs">—</span>
                       )}

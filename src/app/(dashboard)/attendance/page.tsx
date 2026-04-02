@@ -4,6 +4,8 @@ import { AttendanceTable } from "@/components/attendance/attendance-table";
 import { CheckCircle2, XCircle, Clock, LogOut, Minus } from "lucide-react";
 import { todayKST } from "@/lib/utils";
 
+export const dynamic = "force-dynamic";
+
 export default async function AttendancePage() {
   const today = todayKST();
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);

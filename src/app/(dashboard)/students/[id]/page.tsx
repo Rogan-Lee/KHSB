@@ -70,15 +70,20 @@ export default async function StudentDetailPage({
 
   if (!student) notFound();
 
-  const [mentors, schoolRows] = await Promise.all([
+  const [mentors, schoolRows, seatRows] = await Promise.all([
     prisma.user.findMany({
       where: { role: { in: ["ADMIN", "DIRECTOR", "MENTOR"] } },
       select: { id: true, name: true },
     }),
     prisma.student.findMany({ select: { school: true } }),
+    prisma.student.findMany({
+      where: { status: "ACTIVE", seat: { not: null }, id: { not: student.id } },
+      select: { seat: true },
+    }),
   ]);
 
   const schools = [...new Set(schoolRows.map((s) => parseSchool(s.school ?? "")).filter(Boolean))].sort();
+  const occupiedSeats = seatRows.map((s) => s.seat!);
 
   const totalMerits = student.merits
     .filter((m) => m.type === "MERIT")
@@ -169,7 +174,7 @@ export default async function StudentDetailPage({
               <CardTitle>기본 정보 수정</CardTitle>
             </CardHeader>
             <CardContent>
-              <StudentForm student={student} mentors={mentors} schools={schools} />
+              <StudentForm student={student} mentors={mentors} schools={schools} occupiedSeats={occupiedSeats} />
             </CardContent>
           </Card>
         </TabsContent>

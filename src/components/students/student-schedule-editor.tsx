@@ -22,6 +22,7 @@ type OutingEntry = { outStart: string; outEnd: string; reason: string };
 
 type DayRow = {
   enabled: boolean;
+  flexible: boolean; // 자율입퇴실
   startTime: string;
   endTime: string;
   outings: OutingEntry[];
@@ -31,13 +32,15 @@ function initRows(schedules: AttendanceSchedule[], outings: OutingSchedule[]): R
   const map: Record<number, DayRow> = {};
   for (const d of DAYS) {
     const sch = schedules.find((s) => s.dayOfWeek === d.value);
+    const isFlexible = sch?.startTime === "FLEXIBLE";
     const dayOutings = outings
       .filter((o) => o.dayOfWeek === d.value)
       .map((o) => ({ outStart: o.outStart, outEnd: o.outEnd, reason: o.reason ?? "" }));
     map[d.value] = {
       enabled: !!sch,
-      startTime: sch?.startTime ?? "09:00",
-      endTime: sch?.endTime ?? "22:00",
+      flexible: isFlexible,
+      startTime: isFlexible ? "09:00" : (sch?.startTime ?? "09:00"),
+      endTime: isFlexible ? "22:00" : (sch?.endTime ?? "22:00"),
       outings: dayOutings,
     };
   }
@@ -82,8 +85,8 @@ export function StudentScheduleEditor({ studentId, schedules, outings }: Props) 
   function save() {
     const scheduleData = DAYS.filter((d) => rows[d.value].enabled).map((d) => ({
       dayOfWeek: d.value,
-      startTime: rows[d.value].startTime,
-      endTime: rows[d.value].endTime,
+      startTime: rows[d.value].flexible ? "FLEXIBLE" : rows[d.value].startTime,
+      endTime: rows[d.value].flexible ? "FLEXIBLE" : rows[d.value].endTime,
     }));
     const outingData = DAYS.flatMap((d) =>
       rows[d.value].enabled
@@ -134,23 +137,47 @@ export function StudentScheduleEditor({ studentId, schedules, outings }: Props) 
                     />
                   </td>
                   <td className="px-3 py-2.5 font-medium whitespace-nowrap">
-                    <span className={row.enabled ? "" : "text-muted-foreground"}>{d.label}요일</span>
+                    <div className="flex items-center gap-2">
+                      <span className={row.enabled ? "" : "text-muted-foreground"}>{d.label}요일</span>
+                      {row.enabled && (
+                        <label className="flex items-center gap-1 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={row.flexible}
+                            onChange={(e) => setRows((prev) => ({
+                              ...prev,
+                              [d.value]: { ...prev[d.value], flexible: e.target.checked },
+                            }))}
+                            className="w-3 h-3 accent-violet-500"
+                          />
+                          <span className="text-[10px] text-violet-600">자율</span>
+                        </label>
+                      )}
+                    </div>
                   </td>
                   <td className="px-3 py-2.5">
-                    <TimePickerInput
-                      value={row.startTime}
-                      onChange={(v) => updateDay(d.value, "startTime", v)}
-                      disabled={!row.enabled}
-                      size="sm"
-                    />
+                    {row.flexible ? (
+                      <span className="text-xs text-violet-600 font-medium">자율</span>
+                    ) : (
+                      <TimePickerInput
+                        value={row.startTime}
+                        onChange={(v) => updateDay(d.value, "startTime", v)}
+                        disabled={!row.enabled}
+                        size="sm"
+                      />
+                    )}
                   </td>
                   <td className="px-3 py-2.5">
-                    <TimePickerInput
-                      value={row.endTime}
-                      onChange={(v) => updateDay(d.value, "endTime", v)}
-                      disabled={!row.enabled}
-                      size="sm"
-                    />
+                    {row.flexible ? (
+                      <span className="text-xs text-violet-600 font-medium">자율</span>
+                    ) : (
+                      <TimePickerInput
+                        value={row.endTime}
+                        onChange={(v) => updateDay(d.value, "endTime", v)}
+                        disabled={!row.enabled}
+                        size="sm"
+                      />
+                    )}
                   </td>
                   <td className="px-3 py-2 space-y-1.5">
                     {row.outings.map((o, idx) => (

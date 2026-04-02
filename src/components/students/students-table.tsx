@@ -358,9 +358,15 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
     for (let i = 1; i <= TOTAL_SEATS; i++) {
       const key = String(i);
       const student = seatMap.get(key);
-      if (student) allRows.push({ type: "student", student });
-      else allRows.push({ type: "empty", seatNum: key });
+      if (student) {
+        allRows.push({ type: "student", student });
+        seatMap.delete(key);
+      } else {
+        allRows.push({ type: "empty", seatNum: key });
+      }
     }
+    // 비숫자 좌석(A-57 등) 학생 추가
+    for (const [, student] of seatMap) allRows.push({ type: "student", student });
     for (const s of noSeatStudents) allRows.push({ type: "student", student: s });
   }
 
