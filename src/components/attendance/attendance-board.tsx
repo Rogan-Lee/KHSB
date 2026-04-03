@@ -38,6 +38,7 @@ const TYPE_CONFIG = {
   TARDY: { label: "지각", variant: "secondary" as const, color: "bg-orange-100 border-orange-300" },
   EARLY_LEAVE: { label: "조퇴", variant: "outline" as const, color: "bg-blue-100 border-blue-300" },
   APPROVED_ABSENT: { label: "공결", variant: "secondary" as const, color: "bg-gray-100 border-gray-300" },
+  NOTIFIED_ABSENT: { label: "미입실", variant: "secondary" as const, color: "bg-purple-100 border-purple-300" },
 };
 
 interface Props {
