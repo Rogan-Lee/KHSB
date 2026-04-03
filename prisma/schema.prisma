@@ -28,6 +28,7 @@ enum AttendanceType {
   TARDY
   EARLY_LEAVE
   APPROVED_ABSENT
+  NOTIFIED_ABSENT
 }
 
 enum MeritType {
