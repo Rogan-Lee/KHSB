@@ -37,6 +37,7 @@ const TYPE_OPTIONS: { value: AttendanceType; label: string }[] = [
   { value: "TARDY", label: "지각" },
   { value: "EARLY_LEAVE", label: "조퇴" },
   { value: "APPROVED_ABSENT", label: "공결" },
+  { value: "NOTIFIED_ABSENT", label: "미입실" },
 ];
 
 const TYPE_BADGE: Record<string, string> = {
@@ -45,6 +46,7 @@ const TYPE_BADGE: Record<string, string> = {
   TARDY: "bg-orange-100 text-orange-800 border-orange-200",
   EARLY_LEAVE: "bg-blue-100 text-blue-800 border-blue-200",
   APPROVED_ABSENT: "bg-gray-100 text-gray-600 border-gray-200",
+  NOTIFIED_ABSENT: "bg-purple-100 text-purple-700 border-purple-200",
   UNRECORDED: "bg-yellow-100 text-yellow-800 border-yellow-200",
   NO_SCHEDULE: "bg-gray-50 text-gray-400 border-gray-100",
   FLEXIBLE: "bg-violet-50 text-violet-600 border-violet-200",
@@ -65,7 +67,7 @@ function toMinutes(hhmm: string): number {
   return h * 60 + m;
 }
 
-const FIXED_TYPES = ["ABSENT", "APPROVED_ABSENT"] as const;
+const FIXED_TYPES = ["ABSENT", "APPROVED_ABSENT", "NOTIFIED_ABSENT"] as const;
 
 /** 입실/퇴실 시간을 바탕으로 출결 상태를 자동 계산 */
 function calcAutoType(
@@ -145,6 +147,8 @@ export function AttendanceTable({ students, today }: Props) {
   const [panelTab, setPanelTab] = useState<PanelTab>("attendance");
   const [infoModalId, setInfoModalId] = useState<string | null>(null);
   const [infoModalText, setInfoModalText] = useState("");
+  const [notifiedAbsentId, setNotifiedAbsentId] = useState<string | null>(null);
+  const [notifiedAbsentReason, setNotifiedAbsentReason] = useState("");
   const [editValues, setEditValues] = useState({
     checkIn: "", checkOut: "",
     type: "NORMAL" as AttendanceType, notes: "",
@@ -296,7 +300,7 @@ export function AttendanceTable({ students, today }: Props) {
       if (!s.schedules.length) return "NO_SCHEDULE";
       const type = lt?.type ?? (att?.type as string | undefined);
       // 명시적으로 결석/공결로 설정된 경우는 그대로
-      if (type === "ABSENT" || type === "APPROVED_ABSENT") return type;
+      if (type === "ABSENT" || type === "APPROVED_ABSENT" || type === "NOTIFIED_ABSENT") return type;
       if (isFlexStart) return "FLEXIBLE";
       return "ABSENT";
     }
@@ -557,16 +561,16 @@ export function AttendanceTable({ students, today }: Props) {
               <th className="px-3 py-2.5 text-center w-28">플래너 전송</th>
               <th className="px-3 py-2.5 text-left w-24">학교·학년</th>
               <th className="px-3 py-2.5 text-left w-16">반</th>
-              <th className="px-3 py-2.5 text-center w-20">입실약속</th>
-              <th className="px-3 py-2.5 text-left w-36">입실</th>
-              <th className="px-3 py-2.5 text-center w-20">퇴실약속</th>
+              <th className="px-3 py-2.5 text-center w-16">입실약속</th>
+              <th className="px-3 py-2.5 text-left w-44">입실</th>
+              <th className="px-3 py-2.5 text-center w-16">퇴실약속</th>
               <th className="px-3 py-2.5 text-left w-36">퇴실</th>
-              <th className="px-3 py-2.5 text-left w-40">외출</th>
-              <th className="px-3 py-2.5 text-left w-40">복귀</th>
-              <th className="px-3 py-2.5 text-left w-36">입퇴실 메모</th>
-              <th className="px-3 py-2.5 text-left w-36">추후 변동 예정</th>
-              <th className="px-3 py-2.5 text-left w-36">학원일정</th>
-              <th className="px-3 py-2.5 text-left w-36">특이사항</th>
+              <th className="px-3 py-2.5 text-left w-32">외출</th>
+              <th className="px-3 py-2.5 text-left w-32">복귀</th>
+              <th className="px-3 py-2.5 text-left w-32">메모</th>
+              <th className="px-3 py-2.5 text-left w-32">변동예정</th>
+              <th className="px-3 py-2.5 text-left w-32">학원일정</th>
+              <th className="px-3 py-2.5 text-left w-32">특이사항</th>
             </tr>
           </thead>
           <tbody>
@@ -728,14 +732,18 @@ export function AttendanceTable({ students, today }: Props) {
 
                   {/* 입실 예정 */}
                   <td className="px-3 py-3 text-center">
-                    <span className={cn(
-                      "text-sm font-mono",
-                      !checkInTime && schedIn ? "text-red-500 font-medium" :
-                      checkInTime && lt?.type === "TARDY" ? "text-amber-600 font-semibold underline decoration-dotted" :
-                      "text-muted-foreground"
-                    )}>
-                      {schedIn ?? <span className="text-gray-300">—</span>}
-                    </span>
+                    {schedIn === "FLEXIBLE" ? (
+                      <span className="text-xs text-violet-600 font-medium">자율</span>
+                    ) : (
+                      <span className={cn(
+                        "text-sm font-mono",
+                        !checkInTime && schedIn ? "text-red-500 font-medium" :
+                        checkInTime && lt?.type === "TARDY" ? "text-amber-600 font-semibold underline decoration-dotted" :
+                        "text-muted-foreground"
+                      )}>
+                        {schedIn ?? <span className="text-gray-300">—</span>}
+                      </span>
+                    )}
                   </td>
 
                   {/* 입실 실제 + 지금 */}
@@ -761,29 +769,59 @@ export function AttendanceTable({ students, today }: Props) {
                         ><X className="h-3.5 w-3.5" /></button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <span className={cn(
-                          "text-sm font-mono tabular-nums w-10 text-right",
+                          "text-sm font-mono tabular-nums w-12 text-right shrink-0",
                           checkInTime ? "text-foreground font-semibold" : "text-gray-300"
                         )}>
                           {checkInTime || "—"}
                         </span>
-                        <button
-                          onClick={() => startInlineEdit(student, "checkIn")}
-                          disabled={isQuickLoading}
-                          className="flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 shrink-0 transition-colors disabled:opacity-40 font-medium"
-                        >
-                          <LogIn className="h-3 w-3" />지금
-                        </button>
+                        <div className="flex items-center gap-1 w-[120px] shrink-0">
+                          {state === "NOTIFIED_ABSENT" ? (
+                            <button
+                              onClick={() => {
+                                setNotifiedAbsentId(student.id);
+                                setNotifiedAbsentReason(student.attendances[0]?.notes ?? "");
+                              }}
+                              className="flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-purple-50 text-purple-700 border border-purple-200 font-medium hover:bg-purple-100 transition-colors"
+                              title={student.attendances[0]?.notes ?? ""}
+                            >
+                              미입실
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => startInlineEdit(student, "checkIn")}
+                                disabled={isQuickLoading}
+                                className="flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 transition-colors disabled:opacity-40 font-medium"
+                              >
+                                <LogIn className="h-3 w-3" />지금
+                              </button>
+                              {!checkInTime && student.schedules.length > 0 && (
+                                <button
+                                  onClick={() => { setNotifiedAbsentId(student.id); setNotifiedAbsentReason(""); }}
+                                  disabled={isQuickLoading}
+                                  className="flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors disabled:opacity-40 font-medium"
+                                >
+                                  미입실
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
                     )}
                   </td>
 
                   {/* 퇴실 예정 */}
                   <td className="px-3 py-3 text-center">
-                    <span className="text-sm font-mono text-muted-foreground">
-                      {schedOut ?? <span className="text-gray-300">—</span>}
-                    </span>
+                    {schedOut === "FLEXIBLE" ? (
+                      <span className="text-xs text-violet-600 font-medium">자율</span>
+                    ) : (
+                      <span className="text-sm font-mono text-muted-foreground">
+                        {schedOut ?? <span className="text-gray-300">—</span>}
+                      </span>
+                    )}
                   </td>
 
                   {/* 퇴실 실제 + 지금 */}
@@ -1168,6 +1206,59 @@ export function AttendanceTable({ students, today }: Props) {
               disabled={isPending}
             >
               {isPending ? "저장 중..." : "저장"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 미입실 사유 모달 */}
+      <Dialog
+        open={!!notifiedAbsentId}
+        onOpenChange={(open) => { if (!open) setNotifiedAbsentId(null); }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {students.find((s) => s.id === notifiedAbsentId)?.name} 미입실 처리
+            </DialogTitle>
+          </DialogHeader>
+          <Textarea
+            value={notifiedAbsentReason}
+            onChange={(e) => setNotifiedAbsentReason(e.target.value)}
+            placeholder="미입실 사유를 입력하세요 (예: 학교 시험, 병원 등)"
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setNotifiedAbsentId(null)}>
+              취소
+            </Button>
+            <Button
+              size="sm"
+              disabled={isPending || !notifiedAbsentReason.trim()}
+              onClick={() => {
+                if (!notifiedAbsentId) return;
+                startTransition(async () => {
+                  try {
+                    await saveAttendanceRecord({
+                      studentId: notifiedAbsentId,
+                      date: todayDate,
+                      type: "NOTIFIED_ABSENT",
+                      notes: notifiedAbsentReason.trim(),
+                    });
+                    setLocalTimes((prev) => {
+                      const m = new Map(prev);
+                      m.set(notifiedAbsentId, { checkIn: "", checkOut: "", type: "NOTIFIED_ABSENT" });
+                      return m;
+                    });
+                    toast.success("미입실 처리되었습니다");
+                    setNotifiedAbsentId(null);
+                  } catch {
+                    toast.error("저장 실패");
+                  }
+                });
+              }}
+            >
+              {isPending ? "저장 중..." : "미입실 처리"}
             </Button>
           </DialogFooter>
         </DialogContent>
