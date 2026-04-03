@@ -11,6 +11,7 @@ import { TimePickerInput } from "@/components/ui/time-picker";
 import { updateConsultation, getStudentConsultationHistory } from "@/actions/consultations";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
 import { History, ChevronDown, ChevronUp, CalendarDays, ClipboardList, MessageSquare } from "lucide-react";
 
 type PastConsultation = {
@@ -265,12 +266,7 @@ export function ConsultationProgressSheet({ consultation: c, open, onClose }: Pr
                 </button>
               </div>
               <div className="flex gap-2">
-                <input
-                  type="date"
-                  value={actualDatePart}
-                  onChange={(e) => setActualDatePart(e.target.value)}
-                  className="flex-1 border rounded px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
-                />
+                <DatePicker value={actualDatePart || null} onChange={(d) => setActualDatePart(d ?? "")} placeholder="날짜 선택" />
                 <TimePickerInput value={actualTimePart} onChange={setActualTimePart} />
               </div>
             </div>

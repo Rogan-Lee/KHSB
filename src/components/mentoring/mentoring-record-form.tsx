@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import {
@@ -216,7 +217,7 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
           </div>
           <div className="space-y-1.5">
             <Label>실제 진행일</Label>
-            <Input name="actualDate" type="date" defaultValue={defaultActualDate} />
+            <DatePicker name="actualDate" defaultValue={defaultActualDate} placeholder="날짜 선택" />
           </div>
         </div>
 

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { formatDate } from "@/lib/utils";
 import { Search, X, ArrowUp, ArrowDown, ArrowUpDown, Pencil, Trash2 } from "lucide-react";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { updateMeritDemerit, deleteMeritDemerit, bulkDeleteMeritDemerits } from "@/actions/merit-demerit";
 import { toast } from "sonner";
@@ -95,7 +96,7 @@ function EditMeritDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">날짜</Label>
-              <Input name="date" type="date" defaultValue={dateStr} required />
+              <DatePicker name="date" defaultValue={dateStr} required placeholder="날짜" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">구분</Label>
