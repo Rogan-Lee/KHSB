@@ -9,6 +9,7 @@ import {
   Calendar, User, ChevronDown, ChevronUp, X, Check, Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import { createTodo, updateTodo, deleteTodo, toggleTodo } from "@/actions/todos";
 import { ChecklistManager } from "@/components/handover/checklist-manager";
 
@@ -146,10 +147,7 @@ function TodoForm({
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="text-[11px] text-muted-foreground mb-1 block">기한</label>
-          <input
-            type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
-            className="w-full text-sm border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
-          />
+          <DatePicker value={dueDate || null} onChange={(d) => setDueDate(d ?? "")} placeholder="날짜 선택" />
         </div>
         <div>
           <label className="text-[11px] text-muted-foreground mb-1 block">우선순위</label>

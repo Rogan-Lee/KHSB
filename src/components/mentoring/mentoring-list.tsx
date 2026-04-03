@@ -22,6 +22,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { ArrowUp, ArrowDown, ArrowUpDown, MoreHorizontal, Search, Trash2, X } from "lucide-react";
+import { DatePicker } from "@/components/ui/date-picker";
 import { updateMentoringStatus, deleteMentoring, bulkDeleteMentorings } from "@/actions/mentoring";
 import { toast } from "sonner";
 
@@ -329,19 +330,9 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId }
           </>
         )}
         <span className="text-sm text-muted-foreground">날짜</span>
-        <Input
-          type="date"
-          className="h-8 w-36 text-sm"
-          value={dateFrom}
-          onChange={(e) => setDateFrom(e.target.value)}
-        />
+        <DatePicker value={dateFrom || null} onChange={(d) => setDateFrom(d ?? "")} placeholder="시작" />
         <span className="text-sm text-muted-foreground">~</span>
-        <Input
-          type="date"
-          className="h-8 w-36 text-sm"
-          value={dateTo}
-          onChange={(e) => setDateTo(e.target.value)}
-        />
+        <DatePicker value={dateTo || null} onChange={(d) => setDateTo(d ?? "")} placeholder="종료" />
         {dateFrom || dateTo ? (
           <Button
             variant="ghost"

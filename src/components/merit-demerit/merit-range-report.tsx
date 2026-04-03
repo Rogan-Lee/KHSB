@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { getMeritsByRange } from "@/actions/merit-demerit";
 import { formatDate } from "@/lib/utils";
 import { Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { DatePicker } from "@/components/ui/date-picker";
 
 type SortKey = "name" | "merits" | "demerits" | "net" | "count";
 type SortDir = "asc" | "desc";
@@ -235,19 +236,9 @@ export function MeritRangeReport() {
       {/* 기간 선택 */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex items-center gap-2">
-          <Input
-            type="date"
-            value={from}
-            onChange={(e) => { setFrom(e.target.value); setResults(null); }}
-            className="h-9 w-36 text-sm"
-          />
+          <DatePicker value={from || null} onChange={(d) => { setFrom(d ?? ""); setResults(null); }} placeholder="시작" />
           <span className="text-muted-foreground text-sm">~</span>
-          <Input
-            type="date"
-            value={to}
-            onChange={(e) => { setTo(e.target.value); setResults(null); }}
-            className="h-9 w-36 text-sm"
-          />
+          <DatePicker value={to || null} onChange={(d) => { setTo(d ?? ""); setResults(null); }} placeholder="종료" />
         </div>
         <Button size="sm" onClick={handleSearch} disabled={isPending} className="gap-1.5">
           <Search className="h-3.5 w-3.5" />

@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   ChevronLeft,
   ChevronRight,
@@ -710,21 +711,11 @@ function PanelEventForm({
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <label className="text-[10px] text-muted-foreground">시작일 *</label>
-          <input
-            type="date"
-            value={form.startDate}
-            onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
-            className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-          />
+          <DatePicker value={form.startDate || null} onChange={(d) => setForm((f) => ({ ...f, startDate: d ?? "" }))} placeholder="날짜 선택" />
         </div>
         <div className="space-y-1">
           <label className="text-[10px] text-muted-foreground">종료일</label>
-          <input
-            type="date"
-            value={form.endDate}
-            onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
-            className="w-full border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-          />
+          <DatePicker value={form.endDate || null} onChange={(d) => setForm((f) => ({ ...f, endDate: d ?? "" }))} placeholder="날짜 선택" />
         </div>
       </div>
 
