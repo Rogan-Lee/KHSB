@@ -10,6 +10,7 @@ import { createExamScore, deleteExamScore } from "@/actions/exam-scores";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Trash2, Plus, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { ExamScore, ExamType } from "@/generated/prisma";
 
@@ -255,11 +256,7 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">날짜 *</label>
-              <input
-                type="date" value={form.examDate}
-                onChange={(e) => setForm((f) => ({ ...f, examDate: e.target.value }))}
-                className="w-full border rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-              />
+              <DatePicker value={form.examDate || null} onChange={(d) => setForm((f) => ({ ...f, examDate: d ?? "" }))} placeholder="날짜 선택" />
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">과목</label>

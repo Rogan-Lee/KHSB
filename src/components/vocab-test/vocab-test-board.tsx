@@ -20,6 +20,7 @@ import {
 } from "@/actions/vocab-test";
 import { toast } from "sonner";
 import { cn, formatDate } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
 import { useRouter } from "next/navigation";
 import { Search, X, UserPlus, UserMinus, BookOpen, TrendingUp, Sparkles, Trash2 } from "lucide-react";
 import type { VocabTestEnrollment, VocabTestScore, VocabEnrollReason } from "@/generated/prisma";
@@ -237,7 +238,7 @@ function ScoresTab({ enrollments, scores }: {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">시험 날짜</Label>
-                <Input name="testDate" type="date" required defaultValue={new Date().toISOString().split("T")[0]} />
+                <DatePicker name="testDate" required defaultValue={new Date().toISOString().split("T")[0]} placeholder="날짜 선택" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">총 단어 수</Label>

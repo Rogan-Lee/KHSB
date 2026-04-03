@@ -15,6 +15,7 @@ import { createStudent, updateStudent } from "@/actions/students";
 import { GRADE_OPTIONS, parseSchool } from "@/lib/utils";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
 import { ChevronDown } from "lucide-react";
 import type { Student, User } from "@/generated/prisma";
 
@@ -197,12 +198,12 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="startDate">등원일 *</Label>
-          <Input id="startDate" name="startDate" type="date" defaultValue={defaultDate} required />
+          <Label>등원일 *</Label>
+          <DatePicker name="startDate" defaultValue={defaultDate} required placeholder="등원일 선택" />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="endDate">퇴원예정일</Label>
-          <Input id="endDate" name="endDate" type="date" defaultValue={defaultEndDate} />
+          <Label>퇴원예정일</Label>
+          <DatePicker name="endDate" defaultValue={defaultEndDate || undefined} placeholder="퇴원예정일 선택" />
         </div>
       </div>
 

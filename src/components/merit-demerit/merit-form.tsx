@@ -17,6 +17,7 @@ import { createMeritDemerit } from "@/actions/merit-demerit";
 import { MERIT_CATEGORIES, cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { MessageCircle, Check, Search, X, ChevronDown } from "lucide-react";
+import { DatePicker } from "@/components/ui/date-picker";
 
 type Student = { id: string; name: string; grade: string };
 
@@ -251,14 +252,8 @@ export function MeritForm({ students }: Props) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="date">날짜</Label>
-          <Input
-            id="date"
-            name="date"
-            type="date"
-            defaultValue={new Date().toISOString().split("T")[0]}
-            required
-          />
+          <Label>날짜</Label>
+          <DatePicker name="date" defaultValue={new Date().toISOString().split("T")[0]} required placeholder="날짜 선택" />
         </div>
 
         <div className="space-y-1.5">
