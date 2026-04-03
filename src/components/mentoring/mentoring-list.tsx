@@ -313,7 +313,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId }
     <div className="space-y-3">
       {/* 필터 */}
       <div className="flex flex-wrap items-center gap-2">
-        {isDirector && (
+        {mentors.length > 0 && (
           <>
             <span className="text-sm text-muted-foreground">담당 멘토</span>
             <Select value={selectedMentorId} onValueChange={setSelectedMentorId}>
@@ -399,7 +399,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId }
               <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("studentName")}>
                 원생<SortIcon col="studentName" sortKey={sortKey} sortDir={sortDir} />
               </TableHead>
-              {isDirector && (
+              {mentors.length > 0 && (
                 <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("mentorName")}>
                   멘토<SortIcon col="mentorName" sortKey={sortKey} sortDir={sortDir} />
                 </TableHead>
@@ -417,7 +417,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId }
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={isDirector ? 8 : 7} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={mentors.length > 0 ? 8 : 7} className="text-center text-muted-foreground py-8">
                   멘토링 기록이 없습니다
                 </TableCell>
               </TableRow>
@@ -436,7 +436,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId }
                     <span className="font-medium">{m.student.name}</span>
                     <span className="text-xs text-muted-foreground ml-1">{m.student.grade}</span>
                   </TableCell>
-                  {isDirector && <TableCell className="whitespace-nowrap">{m.mentor.name}</TableCell>}
+                  {mentors.length > 0 && <TableCell className="whitespace-nowrap">{m.mentor.name}</TableCell>}
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                     {m.scheduledTimeStart && m.scheduledTimeEnd
                       ? `${m.scheduledTimeStart}~${m.scheduledTimeEnd}`

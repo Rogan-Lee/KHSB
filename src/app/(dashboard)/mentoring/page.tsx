@@ -28,13 +28,11 @@ export default async function MentoringPage() {
 
   const todaySlots = await getTodayWorkingMentors();
 
-  const mentors = isDirector
-    ? await prisma.user.findMany({
-        where: { role: { in: ["MENTOR", "STAFF", "DIRECTOR", "ADMIN"] } },
-        select: { id: true, name: true },
-        orderBy: { name: "asc" },
-      })
-    : [];
+  const mentors = await prisma.user.findMany({
+    where: { role: { in: ["MENTOR", "STAFF", "DIRECTOR", "ADMIN"] } },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
 
   const upcoming = mentorings.filter((m) => m.status === "SCHEDULED").length;
   const completed = mentorings.filter((m) => m.status === "COMPLETED").length;
