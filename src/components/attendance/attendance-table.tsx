@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
 import { TimePickerInput } from "@/components/ui/time-picker";
 import { CommunicationPanel } from "@/components/communications/communication-panel";
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
@@ -600,7 +601,8 @@ export function AttendanceTable({ students, today }: Props) {
                 lt?.type !== "ABSENT" &&
                 lt?.type !== "APPROVED_ABSENT";
               const plannerDate = localCheckDates.get(student.id)?.plannerSentDate ?? null;
-              const plannerDone = isDoneThisWeek("plannerSentDate", plannerDate);
+              const plannerHasDate = !!plannerDate;
+              const plannerCurrentWeek = plannerHasDate && isDoneThisWeek("plannerSentDate", plannerDate);
               const plannerPending = checkDatePending === `${student.id}:plannerSentDate`;
 
               // 영단어 시험 대상자 여부 (VocabTestEnrollment 기반)
@@ -678,14 +680,13 @@ export function AttendanceTable({ students, today }: Props) {
 
                   {/* 플래너 전송 */}
                   <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                    {plannerDone ? (
+                    {plannerHasDate ? (
                       <div className="inline-flex items-center gap-1">
-                        <input
-                          type="date"
-                          value={plannerDate ?? ""}
-                          onChange={(e) => saveCheckDate(student.id, "plannerSentDate", e.target.value || null)}
+                        <DatePicker
+                          value={plannerDate}
+                          onChange={(d) => saveCheckDate(student.id, "plannerSentDate", d)}
                           disabled={plannerPending}
-                          className="text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded px-1.5 py-0.5 w-[115px] focus:outline-none focus:ring-1 focus:ring-green-400 disabled:opacity-40"
+                          className={!plannerCurrentWeek ? "!text-amber-600 !bg-amber-50 !border-amber-200" : undefined}
                         />
                         <button
                           onClick={() => saveCheckDate(student.id, "plannerSentDate", null)}
@@ -705,13 +706,11 @@ export function AttendanceTable({ students, today }: Props) {
                         >
                           {plannerPending ? "..." : "오늘"}
                         </button>
-                        <input
-                          type="date"
-                          value=""
-                          onChange={(e) => { if (e.target.value) saveCheckDate(student.id, "plannerSentDate", e.target.value); }}
+                        <DatePicker
+                          value={null}
+                          onChange={(d) => { if (d) saveCheckDate(student.id, "plannerSentDate", d); }}
                           disabled={plannerPending}
-                          className="text-xs text-muted-foreground bg-background border border-border rounded px-1 py-0.5 w-7 focus:outline-none disabled:opacity-40 cursor-pointer"
-                          title="날짜 직접 선택"
+                          compact
                         />
                       </div>
                     )}
@@ -1006,37 +1005,48 @@ export function AttendanceTable({ students, today }: Props) {
                                   const dateVal = localCheckDates.get(student.id)?.[key] ?? null;
                                   const isPending = checkDatePending === `${student.id}:${key}`;
                                   const todayISO = new Date().toISOString().split("T")[0];
-                                  const done = dateVal ? isDoneThisWeek(key, dateVal) : false;
+                                  const hasDate = !!dateVal;
+                                  const isCurrentWeek = hasDate && isDoneThisWeek(key, dateVal);
                                   return (
                                     <div key={key} className="flex items-center gap-2">
                                       <span className="text-xs text-muted-foreground w-24 shrink-0">{label}</span>
-                                      {done ? (
-                                        permanent ? (
-                                          <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5">
-                                            <Check className="h-3 w-3" />{fmtCheckDate(dateVal!)}
-                                          </span>
-                                        ) : (
-                                          <button
-                                            onClick={() => saveCheckDate(student.id, key, null)}
-                                            disabled={isPending}
-                                            title="클릭하여 취소"
-                                            className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded px-2 py-0.5 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-40"
-                                          >
-                                            <Check className="h-3 w-3" />{fmtCheckDate(dateVal!)}
-                                          </button>
-                                        )
+                                      {hasDate ? (
+                                        <div className="inline-flex items-center gap-1">
+                                          <DatePicker
+                                            value={dateVal}
+                                            onChange={(d) => saveCheckDate(student.id, key, d)}
+                                            disabled={isPending || !!permanent}
+                                            className={!isCurrentWeek && WEEKLY_KEYS.has(key) ? "!text-amber-600 !bg-amber-50 !border-amber-200" : undefined}
+                                          />
+                                          {!isCurrentWeek && WEEKLY_KEYS.has(key) && (
+                                            <span className="text-[10px] text-amber-500">지난주</span>
+                                          )}
+                                          {!permanent && (
+                                            <button
+                                              onClick={() => saveCheckDate(student.id, key, null)}
+                                              disabled={isPending}
+                                              title="취소"
+                                              className="p-0.5 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-40"
+                                            >
+                                              <X className="h-3 w-3" />
+                                            </button>
+                                          )}
+                                        </div>
                                       ) : (
-                                        <div className="flex items-center gap-1.5">
+                                        <div className="inline-flex items-center gap-1">
                                           <button
                                             onClick={() => saveCheckDate(student.id, key, todayISO)}
                                             disabled={isPending}
                                             className="px-2 py-0.5 text-[10px] rounded border border-border bg-background hover:bg-accent text-muted-foreground font-medium transition-colors disabled:opacity-40"
                                           >
-                                            {isPending ? "..." : "확인"}
+                                            {isPending ? "..." : "오늘"}
                                           </button>
-                                          {dateVal && WEEKLY_KEYS.has(key) && (
-                                            <span className="text-[10px] text-muted-foreground/60">마지막: {fmtCheckDate(dateVal)}</span>
-                                          )}
+                                          <DatePicker
+                                            value={null}
+                                            onChange={(d) => { if (d) saveCheckDate(student.id, key, d); }}
+                                            disabled={isPending}
+                                            compact
+                                          />
                                         </div>
                                       )}
                                     </div>

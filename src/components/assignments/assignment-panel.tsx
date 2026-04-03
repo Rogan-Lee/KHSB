@@ -11,6 +11,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Circle,
   CheckCircle2,
@@ -322,12 +323,7 @@ export function AssignmentPanel({
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
-            <input
-              type="date"
-              value={form.dueDate}
-              onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
-              className="border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-            />
+            <DatePicker value={form.dueDate || null} onChange={(d) => setForm((f) => ({ ...f, dueDate: d ?? "" }))} placeholder="날짜 선택" />
           </div>
           <textarea
             placeholder="상세 내용 (선택)"

@@ -7,6 +7,7 @@ import { useDraft } from "@/hooks/use-draft";
 import { type MeetingTeam, createMeetingMinutes, updateMeetingMinutes, deleteMeetingMinutes, markMeetingMinutesRead } from "@/actions/meeting-minutes";
 import { Plus, Pencil, Trash2, CheckCheck, ChevronDown, ChevronUp, Users, X, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 
@@ -123,12 +124,7 @@ function MeetingForm({
         </div>
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">날짜 *</label>
-          <input
-            type="date"
-            value={form.date}
-            onChange={(e) => updateForm({ date: e.target.value })}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-          />
+          <DatePicker value={form.date || null} onChange={(d) => updateForm({ date: d ?? "" })} placeholder="날짜 선택" />
         </div>
       </div>
 
