@@ -32,6 +32,7 @@ const ATTENDANCE_TYPE_MAP = {
   TARDY: { label: "지각", variant: "secondary" as const },
   EARLY_LEAVE: { label: "조퇴", variant: "outline" as const },
   APPROVED_ABSENT: { label: "공결", variant: "secondary" as const },
+  NOTIFIED_ABSENT: { label: "미입실", variant: "secondary" as const },
 };
 
 export default async function StudentDetailPage({

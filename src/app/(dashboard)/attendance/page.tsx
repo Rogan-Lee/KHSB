@@ -31,6 +31,7 @@ export default async function AttendancePage() {
   const absent = withSchedule.filter(
     (s) => s.attendances[0]?.type === "ABSENT" || (!s.attendances[0])
   ).length;
+  const notifiedAbsent = withSchedule.filter((s) => s.attendances[0]?.type === "NOTIFIED_ABSENT").length;
   const tardy = withSchedule.filter((s) => s.attendances[0]?.type === "TARDY").length;
   const earlyLeave = withSchedule.filter((s) => s.attendances[0]?.type === "EARLY_LEAVE").length;
   const noSchedule = students.filter((s) => s.schedules.length === 0).length;
@@ -51,7 +52,7 @@ export default async function AttendancePage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 sm:gap-3">
         <Card>
           <CardContent className="flex items-center gap-2 pt-4 pb-3">
             <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0" />
@@ -85,6 +86,15 @@ export default async function AttendancePage() {
             <div>
               <p className="text-xl font-bold leading-none">{earlyLeave}</p>
               <p className="text-xs text-muted-foreground mt-0.5">조퇴</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-2 pt-4 pb-3">
+            <Minus className="h-6 w-6 text-purple-500 shrink-0" />
+            <div>
+              <p className="text-xl font-bold leading-none">{notifiedAbsent}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">미입실</p>
             </div>
           </CardContent>
         </Card>
