@@ -15,6 +15,7 @@ import Link from "next/link";
 
 interface Props {
   students: { id: string; name: string; grade: string }[];
+  owner?: "DIRECTOR" | "HEAD_TEACHER";
 }
 
 function StudentCombobox({
@@ -103,14 +104,20 @@ const TYPE_OPTIONS: { value: CType; label: string }[] = [
   { value: "STUDENT", label: "학생 상담" },
   { value: "PARENT", label: "학부모 상담" },
 ];
-const CATEGORY_OPTIONS: { value: CCategory; label: string }[] = [
+const CATEGORY_OPTIONS_DIRECTOR: { value: CCategory; label: string }[] = [
   { value: "ENROLLED", label: "재원생" },
   { value: "NEW_ADMISSION", label: "신규 입실" },
   { value: "CONSIDERING", label: "등록 고민" },
 ];
+const CATEGORY_OPTIONS_HEAD_TEACHER: { value: CCategory; label: string }[] = [
+  { value: "ENROLLED", label: "재원생" },
+  { value: "NEW_ADMISSION", label: "신규 학생" },
+];
 
-export function NewConsultationForm({ students }: Props) {
+export function NewConsultationForm({ students, owner = "DIRECTOR" }: Props) {
   const router = useRouter();
+  const isHeadTeacher = owner === "HEAD_TEACHER";
+  const CATEGORY_OPTIONS = isHeadTeacher ? CATEGORY_OPTIONS_HEAD_TEACHER : CATEGORY_OPTIONS_DIRECTOR;
   const [consultType, setConsultType] = useState<CType>("STUDENT");
   const [consultCategory, setConsultCategory] = useState<CCategory>("ENROLLED");
   const [studentId, setStudentId] = useState("");
@@ -142,12 +149,13 @@ export function NewConsultationForm({ students }: Props) {
       fd.set("prospectPhone", prospectPhone);
     }
     fd.set("agenda", agenda);
+    fd.set("owner", owner);
 
     startTransition(async () => {
       try {
         await createConsultation(fd);
         toast.success("면담이 등록되었습니다");
-        router.push("/consultations");
+        router.push(isHeadTeacher ? "/consultations?owner=HEAD_TEACHER" : "/consultations");
       } catch {
         toast.error("저장에 실패했습니다");
       }
@@ -159,13 +167,13 @@ export function NewConsultationForm({ students }: Props) {
       {/* Header */}
       <div className="mb-8">
         <Link
-          href="/consultations"
+          href={isHeadTeacher ? "/consultations?owner=HEAD_TEACHER" : "/consultations"}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
         >
           <ArrowLeft className="h-4 w-4" />
           면담 목록으로
         </Link>
-        <h1 className="text-2xl font-bold">원장 면담 등록</h1>
+        <h1 className="text-2xl font-bold">{isHeadTeacher ? "책임T 면담 등록" : "원장 면담 등록"}</h1>
         <p className="text-sm text-muted-foreground mt-1">
           면담 일정을 등록하고 주제를 미리 작성할 수 있습니다.
         </p>
@@ -174,27 +182,29 @@ export function NewConsultationForm({ students }: Props) {
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* 상담 유형 + 분류 */}
         <div className="flex flex-wrap items-center gap-4">
-          {/* 유형: 학생/학부모 */}
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">상담 유형</Label>
-            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 border">
-              {TYPE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setConsultType(opt.value)}
-                  className={cn(
-                    "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
-                    consultType === opt.value ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
+          {/* 유형: 학생/학부모 (책임T는 학생 상담만) */}
+          {!isHeadTeacher && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">상담 유형</Label>
+              <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 border">
+                {TYPE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setConsultType(opt.value)}
+                    className={cn(
+                      "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
+                      consultType === opt.value ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* 분류: 재원생/신규 입실/등록 고민 */}
+          {/* 분류: 재원생/신규 학생 */}
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">상담 분류</Label>
             <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 border">
@@ -277,7 +287,7 @@ export function NewConsultationForm({ students }: Props) {
 
         {/* 버튼 */}
         <div className="flex items-center gap-3 pt-4 border-t">
-          <Link href="/consultations">
+          <Link href={isHeadTeacher ? "/consultations?owner=HEAD_TEACHER" : "/consultations"}>
             <Button type="button" variant="outline">취소</Button>
           </Link>
           <Button type="submit" disabled={isPending || !isValid}>

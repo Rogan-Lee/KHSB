@@ -55,6 +55,9 @@ export default async function ConsultationDetailPage({
 
   const s = consultation.student;
   const isProspect = !s;
+  const owner = (consultation as Record<string, unknown>).owner as string ?? "DIRECTOR";
+  const isHeadTeacher = owner === "HEAD_TEACHER";
+  const backHref = isHeadTeacher ? "/consultations?owner=HEAD_TEACHER" : "/consultations";
 
   let timetableEntries: Awaited<ReturnType<typeof getTimetableEntries>> = [];
   let schoolEvents: Awaited<ReturnType<typeof getStudentSchoolEvents>> = [];
@@ -105,12 +108,12 @@ export default async function ConsultationDetailPage({
       {/* Back + Header */}
       <div className="flex items-center gap-3">
         <Link
-          href="/consultations"
+          href={backHref}
           className="text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <h2 className="text-xl font-bold">원장 면담</h2>
+        <h2 className="text-xl font-bold">{isHeadTeacher ? "책임T 면담" : "원장 면담"}</h2>
         <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
       </div>
 

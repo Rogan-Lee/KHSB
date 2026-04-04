@@ -60,6 +60,11 @@ enum ConsultationCategory {
   CONSIDERING   // 등록 고민
 }
 
+enum ConsultationOwner {
+  DIRECTOR      // 원장 면담
+  HEAD_TEACHER  // 책임T 면담
+}
+
 enum MessageStatus {
   PENDING
   SENT
@@ -296,6 +301,7 @@ model DirectorConsultation {
   prospectPhone String?            // 미등록 원생 연락처
   type          ConsultationType   @default(STUDENT)
   category      ConsultationCategory @default(ENROLLED)
+  owner         ConsultationOwner  @default(DIRECTOR)
   scheduledAt   DateTime?
   actualDate    DateTime?
   status        ConsultationStatus @default(SCHEDULED)
