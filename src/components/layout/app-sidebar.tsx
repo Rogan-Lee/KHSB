@@ -61,7 +61,7 @@ const navSections: NavSection[] = [
       { href: "/mentoring", label: "멘토링", icon: MessageSquare, feature: "mentoring" },
       { href: "/mentoring-plan", label: "주간 멘토링 계획", icon: CalendarClock, feature: "mentoring-plan" },
       { href: "/timetable", label: "시간표", icon: LayoutList, feature: "timetable" },
-      { href: "/consultations", label: "원장 면담", icon: FileText, feature: "consultations" },
+      { href: "/consultations", label: "면담 관리", icon: FileText, feature: "consultations" },
       { href: "/mentoring/schedule", label: "멘토 스케줄", icon: Calendar, feature: "mentoring" },
     ],
   },
