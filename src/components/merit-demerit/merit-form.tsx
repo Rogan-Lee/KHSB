@@ -21,21 +21,20 @@ import { DatePicker } from "@/components/ui/date-picker";
 
 type Student = { id: string; name: string; grade: string };
 
-function StudentCombobox({
+function StudentMultiCombobox({
   students,
-  value,
+  selectedIds,
   onChange,
 }: {
   students: Student[];
-  value: string;
-  onChange: (id: string) => void;
+  selectedIds: Set<string>;
+  onChange: (ids: Set<string>) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const selected = students.find((s) => s.id === value);
   const filtered = query.trim()
     ? students.filter(
         (s) =>
@@ -44,7 +43,6 @@ function StudentCombobox({
       )
     : students;
 
-  // 외부 클릭 시 닫기
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -56,10 +54,11 @@ function StudentCombobox({
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  function handleSelect(id: string) {
-    onChange(id);
-    setOpen(false);
-    setQuery("");
+  function toggleStudent(id: string) {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onChange(next);
   }
 
   function handleOpen() {
@@ -67,37 +66,45 @@ function StudentCombobox({
     setTimeout(() => inputRef.current?.focus(), 0);
   }
 
+  const selectedStudents = students.filter((s) => selectedIds.has(s.id));
+
   return (
     <div ref={containerRef} className="relative">
-      {/* 트리거 버튼 */}
       <button
         type="button"
         onClick={handleOpen}
         className={cn(
-          "flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
+          "flex min-h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background",
           "hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-          !selected && "text-muted-foreground"
+          selectedIds.size === 0 && "text-muted-foreground"
         )}
       >
-        <span>{selected ? `${selected.name} (${selected.grade})` : "원생 선택"}</span>
-        <div className="flex items-center gap-1 text-muted-foreground">
-          {selected && (
-            <span
-              role="button"
-              onClick={(e) => { e.stopPropagation(); onChange(""); }}
-              className="hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-            </span>
+        <div className="flex flex-wrap gap-1 flex-1">
+          {selectedStudents.length > 0 ? (
+            selectedStudents.map((s) => (
+              <span
+                key={s.id}
+                className="inline-flex items-center gap-0.5 bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5 text-xs font-medium"
+              >
+                {s.name}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); toggleStudent(s.id); }}
+                  className="hover:text-destructive"
+                >
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              </span>
+            ))
+          ) : (
+            <span>원생 선택 (다중 선택 가능)</span>
           )}
-          <ChevronDown className="h-4 w-4" />
         </div>
+        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-1" />
       </button>
 
-      {/* 드롭다운 */}
       {open && (
         <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
-          {/* 검색 입력 */}
           <div className="flex items-center gap-2 border-b px-3 py-2">
             <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             <input
@@ -113,8 +120,6 @@ function StudentCombobox({
               </button>
             )}
           </div>
-
-          {/* 목록 */}
           <div className="max-h-52 overflow-y-auto py-1">
             {filtered.length === 0 ? (
               <p className="px-3 py-2 text-sm text-muted-foreground">검색 결과 없음</p>
@@ -123,15 +128,20 @@ function StudentCombobox({
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => handleSelect(s.id)}
+                  onClick={() => toggleStudent(s.id)}
                   className={cn(
                     "flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors",
-                    s.id === value && "bg-accent font-medium"
+                    selectedIds.has(s.id) && "bg-accent font-medium"
                   )}
                 >
+                  <div className={cn(
+                    "w-4 h-4 rounded border flex items-center justify-center shrink-0",
+                    selectedIds.has(s.id) ? "bg-primary border-primary" : "border-input"
+                  )}>
+                    {selectedIds.has(s.id) && <Check className="h-3 w-3 text-primary-foreground" />}
+                  </div>
                   <span>{s.name}</span>
                   <span className="text-xs text-muted-foreground">{s.grade}</span>
-                  {s.id === value && <Check className="ml-auto h-3.5 w-3.5" />}
                 </button>
               ))
             )}
@@ -156,34 +166,43 @@ interface LastRecord {
 export function MeritForm({ students }: Props) {
   const [isPending, startTransition] = useTransition();
   const [lastRecord, setLastRecord] = useState<LastRecord | null>(null);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
 
   const [draft, setDraft, clearDraft] = useDraft("merit-form-draft", {
-    selectedStudentId: "",
     reason: "",
   });
-  const { selectedStudentId } = draft;
-  const setSelectedStudentId = (v: string) => setDraft((d) => ({ ...d, selectedStudentId: v }));
 
   function handleSubmit(formData: FormData) {
-    formData.set("studentId", selectedStudentId);
-    const type = formData.get("type") as "MERIT" | "DEMERIT";
-    const points = Number(formData.get("points"));
-    const reason = formData.get("reason") as string;
-    const student = students.find((s) => s.id === selectedStudentId);
-
-    if (!selectedStudentId) {
+    if (selectedStudentIds.size === 0) {
       toast.error("원생을 선택해주세요");
       return;
     }
 
+    const type = formData.get("type") as "MERIT" | "DEMERIT";
+    const points = Number(formData.get("points"));
+    const reason = formData.get("reason") as string;
+    const date = formData.get("date") as string;
+    const category = formData.get("category") as string;
+    const names = [...selectedStudentIds].map((id) => students.find((s) => s.id === id)?.name).filter(Boolean);
+
     startTransition(async () => {
       try {
-        await createMeritDemerit(formData);
-        clearDraft();
-        toast.success("상벌점이 부여되었습니다");
-        if (student) {
-          setLastRecord({ studentName: student.name, type, points, reason });
+        // 선택된 학생별로 개별 생성
+        for (const studentId of selectedStudentIds) {
+          const fd = new FormData();
+          fd.set("studentId", studentId);
+          fd.set("type", type);
+          fd.set("points", String(points));
+          fd.set("reason", reason);
+          fd.set("date", date);
+          if (category) fd.set("category", category);
+          await createMeritDemerit(fd);
         }
+        clearDraft();
+        setSelectedStudentIds(new Set());
+        const label = selectedStudentIds.size > 1 ? `${names[0]} 외 ${selectedStudentIds.size - 1}명` : names[0];
+        toast.success(`${label}에게 상벌점이 부여되었습니다`);
+        setLastRecord({ studentName: names.join(", ") ?? "", type, points, reason });
       } catch {
         toast.error("저장에 실패했습니다");
       }
@@ -211,10 +230,10 @@ export function MeritForm({ students }: Props) {
       <form action={handleSubmit} className="space-y-3">
         <div className="space-y-1.5">
           <Label>원생</Label>
-          <StudentCombobox
+          <StudentMultiCombobox
             students={students}
-            value={selectedStudentId}
-            onChange={setSelectedStudentId}
+            selectedIds={selectedStudentIds}
+            onChange={setSelectedStudentIds}
           />
         </div>
 

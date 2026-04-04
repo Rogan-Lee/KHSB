@@ -35,7 +35,7 @@ const STATUS_CONFIG: Record<RequestStatus, {
   badgeVariant: "default" | "secondary" | "outline" | "destructive";
 }> = {
   PENDING: { label: "대기", icon: Clock, style: "text-amber-600", badgeVariant: "outline" },
-  IN_PROGRESS: { label: "진행중", icon: Loader2, style: "text-blue-600", badgeVariant: "default" },
+  IN_PROGRESS: { label: "진행중", icon: Loader2, style: "text-white", badgeVariant: "default" },
   DONE: { label: "완료", icon: CheckCircle2, style: "text-green-600", badgeVariant: "secondary" },
   ON_HOLD: { label: "보류", icon: Pause, style: "text-gray-500", badgeVariant: "outline" },
 };
