@@ -90,13 +90,7 @@ function calcAutoType(
     }
   }
 
-  if (checkOut && schedOut) {
-    if (toMinutes(checkOut) < toMinutes(schedOut)) {
-      type = "EARLY_LEAVE";
-    } else if (type === "EARLY_LEAVE") {
-      type = checkIn && schedIn && toMinutes(checkIn) >= toMinutes(schedIn) + 5 ? "TARDY" : "NORMAL";
-    }
-  }
+  // 조퇴는 수동으로만 설정 (자동 판별 제거)
 
   return type;
 }
@@ -370,11 +364,6 @@ export function AttendanceTable({ students, today }: Props) {
       if (field === "checkIn") {
         const schedIn = student.schedules[0]?.startTime;
         newType = (schedIn && schedIn !== "FLEXIBLE" && toMinutes(time) >= toMinutes(schedIn) + 5) ? "TARDY" : "NORMAL";
-      } else if (field === "checkOut") {
-        const schedOut = student.schedules[0]?.endTime;
-        if (schedOut && schedOut !== "FLEXIBLE" && toMinutes(time) < toMinutes(schedOut)) {
-          newType = "EARLY_LEAVE";
-        }
       }
     }
 
@@ -391,7 +380,7 @@ export function AttendanceTable({ students, today }: Props) {
       });
       const label = field === "checkIn"
         ? (newType === "TARDY" ? "입실 기록됨 (지각)" : "입실 기록됨")
-        : (newType === "EARLY_LEAVE" ? "퇴실 기록됨 (조퇴)" : "퇴실 기록됨");
+        : "퇴실 기록됨";
       toast.success(label);
     } catch { toast.error("저장 실패"); }
     setQuickPending(null);
@@ -1326,7 +1315,7 @@ export function AttendanceTable({ students, today }: Props) {
                 const outSch = selected.outings[0];
                 const panelLocalOut = localOutings.get(selected.id) ?? [];
                 const isLate = !!(editValues.checkIn && schedIn && schedIn !== "FLEXIBLE" && toMinutes(editValues.checkIn) >= toMinutes(schedIn) + 5);
-                const isEarlyLeave = !!(editValues.checkOut && schedOut && schedOut !== "FLEXIBLE" && toMinutes(editValues.checkOut) < toMinutes(schedOut));
+                // 조퇴는 수동 설정만 가능 (자동 판별 제거)
                 const mergedOutings = panelLocalOut
                   .filter((lo): lo is { id: string; outStart: Date | null; outEnd: Date | null } => lo.id !== null)
                   .map((lo) => {
@@ -1446,7 +1435,7 @@ export function AttendanceTable({ students, today }: Props) {
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-semibold">퇴실</span>
-                              {isEarlyLeave && (
+                              {editValues.type === "EARLY_LEAVE" && (
                                 <span className="text-[11px] bg-blue-100 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 font-medium">조퇴</span>
                               )}
                             </div>
