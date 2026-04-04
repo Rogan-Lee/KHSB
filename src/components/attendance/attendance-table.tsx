@@ -392,6 +392,27 @@ export function AttendanceTable({ students, today }: Props) {
     setQuickPending(null);
   }
 
+  async function clearField(student: StudentWithAttendance, field: "checkIn" | "checkOut") {
+    if (quickPending) return;
+    const curr = localTimes.get(student.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType };
+    const updated = { ...curr, [field]: "", type: "NORMAL" as AttendanceType };
+    // 퇴실 클리어 시 타입 유지, 입실 클리어 시 NORMAL로
+    if (field === "checkOut") updated.type = curr.type;
+    setLocalTimes((prev) => { const m = new Map(prev); m.set(student.id, updated); return m; });
+    if (selectedId === student.id) setEditValues((v) => ({ ...v, [field]: "", type: updated.type }));
+    setQuickPending(student.id);
+    try {
+      await saveAttendanceRecord({
+        studentId: student.id, date: todayDate,
+        checkIn: updated.checkIn || undefined,
+        checkOut: updated.checkOut || undefined,
+        type: updated.type,
+      });
+      toast.success(field === "checkIn" ? "입실 기록 삭제됨" : "퇴실 기록 삭제됨");
+    } catch { toast.error("삭제 실패"); }
+    setQuickPending(null);
+  }
+
   async function quickStartOuting(student: StudentWithAttendance, time: string = nowHHMM()) {
     if (quickPending) return;
     setQuickPending(student.id);
@@ -757,6 +778,14 @@ export function AttendanceTable({ students, today }: Props) {
                           className="p-0.5 text-green-700 hover:text-green-900 disabled:opacity-40"
                           title="저장"
                         ><Check className="h-3.5 w-3.5" /></button>
+                        {checkInTime && (
+                          <button
+                            onClick={() => { clearField(student, "checkIn"); setInlineTimeEdit(null); }}
+                            disabled={isQuickLoading}
+                            className="p-0.5 text-red-500 hover:text-red-700 disabled:opacity-40"
+                            title="입실 기록 삭제"
+                          ><Trash2 className="h-3.5 w-3.5" /></button>
+                        )}
                         <button
                           onClick={() => setInlineTimeEdit(null)}
                           className="p-0.5 text-muted-foreground hover:text-foreground"
@@ -835,6 +864,14 @@ export function AttendanceTable({ students, today }: Props) {
                           className="p-0.5 text-green-700 hover:text-green-900 disabled:opacity-40"
                           title="저장"
                         ><Check className="h-3.5 w-3.5" /></button>
+                        {checkOutTime && (
+                          <button
+                            onClick={() => { clearField(student, "checkOut"); setInlineTimeEdit(null); }}
+                            disabled={isQuickLoading}
+                            className="p-0.5 text-red-500 hover:text-red-700 disabled:opacity-40"
+                            title="퇴실 기록 삭제"
+                          ><Trash2 className="h-3.5 w-3.5" /></button>
+                        )}
                         <button
                           onClick={() => setInlineTimeEdit(null)}
                           className="p-0.5 text-muted-foreground hover:text-foreground"
@@ -1389,6 +1426,18 @@ export function AttendanceTable({ students, today }: Props) {
                             >
                               지금
                             </button>
+                            {editValues.checkIn && (
+                              <button
+                                onClick={() => {
+                                  setEditValues((v) => ({ ...v, checkIn: "", type: "NORMAL" as AttendanceType }));
+                                  setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(selected.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(selected.id, { ...c, checkIn: "", type: "NORMAL" as AttendanceType }); return m; });
+                                }}
+                                className="p-1.5 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md shrink-0 transition-colors"
+                                title="입실 기록 삭제"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1466,6 +1515,18 @@ export function AttendanceTable({ students, today }: Props) {
                             >
                               지금
                             </button>
+                            {editValues.checkOut && (
+                              <button
+                                onClick={() => {
+                                  setEditValues((v) => ({ ...v, checkOut: "" }));
+                                  setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(selected.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(selected.id, { ...c, checkOut: "" }); return m; });
+                                }}
+                                className="p-1.5 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md shrink-0 transition-colors"
+                                title="퇴실 기록 삭제"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
