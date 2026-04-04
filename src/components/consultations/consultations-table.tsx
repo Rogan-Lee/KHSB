@@ -334,7 +334,7 @@ function loadConsultFilters() {
 type CategoryFilter = "ALL" | "ENROLLED" | "NEW_ADMISSION" | "CONSIDERING";
 type TypeFilter = "ALL" | "STUDENT" | "PARENT";
 
-export function ConsultationsList({ consultations }: { consultations: Consultation[] }) {
+export function ConsultationsList({ consultations, owner = "DIRECTOR" }: { consultations: Consultation[]; owner?: string }) {
   const router = useRouter();
   const saved = typeof window !== "undefined" ? loadConsultFilters() : {};
   const [query, setQuery] = useState<string>(saved.q ?? "");
@@ -378,12 +378,18 @@ export function ConsultationsList({ consultations }: { consultations: Consultati
     { key: "COMPLETED", label: "완료" },
     { key: "CANCELLED", label: "취소" },
   ];
-  const categoryTabs: { key: CategoryFilter; label: string }[] = [
-    { key: "ALL", label: "전체" },
-    { key: "ENROLLED", label: "재원생" },
-    { key: "NEW_ADMISSION", label: "신규 입실" },
-    { key: "CONSIDERING", label: "등록 고민" },
-  ];
+  const categoryTabs: { key: CategoryFilter; label: string }[] = owner === "HEAD_TEACHER"
+    ? [
+        { key: "ALL", label: "전체" },
+        { key: "ENROLLED", label: "재원생" },
+        { key: "NEW_ADMISSION", label: "신규 학생" },
+      ]
+    : [
+        { key: "ALL", label: "전체" },
+        { key: "ENROLLED", label: "재원생" },
+        { key: "NEW_ADMISSION", label: "신규 입실" },
+        { key: "CONSIDERING", label: "등록 고민" },
+      ];
   const typeTabs: { key: TypeFilter; label: string }[] = [
     { key: "ALL", label: "전체" },
     { key: "STUDENT", label: "학생" },
@@ -395,8 +401,8 @@ export function ConsultationsList({ consultations }: { consultations: Consultati
 
   return (
     <div className="space-y-3">
-      {/* 등록 고민 추적 배너 */}
-      {consideringCount > 0 && categoryFilter !== "CONSIDERING" && (
+      {/* 등록 고민 추적 배너 (원장 면담 전용) */}
+      {owner === "DIRECTOR" && consideringCount > 0 && categoryFilter !== "CONSIDERING" && (
         <button
           onClick={() => { setCategoryFilter("CONSIDERING"); setStatusFilter("ALL"); }}
           className="w-full flex items-center justify-between px-4 py-2.5 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors"
@@ -433,8 +439,8 @@ export function ConsultationsList({ consultations }: { consultations: Consultati
           ))}
         </div>
 
-        {/* Type tabs */}
-        <div className="flex items-center gap-0.5 bg-muted/50 rounded-lg p-1 border">
+        {/* Type tabs (책임T는 학생 상담만이므로 숨김) */}
+        {owner !== "HEAD_TEACHER" && <div className="flex items-center gap-0.5 bg-muted/50 rounded-lg p-1 border">
           {typeTabs.map((t) => (
             <button key={t.key} onClick={() => setTypeFilter(t.key)}
               className={cn("px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
@@ -442,7 +448,7 @@ export function ConsultationsList({ consultations }: { consultations: Consultati
               {t.label}
             </button>
           ))}
-        </div>
+        </div>}
 
         {/* Search */}
         <div className="relative">

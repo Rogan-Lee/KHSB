@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { ConsultationStatus, ConsultationType, ConsultationCategory } from "@/generated/prisma";
+import { ConsultationStatus, ConsultationType, ConsultationCategory, ConsultationOwner } from "@/generated/prisma";
 import { requireFullAccess } from "@/lib/roles";
 
 export async function createConsultation(formData: FormData) {
@@ -19,6 +19,10 @@ export async function createConsultation(formData: FormData) {
     throw new Error("원생을 선택하거나 신규 상담 정보를 입력하세요");
   }
 
+  const owner = Object.values(ConsultationOwner).includes(raw.owner as ConsultationOwner)
+    ? (raw.owner as ConsultationOwner)
+    : "DIRECTOR";
+
   await prisma.directorConsultation.create({
     data: {
       studentId,
@@ -31,6 +35,7 @@ export async function createConsultation(formData: FormData) {
       category: Object.values(ConsultationCategory).includes(raw.category as ConsultationCategory)
         ? (raw.category as ConsultationCategory)
         : "ENROLLED",
+      owner,
       scheduledAt: raw.scheduledAt ? new Date(raw.scheduledAt as string) : null,
       agenda: (raw.agenda as string) || null,
       status: "SCHEDULED",
@@ -65,12 +70,13 @@ export async function updateConsultation(id: string, formData: FormData) {
   revalidatePath(`/consultations/${id}`);
 }
 
-export async function getConsultations() {
+export async function getConsultations(owner?: ConsultationOwner) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
   requireFullAccess(session.user.role);
 
   return prisma.directorConsultation.findMany({
+    where: owner ? { owner } : undefined,
     include: {
       student: { select: { id: true, name: true, grade: true } },
     },
@@ -88,6 +94,7 @@ export async function getConsultations() {
     notes: string | null;
     outcome: string | null;
     followUp: string | null;
+    owner: ConsultationOwner;
     student: { id: string; name: string; grade: string } | null;
   }>>;
 }
