@@ -1,17 +1,15 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
-  Pin, PinOff, CheckCircle2, Clock, Pencil, Trash2, AlertTriangle,
-  Eye, X, ListChecks, Users,
-  ChevronDown, ChevronUp, User, CheckSquare, Square, Send,
+  Pin, PinOff, CheckCircle2, Clock, Trash2, AlertTriangle,
+  Eye, ListChecks, Users, User, CheckSquare, Square, Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { deleteHandover, markHandoverRead, togglePin, toggleHandoverTask } from "@/actions/handover";
-import { HandoverForm } from "@/components/handover/handover-form";
-import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import Link from "next/link";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -19,25 +17,14 @@ type HandoverTask = { id: string; title: string; content: string; assigneeId: st
 type HandoverChecklist = { id: string; templateId: string | null; title: string; shiftType: string; isChecked: boolean; order: number };
 type HandoverRead = { userId: string; userName: string; readAt: Date };
 type Handover = { id: string; date: Date; content: string; priority: "URGENT" | "NORMAL"; category: string | null; isPinned: boolean; authorId: string; authorName: string; recipientId: string | null; recipientName: string | null; reads: HandoverRead[]; tasks: HandoverTask[]; checklist: HandoverChecklist[]; monthlyNotesSnapshot: object | null; createdAt: Date };
-type ChecklistTemplate = { id: string; title: string; shiftType: string; order: number; isActive: boolean };
-type MonthlyNote = { id: string; year: number; month: number; studentId: string | null; studentName: string; content: string; authorId: string; authorName: string; createdAt: Date };
-type Student = { id: string; name: string; grade: string };
 type Staff = { id: string; name: string; role: string };
-
-type PendingTodo = { id: string; title: string; content: string | null; assigneeId: string | null; assigneeName: string | null };
 
 interface Props {
   initialHandovers: Handover[];
-  templates: ChecklistTemplate[];
-  monthlyNotes: MonthlyNote[];
-  students: Student[];
   staffList: Staff[];
   currentUserId: string;
   currentUserName: string;
   currentUserRole: string;
-  year: number;
-  month: number;
-  pendingTodos?: PendingTodo[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -72,181 +59,132 @@ function ReadersPopover({ reads, onClose }: { reads: HandoverRead[]; onClose: ()
   );
 }
 
-// ── Handover feed card ────────────────────────────────────────────────────────
-function HandoverFeedCard({ h, currentUserId, onEdit, onDelete, onRead, onTogglePin, onToggleTask, isPending }: {
-  h: Handover; currentUserId: string; onEdit: (h: Handover) => void; onDelete: (id: string) => void; onRead: (h: Handover) => void; onTogglePin: (h: Handover) => void; onToggleTask: (taskId: string) => void; isPending: boolean;
+// ── Summary card (슬랙/노션 스타일) ──────────────────────────────────────────
+function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRead, onTogglePin, isPending }: {
+  h: Handover; currentUserId: string; currentUserName: string; onDelete: (id: string) => void; onRead: (h: Handover) => void; onTogglePin: (h: Handover) => void; isPending: boolean;
 }) {
+  const router = useRouter();
   const [showReaders, setShowReaders] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-  const [contentExpanded, setContentExpanded] = useState(false);
   const isRead = h.reads.some((r) => r.userId === currentUserId);
   const isAuthor = h.authorId === currentUserId;
   const isUrgent = h.priority === "URGENT";
   const checkedCount = h.checklist.filter((c) => c.isChecked).length;
-  const hasDetails = h.tasks.length > 0 || h.checklist.length > 0;
-  // 수신자 관련 (다중)
+  const completedTasks = h.tasks.filter((t) => t.isCompleted).length;
+
   const recipientIds: string[] = h.recipientId ? (() => { try { const p = JSON.parse(h.recipientId); return Array.isArray(p) ? p : [h.recipientId]; } catch { return [h.recipientId]; } })() : [];
   const recipientNames: string[] = h.recipientName ? (() => { try { const p = JSON.parse(h.recipientName); return Array.isArray(p) ? p : [h.recipientName]; } catch { return [h.recipientName]; } })() : [];
   const isRecipient = recipientIds.includes(currentUserId);
   const needsMyConfirm = isRecipient && !isRead;
+  const confirmedCount = recipientIds.filter((rid) => h.reads.some((r) => r.userId === rid)).length;
+
+  function handleCardClick(e: React.MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (target.closest("button") || target.closest("a")) return;
+    router.push(`/handover/${h.id}`);
+  }
+
+  // 아바타 이니셜
+  const initial = h.authorName.slice(0, 1);
 
   return (
-    <div className={cn("rounded-xl border bg-card transition-all",
-      isUrgent ? "border-red-200 bg-red-50/30" : h.isPinned ? "border-amber-200 bg-amber-50/20" : "",
-      needsMyConfirm ? "ring-2 ring-primary/40" : (!isRead && !isAuthor) ? "ring-1 ring-primary/20" : ""
-    )}>
-      <div className="p-3 space-y-2">
-        {/* Top bar */}
-        <div className="flex items-start gap-2">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap mb-1">
-              {h.isPinned && <Pin className="h-3 w-3 text-amber-400 shrink-0" />}
-              {isUrgent && <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200 rounded-full px-1.5 py-0.5"><AlertTriangle className="h-2.5 w-2.5" />긴급</span>}
-              {h.category && <span className="text-[10px] bg-muted text-muted-foreground border rounded-full px-2 py-0.5">{h.category}</span>}
-              {!isRead && !isAuthor && <span className="text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 rounded-full px-1.5 py-0.5">NEW</span>}
-            </div>
-            {/* 수신 담당자 표시 (다중) */}
-            {recipientNames.length > 0 && (
-              <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
-                <span className="text-[10px] text-muted-foreground">수신:</span>
-                {recipientNames.map((name, idx) => {
-                  const rid = recipientIds[idx];
-                  const rRead = rid ? h.reads.find((r) => r.userId === rid) : null;
-                  return (
-                    <span key={idx} className={cn(
-                      "inline-flex items-center gap-1 text-[11px] font-semibold rounded-full px-2 py-0.5 border",
-                      rRead
-                        ? "bg-green-50 text-green-700 border-green-200"
-                        : "bg-[#eaf2fe] text-[#005eeb] border-[#c0d9fc]"
-                    )}>
-                      <User className="h-2.5 w-2.5" />
-                      {name}
-                      {rRead
-                        ? <><CheckCircle2 className="h-2.5 w-2.5 ml-0.5" />확인</>
-                        : <span className="opacity-60 ml-0.5">미확인</span>
-                      }
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-            {h.content && (
-              <div>
-                {contentExpanded ? (
-                  <div className="text-sm">
-                    <MarkdownViewer source={h.content} />
-                    <button onClick={() => setContentExpanded(false)} className="text-[11px] text-primary hover:underline mt-1 flex items-center gap-0.5">
-                      <ChevronUp className="h-3 w-3" />접기
-                    </button>
-                  </div>
-                ) : (
-                  <button onClick={() => setContentExpanded(true)} className="w-full text-left">
-                    <p className="text-sm leading-snug whitespace-pre-wrap break-words line-clamp-2">{h.content}</p>
-                    {h.content.split("\n").length > 2 || h.content.length > 100 ? (
-                      <span className="text-[11px] text-primary hover:underline mt-0.5 flex items-center gap-0.5">
-                        <ChevronDown className="h-3 w-3" />전체 보기
-                      </span>
-                    ) : null}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-          {/* Actions */}
-          <div className="flex items-center gap-0.5 shrink-0">
-            <button onClick={() => onTogglePin(h)} disabled={isPending} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-              {h.isPinned ? <PinOff className="h-3 w-3" /> : <Pin className="h-3 w-3" />}
-            </button>
-            {isAuthor && <>
-              <button onClick={() => onEdit(h)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><Pencil className="h-3 w-3" /></button>
-              <button onClick={() => onDelete(h.id)} className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"><Trash2 className="h-3 w-3" /></button>
-            </>}
-          </div>
+    <div
+      onClick={handleCardClick}
+      className={cn(
+        "flex gap-2.5 py-2 px-2 rounded-lg cursor-pointer transition-colors group",
+        needsMyConfirm ? "bg-blue-50/60 hover:bg-blue-50" :
+        !isRead && !isAuthor ? "bg-muted/30 hover:bg-muted/50" :
+        "hover:bg-muted/30",
+      )}
+    >
+      {/* 아바타 */}
+      <div className={cn(
+        "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
+        isUrgent ? "bg-red-100 text-red-700" : "bg-[#eaf2fe] text-[#005eeb]"
+      )}>
+        {initial}
+      </div>
+
+      {/* 메시지 본문 */}
+      <div className="flex-1 min-w-0 space-y-1">
+        {/* 이름 + 시간 + 뱃지 */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-bold text-foreground">{h.authorName}</span>
+          <span className="text-xs text-muted-foreground">{fmtTime(h.createdAt)}</span>
+          {h.isPinned && <Pin className="h-3 w-3 text-amber-500" />}
+          {isUrgent && <span className="text-[10px] font-semibold bg-red-100 text-red-700 rounded px-1.5 py-0.5">긴급</span>}
+          {h.category && <span className="text-[10px] bg-muted text-muted-foreground rounded px-1.5 py-0.5">{h.category}</span>}
+          {!isRead && !isAuthor && <span className="text-[10px] font-semibold bg-blue-500 text-white rounded px-1.5 py-0.5">NEW</span>}
         </div>
 
-        {/* Summary badges + expand */}
-        {hasDetails && (
-          <div className="flex items-center gap-2 flex-wrap">
-            {h.tasks.length > 0 && <span className="text-[10px] flex items-center gap-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-1.5 py-0.5"><ListChecks className="h-2.5 w-2.5" />할 일 {h.tasks.length}</span>}
-            {h.checklist.length > 0 && <span className={cn("text-[10px] flex items-center gap-0.5 rounded-full px-1.5 py-0.5 border", checkedCount === h.checklist.length ? "bg-green-50 text-green-700 border-green-200" : "bg-orange-50 text-orange-700 border-orange-200")}><CheckCircle2 className="h-2.5 w-2.5" />루틴 {checkedCount}/{h.checklist.length}</span>}
-            <button onClick={() => setExpanded((p) => !p)} className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-0.5 ml-auto">
-              {expanded ? <><ChevronUp className="h-3 w-3" />접기</> : <><ChevronDown className="h-3 w-3" />상세</>}
+        {/* 하단 정보 */}
+        <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
+          {h.tasks.length > 0 && (
+            <span className="flex items-center gap-1">
+              <ListChecks className="h-3 w-3" />할 일 {completedTasks}/{h.tasks.length}
+            </span>
+          )}
+          {h.checklist.length > 0 && (
+            <span className="flex items-center gap-1">
+              <CheckSquare className="h-3 w-3" />루틴 {checkedCount}/{h.checklist.length}
+            </span>
+          )}
+          {recipientNames.length > 0 && (
+            <span className="flex items-center gap-1">
+              <Users className="h-3 w-3" />
+              {confirmedCount}/{recipientNames.length}명 확인
+            </span>
+          )}
+          <div className="relative">
+            <button onClick={() => setShowReaders((p) => !p)} className="flex items-center gap-1 hover:text-foreground transition-colors">
+              <Eye className="h-3 w-3" />{h.reads.length}
+            </button>
+            {showReaders && <ReadersPopover reads={h.reads} onClose={() => setShowReaders(false)} />}
+          </div>
+
+          {/* 수신자 확인 현황 */}
+          {recipientNames.length > 0 && (
+            <div className="flex items-center gap-1">
+              {recipientNames.map((name, idx) => {
+                const rid = recipientIds[idx];
+                const rRead = rid ? h.reads.find((r) => r.userId === rid) : null;
+                return (
+                  <span key={idx} className={cn("text-[10px] rounded px-1.5 py-0.5 font-medium", rRead ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500")}>
+                    {name}{rRead ? " ✓" : ""}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 오른쪽 액션 */}
+      <div className="flex flex-col items-end gap-1.5 shrink-0">
+        {isAuthor ? (
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onClick={() => onTogglePin(h)} disabled={isPending} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
+              {h.isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+            </button>
+            <button onClick={() => onDelete(h.id)} className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600">
+              <Trash2 className="h-3.5 w-3.5" />
             </button>
           </div>
+        ) : isRead ? (
+          <span className="flex items-center gap-0.5 text-xs text-green-600 font-medium"><CheckCircle2 className="h-3.5 w-3.5" /></span>
+        ) : (
+          <button
+            onClick={() => onRead(h)}
+            disabled={isPending}
+            className={cn(
+              "flex items-center gap-1 text-xs rounded-md px-3 py-1.5 font-medium transition-colors",
+              needsMyConfirm
+                ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+                : "bg-primary text-primary-foreground hover:opacity-90"
+            )}
+          >
+            확인
+          </button>
         )}
-
-        {/* Expanded details */}
-        {expanded && (
-          <div className="space-y-2 pt-1 border-t border-border/40">
-            {h.tasks.length > 0 && (
-              <div className="space-y-1">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">다음 근무자 할 일</p>
-                {h.tasks.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => onToggleTask(t.id)}
-                    disabled={isPending}
-                    className={cn("w-full flex items-start gap-2 bg-muted/30 hover:bg-muted/50 rounded px-2.5 py-1.5 text-left transition-colors", t.isCompleted && "opacity-60")}
-                  >
-                    {t.isCompleted
-                      ? <CheckSquare className="h-3 w-3 text-green-500 mt-0.5 shrink-0" />
-                      : <Square className="h-3 w-3 text-muted-foreground/40 mt-0.5 shrink-0" />
-                    }
-                    <div className="flex-1 min-w-0">
-                      <p className={cn("text-xs font-medium", t.isCompleted && "line-through text-muted-foreground")}>{t.title}</p>
-                      {t.content && <p className="text-[11px] text-muted-foreground">{t.content}</p>}
-                      {t.assigneeName && <p className="text-[11px] text-primary flex items-center gap-0.5 mt-0.5"><User className="h-2.5 w-2.5" />{t.assigneeName}{t.isCompleted && <span className="ml-1 text-green-600">완료</span>}</p>}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-            {h.checklist.length > 0 && (
-              <div className="space-y-0.5">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">루틴 체크리스트</p>
-                {h.checklist.map((c) => (
-                  <div key={c.id} className={cn("flex items-center gap-1.5 px-2 py-1 rounded text-xs", c.isChecked ? "text-green-700" : "text-muted-foreground")}>
-                    {c.isChecked ? <CheckSquare className="h-3 w-3 text-green-500 shrink-0" /> : <Square className="h-3 w-3 text-muted-foreground/30 shrink-0" />}
-                    <span className={cn(c.isChecked && "line-through")}>{c.title}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-1.5 border-t border-border/40 gap-2">
-          <div className="flex items-center gap-2 min-w-0 text-xs">
-            <span className="font-medium truncate">{h.authorName}</span>
-            <span className="text-muted-foreground shrink-0">{fmtTime(h.createdAt)}</span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="relative">
-              <button onClick={() => setShowReaders((p) => !p)} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                <Eye className="h-3 w-3" />{h.reads.length}명
-              </button>
-              {showReaders && <ReadersPopover reads={h.reads} onClose={() => setShowReaders(false)} />}
-            </div>
-            {isAuthor ? null : isRead ? (
-              <span className="flex items-center gap-0.5 text-xs text-green-600 font-medium"><CheckCircle2 className="h-3 w-3" />확인됨</span>
-            ) : (
-              <button
-                onClick={() => onRead(h)}
-                disabled={isPending}
-                className={cn(
-                  "flex items-center gap-0.5 text-xs rounded px-2 py-0.5 font-medium transition-colors",
-                  needsMyConfirm
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm ring-1 ring-primary"
-                    : "bg-primary text-primary-foreground hover:opacity-90"
-                )}
-              >
-                <CheckCircle2 className="h-3 w-3" />{needsMyConfirm ? "내 차례 확인" : "확인"}
-              </button>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -266,12 +204,10 @@ function DeleteConfirm({ onConfirm, onCancel, isPending }: { onConfirm: () => vo
 }
 
 // ── Main board ────────────────────────────────────────────────────────────────
-export function HandoverBoard({ initialHandovers, templates, monthlyNotes, students, staffList, currentUserId, currentUserName, currentUserRole, year, month, pendingTodos = [] }: Props) {
+export function HandoverBoard({ initialHandovers, staffList, currentUserId, currentUserName, currentUserRole }: Props) {
   const [handovers, setHandovers] = useState<Handover[]>(initialHandovers);
   const [isPending, startTransition] = useTransition();
-  const [editingHandover, setEditingHandover] = useState<Handover | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-
 
   const sorted = [...handovers].sort((a, b) => {
     const dd = new Date(b.date).getTime() - new Date(a.date).getTime();
@@ -288,8 +224,6 @@ export function HandoverBoard({ initialHandovers, templates, monthlyNotes, stude
     const g = groups.find((g) => g.label === label);
     if (g) g.items.push(h); else groups.push({ label, items: [h] });
   }
-
-  function handleFormDone() { setEditingHandover(null); window.location.reload(); }
 
   function handleDelete(id: string) {
     startTransition(async () => {
@@ -325,98 +259,67 @@ export function HandoverBoard({ initialHandovers, templates, monthlyNotes, stude
     });
   }
 
-  // ── 메인 ─────────────────────────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
-      {/* ── 헤더 ──────────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">인수인계</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{year}년 {month}월 · 최근 14일</p>
-        </div>
-        {unreadCount > 0 && (
-          <span className="inline-flex items-center gap-1 text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-full px-3 py-1">
-            <AlertTriangle className="h-3.5 w-3.5" />미확인 {unreadCount}건
-          </span>
-        )}
+        <h1 className="text-xl font-bold">인수인계</h1>
+        <Link href="/handover/new">
+          <Button size="sm" className="gap-1.5">
+            <Plus className="h-4 w-4" />작성하기
+          </Button>
+        </Link>
       </div>
 
-      {/* ── KPI 칩 ────────────────────────────────────────────────────────── */}
+      {/* KPI chips */}
       <div className="grid grid-cols-3 gap-2">
         <KpiChip value={unreadCount} label="미확인" color={unreadCount > 0 ? "red" : "muted"} icon={<AlertTriangle className="h-3.5 w-3.5" />} />
         <KpiChip value={handovers.length} label="인수인계" color="blue" icon={<Clock className="h-3.5 w-3.5" />} />
-        <KpiChip value={templates.filter((t) => t.isActive).length} label="루틴 항목" color="green" icon={<CheckCircle2 className="h-3.5 w-3.5" />} />
+        <KpiChip value={handovers.reduce((n, h) => n + h.checklist.length, 0)} label="루틴 항목" color="green" icon={<CheckCircle2 className="h-3.5 w-3.5" />} />
       </div>
 
-      {/* ── 인수인계 작성/수정 폼 (항상 노출) ────────────────────────────── */}
-      <div className="rounded-xl border border-[#c0d9fc] bg-[#f7fbff] p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Send className="h-4 w-4 text-[#0066ff]" />
-          <h2 className="text-sm font-semibold text-[#1e2124]">
-            {editingHandover ? "인수인계 수정" : "오늘 인수인계 작성"}
-          </h2>
-          {editingHandover && (
-            <button
-              onClick={() => setEditingHandover(null)}
-              className="ml-auto p-1 rounded hover:bg-[#eaf2fe] text-[#6d7882]"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-        <HandoverForm
-          editingHandover={editingHandover ?? undefined}
-          templates={templates}
-          monthlyNotes={monthlyNotes}
-          staffList={staffList}
-          pendingTodos={pendingTodos}
-          onDone={handleFormDone}
-          onCancel={() => setEditingHandover(null)}
-        />
-      </div>
-
-      {/* ── 2-col 메인 ────────────────────────────────────────────────────── */}
+      {/* 2-col main */}
       <div className="grid grid-cols-[1fr_320px] gap-4 items-start">
 
-        {/* LEFT — 인수인계 피드 */}
-        <div className="space-y-3">
-          {/* 고정 */}
+        {/* LEFT -- feed */}
+        <div className="rounded-xl border bg-card divide-y">
+          {/* Pinned */}
           {pinned.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wide flex items-center gap-1.5 px-1">
+            <div className="px-3 pt-3 pb-1">
+              <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wide flex items-center gap-1.5 mb-1">
                 <Pin className="h-3 w-3" />고정됨
               </p>
               {pinned.map((h) =>
                 deleteConfirmId === h.id
                   ? <DeleteConfirm key={h.id} onConfirm={() => handleDelete(h.id)} onCancel={() => setDeleteConfirmId(null)} isPending={isPending} />
-                  : <HandoverFeedCard key={h.id} h={h} currentUserId={currentUserId} onEdit={setEditingHandover} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} onToggleTask={handleToggleTask} isPending={isPending} />
+                  : <HandoverSummaryCard key={h.id} h={h} currentUserId={currentUserId} currentUserName={currentUserName} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} isPending={isPending} />
               )}
             </div>
           )}
 
-          {/* 날짜별 그룹 */}
+          {/* Date groups */}
           {groups.length === 0 && pinned.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground rounded-xl border bg-card">
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
               <Clock className="h-10 w-10 mb-3 opacity-20" />
               <p className="text-sm">아직 인수인계 내역이 없습니다</p>
             </div>
           ) : (
             groups.map(({ label, items }) => (
-              <div key={label} className="space-y-2">
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide px-1">{label}</p>
+              <div key={label} className="px-3 pt-3 pb-1">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
                 {items.map((h) =>
                   deleteConfirmId === h.id
                     ? <DeleteConfirm key={h.id} onConfirm={() => handleDelete(h.id)} onCancel={() => setDeleteConfirmId(null)} isPending={isPending} />
-                    : <HandoverFeedCard key={h.id} h={h} currentUserId={currentUserId} onEdit={setEditingHandover} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} onToggleTask={handleToggleTask} isPending={isPending} />
+                    : <HandoverSummaryCard key={h.id} h={h} currentUserId={currentUserId} currentUserName={currentUserName} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} isPending={isPending} />
                 )}
               </div>
             ))
           )}
         </div>
 
-        {/* RIGHT — 내가 받은 할 일 + 루틴 관리 */}
+        {/* RIGHT -- my tasks */}
         <div className="space-y-3">
-          {/* 내가 받은 할 일 */}
           {(() => {
             type MyTask = HandoverTask & { handoverAuthorName: string; handoverDate: Date };
             const myTasks: MyTask[] = handovers
@@ -475,8 +378,7 @@ export function HandoverBoard({ initialHandovers, templates, monthlyNotes, stude
   );
 }
 
-// ── Shared ────────────────────────────────────────────────────────────────────
-
+// ── KPI Chip ──────────────────────────────────────────────────────────────────
 function KpiChip({ value, label, color, icon }: { value: number | string; label: string; color: "red" | "green" | "amber" | "blue" | "muted"; icon: React.ReactNode }) {
   const colors = { red: "bg-red-50 border-red-200 text-red-700", green: "bg-green-50 border-green-200 text-green-700", amber: "bg-amber-50 border-amber-200 text-amber-700", blue: "bg-blue-50 border-blue-200 text-blue-700", muted: "bg-muted border-border text-muted-foreground" };
   return (
