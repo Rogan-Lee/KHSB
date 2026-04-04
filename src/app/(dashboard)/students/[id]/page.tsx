@@ -26,13 +26,13 @@ const STATUS_MAP = {
   WITHDRAWN: { label: "퇴원", variant: "destructive" as const },
 };
 
-const ATTENDANCE_TYPE_MAP = {
-  NORMAL: { label: "정상", variant: "default" as const },
-  ABSENT: { label: "결석", variant: "destructive" as const },
-  TARDY: { label: "지각", variant: "secondary" as const },
-  EARLY_LEAVE: { label: "조퇴", variant: "outline" as const },
-  APPROVED_ABSENT: { label: "공결", variant: "secondary" as const },
-  NOTIFIED_ABSENT: { label: "미입실", variant: "secondary" as const },
+const ATTENDANCE_TYPE_MAP: Record<string, { label: string; variant: "default" | "destructive" | "secondary" | "outline" }> = {
+  NORMAL: { label: "정상", variant: "default" },
+  ABSENT: { label: "결석", variant: "destructive" },
+  TARDY: { label: "지각", variant: "secondary" },
+  EARLY_LEAVE: { label: "정상", variant: "default" },
+  APPROVED_ABSENT: { label: "공결", variant: "secondary" },
+  NOTIFIED_ABSENT: { label: "미입실", variant: "secondary" },
 };
 
 export default async function StudentDetailPage({
