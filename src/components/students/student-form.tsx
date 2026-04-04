@@ -28,6 +28,72 @@ interface StudentFormProps {
   occupiedSeats?: string[];
 }
 
+function SeatCombobox({ name, defaultValue, occupiedSeats }: { name: string; defaultValue?: string; occupiedSeats: string[] }) {
+  const [value, setValue] = useState(defaultValue || "none");
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const allSeats = Array.from({ length: TOTAL_SEATS }, (_, i) => String(i + 1));
+  const filtered = query
+    ? allSeats.filter((s) => s.startsWith(query))
+    : allSeats;
+  const sortedFiltered = [...filtered].sort((a, b) => {
+    const aOcc = occupiedSeats.includes(a) ? 1 : 0;
+    const bOcc = occupiedSeats.includes(b) ? 1 : 0;
+    return aOcc - bOcc || Number(a) - Number(b);
+  });
+
+  return (
+    <div className="relative">
+      <input type="hidden" name={name} value={value} />
+      <div className="relative">
+        <Input
+          value={open ? query : value === "none" ? "" : `${value}번`}
+          onChange={(e) => {
+            const v = e.target.value.replace(/[^0-9]/g, "");
+            setQuery(v);
+            setOpen(true);
+          }}
+          onFocus={() => { setQuery(""); setOpen(true); }}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder="좌석 검색 (번호 입력)"
+          autoComplete="off"
+          className="pr-8"
+        />
+        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+      </div>
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-auto">
+          <button
+            type="button"
+            className={`w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${value === "none" ? "bg-accent" : ""}`}
+            onMouseDown={() => { setValue("none"); setQuery(""); setOpen(false); }}
+          >
+            미배정
+          </button>
+          {sortedFiltered.map((num) => {
+            const isOccupied = occupiedSeats.includes(num);
+            return (
+              <button
+                key={num}
+                type="button"
+                disabled={isOccupied}
+                className={`w-full text-left px-3 py-2 text-sm ${isOccupied ? "opacity-50 cursor-not-allowed text-muted-foreground" : "hover:bg-accent hover:text-accent-foreground"} ${value === num ? "bg-accent" : ""}`}
+                onMouseDown={() => { if (!isOccupied) { setValue(num); setQuery(""); setOpen(false); } }}
+              >
+                {num}번{isOccupied ? " (사용중)" : ""}
+              </button>
+            );
+          })}
+          {filtered.length === 0 && (
+            <p className="px-3 py-2 text-sm text-muted-foreground">결과 없음</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SchoolCombobox({ name, defaultValue, options }: { name: string; defaultValue?: string; options: string[] }) {
   const clean = parseSchool(defaultValue ?? "");
   const [value, setValue] = useState(clean);
@@ -161,22 +227,7 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="seat">좌석번호</Label>
-          <Select name="seat" defaultValue={student?.seat || "none"}>
-            <SelectTrigger>
-              <SelectValue placeholder="좌석 선택" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">미배정</SelectItem>
-              {Array.from({ length: TOTAL_SEATS }, (_, i) => String(i + 1)).map((num) => {
-                const isOccupied = occupiedSeats.includes(num);
-                return (
-                  <SelectItem key={num} value={num} disabled={isOccupied}>
-                    {num}번{isOccupied ? " (사용중)" : ""}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
+          <SeatCombobox name="seat" defaultValue={student?.seat || "none"} occupiedSeats={occupiedSeats} />
         </div>
         <div />
       </div>
