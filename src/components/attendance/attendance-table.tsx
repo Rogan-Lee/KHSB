@@ -35,7 +35,6 @@ const TYPE_OPTIONS: { value: AttendanceType; label: string }[] = [
   { value: "NORMAL", label: "정상" },
   { value: "ABSENT", label: "결석" },
   { value: "TARDY", label: "지각" },
-  { value: "EARLY_LEAVE", label: "조퇴" },
   { value: "APPROVED_ABSENT", label: "공결" },
   { value: "NOTIFIED_ABSENT", label: "미입실" },
 ];
@@ -44,7 +43,6 @@ const TYPE_BADGE: Record<string, string> = {
   NORMAL: "bg-green-100 text-green-800 border-green-200",
   ABSENT: "bg-red-100 text-red-800 border-red-200",
   TARDY: "bg-orange-100 text-orange-800 border-orange-200",
-  EARLY_LEAVE: "bg-blue-100 text-blue-800 border-blue-200",
   APPROVED_ABSENT: "bg-gray-100 text-gray-600 border-gray-200",
   NOTIFIED_ABSENT: "bg-purple-100 text-purple-700 border-purple-200",
   UNRECORDED: "bg-yellow-100 text-yellow-800 border-yellow-200",
@@ -90,13 +88,7 @@ function calcAutoType(
     }
   }
 
-  if (checkOut && schedOut) {
-    if (toMinutes(checkOut) < toMinutes(schedOut)) {
-      type = "EARLY_LEAVE";
-    } else if (type === "EARLY_LEAVE") {
-      type = checkIn && schedIn && toMinutes(checkIn) >= toMinutes(schedIn) + 5 ? "TARDY" : "NORMAL";
-    }
-  }
+  // 조퇴는 수동으로만 설정 (자동 판별 제거)
 
   return type;
 }
@@ -311,6 +303,14 @@ export function AttendanceTable({ students, today }: Props) {
     if (activeOuting) return "OUTING";
 
     const type = lt?.type ?? (att?.type as string | undefined);
+    if (type === "EARLY_LEAVE") {
+      // 기존 EARLY_LEAVE 데이터: 입실 시간 기준으로 지각 여부 재판단
+      const schedIn = s.schedules[0]?.startTime;
+      if (schedIn && schedIn !== "FLEXIBLE" && checkInTime && toMinutes(checkInTime) >= toMinutes(schedIn) + 5) {
+        return "TARDY";
+      }
+      return "NORMAL";
+    }
     if (type) return type;
     return "NORMAL";
   }
@@ -370,11 +370,6 @@ export function AttendanceTable({ students, today }: Props) {
       if (field === "checkIn") {
         const schedIn = student.schedules[0]?.startTime;
         newType = (schedIn && schedIn !== "FLEXIBLE" && toMinutes(time) >= toMinutes(schedIn) + 5) ? "TARDY" : "NORMAL";
-      } else if (field === "checkOut") {
-        const schedOut = student.schedules[0]?.endTime;
-        if (schedOut && schedOut !== "FLEXIBLE" && toMinutes(time) < toMinutes(schedOut)) {
-          newType = "EARLY_LEAVE";
-        }
       }
     }
 
@@ -391,7 +386,7 @@ export function AttendanceTable({ students, today }: Props) {
       });
       const label = field === "checkIn"
         ? (newType === "TARDY" ? "입실 기록됨 (지각)" : "입실 기록됨")
-        : (newType === "EARLY_LEAVE" ? "퇴실 기록됨 (조퇴)" : "퇴실 기록됨");
+        : "퇴실 기록됨";
       toast.success(label);
     } catch { toast.error("저장 실패"); }
     setQuickPending(null);
@@ -1326,7 +1321,7 @@ export function AttendanceTable({ students, today }: Props) {
                 const outSch = selected.outings[0];
                 const panelLocalOut = localOutings.get(selected.id) ?? [];
                 const isLate = !!(editValues.checkIn && schedIn && schedIn !== "FLEXIBLE" && toMinutes(editValues.checkIn) >= toMinutes(schedIn) + 5);
-                const isEarlyLeave = !!(editValues.checkOut && schedOut && schedOut !== "FLEXIBLE" && toMinutes(editValues.checkOut) < toMinutes(schedOut));
+                // 조퇴는 수동 설정만 가능 (자동 판별 제거)
                 const mergedOutings = panelLocalOut
                   .filter((lo): lo is { id: string; outStart: Date | null; outEnd: Date | null } => lo.id !== null)
                   .map((lo) => {
@@ -1446,9 +1441,6 @@ export function AttendanceTable({ students, today }: Props) {
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-semibold">퇴실</span>
-                              {isEarlyLeave && (
-                                <span className="text-[11px] bg-blue-100 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 font-medium">조퇴</span>
-                              )}
                             </div>
                             {schedOut && (
                               <span className="text-xs text-muted-foreground font-mono">예정 {schedOut}</span>

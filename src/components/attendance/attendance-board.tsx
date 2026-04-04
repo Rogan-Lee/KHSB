@@ -32,13 +32,13 @@ type StudentWithAttendance = Student & {
   schedules: AttendanceSchedule[];
 };
 
-const TYPE_CONFIG = {
-  NORMAL: { label: "정상", variant: "default" as const, color: "bg-green-100 border-green-300" },
-  ABSENT: { label: "결석", variant: "destructive" as const, color: "bg-red-100 border-red-300" },
-  TARDY: { label: "지각", variant: "secondary" as const, color: "bg-orange-100 border-orange-300" },
-  EARLY_LEAVE: { label: "조퇴", variant: "outline" as const, color: "bg-blue-100 border-blue-300" },
-  APPROVED_ABSENT: { label: "공결", variant: "secondary" as const, color: "bg-gray-100 border-gray-300" },
-  NOTIFIED_ABSENT: { label: "미입실", variant: "secondary" as const, color: "bg-purple-100 border-purple-300" },
+const TYPE_CONFIG: Record<string, { label: string; variant: "default" | "destructive" | "secondary" | "outline"; color: string }> = {
+  NORMAL: { label: "정상", variant: "default", color: "bg-green-100 border-green-300" },
+  ABSENT: { label: "결석", variant: "destructive", color: "bg-red-100 border-red-300" },
+  TARDY: { label: "지각", variant: "secondary", color: "bg-orange-100 border-orange-300" },
+  EARLY_LEAVE: { label: "정상", variant: "default", color: "bg-green-100 border-green-300" },
+  APPROVED_ABSENT: { label: "공결", variant: "secondary", color: "bg-gray-100 border-gray-300" },
+  NOTIFIED_ABSENT: { label: "미입실", variant: "secondary", color: "bg-purple-100 border-purple-300" },
 };
 
 interface Props {
@@ -93,7 +93,6 @@ function AttendanceEditForm({
             <SelectItem value="NORMAL">정상 출석</SelectItem>
             <SelectItem value="ABSENT">결석</SelectItem>
             <SelectItem value="TARDY">지각</SelectItem>
-            <SelectItem value="EARLY_LEAVE">조퇴</SelectItem>
             <SelectItem value="APPROVED_ABSENT">공결</SelectItem>
           </SelectContent>
         </Select>

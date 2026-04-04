@@ -75,7 +75,7 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
   const [noteContent, setNoteContent] = useState("");
 
   // 섹션 접기/펼치기
-  const [openSections, setOpenSections] = useState({ handoverTasks: true, routine: true, todos: true });
+  const [openSections, setOpenSections] = useState({ handoverTasks: true, routine: false, todos: true });
   function toggleSection(key: keyof typeof openSections) {
     setOpenSections((p) => ({ ...p, [key]: !p[key] }));
   }
@@ -207,145 +207,114 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
         {/* LEFT: 통합 오늘의 업무 + 인수인계 작성 + 최근 피드 */}
         <div className="space-y-3">
 
-          {/* ── 오늘의 업무 통합 패널 ── */}
-          <div className="rounded-xl border bg-card overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b">
-              <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-sm font-semibold flex-1">오늘의 업무</span>
-              <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-full border",
-                totalItems > 0 && doneItems === totalItems ? "bg-green-50 text-green-700 border-green-200" : "bg-muted text-muted-foreground border-border"
-              )}>{doneItems}/{totalItems} 완료</span>
-            </div>
+          {/* ── 오늘의 업무 헤더 ── */}
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-sm font-semibold flex-1">오늘의 업무</span>
+            <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-full border",
+              totalItems > 0 && doneItems === totalItems ? "bg-green-50 text-green-700 border-green-200" : "bg-muted text-muted-foreground border-border"
+            )}>{doneItems}/{totalItems} 완료</span>
+          </div>
+
+          {/* ── 오늘의 업무 3열 ── */}
+          <div className="grid grid-cols-3 gap-3 items-stretch">
 
             {/* 1. 인수인계 할 일 */}
-            <SectionHeader
-              title="인수인계 할 일"
-              count={myHandoverTasks.length}
-              doneCount={myHandoverTasks.filter((t) => t.isCompleted).length}
-              icon={<ListChecks className="h-3 w-3 text-blue-500" />}
-              open={openSections.handoverTasks}
-              onToggle={() => toggleSection("handoverTasks")}
-            />
-            {openSections.handoverTasks && (
-              myHandoverTasks.length === 0 ? (
-                <div className="px-4 py-3 text-xs text-muted-foreground border-b">배정된 인수인계 할 일이 없습니다</div>
+            <div className="rounded-xl border bg-card overflow-hidden flex flex-col">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-muted/30">
+                <ListChecks className="h-3.5 w-3.5 text-blue-500" />
+                <span className="text-xs font-semibold flex-1">인수인계 할 일</span>
+                <span className="text-[10px] text-muted-foreground">{myHandoverTasks.filter((t) => t.isCompleted).length}/{myHandoverTasks.length}</span>
+              </div>
+              {myHandoverTasks.length === 0 ? (
+                <div className="px-4 py-6 text-xs text-muted-foreground text-center flex-1 flex items-center justify-center">배정된 할 일 없음</div>
               ) : (
-                <div className="divide-y border-b">
+                <div className="divide-y max-h-96 overflow-y-auto flex-1">
                   {myHandoverTasks.map((t) => (
                     <button key={t.id} type="button" onClick={() => handleToggleHandoverTask(t.id)} disabled={isPending}
-                      className={cn("w-full flex items-start gap-2.5 px-4 py-2.5 text-left hover:bg-muted/20 transition-colors", t.isCompleted && "opacity-60")}
+                      className={cn("w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-muted/20 transition-colors", t.isCompleted && "opacity-50")}
                     >
-                      {t.isCompleted ? <CheckSquare className="h-4 w-4 text-green-500 shrink-0 mt-0.5" /> : <Square className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-0.5" />}
+                      {t.isCompleted ? <CheckSquare className="h-3.5 w-3.5 text-green-500 shrink-0 mt-0.5" /> : <Square className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 mt-0.5" />}
                       <div className="flex-1 min-w-0">
-                        <p className={cn("text-sm font-medium", t.isCompleted && "line-through text-muted-foreground")}>{t.title}</p>
-                        {t.content && <p className="text-xs text-muted-foreground mt-0.5">{t.content}</p>}
-                        <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                          <User className="h-2.5 w-2.5" />{t.handoverAuthorName} · {new Date(t.handoverDate).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
-                        </p>
+                        <p className={cn("text-xs font-medium", t.isCompleted && "line-through text-muted-foreground")}>{t.title}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{t.handoverAuthorName}</p>
                       </div>
                     </button>
                   ))}
                 </div>
-              )
-            )}
+              )}
+            </div>
 
             {/* 2. 루틴 체크리스트 */}
-            <SectionHeader
-              title="루틴 체크리스트"
-              count={routineItems.length}
-              doneCount={routineItems.filter((c) => c.isChecked).length}
-              icon={<CheckSquare className="h-3 w-3 text-green-500" />}
-              open={openSections.routine}
-              onToggle={() => toggleSection("routine")}
-            />
-            {openSections.routine && (
-              routineItems.length === 0 ? (
-                <div className="px-4 py-3 text-xs text-muted-foreground border-b">
-                  루틴 없음. <Link href="/handover" className="text-primary underline">관리하기</Link>
+            <div className="rounded-xl border bg-card overflow-hidden flex flex-col">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-muted/30">
+                <CheckSquare className="h-3.5 w-3.5 text-green-500" />
+                <span className="text-xs font-semibold flex-1">루틴</span>
+                <span className="text-[10px] text-muted-foreground">{routineItems.filter((c) => c.isChecked).length}/{routineItems.length}</span>
+              </div>
+              {routineItems.length === 0 ? (
+                <div className="px-4 py-6 text-xs text-muted-foreground text-center flex-1 flex items-center justify-center">
+                  루틴 없음 · <Link href="/handover" className="text-primary underline">관리</Link>
                 </div>
               ) : (
-                <div className="divide-y border-b">
+                <div className="divide-y max-h-96 overflow-y-auto flex-1">
                   {routineItems.map((item, i) => (
                     <button key={item.id} type="button" onClick={() => toggleRoutine(i)}
-                      className={cn("w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-muted/20 transition-colors", item.isChecked && "opacity-60")}
+                      className={cn("w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/20 transition-colors", item.isChecked && "opacity-50")}
                     >
-                      {item.isChecked ? <CheckSquare className="h-4 w-4 text-green-500 shrink-0" /> : <Square className="h-4 w-4 text-muted-foreground/40 shrink-0" />}
-                      <span className={cn("text-sm flex-1", item.isChecked && "line-through text-muted-foreground")}>{item.title}</span>
-                      <span className={cn("text-[10px] border rounded px-1.5 py-0.5 shrink-0", SHIFT_COLOR[item.shiftType] ?? "")}>
+                      {item.isChecked ? <CheckSquare className="h-3.5 w-3.5 text-green-500 shrink-0" /> : <Square className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />}
+                      <span className={cn("text-xs flex-1", item.isChecked && "line-through text-muted-foreground")}>{item.title}</span>
+                      <span className={cn("text-[10px] border rounded px-1 py-0.5 shrink-0", SHIFT_COLOR[item.shiftType] ?? "")}>
                         {SHIFT_LABEL[item.shiftType] ?? item.shiftType}
                       </span>
                     </button>
                   ))}
                 </div>
-              )
-            )}
+              )}
+            </div>
 
             {/* 3. 투두리스트 */}
-            <SectionHeader
-              title="투두리스트"
-              count={myPendingTodos.length + myCompletedTodos.length}
-              doneCount={myCompletedTodos.length}
-              icon={<ListTodo className="h-3 w-3 text-purple-500" />}
-              open={openSections.todos}
-              onToggle={() => toggleSection("todos")}
-              action={<Link href="/todos" className="text-[10px] text-primary hover:underline">관리 →</Link>}
-            />
-            {openSections.todos && (
-              localTodos.length === 0 ? (
-                <div className="px-4 py-3 text-xs text-muted-foreground">
-                  투두가 없습니다. <Link href="/todos" className="text-primary underline">추가하기</Link>
+            <div className="rounded-xl border bg-card overflow-hidden flex flex-col">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-muted/30">
+                <ListTodo className="h-3.5 w-3.5 text-purple-500" />
+                <span className="text-xs font-semibold flex-1">투두</span>
+                <Link href="/todos" className="text-[10px] text-primary hover:underline">관리 →</Link>
+              </div>
+              {localTodos.length === 0 ? (
+                <div className="px-4 py-6 text-xs text-muted-foreground text-center flex-1 flex items-center justify-center">
+                  투두 없음 · <Link href="/todos" className="text-primary underline">추가</Link>
                 </div>
               ) : (
-                <div className="divide-y">
-                  {myPendingTodos.slice(0, 5).map((t) => (
+                <div className="divide-y max-h-96 overflow-y-auto flex-1">
+                  {myPendingTodos.slice(0, 8).map((t) => (
                     <button key={t.id} type="button" onClick={() => handleToggleTodo(t.id)} disabled={isPending}
-                      className="w-full flex items-start gap-2.5 px-4 py-2.5 text-left hover:bg-muted/20 transition-colors"
+                      className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-muted/20 transition-colors"
                     >
-                      <Square className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-0.5" />
+                      <Square className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{t.title}</p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <p className="text-xs font-medium">{t.title}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
                           {t.dueDate && (
-                            <span className={cn("text-[10px] flex items-center gap-0.5", isOverdue(t.dueDate, false) ? "text-red-600 font-semibold" : "text-muted-foreground")}>
-                              <Calendar className="h-2.5 w-2.5" />{fmtDate(t.dueDate)}
+                            <span className={cn("text-[10px]", isOverdue(t.dueDate, false) ? "text-red-600 font-semibold" : "text-muted-foreground")}>
+                              {fmtDate(t.dueDate)}
                             </span>
                           )}
-                          {t.assigneeName && <span className="text-[10px] text-muted-foreground flex items-center gap-0.5"><User className="h-2.5 w-2.5" />{t.assigneeName}</span>}
-                          {t.category && <span className="text-[10px] bg-muted border rounded-full px-1.5 text-muted-foreground">{t.category}</span>}
+                          {t.assigneeName && <span className="text-[10px] text-muted-foreground">{t.assigneeName}</span>}
                         </div>
                       </div>
                     </button>
                   ))}
-                  {myCompletedTodos.length > 0 && (
-                    <div className="px-4 py-2 text-[10px] text-muted-foreground opacity-60">
-                      완료 {myCompletedTodos.length}개 있음 · <Link href="/todos" className="text-primary underline">전체 보기</Link>
-                    </div>
-                  )}
-                  {myPendingTodos.length > 5 && (
-                    <div className="px-4 py-2 text-[10px] text-muted-foreground">
-                      +{myPendingTodos.length - 5}개 더 · <Link href="/todos" className="text-primary underline">전체 보기</Link>
+                  {(myCompletedTodos.length > 0 || myPendingTodos.length > 8) && (
+                    <div className="px-3 py-2 text-[10px] text-muted-foreground">
+                      {myCompletedTodos.length > 0 && `완료 ${myCompletedTodos.length}개`}
+                      {myPendingTodos.length > 8 && ` · +${myPendingTodos.length - 8}개 더`}
+                      {" · "}<Link href="/todos" className="text-primary underline">전체 보기</Link>
                     </div>
                   )}
                 </div>
-              )
-            )}
-          </div>
-
-          {/* 인수인계 작성하기 버튼 */}
-          <Link href="/handover" className="block">
-            <div className="rounded-xl border border-[#c0d9fc] bg-[#f0f6ff] hover:bg-[#e6f0ff] transition-colors px-5 py-4 flex items-center gap-3">
-              <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                <Pencil className="h-4.5 w-4.5 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">인수인계 작성하기</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  루틴 {routineItems.filter((c) => c.isChecked).length}/{routineItems.length} 완료 · 클릭해서 인수인계 작성
-                </p>
-              </div>
-              <Send className="h-4 w-4 text-primary shrink-0" />
+              )}
             </div>
-          </Link>
+          </div>
 
           {/* 최근 인수인계 피드 */}
           <Panel
@@ -453,6 +422,20 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
               <span>인수인계 전체</span>
             </Link>
           </div>
+
+          {/* 인수인계 작성 */}
+          <Link href="/handover/new" className="block">
+            <div className="rounded-xl border border-[#c0d9fc] bg-[#f0f6ff] hover:bg-[#e6f0ff] transition-colors px-4 py-3 flex items-center gap-3">
+              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <Pencil className="h-4 w-4 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">인수인계 작성</p>
+                <p className="text-[10px] text-muted-foreground">루틴 {routineItems.filter((c) => c.isChecked).length}/{routineItems.length} 완료</p>
+              </div>
+              <Send className="h-3.5 w-3.5 text-primary shrink-0" />
+            </div>
+          </Link>
         </div>
       </div>
     </div>

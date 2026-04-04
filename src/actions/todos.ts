@@ -3,18 +3,24 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { isStaff } from "@/lib/roles";
 
 export async function getTodos() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
+  // STAFF 이상은 전체 투두 조회, 그 외는 본인 것만
+  const where = isStaff(session.user.role)
+    ? undefined
+    : {
+        OR: [
+          { authorId: session.user.id },
+          { assigneeId: session.user.id },
+        ],
+      };
+
   return prisma.todo.findMany({
-    where: {
-      OR: [
-        { authorId: session.user.id },
-        { assigneeId: session.user.id },
-      ],
-    },
+    where,
     orderBy: [{ isCompleted: "asc" }, { dueDate: "asc" }, { createdAt: "desc" }],
   });
 }

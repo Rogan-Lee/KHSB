@@ -33,7 +33,6 @@ export default async function AttendancePage() {
   ).length;
   const notifiedAbsent = withSchedule.filter((s) => s.attendances[0]?.type === "NOTIFIED_ABSENT").length;
   const tardy = withSchedule.filter((s) => s.attendances[0]?.type === "TARDY").length;
-  const earlyLeave = withSchedule.filter((s) => s.attendances[0]?.type === "EARLY_LEAVE").length;
   const noSchedule = students.filter((s) => s.schedules.length === 0).length;
 
   const dateLabel = today.toLocaleDateString("ko-KR", {
@@ -77,15 +76,6 @@ export default async function AttendancePage() {
             <div>
               <p className="text-xl font-bold leading-none">{tardy}</p>
               <p className="text-xs text-muted-foreground mt-0.5">지각</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-2 pt-4 pb-3">
-            <LogOut className="h-6 w-6 text-blue-600 shrink-0" />
-            <div>
-              <p className="text-xl font-bold leading-none">{earlyLeave}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">조퇴</p>
             </div>
           </CardContent>
         </Card>
