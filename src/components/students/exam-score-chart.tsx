@@ -604,6 +604,7 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
                 <th className="px-3 py-2.5 text-left font-medium">시험명</th>
                 <th className="px-3 py-2.5 text-left font-medium">유형</th>
                 <th className="px-3 py-2.5 text-right font-medium">원점수</th>
+                <th className="px-3 py-2.5 text-left font-medium">메모</th>
                 <th className="px-3 py-2.5 text-right font-medium">등급</th>
                 <th className="px-3 py-2.5 text-right font-medium">백분위</th>
                 <th className="px-3 py-2.5 w-8"></th>
@@ -625,6 +626,11 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
                     </td>
                     <td className="px-3 py-2.5 text-right font-medium tabular-nums">
                       {s.rawScore != null ? `${s.rawScore}점` : <span className="text-muted-foreground">—</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-left">
+                      {s.notes ? (
+                        <span className="text-xs text-muted-foreground max-w-[120px] truncate block" title={s.notes}>{s.notes}</span>
+                      ) : <span className="text-muted-foreground">—</span>}
                     </td>
                     <td className="px-3 py-2.5 text-right">
                       {s.grade ? (
