@@ -195,7 +195,7 @@ function TodoCard({
   todo: Todo; currentUserId: string; isPending: boolean;
   onToggle: (id: string) => void; onEdit: (t: Todo) => void; onDelete: (id: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const overdue = isOverdue(todo.dueDate, todo.isCompleted);
   const isAuthor = todo.authorId === currentUserId;
 
@@ -280,7 +280,7 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
   const [showForm, setShowForm] = useState(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [showCompleted, setShowCompleted] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(true);
 
   const pending = todos.filter((t) => !t.isCompleted);
   const completed = todos.filter((t) => t.isCompleted);
