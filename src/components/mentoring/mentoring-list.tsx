@@ -61,6 +61,7 @@ type Props = {
   mentors: Mentor[];
   isDirector: boolean;
   currentUserId?: string;
+  checkedInStudentIds?: string[];
 };
 
 function toLocalDateString(date: Date) {
@@ -217,7 +218,8 @@ function saveFilters(f: FilterState) {
   try { sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(f)); } catch { /* ignore */ }
 }
 
-export function MentoringList({ mentorings, mentors, isDirector, currentUserId }: Props) {
+export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [] }: Props) {
+  const checkedInSet = new Set(checkedInStudentIds);
   const today = getToday();
 
   // sessionStorage에서 필터 복원, 없으면 현재 로그인 사용자로 기본 필터
@@ -433,7 +435,15 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId }
                   </TableCell>
                   <TableCell className="whitespace-nowrap">{formatDate(m.scheduledAt)}</TableCell>
                   <TableCell className="whitespace-nowrap">
-                    <span className="font-medium">{m.student.name}</span>
+                    <span className="inline-flex items-center gap-1.5">
+                      {checkedInSet.has(m.student.id) && (
+                        <span className="relative flex h-2 w-2 shrink-0" title="입실 중">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                        </span>
+                      )}
+                      <span className="font-medium">{m.student.name}</span>
+                    </span>
                     <span className="text-xs text-muted-foreground ml-1">{m.student.grade}</span>
                   </TableCell>
                   {mentors.length > 0 && <TableCell className="whitespace-nowrap">{m.mentor.name}</TableCell>}

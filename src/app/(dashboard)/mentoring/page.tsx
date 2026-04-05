@@ -34,6 +34,18 @@ export default async function MentoringPage() {
     orderBy: { name: "asc" },
   });
 
+  // 오늘 입실 중인 학생 ID 목록
+  const todayAttendance = await prisma.attendanceRecord.findMany({
+    where: {
+      date: new Date(today),
+      checkIn: { not: null },
+    },
+    select: { studentId: true, checkOut: true },
+  });
+  const checkedInStudentIds = new Set(
+    todayAttendance.filter((a) => !a.checkOut).map((a) => a.studentId)
+  );
+
   const upcoming = mentorings.filter((m) => m.status === "SCHEDULED").length;
   const completed = mentorings.filter((m) => m.status === "COMPLETED").length;
 
@@ -82,7 +94,7 @@ export default async function MentoringPage() {
           </Link>
         </CardHeader>
         <CardContent>
-          <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} />
+          <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} />
         </CardContent>
       </Card>
     </div>
