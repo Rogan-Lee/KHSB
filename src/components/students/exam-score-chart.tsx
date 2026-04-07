@@ -27,7 +27,17 @@ const EXAM_TYPE_LABELS: Record<ExamType, string> = {
   SCHOOL_EXAM: "학교 내신",
 };
 
-const SUBJECTS = ["국어", "수학", "영어", "한국사", "탐구1", "탐구2"];
+const SUBJECTS = [
+  "국어", "수학", "영어", "한국사",
+  // 사회탐구
+  "생활과윤리", "윤리와사상", "한국지리", "세계지리",
+  "동아시아사", "세계사", "경제", "정치와법", "사회·문화",
+  // 과학탐구
+  "물리학Ⅰ", "물리학Ⅱ", "화학Ⅰ", "화학Ⅱ",
+  "생명과학Ⅰ", "생명과학Ⅱ", "지구과학Ⅰ", "지구과학Ⅱ",
+  // 직업탐구 / 제2외국어
+  "직업탐구", "제2외국어",
+];
 const EXAM_TYPES: ExamType[] = ["OFFICIAL_MOCK", "PRIVATE_MOCK", "SCHOOL_EXAM"];
 
 function fmtDate(d: Date | string) {
