@@ -108,7 +108,7 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
     examType: "OFFICIAL_MOCK" as ExamType,
     examName: "",
     examDate: "",
-    subject: "국어",
+    subject: "",
     rawScore: "",
     grade: "",
     percentile: "",
@@ -158,7 +158,7 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
           notes: form.notes || undefined,
         });
         setScores((prev) => [created, ...prev]);
-        setForm({ examType: "OFFICIAL_MOCK", examName: "", examDate: "", subject: "국어", rawScore: "", grade: "", percentile: "", notes: "" });
+        setForm({ examType: "OFFICIAL_MOCK", examName: "", examDate: "", subject: "", rawScore: "", grade: "", percentile: "", notes: "" });
         setShowForm(false);
         toast.success("성적이 등록되었습니다");
       } catch {
@@ -270,13 +270,44 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">과목</label>
-              <input
-                type="text" placeholder="국어" value={form.subject}
+              <select
+                value={form.subject}
                 onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
                 className="w-full border rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-                list="subject-list"
-              />
-              <datalist id="subject-list">{SUBJECTS.map((s) => <option key={s} value={s} />)}</datalist>
+              >
+                <option value="">과목 선택</option>
+                <optgroup label="공통">
+                  <option value="국어">국어</option>
+                  <option value="수학">수학</option>
+                  <option value="영어">영어</option>
+                  <option value="한국사">한국사</option>
+                </optgroup>
+                <optgroup label="사회탐구">
+                  <option value="생활과윤리">생활과윤리</option>
+                  <option value="윤리와사상">윤리와사상</option>
+                  <option value="한국지리">한국지리</option>
+                  <option value="세계지리">세계지리</option>
+                  <option value="동아시아사">동아시아사</option>
+                  <option value="세계사">세계사</option>
+                  <option value="경제">경제</option>
+                  <option value="정치와법">정치와법</option>
+                  <option value="사회·문화">사회·문화</option>
+                </optgroup>
+                <optgroup label="과학탐구">
+                  <option value="물리학Ⅰ">물리학Ⅰ</option>
+                  <option value="물리학Ⅱ">물리학Ⅱ</option>
+                  <option value="화학Ⅰ">화학Ⅰ</option>
+                  <option value="화학Ⅱ">화학Ⅱ</option>
+                  <option value="생명과학Ⅰ">생명과학Ⅰ</option>
+                  <option value="생명과학Ⅱ">생명과학Ⅱ</option>
+                  <option value="지구과학Ⅰ">지구과학Ⅰ</option>
+                  <option value="지구과학Ⅱ">지구과학Ⅱ</option>
+                </optgroup>
+                <optgroup label="기타">
+                  <option value="직업탐구">직업탐구</option>
+                  <option value="제2외국어">제2외국어</option>
+                </optgroup>
+              </select>
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">원점수</label>
