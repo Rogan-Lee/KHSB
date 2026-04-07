@@ -69,7 +69,8 @@ export async function getOverallAnalytics(): Promise<OverallAnalytics> {
       if (scores.length < 1) continue;
       const first = scores[0];
       const latest = scores[scores.length - 1];
-      const improvement = first.grade && latest.grade
+      // 2회 이상이어야 변화 계산 (1회만 있으면 비교 대상 없음)
+      const improvement = scores.length >= 2 && first.grade && latest.grade
         ? first.grade - latest.grade  // 양수 = 등급 낮아짐 = 상승
         : null;
       subjects.push({
@@ -183,7 +184,7 @@ export async function getStudentAnalytics(studentId: string): Promise<StudentAna
       subject,
       firstGrade: first.grade ?? null,
       latestGrade: latest.grade ?? null,
-      improvement: first.grade && latest.grade ? first.grade - latest.grade : null,
+      improvement: scores.length >= 2 && first.grade && latest.grade ? first.grade - latest.grade : null,
       firstDate: new Date(first.examDate).toISOString().split("T")[0],
       latestDate: new Date(latest.examDate).toISOString().split("T")[0],
     });
