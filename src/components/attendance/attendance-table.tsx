@@ -237,6 +237,10 @@ export function AttendanceTable({ students, today }: Props) {
   type InlineOutingEdit = { studentId: string; field: "outStart" | "outEnd"; value: string };
   const [inlineOutingEdit, setInlineOutingEdit] = useState<InlineOutingEdit | null>(null);
 
+  // 하단 액션바용: 현재 포커스된 시간 입력
+  type ActiveTimeInput = { studentId: string; field: "checkIn" | "checkOut" | "outing" | "return"; studentName: string };
+  const [activeTimeInput, setActiveTimeInput] = useState<ActiveTimeInput | null>(null);
+
   const [query, setQuery] = useState("");
 
   // 현재 시각 (매분 갱신) — 입실 임박 하이라이트용
@@ -575,18 +579,13 @@ export function AttendanceTable({ students, today }: Props) {
               <th className="px-3 py-2.5 text-center w-12">좌석</th>
               <th className="px-3 py-2.5 text-left w-28">이름</th>
               <th className="px-3 py-2.5 text-center w-28">플래너 전송</th>
+              <th className="px-2 py-2.5 text-center w-16">공부계획</th>
               <th className="px-3 py-2.5 text-left w-24">학교·학년</th>
               <th className="px-3 py-2.5 text-left w-16">반</th>
-              <th className="px-3 py-2.5 text-center w-16">입실약속</th>
-              <th className="px-3 py-2.5 text-left w-44">입실</th>
-              <th className="px-3 py-2.5 text-center w-16">퇴실약속</th>
-              <th className="px-3 py-2.5 text-left w-36">퇴실</th>
-              <th className="px-3 py-2.5 text-left w-32">외출</th>
-              <th className="px-3 py-2.5 text-left w-32">복귀</th>
+              <th className="px-3 py-2.5 text-left" style={{ minWidth: "380px" }}>입퇴실</th>
+              <th className="px-3 py-2.5 text-left w-32">특이사항</th>
               <th className="px-3 py-2.5 text-left w-32">메모</th>
               <th className="px-3 py-2.5 text-left w-32">변동예정</th>
-              <th className="px-3 py-2.5 text-left w-32">학원일정</th>
-              <th className="px-3 py-2.5 text-left w-32">특이사항</th>
             </tr>
           </thead>
           <tbody>
@@ -736,6 +735,37 @@ export function AttendanceTable({ students, today }: Props) {
                     )}
                   </td>
 
+                  {/* 주간 공부계획 체크 */}
+                  <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                    {(() => {
+                      const wpDate = localCheckDates.get(student.id)?.weeklyPlanDate ?? null;
+                      const wpDone = wpDate && isDoneThisWeek("weeklyPlanDate", wpDate);
+                      const wpPending = checkDatePending === `${student.id}:weeklyPlanDate`;
+                      return wpDone ? (
+                        <div className="inline-flex items-center gap-0.5">
+                          <span className="text-green-600"><Check className="h-4 w-4" /></span>
+                          <button
+                            onClick={() => saveCheckDate(student.id, "weeklyPlanDate", null)}
+                            disabled={wpPending}
+                            title="취소"
+                            className="p-0.5 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-40"
+                          ><X className="h-3 w-3" /></button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => saveCheckDate(student.id, "weeklyPlanDate", new Date().toISOString().split("T")[0])}
+                          disabled={wpPending}
+                          className={cn(
+                            "px-2 py-0.5 text-[10px] rounded border font-medium transition-colors disabled:opacity-40",
+                            wpDate && !wpDone
+                              ? "border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100"
+                              : "border-border bg-background text-muted-foreground hover:bg-accent"
+                          )}
+                        >{wpPending ? "..." : "제출"}</button>
+                      );
+                    })()}
+                  </td>
+
                   {/* 학교·학년 */}
                   <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">
                     {schoolGrade || "—"}
@@ -746,250 +776,116 @@ export function AttendanceTable({ students, today }: Props) {
                     {student.classGroup || "—"}
                   </td>
 
-                  {/* 입실 예정 */}
-                  <td className="px-3 py-3 text-center">
-                    {schedIn === "FLEXIBLE" ? (
-                      <span className="text-xs text-violet-600 font-medium">자율</span>
-                    ) : (
-                      <span className={cn(
-                        "text-sm font-mono",
-                        !checkInTime && schedIn ? "text-red-500 font-medium" :
-                        checkInTime && lt?.type === "TARDY" ? "text-amber-600 font-semibold underline decoration-dotted" :
-                        "text-muted-foreground"
-                      )}>
-                        {schedIn ?? <span className="text-gray-300">—</span>}
-                      </span>
-                    )}
-                  </td>
-
-                  {/* 입실 실제 + 지금 */}
-                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                    {inlineTimeEdit?.studentId === student.id && inlineTimeEdit.field === "checkIn" ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="time"
-                          value={inlineTimeEdit.value}
-                          onChange={(e) => setInlineTimeEdit((prev) => prev ? { ...prev, value: e.target.value } : null)}
-                          className="text-xs border rounded px-1 py-0.5 w-28 font-mono focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-                        />
-                        <button
-                          onClick={() => confirmInlineEdit(student)}
-                          disabled={isQuickLoading}
-                          className="p-0.5 text-green-700 hover:text-green-900 disabled:opacity-40"
-                          title="저장"
-                        ><Check className="h-3.5 w-3.5" /></button>
-                        {checkInTime && (
-                          <button
-                            onClick={() => { clearField(student, "checkIn"); setInlineTimeEdit(null); }}
-                            disabled={isQuickLoading}
-                            className="p-0.5 text-red-500 hover:text-red-700 disabled:opacity-40"
-                            title="입실 기록 삭제"
-                          ><Trash2 className="h-3.5 w-3.5" /></button>
-                        )}
-                        <button
-                          onClick={() => setInlineTimeEdit(null)}
-                          className="p-0.5 text-muted-foreground hover:text-foreground"
-                          title="취소"
-                        ><X className="h-3.5 w-3.5" /></button>
-                      </div>
-                    ) : (
+                  {/* 입퇴실 2x2 그리드 */}
+                  <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
+                    <div className="grid grid-cols-[1fr_1fr] gap-x-4 gap-y-1 text-xs">
+                      {/* 입실 */}
                       <div className="flex items-center gap-1.5">
-                        <span className={cn(
-                          "text-sm font-mono tabular-nums w-12 text-right shrink-0",
-                          checkInTime ? "text-foreground font-semibold" : "text-gray-300"
-                        )}>
-                          {checkInTime || "—"}
-                        </span>
-                        <div className="flex items-center gap-1 w-[120px] shrink-0">
-                          {state === "NOTIFIED_ABSENT" ? (
-                            <button
-                              onClick={() => {
-                                setNotifiedAbsentId(student.id);
-                                setNotifiedAbsentReason(student.attendances[0]?.notes ?? "");
-                              }}
-                              className="flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-purple-50 text-purple-700 border border-purple-200 font-medium hover:bg-purple-100 transition-colors"
-                              title={student.attendances[0]?.notes ?? ""}
-                            >
-                              미입실
-                            </button>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => startInlineEdit(student, "checkIn")}
-                                disabled={isQuickLoading}
-                                className="flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 transition-colors disabled:opacity-40 font-medium"
-                              >
-                                <LogIn className="h-3 w-3" />지금
-                              </button>
-                              {!checkInTime && student.schedules.length > 0 && (
-                                <button
-                                  onClick={() => { setNotifiedAbsentId(student.id); setNotifiedAbsentReason(""); }}
-                                  disabled={isQuickLoading}
-                                  className="flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors disabled:opacity-40 font-medium"
-                                >
-                                  미입실
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </td>
-
-                  {/* 퇴실 예정 */}
-                  <td className="px-3 py-3 text-center">
-                    {schedOut === "FLEXIBLE" ? (
-                      <span className="text-xs text-violet-600 font-medium">자율</span>
-                    ) : (
-                      <span className="text-sm font-mono text-muted-foreground">
-                        {schedOut ?? <span className="text-gray-300">—</span>}
-                      </span>
-                    )}
-                  </td>
-
-                  {/* 퇴실 실제 + 지금 */}
-                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                    {inlineTimeEdit?.studentId === student.id && inlineTimeEdit.field === "checkOut" ? (
-                      <div className="flex items-center gap-1">
+                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">입실</span>
+                        <span className={cn("text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
+                          !schedIn ? "text-transparent" :
+                          schedIn === "FLEXIBLE" ? "text-violet-600" :
+                          !checkInTime ? "text-red-500" :
+                          lt?.type === "TARDY" ? "text-amber-600" : "text-muted-foreground"
+                        )}>{schedIn === "FLEXIBLE" ? "자율" : schedIn ?? "00:00"}</span>
                         <input
                           type="time"
-                          value={inlineTimeEdit.value}
-                          onChange={(e) => setInlineTimeEdit((prev) => prev ? { ...prev, value: e.target.value } : null)}
-                          className="text-xs border rounded px-1 py-0.5 w-28 font-mono focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+                          value={checkInTime}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(student.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(student.id, { ...c, checkIn: v }); return m; });
+                          }}
+                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "checkIn", studentName: student.name })}
+                          onBlur={() => {
+                            setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "checkIn" ? null : prev), 200);
+                            if (checkInTime && /^\d{2}:\d{2}$/.test(checkInTime)) quickSaveField(student, "checkIn", checkInTime);
+                          }}
+                          className={cn(
+                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-green-400 focus:border-green-400",
+                            checkInTime ? "text-foreground font-semibold" : "text-gray-400"
+                          )}
                         />
-                        <button
-                          onClick={() => confirmInlineEdit(student)}
-                          disabled={isQuickLoading}
-                          className="p-0.5 text-green-700 hover:text-green-900 disabled:opacity-40"
-                          title="저장"
-                        ><Check className="h-3.5 w-3.5" /></button>
-                        {checkOutTime && (
-                          <button
-                            onClick={() => { clearField(student, "checkOut"); setInlineTimeEdit(null); }}
-                            disabled={isQuickLoading}
-                            className="p-0.5 text-red-500 hover:text-red-700 disabled:opacity-40"
-                            title="퇴실 기록 삭제"
-                          ><Trash2 className="h-3.5 w-3.5" /></button>
-                        )}
-                        <button
-                          onClick={() => setInlineTimeEdit(null)}
-                          className="p-0.5 text-muted-foreground hover:text-foreground"
-                          title="취소"
-                        ><X className="h-3.5 w-3.5" /></button>
+                      </div>
+
+                      {/* 외출 */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">외출</span>
+                        <span className="text-transparent text-[10px] font-mono w-11 text-right shrink-0 tabular-nums">00:00</span>
+                        <input
+                          type="time"
+                          readOnly
+                          value={activeOuting ? toTimeString(activeOuting.outStart) ?? "" :
+                                 localOut.length > 0 && localOut[localOut.length - 1]?.outStart ? toTimeString(localOut[localOut.length - 1].outStart) ?? "" : ""}
+                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "outing", studentName: student.name })}
+                          onBlur={() => setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "outing" ? null : prev), 200)}
+                          className={cn(
+                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background cursor-pointer focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
+                            activeOuting ? "text-orange-600 font-semibold" :
+                            localOut.length > 0 && localOut[localOut.length - 1]?.outStart ? "text-muted-foreground" : "text-gray-400"
+                          )}
+                          placeholder="—"
+                        />
+                      </div>
+
+                      {/* 복귀 */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">복귀</span>
+                        <span className="text-transparent text-[10px] font-mono w-11 text-right shrink-0 tabular-nums">00:00</span>
+                        <input
+                          type="time"
+                          readOnly
+                          value={localOut.length > 0 && localOut[localOut.length - 1]?.outEnd ? toTimeString(localOut[localOut.length - 1].outEnd) ?? "" : ""}
+                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "return", studentName: student.name })}
+                          onBlur={() => setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "return" ? null : prev), 200)}
+                          className={cn(
+                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background cursor-pointer focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
+                            localOut.length > 0 && localOut[localOut.length - 1]?.outEnd ? "text-foreground font-semibold" : "text-gray-400"
+                          )}
+                          placeholder="—"
+                        />
+                      </div>
+
+                      {/* 퇴실 */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">퇴실</span>
+                        <span className={cn("text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
+                          !schedOut ? "text-transparent" :
+                          schedOut === "FLEXIBLE" ? "text-violet-600" : "text-muted-foreground"
+                        )}>{schedOut === "FLEXIBLE" ? "자율" : schedOut ?? "00:00"}</span>
+                        <input
+                          type="time"
+                          value={checkOutTime}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(student.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(student.id, { ...c, checkOut: v }); return m; });
+                          }}
+                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "checkOut", studentName: student.name })}
+                          onBlur={() => {
+                            setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "checkOut" ? null : prev), 200);
+                            if (checkOutTime && /^\d{2}:\d{2}$/.test(checkOutTime)) quickSaveField(student, "checkOut", checkOutTime);
+                          }}
+                          className={cn(
+                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400",
+                            checkOutTime ? "text-foreground font-semibold" : "text-gray-400"
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* 특이사항 */}
+                  <td
+                    className="px-3 py-3 cursor-pointer group/info"
+                    onClick={(e) => { e.stopPropagation(); setInfoModalId(student.id); setInfoModalText(student.studentInfo ?? ""); }}
+                  >
+                    {student.studentInfo ? (
+                      <div className="flex items-center gap-1">
+                        <Pin className="h-3 w-3 text-violet-500 shrink-0" />
+                        <span className="text-xs text-foreground truncate block max-w-[130px]">{student.studentInfo}</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2">
-                        <span className={cn("text-sm font-mono tabular-nums w-10 text-right", checkOutTime ? "text-foreground font-semibold" : "text-gray-300")}>
-                          {checkOutTime || "—"}
-                        </span>
-                        <button
-                          onClick={() => startInlineEdit(student, "checkOut")}
-                          disabled={isQuickLoading || !checkInTime}
-                          className="flex items-center gap-0.5 px-2 py-1 text-xs rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 shrink-0 transition-colors disabled:opacity-40 font-medium"
-                        >
-                          <LogOut className="h-3 w-3" />지금
-                        </button>
-                      </div>
+                      <span className="text-gray-300 group-hover/info:text-violet-400 transition-colors text-xs">메모 추가</span>
                     )}
-                  </td>
-
-                  {/* 외출 — 여러 외출 기록 표시 */}
-                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
-                      <div className="flex flex-col gap-1">
-                        {localOut.length > 0 ? localOut.map((o, i) => (
-                          <span key={o.id ?? i} className={cn(
-                            "text-xs font-mono tabular-nums",
-                            o.outStart && !o.outEnd ? "text-orange-600 font-semibold" : "text-muted-foreground"
-                          )}>
-                            {toTimeString(o.outStart) || "—"}
-                          </span>
-                        )) : (
-                          <span className="text-gray-300 text-xs">—</span>
-                        )}
-                      </div>
-                      {!activeOuting && (
-                        inlineOutingEdit?.studentId === student.id && inlineOutingEdit.field === "outStart" ? (
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="time"
-                              value={inlineOutingEdit.value}
-                              onChange={(e) => setInlineOutingEdit((prev) => prev ? { ...prev, value: e.target.value } : null)}
-                              className="text-xs border rounded px-1 py-0.5 w-28 font-mono focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-                            />
-                            <button
-                              onClick={() => { quickStartOuting(student, inlineOutingEdit.value); setInlineOutingEdit(null); }}
-                              disabled={isQuickLoading}
-                              className="p-0.5 text-green-700 hover:text-green-900 disabled:opacity-40"
-                              title="저장"
-                            ><Check className="h-3.5 w-3.5" /></button>
-                            <button
-                              onClick={() => setInlineOutingEdit(null)}
-                              className="p-0.5 text-muted-foreground hover:text-foreground"
-                              title="취소"
-                            ><X className="h-3.5 w-3.5" /></button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setInlineOutingEdit({ studentId: student.id, field: "outStart", value: nowHHMM() })}
-                            disabled={isQuickLoading || !checkInTime}
-                            className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] rounded bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 shrink-0 transition-colors disabled:opacity-40 font-medium"
-                          >
-                            <ArrowRightLeft className="h-2.5 w-2.5" />외출
-                          </button>
-                        )
-                      )}
-                    </div>
-                  </td>
-
-                  {/* 복귀 — 여러 외출 기록에 대한 복귀 시간 */}
-                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
-                      <div className="flex flex-col gap-1">
-                        {localOut.length > 0 ? localOut.map((o, i) => (
-                          <span key={o.id ?? i} className={cn(
-                            "text-xs font-mono tabular-nums",
-                            o.outEnd ? "text-foreground font-semibold" : "text-gray-300"
-                          )}>
-                            {o.outEnd ? toTimeString(o.outEnd) : "—"}
-                          </span>
-                        )) : (
-                          <span className="text-gray-300 text-xs">—</span>
-                        )}
-                      </div>
-                      {activeOuting && (
-                        inlineOutingEdit?.studentId === student.id && inlineOutingEdit.field === "outEnd" ? (
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="time"
-                              value={inlineOutingEdit.value}
-                              onChange={(e) => setInlineOutingEdit((prev) => prev ? { ...prev, value: e.target.value } : null)}
-                              className="text-xs border rounded px-1 py-0.5 w-28 font-mono focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-                            />
-                            <button
-                              onClick={() => { quickEndOuting(student, inlineOutingEdit.value); setInlineOutingEdit(null); }}
-                              disabled={isQuickLoading}
-                              className="p-0.5 text-green-700 hover:text-green-900 disabled:opacity-40"
-                              title="저장"
-                            ><Check className="h-3.5 w-3.5" /></button>
-                            <button
-                              onClick={() => setInlineOutingEdit(null)}
-                              className="p-0.5 text-muted-foreground hover:text-foreground"
-                              title="취소"
-                            ><X className="h-3.5 w-3.5" /></button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setInlineOutingEdit({ studentId: student.id, field: "outEnd", value: nowHHMM() })}
-                            disabled={isQuickLoading || !checkInTime}
-                            className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] rounded bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 shrink-0 transition-colors disabled:opacity-40 font-medium"
-                          >
-                            <LogIn className="h-2.5 w-2.5" />복귀
-                          </button>
-                        )
-                      )}
-                    </div>
                   </td>
 
                   {/* 입퇴실 메모 */}
@@ -1020,41 +916,13 @@ export function AttendanceTable({ students, today }: Props) {
                     )}
                   </td>
 
-                  {/* 학원일정 */}
-                  <td
-                    className="px-3 py-3 cursor-pointer"
-                    onClick={(e) => expandAndFocus(student.id, "academySchedule", e)}
-                    onMouseEnter={(e) => showTooltip(e, student.academySchedule ?? "")}
-                    onMouseLeave={() => setTooltip(null)}
-                  >
-                    {student.academySchedule ? (
-                      <span className="text-xs text-muted-foreground truncate block max-w-[130px]">{student.academySchedule}</span>
-                    ) : (
-                      <span className="text-gray-300">—</span>
-                    )}
-                  </td>
-
-                  {/* 특이사항 */}
-                  <td
-                    className="px-3 py-3 cursor-pointer"
-                    onClick={(e) => { e.stopPropagation(); setInfoModalId(student.id); setInfoModalText(student.studentInfo ?? ""); }}
-                  >
-                    {student.studentInfo ? (
-                      <div className="flex items-center gap-1">
-                        <Pin className="h-3 w-3 text-violet-500 shrink-0" />
-                        <span className="text-xs text-foreground truncate block max-w-[130px]">{student.studentInfo}</span>
-                      </div>
-                    ) : (
-                      <span className="text-gray-300">—</span>
-                    )}
-                  </td>
 
                 </tr>
 
                 {/* 타임라인 + 인라인 편집 확장 행 */}
                 {isExpanded && (
                   <tr className={cn("border-b", isSelected ? "bg-blue-50/60" : "bg-muted/20")}>
-                    <td colSpan={17} className="px-4 py-4">
+                    <td colSpan={12} className="px-4 py-4">
                       {(() => {
                         const focus = expandFocus.get(student.id);
                         const focusLabel: Record<EditFocus, string> = {
@@ -1195,53 +1063,6 @@ export function AttendanceTable({ students, today }: Props) {
         </div>
       )}
 
-      {/* 특이사항 모달 */}
-      <Dialog
-        open={!!infoModalId}
-        onOpenChange={(open) => { if (!open) setInfoModalId(null); }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Pin className="h-4 w-4 text-violet-500" />
-              {students.find((s) => s.id === infoModalId)?.name} 특이사항
-            </DialogTitle>
-          </DialogHeader>
-          <Textarea
-            value={infoModalText}
-            onChange={(e) => setInfoModalText(e.target.value)}
-            placeholder="학생 특이사항, 성향, 주의사항 등..."
-            rows={6}
-          />
-          <DialogFooter>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setInfoModalId(null)}
-            >
-              닫기
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                if (!infoModalId) return;
-                startTransition(async () => {
-                  try {
-                    await patchStudentTextFields(infoModalId, { studentInfo: infoModalText });
-                    toast.success("특이사항이 저장되었습니다");
-                    setInfoModalId(null);
-                  } catch {
-                    toast.error("저장 실패");
-                  }
-                });
-              }}
-              disabled={isPending}
-            >
-              {isPending ? "저장 중..." : "저장"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* 미입실 사유 모달 */}
       <Dialog
@@ -1295,6 +1116,160 @@ export function AttendanceTable({ students, today }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 특이사항 모달 — 하단 슬라이드업 */}
+      {infoModalId && (() => {
+        const infoStudent = students.find((s) => s.id === infoModalId);
+        if (!infoStudent) return null;
+        return (
+          <div className="fixed inset-0 z-50" onClick={() => setInfoModalId(null)}>
+            <div className="absolute inset-0 bg-black/20 animate-in fade-in duration-150" />
+            <div
+              className="absolute bottom-0 left-0 right-0 bg-background border-t rounded-t-xl shadow-2xl p-5 animate-in slide-in-from-bottom duration-200 max-w-lg mx-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Pin className="h-4 w-4 text-violet-500" />
+                  <span className="font-semibold text-sm">{infoStudent.name}</span>
+                  <span className="text-xs text-muted-foreground">특이사항</span>
+                </div>
+                <button onClick={() => setInfoModalId(null)} className="p-1 rounded hover:bg-accent text-muted-foreground"><X className="h-4 w-4" /></button>
+              </div>
+              <Textarea
+                autoFocus
+                value={infoModalText}
+                onChange={(e) => setInfoModalText(e.target.value)}
+                placeholder="학생 특이사항, 성향, 주의사항 등..."
+                rows={4}
+                className="text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    startTransition(async () => {
+                      try {
+                        await patchStudentTextFields(infoModalId, { studentInfo: infoModalText });
+                        toast.success("저장됨");
+                        setInfoModalId(null);
+                      } catch { toast.error("저장 실패"); }
+                    });
+                  }
+                }}
+              />
+              <div className="flex items-center justify-between mt-3">
+                <span className="text-[11px] text-muted-foreground">⌘+Enter로 저장</span>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    startTransition(async () => {
+                      try {
+                        await patchStudentTextFields(infoModalId, { studentInfo: infoModalText });
+                        toast.success("저장됨");
+                        setInfoModalId(null);
+                      } catch { toast.error("저장 실패"); }
+                    });
+                  }}
+                  disabled={isPending}
+                >
+                  {isPending ? "저장 중..." : "저장"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 하단 액션 바 — 시간 입력 포커스 시 표시 */}
+      {activeTimeInput && (() => {
+        const s = students.find((s) => s.id === activeTimeInput.studentId);
+        if (!s) return null;
+        const f = activeTimeInput.field;
+        const fieldLabels = { checkIn: "입실", checkOut: "퇴실", outing: "외출", return: "복귀" } as const;
+        const lo = localOutings.get(s.id) ?? [];
+        const hasActiveOuting = lo.some((o) => o.outStart && !o.outEnd);
+
+        return (
+          <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-center px-4 py-3 bg-background/95 backdrop-blur border-t shadow-lg animate-in slide-in-from-bottom-2 duration-150">
+            <div className="flex items-center gap-3 text-sm">
+              <span className="text-muted-foreground">{activeTimeInput.studentName} · {fieldLabels[f]}</span>
+
+              {/* 입실 */}
+              {f === "checkIn" && (
+                <>
+                  <button
+                    onMouseDown={(e) => { e.preventDefault(); quickSaveField(s, "checkIn", nowHHMM()); setActiveTimeInput(null); }}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-green-600 hover:bg-green-700 text-white transition-colors"
+                  ><LogIn className="h-3 w-3" />입실 지금 ({nowHHMM()})</button>
+                  {(localTimes.get(s.id)?.checkIn ?? "") && (
+                    <button
+                      onMouseDown={(e) => { e.preventDefault(); clearField(s, "checkIn"); setActiveTimeInput(null); }}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition-colors"
+                    ><Trash2 className="h-3 w-3" />삭제</button>
+                  )}
+                  {!(localTimes.get(s.id)?.checkIn) && s.schedules.length > 0 && (
+                    <button
+                      onMouseDown={(e) => { e.preventDefault(); setNotifiedAbsentId(s.id); setNotifiedAbsentReason(""); setActiveTimeInput(null); }}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors"
+                    >미입실 처리</button>
+                  )}
+                </>
+              )}
+
+              {/* 퇴실 */}
+              {f === "checkOut" && (
+                <>
+                  <button
+                    onMouseDown={(e) => { e.preventDefault(); quickSaveField(s, "checkOut", nowHHMM()); setActiveTimeInput(null); }}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                  ><LogOut className="h-3 w-3" />퇴실 지금 ({nowHHMM()})</button>
+                  {(localTimes.get(s.id)?.checkOut ?? "") && (
+                    <button
+                      onMouseDown={(e) => { e.preventDefault(); clearField(s, "checkOut"); setActiveTimeInput(null); }}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition-colors"
+                    ><Trash2 className="h-3 w-3" />삭제</button>
+                  )}
+                </>
+              )}
+
+              {/* 외출 */}
+              {f === "outing" && (
+                <>
+                  {!hasActiveOuting && (localTimes.get(s.id)?.checkIn ?? "") && (
+                    <button
+                      onMouseDown={(e) => { e.preventDefault(); quickStartOuting(s); setActiveTimeInput(null); }}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-orange-500 hover:bg-orange-600 text-white transition-colors"
+                    ><ArrowRightLeft className="h-3 w-3" />외출 시작 ({nowHHMM()})</button>
+                  )}
+                  {hasActiveOuting && (
+                    <span className="text-xs text-orange-600 font-medium">현재 외출 중</span>
+                  )}
+                  {!(localTimes.get(s.id)?.checkIn ?? "") && (
+                    <span className="text-xs text-muted-foreground">입실 기록 후 외출 가능</span>
+                  )}
+                </>
+              )}
+
+              {/* 복귀 */}
+              {f === "return" && (
+                <>
+                  {hasActiveOuting && (
+                    <button
+                      onMouseDown={(e) => { e.preventDefault(); quickEndOuting(s); setActiveTimeInput(null); }}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-orange-500 hover:bg-orange-600 text-white transition-colors"
+                    ><LogIn className="h-3 w-3" />복귀 완료 ({nowHHMM()})</button>
+                  )}
+                  {!hasActiveOuting && lo.length > 0 && (
+                    <span className="text-xs text-muted-foreground">이미 복귀 완료</span>
+                  )}
+                  {!hasActiveOuting && lo.length === 0 && (
+                    <span className="text-xs text-muted-foreground">외출 기록이 없습니다</span>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 오버레이 패널 */}
       <div
