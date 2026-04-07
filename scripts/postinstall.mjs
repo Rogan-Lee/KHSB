@@ -5,8 +5,12 @@ import { writeFileSync } from "fs";
 
 console.log("🔧 prisma generate 실행 중...");
 const result = spawnSync("npx", ["prisma", "generate"], { stdio: "inherit" });
-if (result.status !== 0) process.exit(result.status ?? 1);
+if (result.status !== 0) {
+  console.warn("⚠️  prisma generate 실패 (DATABASE_URL 미설정 가능). index.ts 재생성은 계속 진행합니다.");
+}
 
+// prisma generate 후 index.ts가 삭제되므로 항상 재생성
+// client.ts에 이미 모델 타입 별칭(User, Student 등)이 포함되어 있음
 writeFileSync(
   "src/generated/prisma/index.ts",
   "export * from './client'\nexport type * from './models'\n"
