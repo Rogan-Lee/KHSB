@@ -1,7 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { revalidatePath } from "next/cache";
 import { CalendarEventType } from "@/generated/prisma";
 import { todayKST } from "@/lib/utils";
@@ -11,15 +12,21 @@ import {
   deleteGoogleCalendarEvent,
 } from "@/actions/google-calendar";
 
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
+
 export async function getCalendarEvents(params?: {
   studentId?: string;
   startDate?: Date;
   endDate?: Date;
 }) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { orgId: session.orgId };
 
   if (params?.studentId) {
     where.OR = [
@@ -56,8 +63,7 @@ export async function createCalendarEvent(data: {
   color?: string;
   syncToGoogle?: boolean;
 }) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   // Google Calendar 동기화 (선택)
   let googleEventId: string | null = null;
@@ -73,6 +79,7 @@ export async function createCalendarEvent(data: {
 
   const record = await prisma.calendarEvent.create({
     data: {
+      orgId: session.orgId,
       title: data.title,
       description: data.description ?? null,
       startDate: new Date(data.startDate),
@@ -83,7 +90,7 @@ export async function createCalendarEvent(data: {
       schoolName: data.schoolName ?? null,
       color: data.color ?? null,
       googleEventId,
-      createdById: session.user.id,
+      createdById: session.id,
     },
   });
 
@@ -104,10 +111,9 @@ export async function updateCalendarEvent(
     color?: string | null;
   }
 ) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
-  const existing = await prisma.calendarEvent.findUnique({ where: { id }, select: { googleEventId: true, allDay: true } });
+  const existing = await prisma.calendarEvent.findUnique({ where: { id, orgId: session.orgId }, select: { googleEventId: true, allDay: true } });
 
   // Google Calendar 동기화 (googleEventId가 있는 경우)
   if (existing?.googleEventId) {
@@ -121,7 +127,7 @@ export async function updateCalendarEvent(
   }
 
   await prisma.calendarEvent.update({
-    where: { id },
+    where: { id, orgId: session.orgId },
     data: {
       ...(data.title ? { title: data.title } : {}),
       ...(data.description !== undefined ? { description: data.description } : {}),
@@ -138,8 +144,7 @@ export async function updateCalendarEvent(
 }
 
 export async function getStudentUpcomingEvents(studentId: string, school: string | null) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const today = todayKST();
   const twoWeeksLater = new Date(today);
@@ -154,6 +159,7 @@ export async function getStudentUpcomingEvents(studentId: string, school: string
     schoolName
       ? prisma.calendarEvent.findMany({
           where: {
+            orgId: session.orgId,
             schoolName,
             type: { in: ["SCHOOL_EXAM", "SCHOOL_EVENT"] },
             startDate: { gte: today, lte: twoWeeksLater },
@@ -163,6 +169,7 @@ export async function getStudentUpcomingEvents(studentId: string, school: string
       : Promise.resolve([]),
     prisma.calendarEvent.findMany({
       where: {
+        orgId: session.orgId,
         studentId,
         type: "PERSONAL",
         startDate: { gte: today, lte: twoWeeksLater },
@@ -175,17 +182,16 @@ export async function getStudentUpcomingEvents(studentId: string, school: string
 }
 
 export async function deleteCalendarEvent(id: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
-  const existing = await prisma.calendarEvent.findUnique({ where: { id }, select: { googleEventId: true } });
+  const existing = await prisma.calendarEvent.findUnique({ where: { id, orgId: session.orgId }, select: { googleEventId: true } });
 
   // Google Calendar에서도 삭제
   if (existing?.googleEventId) {
     await deleteGoogleCalendarEvent(existing.googleEventId);
   }
 
-  await prisma.calendarEvent.delete({ where: { id } });
+  await prisma.calendarEvent.delete({ where: { id, orgId: session.orgId } });
   revalidatePath("/calendar");
 }
 
@@ -195,20 +201,20 @@ export async function getStudentCalendarEvents(params: {
   startDate: Date;
   endDate: Date;
 }) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const { studentId, schoolName, startDate, endDate } = params;
 
   const [personalEvents, schoolEvents] = await Promise.all([
     prisma.calendarEvent.findMany({
-      where: { studentId, startDate: { gte: startDate, lte: endDate } },
+      where: { orgId: session.orgId, studentId, startDate: { gte: startDate, lte: endDate } },
       include: { student: { select: { id: true, name: true } } },
       orderBy: { startDate: "asc" },
     }),
     schoolName
       ? prisma.calendarEvent.findMany({
           where: {
+            orgId: session.orgId,
             schoolName,
             type: { in: ["SCHOOL_EXAM", "SCHOOL_EVENT"] },
             startDate: { gte: startDate, lte: endDate },

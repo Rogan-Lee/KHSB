@@ -1,27 +1,31 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import type { RequestStatus, RequestCategory, RequestPriority } from "@/generated/prisma";
 
 async function getSession() {
-  const session = await auth();
-  if (!session?.user) throw new Error("인증 필요");
-  return session.user;
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
 }
 
 export async function getFeatureRequests() {
+  const session = await getSession();
   return prisma.featureRequest.findMany({
+    where: { orgId: session.orgId },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     include: { _count: { select: { comments: true } } },
   });
 }
 
 export async function getFeatureRequestById(id: string) {
-  await getSession();
+  const session = await getSession();
   return prisma.featureRequest.findUnique({
-    where: { id },
+    where: { id, orgId: session.orgId },
     include: {
       comments: { orderBy: { createdAt: "asc" } },
     },
@@ -41,6 +45,7 @@ export async function createFeatureRequest(data: {
 
   await prisma.featureRequest.create({
     data: {
+      orgId: user.orgId,
       title: data.title.trim(),
       description: data.description?.trim() || null,
       category: (data.category as RequestCategory) ?? "FEATURE",
@@ -55,8 +60,8 @@ export async function createFeatureRequest(data: {
 }
 
 export async function updateRequestStatus(id: string, status: RequestStatus) {
-  await getSession();
-  await prisma.featureRequest.update({ where: { id }, data: { status } });
+  const session = await getSession();
+  await prisma.featureRequest.update({ where: { id, orgId: session.orgId }, data: { status } });
   revalidatePath("/requests");
   revalidatePath(`/requests/${id}`);
 }
@@ -70,14 +75,14 @@ export async function updateFeatureRequest(id: string, data: {
   requester?: string;
 }) {
   const user = await getSession();
-  const existing = await prisma.featureRequest.findUnique({ where: { id } });
+  const existing = await prisma.featureRequest.findUnique({ where: { id, orgId: user.orgId } });
   if (!existing) throw new Error("요청을 찾을 수 없습니다");
   if (existing.authorId !== user.id && user.role !== "DIRECTOR" && user.role !== "ADMIN") {
     throw new Error("수정 권한이 없습니다");
   }
 
   await prisma.featureRequest.update({
-    where: { id },
+    where: { id, orgId: user.orgId },
     data: {
       title: data.title.trim(),
       description: data.description?.trim() || null,
@@ -93,13 +98,13 @@ export async function updateFeatureRequest(id: string, data: {
 
 export async function deleteFeatureRequest(id: string) {
   const user = await getSession();
-  const existing = await prisma.featureRequest.findUnique({ where: { id } });
+  const existing = await prisma.featureRequest.findUnique({ where: { id, orgId: user.orgId } });
   if (!existing) throw new Error("요청을 찾을 수 없습니다");
   if (existing.authorId !== user.id && user.role !== "DIRECTOR" && user.role !== "ADMIN") {
     throw new Error("삭제 권한이 없습니다");
   }
 
-  await prisma.featureRequest.delete({ where: { id } });
+  await prisma.featureRequest.delete({ where: { id, orgId: user.orgId } });
   revalidatePath("/requests");
 }
 
@@ -112,6 +117,7 @@ export async function createFeatureRequestComment(
 
   await prisma.featureRequestComment.create({
     data: {
+      orgId: user.orgId,
       content: content.trim(),
       featureRequestId,
       authorId: user.id,
@@ -125,13 +131,13 @@ export async function createFeatureRequestComment(
 
 export async function deleteFeatureRequestComment(commentId: string) {
   const user = await getSession();
-  const comment = await prisma.featureRequestComment.findUnique({ where: { id: commentId } });
+  const comment = await prisma.featureRequestComment.findUnique({ where: { id: commentId, orgId: user.orgId } });
   if (!comment) throw new Error("댓글을 찾을 수 없습니다");
   if (comment.authorId !== user.id && user.role !== "DIRECTOR" && user.role !== "ADMIN") {
     throw new Error("삭제 권한이 없습니다");
   }
 
-  await prisma.featureRequestComment.delete({ where: { id: commentId } });
+  await prisma.featureRequestComment.delete({ where: { id: commentId, orgId: user.orgId } });
   revalidatePath("/requests");
   revalidatePath(`/requests/${comment.featureRequestId}`);
 }

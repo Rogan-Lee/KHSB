@@ -1,7 +1,15 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { prisma } from "@/lib/prisma";
+
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
 
 export async function createParentReport(
   mentoringId: string,
@@ -9,22 +17,22 @@ export async function createParentReport(
     studyPlanImages?: string[];
   }
 ) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const mentoring = await prisma.mentoring.findUnique({
-    where: { id: mentoringId },
+    where: { id: mentoringId, orgId: session.orgId },
     select: { studentId: true, notes: true },
   });
   if (!mentoring) throw new Error("멘토링을 찾을 수 없습니다");
 
   const report = await prisma.parentReport.create({
     data: {
+      orgId: session.orgId,
       studentId: mentoring.studentId,
       mentoringId,
       studyPlanImages: data.studyPlanImages ?? [],
       customNote: mentoring.notes || null,
-      createdById: session.user.id,
+      createdById: session.id,
     },
     select: { token: true },
   });
@@ -33,6 +41,7 @@ export async function createParentReport(
 }
 
 export async function getParentReport(token: string) {
+  // Public access by token - no org check needed
   return prisma.parentReport.findUnique({
     where: { token },
     include: {

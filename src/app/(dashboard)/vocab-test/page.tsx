@@ -1,15 +1,17 @@
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { VocabTestBoard } from "@/components/vocab-test/vocab-test-board";
 
 export default async function VocabTestPage() {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  const user = await getUser();
+  if (!user) redirect("/sign-in");
+  if (!user.orgId) return null;
+  const orgId = user.orgId;
 
   const [students, enrollments, scores] = await Promise.all([
     prisma.student.findMany({
-      where: { status: "ACTIVE" },
+      where: { orgId, status: "ACTIVE" },
       select: {
         id: true, name: true, grade: true, school: true,
         vocabEnrollment: true,
@@ -17,10 +19,11 @@ export default async function VocabTestPage() {
       orderBy: { name: "asc" },
     }),
     prisma.vocabTestEnrollment.findMany({
-      where: { isActive: true },
+      where: { orgId, isActive: true },
       include: { student: { select: { id: true, name: true, grade: true, school: true } } },
     }),
     prisma.vocabTestScore.findMany({
+      where: { orgId },
       include: { student: { select: { id: true, name: true, grade: true } } },
       orderBy: { testDate: "desc" },
       take: 200,

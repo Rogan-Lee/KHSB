@@ -30,6 +30,7 @@ import {
   MapPin,
   Megaphone,
   Lock,
+  Target,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType; feature?: FeatureKey };
@@ -79,6 +80,7 @@ const navSections: NavSection[] = [
 const directorSection: NavSection = {
   label: "관리자",
   items: [
+    { href: "/leads", label: "리드 관리", icon: Target },
     { href: "/mentors", label: "직원 관리", icon: UserCog, feature: "mentors" },
     { href: "/reports", label: "월간 리포트", icon: BarChart3, feature: "reports" },
     { href: "/analytics", label: "성과 분석", icon: TrendingUp, feature: "analytics" },

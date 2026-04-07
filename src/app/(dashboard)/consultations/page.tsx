@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ConsultationsList } from "@/components/consultations/consultations-table";
@@ -12,14 +12,16 @@ export default async function ConsultationsPage({
 }: {
   searchParams: Promise<{ owner?: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  const user = await getUser();
+  if (!user) redirect("/sign-in");
+  if (!user.orgId) return null;
+  const orgId = user.orgId;
 
   const { owner: ownerParam } = await searchParams;
   const owner = ownerParam === "HEAD_TEACHER" ? "HEAD_TEACHER" : "DIRECTOR";
 
   const consultations = await prisma.directorConsultation.findMany({
-    where: { owner },
+    where: { orgId, owner },
     include: { student: { select: { id: true, name: true, grade: true } } },
     orderBy: { scheduledAt: "desc" },
   }) as Array<{

@@ -1,22 +1,25 @@
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { MentorScheduleEditor } from "@/components/mentoring/mentor-schedule-editor";
 import { isFullAccess } from "@/lib/roles";
 
 export default async function MentorSchedulePage() {
-  const session = await auth();
+  const user = await getUser();
+  if (!user?.orgId) return null;
+  const orgId = user.orgId;
+  const session = { user };
   const isDirector = isFullAccess(session?.user?.role);
 
   const mentors = isDirector
     ? await prisma.user.findMany({
-        where: { isMentor: true },
+        where: { memberships: { some: { orgId } }, isMentor: true },
         select: { id: true, name: true },
         orderBy: { name: "asc" },
       })
     : [{ id: session!.user!.id, name: session!.user!.name ?? "" }];
 
   const schedules = await prisma.mentorSchedule.findMany({
-    where: isDirector ? undefined : { mentorId: session!.user!.id },
+    where: isDirector ? { orgId } : { orgId, mentorId: session!.user!.id },
     include: { mentor: { select: { id: true, name: true } } },
     orderBy: { dayOfWeek: "asc" },
   });

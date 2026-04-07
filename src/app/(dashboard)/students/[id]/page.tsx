@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { getUser } from "@/lib/auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,13 +41,17 @@ export default async function StudentDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await getUser();
+  if (!user?.orgId) return null;
+  const orgId = user.orgId;
+
   const { id: rawId } = await params;
   const id = decodeURIComponent(rawId);
 
   let student;
   try {
-    student = await prisma.student.findUnique({
-      where: { id },
+    student = await prisma.student.findFirst({
+      where: { id, orgId },
       include: {
         mentor: { select: { id: true, name: true } },
         schedules: { orderBy: { dayOfWeek: "asc" } },
@@ -73,12 +78,12 @@ export default async function StudentDetailPage({
 
   const [mentors, schoolRows, seatRows] = await Promise.all([
     prisma.user.findMany({
-      where: { role: { in: ["ADMIN", "DIRECTOR", "MENTOR"] } },
+      where: { memberships: { some: { orgId } }, role: { in: ["ADMIN", "DIRECTOR", "MENTOR"] } },
       select: { id: true, name: true },
     }),
-    prisma.student.findMany({ select: { school: true } }),
+    prisma.student.findMany({ where: { orgId }, select: { school: true } }),
     prisma.student.findMany({
-      where: { status: "ACTIVE", seat: { not: null }, id: { not: student.id } },
+      where: { orgId, status: "ACTIVE", seat: { not: null }, id: { not: student.id } },
       select: { seat: true },
     }),
   ]);

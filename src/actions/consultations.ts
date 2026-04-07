@@ -1,15 +1,22 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { revalidatePath } from "next/cache";
 import { ConsultationStatus, ConsultationType, ConsultationCategory, ConsultationOwner } from "@/generated/prisma";
 import { requireFullAccess } from "@/lib/roles";
 
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
+
 export async function createConsultation(formData: FormData) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  requireFullAccess(session.user.role);
+  const session = await getSession();
+  requireFullAccess(session.role);
 
   const raw = Object.fromEntries(formData.entries());
   const studentId = (raw.studentId as string) || null;
@@ -25,6 +32,7 @@ export async function createConsultation(formData: FormData) {
 
   await prisma.directorConsultation.create({
     data: {
+      orgId: session.orgId,
       studentId,
       prospectName,
       prospectGrade: (raw.prospectGrade as string) || null,
@@ -46,9 +54,8 @@ export async function createConsultation(formData: FormData) {
 }
 
 export async function updateConsultation(id: string, formData: FormData) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  requireFullAccess(session.user.role);
+  const session = await getSession();
+  requireFullAccess(session.role);
 
   const raw = Object.fromEntries(formData.entries());
 
@@ -64,19 +71,18 @@ export async function updateConsultation(id: string, formData: FormData) {
   if ("followUp" in raw) data.followUp = (raw.followUp as string) || null;
   if ("notes" in raw) data.notes = (raw.notes as string) || null;
 
-  await prisma.directorConsultation.update({ where: { id }, data });
+  await prisma.directorConsultation.update({ where: { id, orgId: session.orgId }, data });
 
   revalidatePath("/consultations");
   revalidatePath(`/consultations/${id}`);
 }
 
 export async function getConsultations(owner?: ConsultationOwner) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  requireFullAccess(session.user.role);
+  const session = await getSession();
+  requireFullAccess(session.role);
 
   return prisma.directorConsultation.findMany({
-    where: owner ? { owner } : undefined,
+    where: owner ? { orgId: session.orgId, owner } : { orgId: session.orgId },
     include: {
       student: { select: { id: true, name: true, grade: true } },
     },
@@ -100,11 +106,11 @@ export async function getConsultations(owner?: ConsultationOwner) {
 }
 
 export async function getStudentConsultationHistory(studentId: string, excludeId?: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   return prisma.directorConsultation.findMany({
     where: {
+      orgId: session.orgId,
       studentId,
       ...(excludeId ? { id: { not: excludeId } } : {}),
       status: "COMPLETED",

@@ -1,8 +1,16 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { revalidatePath } from "next/cache";
+
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
 
 export type PlanItem = {
   id: string;
@@ -13,14 +21,13 @@ export type PlanItem = {
 };
 
 export async function getDailyPlan(studentId: string, date: Date) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const start = new Date(date);
   start.setHours(0, 0, 0, 0);
 
   const plan = await prisma.dailyPlan.findUnique({
-    where: { studentId_date: { studentId, date: start } },
+    where: { studentId_date: { studentId, date: start }, orgId: session.orgId },
   });
 
   if (!plan) return { items: [] as PlanItem[], notes: "" };
@@ -37,15 +44,14 @@ export async function upsertDailyPlan(
   items: PlanItem[],
   notes: string
 ) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const start = new Date(date);
   start.setHours(0, 0, 0, 0);
 
   await prisma.dailyPlan.upsert({
     where: { studentId_date: { studentId, date: start } },
-    create: { studentId, date: start, items, notes: notes || null },
+    create: { orgId: session.orgId, studentId, date: start, items, notes: notes || null },
     update: { items, notes: notes || null },
   });
 

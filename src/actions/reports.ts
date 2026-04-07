@@ -1,19 +1,26 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { revalidatePath } from "next/cache";
 import { startOfMonth, endOfMonth } from "date-fns";
 import { requireStaff } from "@/lib/roles";
+
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
 
 export async function generateMonthlyReport(
   studentId: string,
   year: number,
   month: number
 ) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  requireStaff(session.user.role);
+  const session = await getSession();
+  requireStaff(session.role);
 
   const start = startOfMonth(new Date(year, month - 1));
   const end = endOfMonth(new Date(year, month - 1));
@@ -21,18 +28,21 @@ export async function generateMonthlyReport(
   const [attendances, merits, mentorings] = await Promise.all([
     prisma.attendanceRecord.findMany({
       where: {
+        orgId: session.orgId,
         studentId,
         date: { gte: start, lte: end },
       },
     }),
     prisma.meritDemerit.findMany({
       where: {
+        orgId: session.orgId,
         studentId,
         date: { gte: start, lte: end },
       },
     }),
     prisma.mentoring.findMany({
       where: {
+        orgId: session.orgId,
         studentId,
         scheduledAt: { gte: start, lte: end },
         status: "COMPLETED",
@@ -56,7 +66,7 @@ export async function generateMonthlyReport(
 
   const report = await prisma.monthlyReport.upsert({
     where: { studentId_year_month: { studentId, year, month } },
-    create: { studentId, year, month, ...stats },
+    create: { orgId: session.orgId, studentId, year, month, ...stats },
     update: stats,
   });
 
@@ -68,34 +78,31 @@ export async function updateReportComment(
   id: string,
   overallComment: string
 ) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   await prisma.monthlyReport.update({
-    where: { id },
+    where: { id, orgId: session.orgId },
     data: { overallComment },
   });
   revalidatePath("/reports");
 }
 
 export async function markReportSent(id: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   await prisma.monthlyReport.update({
-    where: { id },
+    where: { id, orgId: session.orgId },
     data: { sentAt: new Date() },
   });
   revalidatePath("/reports");
 }
 
 export async function getMonthlyReports(year: number, month: number) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  requireStaff(session.user.role);
+  const session = await getSession();
+  requireStaff(session.role);
 
   return prisma.monthlyReport.findMany({
-    where: { year, month },
+    where: { orgId: session.orgId, year, month },
     include: {
       student: { select: { id: true, name: true, grade: true, parentPhone: true } },
     },

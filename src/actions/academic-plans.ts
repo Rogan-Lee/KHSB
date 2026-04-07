@@ -1,8 +1,16 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { revalidatePath } from "next/cache";
+
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
 
 export async function upsertAcademicPlan(
   studentId: string,
@@ -15,12 +23,11 @@ export async function upsertAcademicPlan(
     weeklyGoals?: Record<string, string[]>;
   }
 ) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   await prisma.academicPlan.upsert({
     where: { studentId_year_month: { studentId, year, month } },
-    create: { studentId, year, month, ...data },
+    create: { orgId: session.orgId, studentId, year, month, ...data },
     update: data,
   });
 
@@ -29,8 +36,9 @@ export async function upsertAcademicPlan(
 }
 
 export async function getAcademicPlans(year: number, month: number) {
+  const session = await getSession();
   return prisma.academicPlan.findMany({
-    where: { year, month },
+    where: { orgId: session.orgId, year, month },
     include: { student: { select: { id: true, name: true, grade: true } } },
   });
 }
@@ -40,7 +48,8 @@ export async function getStudentAcademicPlan(
   year: number,
   month: number
 ) {
+  const session = await getSession();
   return prisma.academicPlan.findUnique({
-    where: { studentId_year_month: { studentId, year, month } },
+    where: { studentId_year_month: { studentId, year, month }, orgId: session.orgId },
   });
 }

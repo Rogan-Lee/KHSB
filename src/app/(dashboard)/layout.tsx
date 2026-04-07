@@ -9,9 +9,15 @@ export default async function DashboardLayout({
 }) {
   const user = await getUser();
   if (!user) redirect("/sign-in");
+  if (!user.orgId) redirect("/onboarding");
 
   return (
-    <DashboardShell user={{ name: user.name, email: user.email, role: user.role }}>
+    <DashboardShell
+      user={{ name: user.name, email: user.email, role: user.role }}
+      plan={user.orgPlan!}
+      orgName={user.orgName}
+      trialEndsAt={user.trialEndsAt}
+    >
       {children}
     </DashboardShell>
   );

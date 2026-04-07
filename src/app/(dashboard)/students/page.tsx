@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getUser } from "@/lib/auth";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,8 +14,13 @@ import { getGoogleSheetsConfig } from "@/actions/google-sheets";
 import { isGoogleCalendarConfigured, getGoogleAuthUrl, isOAuthAppConfigured } from "@/lib/google-calendar";
 
 export default async function StudentsPage() {
+  const user = await getUser();
+  if (!user?.orgId) return null;
+  const orgId = user.orgId;
+
   const [students, studentsSheetConfig, scoresSheetConfig, googleConnected] = await Promise.all([
     prisma.student.findMany({
+      where: { orgId },
       include: {
         mentor: { select: { name: true } },
         schedules: true,

@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
+import { getUser } from "@/lib/auth";
 import { parseSchool } from "@/lib/utils";
 import { CalendarView } from "@/components/calendar/calendar-view";
 import { fetchGoogleCalendarEvents } from "@/actions/google-calendar";
 import { isGoogleCalendarConfigured, isOAuthAppConfigured } from "@/lib/google-calendar";
-import { auth } from "@/lib/auth";
 import { GoogleCalendarConnectButton } from "@/components/calendar/google-calendar-connect-button";
 
 export default async function CalendarPage({
@@ -11,30 +11,33 @@ export default async function CalendarPage({
 }: {
   searchParams: Promise<{ google_connected?: string; google_error?: string }>;
 }) {
+  const user = await getUser();
+  if (!user?.orgId) return null;
+  const orgId = user.orgId;
+
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth() - 6, 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 7, 0);
 
-  const [session, events, schoolRows, studentRows] = await Promise.all([
-    auth(),
+  const [events, schoolRows, studentRows] = await Promise.all([
     prisma.calendarEvent.findMany({
-      where: { startDate: { gte: startOfMonth, lte: endOfMonth } },
+      where: { orgId, startDate: { gte: startOfMonth, lte: endOfMonth } },
       include: { student: { select: { id: true, name: true } } },
       orderBy: { startDate: "asc" },
     }),
     prisma.student.findMany({
-      where: { school: { not: null } },
+      where: { orgId, school: { not: null } },
       select: { school: true },
       distinct: ["school"],
     }),
     prisma.student.findMany({
-      where: { status: "ACTIVE" },
+      where: { orgId, status: "ACTIVE" },
       select: { id: true, name: true, grade: true },
       orderBy: { name: "asc" },
     }),
   ]);
 
-  const isDirector = session?.user?.role === "DIRECTOR" || session?.user?.role === "ADMIN";
+  const isDirector = user?.role === "DIRECTOR" || user?.role === "ADMIN";
   const googleConnected = await isGoogleCalendarConfigured();
   const oauthConfigured = isOAuthAppConfigured();
 

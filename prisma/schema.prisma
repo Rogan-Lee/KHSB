@@ -19,7 +19,7 @@ enum StudentStatus {
   ACTIVE
   INACTIVE
   GRADUATED
-  WITHDRAWN    // 퇴원
+  WITHDRAWN // 퇴원
 }
 
 enum AttendanceType {
@@ -50,19 +50,19 @@ enum ConsultationStatus {
 }
 
 enum ConsultationType {
-  STUDENT       // 학생 상담
-  PARENT        // 학부모 상담
+  STUDENT // 학생 상담
+  PARENT // 학부모 상담
 }
 
 enum ConsultationCategory {
-  ENROLLED      // 재원생
+  ENROLLED // 재원생
   NEW_ADMISSION // 신규 입실
-  CONSIDERING   // 등록 고민
+  CONSIDERING // 등록 고민
 }
 
 enum ConsultationOwner {
-  DIRECTOR      // 원장 면담
-  HEAD_TEACHER  // 책임T 면담
+  DIRECTOR // 원장 면담
+  HEAD_TEACHER // 책임T 면담
 }
 
 enum MessageStatus {
@@ -82,106 +82,190 @@ enum MessageType {
 }
 
 enum CommunicationType {
-  PARENT_REQUEST  // 학부모 요청사항
-  STAFF_NOTE      // 운영진 전달사항
+  PARENT_REQUEST // 학부모 요청사항
+  STAFF_NOTE // 운영진 전달사항
 }
 
 enum ExamType {
-  OFFICIAL_MOCK   // 공식 모의고사 (수능/평가원)
-  PRIVATE_MOCK    // 사설 모의고사
-  SCHOOL_EXAM     // 학교 내신
+  OFFICIAL_MOCK // 공식 모의고사 (수능/평가원)
+  PRIVATE_MOCK // 사설 모의고사
+  SCHOOL_EXAM // 학교 내신
 }
 
 enum CalendarEventType {
-  SCHOOL_EXAM    // 학교 시험
-  SCHOOL_EVENT   // 학교 행사
-  PERSONAL       // 개인 일정
-  PLATFORM       // 플랫폼 일정
+  SCHOOL_EXAM // 학교 시험
+  SCHOOL_EVENT // 학교 행사
+  PERSONAL // 개인 일정
+  PLATFORM // 플랫폼 일정
+}
+
+enum PlanTier {
+  STARTER
+  STANDARD
+  PREMIUM
+}
+
+enum OrgStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+}
+
+model Organization {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  plan        PlanTier  @default(STANDARD)
+  status      OrgStatus @default(TRIAL)
+  trialEndsAt DateTime?
+  maxStudents Int       @default(30)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  memberships            Membership[]
+  students               Student[]
+  attendanceSchedules    AttendanceSchedule[]
+  attendanceRecords      AttendanceRecord[]
+  outingSchedules        OutingSchedule[]
+  dailyOutings           DailyOuting[]
+  meritDemerits          MeritDemerit[]
+  mentorings             Mentoring[]
+  mentorSchedules        MentorSchedule[]
+  academicPlans          AcademicPlan[]
+  consultations          DirectorConsultation[]
+  messageLogs            MessageLog[]
+  monthlyReports         MonthlyReport[]
+  communications         Communication[]
+  examScores             ExamScore[]
+  assignments            Assignment[]
+  calendarEvents         CalendarEvent[]
+  parentReports          ParentReport[]
+  timetableEntries       TimetableEntry[]
+  dailyPlans             DailyPlan[]
+  messageTemplates       MessageTemplate[]
+  studyPlanReports       StudyPlanReport[]
+  consultationReports    ConsultationReport[]
+  vocabEnrollments       VocabTestEnrollment[]
+  vocabScores            VocabTestScore[]
+  checklistTemplates     ChecklistTemplate[]
+  handoverTasks          HandoverTask[]
+  handoverChecklists     HandoverChecklist[]
+  monthlyNotes           MonthlyNote[]
+  handovers              Handover[]
+  handoverReads          HandoverRead[]
+  todos                  Todo[]
+  meetingMinutes         MeetingMinutes[]
+  meetingMinutesReads    MeetingMinutesRead[]
+  featureRequests        FeatureRequest[]
+  featureRequestComments FeatureRequestComment[]
+  leads                  Lead[]
+}
+
+model Membership {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  role      Role         @default(MENTOR)
+  createdAt DateTime     @default(now())
+
+  @@unique([userId, orgId])
+  @@index([orgId])
 }
 
 model User {
-  id         String      @id @default(cuid())
-  email      String      @unique
-  name       String
-  clerkId    String?     @unique
-  role       Role        @default(MENTOR)
-  isMentor   Boolean     @default(false)
-  students        Student[]        @relation("MentorStudents")
-  mentorings      Mentoring[]
-  mentorSchedules MentorSchedule[]
-  parentReports   ParentReport[]
-  timetableEntries TimetableEntry[]
+  id                String           @id @default(cuid())
+  email             String           @unique
+  name              String
+  clerkId           String?          @unique
+  role              Role             @default(MENTOR)
+  isMentor          Boolean          @default(false)
+  memberships       Membership[]
+  students          Student[]        @relation("MentorStudents")
+  mentorings        Mentoring[]
+  mentorSchedules   MentorSchedule[]
+  parentReports     ParentReport[]
+  timetableEntries  TimetableEntry[]
   kakaoAccessToken  String?
   kakaoRefreshToken String?
   kakaoTokenExpiry  DateTime?
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 }
 
 model Student {
-  id                  String                 @id @default(cuid())
-  name                String
-  phone               String?
-  parentPhone         String
-  parentEmail         String?
-  grade               String
-  school              String?
-  classGroup          String?               // 반 (예: 정규반, 선택반)
-  seat                String?
-  startDate           DateTime
-  endDate             DateTime?
-  status              StudentStatus          @default(ACTIVE)
-  internalScoreRange  String?               // 내신 성적대 (예: "2~3등급")
-  mockScoreRange      String?               // 모의고사 성적대 (예: "3~4등급")
-  targetUniversity    String?               // 희망 대학
-  mentoringNotes      String?               // 멘토링 주의사항
-  academySchedule     String?               // 학원 스케줄 (텍스트)
-  studentInfo         String?               // 학생정보 (추가 메모)
-  selectedSubjects    String?               // 선택과목 (예: "수학, 영어, 사탐")
-  admissionType       String?               // 대학 입시 전형 (예: "수시 학종, 정시")
-  onlineLectures      String?               // 수강중인 인강 (예: "메가스터디 수학")
-  changeNote          String?               // 추후 변동 예정 사항
-  vocabTestDate       DateTime? @db.Date    // 영단어 테스트 일자 (매주 화요일 초기화)
-  pledgeDate          DateTime? @db.Date    // 서약서 제출 일자 (최초 1회 영구 보존)
-  mockAnalysisDate    DateTime? @db.Date    // 모의고사 분석지 일자
-  schoolAnalysisDate  DateTime? @db.Date    // 내신 분석지 일자
-  plannerSentDate     DateTime? @db.Date    // 플래너 전송 일자 (매주 화요일 초기화)
-  weeklyPlanDate      DateTime? @db.Date    // 주간 공부계획 일자 (매주 화요일 초기화)
-  mentorId            String?
-  mentor              User?                  @relation("MentorStudents", fields: [mentorId], references: [id])
-  schedules      AttendanceSchedule[]
-  attendances    AttendanceRecord[]
-  outings        OutingSchedule[]
-  dailyOutings   DailyOuting[]
-  merits         MeritDemerit[]
-  mentorings     Mentoring[]
-  academicPlans  AcademicPlan[]
-  parentReports  ParentReport[]
-  consultations  DirectorConsultation[]
-  messages       MessageLog[]
-  monthlyReports MonthlyReport[]
-  communications Communication[]
-  examScores     ExamScore[]
-  calendarEvents CalendarEvent[]
-  assignments      Assignment[]
-  timetableEntries TimetableEntry[]
-  dailyPlans       DailyPlan[]
-  studyPlanReports StudyPlanReport[]
-  monthlyNotes     MonthlyNote[]
-  vocabEnrollment  VocabTestEnrollment?
-  vocabScores      VocabTestScore[]
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
+  id                 String                 @id @default(cuid())
+  name               String
+  phone              String?
+  parentPhone        String
+  parentEmail        String?
+  grade              String
+  school             String?
+  classGroup         String? // 반 (예: 정규반, 선택반)
+  seat               String?
+  startDate          DateTime
+  endDate            DateTime?
+  status             StudentStatus          @default(ACTIVE)
+  internalScoreRange String? // 내신 성적대 (예: "2~3등급")
+  mockScoreRange     String? // 모의고사 성적대 (예: "3~4등급")
+  targetUniversity   String? // 희망 대학
+  mentoringNotes     String? // 멘토링 주의사항
+  academySchedule    String? // 학원 스케줄 (텍스트)
+  studentInfo        String? // 학생정보 (추가 메모)
+  selectedSubjects   String? // 선택과목 (예: "수학, 영어, 사탐")
+  admissionType      String? // 대학 입시 전형 (예: "수시 학종, 정시")
+  onlineLectures     String? // 수강중인 인강 (예: "메가스터디 수학")
+  changeNote         String? // 추후 변동 예정 사항
+  vocabTestDate      DateTime?              @db.Date // 영단어 테스트 일자 (매주 화요일 초기화)
+  pledgeDate         DateTime?              @db.Date // 서약서 제출 일자 (최초 1회 영구 보존)
+  mockAnalysisDate   DateTime?              @db.Date // 모의고사 분석지 일자
+  schoolAnalysisDate DateTime?              @db.Date // 내신 분석지 일자
+  plannerSentDate    DateTime?              @db.Date // 플래너 전송 일자 (매주 화요일 초기화)
+  weeklyPlanDate     DateTime?              @db.Date // 주간 공부계획 일자 (매주 화요일 초기화)
+  mentorId           String?
+  mentor             User?                  @relation("MentorStudents", fields: [mentorId], references: [id])
+  schedules          AttendanceSchedule[]
+  attendances        AttendanceRecord[]
+  outings            OutingSchedule[]
+  dailyOutings       DailyOuting[]
+  merits             MeritDemerit[]
+  mentorings         Mentoring[]
+  academicPlans      AcademicPlan[]
+  parentReports      ParentReport[]
+  consultations      DirectorConsultation[]
+  messages           MessageLog[]
+  monthlyReports     MonthlyReport[]
+  communications     Communication[]
+  examScores         ExamScore[]
+  calendarEvents     CalendarEvent[]
+  assignments        Assignment[]
+  timetableEntries   TimetableEntry[]
+  dailyPlans         DailyPlan[]
+  studyPlanReports   StudyPlanReport[]
+  monthlyNotes       MonthlyNote[]
+  vocabEnrollment    VocabTestEnrollment?
+  vocabScores        VocabTestScore[]
+  orgId              String
+  org                Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@index([orgId])
 }
 
 model AttendanceSchedule {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   studentId String
-  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student   Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   dayOfWeek Int // 0=일, 1=월, ..., 6=토
   startTime String // "09:00"
   endTime   String // "22:00"
-  createdAt DateTime @default(now())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+
+  @@index([orgId])
 }
 
 model AttendanceRecord {
@@ -191,51 +275,65 @@ model AttendanceRecord {
   date      DateTime       @db.Date
   checkIn   DateTime?
   checkOut  DateTime?
-  outStart  DateTime?      // 실제 외출 시각
-  outEnd    DateTime?      // 실제 복귀 시각
+  outStart  DateTime? // 실제 외출 시각
+  outEnd    DateTime? // 실제 복귀 시각
   type      AttendanceType @default(NORMAL)
   notes     String?
+  orgId     String
+  org       Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
 
   @@unique([studentId, date])
+  @@index([orgId])
 }
 
 model OutingSchedule {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   studentId String
-  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  dayOfWeek Int      // 0=일, 1=월, ..., 6=토
-  outStart  String   // "12:00" - 예정 외출 시각
-  outEnd    String   // "14:00" - 예정 복귀 시각
-  reason    String?  // "수학학원"
-  createdAt DateTime @default(now())
+  student   Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  dayOfWeek Int // 0=일, 1=월, ..., 6=토
+  outStart  String // "12:00" - 예정 외출 시각
+  outEnd    String // "14:00" - 예정 복귀 시각
+  reason    String? // "수학학원"
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+
+  @@index([orgId])
 }
 
 model DailyOuting {
-  id        String    @id @default(cuid())
+  id        String       @id @default(cuid())
   studentId String
-  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  date      DateTime  @db.Date
+  student   Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date      DateTime     @db.Date
   outStart  DateTime?
   outEnd    DateTime?
   reason    String?
-  createdAt DateTime  @default(now())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
 
   @@index([studentId, date])
+  @@index([orgId])
 }
 
 model MeritDemerit {
-  id          String    @id @default(cuid())
+  id          String       @id @default(cuid())
   studentId   String
-  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  date        DateTime  @db.Date
+  student     Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date        DateTime     @db.Date
   type        MeritType
   points      Int
   reason      String
   category    String?
   createdById String
-  createdAt   DateTime  @default(now())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+
+  @@index([orgId])
 }
 
 model Mentoring {
@@ -245,73 +343,87 @@ model Mentoring {
   mentorId           String
   mentor             User            @relation(fields: [mentorId], references: [id])
   scheduledAt        DateTime
-  scheduledTimeStart String?         // "14:00"
-  scheduledTimeEnd   String?         // "15:00"
+  scheduledTimeStart String? // "14:00"
+  scheduledTimeEnd   String? // "15:00"
   actualDate         DateTime?
-  actualStartTime    String?         // "14:05"
-  actualEndTime      String?         // "15:10"
+  actualStartTime    String? // "14:05"
+  actualEndTime      String? // "15:10"
   status             MentoringStatus @default(SCHEDULED)
-  content            String?         // 오늘 멘토링 내용
-  previousIssues     String?         // 이전 회차에서 전달한 내용
-  improvements       String?         // 개선된 점
-  weaknesses         String?         // 부족한 점
-  nextGoals          String?         // 다음 멘토링 목표
-  notes              String?         // 기타 메모
-  feedbackSentAt     DateTime?       // 피드백 이메일 발송 시각
+  content            String? // 오늘 멘토링 내용
+  previousIssues     String? // 이전 회차에서 전달한 내용
+  improvements       String? // 개선된 점
+  weaknesses         String? // 부족한 점
+  nextGoals          String? // 다음 멘토링 목표
+  notes              String? // 기타 메모
+  feedbackSentAt     DateTime? // 피드백 이메일 발송 시각
   parentReports      ParentReport[]
+  orgId              String
+  org                Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
+
+  @@index([orgId])
 }
 
 model MentorSchedule {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   mentorId  String
-  mentor    User     @relation(fields: [mentorId], references: [id])
-  dayOfWeek Int      // 0=일, 1=월, ..., 6=토
-  timeStart String   // "14:00"
-  timeEnd   String   // "18:00"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  mentor    User         @relation(fields: [mentorId], references: [id])
+  dayOfWeek Int // 0=일, 1=월, ..., 6=토
+  timeStart String // "14:00"
+  timeEnd   String // "18:00"
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   @@unique([mentorId, dayOfWeek])
+  @@index([orgId])
 }
 
 model AcademicPlan {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   studentId   String
-  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student     Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   year        Int
   month       Int
   weeklyGoals Json?
   subjects    Json?
   overallGoal String?
   reflection  String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   @@unique([studentId, year, month])
+  @@index([orgId])
 }
 
 model DirectorConsultation {
-  id            String             @id @default(cuid())
+  id            String               @id @default(cuid())
   studentId     String?
-  student       Student?           @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  prospectName  String?            // 미등록(신규 상담) 원생 이름
-  prospectGrade String?            // 미등록 원생 학년
-  prospectPhone String?            // 미등록 원생 연락처
-  type          ConsultationType   @default(STUDENT)
+  student       Student?             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  prospectName  String? // 미등록(신규 상담) 원생 이름
+  prospectGrade String? // 미등록 원생 학년
+  prospectPhone String? // 미등록 원생 연락처
+  type          ConsultationType     @default(STUDENT)
   category      ConsultationCategory @default(ENROLLED)
-  owner         ConsultationOwner  @default(DIRECTOR)
+  owner         ConsultationOwner    @default(DIRECTOR)
   scheduledAt   DateTime?
   actualDate    DateTime?
-  status        ConsultationStatus @default(SCHEDULED)
+  status        ConsultationStatus   @default(SCHEDULED)
   agenda        String?
   notes         String?
   outcome       String?
   followUp      String?
   reports       ConsultationReport[]
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  orgId         String
+  org           Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@index([orgId])
 }
 
 model MessageLog {
@@ -325,27 +437,34 @@ model MessageLog {
   sentAt        DateTime      @default(now())
   status        MessageStatus @default(PENDING)
   errorMsg      String?
+  orgId         String
+  org           Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
 
 model MonthlyReport {
-  id              String    @id @default(cuid())
+  id              String       @id @default(cuid())
   studentId       String
-  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student         Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   year            Int
   month           Int
-  attendanceDays  Int       @default(0)
-  absentDays      Int       @default(0)
-  tardyCount      Int       @default(0)
-  earlyLeaveCount Int       @default(0)
-  totalMerits     Int       @default(0)
-  totalDemerits   Int       @default(0)
-  mentoringCount  Int       @default(0)
+  attendanceDays  Int          @default(0)
+  absentDays      Int          @default(0)
+  tardyCount      Int          @default(0)
+  earlyLeaveCount Int          @default(0)
+  totalMerits     Int          @default(0)
+  totalDemerits   Int          @default(0)
+  mentoringCount  Int          @default(0)
   overallComment  String?
   sentAt          DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   @@unique([studentId, year, month])
+  @@index([orgId])
 }
 
 model Communication {
@@ -358,42 +477,54 @@ model Communication {
   checkedAt     DateTime?
   createdById   String
   createdByName String
+  orgId         String
+  org           Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
+
+  @@index([orgId])
 }
 
 model ExamScore {
-  id          String    @id @default(cuid())
-  studentId   String
-  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  examType    ExamType
-  examName    String
-  examDate    DateTime  @db.Date
-  subject     String
-  rawScore    Int?
-  grade       Int?
-  percentile  Float?
-  notes       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id         String       @id @default(cuid())
+  studentId  String
+  student    Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  examType   ExamType
+  examName   String
+  examDate   DateTime     @db.Date
+  subject    String
+  rawScore   Int?
+  grade      Int?
+  percentile Float?
+  notes      String?
+  orgId      String
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([orgId])
 }
 
 model Assignment {
-  id            String    @id @default(cuid())
+  id            String       @id @default(cuid())
   studentId     String
-  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  mentoringId   String?   // 연결된 멘토링 세션 (optional)
-  title         String    // 과제 제목
-  description   String?   // 상세 내용
-  subject       String?   // 과목 (수학, 영어, 국어 등)
-  dueDate       DateTime? @db.Date  // 마감일
-  isCompleted   Boolean   @default(false)
+  student       Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  mentoringId   String? // 연결된 멘토링 세션 (optional)
+  title         String // 과제 제목
+  description   String? // 상세 내용
+  subject       String? // 과목 (수학, 영어, 국어 등)
+  dueDate       DateTime?    @db.Date // 마감일
+  isCompleted   Boolean      @default(false)
   completedAt   DateTime?
-  completedNote String?   // 완료 메모
+  completedNote String? // 완료 메모
   createdById   String
   createdByName String
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  orgId         String
+  org           Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([orgId])
 }
 
 model CalendarEvent {
@@ -410,89 +541,116 @@ model CalendarEvent {
   color         String?
   googleEventId String?
   createdById   String
+  orgId         String
+  org           Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
+
+  @@index([orgId])
 }
 
 model ParentReport {
-  id              String    @id @default(cuid())
-  token           String    @unique @default(cuid())
+  id              String       @id @default(cuid())
+  token           String       @unique @default(cuid())
   studentId       String
-  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student         Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   mentoringId     String?
-  mentoring       Mentoring? @relation(fields: [mentoringId], references: [id], onDelete: SetNull)
-  studyPlanNote   String?     // 학습 계획 메모 (텍스트)
-  studyPlanImages String[]    // 학습 계획 이미지 URL 목록
-  customNote      String?     // 학부모께 전달할 메시지
+  mentoring       Mentoring?   @relation(fields: [mentoringId], references: [id], onDelete: SetNull)
+  studyPlanNote   String? // 학습 계획 메모 (텍스트)
+  studyPlanImages String[] // 학습 계획 이미지 URL 목록
+  customNote      String? // 학부모께 전달할 메시지
   createdById     String
-  createdBy       User      @relation(fields: [createdById], references: [id])
-  createdAt       DateTime  @default(now())
+  createdBy       User         @relation(fields: [createdById], references: [id])
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt       DateTime     @default(now())
+
+  @@index([orgId])
 }
 
 model TimetableEntry {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   studentId   String
-  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  dayOfWeek   Int      // 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 0=Sun
-  startTime   String   // "HH:MM"
-  endTime     String   // "HH:MM"
+  student     Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int // 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 0=Sun
+  startTime   String // "HH:MM"
+  endTime     String // "HH:MM"
   subject     String
   details     String?
-  colorCode   String   @default("blue")
-  allDay      Boolean  @default(false)
+  colorCode   String       @default("blue")
+  allDay      Boolean      @default(false)
   createdById String
-  createdBy   User     @relation(fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdBy   User         @relation(fields: [createdById], references: [id])
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([orgId])
 }
 
 model DailyPlan {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   studentId String
-  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  date      DateTime @db.Date
-  items     Json     @default("[]") // [{ id, text, done, colorCode, duration? }]
+  student   Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date      DateTime     @db.Date
+  items     Json         @default("[]") // [{ id, text, done, colorCode, duration? }]
   notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   @@unique([studentId, date])
+  @@index([orgId])
 }
 
 model MessageTemplate {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   name      String
   content   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([orgId])
 }
 
 model StudyPlanReport {
-  id          String   @id @default(cuid())
-  token       String   @unique @default(cuid())
+  id          String       @id @default(cuid())
+  token       String       @unique @default(cuid())
   studentId   String
-  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student     Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   images      String[]
   createdById String
-  createdAt   DateTime @default(now())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+
+  @@index([orgId])
 }
 
 model ConsultationReport {
-  id               String              @id @default(cuid())
-  token            String              @unique @default(cuid())
-  consultationId   String
-  consultation     DirectorConsultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
-  content          String              // AI 생성 팔로업 메시지 본문
-  recipientName    String?
-  createdById      String
-  createdAt        DateTime            @default(now())
+  id             String               @id @default(cuid())
+  token          String               @unique @default(cuid())
+  consultationId String
+  consultation   DirectorConsultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  content        String // AI 생성 팔로업 메시지 본문
+  recipientName  String?
+  createdById    String
+  orgId          String
+  org            Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt      DateTime             @default(now())
+
+  @@index([orgId])
 }
 
 enum VocabEnrollReason {
-  AUTO_GRADE3       // 고3 영어 3등급 이하 자동
-  PARENT_REQUEST    // 학부모 신청
-  MENTOR_ASSIGNED   // 멘토 지정
-  CUSTOM            // 기타
+  AUTO_GRADE3 // 고3 영어 3등급 이하 자동
+  PARENT_REQUEST // 학부모 신청
+  MENTOR_ASSIGNED // 멘토 지정
+  CUSTOM // 기타
 }
 
 model VocabTestEnrollment {
@@ -502,85 +660,107 @@ model VocabTestEnrollment {
   reason       VocabEnrollReason @default(CUSTOM)
   isActive     Boolean           @default(true)
   enrolledById String
+  orgId        String
+  org          Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   enrolledAt   DateTime          @default(now())
   unenrolledAt DateTime?
 
   @@unique([studentId])
+  @@index([orgId])
 }
 
 model VocabTestScore {
-  id           String   @id @default(cuid())
+  id           String       @id @default(cuid())
   studentId    String
-  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  testDate     DateTime @db.Date
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  testDate     DateTime     @db.Date
   totalWords   Int
   correctWords Int
-  score        Float    // 백분율 (correctWords / totalWords * 100)
+  score        Float // 백분율 (correctWords / totalWords * 100)
   notes        String?
   createdById  String
-  createdAt    DateTime @default(now())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now())
+
+  @@index([orgId])
 }
 
 enum HandoverPriority {
-  URGENT  // 긴급
-  NORMAL  // 일반
+  URGENT // 긴급
+  NORMAL // 일반
 }
 
 enum ShiftType {
-  OPEN   // 오픈 전용
-  CLOSE  // 마감 전용
-  ALL    // 공통
+  OPEN // 오픈 전용
+  CLOSE // 마감 전용
+  ALL // 공통
 }
 
 model ChecklistTemplate {
-  id        String    @id @default(cuid())
+  id        String       @id @default(cuid())
   title     String
-  shiftType ShiftType @default(ALL)
-  order     Int       @default(0)
-  isActive  Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  shiftType ShiftType    @default(ALL)
+  order     Int          @default(0)
+  isActive  Boolean      @default(true)
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([orgId])
 }
 
 model HandoverTask {
-  id           String    @id @default(cuid())
+  id           String       @id @default(cuid())
   handoverId   String
-  handover     Handover  @relation(fields: [handoverId], references: [id], onDelete: Cascade)
+  handover     Handover     @relation(fields: [handoverId], references: [id], onDelete: Cascade)
   title        String
-  content      String    @default("")
+  content      String       @default("")
   assigneeId   String?
   assigneeName String?
-  order        Int       @default(0)
-  isCompleted  Boolean   @default(false)
+  order        Int          @default(0)
+  isCompleted  Boolean      @default(false)
   completedAt  DateTime?
-  createdAt    DateTime  @default(now())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now())
+
+  @@index([orgId])
 }
 
 model HandoverChecklist {
-  id         String   @id @default(cuid())
+  id         String       @id @default(cuid())
   handoverId String
-  handover   Handover @relation(fields: [handoverId], references: [id], onDelete: Cascade)
+  handover   Handover     @relation(fields: [handoverId], references: [id], onDelete: Cascade)
   templateId String?
   title      String
-  shiftType  String   @default("ALL")
-  isChecked  Boolean  @default(false)
-  order      Int      @default(0)
+  shiftType  String       @default("ALL")
+  isChecked  Boolean      @default(false)
+  order      Int          @default(0)
+  orgId      String
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
 
 model MonthlyNote {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   year        Int
   month       Int
   studentId   String?
-  student     Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  student     Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
   studentName String
   content     String
   authorId    String
   authorName  String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   @@index([year, month])
+  @@index([orgId])
 }
 
 model Handover {
@@ -592,47 +772,56 @@ model Handover {
   isPinned             Boolean             @default(false)
   authorId             String
   authorName           String
-  recipientId          String?             // 수신 담당자 ID
-  recipientName        String?             // 수신 담당자 이름
+  recipientId          String? // 수신 담당자 ID
+  recipientName        String? // 수신 담당자 이름
   tasks                HandoverTask[]
   checklist            HandoverChecklist[]
   monthlyNotesSnapshot Json?
   reads                HandoverRead[]
+  orgId                String
+  org                  Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
   @@index([date])
+  @@index([orgId])
 }
 
 model HandoverRead {
-  id         String   @id @default(cuid())
+  id         String       @id @default(cuid())
   handoverId String
-  handover   Handover @relation(fields: [handoverId], references: [id], onDelete: Cascade)
+  handover   Handover     @relation(fields: [handoverId], references: [id], onDelete: Cascade)
   userId     String
   userName   String
-  readAt     DateTime @default(now())
+  orgId      String
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  readAt     DateTime     @default(now())
 
   @@unique([handoverId, userId])
+  @@index([orgId])
 }
 
 model Todo {
-  id           String    @id @default(cuid())
+  id           String       @id @default(cuid())
   title        String
   content      String?
-  dueDate      DateTime? @db.Date
-  priority     String    @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
-  isCompleted  Boolean   @default(false)
+  dueDate      DateTime?    @db.Date
+  priority     String       @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
+  isCompleted  Boolean      @default(false)
   completedAt  DateTime?
   authorId     String
   authorName   String
   assigneeId   String?
   assigneeName String?
   category     String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   @@index([authorId])
   @@index([assigneeId])
+  @@index([orgId])
 }
 
 model MeetingMinutes {
@@ -640,16 +829,19 @@ model MeetingMinutes {
   title      String
   date       DateTime             @db.Date
   content    String               @default("")
-  attendees  String[]             // 참석자 이름 목록
-  team       String               @default("운영팀")  // "멘토링팀" | "운영팀"
+  attendees  String[] // 참석자 이름 목록
+  team       String               @default("운영팀") // "멘토링팀" | "운영팀"
   authorId   String
   authorName String
   reads      MeetingMinutesRead[]
+  orgId      String
+  org        Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
   createdAt  DateTime             @default(now())
   updatedAt  DateTime             @updatedAt
 
   @@index([date])
   @@index([team])
+  @@index([orgId])
 }
 
 model MeetingMinutesRead {
@@ -658,21 +850,24 @@ model MeetingMinutesRead {
   meetingMinutes   MeetingMinutes @relation(fields: [meetingMinutesId], references: [id], onDelete: Cascade)
   userId           String
   userName         String
+  orgId            String
+  org              Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   readAt           DateTime       @default(now())
 
   @@unique([meetingMinutesId, userId])
+  @@index([orgId])
 }
 
 enum RequestStatus {
-  PENDING     // 대기
+  PENDING // 대기
   IN_PROGRESS // 진행중
-  DONE        // 완료
-  ON_HOLD     // 보류
+  DONE // 완료
+  ON_HOLD // 보류
 }
 
 enum RequestCategory {
-  BUG         // 버그
-  FEATURE     // 기능요청
+  BUG // 버그
+  FEATURE // 기능요청
   IMPROVEMENT // 개선
 }
 
@@ -682,21 +877,24 @@ enum RequestPriority {
 }
 
 model FeatureRequest {
-  id          String          @id @default(cuid())
+  id          String                  @id @default(cuid())
   title       String
-  description String?         // 마크다운
-  status      RequestStatus   @default(PENDING)
-  category    RequestCategory @default(FEATURE)
-  priority    RequestPriority @default(NORMAL)
-  relatedPage String?         // 관련 페이지 slug
-  requester   String?         // 요청자 (카톡으로 보낸 사람)
+  description String? // 마크다운
+  status      RequestStatus           @default(PENDING)
+  category    RequestCategory         @default(FEATURE)
+  priority    RequestPriority         @default(NORMAL)
+  relatedPage String? // 관련 페이지 slug
+  requester   String? // 요청자 (카톡으로 보낸 사람)
   authorId    String
   authorName  String
   comments    FeatureRequestComment[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  orgId       String
+  org         Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
 
   @@index([status])
+  @@index([orgId])
 }
 
 model FeatureRequestComment {
@@ -706,18 +904,55 @@ model FeatureRequestComment {
   featureRequest   FeatureRequest @relation(fields: [featureRequestId], references: [id], onDelete: Cascade)
   authorId         String
   authorName       String
-  authorRole       String         // 역할 배지 표시용
+  authorRole       String // 역할 배지 표시용
+  orgId            String
+  org              Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   createdAt        DateTime       @default(now())
 
   @@index([featureRequestId])
+  @@index([orgId])
 }
 
 // Google Sheets 연동 설정 (싱글톤, id="singleton")
 model GoogleSheetsConfig {
   id        String   @id @default("singleton")
-  sheetUrl  String   // Google Sheets 전체 URL
-  sheetName String?  // 시트(탭) 이름 — null이면 첫 번째 시트
+  sheetUrl  String // Google Sheets 전체 URL
+  sheetName String? // 시트(탭) 이름 — null이면 첫 번째 시트
   updatedAt DateTime @updatedAt
+}
+
+// ── 리드 트래킹 (CRM) ──────────────────────────────────────
+
+enum LeadStatus {
+  NEW // 신규 접수
+  CONTACTED // 연락 완료
+  DEMO_SCHEDULED // 데모 예약
+  DEMO_DONE // 데모 완료
+  NEGOTIATING // 가격 협의
+  CONVERTED // 가입 완료
+  LOST // 이탈
+}
+
+model Lead {
+  id            String        @id @default(cuid())
+  name          String
+  phone         String
+  location      String? // 위치/규모
+  currentMethod String? // 현재 관리 방법
+  status        LeadStatus    @default(NEW)
+  source        String? // "landing", "referral", "naver", "community" 등
+  referredBy    String? // 추천인 (기존 고객 이름)
+  notes         String?       @db.Text
+  nextFollowUp  DateTime?
+  convertedAt   DateTime?
+  orgId         String?
+  org           Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([orgId])
 }
 
 // Google Calendar OAuth 토큰 저장 (싱글톤, id="singleton")
@@ -727,6 +962,6 @@ model GoogleCalendarToken {
   refreshToken String
   expiresAt    DateTime
   calendarId   String   @default("primary")
-  connectedBy  String   // 연동한 사용자 이름
+  connectedBy  String // 연동한 사용자 이름
   updatedAt    DateTime @updatedAt
 }

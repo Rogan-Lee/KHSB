@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,13 +11,17 @@ import { Calendar } from "lucide-react";
 import { isFullAccess } from "@/lib/roles";
 
 export default async function MentoringPage() {
-  const session = await auth();
+  const user = await getUser();
+  if (!user?.orgId) return null;
+  const orgId = user.orgId;
+  const session = { user };
   const isDirector = isFullAccess(session?.user?.role);
   // 로컬 날짜 기준 (출결 페이지와 동일)
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   const mentorings = await prisma.mentoring.findMany({
+    where: { orgId },
     include: {
       student: { select: { id: true, name: true, grade: true } },
       mentor: { select: { id: true, name: true } },
@@ -30,6 +34,7 @@ export default async function MentoringPage() {
 
   const mentors = await prisma.user.findMany({
     where: {
+      memberships: { some: { orgId } },
       OR: [
         { role: "MENTOR" },
         { name: "정지훈", role: { in: ["ADMIN", "DIRECTOR"] } },
@@ -42,6 +47,7 @@ export default async function MentoringPage() {
   // 오늘 입실 중인 학생 ID 목록
   const todayAttendance = await prisma.attendanceRecord.findMany({
     where: {
+      orgId,
       date: new Date(today),
       checkIn: { not: null },
     },

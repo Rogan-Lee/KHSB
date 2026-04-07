@@ -5,16 +5,18 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { AppSidebar } from "./app-sidebar";
 import { AppHeader } from "./app-header";
-import { getCurrentPlan } from "@/lib/features";
-import type { Role } from "@/generated/prisma";
+import { TrialBanner } from "./trial-banner";
+import type { PlanTier, Role } from "@/generated/prisma";
 
 interface DashboardShellProps {
   user: { name: string; email: string; role: Role };
+  plan: PlanTier;
+  orgName?: string | null;
+  trialEndsAt?: Date | null;
   children: React.ReactNode;
 }
 
-export function DashboardShell({ user, children }: DashboardShellProps) {
-  const plan = getCurrentPlan();
+export function DashboardShell({ user, plan, orgName, trialEndsAt, children }: DashboardShellProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -41,6 +43,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
             onMenuClick={() => setOpen(true)}
           />
         </div>
+        {trialEndsAt && <TrialBanner trialEndsAt={trialEndsAt} />}
         <main className="flex-1 p-4 md:p-6 max-w-[1400px]" data-print-content>
           {children}
         </main>

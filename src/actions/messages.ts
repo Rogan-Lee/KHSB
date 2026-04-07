@@ -1,10 +1,18 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { revalidatePath } from "next/cache";
 import { MessageType } from "@/generated/prisma";
 import { requireStaff } from "@/lib/roles";
+
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
 
 interface SendMessageParams {
   studentId: string;
@@ -15,9 +23,8 @@ interface SendMessageParams {
 }
 
 export async function sendMessage(params: SendMessageParams) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  requireStaff(session.user.role);
+  const session = await getSession();
+  requireStaff(session.role);
 
   // 카카오 알림톡 API 연동 (추후 구현)
   // const result = await sendKakaoAlimtalk(params);
@@ -25,6 +32,7 @@ export async function sendMessage(params: SendMessageParams) {
   // 현재는 SENT로 바로 처리 (실제 발송 로직 연동 전)
   await prisma.messageLog.create({
     data: {
+      orgId: session.orgId,
       studentId: params.studentId,
       type: params.type,
       recipient: params.recipient,
@@ -42,16 +50,16 @@ export async function sendBulkMessages(
   type: MessageType,
   templateContent: string
 ) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  requireStaff(session.user.role);
+  const session = await getSession();
+  requireStaff(session.role);
 
   const students = await prisma.student.findMany({
-    where: { id: { in: studentIds } },
+    where: { id: { in: studentIds }, orgId: session.orgId },
     select: { id: true, name: true, parentPhone: true },
   });
 
   const logs = students.map((s) => ({
+    orgId: session.orgId,
     studentId: s.id,
     type,
     recipient: s.parentPhone,
@@ -67,12 +75,11 @@ export async function sendBulkMessages(
 }
 
 export async function getMessageLogs(studentId?: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  requireStaff(session.user.role);
+  const session = await getSession();
+  requireStaff(session.role);
 
   return prisma.messageLog.findMany({
-    where: studentId ? { studentId } : undefined,
+    where: studentId ? { orgId: session.orgId, studentId } : { orgId: session.orgId },
     include: {
       student: { select: { id: true, name: true } },
     },

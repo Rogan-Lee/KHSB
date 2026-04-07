@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getUser } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MeritForm } from "@/components/merit-demerit/merit-form";
 import { MeritHistoryTable } from "@/components/merit-demerit/merit-history-table";
@@ -7,13 +8,18 @@ import { MeritRanking } from "@/components/merit-demerit/merit-ranking";
 import { Trophy, TrendingDown, CalendarSearch } from "lucide-react";
 
 export default async function MeritDemeritPage() {
+  const user = await getUser();
+  if (!user?.orgId) return null;
+  const orgId = user.orgId;
+
   const [students, recentMerits] = await Promise.all([
     prisma.student.findMany({
-      where: { status: "ACTIVE" },
+      where: { orgId, status: "ACTIVE" },
       select: { id: true, name: true, grade: true },
       orderBy: { name: "asc" },
     }),
     prisma.meritDemerit.findMany({
+      where: { orgId },
       include: { student: { select: { name: true, grade: true } } },
       orderBy: { date: "desc" },
       take: 50,

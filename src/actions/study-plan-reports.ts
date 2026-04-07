@@ -1,17 +1,25 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { prisma } from "@/lib/prisma";
 
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
+
 export async function createStudyPlanReport(studentId: string, images: string[]) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const report = await prisma.studyPlanReport.create({
     data: {
+      orgId: session.orgId,
       studentId,
       images,
-      createdById: session.user.id,
+      createdById: session.id,
     },
     select: { token: true },
   });
@@ -20,6 +28,7 @@ export async function createStudyPlanReport(studentId: string, images: string[])
 }
 
 export async function getStudyPlanReport(token: string) {
+  // Public access by token - no org check needed
   return prisma.studyPlanReport.findUnique({
     where: { token },
     include: {
