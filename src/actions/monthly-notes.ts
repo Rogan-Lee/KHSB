@@ -1,15 +1,22 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
+
 export async function getMonthlyNotes(year: number, month: number) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   return prisma.monthlyNote.findMany({
-    where: { year, month },
+    where: { orgId: session.orgId, year, month },
     orderBy: { createdAt: "desc" },
   });
 }
@@ -21,18 +28,18 @@ export async function createMonthlyNote(data: {
   studentName: string;
   content: string;
 }) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const note = await prisma.monthlyNote.create({
     data: {
+      orgId: session.orgId,
       year: data.year,
       month: data.month,
       studentId: data.studentId || null,
       studentName: data.studentName.trim(),
       content: data.content.trim(),
-      authorId: session.user.id,
-      authorName: session.user.name ?? "알 수 없음",
+      authorId: session.id,
+      authorName: session.name ?? "알 수 없음",
     },
   });
 
@@ -41,17 +48,16 @@ export async function createMonthlyNote(data: {
 }
 
 export async function updateMonthlyNote(id: string, content: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
-  const existing = await prisma.monthlyNote.findUnique({ where: { id } });
+  const existing = await prisma.monthlyNote.findUnique({ where: { id, orgId: session.orgId } });
   if (!existing) throw new Error("메모를 찾을 수 없습니다");
-  if (existing.authorId !== session.user.id && session.user.role !== "DIRECTOR" && session.user.role !== "ADMIN") {
+  if (existing.authorId !== session.id && session.role !== "DIRECTOR" && session.role !== "ADMIN") {
     throw new Error("수정 권한이 없습니다");
   }
 
   const note = await prisma.monthlyNote.update({
-    where: { id },
+    where: { id, orgId: session.orgId },
     data: { content: content.trim() },
   });
 
@@ -60,15 +66,14 @@ export async function updateMonthlyNote(id: string, content: string) {
 }
 
 export async function deleteMonthlyNote(id: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
-  const existing = await prisma.monthlyNote.findUnique({ where: { id } });
+  const existing = await prisma.monthlyNote.findUnique({ where: { id, orgId: session.orgId } });
   if (!existing) throw new Error("메모를 찾을 수 없습니다");
-  if (existing.authorId !== session.user.id && session.user.role !== "DIRECTOR" && session.user.role !== "ADMIN") {
+  if (existing.authorId !== session.id && session.role !== "DIRECTOR" && session.role !== "ADMIN") {
     throw new Error("삭제 권한이 없습니다");
   }
 
-  await prisma.monthlyNote.delete({ where: { id } });
+  await prisma.monthlyNote.delete({ where: { id, orgId: session.orgId } });
   revalidatePath("/handover");
 }

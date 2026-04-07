@@ -1,7 +1,8 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { revalidatePath } from "next/cache";
 
 export type CSVImportRow = {
@@ -30,9 +31,15 @@ export type ImportResult = {
   errors: { row: number; name: string; reason: string }[];
 };
 
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
+
 export async function importStudentsCSV(rows: CSVImportRow[]): Promise<ImportResult> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const result: ImportResult = { created: 0, updated: 0, skipped: 0, errors: [] };
 
@@ -44,7 +51,7 @@ export async function importStudentsCSV(rows: CSVImportRow[]): Promise<ImportRes
     if (!trimmed) return null;
     if (mentorCache.has(trimmed)) return mentorCache.get(trimmed)!;
     const mentor = await prisma.user.findFirst({
-      where: { name: trimmed, role: { in: ["MENTOR", "STAFF", "DIRECTOR", "ADMIN"] } },
+      where: { name: trimmed, role: { in: ["MENTOR", "STAFF", "DIRECTOR", "ADMIN"] }, memberships: { some: { orgId: session.orgId } } },
       select: { id: true },
     });
     if (mentor) mentorCache.set(trimmed, mentor.id);
@@ -80,38 +87,38 @@ export async function importStudentsCSV(rows: CSVImportRow[]): Promise<ImportRes
 
       // 좌석번호로 먼저 매칭, 없으면 이름으로 매칭
       let existing = row.seat?.trim()
-        ? await prisma.student.findFirst({ where: { seat: row.seat.trim() } })
+        ? await prisma.student.findFirst({ where: { orgId: session.orgId, seat: row.seat.trim() } })
         : null;
       if (!existing) {
-        existing = await prisma.student.findFirst({ where: { name: row.name.trim() } });
+        existing = await prisma.student.findFirst({ where: { orgId: session.orgId, name: row.name.trim() } });
       }
 
       let studentId: string;
 
       if (existing) {
-        await prisma.student.update({ where: { id: existing.id }, data });
+        await prisma.student.update({ where: { id: existing.id, orgId: session.orgId }, data });
         studentId = existing.id;
         result.updated++;
       } else {
         const created = await prisma.student.create({
-          data: { ...data, startDate: new Date(), status: "ACTIVE" },
+          data: { orgId: session.orgId, ...data, startDate: new Date(), status: "ACTIVE" },
         });
         studentId = created.id;
         result.created++;
       }
 
       // 스케줄 교체 (기존 삭제 후 재등록)
-      await prisma.attendanceSchedule.deleteMany({ where: { studentId } });
-      await prisma.outingSchedule.deleteMany({ where: { studentId } });
+      await prisma.attendanceSchedule.deleteMany({ where: { studentId, orgId: session.orgId } });
+      await prisma.outingSchedule.deleteMany({ where: { studentId, orgId: session.orgId } });
 
       if (row.schedules.length > 0) {
         await prisma.attendanceSchedule.createMany({
-          data: row.schedules.map((s) => ({ ...s, studentId })),
+          data: row.schedules.map((s) => ({ ...s, studentId, orgId: session.orgId })),
         });
       }
       if (row.outings.length > 0) {
         await prisma.outingSchedule.createMany({
-          data: row.outings.map((o) => ({ ...o, studentId })),
+          data: row.outings.map((o) => ({ ...o, studentId, orgId: session.orgId })),
         });
       }
     } catch (e: unknown) {

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getRecentHandovers, getStaffList } from "@/actions/handover";
 import { getChecklistTemplates } from "@/actions/checklist-templates";
@@ -11,8 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HandoverFormPageWrapper } from "@/components/handover/handover-form-page-wrapper";
 
 export default async function NewHandoverPage() {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  const user = await getUser();
+  if (!user) redirect("/sign-in");
+  if (!user.orgId) return null;
+  const orgId = user.orgId;
 
   const now = new Date();
   const year = now.getFullYear();
@@ -26,7 +28,7 @@ export default async function NewHandoverPage() {
       getTodos(),
       getMonthlyNotes(year, month),
       prisma.student.findMany({
-        where: { status: "ACTIVE" },
+        where: { orgId, status: "ACTIVE" },
         select: { id: true, name: true, grade: true },
         orderBy: { name: "asc" },
       }),

@@ -1,13 +1,22 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { revalidatePath } from "next/cache";
 import { ExamType } from "@/generated/prisma";
 
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
+
 export async function getExamScores(studentId: string) {
+  const session = await getSession();
   return prisma.examScore.findMany({
-    where: { studentId },
+    where: { orgId: session.orgId, studentId },
     orderBy: { examDate: "desc" },
   });
 }
@@ -23,11 +32,11 @@ export async function createExamScore(data: {
   percentile?: number;
   notes?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const record = await prisma.examScore.create({
     data: {
+      orgId: session.orgId,
       studentId: data.studentId,
       examType: data.examType,
       examName: data.examName,
@@ -45,10 +54,9 @@ export async function createExamScore(data: {
 }
 
 export async function deleteExamScore(id: string, studentId: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
-  await prisma.examScore.delete({ where: { id } });
+  await prisma.examScore.delete({ where: { id, orgId: session.orgId } });
   revalidatePath(`/students/${studentId}`);
 }
 
@@ -68,11 +76,13 @@ export async function bulkImportExamScores(rows: ExamScoreCSVRow[]): Promise<{
   created: number;
   errors: { row: number; studentName: string; reason: string }[];
 }> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   // Load all students once
-  const students = await prisma.student.findMany({ select: { id: true, name: true } });
+  const students = await prisma.student.findMany({
+    where: { orgId: session.orgId },
+    select: { id: true, name: true },
+  });
   const studentMap = new Map(students.map((s) => [s.name.trim(), s.id]));
 
   const EXAM_TYPE_MAP: Record<string, ExamType> = {
@@ -119,6 +129,7 @@ export async function bulkImportExamScores(rows: ExamScoreCSVRow[]): Promise<{
     try {
       await prisma.examScore.create({
         data: {
+          orgId: session.orgId,
           studentId,
           examType,
           examName: row.examName.trim(),

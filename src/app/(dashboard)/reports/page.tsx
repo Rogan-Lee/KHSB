@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,9 +19,11 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ year?: string; month?: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
-  if (session.user.role !== "DIRECTOR" && session.user.role !== "ADMIN") redirect("/");
+  const user = await getUser();
+  if (!user) redirect("/sign-in");
+  if (user.role !== "DIRECTOR" && user.role !== "ADMIN") redirect("/");
+  if (!user.orgId) return null;
+  const orgId = user.orgId;
 
   const params = await searchParams;
   const now = new Date();
@@ -30,12 +32,12 @@ export default async function ReportsPage({
 
   const [students, reports] = await Promise.all([
     prisma.student.findMany({
-      where: { status: "ACTIVE" },
+      where: { orgId, status: "ACTIVE" },
       select: { id: true, name: true, grade: true },
       orderBy: { name: "asc" },
     }),
     prisma.monthlyReport.findMany({
-      where: { year, month },
+      where: { orgId, year, month },
       include: {
         student: { select: { id: true, name: true, grade: true } },
       },

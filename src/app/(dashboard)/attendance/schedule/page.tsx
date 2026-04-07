@@ -1,10 +1,15 @@
 import { prisma } from "@/lib/prisma";
+import { getUser } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScheduleEditor } from "@/components/attendance/schedule-editor";
 
 export default async function AttendanceSchedulePage() {
+  const user = await getUser();
+  if (!user?.orgId) return null;
+  const orgId = user.orgId;
+
   const students = await prisma.student.findMany({
-    where: { status: "ACTIVE" },
+    where: { orgId, status: "ACTIVE" },
     include: { schedules: true, outings: true },
     orderBy: { name: "asc" },
   });

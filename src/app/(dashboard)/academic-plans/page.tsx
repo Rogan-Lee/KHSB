@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getUser } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AcademicPlanEditor } from "@/components/academic-plans/academic-plan-editor";
 
@@ -7,6 +8,10 @@ export default async function AcademicPlansPage({
 }: {
   searchParams: Promise<{ year?: string; month?: string }>;
 }) {
+  const user = await getUser();
+  if (!user?.orgId) return null;
+  const orgId = user.orgId;
+
   const params = await searchParams;
   const now = new Date();
   const year = Number(params.year) || now.getFullYear();
@@ -14,12 +19,12 @@ export default async function AcademicPlansPage({
 
   const [students, plans] = await Promise.all([
     prisma.student.findMany({
-      where: { status: "ACTIVE" },
+      where: { orgId, status: "ACTIVE" },
       select: { id: true, name: true, grade: true },
       orderBy: { name: "asc" },
     }),
     prisma.academicPlan.findMany({
-      where: { year, month },
+      where: { orgId, year, month },
       include: { student: { select: { id: true, name: true, grade: true } } },
     }),
   ]);

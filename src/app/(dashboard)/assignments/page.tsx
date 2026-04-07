@@ -1,18 +1,21 @@
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { AssignmentsOverview } from "@/components/assignments/assignments-overview";
 import { isFullAccess } from "@/lib/roles";
 
 export default async function AssignmentsPage() {
-  const session = await auth();
-  const isDirector = isFullAccess(session?.user?.role);
+  const user = await getUser();
+  if (!user?.orgId) return null;
+  const orgId = user.orgId;
+  const isDirector = isFullAccess(user?.role);
 
   // 원생 목록 (활성)
   const students = await prisma.student.findMany({
     where: {
+      orgId,
       status: "ACTIVE",
-      ...(isDirector ? {} : { mentorId: session?.user?.id }),
+      ...(isDirector ? {} : { mentorId: user?.id }),
     },
     select: {
       id: true,

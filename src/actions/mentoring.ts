@@ -1,12 +1,20 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { MentoringStatus } from "@/generated/prisma";
 import { todayKST, nowKSTTimeString } from "@/lib/utils";
 import { requireOwnerOrFullAccess, requireStaff } from "@/lib/roles";
+
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
 
 const mentoringSchema = z.object({
   studentId: z.string(),
@@ -18,16 +26,16 @@ const mentoringSchema = z.object({
 });
 
 export async function createMentoring(formData: FormData) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const raw = Object.fromEntries(formData.entries());
   const data = mentoringSchema.parse(raw);
 
   const mentoring = await prisma.mentoring.create({
     data: {
+      orgId: session.orgId,
       studentId: data.studentId,
-      mentorId: session.user.id,
+      mentorId: session.id,
       scheduledAt: new Date(data.scheduledAt),
       scheduledTimeStart: data.scheduledTimeStart || null,
       scheduledTimeEnd: data.scheduledTimeEnd || null,
@@ -42,13 +50,12 @@ export async function createMentoring(formData: FormData) {
 }
 
 export async function updateMentoring(id: string, formData: FormData) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   // 소유권 검증: 본인의 멘토링이거나 DIRECTOR/ADMIN만 수정 가능
-  const existing = await prisma.mentoring.findUnique({ where: { id }, select: { mentorId: true } });
+  const existing = await prisma.mentoring.findUnique({ where: { id, orgId: session.orgId }, select: { mentorId: true } });
   if (!existing) throw new Error("멘토링을 찾을 수 없습니다");
-  requireOwnerOrFullAccess(existing.mentorId, session.user.id, session.user.role);
+  requireOwnerOrFullAccess(existing.mentorId, session.id, session.role);
 
   const raw = Object.fromEntries(formData.entries());
 
@@ -58,7 +65,7 @@ export async function updateMentoring(id: string, formData: FormData) {
     hasContent && explicitStatus === "SCHEDULED" ? "COMPLETED" : explicitStatus;
 
   await prisma.mentoring.update({
-    where: { id },
+    where: { id, orgId: session.orgId },
     data: {
       scheduledAt: raw.scheduledAt ? new Date(raw.scheduledAt as string) : undefined,
       scheduledTimeStart: "scheduledTimeStart" in raw ? (raw.scheduledTimeStart as string) || null : undefined,
@@ -81,12 +88,11 @@ export async function updateMentoring(id: string, formData: FormData) {
 }
 
 export async function getMentorings(mentorId?: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const where =
-    session.user.role === "MENTOR" ? { mentorId: session.user.id } :
-    mentorId ? { mentorId } : undefined;
+    session.role === "MENTOR" ? { orgId: session.orgId, mentorId: session.id } :
+    mentorId ? { orgId: session.orgId, mentorId } : { orgId: session.orgId };
 
   return prisma.mentoring.findMany({
     where,
@@ -99,11 +105,10 @@ export async function getMentorings(mentorId?: string) {
 }
 
 export async function getMentoring(id: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   return prisma.mentoring.findUnique({
-    where: { id },
+    where: { id, orgId: session.orgId },
     include: {
       student: {
         select: {
@@ -135,6 +140,7 @@ export type MatchCandidate = {
 };
 
 export async function getMentoringMatches(mentorId: string, date?: string): Promise<MatchCandidate[]> {
+  const session = await getSession();
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const dayOfWeek = date ? new Date(date).getUTCDay() : kstNow.getUTCDay();
   const targetDate = date ? new Date(date) : todayKST();
@@ -148,6 +154,7 @@ export async function getMentoringMatches(mentorId: string, date?: string): Prom
   // 1. 해당 날짜에 입실한 학생 (NORMAL, TARDY) — 외출 중 제외
   const attendances = await prisma.attendanceRecord.findMany({
     where: {
+      orgId: session.orgId,
       date: targetDate,
       type: { in: ["NORMAL", "TARDY"] },
     },
@@ -181,6 +188,7 @@ export async function getMentoringMatches(mentorId: string, date?: string): Prom
   // 2. 각 학생의 마지막 completed 멘토링 조회
   const lastMentorings = await prisma.mentoring.findMany({
     where: {
+      orgId: session.orgId,
       studentId: { in: studentIds },
       status: { not: "CANCELLED" },
     },
@@ -233,11 +241,10 @@ export async function getMentoringMatches(mentorId: string, date?: string): Prom
 // ──────────────────────────────────────────────────────
 
 export async function sendFeedbackEmail(mentoringId: string): Promise<{ ok: boolean; message: string }> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const mentoring = await prisma.mentoring.findUnique({
-    where: { id: mentoringId },
+    where: { id: mentoringId, orgId: session.orgId },
     include: {
       student: { select: { name: true, grade: true, parentEmail: true } },
       mentor: { select: { name: true } },
@@ -250,7 +257,7 @@ export async function sendFeedbackEmail(mentoringId: string): Promise<{ ok: bool
   // 실제 이메일 발송 로직 (추후 nodemailer / Resend 연동)
   // 현재는 발송 완료로 기록만 저장
   await prisma.mentoring.update({
-    where: { id: mentoringId },
+    where: { id: mentoringId, orgId: session.orgId },
     data: { feedbackSentAt: new Date() },
   });
 
@@ -263,12 +270,11 @@ export async function sendFeedbackEmail(mentoringId: string): Promise<{ ok: bool
 // ──────────────────────────────────────────────────────
 
 export async function saveMentorSchedule(dayOfWeek: number, timeStart: string, timeEnd: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   await prisma.mentorSchedule.upsert({
-    where: { mentorId_dayOfWeek: { mentorId: session.user.id, dayOfWeek } },
-    create: { mentorId: session.user.id, dayOfWeek, timeStart, timeEnd },
+    where: { mentorId_dayOfWeek: { mentorId: session.id, dayOfWeek } },
+    create: { orgId: session.orgId, mentorId: session.id, dayOfWeek, timeStart, timeEnd },
     update: { timeStart, timeEnd },
   });
 
@@ -276,29 +282,26 @@ export async function saveMentorSchedule(dayOfWeek: number, timeStart: string, t
 }
 
 export async function deleteMentorSchedule(id: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
-  await prisma.mentorSchedule.delete({ where: { id } });
+  await prisma.mentorSchedule.delete({ where: { id, orgId: session.orgId } });
   revalidatePath("/mentoring/schedule");
 }
 
 export async function getMentorWeeklySchedules(mentorId: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   return prisma.mentorSchedule.findMany({
-    where: { mentorId },
+    where: { orgId: session.orgId, mentorId },
     orderBy: { dayOfWeek: "asc" },
   });
 }
 
 export async function getAllMentorSchedulesToday(dayOfWeek: number) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   return prisma.mentorSchedule.findMany({
-    where: { dayOfWeek },
+    where: { orgId: session.orgId, dayOfWeek },
     include: { mentor: { select: { id: true, name: true } } },
   });
 }
@@ -314,17 +317,16 @@ export type MentorTodaySlot = {
 };
 
 export async function getTodayWorkingMentors(): Promise<MentorTodaySlot[]> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const dayOfWeek = kstNow.getUTCDay();
   const targetDate = todayKST();
-  const isDirector = session.user.role === "DIRECTOR" || session.user.role === "ADMIN";
+  const isDirector = session.role === "DIRECTOR" || session.role === "ADMIN";
 
   // 오늘 근무하는 멘토 스케줄 조회
   const todaySchedules = await prisma.mentorSchedule.findMany({
-    where: isDirector ? { dayOfWeek } : { dayOfWeek, mentorId: session.user.id },
+    where: isDirector ? { orgId: session.orgId, dayOfWeek } : { orgId: session.orgId, dayOfWeek, mentorId: session.id },
     include: { mentor: { select: { id: true, name: true } } },
     orderBy: { timeStart: "asc" },
   });
@@ -335,6 +337,7 @@ export async function getTodayWorkingMentors(): Promise<MentorTodaySlot[]> {
   const nowTime = nowKSTTimeString();
   const attendances = await prisma.attendanceRecord.findMany({
     where: {
+      orgId: session.orgId,
       date: targetDate,
       type: { in: ["NORMAL", "TARDY"] },
     },
@@ -362,7 +365,7 @@ export async function getTodayWorkingMentors(): Promise<MentorTodaySlot[]> {
 
   if (studentIds.length > 0) {
     const lastMentorings = await prisma.mentoring.findMany({
-      where: { studentId: { in: studentIds }, status: { not: "CANCELLED" } },
+      where: { orgId: session.orgId, studentId: { in: studentIds }, status: { not: "CANCELLED" } },
       orderBy: { scheduledAt: "desc" },
       distinct: ["studentId"],
       select: { studentId: true, scheduledAt: true },
@@ -413,17 +416,17 @@ export async function getTodayWorkingMentors(): Promise<MentorTodaySlot[]> {
 }
 
 export async function bulkCreateMentorings(studentIds: string[], mentorId: string): Promise<void> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
-  const isDirector = session.user.role === "DIRECTOR" || session.user.role === "ADMIN";
-  const isOwnMentor = mentorId === session.user.id;
+  const isDirector = session.role === "DIRECTOR" || session.role === "ADMIN";
+  const isOwnMentor = mentorId === session.id;
   if (!isDirector && !isOwnMentor) throw new Error("Unauthorized");
 
   if (studentIds.length === 0) return;
 
   await prisma.mentoring.createMany({
     data: studentIds.map((studentId) => ({
+      orgId: session.orgId,
       studentId,
       mentorId,
       scheduledAt: new Date(),
@@ -436,51 +439,47 @@ export async function bulkCreateMentorings(studentIds: string[], mentorId: strin
 }
 
 export async function deleteMentoring(id: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
-  const existing = await prisma.mentoring.findUnique({ where: { id }, select: { mentorId: true } });
+  const existing = await prisma.mentoring.findUnique({ where: { id, orgId: session.orgId }, select: { mentorId: true } });
   if (!existing) throw new Error("멘토링을 찾을 수 없습니다");
-  requireOwnerOrFullAccess(existing.mentorId, session.user.id, session.user.role);
+  requireOwnerOrFullAccess(existing.mentorId, session.id, session.role);
 
-  await prisma.mentoring.delete({ where: { id } });
+  await prisma.mentoring.delete({ where: { id, orgId: session.orgId } });
   revalidatePath("/mentoring");
 }
 
 export async function bulkDeleteMentorings(ids: string[]) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   // DIRECTOR/ADMIN만 일괄 삭제 가능
-  requireStaff(session.user.role);
+  requireStaff(session.role);
 
-  await prisma.mentoring.deleteMany({ where: { id: { in: ids } } });
+  await prisma.mentoring.deleteMany({ where: { id: { in: ids }, orgId: session.orgId } });
   revalidatePath("/mentoring");
 }
 
 export async function updateMentoringStatus(id: string, status: MentoringStatus) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
-  const existing = await prisma.mentoring.findUnique({ where: { id }, select: { mentorId: true } });
+  const existing = await prisma.mentoring.findUnique({ where: { id, orgId: session.orgId }, select: { mentorId: true } });
   if (!existing) throw new Error("멘토링을 찾을 수 없습니다");
-  requireOwnerOrFullAccess(existing.mentorId, session.user.id, session.user.role);
+  requireOwnerOrFullAccess(existing.mentorId, session.id, session.role);
 
-  await prisma.mentoring.update({ where: { id }, data: { status } });
+  await prisma.mentoring.update({ where: { id, orgId: session.orgId }, data: { status } });
   revalidatePath("/mentoring");
   revalidatePath(`/mentoring/${id}`);
 }
 
 export async function quickStartMentoring(studentId: string, mentorId: string): Promise<string> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
-  const isDirector = session.user.role === "DIRECTOR" || session.user.role === "ADMIN";
-  const isOwnMentor = mentorId === session.user.id;
+  const isDirector = session.role === "DIRECTOR" || session.role === "ADMIN";
+  const isOwnMentor = mentorId === session.id;
   if (!isDirector && !isOwnMentor) throw new Error("Unauthorized");
 
   const mentoring = await prisma.mentoring.create({
-    data: { studentId, mentorId, scheduledAt: new Date(), status: "SCHEDULED" },
+    data: { orgId: session.orgId, studentId, mentorId, scheduledAt: new Date(), status: "SCHEDULED" },
   });
 
   revalidatePath("/mentoring");

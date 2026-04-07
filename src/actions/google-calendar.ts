@@ -1,8 +1,16 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { getGoogleCalendarClient, isGoogleCalendarConfigured } from "@/lib/google-calendar";
 import type { calendar_v3 } from "googleapis";
+
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
 
 export interface GoogleCalendarEvent {
   googleEventId: string;
@@ -18,8 +26,7 @@ export async function fetchGoogleCalendarEvents(
   startDate: Date,
   endDate: Date
 ): Promise<GoogleCalendarEvent[]> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  await getSession();
 
   if (!(await isGoogleCalendarConfigured())) return [];
 
@@ -99,8 +106,7 @@ export async function createGoogleCalendarEvent(data: {
   endDate?: string;
   allDay?: boolean;
 }): Promise<string | null> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  await getSession();
 
   if (!(await isGoogleCalendarConfigured())) return null;
 
@@ -143,8 +149,7 @@ export async function updateGoogleCalendarEvent(
     allDay?: boolean;
   }
 ): Promise<void> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  await getSession();
 
   if (!(await isGoogleCalendarConfigured())) return;
 
@@ -180,8 +185,7 @@ export async function updateGoogleCalendarEvent(
 
 // Google Calendar 이벤트 삭제
 export async function deleteGoogleCalendarEvent(googleEventId: string): Promise<void> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  await getSession();
 
   if (!(await isGoogleCalendarConfigured())) return;
 

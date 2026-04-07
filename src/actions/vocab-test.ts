@@ -1,19 +1,26 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { revalidatePath } from "next/cache";
 import { VocabEnrollReason } from "@/generated/prisma";
 
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
+
 // ── 대상자 등록 ──
 export async function enrollVocabTest(studentId: string, reason: VocabEnrollReason) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   await prisma.vocabTestEnrollment.upsert({
     where: { studentId },
-    create: { studentId, reason, isActive: true, enrolledById: session.user.id },
-    update: { reason, isActive: true, unenrolledAt: null, enrolledById: session.user.id },
+    create: { orgId: session.orgId, studentId, reason, isActive: true, enrolledById: session.id },
+    update: { reason, isActive: true, unenrolledAt: null, enrolledById: session.id },
   });
 
   revalidatePath("/vocab-test");
@@ -22,14 +29,13 @@ export async function enrollVocabTest(studentId: string, reason: VocabEnrollReas
 
 // ── 대상자 일괄 등록 ──
 export async function bulkEnrollVocabTest(studentIds: string[], reason: VocabEnrollReason) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   for (const studentId of studentIds) {
     await prisma.vocabTestEnrollment.upsert({
       where: { studentId },
-      create: { studentId, reason, isActive: true, enrolledById: session.user.id },
-      update: { reason, isActive: true, unenrolledAt: null, enrolledById: session.user.id },
+      create: { orgId: session.orgId, studentId, reason, isActive: true, enrolledById: session.id },
+      update: { reason, isActive: true, unenrolledAt: null, enrolledById: session.id },
     });
   }
 
@@ -39,8 +45,7 @@ export async function bulkEnrollVocabTest(studentIds: string[], reason: VocabEnr
 
 // ── 대상자 해제 ──
 export async function unenrollVocabTest(studentId: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   await prisma.vocabTestEnrollment.update({
     where: { studentId },
@@ -53,8 +58,7 @@ export async function unenrollVocabTest(studentId: string) {
 
 // ── 성적 입력 ──
 export async function createVocabScore(formData: FormData) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const studentId = formData.get("studentId") as string;
   const testDate = formData.get("testDate") as string;
@@ -68,13 +72,14 @@ export async function createVocabScore(formData: FormData) {
 
   await prisma.vocabTestScore.create({
     data: {
+      orgId: session.orgId,
       studentId,
       testDate: new Date(testDate),
       totalWords,
       correctWords,
       score,
       notes,
-      createdById: session.user.id,
+      createdById: session.id,
     },
   });
 
@@ -83,21 +88,20 @@ export async function createVocabScore(formData: FormData) {
 
 // ── 성적 삭제 ──
 export async function deleteVocabScore(id: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
-  await prisma.vocabTestScore.delete({ where: { id } });
+  await prisma.vocabTestScore.delete({ where: { id, orgId: session.orgId } });
   revalidatePath("/vocab-test");
 }
 
 // ── 고3 영어 3등급 이하 자동 추천 후보 조회 ──
 export async function getVocabAutoRecommendations() {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   // 고3 학생 중 영어 모의고사 최근 등급 3 이상인 학생
   const students = await prisma.student.findMany({
     where: {
+      orgId: session.orgId,
       status: "ACTIVE",
       grade: { contains: "3" }, // 고3, 3학년 등
       examScores: {

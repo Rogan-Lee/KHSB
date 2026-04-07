@@ -1,7 +1,15 @@
 "use server";
 
 import Groq from "groq-sdk";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
+
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
 
 export type CardNewsTemplate = "announcement" | "study-tip" | "top-student";
 
@@ -159,9 +167,8 @@ ${format}
 export async function analyzeReferenceImage(
   input: { type: "base64"; data: string; mimeType: string } | { type: "url"; url: string }
 ): Promise<{ success: true; style: ExtractedStyle } | { success: false; error: string }> {
-  const session = await auth();
-  if (!session?.user) return { success: false, error: "Unauthorized" };
-  if (session.user.role !== "DIRECTOR" && session.user.role !== "ADMIN") {
+  const session = await getSession();
+  if (session.role !== "DIRECTOR" && session.role !== "ADMIN") {
     return { success: false, error: "권한이 없습니다." };
   }
 
@@ -223,9 +230,8 @@ export async function generateCardNewsSlides(
   template: CardNewsTemplate,
   inputs: Inputs
 ): Promise<{ success: true; data: GeneratedSlides } | { success: false; error: string }> {
-  const session = await auth();
-  if (!session?.user) return { success: false, error: "Unauthorized" };
-  if (session.user.role !== "DIRECTOR" && session.user.role !== "ADMIN") {
+  const session = await getSession();
+  if (session.role !== "DIRECTOR" && session.role !== "ADMIN") {
     return { success: false, error: "권한이 없습니다." };
   }
 

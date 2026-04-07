@@ -108,7 +108,7 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
         await saveMentorScheduleForMentor(editDay.mentorId, editDay.day, editStart, editEnd);
         setSchedules((prev) => {
           const filtered = prev.filter((s) => !(s.mentorId === editDay.mentorId && s.dayOfWeek === editDay.day));
-          return [...filtered, { id: crypto.randomUUID(), mentorId: editDay.mentorId, dayOfWeek: editDay.day, timeStart: editStart, timeEnd: editEnd, createdAt: new Date(), updatedAt: new Date() }];
+          return [...filtered, { id: crypto.randomUUID(), orgId: "", mentorId: editDay.mentorId, dayOfWeek: editDay.day, timeStart: editStart, timeEnd: editEnd, createdAt: new Date(), updatedAt: new Date() }];
         });
         toast.success("저장되었습니다");
         setEditDay(null);

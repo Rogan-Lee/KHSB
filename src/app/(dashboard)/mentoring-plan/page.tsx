@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getWeeklyPlanData } from "@/actions/mentoring-plan";
@@ -13,10 +13,12 @@ function getNextMondayKST(): string {
 }
 
 export default async function MentoringPlanPage() {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  const user = await getUser();
+  if (!user) redirect("/sign-in");
+  if (!user.orgId) return null;
+  const orgId = user.orgId;
 
-  const role = session.user.role;
+  const role = user.role;
   if (role !== "DIRECTOR" && role !== "ADMIN" && role !== "MENTOR") redirect("/");
 
   const readonly = role === "MENTOR";
@@ -25,7 +27,7 @@ export default async function MentoringPlanPage() {
   const [mentors, allStudents] = await Promise.all([
     getWeeklyPlanData(weekStart),
     prisma.student.findMany({
-      where: { status: "ACTIVE" },
+      where: { orgId, status: "ACTIVE" },
       select: { id: true, name: true, grade: true, mentorId: true },
       orderBy: { name: "asc" },
     }),

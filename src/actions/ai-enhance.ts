@@ -1,8 +1,16 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { prisma } from "@/lib/prisma";
 import Groq from "groq-sdk";
+
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
 
 export interface EnhancedMentoringContent {
   content: string | null;
@@ -13,11 +21,10 @@ export interface EnhancedMentoringContent {
 }
 
 export async function getMentoringContent(mentoringId: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   return prisma.mentoring.findUnique({
-    where: { id: mentoringId },
+    where: { id: mentoringId, orgId: session.orgId },
     select: {
       content: true,
       improvements: true,
@@ -30,11 +37,10 @@ export async function getMentoringContent(mentoringId: string) {
 }
 
 export async function enhanceMentoringWithAI(mentoringId: string): Promise<EnhancedMentoringContent> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const mentoring = await prisma.mentoring.findUnique({
-    where: { id: mentoringId },
+    where: { id: mentoringId, orgId: session.orgId },
     select: {
       content: true,
       improvements: true,
@@ -138,11 +144,10 @@ export async function applyMentoringEnhancement(
   mentoringId: string,
   data: EnhancedMentoringContent
 ) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   await prisma.mentoring.update({
-    where: { id: mentoringId },
+    where: { id: mentoringId, orgId: session.orgId },
     data: {
       content: data.content ?? undefined,
       improvements: data.improvements ?? undefined,

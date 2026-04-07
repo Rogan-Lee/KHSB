@@ -3,6 +3,7 @@ import { getTimetableEntries, getStudentSchoolEvents } from "@/actions/timetable
 import { DayView } from "@/components/timetable/day-view";
 import { TimetableGrid } from "@/components/timetable/timetable-grid";
 import { prisma } from "@/lib/prisma";
+import { getUser } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MentoringRecordForm, type PreviousMentoring } from "@/components/mentoring/mentoring-record-form";
@@ -27,10 +28,14 @@ export default async function MentoringDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await getUser();
+  if (!user?.orgId) return null;
+  const orgId = user.orgId;
+
   const { id } = await params;
 
-  const mentoring = await prisma.mentoring.findUnique({
-    where: { id },
+  const mentoring = await prisma.mentoring.findFirst({
+    where: { id, orgId },
     include: {
       student: {
         select: {
@@ -59,6 +64,7 @@ export default async function MentoringDetailPage({
   // 해당 학생의 직전 멘토링 (현재 제외, 상태 무관 — 가장 최근 기록)
   const previousMentoring: PreviousMentoring | null = await prisma.mentoring.findFirst({
     where: {
+      orgId,
       studentId: mentoring.studentId,
       id: { not: id },
       status: { not: "CANCELLED" },

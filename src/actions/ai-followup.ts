@@ -1,8 +1,16 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { prisma } from "@/lib/prisma";
 import Groq from "groq-sdk";
+
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -41,11 +49,10 @@ const ACADEMY_CONTEXT = `
 `;
 
 export async function generateFollowUpMessage(consultationId: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const consultation = await prisma.directorConsultation.findUnique({
-    where: { id: consultationId },
+    where: { id: consultationId, orgId: session.orgId },
     include: {
       student: { select: { name: true, grade: true, school: true } },
     },

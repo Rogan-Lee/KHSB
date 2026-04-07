@@ -1,11 +1,19 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AttendanceType } from "@/generated/prisma";
 import { todayKST } from "@/lib/utils";
+
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
 
 const recordSchema = z.object({
   studentId: z.string(),
@@ -22,8 +30,7 @@ function toDateTime(dateStr: string, timeStr?: string) {
 }
 
 export async function upsertAttendance(formData: FormData) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const raw = Object.fromEntries(formData.entries());
   const data = recordSchema.parse(raw);
@@ -36,6 +43,7 @@ export async function upsertAttendance(formData: FormData) {
       },
     },
     create: {
+      orgId: session.orgId,
       studentId: data.studentId,
       date: new Date(data.date),
       checkIn: toDateTime(data.date, raw.checkIn as string),
@@ -56,12 +64,13 @@ export async function upsertAttendance(formData: FormData) {
 }
 
 export async function getTodayAttendance() {
+  const session = await getSession();
   const today = todayKST();
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const dayOfWeek = kstNow.getUTCDay();
 
   const students = await prisma.student.findMany({
-    where: { status: "ACTIVE" },
+    where: { orgId: session.orgId, status: "ACTIVE" },
     include: {
       attendances: {
         where: { date: today },
@@ -77,8 +86,9 @@ export async function getTodayAttendance() {
 }
 
 export async function getAttendanceByDate(date: Date) {
+  const session = await getSession();
   return prisma.attendanceRecord.findMany({
-    where: { date },
+    where: { orgId: session.orgId, date },
     include: { student: { select: { id: true, name: true, seat: true } } },
   });
 }
@@ -91,8 +101,7 @@ export async function saveAttendanceRecord(data: {
   type: AttendanceType;
   notes?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   function toDateTime(dateStr: string, timeStr?: string) {
     if (!timeStr) return null;
@@ -140,6 +149,7 @@ export async function saveAttendanceRecord(data: {
       },
     },
     create: {
+      orgId: session.orgId,
       studentId: data.studentId,
       date: new Date(targetDate),
       checkIn: toDateTime(targetDate, data.checkIn),
@@ -163,13 +173,12 @@ export async function saveAttendanceSchedule(
   studentId: string,
   schedules: { dayOfWeek: number; startTime: string; endTime: string }[]
 ) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
-  await prisma.attendanceSchedule.deleteMany({ where: { studentId } });
+  await prisma.attendanceSchedule.deleteMany({ where: { studentId, orgId: session.orgId } });
   if (schedules.length > 0) {
     await prisma.attendanceSchedule.createMany({
-      data: schedules.map((s) => ({ ...s, studentId })),
+      data: schedules.map((s) => ({ ...s, studentId, orgId: session.orgId })),
     });
   }
 
@@ -185,8 +194,7 @@ export async function saveOutingRecord(data: {
   outStart?: string;
   outEnd?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   function toDateTime(dateStr: string, timeStr?: string) {
     if (!timeStr) return undefined;
@@ -199,6 +207,7 @@ export async function saveOutingRecord(data: {
   await prisma.attendanceRecord.upsert({
     where: { studentId_date: { studentId: data.studentId, date: new Date(data.date) } },
     create: {
+      orgId: session.orgId,
       studentId: data.studentId,
       date: new Date(data.date),
       type: "NORMAL",
@@ -221,17 +230,16 @@ export async function saveScheduleAndOutings(
   schedules: { dayOfWeek: number; startTime: string; endTime: string }[],
   outings: { dayOfWeek: number; outStart: string; outEnd: string; reason?: string }[]
 ) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   await prisma.$transaction([
-    prisma.attendanceSchedule.deleteMany({ where: { studentId } }),
+    prisma.attendanceSchedule.deleteMany({ where: { studentId, orgId: session.orgId } }),
     ...(schedules.length > 0
-      ? [prisma.attendanceSchedule.createMany({ data: schedules.map((s) => ({ ...s, studentId })) })]
+      ? [prisma.attendanceSchedule.createMany({ data: schedules.map((s) => ({ ...s, studentId, orgId: session.orgId })) })]
       : []),
-    prisma.outingSchedule.deleteMany({ where: { studentId } }),
+    prisma.outingSchedule.deleteMany({ where: { studentId, orgId: session.orgId } }),
     ...(outings.length > 0
-      ? [prisma.outingSchedule.createMany({ data: outings.map((o) => ({ ...o, studentId })) })]
+      ? [prisma.outingSchedule.createMany({ data: outings.map((o) => ({ ...o, studentId, orgId: session.orgId })) })]
       : []),
   ]);
 
@@ -245,13 +253,12 @@ export async function saveOutingSchedules(
   studentId: string,
   outings: { dayOfWeek: number; outStart: string; outEnd: string; reason?: string }[]
 ) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
-  await prisma.outingSchedule.deleteMany({ where: { studentId } });
+  await prisma.outingSchedule.deleteMany({ where: { studentId, orgId: session.orgId } });
   if (outings.length > 0) {
     await prisma.outingSchedule.createMany({
-      data: outings.map((o) => ({ ...o, studentId })),
+      data: outings.map((o) => ({ ...o, studentId, orgId: session.orgId })),
     });
   }
 
@@ -274,11 +281,11 @@ export async function createDailyOuting(data: {
   outEnd?: string;
   reason?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const record = await prisma.dailyOuting.create({
     data: {
+      orgId: session.orgId,
       studentId: data.studentId,
       date: new Date(data.date),
       outStart: toDateTimeLocal(data.date, data.outStart) ?? null,
@@ -297,11 +304,10 @@ export async function updateDailyOuting(id: string, data: {
   outEnd?: string;
   reason?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   await prisma.dailyOuting.update({
-    where: { id },
+    where: { id, orgId: session.orgId },
     data: {
       outStart: data.outStart ? toDateTimeLocal(data.date, data.outStart) : null,
       outEnd: data.outEnd ? toDateTimeLocal(data.date, data.outEnd) : null,
@@ -313,9 +319,8 @@ export async function updateDailyOuting(id: string, data: {
 }
 
 export async function deleteDailyOuting(id: string) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
-  await prisma.dailyOuting.delete({ where: { id } });
+  await prisma.dailyOuting.delete({ where: { id, orgId: session.orgId } });
   revalidatePath("/attendance");
 }

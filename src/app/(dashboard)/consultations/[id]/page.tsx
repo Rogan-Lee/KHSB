@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getTimetableEntries, getStudentSchoolEvents } from "@/actions/timetable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -27,13 +27,15 @@ export default async function ConsultationDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  const user = await getUser();
+  if (!user) redirect("/sign-in");
+  if (!user.orgId) return null;
+  const orgId = user.orgId;
 
   const { id } = await params;
 
-  const consultation = await prisma.directorConsultation.findUnique({
-    where: { id },
+  const consultation = await prisma.directorConsultation.findFirst({
+    where: { id, orgId },
     include: {
       student: {
         select: {
@@ -83,6 +85,7 @@ export default async function ConsultationDetailPage({
     // 이전 완료된 면담 기록 (현재 제외, 최근 5건)
     previousConsultations = await prisma.directorConsultation.findMany({
       where: {
+        orgId,
         studentId: s.id,
         id: { not: id },
         status: "COMPLETED",

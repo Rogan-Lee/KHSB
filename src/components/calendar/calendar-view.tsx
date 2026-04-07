@@ -109,6 +109,7 @@ export function CalendarView({ initialEvents, schools = [], students = [], googl
     const ov = googleEventOverrides[e.googleEventId];
     return {
       id: `g_${e.googleEventId}`,
+      orgId: "",
       title: ov?.title ?? e.title,
       description: ov !== undefined ? ov.description : (e.description ?? null),
       startDate: ov?.startDate ?? new Date(e.startDate),

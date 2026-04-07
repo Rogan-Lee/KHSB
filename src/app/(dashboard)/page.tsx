@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatTime, todayKST } from "@/lib/utils";
@@ -20,7 +20,10 @@ import { getTodos } from "@/actions/todos";
 import { DashboardWrapper } from "@/components/dashboard/dashboard-wrapper";
 
 export default async function DashboardPage() {
-  const session = await auth();
+  const user = await getUser();
+  if (!user?.orgId) return null;
+  const orgId = user.orgId;
+  const session = { user };
   const today = todayKST();
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const year = kstNow.getUTCFullYear();
@@ -39,13 +42,14 @@ export default async function DashboardPage() {
     staffList,
     todos,
   ] = await Promise.all([
-    prisma.student.count({ where: { status: "ACTIVE" } }),
+    prisma.student.count({ where: { orgId, status: "ACTIVE" } }),
     prisma.attendanceRecord.findMany({
-      where: { date: today },
+      where: { orgId, date: today },
       include: { student: { select: { name: true, seat: true } } },
     }),
     prisma.mentoring.findMany({
       where: {
+        orgId,
         status: "SCHEDULED",
         scheduledAt: { gte: kstNow },
         ...(session?.user?.role === "MENTOR" ? { mentorId: session.user.id } : {}),
@@ -58,12 +62,13 @@ export default async function DashboardPage() {
       take: 5,
     }),
     prisma.meritDemerit.findMany({
+      where: { orgId },
       include: { student: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
     prisma.directorConsultation.findMany({
-      where: { status: "SCHEDULED" },
+      where: { orgId, status: "SCHEDULED" },
       include: { student: { select: { name: true, grade: true } } },
       orderBy: { scheduledAt: "asc" },
       take: 5,
@@ -72,7 +77,7 @@ export default async function DashboardPage() {
     getChecklistTemplates(),
     getMonthlyNotes(year, month),
     prisma.student.findMany({
-      where: { status: "ACTIVE" },
+      where: { orgId, status: "ACTIVE" },
       select: { id: true, name: true, grade: true },
       orderBy: { name: "asc" },
     }),

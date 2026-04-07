@@ -1,17 +1,26 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { revalidatePath } from "next/cache";
 import { isFullAccess } from "@/lib/roles";
 
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
+
 async function assertDirector() {
-  const session = await auth();
-  if (!isFullAccess(session?.user?.role)) throw new Error("Unauthorized");
+  const session = await getSession();
+  if (!isFullAccess(session.role)) throw new Error("Unauthorized");
+  return session;
 }
 
 export async function createMentor(formData: FormData) {
-  await assertDirector();
+  const session = await assertDirector();
 
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
@@ -21,14 +30,19 @@ export async function createMentor(formData: FormData) {
   if (role !== "MENTOR" && role !== "STAFF") throw new Error("올바르지 않은 역할입니다");
 
   await prisma.user.create({
-    data: { name, email, role: role as "MENTOR" | "STAFF" },
+    data: {
+      name,
+      email,
+      role: role as "MENTOR" | "STAFF",
+      memberships: { create: { orgId: session.orgId } },
+    },
   });
 
   revalidatePath("/mentors");
 }
 
 export async function updateMentor(id: string, formData: FormData) {
-  await assertDirector();
+  const session = await assertDirector();
 
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
@@ -45,7 +59,7 @@ export async function updateMentor(id: string, formData: FormData) {
 }
 
 export async function deleteMentor(id: string) {
-  await assertDirector();
+  const session = await assertDirector();
   await prisma.user.delete({ where: { id } });
   revalidatePath("/mentors");
 }
@@ -56,11 +70,11 @@ export async function saveMentorScheduleForMentor(
   timeStart: string,
   timeEnd: string
 ) {
-  await assertDirector();
+  const session = await assertDirector();
 
   await prisma.mentorSchedule.upsert({
     where: { mentorId_dayOfWeek: { mentorId, dayOfWeek } },
-    create: { mentorId, dayOfWeek, timeStart, timeEnd },
+    create: { orgId: session.orgId, mentorId, dayOfWeek, timeStart, timeEnd },
     update: { timeStart, timeEnd },
   });
 
@@ -68,7 +82,7 @@ export async function saveMentorScheduleForMentor(
 }
 
 export async function deleteMentorScheduleById(id: string) {
-  await assertDirector();
-  await prisma.mentorSchedule.delete({ where: { id } });
+  const session = await assertDirector();
+  await prisma.mentorSchedule.delete({ where: { id, orgId: session.orgId } });
   revalidatePath("/mentors");
 }

@@ -1,7 +1,15 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
+
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
 
 export interface SubjectTrend {
   subject: string;
@@ -39,11 +47,10 @@ export interface OverallAnalytics {
 }
 
 export async function getOverallAnalytics(): Promise<OverallAnalytics> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const students = await prisma.student.findMany({
-    where: { status: "ACTIVE" },
+    where: { orgId: session.orgId, status: "ACTIVE" },
     include: {
       examScores: { orderBy: { examDate: "asc" } },
       mentorings: { where: { status: "COMPLETED" } },

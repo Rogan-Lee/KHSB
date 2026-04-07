@@ -1,11 +1,11 @@
 /**
  * 플랜별 기능 게이팅 시스템
  *
- * 현재는 Organization 모델 도입 전이므로 PREMIUM 하드코딩.
- * Phase 1(멀티테넌트) 완료 후 org.plan 기반으로 전환.
+ * Organization.plan 기반으로 동작. layout.tsx에서 plan prop으로 전달.
  */
 
-export type PlanTier = "STARTER" | "STANDARD" | "PREMIUM";
+import type { PlanTier } from "@/generated/prisma";
+export type { PlanTier } from "@/generated/prisma";
 
 export type FeatureKey =
   // Starter
@@ -67,10 +67,7 @@ export const PLAN_LABELS: Record<PlanTier, { label: string; color: string }> = {
   PREMIUM: { label: "Premium", color: "text-violet-600 bg-violet-50 border-violet-200" },
 };
 
-/**
- * 현재 시설의 플랜을 반환.
- * TODO: Phase 1에서 Organization.plan 기반으로 전환
- */
+/** @deprecated layout.tsx에서 user.orgPlan을 직접 DashboardShell에 전달 */
 export function getCurrentPlan(): PlanTier {
   return "PREMIUM";
 }

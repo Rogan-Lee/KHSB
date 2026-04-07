@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getUser } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { AttendanceTable } from "@/components/attendance/attendance-table";
 import { CheckCircle2, XCircle, Clock, LogOut, Minus } from "lucide-react";
@@ -7,12 +8,16 @@ import { todayKST } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export default async function AttendancePage() {
+  const user = await getUser();
+  if (!user?.orgId) return null;
+  const orgId = user.orgId;
+
   const today = todayKST();
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const dayOfWeek = kstNow.getUTCDay();
 
   const students = await prisma.student.findMany({
-    where: { status: "ACTIVE" },
+    where: { orgId, status: "ACTIVE" },
     include: {
       attendances: { where: { date: today } },
       schedules: { where: { dayOfWeek } },

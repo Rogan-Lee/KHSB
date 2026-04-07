@@ -1,9 +1,17 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
+import { requireOrg } from "@/lib/org";
 import { revalidatePath } from "next/cache";
 import { todayKST } from "@/lib/utils";
+
+async function getSession() {
+  const org = await requireOrg();
+  const user = await getUser();
+  if (!user) throw new Error("인증 필요");
+  return { ...user, orgId: org.orgId };
+}
 
 function assertDirector(role?: string) {
   if (role !== "DIRECTOR" && role !== "ADMIN") throw new Error("Unauthorized");
@@ -38,9 +46,8 @@ export type WeeklyPlanMentor = {
 };
 
 export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMentor[]> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  assertDirectorOrMentor(session.user.role);
+  const session = await getSession();
+  assertDirectorOrMentor(session.role);
 
   const weekStartDate = new Date(weekStart);
   const weekEndDate = new Date(weekStartDate.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -48,6 +55,7 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
   const mentors = await prisma.user.findMany({
     where: {
       role: { in: ["MENTOR", "STAFF", "DIRECTOR", "ADMIN"] },
+      memberships: { some: { orgId: session.orgId } },
       mentorSchedules: { some: {} },
     },
     include: {
@@ -69,6 +77,7 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
 
   const weekMentorings = await prisma.mentoring.findMany({
     where: {
+      orgId: session.orgId,
       scheduledAt: { gte: weekStartDate, lt: weekEndDate },
       status: "SCHEDULED",
     },
@@ -94,7 +103,7 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
   const extraStudentsData =
     extraStudentIds.length > 0
       ? await prisma.student.findMany({
-          where: { id: { in: extraStudentIds } },
+          where: { id: { in: extraStudentIds }, orgId: session.orgId },
           select: { id: true, name: true, grade: true, schedules: { select: { dayOfWeek: true } } },
         })
       : [];
@@ -106,6 +115,7 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
 
   const lastMentorings = await prisma.mentoring.findMany({
     where: {
+      orgId: session.orgId,
       studentId: { in: allStudentIds },
       status: { not: "CANCELLED" },
     },
@@ -215,12 +225,12 @@ export async function scheduleWeeklyMentoring(
   timeStart?: string,
   timeEnd?: string
 ): Promise<{ id: string }> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  assertDirector(session.user.role);
+  const session = await getSession();
+  assertDirector(session.role);
 
   const mentoring = await prisma.mentoring.create({
     data: {
+      orgId: session.orgId,
       studentId,
       mentorId,
       scheduledAt: new Date(date),
@@ -236,12 +246,10 @@ export async function scheduleWeeklyMentoring(
 }
 
 export async function cancelWeeklyMentoring(id: string): Promise<void> {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  assertDirector(session.user.role);
+  const session = await getSession();
+  assertDirector(session.role);
 
-  await prisma.mentoring.delete({ where: { id } });
+  await prisma.mentoring.delete({ where: { id, orgId: session.orgId } });
   revalidatePath("/mentoring-plan");
   revalidatePath("/mentoring");
 }
-
