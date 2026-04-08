@@ -6,12 +6,12 @@ import {
   XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
-import { createExamScore, deleteExamScore } from "@/actions/exam-scores";
+import { createExamScore, updateExamScore, deleteExamScore } from "@/actions/exam-scores";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
-import { Trash2, Plus, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Trash2, Plus, TrendingUp, TrendingDown, Minus, Pencil, Check, X } from "lucide-react";
 import type { ExamScore, ExamType } from "@/generated/prisma";
 
 interface Props {
@@ -163,6 +163,54 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
         toast.success("성적이 등록되었습니다");
       } catch {
         toast.error("등록 실패");
+      }
+    });
+  }
+
+  // 수정 상태
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    examType: "" as ExamType, examName: "", examDate: "", subject: "",
+    rawScore: "", grade: "", percentile: "", notes: "",
+  });
+
+  function startEdit(s: ExamScore) {
+    setEditingId(s.id);
+    setEditForm({
+      examType: s.examType,
+      examName: s.examName,
+      examDate: new Date(s.examDate).toISOString().split("T")[0],
+      subject: s.subject,
+      rawScore: s.rawScore?.toString() ?? "",
+      grade: s.grade?.toString() ?? "",
+      percentile: s.percentile?.toString() ?? "",
+      notes: s.notes ?? "",
+    });
+  }
+
+  function handleUpdate() {
+    if (!editingId || !editForm.examName || !editForm.examDate) {
+      toast.error("시험명과 날짜는 필수입니다");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const updated = await updateExamScore(editingId, {
+          studentId,
+          examType: editForm.examType,
+          examName: editForm.examName,
+          examDate: editForm.examDate,
+          subject: editForm.subject,
+          rawScore: editForm.rawScore ? parseInt(editForm.rawScore) : undefined,
+          grade: editForm.grade ? parseInt(editForm.grade) : undefined,
+          percentile: editForm.percentile ? parseFloat(editForm.percentile) : undefined,
+          notes: editForm.notes || undefined,
+        });
+        setScores((prev) => prev.map((s) => s.id === editingId ? updated : s));
+        setEditingId(null);
+        toast.success("수정되었습니다");
+      } catch {
+        toast.error("수정 실패");
       }
     });
   }
@@ -654,7 +702,53 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
             <tbody>
               {[...filtered]
                 .sort((a, b) => new Date(b.examDate).getTime() - new Date(a.examDate).getTime())
-                .map((s) => (
+                .map((s) => editingId === s.id ? (
+                  <tr key={s.id} className="border-t bg-blue-50/50">
+                    <td className="px-2 py-1.5">
+                      <input type="date" value={editForm.examDate} onChange={(e) => setEditForm((f) => ({ ...f, examDate: e.target.value }))}
+                        className="w-full border rounded px-1.5 py-1 text-xs bg-background" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input type="text" value={editForm.examName} onChange={(e) => setEditForm((f) => ({ ...f, examName: e.target.value }))}
+                        className="w-full border rounded px-1.5 py-1 text-xs bg-background" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <select value={editForm.examType} onChange={(e) => setEditForm((f) => ({ ...f, examType: e.target.value as ExamType }))}
+                        className="border rounded px-1 py-1 text-xs bg-background">
+                        {EXAM_TYPES.map((t) => <option key={t} value={t}>{EXAM_TYPE_LABELS[t]}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input type="number" value={editForm.rawScore} min={0} max={100}
+                        onChange={(e) => setEditForm((f) => ({ ...f, rawScore: e.target.value }))}
+                        className="w-16 border rounded px-1.5 py-1 text-xs bg-background text-right" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input type="text" value={editForm.notes} onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+                        className="w-full border rounded px-1.5 py-1 text-xs bg-background" placeholder="메모" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input type="number" value={editForm.grade} min={1} max={9}
+                        onChange={(e) => setEditForm((f) => ({ ...f, grade: e.target.value }))}
+                        className="w-14 border rounded px-1.5 py-1 text-xs bg-background text-right" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input type="number" value={editForm.percentile} step={0.1}
+                        onChange={(e) => setEditForm((f) => ({ ...f, percentile: e.target.value }))}
+                        className="w-16 border rounded px-1.5 py-1 text-xs bg-background text-right" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <div className="flex items-center gap-1">
+                        <button onClick={handleUpdate} disabled={isPending} className="text-green-600 hover:text-green-800 transition-colors">
+                          <Check className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => setEditingId(null)} className="text-muted-foreground hover:text-foreground transition-colors">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
                   <tr key={s.id} className="border-t hover:bg-muted/30 transition-colors">
                     <td className="px-3 py-2.5 whitespace-nowrap text-xs text-muted-foreground">
                       {new Date(s.examDate).toLocaleDateString("ko-KR")}
@@ -684,13 +778,14 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
                       {s.percentile != null ? `${s.percentile}%` : "—"}
                     </td>
                     <td className="px-3 py-2.5">
-                      <button
-                        onClick={() => handleDelete(s.id)}
-                        disabled={isPending}
-                        className="text-muted-foreground/50 hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={() => startEdit(s)} disabled={isPending} className="text-muted-foreground/50 hover:text-blue-600 transition-colors">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button onClick={() => handleDelete(s.id)} disabled={isPending} className="text-muted-foreground/50 hover:text-destructive transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
