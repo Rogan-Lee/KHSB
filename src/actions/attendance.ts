@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AttendanceType } from "@/generated/prisma";
 import { todayKST } from "@/lib/utils";
+import { isStaff } from "@/lib/roles";
 
 const recordSchema = z.object({
   studentId: z.string(),
@@ -276,6 +277,7 @@ export async function createDailyOuting(data: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  if (!isStaff(session.user.role)) throw new Error("Unauthorized");
 
   const record = await prisma.dailyOuting.create({
     data: {
@@ -299,6 +301,10 @@ export async function updateDailyOuting(id: string, data: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  if (!isStaff(session.user.role)) throw new Error("Unauthorized");
+
+  const existing = await prisma.dailyOuting.findUnique({ where: { id }, select: { id: true } });
+  if (!existing) throw new Error("Not found");
 
   await prisma.dailyOuting.update({
     where: { id },
@@ -315,6 +321,10 @@ export async function updateDailyOuting(id: string, data: {
 export async function deleteDailyOuting(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  if (!isStaff(session.user.role)) throw new Error("Unauthorized");
+
+  const existing = await prisma.dailyOuting.findUnique({ where: { id }, select: { id: true } });
+  if (!existing) throw new Error("Not found");
 
   await prisma.dailyOuting.delete({ where: { id } });
   revalidatePath("/attendance");
