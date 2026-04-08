@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -138,6 +138,7 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const [draft, setDraft, clearDraft] = useDraft<MentoringDraft>(
     `mentoring-record-${mentoring.id}`,
@@ -172,6 +173,12 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
   function handleComplete() {
     startTransition(async () => {
       try {
+        // 1. 폼 내용 먼저 저장 (내용 유실 방지)
+        if (formRef.current) {
+          const formData = new FormData(formRef.current);
+          await updateMentoring(mentoring.id, formData);
+        }
+        // 2. 상태를 COMPLETED로 변경
         await updateMentoringStatus(mentoring.id, "COMPLETED");
         clearDraft();
         toast.success("완료 처리되었습니다");
@@ -205,7 +212,7 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
         </div>
       )}
 
-      <form action={handleSubmit} className="space-y-5">
+      <form ref={formRef} action={handleSubmit} className="space-y-5">
         {/* 상태 + 날짜 */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
