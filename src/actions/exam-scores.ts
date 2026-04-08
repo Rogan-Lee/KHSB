@@ -44,6 +44,38 @@ export async function createExamScore(data: {
   return record;
 }
 
+export async function updateExamScore(id: string, data: {
+  studentId: string;
+  examType: ExamType;
+  examName: string;
+  examDate: string;
+  subject: string;
+  rawScore?: number;
+  grade?: number;
+  percentile?: number;
+  notes?: string;
+}) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const record = await prisma.examScore.update({
+    where: { id },
+    data: {
+      examType: data.examType,
+      examName: data.examName,
+      examDate: new Date(data.examDate),
+      subject: data.subject,
+      rawScore: data.rawScore ?? null,
+      grade: data.grade ?? null,
+      percentile: data.percentile ?? null,
+      notes: data.notes ?? null,
+    },
+  });
+
+  revalidatePath(`/students/${data.studentId}`);
+  return record;
+}
+
 export async function deleteExamScore(id: string, studentId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
