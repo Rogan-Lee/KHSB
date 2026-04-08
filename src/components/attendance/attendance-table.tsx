@@ -813,13 +813,33 @@ export function AttendanceTable({ students, today }: Props) {
                         <span className="text-transparent text-[10px] font-mono w-11 text-right shrink-0 tabular-nums">00:00</span>
                         <input
                           type="time"
-                          readOnly
                           value={activeOuting ? toTimeString(activeOuting.outStart) ?? "" :
                                  localOut.length > 0 && localOut[localOut.length - 1]?.outStart ? toTimeString(localOut[localOut.length - 1].outStart) ?? "" : ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            const target = activeOuting ?? (localOut.length > 0 ? localOut[localOut.length - 1] : null);
+                            if (target?.id) {
+                              setLocalOutings((prev) => {
+                                const m = new Map(prev);
+                                m.set(student.id, (m.get(student.id) ?? []).map((o) =>
+                                  o.id === target.id ? { ...o, outStart: v ? new Date(`${todayDate}T${v}:00`) : o.outStart } : o
+                                ));
+                                return m;
+                              });
+                            }
+                          }}
                           onFocus={() => setActiveTimeInput({ studentId: student.id, field: "outing", studentName: student.name })}
-                          onBlur={() => setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "outing" ? null : prev), 200)}
+                          onBlur={() => {
+                            setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "outing" ? null : prev), 200);
+                            const target = activeOuting ?? (localOut.length > 0 ? localOut[localOut.length - 1] : null);
+                            const val = activeOuting ? toTimeString(activeOuting.outStart) :
+                              localOut.length > 0 && localOut[localOut.length - 1]?.outStart ? toTimeString(localOut[localOut.length - 1].outStart) : "";
+                            if (target?.id && val && /^\d{2}:\d{2}$/.test(val)) {
+                              updateDailyOuting(target.id, { date: todayDate, outStart: val });
+                            }
+                          }}
                           className={cn(
-                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background cursor-pointer focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
+                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
                             activeOuting ? "text-orange-600 font-semibold" :
                             localOut.length > 0 && localOut[localOut.length - 1]?.outStart ? "text-muted-foreground" : "text-gray-400"
                           )}
@@ -833,12 +853,31 @@ export function AttendanceTable({ students, today }: Props) {
                         <span className="text-transparent text-[10px] font-mono w-11 text-right shrink-0 tabular-nums">00:00</span>
                         <input
                           type="time"
-                          readOnly
                           value={localOut.length > 0 && localOut[localOut.length - 1]?.outEnd ? toTimeString(localOut[localOut.length - 1].outEnd) ?? "" : ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            const last = localOut.length > 0 ? localOut[localOut.length - 1] : null;
+                            if (last?.id) {
+                              setLocalOutings((prev) => {
+                                const m = new Map(prev);
+                                m.set(student.id, (m.get(student.id) ?? []).map((o) =>
+                                  o.id === last.id ? { ...o, outEnd: v ? new Date(`${todayDate}T${v}:00`) : o.outEnd } : o
+                                ));
+                                return m;
+                              });
+                            }
+                          }}
                           onFocus={() => setActiveTimeInput({ studentId: student.id, field: "return", studentName: student.name })}
-                          onBlur={() => setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "return" ? null : prev), 200)}
+                          onBlur={() => {
+                            setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "return" ? null : prev), 200);
+                            const last = localOut.length > 0 ? localOut[localOut.length - 1] : null;
+                            const val = last?.outEnd ? toTimeString(last.outEnd) : "";
+                            if (last?.id && val && /^\d{2}:\d{2}$/.test(val)) {
+                              updateDailyOuting(last.id, { date: todayDate, outEnd: val });
+                            }
+                          }}
                           className={cn(
-                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background cursor-pointer focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
+                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
                             localOut.length > 0 && localOut[localOut.length - 1]?.outEnd ? "text-foreground font-semibold" : "text-gray-400"
                           )}
                           placeholder="—"
@@ -1234,16 +1273,35 @@ export function AttendanceTable({ students, today }: Props) {
               {/* 외출 */}
               {f === "outing" && (
                 <>
-                  {!hasActiveOuting && (localTimes.get(s.id)?.checkIn ?? "") && (
+                  {!hasActiveOuting && lo.length === 0 && (localTimes.get(s.id)?.checkIn ?? "") && (
                     <button
                       onMouseDown={(e) => { e.preventDefault(); quickStartOuting(s); setActiveTimeInput(null); }}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-orange-500 hover:bg-orange-600 text-white transition-colors"
                     ><ArrowRightLeft className="h-3 w-3" />외출 시작 ({nowHHMM()})</button>
                   )}
-                  {hasActiveOuting && (
-                    <span className="text-xs text-orange-600 font-medium">현재 외출 중</span>
+                  {(hasActiveOuting || lo.length > 0) && (
+                    <span className="text-xs text-muted-foreground">시간을 직접 수정할 수 있습니다</span>
                   )}
-                  {!(localTimes.get(s.id)?.checkIn ?? "") && (
+                  {lo.length > 0 && (
+                    <button
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        const last = lo[lo.length - 1];
+                        if (last?.id) {
+                          deleteDailyOuting(last.id);
+                          setLocalOutings((prev) => {
+                            const m = new Map(prev);
+                            m.set(s.id, (m.get(s.id) ?? []).filter((o) => o.id !== last.id));
+                            return m;
+                          });
+                          toast.success("외출 기록 삭제됨");
+                        }
+                        setActiveTimeInput(null);
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition-colors"
+                    ><Trash2 className="h-3 w-3" />외출 삭제</button>
+                  )}
+                  {!(localTimes.get(s.id)?.checkIn ?? "") && lo.length === 0 && (
                     <span className="text-xs text-muted-foreground">입실 기록 후 외출 가능</span>
                   )}
                 </>
@@ -1259,7 +1317,7 @@ export function AttendanceTable({ students, today }: Props) {
                     ><LogIn className="h-3 w-3" />복귀 완료 ({nowHHMM()})</button>
                   )}
                   {!hasActiveOuting && lo.length > 0 && (
-                    <span className="text-xs text-muted-foreground">이미 복귀 완료</span>
+                    <span className="text-xs text-muted-foreground">시간을 직접 수정할 수 있습니다</span>
                   )}
                   {!hasActiveOuting && lo.length === 0 && (
                     <span className="text-xs text-muted-foreground">외출 기록이 없습니다</span>
