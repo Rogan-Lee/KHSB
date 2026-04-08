@@ -1317,7 +1317,28 @@ export function AttendanceTable({ students, today }: Props) {
                     ><LogIn className="h-3 w-3" />복귀 완료 ({nowHHMM()})</button>
                   )}
                   {!hasActiveOuting && lo.length > 0 && (
-                    <span className="text-xs text-muted-foreground">시간을 직접 수정할 수 있습니다</span>
+                    <>
+                      <span className="text-xs text-muted-foreground">시간을 직접 수정할 수 있습니다</span>
+                      <button
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          const last = lo[lo.length - 1];
+                          if (last?.id) {
+                            updateDailyOuting(last.id, { date: todayDate, outEnd: undefined });
+                            setLocalOutings((prev) => {
+                              const m = new Map(prev);
+                              m.set(s.id, (m.get(s.id) ?? []).map((o) =>
+                                o.id === last.id ? { ...o, outEnd: null } : o
+                              ));
+                              return m;
+                            });
+                            toast.success("복귀 기록 삭제됨");
+                          }
+                          setActiveTimeInput(null);
+                        }}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition-colors"
+                      ><Trash2 className="h-3 w-3" />복귀 삭제</button>
+                    </>
                   )}
                   {!hasActiveOuting && lo.length === 0 && (
                     <span className="text-xs text-muted-foreground">외출 기록이 없습니다</span>
