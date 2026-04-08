@@ -847,6 +847,32 @@ export function AttendanceTable({ students, today }: Props) {
                         />
                       </div>
 
+                      {/* 퇴실 */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">퇴실</span>
+                        <span className={cn("text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
+                          !schedOut ? "text-transparent" :
+                          schedOut === "FLEXIBLE" ? "text-violet-600" : "text-muted-foreground"
+                        )}>{schedOut === "FLEXIBLE" ? "자율" : schedOut ?? "00:00"}</span>
+                        <input
+                          type="time"
+                          value={checkOutTime}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(student.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(student.id, { ...c, checkOut: v }); return m; });
+                          }}
+                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "checkOut", studentName: student.name })}
+                          onBlur={() => {
+                            setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "checkOut" ? null : prev), 200);
+                            if (checkOutTime && /^\d{2}:\d{2}$/.test(checkOutTime)) quickSaveField(student, "checkOut", checkOutTime);
+                          }}
+                          className={cn(
+                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400",
+                            checkOutTime ? "text-foreground font-semibold" : "text-gray-400"
+                          )}
+                        />
+                      </div>
+
                       {/* 복귀 */}
                       <div className="flex items-center gap-1.5">
                         <span className="text-muted-foreground w-6 shrink-0 text-[11px]">복귀</span>
@@ -881,32 +907,6 @@ export function AttendanceTable({ students, today }: Props) {
                             localOut.length > 0 && localOut[localOut.length - 1]?.outEnd ? "text-foreground font-semibold" : "text-gray-400"
                           )}
                           placeholder="—"
-                        />
-                      </div>
-
-                      {/* 퇴실 */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">퇴실</span>
-                        <span className={cn("text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
-                          !schedOut ? "text-transparent" :
-                          schedOut === "FLEXIBLE" ? "text-violet-600" : "text-muted-foreground"
-                        )}>{schedOut === "FLEXIBLE" ? "자율" : schedOut ?? "00:00"}</span>
-                        <input
-                          type="time"
-                          value={checkOutTime}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(student.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(student.id, { ...c, checkOut: v }); return m; });
-                          }}
-                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "checkOut", studentName: student.name })}
-                          onBlur={() => {
-                            setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "checkOut" ? null : prev), 200);
-                            if (checkOutTime && /^\d{2}:\d{2}$/.test(checkOutTime)) quickSaveField(student, "checkOut", checkOutTime);
-                          }}
-                          className={cn(
-                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400",
-                            checkOutTime ? "text-foreground font-semibold" : "text-gray-400"
-                          )}
                         />
                       </div>
                     </div>
