@@ -94,29 +94,51 @@ export function TimetablePageClient({ students, mentors }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* ── 멘토 필터 ── */}
+      {/* ── 멘토 필터 + 담당 학생 바로 선택 ── */}
       {mentors.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-muted-foreground shrink-0">멘토:</span>
-          <button
-            onClick={() => { setSelectedMentorId(null); setQuery(""); }}
-            className={cn(
-              "px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
-              !selectedMentorId ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:bg-accent"
-            )}
-          >전체</button>
-          {mentors.map((m) => (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground shrink-0">멘토:</span>
             <button
-              key={m.id}
-              onClick={() => { setSelectedMentorId(m.id); setQuery(""); setDropdownOpen(true); }}
+              onClick={() => setSelectedMentorId(null)}
               className={cn(
                 "px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
-                selectedMentorId === m.id ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:bg-accent"
+                !selectedMentorId ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:bg-accent"
               )}
-            >{m.name}</button>
-          ))}
-          {selectedMentorId && (
-            <span className="text-xs text-muted-foreground">({byMentor.length}명)</span>
+            >전체</button>
+            {mentors.map((m) => {
+              const count = students.filter((s) => s.mentorId === m.id).length;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setSelectedMentorId(selectedMentorId === m.id ? null : m.id)}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
+                    selectedMentorId === m.id ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:bg-accent"
+                  )}
+                >{m.name} <span className="opacity-60">({count})</span></button>
+              );
+            })}
+          </div>
+          {/* 멘토 선택 시 담당 학생 칩 — 바로 클릭 가능 */}
+          {selectedMentorId && byMentor.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap pl-10">
+              {byMentor.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => selectStudent(s)}
+                  className={cn(
+                    "px-3 py-1.5 text-xs rounded-lg border transition-all",
+                    selected?.id === s.id
+                      ? "bg-blue-500 text-white border-blue-500 font-semibold shadow-sm"
+                      : "bg-white dark:bg-background text-foreground border-border hover:border-blue-300 hover:bg-blue-50 font-medium"
+                  )}
+                >
+                  {s.name}
+                  <span className="ml-1 opacity-60">{s.grade}</span>
+                </button>
+              ))}
+            </div>
           )}
         </div>
       )}
