@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AttendanceType } from "@/generated/prisma";
 import { todayKST } from "@/lib/utils";
+import { requireOwnerOrFullAccess } from "@/lib/roles";
 
 const recordSchema = z.object({
   studentId: z.string(),
@@ -277,6 +278,13 @@ export async function createDailyOuting(data: {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
+  const student = await prisma.student.findUnique({
+    where: { id: data.studentId },
+    select: { mentorId: true },
+  });
+  if (!student) throw new Error("학생을 찾을 수 없습니다");
+  requireOwnerOrFullAccess(student.mentorId ?? "", session.user.id, session.user.role);
+
   const record = await prisma.dailyOuting.create({
     data: {
       studentId: data.studentId,
@@ -300,6 +308,13 @@ export async function updateDailyOuting(id: string, data: {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
+  const outing = await prisma.dailyOuting.findUnique({
+    where: { id },
+    select: { student: { select: { mentorId: true } } },
+  });
+  if (!outing) throw new Error("외출 기록을 찾을 수 없습니다");
+  requireOwnerOrFullAccess(outing.student.mentorId ?? "", session.user.id, session.user.role);
+
   await prisma.dailyOuting.update({
     where: { id },
     data: {
@@ -315,6 +330,13 @@ export async function updateDailyOuting(id: string, data: {
 export async function deleteDailyOuting(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+
+  const outing = await prisma.dailyOuting.findUnique({
+    where: { id },
+    select: { student: { select: { mentorId: true } } },
+  });
+  if (!outing) throw new Error("외출 기록을 찾을 수 없습니다");
+  requireOwnerOrFullAccess(outing.student.mentorId ?? "", session.user.id, session.user.role);
 
   await prisma.dailyOuting.delete({ where: { id } });
   revalidatePath("/attendance");
