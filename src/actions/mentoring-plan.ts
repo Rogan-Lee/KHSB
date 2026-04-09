@@ -120,8 +120,17 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
   return mentors.map((mentor) => {
     const students: WeeklyPlanStudent[] = mentor.students.map((student) => {
       const lastDate = lastMap.get(student.id) ?? null;
+      // KST 기준으로 날짜 경계를 맞춤: lastDate를 KST 날짜의 UTC 자정으로 정규화 (todayKST()와 동일한 방식)
       const daysSinceLast = lastDate
-        ? Math.floor((today.getTime() - new Date(lastDate).setHours(0, 0, 0, 0)) / 86400000)
+        ? Math.floor(
+            (today.getTime() -
+              new Date(
+                new Date(new Date(lastDate).getTime() + 9 * 60 * 60 * 1000)
+                  .toISOString()
+                  .slice(0, 10)
+              ).getTime()) /
+              86400000
+          )
         : null;
 
       let priority: 1 | 2 | 3;
@@ -162,7 +171,15 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
       if (!extra) continue;
       const lastDate = lastMap.get(sid) ?? null;
       const daysSinceLast = lastDate
-        ? Math.floor((today.getTime() - new Date(lastDate).setHours(0, 0, 0, 0)) / 86400000)
+        ? Math.floor(
+            (today.getTime() -
+              new Date(
+                new Date(new Date(lastDate).getTime() + 9 * 60 * 60 * 1000)
+                  .toISOString()
+                  .slice(0, 10)
+              ).getTime()) /
+              86400000
+          )
         : null;
       let priority: 1 | 2 | 3;
       if (daysSinceLast === null || daysSinceLast >= 7) priority = 1;

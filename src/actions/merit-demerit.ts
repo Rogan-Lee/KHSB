@@ -99,9 +99,9 @@ export async function getMeritsByRange(from: string, to: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const fromDate = new Date(from);
-  const toDate = new Date(to);
-  toDate.setHours(23, 59, 59, 999);
+  // KST 날짜 경계로 처리: "YYYY-MM-DD"를 KST 기준 시작/끝으로 해석
+  const fromDate = new Date(from + "T00:00:00+09:00");
+  const toDate = new Date(to + "T23:59:59.999+09:00");
 
   return prisma.meritDemerit.findMany({
     where: { date: { gte: fromDate, lte: toDate } },
