@@ -58,7 +58,7 @@ const STATUS_MAP = {
   WITHDRAWN: { label: "퇴원", variant: "destructive" as const },
 };
 
-type SortKey = "seat" | "name" | "school" | "startDate" | "status";
+type SortKey = "seat" | "name" | "school" | "mentor" | "startDate" | "status";
 type SortDir = "asc" | "desc";
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
@@ -414,6 +414,9 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
             case "startDate":
               cmp = new Date(sa.startDate).getTime() - new Date(sb.startDate).getTime();
               break;
+            case "mentor":
+              cmp = (sa.mentor?.name || "").localeCompare(sb.mentor?.name || "", "ko");
+              break;
             case "status":
               cmp = sa.status.localeCompare(sb.status);
               break;
@@ -470,7 +473,9 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
               </TableHead>
               <TableHead className="whitespace-nowrap">연락처</TableHead>
               <TableHead className="whitespace-nowrap">학부모 연락처</TableHead>
-              <TableHead className="whitespace-nowrap">담당 멘토</TableHead>
+              <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("mentor")}>
+                담당 멘토<SortIcon col="mentor" sortKey={sortKey} sortDir={sortDir} />
+              </TableHead>
               <TableHead className="whitespace-nowrap">특이사항</TableHead>
               <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("startDate")}>
                 등원일<SortIcon col="startDate" sortKey={sortKey} sortDir={sortDir} />
