@@ -50,7 +50,7 @@ type Mentoring = {
   scheduledTimeEnd: string | null;
   status: keyof typeof STATUS_MAP;
   notes: string | null;
-  student: { id: string; name: string; grade: string };
+  student: { id: string; name: string; grade: string; seat?: string | null; vocabTestDate?: Date | null };
   mentor: { id: string; name: string };
 };
 
@@ -62,7 +62,19 @@ type Props = {
   isDirector: boolean;
   currentUserId?: string;
   checkedInStudentIds?: string[];
+  vocabEnrolledStudentIds?: string[];
 };
+
+function isVocabDone(vocabTestDate: Date | null | undefined): boolean {
+  if (!vocabTestDate) return false;
+  const now = new Date();
+  const day = now.getDay();
+  const daysBack = day === 0 ? 5 : day === 1 ? 6 : day - 2;
+  const lastTue = new Date(now);
+  lastTue.setDate(now.getDate() - daysBack);
+  lastTue.setHours(0, 0, 0, 0);
+  return new Date(vocabTestDate) >= lastTue;
+}
 
 function toLocalDateString(date: Date) {
   const d = new Date(date);
@@ -218,8 +230,9 @@ function saveFilters(f: FilterState) {
   try { sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(f)); } catch { /* ignore */ }
 }
 
-export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [] }: Props) {
+export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [], vocabEnrolledStudentIds = [] }: Props) {
   const checkedInSet = new Set(checkedInStudentIds);
+  const vocabEnrolledSet = new Set(vocabEnrolledStudentIds);
   const today = getToday();
 
   // sessionStorage에서 필터 복원, 없으면 현재 로그인 사용자로 기본 필터
@@ -395,6 +408,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                   aria-label="전체 선택"
                 />
               </TableHead>
+              <TableHead className="w-10 text-center">좌석</TableHead>
               <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("scheduledAt")}>
                 예정일<SortIcon col="scheduledAt" sortKey={sortKey} sortDir={sortDir} />
               </TableHead>
@@ -424,8 +438,13 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((m) => (
-                <TableRow key={m.id} data-state={selected.has(m.id) ? "selected" : undefined}>
+              filtered.map((m, idx) => (
+                <TableRow
+                  key={m.id}
+                  data-state={selected.has(m.id) ? "selected" : undefined}
+                  className={vocabEnrolledSet.has(m.student.id) && !isVocabDone(m.student.vocabTestDate) ? "bg-orange-50" : undefined}
+                  title={vocabEnrolledSet.has(m.student.id) && !isVocabDone(m.student.vocabTestDate) ? "영단어 시험 미응시" : undefined}
+                >
                   <TableCell>
                     <Checkbox
                       checked={selected.has(m.id)}
@@ -433,6 +452,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                       aria-label={`${m.student.name} 선택`}
                     />
                   </TableCell>
+                  <TableCell className="text-center text-xs text-muted-foreground font-mono">{m.student.seat || "—"}</TableCell>
                   <TableCell className="whitespace-nowrap">{formatDate(m.scheduledAt)}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">

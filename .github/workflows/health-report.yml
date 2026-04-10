@@ -1,0 +1,124 @@
+name: Weekly Health Report
+
+on:
+  schedule:
+    # 월요일 00:07 UTC = 09:07 KST
+    - cron: "7 0 * * 1"
+  workflow_dispatch:
+
+jobs:
+  health-report:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp-main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch health metrics
+        id: fetch
+        run: |
+          curl -s \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://khsb.vercel.app/api/cron/health-metrics \
+            > /tmp/metrics.json
+
+          echo "students_active=$(jq '.students.active' /tmp/metrics.json)" >> $GITHUB_OUTPUT
+          echo "new_students=$(jq '.newStudents' /tmp/metrics.json)" >> $GITHUB_OUTPUT
+          echo "att_total=$(jq '.attendance.weekTotal' /tmp/metrics.json)" >> $GITHUB_OUTPUT
+          echo "att_checked_in=$(jq '.attendance.checkedIn' /tmp/metrics.json)" >> $GITHUB_OUTPUT
+          echo "att_checked_out=$(jq '.attendance.checkedOut' /tmp/metrics.json)" >> $GITHUB_OUTPUT
+          echo "mentoring_completed=$(jq '.mentoring.COMPLETED // 0' /tmp/metrics.json)" >> $GITHUB_OUTPUT
+          echo "mentoring_total=$(jq '[.mentoring | to_entries[] | .value] | add // 0' /tmp/metrics.json)" >> $GITHUB_OUTPUT
+          echo "feature_pending=$(jq '.featureRequests.PENDING // 0' /tmp/metrics.json)" >> $GITHUB_OUTPUT
+          echo "feature_in_progress=$(jq '.featureRequests.IN_PROGRESS // 0' /tmp/metrics.json)" >> $GITHUB_OUTPUT
+          echo "feature_done=$(jq '.featureRequests.DONE // 0' /tmp/metrics.json)" >> $GITHUB_OUTPUT
+          echo "parent_reports=$(jq '.parentReports' /tmp/metrics.json)" >> $GITHUB_OUTPUT
+          echo "messages_total=$(jq '[.messages[].count] | add // 0' /tmp/metrics.json)" >> $GITHUB_OUTPUT
+          echo "consultations_total=$(jq '[.consultations | to_entries[] | .value] | add // 0' /tmp/metrics.json)" >> $GITHUB_OUTPUT
+
+      - name: Generate health report
+        run: |
+          mkdir -p reports
+          TODAY=$(TZ='Asia/Seoul' date '+%Y-%m-%d')
+          REPORT="reports/health-${TODAY}.md"
+
+          MENTORING_RATE="N/A"
+          if [ "${{ steps.fetch.outputs.mentoring_total }}" != "0" ]; then
+            MENTORING_RATE=$(awk "BEGIN {printf \"%.0f%%\", ${{ steps.fetch.outputs.mentoring_completed }} / ${{ steps.fetch.outputs.mentoring_total }} * 100}")
+          fi
+
+          {
+            echo "# 주간 건강 리포트 ($TODAY)"
+            echo ""
+            echo "## 핵심 지표"
+            echo "| 항목 | 이번 주 |"
+            echo "|------|--------|"
+            echo "| 활성 학생 | ${{ steps.fetch.outputs.students_active }}명 |"
+            echo "| 신규 등록 | ${{ steps.fetch.outputs.new_students }}명 |"
+            echo "| 주간 출석 기록 | ${{ steps.fetch.outputs.att_total }}건 (입실 ${{ steps.fetch.outputs.att_checked_in }} / 퇴실 ${{ steps.fetch.outputs.att_checked_out }}) |"
+            echo "| 멘토링 완료율 | $MENTORING_RATE (완료 ${{ steps.fetch.outputs.mentoring_completed }} / 전체 ${{ steps.fetch.outputs.mentoring_total }}) |"
+            echo "| 학부모 리포트 | ${{ steps.fetch.outputs.parent_reports }}건 |"
+            echo "| 메시지 발송 | ${{ steps.fetch.outputs.messages_total }}건 |"
+            echo "| 기능요청 | PENDING ${{ steps.fetch.outputs.feature_pending }} / IN_PROGRESS ${{ steps.fetch.outputs.feature_in_progress }} / DONE ${{ steps.fetch.outputs.feature_done }} |"
+            echo "| 상담 | ${{ steps.fetch.outputs.consultations_total }}건 |"
+            echo ""
+            echo "## 경고"
+
+            WARNINGS=""
+            if [ "${{ steps.fetch.outputs.mentoring_total }}" != "0" ]; then
+              RATE_INT=$(awk "BEGIN {printf \"%d\", ${{ steps.fetch.outputs.mentoring_completed }} / ${{ steps.fetch.outputs.mentoring_total }} * 100}")
+              if [ "$RATE_INT" -lt 80 ]; then
+                echo "- 멘토링 완료율이 80% 미만입니다 ($MENTORING_RATE)"
+                WARNINGS="1"
+              fi
+            fi
+
+            if [ "${{ steps.fetch.outputs.feature_pending }}" -gt 10 ]; then
+              echo "- 기능요청 백로그가 10건 이상입니다 (${{ steps.fetch.outputs.feature_pending }}건)"
+              WARNINGS="1"
+            fi
+
+            if [ -z "$WARNINGS" ]; then
+              echo "- 특이사항 없음"
+            fi
+
+            echo ""
+            echo "## 원본 데이터"
+            echo '```json'
+            cat /tmp/metrics.json | jq '.'
+            echo '```'
+          } > "$REPORT"
+
+          cat "$REPORT"
+
+      - name: Commit report
+        run: |
+          if [ -z "$(git status --porcelain reports/)" ]; then
+            echo "변경사항 없음"
+            exit 0
+          fi
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          TODAY=$(TZ='Asia/Seoul' date '+%Y-%m-%d')
+          git add reports/
+          git commit -m "chore: weekly health report $TODAY"
+          git push origin tmp-main
+
+      - name: Notify Slack
+        run: |
+          MM_DD=$(TZ='Asia/Seoul' date '+%m/%d')
+          MENTORING_RATE="N/A"
+          if [ "${{ steps.fetch.outputs.mentoring_total }}" != "0" ]; then
+            MENTORING_RATE=$(awk "BEGIN {printf \"%.0f%%\", ${{ steps.fetch.outputs.mentoring_completed }} / ${{ steps.fetch.outputs.mentoring_total }} * 100}")
+          fi
+
+          MESSAGE="[i] 주간 건강 리포트 ($MM_DD)\n학생: ${{ steps.fetch.outputs.students_active }}명 | 출석: ${{ steps.fetch.outputs.att_total }}건 | 멘토링 완료율: $MENTORING_RATE\n기능요청 PENDING: ${{ steps.fetch.outputs.feature_pending }}건"
+
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg msg "$MESSAGE" '{message: $msg}')" \
+            https://khsb.vercel.app/api/cron/slack-notify

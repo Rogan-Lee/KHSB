@@ -1,0 +1,127 @@
+name: Feature Triage
+
+on:
+  schedule:
+    # 평일 01:03 UTC = 10:03 KST
+    - cron: "3 1 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp-main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch feature requests
+        id: fetch
+        run: |
+          curl -s \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://khsb.vercel.app/api/cron/feature-requests \
+            > /tmp/requests.json
+
+          echo "total=$(jq '.total' /tmp/requests.json)" >> $GITHUB_OUTPUT
+          echo "pending=$(jq '[.requests[] | select(.status == "PENDING")] | length' /tmp/requests.json)" >> $GITHUB_OUTPUT
+          echo "in_progress=$(jq '[.requests[] | select(.status == "IN_PROGRESS")] | length' /tmp/requests.json)" >> $GITHUB_OUTPUT
+          echo "urgent=$(jq '[.requests[] | select(.priority == "URGENT" or .priority == "HIGH")] | length' /tmp/requests.json)" >> $GITHUB_OUTPUT
+
+      - name: Generate triage report
+        run: |
+          mkdir -p reports
+          TODAY=$(TZ='Asia/Seoul' date '+%Y-%m-%d')
+          REPORT="reports/triage-${TODAY}.md"
+
+          {
+            echo "# 기능요청 트리아지 리포트 ($TODAY)"
+            echo ""
+            echo "## 요약"
+            echo "- 전체: ${{ steps.fetch.outputs.total }}건 (PENDING: ${{ steps.fetch.outputs.pending }}, IN_PROGRESS: ${{ steps.fetch.outputs.in_progress }})"
+            echo "- 긴급(URGENT/HIGH): ${{ steps.fetch.outputs.urgent }}건"
+            echo ""
+            echo "## 즉시 처리 필요 (BUG + URGENT/HIGH)"
+            echo "| 제목 | 유형 | 우선순위 | 경과일 |"
+            echo "|------|------|---------|--------|"
+            jq -r --arg now "$(date -u +%s)" '
+              .requests[]
+              | select(.category == "BUG" and (.priority == "URGENT" or .priority == "HIGH"))
+              | . as $r
+              | (($now | tonumber) - ((.createdAt | sub("\\.[0-9]+Z$"; "Z") | fromdate))) / 86400 | floor as $days
+              | "| \($r.title) | \($r.category) | \($r.priority) | \($days)일 |"
+            ' /tmp/requests.json
+            echo ""
+            echo "## 이번 주 처리 (FEATURE + HIGH)"
+            echo "| 제목 | 유형 | 우선순위 | 경과일 |"
+            echo "|------|------|---------|--------|"
+            jq -r --arg now "$(date -u +%s)" '
+              .requests[]
+              | select(.category == "FEATURE" and .priority == "HIGH")
+              | . as $r
+              | (($now | tonumber) - ((.createdAt | sub("\\.[0-9]+Z$"; "Z") | fromdate))) / 86400 | floor as $days
+              | "| \($r.title) | \($r.category) | \($r.priority) | \($days)일 |"
+            ' /tmp/requests.json
+            echo ""
+            echo "## 백로그"
+            echo "| 제목 | 유형 | 우선순위 | 경과일 |"
+            echo "|------|------|---------|--------|"
+            jq -r --arg now "$(date -u +%s)" '
+              .requests[]
+              | select(
+                  (.category == "BUG" and (.priority == "URGENT" or .priority == "HIGH")) | not
+                )
+              | select(
+                  (.category == "FEATURE" and .priority == "HIGH") | not
+                )
+              | . as $r
+              | (($now | tonumber) - ((.createdAt | sub("\\.[0-9]+Z$"; "Z") | fromdate))) / 86400 | floor as $days
+              | "| \($r.title) | \($r.category) | \($r.priority) | \($days)일 |"
+            ' /tmp/requests.json
+          } > "$REPORT"
+
+          cat "$REPORT"
+          echo "REPORT_PATH=$REPORT" >> $GITHUB_ENV
+
+      - name: Commit report
+        run: |
+          if [ -z "$(git status --porcelain reports/)" ]; then
+            echo "변경사항 없음"
+            exit 0
+          fi
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          TODAY=$(TZ='Asia/Seoul' date '+%Y-%m-%d')
+          git add reports/
+          git commit -m "chore: daily triage report $TODAY"
+          git push origin tmp-main
+
+      - name: Notify Slack
+        run: |
+          MM_DD=$(TZ='Asia/Seoul' date '+%m/%d')
+          TOP3=$(jq -r '
+            [.requests[] |
+             select(.status == "PENDING") |
+             {title, priority, sort_key: (
+               if .priority == "URGENT" then 0
+               elif .priority == "HIGH" then 1
+               elif .priority == "NORMAL" then 2
+               else 3 end
+             )}
+            ]
+            | sort_by(.sort_key)
+            | .[0:3]
+            | to_entries
+            | map("\(.key + 1). \(.value.title) (\(.value.priority))")
+            | join("\n")
+          ' /tmp/requests.json)
+
+          MESSAGE="[i] 기능요청 트리아지 ($MM_DD)\n전체: ${{ steps.fetch.outputs.total }}건 | 긴급: ${{ steps.fetch.outputs.urgent }}건\n\n상위 3개:\n$TOP3"
+
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg msg "$MESSAGE" '{message: $msg}')" \
+            https://khsb.vercel.app/api/cron/slack-notify

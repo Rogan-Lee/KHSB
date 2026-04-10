@@ -6,12 +6,12 @@ import {
   XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
-import { createExamScore, deleteExamScore } from "@/actions/exam-scores";
+import { createExamScore, updateExamScore, deleteExamScore } from "@/actions/exam-scores";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
-import { Trash2, Plus, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Trash2, Plus, TrendingUp, TrendingDown, Minus, Pencil, Check, X } from "lucide-react";
 import type { ExamScore, ExamType } from "@/generated/prisma";
 
 interface Props {
@@ -19,7 +19,7 @@ interface Props {
   initialScores: ExamScore[];
 }
 
-type ViewMode = "all" | "rawScore" | "grade" | "percentile";
+type ViewMode = "all" | "rawScore" | "grade" | "percentile" | "table";
 
 const EXAM_TYPE_LABELS: Record<ExamType, string> = {
   OFFICIAL_MOCK: "공식 모의고사",
@@ -27,7 +27,17 @@ const EXAM_TYPE_LABELS: Record<ExamType, string> = {
   SCHOOL_EXAM: "학교 내신",
 };
 
-const SUBJECTS = ["국어", "수학", "영어", "한국사", "탐구1", "탐구2"];
+const SUBJECTS = [
+  "국어", "수학", "영어", "한국사",
+  // 사회탐구
+  "생활과윤리", "윤리와사상", "한국지리", "세계지리",
+  "동아시아사", "세계사", "경제", "정치와법", "사회·문화",
+  // 과학탐구
+  "물리학Ⅰ", "물리학Ⅱ", "화학Ⅰ", "화학Ⅱ",
+  "생명과학Ⅰ", "생명과학Ⅱ", "지구과학Ⅰ", "지구과학Ⅱ",
+  // 직업탐구 / 제2외국어
+  "직업탐구", "제2외국어",
+];
 const EXAM_TYPES: ExamType[] = ["OFFICIAL_MOCK", "PRIVATE_MOCK", "SCHOOL_EXAM"];
 
 function fmtDate(d: Date | string) {
@@ -86,9 +96,68 @@ function Trend({ current, prev }: { current?: number; prev?: number }) {
   return <span className="flex items-center gap-0.5 text-muted-foreground text-xs"><Minus className="h-3 w-3" /> 0</span>;
 }
 
+function ExamTableView({ scores, filterType }: { scores: ExamScore[]; filterType: ExamType | "ALL" }) {
+  const typeScores = filterType === "ALL" ? scores : scores.filter((s) => s.examType === filterType);
+  const examGroups = new Map<string, { examName: string; examDate: Date; examType: ExamType; scores: ExamScore[] }>();
+  for (const s of typeScores) {
+    const key = `${s.examName}_${new Date(s.examDate).toISOString().slice(0, 10)}`;
+    if (!examGroups.has(key)) examGroups.set(key, { examName: s.examName, examDate: new Date(s.examDate), examType: s.examType, scores: [] });
+    examGroups.get(key)!.scores.push(s);
+  }
+  const groups = [...examGroups.values()].sort((a, b) => b.examDate.getTime() - a.examDate.getTime());
+  const allSubjects = [...new Set(typeScores.map((s) => s.subject))].sort();
+
+  if (groups.length === 0) return (
+    <div className="flex items-center justify-center h-48 text-sm text-muted-foreground border rounded-lg bg-muted/20">
+      {filterType === "ALL" ? "성적" : EXAM_TYPE_LABELS[filterType]} 데이터가 없습니다
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {groups.map((g) => (
+        <div key={`${g.examName}_${g.examDate.toISOString()}`} className="rounded-lg border overflow-hidden">
+          <div className="bg-muted/40 px-4 py-2 flex items-center gap-2 border-b">
+            <span className="font-medium text-sm">{g.examName}</span>
+            <span className="text-xs text-muted-foreground">{new Date(g.examDate).toLocaleDateString("ko-KR")}</span>
+            <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{EXAM_TYPE_LABELS[g.examType]}</span>
+            <span className="text-xs text-muted-foreground ml-auto">{g.scores.length}과목</span>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-muted-foreground border-b bg-muted/20">
+                <th className="px-3 py-2 text-left font-medium">과목</th>
+                <th className="px-3 py-2 text-right font-medium">원점수</th>
+                <th className="px-3 py-2 text-right font-medium">등급</th>
+                <th className="px-3 py-2 text-right font-medium">백분위</th>
+                <th className="px-3 py-2 text-left font-medium">메모</th>
+              </tr>
+            </thead>
+            <tbody>
+              {g.scores
+                .sort((a, b) => allSubjects.indexOf(a.subject) - allSubjects.indexOf(b.subject))
+                .map((s) => (
+                <tr key={s.id} className="border-b last:border-0 hover:bg-muted/20">
+                  <td className="px-3 py-2 font-medium">{s.subject}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{s.rawScore != null ? `${s.rawScore}점` : "—"}</td>
+                  <td className="px-3 py-2 text-right">
+                    {s.grade ? <span className="font-bold tabular-nums" style={{ color: gradeColor(s.grade) }}>{s.grade}등급</span> : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">{s.percentile != null ? `${s.percentile}%` : "—"}</td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">{s.notes || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ExamScoreChart({ studentId, initialScores }: Props) {
   const [scores, setScores] = useState<ExamScore[]>(initialScores);
-  const [viewMode, setViewMode] = useState<ViewMode>("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [filterType, setFilterType] = useState<ExamType | "ALL">("ALL");
   const [filterSubject, setFilterSubject] = useState<string>("국어");
   const [showForm, setShowForm] = useState(false);
@@ -98,7 +167,7 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
     examType: "OFFICIAL_MOCK" as ExamType,
     examName: "",
     examDate: "",
-    subject: "국어",
+    subject: "",
     rawScore: "",
     grade: "",
     percentile: "",
@@ -148,11 +217,59 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
           notes: form.notes || undefined,
         });
         setScores((prev) => [created, ...prev]);
-        setForm({ examType: "OFFICIAL_MOCK", examName: "", examDate: "", subject: "국어", rawScore: "", grade: "", percentile: "", notes: "" });
+        setForm({ examType: "OFFICIAL_MOCK", examName: "", examDate: "", subject: "", rawScore: "", grade: "", percentile: "", notes: "" });
         setShowForm(false);
         toast.success("성적이 등록되었습니다");
       } catch {
         toast.error("등록 실패");
+      }
+    });
+  }
+
+  // 수정 상태
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    examType: "" as ExamType, examName: "", examDate: "", subject: "",
+    rawScore: "", grade: "", percentile: "", notes: "",
+  });
+
+  function startEdit(s: ExamScore) {
+    setEditingId(s.id);
+    setEditForm({
+      examType: s.examType,
+      examName: s.examName,
+      examDate: new Date(s.examDate).toISOString().split("T")[0],
+      subject: s.subject,
+      rawScore: s.rawScore?.toString() ?? "",
+      grade: s.grade?.toString() ?? "",
+      percentile: s.percentile?.toString() ?? "",
+      notes: s.notes ?? "",
+    });
+  }
+
+  function handleUpdate() {
+    if (!editingId || !editForm.examName || !editForm.examDate) {
+      toast.error("시험명과 날짜는 필수입니다");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const updated = await updateExamScore(editingId, {
+          studentId,
+          examType: editForm.examType,
+          examName: editForm.examName,
+          examDate: editForm.examDate,
+          subject: editForm.subject,
+          rawScore: editForm.rawScore ? parseInt(editForm.rawScore) : undefined,
+          grade: editForm.grade ? parseInt(editForm.grade) : undefined,
+          percentile: editForm.percentile ? parseFloat(editForm.percentile) : undefined,
+          notes: editForm.notes || undefined,
+        });
+        setScores((prev) => prev.map((s) => s.id === editingId ? updated : s));
+        setEditingId(null);
+        toast.success("수정되었습니다");
+      } catch {
+        toast.error("수정 실패");
       }
     });
   }
@@ -174,6 +291,7 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
     { key: "rawScore", label: "원점수" },
     { key: "grade", label: "등급" },
     { key: "percentile", label: "백분위" },
+    { key: "table", label: "시험별 전체 과목" },
   ];
 
   return (
@@ -200,24 +318,17 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
           </div>
         </div>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1.5">
             <span className="text-xs text-muted-foreground shrink-0">과목</span>
-            <div className="flex gap-1 flex-wrap">
+            <select
+              value={filterSubject}
+              onChange={(e) => setFilterSubject(e.target.value)}
+              className="border rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+            >
               {allSubjects.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setFilterSubject(s)}
-                  className={cn(
-                    "px-2.5 py-1 text-xs rounded-md font-medium border transition-colors",
-                    filterSubject === s
-                      ? "bg-primary/10 text-primary border-primary/30"
-                      : "border-border text-muted-foreground hover:bg-muted"
-                  )}
-                >
-                  {s}
-                </button>
+                <option key={s} value={s}>{s}</option>
               ))}
-            </div>
+            </select>
           </div>
           <Button
             size="sm"
@@ -260,13 +371,44 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">과목</label>
-              <input
-                type="text" placeholder="국어" value={form.subject}
+              <select
+                value={form.subject}
                 onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
                 className="w-full border rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-                list="subject-list"
-              />
-              <datalist id="subject-list">{SUBJECTS.map((s) => <option key={s} value={s} />)}</datalist>
+              >
+                <option value="">과목 선택</option>
+                <optgroup label="공통">
+                  <option value="국어">국어</option>
+                  <option value="수학">수학</option>
+                  <option value="영어">영어</option>
+                  <option value="한국사">한국사</option>
+                </optgroup>
+                <optgroup label="사회탐구">
+                  <option value="생활과윤리">생활과윤리</option>
+                  <option value="윤리와사상">윤리와사상</option>
+                  <option value="한국지리">한국지리</option>
+                  <option value="세계지리">세계지리</option>
+                  <option value="동아시아사">동아시아사</option>
+                  <option value="세계사">세계사</option>
+                  <option value="경제">경제</option>
+                  <option value="정치와법">정치와법</option>
+                  <option value="사회·문화">사회·문화</option>
+                </optgroup>
+                <optgroup label="과학탐구">
+                  <option value="물리학Ⅰ">물리학Ⅰ</option>
+                  <option value="물리학Ⅱ">물리학Ⅱ</option>
+                  <option value="화학Ⅰ">화학Ⅰ</option>
+                  <option value="화학Ⅱ">화학Ⅱ</option>
+                  <option value="생명과학Ⅰ">생명과학Ⅰ</option>
+                  <option value="생명과학Ⅱ">생명과학Ⅱ</option>
+                  <option value="지구과학Ⅰ">지구과학Ⅰ</option>
+                  <option value="지구과학Ⅱ">지구과학Ⅱ</option>
+                </optgroup>
+                <optgroup label="기타">
+                  <option value="직업탐구">직업탐구</option>
+                  <option value="제2외국어">제2외국어</option>
+                </optgroup>
+              </select>
             </div>
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">원점수</label>
@@ -305,6 +447,47 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowForm(false)}>취소</Button>
             <Button size="sm" className="h-7 text-xs" onClick={handleAdd} disabled={isPending}>등록</Button>
           </div>
+
+          {/* 선택된 시험유형의 기존 성적 */}
+          {(() => {
+            const existing = scores.filter((s) => s.examType === form.examType);
+            if (existing.length === 0) return null;
+            return (
+              <div className="mt-3 border-t pt-3">
+                <p className="text-xs text-muted-foreground mb-2">
+                  {EXAM_TYPE_LABELS[form.examType]} 기존 성적 ({existing.length}건)
+                </p>
+                <div className="max-h-40 overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-muted-foreground border-b">
+                        <th className="text-left py-1 px-1">시험명</th>
+                        <th className="text-left py-1 px-1">날짜</th>
+                        <th className="text-left py-1 px-1">과목</th>
+                        <th className="text-right py-1 px-1">원점수</th>
+                        <th className="text-right py-1 px-1">등급</th>
+                        <th className="text-right py-1 px-1">백분위</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {existing
+                        .sort((a, b) => new Date(b.examDate).getTime() - new Date(a.examDate).getTime())
+                        .map((s) => (
+                        <tr key={s.id} className="border-b border-dashed last:border-0">
+                          <td className="py-1 px-1">{s.examName}</td>
+                          <td className="py-1 px-1">{fmtDate(s.examDate)}</td>
+                          <td className="py-1 px-1">{s.subject}</td>
+                          <td className="text-right py-1 px-1">{s.rawScore ?? "-"}</td>
+                          <td className="text-right py-1 px-1">{s.grade ?? "-"}</td>
+                          <td className="text-right py-1 px-1">{s.percentile ?? "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -326,12 +509,15 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
         ))}
       </div>
 
+      {/* 시험별 전체 과목 테이블 뷰 */}
+      {viewMode === "table" && <ExamTableView scores={scores} filterType={filterType} />}
+
       {/* 데이터 없음 */}
-      {chartData.length === 0 ? (
+      {chartData.length === 0 && viewMode !== "table" ? (
         <div className="flex items-center justify-center h-48 text-sm text-muted-foreground border rounded-lg bg-muted/20">
           {filterSubject} 과목 데이터가 없습니다
         </div>
-      ) : (
+      ) : viewMode !== "table" ? (
         <>
           {/* 전체 뷰 — KPI 카드 3개 + 스파크라인 */}
           {viewMode === "all" && (
@@ -592,10 +778,10 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
             );
           })()}
         </>
-      )}
+      ) : null}
 
       {/* 성적 목록 테이블 */}
-      {filtered.length > 0 && (
+      {viewMode !== "table" && filtered.length > 0 && (
         <div className="rounded-lg border overflow-hidden">
           <table className="w-full text-sm border-collapse">
             <thead>
@@ -603,6 +789,7 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
                 <th className="px-3 py-2.5 text-left font-medium">날짜</th>
                 <th className="px-3 py-2.5 text-left font-medium">시험명</th>
                 <th className="px-3 py-2.5 text-left font-medium">유형</th>
+                <th className="px-3 py-2.5 text-left font-medium">과목</th>
                 <th className="px-3 py-2.5 text-right font-medium">원점수</th>
                 <th className="px-3 py-2.5 text-left font-medium">메모</th>
                 <th className="px-3 py-2.5 text-right font-medium">등급</th>
@@ -613,7 +800,59 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
             <tbody>
               {[...filtered]
                 .sort((a, b) => new Date(b.examDate).getTime() - new Date(a.examDate).getTime())
-                .map((s) => (
+                .map((s) => editingId === s.id ? (
+                  <tr key={s.id} className="border-t bg-blue-50/50">
+                    <td className="px-2 py-1.5">
+                      <input type="date" value={editForm.examDate} onChange={(e) => setEditForm((f) => ({ ...f, examDate: e.target.value }))}
+                        className="w-full border rounded px-1.5 py-1 text-xs bg-background" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input type="text" value={editForm.examName} onChange={(e) => setEditForm((f) => ({ ...f, examName: e.target.value }))}
+                        className="w-full border rounded px-1.5 py-1 text-xs bg-background" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <select value={editForm.examType} onChange={(e) => setEditForm((f) => ({ ...f, examType: e.target.value as ExamType }))}
+                        className="border rounded px-1 py-1 text-xs bg-background">
+                        {EXAM_TYPES.map((t) => <option key={t} value={t}>{EXAM_TYPE_LABELS[t]}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <select value={editForm.subject} onChange={(e) => setEditForm((f) => ({ ...f, subject: e.target.value }))}
+                        className="border rounded px-1 py-1 text-xs bg-background">
+                        {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input type="number" value={editForm.rawScore} min={0} max={100}
+                        onChange={(e) => setEditForm((f) => ({ ...f, rawScore: e.target.value }))}
+                        className="w-16 border rounded px-1.5 py-1 text-xs bg-background text-right" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input type="text" value={editForm.notes} onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+                        className="w-full border rounded px-1.5 py-1 text-xs bg-background" placeholder="메모" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input type="number" value={editForm.grade} min={1} max={9}
+                        onChange={(e) => setEditForm((f) => ({ ...f, grade: e.target.value }))}
+                        className="w-14 border rounded px-1.5 py-1 text-xs bg-background text-right" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <input type="number" value={editForm.percentile} step={0.1}
+                        onChange={(e) => setEditForm((f) => ({ ...f, percentile: e.target.value }))}
+                        className="w-16 border rounded px-1.5 py-1 text-xs bg-background text-right" />
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <div className="flex items-center gap-1">
+                        <button onClick={handleUpdate} disabled={isPending} className="text-green-600 hover:text-green-800 transition-colors">
+                          <Check className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => setEditingId(null)} className="text-muted-foreground hover:text-foreground transition-colors">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
                   <tr key={s.id} className="border-t hover:bg-muted/30 transition-colors">
                     <td className="px-3 py-2.5 whitespace-nowrap text-xs text-muted-foreground">
                       {new Date(s.examDate).toLocaleDateString("ko-KR")}
@@ -624,6 +863,7 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
                         {EXAM_TYPE_LABELS[s.examType]}
                       </span>
                     </td>
+                    <td className="px-3 py-2.5 text-xs">{s.subject}</td>
                     <td className="px-3 py-2.5 text-right font-medium tabular-nums">
                       {s.rawScore != null ? `${s.rawScore}점` : <span className="text-muted-foreground">—</span>}
                     </td>
@@ -643,13 +883,14 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
                       {s.percentile != null ? `${s.percentile}%` : "—"}
                     </td>
                     <td className="px-3 py-2.5">
-                      <button
-                        onClick={() => handleDelete(s.id)}
-                        disabled={isPending}
-                        className="text-muted-foreground/50 hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={() => startEdit(s)} disabled={isPending} className="text-muted-foreground/50 hover:text-blue-600 transition-colors">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button onClick={() => handleDelete(s.id)} disabled={isPending} className="text-muted-foreground/50 hover:text-destructive transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

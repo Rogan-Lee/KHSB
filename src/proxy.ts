@@ -7,7 +7,7 @@ const isPublicRoute = createRouteMatcher([
   "/cr/(.*)",  // 상담 리포트 공개 페이지
   "/sp/(.*)",  // 공부계획 리포트 공개 페이지
   "/api/webhooks(.*)",
-  "/api/cron(.*)",
+  "/api/cron(.*)",  // 자동화 에이전트 Cron API (CRON_SECRET으로 자체 인증)
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

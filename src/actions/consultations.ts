@@ -6,6 +6,7 @@ import { requireOrg } from "@/lib/org";
 import { revalidatePath } from "next/cache";
 import { ConsultationStatus, ConsultationType, ConsultationCategory, ConsultationOwner } from "@/generated/prisma";
 import { requireFullAccess } from "@/lib/roles";
+import { notifySlack, formatConsultationAlert } from "@/lib/slack";
 
 async function getSession() {
   const org = await requireOrg();
@@ -30,13 +31,16 @@ export async function createConsultation(formData: FormData) {
     ? (raw.owner as ConsultationOwner)
     : "DIRECTOR";
 
+  const name = prospectName ?? "재원생";
+  const phone = (raw.prospectPhone as string) || "-";
+
   await prisma.directorConsultation.create({
     data: {
       orgId: session.orgId,
       studentId,
       prospectName,
       prospectGrade: (raw.prospectGrade as string) || null,
-      prospectPhone: (raw.prospectPhone as string) || null,
+      prospectPhone: phone !== "-" ? phone : null,
       type: Object.values(ConsultationType).includes(raw.type as ConsultationType)
         ? (raw.type as ConsultationType)
         : "STUDENT",
@@ -49,6 +53,8 @@ export async function createConsultation(formData: FormData) {
       status: "SCHEDULED",
     },
   });
+
+  notifySlack(formatConsultationAlert({ name, phone }));
 
   revalidatePath("/consultations");
 }

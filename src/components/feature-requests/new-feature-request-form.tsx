@@ -11,7 +11,7 @@ import {
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { createFeatureRequest } from "@/actions/feature-requests";
 import {
-  CATEGORY_OPTIONS, PRIORITY_OPTIONS, RELATED_PAGE_OPTIONS,
+  CATEGORY_OPTIONS, PRIORITY_OPTIONS, RELATED_PAGE_OPTIONS, DESCRIPTION_TEMPLATES,
 } from "@/lib/feature-request-constants";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -21,9 +21,20 @@ import Link from "next/link";
 export function NewFeatureRequestForm() {
   const router = useRouter();
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(DESCRIPTION_TEMPLATES["FEATURE"] ?? "");
   const [category, setCategory] = useState("FEATURE");
   const [priority, setPriority] = useState("NORMAL");
+  const [editorKey, setEditorKey] = useState(0);
+
+  function handleCategoryChange(newCategory: string) {
+    const allTemplates = Object.values(DESCRIPTION_TEMPLATES);
+    const isUntouched = !description || allTemplates.includes(description);
+    setCategory(newCategory);
+    if (isUntouched) {
+      setDescription(DESCRIPTION_TEMPLATES[newCategory] ?? "");
+      setEditorKey((k) => k + 1);
+    }
+  }
   const [relatedPage, setRelatedPage] = useState("");
   const [requester, setRequester] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -83,7 +94,7 @@ export function NewFeatureRequestForm() {
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => setCategory(opt.value)}
+                  onClick={() => handleCategoryChange(opt.value)}
                   className={cn(
                     "flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
                     category === opt.value
@@ -154,6 +165,7 @@ export function NewFeatureRequestForm() {
           </p>
           <div className="min-h-[300px] border rounded-lg overflow-hidden">
             <MarkdownEditor
+              key={editorKey}
               value={description}
               onChange={setDescription}
               placeholder="어떤 기능이 필요한지, 현재 어떤 문제가 있는지 구체적으로 작성해 주세요..."
