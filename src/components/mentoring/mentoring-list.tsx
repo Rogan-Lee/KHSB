@@ -50,7 +50,7 @@ type Mentoring = {
   scheduledTimeEnd: string | null;
   status: keyof typeof STATUS_MAP;
   notes: string | null;
-  student: { id: string; name: string; grade: string };
+  student: { id: string; name: string; grade: string; vocabTestDate?: Date | null };
   mentor: { id: string; name: string };
 };
 
@@ -63,6 +63,17 @@ type Props = {
   currentUserId?: string;
   checkedInStudentIds?: string[];
 };
+
+function isVocabDone(vocabTestDate: Date | null | undefined): boolean {
+  if (!vocabTestDate) return false;
+  const now = new Date();
+  const day = now.getDay();
+  const daysBack = day === 0 ? 5 : day === 1 ? 6 : day - 2;
+  const lastTue = new Date(now);
+  lastTue.setDate(now.getDate() - daysBack);
+  lastTue.setHours(0, 0, 0, 0);
+  return new Date(vocabTestDate) >= lastTue;
+}
 
 function toLocalDateString(date: Date) {
   const d = new Date(date);
@@ -426,7 +437,12 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
               </TableRow>
             ) : (
               filtered.map((m, idx) => (
-                <TableRow key={m.id} data-state={selected.has(m.id) ? "selected" : undefined}>
+                <TableRow
+                  key={m.id}
+                  data-state={selected.has(m.id) ? "selected" : undefined}
+                  className={!isVocabDone(m.student.vocabTestDate) ? "bg-orange-50" : undefined}
+                  title={!isVocabDone(m.student.vocabTestDate) ? "영단어 시험 미응시" : undefined}
+                >
                   <TableCell>
                     <Checkbox
                       checked={selected.has(m.id)}
