@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import type { RequestStatus, RequestCategory, RequestPriority } from "@/generated/prisma";
+import { notifySlack, formatFeatureRequestAlert } from "@/lib/slack";
 
 async function getSession() {
   const session = await auth();
@@ -39,18 +40,29 @@ export async function createFeatureRequest(data: {
   const user = await getSession();
   if (!data.title.trim()) throw new Error("제목을 입력하세요");
 
+  const category = (data.category as RequestCategory) ?? "FEATURE";
+  const priority = (data.priority as RequestPriority) ?? "NORMAL";
+
   await prisma.featureRequest.create({
     data: {
       title: data.title.trim(),
       description: data.description?.trim() || null,
-      category: (data.category as RequestCategory) ?? "FEATURE",
-      priority: (data.priority as RequestPriority) ?? "NORMAL",
+      category,
+      priority,
       relatedPage: data.relatedPage || null,
       requester: data.requester?.trim() || null,
       authorId: user.id,
       authorName: user.name ?? "알 수 없음",
     },
   });
+
+  notifySlack(formatFeatureRequestAlert({
+    title: data.title.trim(),
+    category,
+    priority,
+    requester: data.requester,
+  }));
+
   revalidatePath("/requests");
 }
 
