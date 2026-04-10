@@ -198,6 +198,14 @@ function ScoresTab({ enrollments, scores }: {
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [studentFilter, setStudentFilter] = useState<string>("ALL");
+
+  const studentNames = [...new Map(scores.map((s) => [s.student.id, s.student])).values()]
+    .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+
+  const filteredScores = studentFilter === "ALL"
+    ? scores
+    : scores.filter((s) => s.student.id === studentFilter);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -260,7 +268,19 @@ function ScoresTab({ enrollments, scores }: {
 
       {/* 이력 */}
       <Card>
-        <CardHeader><CardTitle className="text-base">성적 이력</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">성적 이력</CardTitle>
+          <select
+            value={studentFilter}
+            onChange={(e) => setStudentFilter(e.target.value)}
+            className="border rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+          >
+            <option value="ALL">전체 학생</option>
+            {studentNames.map((s) => (
+              <option key={s.id} value={s.id}>{s.name} ({s.grade})</option>
+            ))}
+          </select>
+        </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
@@ -275,9 +295,9 @@ function ScoresTab({ enrollments, scores }: {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {scores.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">성적 이력이 없습니다</TableCell></TableRow>
-              ) : scores.map((s) => (
+              {filteredScores.length === 0 ? (
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">{studentFilter === "ALL" ? "성적 이력이 없습니다" : "해당 학생의 성적 이력이 없습니다"}</TableCell></TableRow>
+              ) : filteredScores.map((s) => (
                 <TableRow key={s.id}>
                   <TableCell className="text-sm">{formatDate(s.testDate)}</TableCell>
                   <TableCell className="font-medium">{s.student.name}</TableCell>
