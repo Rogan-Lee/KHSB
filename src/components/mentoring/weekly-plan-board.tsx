@@ -406,6 +406,7 @@ function DayCell({
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [query, setQuery] = useState("");
 
+  const studentIndexMap = new Map(students.map((s, i) => [s.id, i + 1]));
   const scheduledStudents = students.filter((s) =>
     s.scheduledMentorings.some((m) => m.dayOfWeek === dow)
   );
@@ -454,6 +455,7 @@ function DayCell({
               key={s.id}
               className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-xs font-medium group"
             >
+              <span className="text-[10px] text-blue-500 w-3 shrink-0">{studentIndexMap.get(s.id)}</span>
               <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
               <span className="truncate flex-1">{s.name}</span>
               {!readonly && (
@@ -480,6 +482,7 @@ function DayCell({
                 PRIORITY_COLORS[s.priority]
               )}
             >
+              <span className="text-[10px] opacity-50 w-3 shrink-0">{studentIndexMap.get(s.id)}</span>
               <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
               <span className="truncate flex-1 text-left">{s.name}</span>
               <span className="text-[10px] opacity-50">{s.grade}</span>
@@ -496,6 +499,7 @@ function DayCell({
               )}
               title={`클릭하여 멘토링 배정 (마지막: ${s.daysSinceLast === null ? "기록없음" : s.daysSinceLast + "일 전"})`}
             >
+              <span className="text-[10px] opacity-50 w-3 shrink-0">{studentIndexMap.get(s.id)}</span>
               <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
               <span className="truncate flex-1 text-left">{s.name}</span>
               <span className="text-[10px] opacity-50">{s.grade}</span>
