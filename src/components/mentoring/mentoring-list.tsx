@@ -62,6 +62,7 @@ type Props = {
   isDirector: boolean;
   currentUserId?: string;
   checkedInStudentIds?: string[];
+  vocabEnrolledStudentIds?: string[];
 };
 
 function isVocabDone(vocabTestDate: Date | null | undefined): boolean {
@@ -229,8 +230,9 @@ function saveFilters(f: FilterState) {
   try { sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(f)); } catch { /* ignore */ }
 }
 
-export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [] }: Props) {
+export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [], vocabEnrolledStudentIds = [] }: Props) {
   const checkedInSet = new Set(checkedInStudentIds);
+  const vocabEnrolledSet = new Set(vocabEnrolledStudentIds);
   const today = getToday();
 
   // sessionStorage에서 필터 복원, 없으면 현재 로그인 사용자로 기본 필터
@@ -440,8 +442,8 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                 <TableRow
                   key={m.id}
                   data-state={selected.has(m.id) ? "selected" : undefined}
-                  className={!isVocabDone(m.student.vocabTestDate) ? "bg-orange-50" : undefined}
-                  title={!isVocabDone(m.student.vocabTestDate) ? "영단어 시험 미응시" : undefined}
+                  className={vocabEnrolledSet.has(m.student.id) && !isVocabDone(m.student.vocabTestDate) ? "bg-orange-50" : undefined}
+                  title={vocabEnrolledSet.has(m.student.id) && !isVocabDone(m.student.vocabTestDate) ? "영단어 시험 미응시" : undefined}
                 >
                   <TableCell>
                     <Checkbox
