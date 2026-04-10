@@ -1,0 +1,51 @@
+name: Deploy Smoke Test
+
+on:
+  schedule:
+    # 매 3시간마다 (UTC 기준 47분에 실행)
+    - cron: "47 */3 * * *"
+  workflow_dispatch: # 수동 실행 허용
+  push:
+    branches: [main]
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for deploy
+        if: github.event_name == 'push'
+        run: sleep 60
+
+      - name: Check site reachable
+        id: site
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://khsb.vercel.app)
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          # Clerk 인증으로 302/404는 정상. 5xx이거나 연결 실패만 FAIL
+          if [ "$STATUS" -ge 500 ] 2>/dev/null || [ "$STATUS" = "000" ]; then
+            echo "site_failed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check API health
+        id: api
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://khsb.vercel.app/api/cron/health-metrics)
+          STATUS=$(echo "$RESPONSE" | tail -n1)
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          if [ "$STATUS" != "200" ]; then
+            echo "api_failed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Notify Slack on failure
+        if: steps.site.outputs.site_failed == 'true' || steps.api.outputs.api_failed == 'true'
+        run: |
+          KST=$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M')
+          MESSAGE="[!] 프로덕션 헬스체크 실패\n사이트: ${{ steps.site.outputs.status }}\nAPI: ${{ steps.api.outputs.status }}\n시각: $KST KST"
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"message\":\"$MESSAGE\"}" \
+            https://khsb.vercel.app/api/cron/slack-notify
+          exit 1

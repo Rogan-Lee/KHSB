@@ -166,6 +166,10 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
     ? new Date(student.endDate).toISOString().split("T")[0]
     : "";
 
+  const defaultBirthDate = student?.birthDate
+    ? new Date(student.birthDate).toISOString().split("T")[0]
+    : "";
+
   return (
     <form action={handleSubmit} ref={formRef} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
@@ -247,7 +251,7 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
         </Select>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label>등원일 *</Label>
           <DatePicker name="startDate" defaultValue={defaultDate} required placeholder="등원일 선택" />
@@ -255,6 +259,10 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
         <div className="space-y-2">
           <Label>퇴원예정일</Label>
           <DatePicker name="endDate" defaultValue={defaultEndDate || undefined} placeholder="퇴원예정일 선택" />
+        </div>
+        <div className="space-y-2">
+          <Label>생년월일</Label>
+          <DatePicker name="birthDate" defaultValue={defaultBirthDate || undefined} placeholder="생년월일 선택" />
         </div>
       </div>
 

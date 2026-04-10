@@ -4,12 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { getWeeklyPlanData } from "@/actions/mentoring-plan";
 import { WeeklyPlanBoard } from "@/components/mentoring/weekly-plan-board";
 
-function getNextMondayKST(): string {
+function getThisMondayKST(): string {
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const day = kstNow.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-  const daysUntilNextMon = day === 0 ? 1 : 8 - day;
-  const nextMon = new Date(kstNow.getTime() + daysUntilNextMon * 24 * 60 * 60 * 1000);
-  return nextMon.toISOString().slice(0, 10);
+  const diff = day === 0 ? -6 : 1 - day; // 일요일이면 전주 월요일, 그 외는 이번 주 월요일
+  const mon = new Date(kstNow.getTime() + diff * 24 * 60 * 60 * 1000);
+  return mon.toISOString().slice(0, 10);
 }
 
 export default async function MentoringPlanPage() {
@@ -23,12 +23,12 @@ export default async function MentoringPlanPage() {
 
   const readonly = role === "MENTOR";
 
-  const weekStart = getNextMondayKST();
+  const weekStart = getThisMondayKST();
   const [mentors, allStudents] = await Promise.all([
     getWeeklyPlanData(weekStart),
     prisma.student.findMany({
       where: { orgId, status: "ACTIVE" },
-      select: { id: true, name: true, grade: true, mentorId: true },
+      select: { id: true, name: true, grade: true, seat: true, mentorId: true },
       orderBy: { name: "asc" },
     }),
   ]);
