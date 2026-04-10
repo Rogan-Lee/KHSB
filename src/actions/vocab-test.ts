@@ -48,7 +48,7 @@ export async function unenrollVocabTest(studentId: string) {
   const session = await getSession();
 
   await prisma.vocabTestEnrollment.update({
-    where: { studentId },
+    where: { studentId, orgId: session.orgId },
     data: { isActive: false, unenrolledAt: new Date() },
   });
 
