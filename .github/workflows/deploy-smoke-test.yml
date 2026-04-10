@@ -16,12 +16,13 @@ jobs:
         if: github.event_name == 'push'
         run: sleep 60
 
-      - name: Check site root
+      - name: Check site reachable
         id: site
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://khsb.vercel.app)
           echo "status=$STATUS" >> $GITHUB_OUTPUT
-          if [ "$STATUS" != "200" ]; then
+          # Clerk 인증으로 302/404는 정상. 5xx이거나 연결 실패만 FAIL
+          if [ "$STATUS" -ge 500 ] 2>/dev/null || [ "$STATUS" = "000" ]; then
             echo "site_failed=true" >> $GITHUB_OUTPUT
           fi
 
