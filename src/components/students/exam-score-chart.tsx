@@ -19,7 +19,7 @@ interface Props {
   initialScores: ExamScore[];
 }
 
-type ViewMode = "all" | "rawScore" | "grade" | "percentile";
+type ViewMode = "all" | "rawScore" | "grade" | "percentile" | "table";
 
 const EXAM_TYPE_LABELS: Record<ExamType, string> = {
   OFFICIAL_MOCK: "공식 모의고사",
@@ -94,6 +94,65 @@ function Trend({ current, prev }: { current?: number; prev?: number }) {
     </span>
   );
   return <span className="flex items-center gap-0.5 text-muted-foreground text-xs"><Minus className="h-3 w-3" /> 0</span>;
+}
+
+function ExamTableView({ scores, filterType }: { scores: ExamScore[]; filterType: ExamType | "ALL" }) {
+  const typeScores = filterType === "ALL" ? scores : scores.filter((s) => s.examType === filterType);
+  const examGroups = new Map<string, { examName: string; examDate: Date; examType: ExamType; scores: ExamScore[] }>();
+  for (const s of typeScores) {
+    const key = `${s.examName}_${new Date(s.examDate).toISOString().slice(0, 10)}`;
+    if (!examGroups.has(key)) examGroups.set(key, { examName: s.examName, examDate: new Date(s.examDate), examType: s.examType, scores: [] });
+    examGroups.get(key)!.scores.push(s);
+  }
+  const groups = [...examGroups.values()].sort((a, b) => b.examDate.getTime() - a.examDate.getTime());
+  const allSubjects = [...new Set(typeScores.map((s) => s.subject))].sort();
+
+  if (groups.length === 0) return (
+    <div className="flex items-center justify-center h-48 text-sm text-muted-foreground border rounded-lg bg-muted/20">
+      {filterType === "ALL" ? "성적" : EXAM_TYPE_LABELS[filterType]} 데이터가 없습니다
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {groups.map((g) => (
+        <div key={`${g.examName}_${g.examDate.toISOString()}`} className="rounded-lg border overflow-hidden">
+          <div className="bg-muted/40 px-4 py-2 flex items-center gap-2 border-b">
+            <span className="font-medium text-sm">{g.examName}</span>
+            <span className="text-xs text-muted-foreground">{new Date(g.examDate).toLocaleDateString("ko-KR")}</span>
+            <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{EXAM_TYPE_LABELS[g.examType]}</span>
+            <span className="text-xs text-muted-foreground ml-auto">{g.scores.length}과목</span>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-xs text-muted-foreground border-b bg-muted/20">
+                <th className="px-3 py-2 text-left font-medium">과목</th>
+                <th className="px-3 py-2 text-right font-medium">원점수</th>
+                <th className="px-3 py-2 text-right font-medium">등급</th>
+                <th className="px-3 py-2 text-right font-medium">백분위</th>
+                <th className="px-3 py-2 text-left font-medium">메모</th>
+              </tr>
+            </thead>
+            <tbody>
+              {g.scores
+                .sort((a, b) => allSubjects.indexOf(a.subject) - allSubjects.indexOf(b.subject))
+                .map((s) => (
+                <tr key={s.id} className="border-b last:border-0 hover:bg-muted/20">
+                  <td className="px-3 py-2 font-medium">{s.subject}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{s.rawScore != null ? `${s.rawScore}점` : "—"}</td>
+                  <td className="px-3 py-2 text-right">
+                    {s.grade ? <span className="font-bold tabular-nums" style={{ color: gradeColor(s.grade) }}>{s.grade}등급</span> : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">{s.percentile != null ? `${s.percentile}%` : "—"}</td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">{s.notes || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function ExamScoreChart({ studentId, initialScores }: Props) {
@@ -232,6 +291,7 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
     { key: "rawScore", label: "원점수" },
     { key: "grade", label: "등급" },
     { key: "percentile", label: "백분위" },
+    { key: "table", label: "시험별 전체 과목" },
   ];
 
   return (
@@ -456,12 +516,15 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
         ))}
       </div>
 
+      {/* 시험별 전체 과목 테이블 뷰 */}
+      {viewMode === "table" && <ExamTableView scores={scores} filterType={filterType} />}
+
       {/* 데이터 없음 */}
-      {chartData.length === 0 ? (
+      {chartData.length === 0 && viewMode !== "table" ? (
         <div className="flex items-center justify-center h-48 text-sm text-muted-foreground border rounded-lg bg-muted/20">
           {filterSubject} 과목 데이터가 없습니다
         </div>
-      ) : (
+      ) : viewMode !== "table" ? (
         <>
           {/* 전체 뷰 — KPI 카드 3개 + 스파크라인 */}
           {viewMode === "all" && (
@@ -722,10 +785,10 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
             );
           })()}
         </>
-      )}
+      ) : null}
 
       {/* 성적 목록 테이블 */}
-      {filtered.length > 0 && (
+      {viewMode !== "table" && filtered.length > 0 && (
         <div className="rounded-lg border overflow-hidden">
           <table className="w-full text-sm border-collapse">
             <thead>
