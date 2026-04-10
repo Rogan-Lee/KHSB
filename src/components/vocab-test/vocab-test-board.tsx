@@ -199,9 +199,18 @@ function ScoresTab({ enrollments, scores }: {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [studentFilter, setStudentFilter] = useState<string>("ALL");
+  const [studentQuery, setStudentQuery] = useState("");
+  const [comboOpen, setComboOpen] = useState(false);
 
   const studentNames = [...new Map(scores.map((s) => [s.student.id, s.student])).values()]
     .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+
+  const sq = studentQuery.trim().toLowerCase();
+  const comboOptions = sq
+    ? studentNames.filter((s) => s.name.toLowerCase().includes(sq) || s.grade.toLowerCase().includes(sq))
+    : studentNames;
+
+  const selectedStudent = studentNames.find((s) => s.id === studentFilter);
 
   const filteredScores = studentFilter === "ALL"
     ? scores
@@ -270,16 +279,49 @@ function ScoresTab({ enrollments, scores }: {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">성적 이력</CardTitle>
-          <select
-            value={studentFilter}
-            onChange={(e) => setStudentFilter(e.target.value)}
-            className="border rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-          >
-            <option value="ALL">전체 학생</option>
-            {studentNames.map((s) => (
-              <option key={s.id} value={s.id}>{s.name} ({s.grade})</option>
-            ))}
-          </select>
+          <div className="relative">
+            <div className="flex items-center gap-1">
+              <div className="relative">
+                <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={comboOpen ? studentQuery : selectedStudent ? `${selectedStudent.name} (${selectedStudent.grade})` : ""}
+                  placeholder="학생 검색..."
+                  onChange={(e) => { setStudentQuery(e.target.value); setComboOpen(true); }}
+                  onFocus={() => { setStudentQuery(""); setComboOpen(true); }}
+                  onBlur={() => setTimeout(() => setComboOpen(false), 150)}
+                  className="pl-7 pr-2 py-1 border rounded-md text-xs w-44 focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+                />
+              </div>
+              {studentFilter !== "ALL" && (
+                <button onClick={() => { setStudentFilter("ALL"); setStudentQuery(""); }} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            {comboOpen && (
+              <div className="absolute right-0 top-full mt-1 w-52 max-h-48 overflow-y-auto bg-background border rounded-md shadow-lg z-20">
+                <button
+                  onMouseDown={() => { setStudentFilter("ALL"); setStudentQuery(""); setComboOpen(false); }}
+                  className={cn("w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors", studentFilter === "ALL" && "bg-primary/10 text-primary")}
+                >
+                  전체 학생
+                </button>
+                {comboOptions.map((s) => (
+                  <button
+                    key={s.id}
+                    onMouseDown={() => { setStudentFilter(s.id); setStudentQuery(""); setComboOpen(false); }}
+                    className={cn("w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors", studentFilter === s.id && "bg-primary/10 text-primary")}
+                  >
+                    {s.name} <span className="text-muted-foreground">({s.grade})</span>
+                  </button>
+                ))}
+                {comboOptions.length === 0 && (
+                  <div className="px-3 py-2 text-xs text-muted-foreground">검색 결과 없음</div>
+                )}
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
