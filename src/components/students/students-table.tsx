@@ -58,7 +58,7 @@ const STATUS_MAP = {
   WITHDRAWN: { label: "퇴원", variant: "destructive" as const },
 };
 
-type SortKey = "seat" | "name" | "school" | "startDate" | "status";
+type SortKey = "seat" | "name" | "school" | "mentor" | "startDate" | "status";
 type SortDir = "asc" | "desc";
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
@@ -308,15 +308,24 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
   const [showWithdrawn, setShowWithdrawn] = useState<boolean>(saved.withdrawn ?? false);
   const [sortKey, setSortKey] = useState<SortKey>(saved.sort ?? "seat");
   const [sortDir, setSortDir] = useState<SortDir>(saved.dir ?? "asc");
+  const [mentorFilter, setMentorFilter] = useState<string>("ALL");
+
+  // 멘토 목록 추출 (이름 가나다순)
+  const mentorNames = [...new Set(students.map((s) => s.mentor?.name).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, "ko"));
 
   useEffect(() => {
     try { sessionStorage.setItem(STUDENTS_FILTER_KEY, JSON.stringify({ q: query, withdrawn: showWithdrawn, sort: sortKey, dir: sortDir })); } catch {}
   }, [query, showWithdrawn, sortKey, sortDir]);
 
   // 퇴원생 보기 모드: WITHDRAWN만 표시 / 기본: WITHDRAWN 제외
-  const visibleStudents = showWithdrawn
+  const statusFiltered = showWithdrawn
     ? students.filter((s) => s.status === "WITHDRAWN")
     : students.filter((s) => s.status !== "WITHDRAWN");
+
+  // 멘토 필터 적용
+  const visibleStudents = mentorFilter === "ALL"
+    ? statusFiltered
+    : statusFiltered.filter((s) => s.mentor?.name === mentorFilter);
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -414,6 +423,9 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
             case "startDate":
               cmp = new Date(sa.startDate).getTime() - new Date(sb.startDate).getTime();
               break;
+            case "mentor":
+              cmp = (sa.mentor?.name || "").localeCompare(sb.mentor?.name || "", "ko");
+              break;
             case "status":
               cmp = sa.status.localeCompare(sb.status);
               break;
@@ -455,6 +467,32 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
           {showWithdrawn ? "← 재원생 보기" : "퇴원생 보기"}
         </button>
       </div>
+
+      {/* 멘토 필터 */}
+      {mentorNames.length > 0 && (
+        <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+          <span className="text-xs text-muted-foreground shrink-0">담당 멘토</span>
+          {[{ name: "전체", value: "ALL" }, ...mentorNames.map((n) => ({ name: n, value: n }))].map((m) => (
+            <button
+              key={m.value}
+              onClick={() => setMentorFilter(m.value)}
+              className={cn(
+                "px-2.5 py-1 text-xs rounded-md font-medium border transition-colors",
+                mentorFilter === m.value
+                  ? "bg-primary/10 text-primary border-primary/30"
+                  : "border-border text-muted-foreground hover:bg-muted"
+              )}
+            >
+              {m.name}
+              {m.value !== "ALL" && (
+                <span className="ml-1 text-[10px] opacity-60">
+                  {statusFiltered.filter((s) => s.mentor?.name === m.value).length}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -470,7 +508,9 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
               </TableHead>
               <TableHead className="whitespace-nowrap">연락처</TableHead>
               <TableHead className="whitespace-nowrap">학부모 연락처</TableHead>
-              <TableHead className="whitespace-nowrap">담당 멘토</TableHead>
+              <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("mentor")}>
+                담당 멘토<SortIcon col="mentor" sortKey={sortKey} sortDir={sortDir} />
+              </TableHead>
               <TableHead className="whitespace-nowrap">특이사항</TableHead>
               <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("startDate")}>
                 등원일<SortIcon col="startDate" sortKey={sortKey} sortDir={sortDir} />
@@ -500,9 +540,7 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
               return (
                 <TableRow
                   key={student.id}
-                  className={cn("cursor-pointer hover:bg-accent/50 transition-colors",
-                    !isVocabDone(student.vocabTestDate) && student.status === "ACTIVE" && "bg-orange-50")}
-                  title={!isVocabDone(student.vocabTestDate) && student.status === "ACTIVE" ? "단어시험 미응시" : undefined}
+                  className="cursor-pointer hover:bg-accent/50 transition-colors"
                   onClick={() => router.push(`/students/${student.id}`)}
                 >
                   <TableCell className="font-mono text-xs whitespace-nowrap">

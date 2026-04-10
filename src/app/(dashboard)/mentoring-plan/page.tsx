@@ -26,7 +26,7 @@ export default async function MentoringPlanPage() {
     getWeeklyPlanData(weekStart),
     prisma.student.findMany({
       where: { status: "ACTIVE" },
-      select: { id: true, name: true, grade: true, mentorId: true },
+      select: { id: true, name: true, grade: true, seat: true, mentorId: true },
       orderBy: { name: "asc" },
     }),
   ]);
