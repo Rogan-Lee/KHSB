@@ -24,6 +24,7 @@ export function NewFeatureRequestForm() {
   const [description, setDescription] = useState(DESCRIPTION_TEMPLATES["FEATURE"] ?? "");
   const [category, setCategory] = useState("FEATURE");
   const [priority, setPriority] = useState("NORMAL");
+  const [editorKey, setEditorKey] = useState(0);
 
   function handleCategoryChange(newCategory: string) {
     const allTemplates = Object.values(DESCRIPTION_TEMPLATES);
@@ -31,6 +32,7 @@ export function NewFeatureRequestForm() {
     setCategory(newCategory);
     if (isUntouched) {
       setDescription(DESCRIPTION_TEMPLATES[newCategory] ?? "");
+      setEditorKey((k) => k + 1);
     }
   }
   const [relatedPage, setRelatedPage] = useState("");
@@ -163,6 +165,7 @@ export function NewFeatureRequestForm() {
           </p>
           <div className="min-h-[300px] border rounded-lg overflow-hidden">
             <MarkdownEditor
+              key={editorKey}
               value={description}
               onChange={setDescription}
               placeholder="어떤 기능이 필요한지, 현재 어떤 문제가 있는지 구체적으로 작성해 주세요..."
