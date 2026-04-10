@@ -17,6 +17,7 @@ export type WeeklyPlanStudent = {
   id: string;
   name: string;
   grade: string;
+  seat: string | null;
   priority: 1 | 2 | 3;
   daysSinceLast: number | null;
   lastMentoringDate: string | null;
@@ -58,6 +59,7 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
           id: true,
           name: true,
           grade: true,
+          seat: true,
           schedules: { select: { dayOfWeek: true } },
         },
       },
@@ -95,7 +97,7 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
     extraStudentIds.length > 0
       ? await prisma.student.findMany({
           where: { id: { in: extraStudentIds } },
-          select: { id: true, name: true, grade: true, schedules: { select: { dayOfWeek: true } } },
+          select: { id: true, name: true, grade: true, seat: true, schedules: { select: { dayOfWeek: true } } },
         })
       : [];
 
@@ -143,6 +145,7 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
         id: student.id,
         name: student.name,
         grade: student.grade,
+        seat: student.seat,
         priority,
         daysSinceLast,
         lastMentoringDate: lastDate ? lastDate.toISOString() : null,
@@ -181,6 +184,7 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
         id: extra.id,
         name: extra.name,
         grade: extra.grade,
+        seat: extra.seat,
         priority,
         daysSinceLast,
         lastMentoringDate: lastDate ? lastDate.toISOString() : null,

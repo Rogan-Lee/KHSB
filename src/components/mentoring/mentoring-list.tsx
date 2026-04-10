@@ -50,7 +50,7 @@ type Mentoring = {
   scheduledTimeEnd: string | null;
   status: keyof typeof STATUS_MAP;
   notes: string | null;
-  student: { id: string; name: string; grade: string; vocabTestDate?: Date | null };
+  student: { id: string; name: string; grade: string; seat?: string | null; vocabTestDate?: Date | null };
   mentor: { id: string; name: string };
 };
 
@@ -408,7 +408,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                   aria-label="전체 선택"
                 />
               </TableHead>
-              <TableHead className="w-10 text-center">#</TableHead>
+              <TableHead className="w-10 text-center">좌석</TableHead>
               <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("scheduledAt")}>
                 예정일<SortIcon col="scheduledAt" sortKey={sortKey} sortDir={sortDir} />
               </TableHead>
@@ -452,7 +452,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                       aria-label={`${m.student.name} 선택`}
                     />
                   </TableCell>
-                  <TableCell className="text-center text-xs text-muted-foreground">{idx + 1}</TableCell>
+                  <TableCell className="text-center text-xs text-muted-foreground font-mono">{m.student.seat || "—"}</TableCell>
                   <TableCell className="whitespace-nowrap">{formatDate(m.scheduledAt)}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">
