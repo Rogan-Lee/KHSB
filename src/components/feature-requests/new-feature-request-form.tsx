@@ -11,7 +11,7 @@ import {
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { createFeatureRequest } from "@/actions/feature-requests";
 import {
-  CATEGORY_OPTIONS, PRIORITY_OPTIONS, RELATED_PAGE_OPTIONS,
+  CATEGORY_OPTIONS, PRIORITY_OPTIONS, RELATED_PAGE_OPTIONS, DESCRIPTION_TEMPLATES,
 } from "@/lib/feature-request-constants";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -21,9 +21,18 @@ import Link from "next/link";
 export function NewFeatureRequestForm() {
   const router = useRouter();
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(DESCRIPTION_TEMPLATES["FEATURE"] ?? "");
   const [category, setCategory] = useState("FEATURE");
   const [priority, setPriority] = useState("NORMAL");
+
+  function handleCategoryChange(newCategory: string) {
+    const prevTemplate = DESCRIPTION_TEMPLATES[category] ?? "";
+    const isUntouched = !description || description === prevTemplate;
+    setCategory(newCategory);
+    if (isUntouched) {
+      setDescription(DESCRIPTION_TEMPLATES[newCategory] ?? "");
+    }
+  }
   const [relatedPage, setRelatedPage] = useState("");
   const [requester, setRequester] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -83,7 +92,7 @@ export function NewFeatureRequestForm() {
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => setCategory(opt.value)}
+                  onClick={() => handleCategoryChange(opt.value)}
                   className={cn(
                     "flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
                     category === opt.value
