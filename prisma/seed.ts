@@ -8,6 +8,20 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
+  // 시드용 Organization 생성
+  const org = await prisma.organization.upsert({
+    where: { slug: "seed-org" },
+    update: {},
+    create: {
+      name: "시드 독서실",
+      slug: "seed-org",
+      plan: "STANDARD",
+      status: "ACTIVE",
+      maxStudents: 50,
+    },
+  });
+  const orgId = org.id;
+
   // 원장 계정 생성 (Clerk 인증 사용 — password 필드 없음)
   const director = await prisma.user.upsert({
     where: { email: "director@studyroom.kr" },
@@ -19,6 +33,13 @@ async function main() {
     },
   });
 
+  // Membership 생성
+  await prisma.membership.upsert({
+    where: { userId_orgId: { userId: director.id, orgId } },
+    update: {},
+    create: { userId: director.id, orgId, role: "DIRECTOR" },
+  });
+
   // 멘토 계정 생성
   const mentor = await prisma.user.upsert({
     where: { email: "mentor1@studyroom.kr" },
@@ -28,6 +49,12 @@ async function main() {
       name: "김멘토",
       role: "MENTOR",
     },
+  });
+
+  await prisma.membership.upsert({
+    where: { userId_orgId: { userId: mentor.id, orgId } },
+    update: {},
+    create: { userId: mentor.id, orgId, role: "MENTOR" },
   });
 
   // 샘플 원생 생성
@@ -48,6 +75,7 @@ async function main() {
         startDate: new Date("2025-03-01"),
         mentorId: mentor.id,
         status: "ACTIVE",
+        orgId,
       },
     });
   }

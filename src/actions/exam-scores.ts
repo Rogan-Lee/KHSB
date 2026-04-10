@@ -64,11 +64,10 @@ export async function updateExamScore(id: string, data: {
   percentile?: number;
   notes?: string;
 }) {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
+  const session = await getSession();
 
   const record = await prisma.examScore.update({
-    where: { id },
+    where: { id, orgId: session.orgId },
     data: {
       examType: data.examType,
       examName: data.examName,
