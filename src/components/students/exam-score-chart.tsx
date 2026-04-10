@@ -157,7 +157,7 @@ function ExamTableView({ scores, filterType }: { scores: ExamScore[]; filterType
 
 export function ExamScoreChart({ studentId, initialScores }: Props) {
   const [scores, setScores] = useState<ExamScore[]>(initialScores);
-  const [viewMode, setViewMode] = useState<ViewMode>("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [filterType, setFilterType] = useState<ExamType | "ALL">("ALL");
   const [filterSubject, setFilterSubject] = useState<string>("국어");
   const [showForm, setShowForm] = useState(false);
@@ -318,24 +318,17 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
           </div>
         </div>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1.5">
             <span className="text-xs text-muted-foreground shrink-0">과목</span>
-            <div className="flex gap-1 flex-wrap">
+            <select
+              value={filterSubject}
+              onChange={(e) => setFilterSubject(e.target.value)}
+              className="border rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+            >
               {allSubjects.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setFilterSubject(s)}
-                  className={cn(
-                    "px-2.5 py-1 text-xs rounded-md font-medium border transition-colors",
-                    filterSubject === s
-                      ? "bg-primary/10 text-primary border-primary/30"
-                      : "border-border text-muted-foreground hover:bg-muted"
-                  )}
-                >
-                  {s}
-                </button>
+                <option key={s} value={s}>{s}</option>
               ))}
-            </div>
+            </select>
           </div>
           <Button
             size="sm"
