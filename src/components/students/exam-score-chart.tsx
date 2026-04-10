@@ -394,6 +394,47 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowForm(false)}>취소</Button>
             <Button size="sm" className="h-7 text-xs" onClick={handleAdd} disabled={isPending}>등록</Button>
           </div>
+
+          {/* 선택된 시험유형의 기존 성적 */}
+          {(() => {
+            const existing = scores.filter((s) => s.examType === form.examType);
+            if (existing.length === 0) return null;
+            return (
+              <div className="mt-3 border-t pt-3">
+                <p className="text-xs text-muted-foreground mb-2">
+                  {EXAM_TYPE_LABELS[form.examType]} 기존 성적 ({existing.length}건)
+                </p>
+                <div className="max-h-40 overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-muted-foreground border-b">
+                        <th className="text-left py-1 px-1">시험명</th>
+                        <th className="text-left py-1 px-1">날짜</th>
+                        <th className="text-left py-1 px-1">과목</th>
+                        <th className="text-right py-1 px-1">원점수</th>
+                        <th className="text-right py-1 px-1">등급</th>
+                        <th className="text-right py-1 px-1">백분위</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {existing
+                        .sort((a, b) => new Date(b.examDate).getTime() - new Date(a.examDate).getTime())
+                        .map((s) => (
+                        <tr key={s.id} className="border-b border-dashed last:border-0">
+                          <td className="py-1 px-1">{s.examName}</td>
+                          <td className="py-1 px-1">{fmtDate(s.examDate)}</td>
+                          <td className="py-1 px-1">{s.subject}</td>
+                          <td className="text-right py-1 px-1">{s.rawScore ?? "-"}</td>
+                          <td className="text-right py-1 px-1">{s.grade ?? "-"}</td>
+                          <td className="text-right py-1 px-1">{s.percentile ?? "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -692,6 +733,7 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
                 <th className="px-3 py-2.5 text-left font-medium">날짜</th>
                 <th className="px-3 py-2.5 text-left font-medium">시험명</th>
                 <th className="px-3 py-2.5 text-left font-medium">유형</th>
+                <th className="px-3 py-2.5 text-left font-medium">과목</th>
                 <th className="px-3 py-2.5 text-right font-medium">원점수</th>
                 <th className="px-3 py-2.5 text-left font-medium">메모</th>
                 <th className="px-3 py-2.5 text-right font-medium">등급</th>
@@ -716,6 +758,12 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
                       <select value={editForm.examType} onChange={(e) => setEditForm((f) => ({ ...f, examType: e.target.value as ExamType }))}
                         className="border rounded px-1 py-1 text-xs bg-background">
                         {EXAM_TYPES.map((t) => <option key={t} value={t}>{EXAM_TYPE_LABELS[t]}</option>)}
+                      </select>
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <select value={editForm.subject} onChange={(e) => setEditForm((f) => ({ ...f, subject: e.target.value }))}
+                        className="border rounded px-1 py-1 text-xs bg-background">
+                        {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </td>
                     <td className="px-2 py-1.5">
@@ -759,6 +807,7 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
                         {EXAM_TYPE_LABELS[s.examType]}
                       </span>
                     </td>
+                    <td className="px-3 py-2.5 text-xs">{s.subject}</td>
                     <td className="px-3 py-2.5 text-right font-medium tabular-nums">
                       {s.rawScore != null ? `${s.rawScore}점` : <span className="text-muted-foreground">—</span>}
                     </td>
