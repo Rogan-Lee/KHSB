@@ -19,7 +19,7 @@ export default async function MentoringPage() {
 
   const mentorings = await prisma.mentoring.findMany({
     include: {
-      student: { select: { id: true, name: true, grade: true } },
+      student: { select: { id: true, name: true, grade: true, seat: true, vocabTestDate: true } },
       mentor: { select: { id: true, name: true } },
     },
     orderBy: { scheduledAt: "desc" },
@@ -38,6 +38,13 @@ export default async function MentoringPage() {
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
+
+  // 영단어 시험 대상자 ID 목록
+  const vocabEnrolled = await prisma.vocabTestEnrollment.findMany({
+    where: { isActive: true },
+    select: { studentId: true },
+  });
+  const vocabEnrolledIds = vocabEnrolled.map((v) => v.studentId);
 
   // 오늘 입실 중인 학생 ID 목록
   const todayAttendance = await prisma.attendanceRecord.findMany({
@@ -99,7 +106,7 @@ export default async function MentoringPage() {
           </Link>
         </CardHeader>
         <CardContent>
-          <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} />
+          <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} vocabEnrolledStudentIds={vocabEnrolledIds} />
         </CardContent>
       </Card>
     </div>

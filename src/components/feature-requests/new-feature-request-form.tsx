@@ -26,8 +26,8 @@ export function NewFeatureRequestForm() {
   const [priority, setPriority] = useState("NORMAL");
 
   function handleCategoryChange(newCategory: string) {
-    const prevTemplate = DESCRIPTION_TEMPLATES[category] ?? "";
-    const isUntouched = !description || description === prevTemplate;
+    const allTemplates = Object.values(DESCRIPTION_TEMPLATES);
+    const isUntouched = !description || allTemplates.includes(description);
     setCategory(newCategory);
     if (isUntouched) {
       setDescription(DESCRIPTION_TEMPLATES[newCategory] ?? "");

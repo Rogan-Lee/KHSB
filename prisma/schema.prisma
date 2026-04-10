@@ -130,6 +130,7 @@ model Student {
   seat                String?
   startDate           DateTime
   endDate             DateTime?
+  birthDate           DateTime?              @db.Date // 생년월일 (핀번호/수험표용)
   status              StudentStatus          @default(ACTIVE)
   internalScoreRange  String?               // 내신 성적대 (예: "2~3등급")
   mockScoreRange      String?               // 모의고사 성적대 (예: "3~4등급")
