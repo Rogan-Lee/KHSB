@@ -39,6 +39,13 @@ export default async function MentoringPage() {
     orderBy: { name: "asc" },
   });
 
+  // 영단어 시험 대상자 ID 목록
+  const vocabEnrolled = await prisma.vocabTestEnrollment.findMany({
+    where: { isActive: true },
+    select: { studentId: true },
+  });
+  const vocabEnrolledIds = vocabEnrolled.map((v) => v.studentId);
+
   // 오늘 입실 중인 학생 ID 목록
   const todayAttendance = await prisma.attendanceRecord.findMany({
     where: {
@@ -99,7 +106,7 @@ export default async function MentoringPage() {
           </Link>
         </CardHeader>
         <CardContent>
-          <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} />
+          <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} vocabEnrolledStudentIds={vocabEnrolledIds} />
         </CardContent>
       </Card>
     </div>
