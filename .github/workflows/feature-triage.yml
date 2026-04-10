@@ -50,7 +50,7 @@ jobs:
               .requests[]
               | select(.category == "BUG" and (.priority == "URGENT" or .priority == "HIGH"))
               | . as $r
-              | (($now | tonumber) - ((.createdAt | fromdate))) / 86400 | floor as $days
+              | (($now | tonumber) - ((.createdAt | sub("\\.[0-9]+Z$"; "Z") | fromdate))) / 86400 | floor as $days
               | "| \($r.title) | \($r.category) | \($r.priority) | \($days)일 |"
             ' /tmp/requests.json
             echo ""
@@ -61,7 +61,7 @@ jobs:
               .requests[]
               | select(.category == "FEATURE" and .priority == "HIGH")
               | . as $r
-              | (($now | tonumber) - ((.createdAt | fromdate))) / 86400 | floor as $days
+              | (($now | tonumber) - ((.createdAt | sub("\\.[0-9]+Z$"; "Z") | fromdate))) / 86400 | floor as $days
               | "| \($r.title) | \($r.category) | \($r.priority) | \($days)일 |"
             ' /tmp/requests.json
             echo ""
@@ -77,7 +77,7 @@ jobs:
                   (.category == "FEATURE" and .priority == "HIGH") | not
                 )
               | . as $r
-              | (($now | tonumber) - ((.createdAt | fromdate))) / 86400 | floor as $days
+              | (($now | tonumber) - ((.createdAt | sub("\\.[0-9]+Z$"; "Z") | fromdate))) / 86400 | floor as $days
               | "| \($r.title) | \($r.category) | \($r.priority) | \($days)일 |"
             ' /tmp/requests.json
           } > "$REPORT"
