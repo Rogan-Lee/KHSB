@@ -540,9 +540,7 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
               return (
                 <TableRow
                   key={student.id}
-                  className={cn("cursor-pointer hover:bg-accent/50 transition-colors",
-                    !isVocabDone(student.vocabTestDate) && student.status === "ACTIVE" && "bg-orange-50")}
-                  title={!isVocabDone(student.vocabTestDate) && student.status === "ACTIVE" ? "단어시험 미응시" : undefined}
+                  className="cursor-pointer hover:bg-accent/50 transition-colors"
                   onClick={() => router.push(`/students/${student.id}`)}
                 >
                   <TableCell className="font-mono text-xs whitespace-nowrap">
