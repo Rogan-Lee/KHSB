@@ -46,7 +46,7 @@ export default async function MentoringPage() {
 
   // 영단어 시험 대상자 ID 목록
   const vocabEnrolled = await prisma.vocabTestEnrollment.findMany({
-    where: { isActive: true },
+    where: { orgId, isActive: true },
     select: { studentId: true },
   });
   const vocabEnrolledIds = vocabEnrolled.map((v) => v.studentId);
