@@ -395,6 +395,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                   aria-label="전체 선택"
                 />
               </TableHead>
+              <TableHead className="w-10 text-center">#</TableHead>
               <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("scheduledAt")}>
                 예정일<SortIcon col="scheduledAt" sortKey={sortKey} sortDir={sortDir} />
               </TableHead>
@@ -424,7 +425,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((m) => (
+              filtered.map((m, idx) => (
                 <TableRow key={m.id} data-state={selected.has(m.id) ? "selected" : undefined}>
                   <TableCell>
                     <Checkbox
@@ -433,6 +434,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                       aria-label={`${m.student.name} 선택`}
                     />
                   </TableCell>
+                  <TableCell className="text-center text-xs text-muted-foreground">{idx + 1}</TableCell>
                   <TableCell className="whitespace-nowrap">{formatDate(m.scheduledAt)}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     <span className="inline-flex items-center gap-1.5">
