@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AttendanceType } from "@/generated/prisma";
 import { todayKST } from "@/lib/utils";
+import { requireStaff, requireOwnerOrFullAccess } from "@/lib/roles";
 
 const recordSchema = z.object({
   studentId: z.string(),
@@ -276,6 +277,17 @@ export async function createDailyOuting(data: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  // 해당 학생에 대한 접근 권한 확인 (담당 멘토이거나 DIRECTOR/ADMIN)
+  const student = await prisma.student.findUnique({
+    where: { id: data.studentId },
+    select: { id: true, mentorId: true },
+  });
+  if (!student) throw new Error("학생을 찾을 수 없습니다");
+  if (student.mentorId) {
+    requireOwnerOrFullAccess(student.mentorId, session.user.id, session.user.role);
+  }
 
   const record = await prisma.dailyOuting.create({
     data: {
@@ -299,6 +311,17 @@ export async function updateDailyOuting(id: string, data: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  // 레코드 조회 후 소유권 검증
+  const existing = await prisma.dailyOuting.findUnique({
+    where: { id },
+    include: { student: { select: { mentorId: true } } },
+  });
+  if (!existing) throw new Error("외출 기록을 찾을 수 없습니다");
+  if (existing.student.mentorId) {
+    requireOwnerOrFullAccess(existing.student.mentorId, session.user.id, session.user.role);
+  }
 
   await prisma.dailyOuting.update({
     where: { id },
@@ -315,6 +338,17 @@ export async function updateDailyOuting(id: string, data: {
 export async function deleteDailyOuting(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  // 레코드 조회 후 소유권 검증
+  const existing = await prisma.dailyOuting.findUnique({
+    where: { id },
+    include: { student: { select: { mentorId: true } } },
+  });
+  if (!existing) throw new Error("외출 기록을 찾을 수 없습니다");
+  if (existing.student.mentorId) {
+    requireOwnerOrFullAccess(existing.student.mentorId, session.user.id, session.user.role);
+  }
 
   await prisma.dailyOuting.delete({ where: { id } });
   revalidatePath("/attendance");
