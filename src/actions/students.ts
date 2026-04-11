@@ -99,7 +99,7 @@ export async function updateStudent(id: string, formData: FormData) {
 
   revalidatePath("/students");
   revalidatePath(`/students/${id}`);
-  redirect(`/students/${id}`);
+  revalidatePath("/attendance");
 }
 
 export async function deleteStudent(id: string) {
