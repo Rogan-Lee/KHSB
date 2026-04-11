@@ -37,29 +37,34 @@ export async function createStudent(formData: FormData) {
   const raw = Object.fromEntries(formData.entries());
   const data = studentSchema.parse(raw);
 
-  await prisma.student.create({
-    data: {
-      ...data,
-      phone: data.phone || null,
-      parentEmail: data.parentEmail || null,
-      school: data.school || null,
-      classGroup: data.classGroup && data.classGroup !== "none" ? data.classGroup : null,
-      seat: data.seat && data.seat !== "none" ? data.seat : null,
-      mentorId: data.mentorId && data.mentorId !== "none" ? data.mentorId : null,
-      endDate: data.endDate ? new Date(data.endDate) : null,
-      birthDate: data.birthDate ? new Date(data.birthDate) : null,
-      startDate: new Date(data.startDate),
-      internalScoreRange: data.internalScoreRange || null,
-      mockScoreRange: data.mockScoreRange || null,
-      targetUniversity: data.targetUniversity || null,
-      mentoringNotes: data.mentoringNotes || null,
-      academySchedule: data.academySchedule || null,
-      studentInfo: data.studentInfo || null,
-      selectedSubjects: data.selectedSubjects || null,
-      admissionType: data.admissionType || null,
-      onlineLectures: data.onlineLectures || null,
-    },
-  });
+  try {
+    await prisma.student.create({
+      data: {
+        ...data,
+        phone: data.phone || null,
+        parentEmail: data.parentEmail || null,
+        school: data.school || null,
+        classGroup: data.classGroup && data.classGroup !== "none" ? data.classGroup : null,
+        seat: data.seat && data.seat !== "none" ? data.seat : null,
+        mentorId: data.mentorId && data.mentorId !== "none" ? data.mentorId : null,
+        endDate: data.endDate ? new Date(data.endDate) : null,
+        birthDate: data.birthDate ? new Date(data.birthDate) : null,
+        startDate: new Date(data.startDate),
+        internalScoreRange: data.internalScoreRange || null,
+        mockScoreRange: data.mockScoreRange || null,
+        targetUniversity: data.targetUniversity || null,
+        mentoringNotes: data.mentoringNotes || null,
+        academySchedule: data.academySchedule || null,
+        studentInfo: data.studentInfo || null,
+        selectedSubjects: data.selectedSubjects || null,
+        admissionType: data.admissionType || null,
+        onlineLectures: data.onlineLectures || null,
+      },
+    });
+  } catch (error) {
+    console.error("[createStudent] 실패", { userId: session.user.id, error });
+    throw new Error("학생 등록에 실패했습니다. 다시 시도해주세요.");
+  }
 
   revalidatePath("/students");
   redirect("/students");
@@ -72,30 +77,35 @@ export async function updateStudent(id: string, formData: FormData) {
   const raw = Object.fromEntries(formData.entries());
   const data = studentSchema.parse(raw);
 
-  await prisma.student.update({
-    where: { id },
-    data: {
-      ...data,
-      phone: data.phone || null,
-      parentEmail: data.parentEmail || null,
-      school: data.school || null,
-      classGroup: data.classGroup && data.classGroup !== "none" ? data.classGroup : null,
-      seat: data.seat && data.seat !== "none" ? data.seat : null,
-      mentorId: data.mentorId && data.mentorId !== "none" ? data.mentorId : null,
-      endDate: data.endDate ? new Date(data.endDate) : null,
-      birthDate: data.birthDate ? new Date(data.birthDate) : null,
-      startDate: new Date(data.startDate),
-      internalScoreRange: data.internalScoreRange || null,
-      mockScoreRange: data.mockScoreRange || null,
-      targetUniversity: data.targetUniversity || null,
-      mentoringNotes: data.mentoringNotes || null,
-      academySchedule: data.academySchedule || null,
-      studentInfo: data.studentInfo || null,
-      selectedSubjects: data.selectedSubjects || null,
-      admissionType: data.admissionType || null,
-      onlineLectures: data.onlineLectures || null,
-    },
-  });
+  try {
+    await prisma.student.update({
+      where: { id },
+      data: {
+        ...data,
+        phone: data.phone || null,
+        parentEmail: data.parentEmail || null,
+        school: data.school || null,
+        classGroup: data.classGroup && data.classGroup !== "none" ? data.classGroup : null,
+        seat: data.seat && data.seat !== "none" ? data.seat : null,
+        mentorId: data.mentorId && data.mentorId !== "none" ? data.mentorId : null,
+        endDate: data.endDate ? new Date(data.endDate) : null,
+        birthDate: data.birthDate ? new Date(data.birthDate) : null,
+        startDate: new Date(data.startDate),
+        internalScoreRange: data.internalScoreRange || null,
+        mockScoreRange: data.mockScoreRange || null,
+        targetUniversity: data.targetUniversity || null,
+        mentoringNotes: data.mentoringNotes || null,
+        academySchedule: data.academySchedule || null,
+        studentInfo: data.studentInfo || null,
+        selectedSubjects: data.selectedSubjects || null,
+        admissionType: data.admissionType || null,
+        onlineLectures: data.onlineLectures || null,
+      },
+    });
+  } catch (error) {
+    console.error("[updateStudent] 실패", { userId: session.user.id, studentId: id, error });
+    throw new Error("학생 정보 수정에 실패했습니다. 다시 시도해주세요.");
+  }
 
   revalidatePath("/students");
   revalidatePath(`/students/${id}`);
@@ -107,7 +117,13 @@ export async function deleteStudent(id: string) {
   if (!session?.user || session.user.role === "STUDENT")
     throw new Error("Unauthorized");
 
-  await prisma.student.delete({ where: { id } });
+  try {
+    await prisma.student.delete({ where: { id } });
+  } catch (error) {
+    console.error("[deleteStudent] 실패", { userId: session.user.id, studentId: id, error });
+    throw new Error("학생 삭제에 실패했습니다. 다시 시도해주세요.");
+  }
+
   revalidatePath("/students");
   redirect("/students");
 }
@@ -118,10 +134,16 @@ export async function checkoutStudent(id: string) {
   if (!session?.user || session.user.role === "STUDENT")
     throw new Error("Unauthorized");
 
-  await prisma.student.update({
-    where: { id },
-    data: { status: "WITHDRAWN", seat: null },
-  });
+  try {
+    await prisma.student.update({
+      where: { id },
+      data: { status: "WITHDRAWN", seat: null },
+    });
+  } catch (error) {
+    console.error("[checkoutStudent] 실패", { userId: session.user.id, studentId: id, error });
+    throw new Error("퇴실 처리에 실패했습니다. 다시 시도해주세요.");
+  }
+
   revalidatePath("/students");
   revalidatePath("/seat-map");
 }
@@ -132,10 +154,16 @@ export async function readmitStudent(id: string) {
   if (!session?.user || session.user.role === "STUDENT")
     throw new Error("Unauthorized");
 
-  await prisma.student.update({
-    where: { id },
-    data: { status: "ACTIVE" },
-  });
+  try {
+    await prisma.student.update({
+      where: { id },
+      data: { status: "ACTIVE" },
+    });
+  } catch (error) {
+    console.error("[readmitStudent] 실패", { userId: session.user.id, studentId: id, error });
+    throw new Error("재입실 처리에 실패했습니다. 다시 시도해주세요.");
+  }
+
   revalidatePath("/students");
 }
 
@@ -151,7 +179,13 @@ export async function moveStudentSeat(id: string, newSeat: string) {
   });
   if (existing) throw new Error(`${newSeat} 자리에 이미 ${existing.name}이(가) 있습니다`);
 
-  await prisma.student.update({ where: { id }, data: { seat: newSeat.trim() } });
+  try {
+    await prisma.student.update({ where: { id }, data: { seat: newSeat.trim() } });
+  } catch (error) {
+    console.error("[moveStudentSeat] 실패", { userId: session.user.id, studentId: id, newSeat, error });
+    throw new Error("좌석 이동에 실패했습니다. 다시 시도해주세요.");
+  }
+
   revalidatePath("/students");
 }
 
@@ -168,11 +202,17 @@ export async function swapStudentSeats(id1: string, id2: string) {
   if (!s1 || !s2) throw new Error("학생을 찾을 수 없습니다");
 
   // 임시로 null 처리 후 교환 (constraint 충돌 방지)
-  await prisma.$transaction([
-    prisma.student.update({ where: { id: id1 }, data: { seat: null } }),
-    prisma.student.update({ where: { id: id2 }, data: { seat: s1.seat } }),
-    prisma.student.update({ where: { id: id1 }, data: { seat: s2.seat } }),
-  ]);
+  try {
+    await prisma.$transaction([
+      prisma.student.update({ where: { id: id1 }, data: { seat: null } }),
+      prisma.student.update({ where: { id: id2 }, data: { seat: s1.seat } }),
+      prisma.student.update({ where: { id: id1 }, data: { seat: s2.seat } }),
+    ]);
+  } catch (error) {
+    console.error("[swapStudentSeats] 실패", { userId: session.user.id, id1, id2, error });
+    throw new Error("좌석 교환에 실패했습니다. 다시 시도해주세요.");
+  }
+
   revalidatePath("/students");
 }
 
@@ -183,7 +223,13 @@ export async function updateStudentStatus(
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  await prisma.student.update({ where: { id }, data: { status } });
+  try {
+    await prisma.student.update({ where: { id }, data: { status } });
+  } catch (error) {
+    console.error("[updateStudentStatus] 실패", { userId: session.user.id, studentId: id, status, error });
+    throw new Error("학생 상태 변경에 실패했습니다. 다시 시도해주세요.");
+  }
+
   revalidatePath("/students");
   revalidatePath(`/students/${id}`);
 }
@@ -192,15 +238,20 @@ export async function updateStudentSeat(studentId: string, seat: string | null) 
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  // 같은 좌석을 이미 쓰는 학생이 있으면 먼저 비움
-  if (seat) {
-    await prisma.student.updateMany({
-      where: { seat, id: { not: studentId } },
-      data: { seat: null },
-    });
+  try {
+    // 같은 좌석을 이미 쓰는 학생이 있으면 먼저 비움
+    if (seat) {
+      await prisma.student.updateMany({
+        where: { seat, id: { not: studentId } },
+        data: { seat: null },
+      });
+    }
+    await prisma.student.update({ where: { id: studentId }, data: { seat } });
+  } catch (error) {
+    console.error("[updateStudentSeat] 실패", { userId: session.user.id, studentId, seat, error });
+    throw new Error("좌석 배정에 실패했습니다. 다시 시도해주세요.");
   }
 
-  await prisma.student.update({ where: { id: studentId }, data: { seat } });
   revalidatePath("/seat-map");
   revalidatePath("/students");
 }
@@ -211,14 +262,21 @@ export async function patchStudentTextFields(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
-  await prisma.student.update({
-    where: { id },
-    data: {
-      ...(fields.studentInfo !== undefined && { studentInfo: fields.studentInfo || null }),
-      ...(fields.changeNote !== undefined && { changeNote: fields.changeNote || null }),
-      ...(fields.academySchedule !== undefined && { academySchedule: fields.academySchedule || null }),
-    },
-  });
+
+  try {
+    await prisma.student.update({
+      where: { id },
+      data: {
+        ...(fields.studentInfo !== undefined && { studentInfo: fields.studentInfo || null }),
+        ...(fields.changeNote !== undefined && { changeNote: fields.changeNote || null }),
+        ...(fields.academySchedule !== undefined && { academySchedule: fields.academySchedule || null }),
+      },
+    });
+  } catch (error) {
+    console.error("[patchStudentTextFields] 실패", { userId: session.user.id, studentId: id, error });
+    throw new Error("학생 정보 수정에 실패했습니다. 다시 시도해주세요.");
+  }
+
   revalidatePath("/attendance");
 }
 
@@ -231,10 +289,17 @@ export async function patchStudentCheckDate(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
-  await prisma.student.update({
-    where: { id },
-    data: { [key]: date ? new Date(date) : null },
-  });
+
+  try {
+    await prisma.student.update({
+      where: { id },
+      data: { [key]: date ? new Date(date) : null },
+    });
+  } catch (error) {
+    console.error("[patchStudentCheckDate] 실패", { userId: session.user.id, studentId: id, key, error });
+    throw new Error("날짜 정보 수정에 실패했습니다. 다시 시도해주세요.");
+  }
+
   revalidatePath("/attendance");
 }
 

@@ -24,18 +24,24 @@ export async function createMentoring(formData: FormData) {
   const raw = Object.fromEntries(formData.entries());
   const data = mentoringSchema.parse(raw);
 
-  const mentoring = await prisma.mentoring.create({
-    data: {
-      studentId: data.studentId,
-      mentorId: session.user.id,
-      scheduledAt: new Date(data.scheduledAt),
-      scheduledTimeStart: data.scheduledTimeStart || null,
-      scheduledTimeEnd: data.scheduledTimeEnd || null,
-      notes: data.notes || null,
-      status: "SCHEDULED",
-    },
-    select: { id: true },
-  });
+  let mentoring;
+  try {
+    mentoring = await prisma.mentoring.create({
+      data: {
+        studentId: data.studentId,
+        mentorId: session.user.id,
+        scheduledAt: new Date(data.scheduledAt),
+        scheduledTimeStart: data.scheduledTimeStart || null,
+        scheduledTimeEnd: data.scheduledTimeEnd || null,
+        notes: data.notes || null,
+        status: "SCHEDULED",
+      },
+      select: { id: true },
+    });
+  } catch (error) {
+    console.error("[createMentoring] 실패", { userId: session.user.id, studentId: data.studentId, error });
+    throw new Error("멘토링 등록에 실패했습니다. 다시 시도해주세요.");
+  }
 
   revalidatePath("/mentoring");
   return { id: mentoring.id };
@@ -57,24 +63,29 @@ export async function updateMentoring(id: string, formData: FormData) {
   const autoStatus: MentoringStatus | undefined =
     hasContent && explicitStatus === "SCHEDULED" ? "COMPLETED" : explicitStatus;
 
-  await prisma.mentoring.update({
-    where: { id },
-    data: {
-      scheduledAt: raw.scheduledAt ? new Date(raw.scheduledAt as string) : undefined,
-      scheduledTimeStart: "scheduledTimeStart" in raw ? (raw.scheduledTimeStart as string) || null : undefined,
-      scheduledTimeEnd: "scheduledTimeEnd" in raw ? (raw.scheduledTimeEnd as string) || null : undefined,
-      actualDate: raw.actualDate ? new Date(raw.actualDate as string) : undefined,
-      actualStartTime: "actualStartTime" in raw ? (raw.actualStartTime as string) || null : undefined,
-      actualEndTime: "actualEndTime" in raw ? (raw.actualEndTime as string) || null : undefined,
-      status: autoStatus,
-      content: "content" in raw ? (raw.content as string) || null : undefined,
-      previousIssues: "previousIssues" in raw ? (raw.previousIssues as string) || null : undefined,
-      improvements: "improvements" in raw ? (raw.improvements as string) || null : undefined,
-      weaknesses: "weaknesses" in raw ? (raw.weaknesses as string) || null : undefined,
-      nextGoals: "nextGoals" in raw ? (raw.nextGoals as string) || null : undefined,
-      notes: "notes" in raw ? (raw.notes as string) || null : undefined,
-    },
-  });
+  try {
+    await prisma.mentoring.update({
+      where: { id },
+      data: {
+        scheduledAt: raw.scheduledAt ? new Date(raw.scheduledAt as string) : undefined,
+        scheduledTimeStart: "scheduledTimeStart" in raw ? (raw.scheduledTimeStart as string) || null : undefined,
+        scheduledTimeEnd: "scheduledTimeEnd" in raw ? (raw.scheduledTimeEnd as string) || null : undefined,
+        actualDate: raw.actualDate ? new Date(raw.actualDate as string) : undefined,
+        actualStartTime: "actualStartTime" in raw ? (raw.actualStartTime as string) || null : undefined,
+        actualEndTime: "actualEndTime" in raw ? (raw.actualEndTime as string) || null : undefined,
+        status: autoStatus,
+        content: "content" in raw ? (raw.content as string) || null : undefined,
+        previousIssues: "previousIssues" in raw ? (raw.previousIssues as string) || null : undefined,
+        improvements: "improvements" in raw ? (raw.improvements as string) || null : undefined,
+        weaknesses: "weaknesses" in raw ? (raw.weaknesses as string) || null : undefined,
+        nextGoals: "nextGoals" in raw ? (raw.nextGoals as string) || null : undefined,
+        notes: "notes" in raw ? (raw.notes as string) || null : undefined,
+      },
+    });
+  } catch (error) {
+    console.error("[updateMentoring] 실패", { userId: session.user.id, mentoringId: id, error });
+    throw new Error("멘토링 수정에 실패했습니다. 다시 시도해주세요.");
+  }
 
   revalidatePath("/mentoring");
   revalidatePath(`/mentoring/${id}`);
@@ -249,10 +260,15 @@ export async function sendFeedbackEmail(mentoringId: string): Promise<{ ok: bool
 
   // 실제 이메일 발송 로직 (추후 nodemailer / Resend 연동)
   // 현재는 발송 완료로 기록만 저장
-  await prisma.mentoring.update({
-    where: { id: mentoringId },
-    data: { feedbackSentAt: new Date() },
-  });
+  try {
+    await prisma.mentoring.update({
+      where: { id: mentoringId },
+      data: { feedbackSentAt: new Date() },
+    });
+  } catch (error) {
+    console.error("[sendFeedbackEmail] 상태 저장 실패", { userId: session.user.id, mentoringId, error });
+    throw new Error("피드백 발송 상태 저장에 실패했습니다.");
+  }
 
   revalidatePath(`/mentoring/${mentoringId}`);
   return { ok: true, message: `${mentoring.student.parentEmail}으로 피드백을 발송했습니다.` };
@@ -266,11 +282,16 @@ export async function saveMentorSchedule(dayOfWeek: number, timeStart: string, t
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  await prisma.mentorSchedule.upsert({
-    where: { mentorId_dayOfWeek: { mentorId: session.user.id, dayOfWeek } },
-    create: { mentorId: session.user.id, dayOfWeek, timeStart, timeEnd },
-    update: { timeStart, timeEnd },
-  });
+  try {
+    await prisma.mentorSchedule.upsert({
+      where: { mentorId_dayOfWeek: { mentorId: session.user.id, dayOfWeek } },
+      create: { mentorId: session.user.id, dayOfWeek, timeStart, timeEnd },
+      update: { timeStart, timeEnd },
+    });
+  } catch (error) {
+    console.error("[saveMentorSchedule] 실패", { userId: session.user.id, dayOfWeek, error });
+    throw new Error("멘토 스케줄 저장에 실패했습니다. 다시 시도해주세요.");
+  }
 
   revalidatePath("/mentoring/schedule");
 }
@@ -279,7 +300,13 @@ export async function deleteMentorSchedule(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  await prisma.mentorSchedule.delete({ where: { id } });
+  try {
+    await prisma.mentorSchedule.delete({ where: { id } });
+  } catch (error) {
+    console.error("[deleteMentorSchedule] 실패", { userId: session.user.id, scheduleId: id, error });
+    throw new Error("멘토 스케줄 삭제에 실패했습니다. 다시 시도해주세요.");
+  }
+
   revalidatePath("/mentoring/schedule");
 }
 
@@ -422,15 +449,20 @@ export async function bulkCreateMentorings(studentIds: string[], mentorId: strin
 
   if (studentIds.length === 0) return;
 
-  await prisma.mentoring.createMany({
-    data: studentIds.map((studentId) => ({
-      studentId,
-      mentorId,
-      scheduledAt: new Date(),
-      status: "SCHEDULED" as const,
-    })),
-    skipDuplicates: true,
-  });
+  try {
+    await prisma.mentoring.createMany({
+      data: studentIds.map((studentId) => ({
+        studentId,
+        mentorId,
+        scheduledAt: new Date(),
+        status: "SCHEDULED" as const,
+      })),
+      skipDuplicates: true,
+    });
+  } catch (error) {
+    console.error("[bulkCreateMentorings] 실패", { userId: session.user.id, mentorId, count: studentIds.length, error });
+    throw new Error("멘토링 일괄 등록에 실패했습니다. 다시 시도해주세요.");
+  }
 
   revalidatePath("/mentoring");
 }
@@ -443,7 +475,13 @@ export async function deleteMentoring(id: string) {
   if (!existing) throw new Error("멘토링을 찾을 수 없습니다");
   requireOwnerOrFullAccess(existing.mentorId, session.user.id, session.user.role);
 
-  await prisma.mentoring.delete({ where: { id } });
+  try {
+    await prisma.mentoring.delete({ where: { id } });
+  } catch (error) {
+    console.error("[deleteMentoring] 실패", { userId: session.user.id, mentoringId: id, error });
+    throw new Error("멘토링 삭제에 실패했습니다. 다시 시도해주세요.");
+  }
+
   revalidatePath("/mentoring");
 }
 
@@ -454,7 +492,13 @@ export async function bulkDeleteMentorings(ids: string[]) {
   // DIRECTOR/ADMIN만 일괄 삭제 가능
   requireStaff(session.user.role);
 
-  await prisma.mentoring.deleteMany({ where: { id: { in: ids } } });
+  try {
+    await prisma.mentoring.deleteMany({ where: { id: { in: ids } } });
+  } catch (error) {
+    console.error("[bulkDeleteMentorings] 실패", { userId: session.user.id, count: ids.length, error });
+    throw new Error("멘토링 일괄 삭제에 실패했습니다. 다시 시도해주세요.");
+  }
+
   revalidatePath("/mentoring");
 }
 
@@ -466,7 +510,13 @@ export async function updateMentoringStatus(id: string, status: MentoringStatus)
   if (!existing) throw new Error("멘토링을 찾을 수 없습니다");
   requireOwnerOrFullAccess(existing.mentorId, session.user.id, session.user.role);
 
-  await prisma.mentoring.update({ where: { id }, data: { status } });
+  try {
+    await prisma.mentoring.update({ where: { id }, data: { status } });
+  } catch (error) {
+    console.error("[updateMentoringStatus] 실패", { userId: session.user.id, mentoringId: id, status, error });
+    throw new Error("멘토링 상태 변경에 실패했습니다. 다시 시도해주세요.");
+  }
+
   revalidatePath("/mentoring");
   revalidatePath(`/mentoring/${id}`);
 }
@@ -479,9 +529,15 @@ export async function quickStartMentoring(studentId: string, mentorId: string): 
   const isOwnMentor = mentorId === session.user.id;
   if (!isDirector && !isOwnMentor) throw new Error("Unauthorized");
 
-  const mentoring = await prisma.mentoring.create({
-    data: { studentId, mentorId, scheduledAt: new Date(), status: "SCHEDULED" },
-  });
+  let mentoring;
+  try {
+    mentoring = await prisma.mentoring.create({
+      data: { studentId, mentorId, scheduledAt: new Date(), status: "SCHEDULED" },
+    });
+  } catch (error) {
+    console.error("[quickStartMentoring] 실패", { userId: session.user.id, studentId, mentorId, error });
+    throw new Error("멘토링 시작에 실패했습니다. 다시 시도해주세요.");
+  }
 
   revalidatePath("/mentoring");
   return mentoring.id;
