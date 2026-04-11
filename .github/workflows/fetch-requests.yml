@@ -1,0 +1,39 @@
+name: Fetch Feature Requests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp-main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch feature requests from Vercel API
+        run: |
+          mkdir -p reports
+          curl -s \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://khsb.vercel.app/api/cron/feature-requests \
+            > reports/feature-requests-latest.json
+
+          TOTAL=$(jq '.total' reports/feature-requests-latest.json)
+          PENDING=$(jq '[.requests[] | select(.status == "PENDING")] | length' reports/feature-requests-latest.json)
+          echo "Fetched $TOTAL requests ($PENDING pending)"
+
+      - name: Commit
+        run: |
+          if [ -z "$(git status --porcelain reports/feature-requests-latest.json)" ]; then
+            echo "변경사항 없음"
+            exit 0
+          fi
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add reports/feature-requests-latest.json
+          git commit -m "chore: refresh feature requests cache $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST')"
+          git push origin tmp-main
