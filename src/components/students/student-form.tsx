@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useTransition, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -138,6 +139,7 @@ function SchoolCombobox({ name, defaultValue, options }: { name: string; default
 }
 
 export function StudentForm({ student, mentors, schools = [], occupiedSeats = [] }: StudentFormProps) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -146,10 +148,12 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
       try {
         if (student) {
           await updateStudent(student.id, formData);
+          toast.success("원생 정보가 수정되었습니다");
+          router.back();
         } else {
           await createStudent(formData);
+          toast.success("원생이 등록되었습니다");
         }
-        toast.success(student ? "원생 정보가 수정되었습니다" : "원생이 등록되었습니다");
       } catch (e) {
         // redirect()는 내부적으로 에러를 throw하므로 re-throw
         if ((e as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw e;
