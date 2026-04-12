@@ -24,10 +24,16 @@ const STATUS_MAP = {
 
 export default async function MentoringDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string; studentId?: string }>;
 }) {
   const { id } = await params;
+  const { from, studentId: fromStudentId } = await searchParams;
+  const backUrl = from === "student" && fromStudentId
+    ? `/students/${fromStudentId}?tab=mentoring`
+    : "/mentoring";
 
   const mentoring = await prisma.mentoring.findUnique({
     where: { id },
@@ -84,7 +90,7 @@ export default async function MentoringDetailPage({
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <Link
-          href="/mentoring"
+          href={backUrl}
           className="text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />
@@ -159,6 +165,7 @@ export default async function MentoringDetailPage({
                 studentName={s.name}
                 parentEmail={s.parentEmail}
                 previousMentoring={previousMentoring}
+                backUrl={backUrl}
               />
             </CardContent>
           </Card>
