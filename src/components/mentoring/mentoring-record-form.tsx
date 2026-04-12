@@ -163,7 +163,7 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
         await updateMentoring(mentoring.id, formData);
         clearDraft();
         toast.success("저장되었습니다");
-        router.push("/mentoring");
+        router.back();
       } catch {
         toast.error("저장에 실패했습니다");
       }
@@ -182,7 +182,7 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
         await updateMentoringStatus(mentoring.id, "COMPLETED");
         clearDraft();
         toast.success("완료 처리되었습니다");
-        router.push("/mentoring");
+        router.back();
       } catch {
         toast.error("처리에 실패했습니다");
       }
