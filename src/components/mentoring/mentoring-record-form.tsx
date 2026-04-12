@@ -37,6 +37,7 @@ interface Props {
   studentName: string;
   parentEmail?: string | null;
   previousMentoring?: PreviousMentoring | null;
+  backUrl?: string;
 }
 
 type MentoringDraft = {
@@ -134,7 +135,7 @@ function PreviousMentoringCard({ prev }: { prev: PreviousMentoring }) {
   );
 }
 
-export function MentoringRecordForm({ mentoring, studentName, parentEmail, previousMentoring }: Props) {
+export function MentoringRecordForm({ mentoring, studentName, parentEmail, previousMentoring, backUrl }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
@@ -163,7 +164,7 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
         await updateMentoring(mentoring.id, formData);
         clearDraft();
         toast.success("저장되었습니다");
-        router.back();
+        router.push(backUrl || "/mentoring");
       } catch {
         toast.error("저장에 실패했습니다");
       }
@@ -182,7 +183,7 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
         await updateMentoringStatus(mentoring.id, "COMPLETED");
         clearDraft();
         toast.success("완료 처리되었습니다");
-        router.back();
+        router.push(backUrl || "/mentoring");
       } catch {
         toast.error("처리에 실패했습니다");
       }
