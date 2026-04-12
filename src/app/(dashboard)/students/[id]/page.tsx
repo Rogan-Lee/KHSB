@@ -10,6 +10,7 @@ import { StudentScheduleEditor } from "@/components/students/student-schedule-ed
 import { CommunicationPanel } from "@/components/communications/communication-panel";
 import { ExamScoreChart } from "@/components/students/exam-score-chart";
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
+import { StudentMentoringHistory } from "@/components/students/student-mentoring-history";
 import {
   Table,
   TableBody,
@@ -55,7 +56,6 @@ export default async function StudentDetailPage({
         merits: { orderBy: { date: "desc" }, take: 20 },
         mentorings: {
           orderBy: { scheduledAt: "desc" },
-          take: 10,
           include: { mentor: { select: { name: true } } },
         },
         consultations: { orderBy: { scheduledAt: "desc" }, take: 10 },
@@ -282,49 +282,7 @@ export default async function StudentDetailPage({
         </TabsContent>
 
         <TabsContent value="mentoring" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>멘토링 기록</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>예정일</TableHead>
-                    <TableHead>멘토</TableHead>
-                    <TableHead>상태</TableHead>
-                    <TableHead>피드백</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {student.mentorings.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
-                        멘토링 기록이 없습니다
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    student.mentorings.map((m) => (
-                      <TableRow key={m.id}>
-                        <TableCell>{formatDate(m.scheduledAt)}</TableCell>
-                        <TableCell>{m.mentor.name}</TableCell>
-                        <TableCell>
-                          <Badge variant={m.status === "COMPLETED" ? "default" : "secondary"}>
-                            {m.status === "SCHEDULED" ? "예정" :
-                             m.status === "COMPLETED" ? "완료" :
-                             m.status === "CANCELLED" ? "취소" : "일정변경"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground line-clamp-1">
-                          {m.notes || "-"}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <StudentMentoringHistory mentorings={student.mentorings} />
         </TabsContent>
 
         <TabsContent value="consultation" className="mt-4">
