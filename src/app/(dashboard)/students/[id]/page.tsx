@@ -11,6 +11,7 @@ import { CommunicationPanel } from "@/components/communications/communication-pa
 import { ExamScoreChart } from "@/components/students/exam-score-chart";
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
 import { StudentMentoringHistory } from "@/components/students/student-mentoring-history";
+import { StudentDetailTabs } from "@/components/students/student-detail-tabs";
 import {
   Table,
   TableBody,
@@ -145,32 +146,20 @@ export default async function StudentDetailPage({
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue={tab || "info"}>
-        <TabsList>
-          <TabsTrigger value="info">기본 정보</TabsTrigger>
-          <TabsTrigger value="schedule">입퇴실 일정</TabsTrigger>
-          <TabsTrigger value="attendance">출결 기록</TabsTrigger>
-          <TabsTrigger value="merits">상벌점</TabsTrigger>
-          <TabsTrigger value="mentoring">멘토링</TabsTrigger>
-          <TabsTrigger value="consultation">면담</TabsTrigger>
-          <TabsTrigger value="assignments">
-            과제
-            {student.assignments.filter((a) => !a.isCompleted).length > 0 && (
-              <span className="ml-1.5 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                {student.assignments.filter((a) => !a.isCompleted).length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="communications">
-            요청/전달
-            {student.communications.filter((c) => !c.isChecked).length > 0 && (
-              <span className="ml-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                {student.communications.filter((c) => !c.isChecked).length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="scores">성적</TabsTrigger>
-        </TabsList>
+      <StudentDetailTabs
+        defaultTab="info"
+        tabItems={[
+          { value: "info", label: "기본 정보" },
+          { value: "schedule", label: "입퇴실 일정" },
+          { value: "attendance", label: "출결 기록" },
+          { value: "merits", label: "상벌점" },
+          { value: "mentoring", label: "멘토링" },
+          { value: "consultation", label: "면담" },
+          { value: "assignments", label: "과제", badge: student.assignments.filter((a) => !a.isCompleted).length },
+          { value: "communications", label: "요청/전달", badge: student.communications.filter((c) => !c.isChecked).length },
+          { value: "scores", label: "성적" },
+        ]}
+      >
 
         <TabsContent value="info" className="mt-4">
           <Card>
@@ -382,7 +371,7 @@ export default async function StudentDetailPage({
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
+      </StudentDetailTabs>
     </div>
   );
 }
