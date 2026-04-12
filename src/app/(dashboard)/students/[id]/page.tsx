@@ -10,6 +10,8 @@ import { StudentScheduleEditor } from "@/components/students/student-schedule-ed
 import { CommunicationPanel } from "@/components/communications/communication-panel";
 import { ExamScoreChart } from "@/components/students/exam-score-chart";
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
+import { StudentMentoringHistory } from "@/components/students/student-mentoring-history";
+import { StudentDetailTabs } from "@/components/students/student-detail-tabs";
 import {
   Table,
   TableBody,
@@ -37,10 +39,13 @@ const ATTENDANCE_TYPE_MAP: Record<string, { label: string; variant: "default" | 
 
 export default async function StudentDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id: rawId } = await params;
+  const { tab } = await searchParams;
   const id = decodeURIComponent(rawId);
 
   let student;
@@ -55,7 +60,6 @@ export default async function StudentDetailPage({
         merits: { orderBy: { date: "desc" }, take: 20 },
         mentorings: {
           orderBy: { scheduledAt: "desc" },
-          take: 10,
           include: { mentor: { select: { name: true } } },
         },
         consultations: { orderBy: { scheduledAt: "desc" }, take: 10 },
@@ -142,32 +146,20 @@ export default async function StudentDetailPage({
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="info">
-        <TabsList>
-          <TabsTrigger value="info">기본 정보</TabsTrigger>
-          <TabsTrigger value="schedule">입퇴실 일정</TabsTrigger>
-          <TabsTrigger value="attendance">출결 기록</TabsTrigger>
-          <TabsTrigger value="merits">상벌점</TabsTrigger>
-          <TabsTrigger value="mentoring">멘토링</TabsTrigger>
-          <TabsTrigger value="consultation">면담</TabsTrigger>
-          <TabsTrigger value="assignments">
-            과제
-            {student.assignments.filter((a) => !a.isCompleted).length > 0 && (
-              <span className="ml-1.5 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                {student.assignments.filter((a) => !a.isCompleted).length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="communications">
-            요청/전달
-            {student.communications.filter((c) => !c.isChecked).length > 0 && (
-              <span className="ml-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                {student.communications.filter((c) => !c.isChecked).length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="scores">성적</TabsTrigger>
-        </TabsList>
+      <StudentDetailTabs
+        defaultTab="info"
+        tabItems={[
+          { value: "info", label: "기본 정보" },
+          { value: "schedule", label: "입퇴실 일정" },
+          { value: "attendance", label: "출결 기록" },
+          { value: "merits", label: "상벌점" },
+          { value: "mentoring", label: "멘토링" },
+          { value: "consultation", label: "면담" },
+          { value: "assignments", label: "과제", badge: student.assignments.filter((a) => !a.isCompleted).length },
+          { value: "communications", label: "요청/전달", badge: student.communications.filter((c) => !c.isChecked).length },
+          { value: "scores", label: "성적" },
+        ]}
+      >
 
         <TabsContent value="info" className="mt-4">
           <Card>
@@ -282,49 +274,7 @@ export default async function StudentDetailPage({
         </TabsContent>
 
         <TabsContent value="mentoring" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>멘토링 기록</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>예정일</TableHead>
-                    <TableHead>멘토</TableHead>
-                    <TableHead>상태</TableHead>
-                    <TableHead>피드백</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {student.mentorings.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
-                        멘토링 기록이 없습니다
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    student.mentorings.map((m) => (
-                      <TableRow key={m.id}>
-                        <TableCell>{formatDate(m.scheduledAt)}</TableCell>
-                        <TableCell>{m.mentor.name}</TableCell>
-                        <TableCell>
-                          <Badge variant={m.status === "COMPLETED" ? "default" : "secondary"}>
-                            {m.status === "SCHEDULED" ? "예정" :
-                             m.status === "COMPLETED" ? "완료" :
-                             m.status === "CANCELLED" ? "취소" : "일정변경"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground line-clamp-1">
-                          {m.notes || "-"}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <StudentMentoringHistory studentId={student.id} mentorings={student.mentorings} />
         </TabsContent>
 
         <TabsContent value="consultation" className="mt-4">
@@ -421,7 +371,7 @@ export default async function StudentDetailPage({
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
+      </StudentDetailTabs>
     </div>
   );
 }
