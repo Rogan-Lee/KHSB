@@ -46,8 +46,6 @@ export async function createConsultation(formData: FormData) {
     },
   });
 
-  notifySlack(formatConsultationAlert({ name, phone }));
-
   revalidatePath("/consultations");
 }
 
