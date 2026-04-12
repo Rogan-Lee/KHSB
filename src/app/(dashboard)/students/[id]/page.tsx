@@ -38,10 +38,13 @@ const ATTENDANCE_TYPE_MAP: Record<string, { label: string; variant: "default" | 
 
 export default async function StudentDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { id: rawId } = await params;
+  const { tab } = await searchParams;
   const id = decodeURIComponent(rawId);
 
   let student;
@@ -142,7 +145,7 @@ export default async function StudentDetailPage({
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="info">
+      <Tabs defaultValue={tab || "info"}>
         <TabsList>
           <TabsTrigger value="info">기본 정보</TabsTrigger>
           <TabsTrigger value="schedule">입퇴실 일정</TabsTrigger>
@@ -282,7 +285,7 @@ export default async function StudentDetailPage({
         </TabsContent>
 
         <TabsContent value="mentoring" className="mt-4">
-          <StudentMentoringHistory mentorings={student.mentorings} />
+          <StudentMentoringHistory studentId={student.id} mentorings={student.mentorings} />
         </TabsContent>
 
         <TabsContent value="consultation" className="mt-4">

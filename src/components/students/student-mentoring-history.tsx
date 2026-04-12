@@ -32,7 +32,7 @@ const STATUS_CONFIG = {
   RESCHEDULED: { label: "변경", variant: "secondary" as const, color: "text-amber-600" },
 };
 
-export function StudentMentoringHistory({ mentorings }: { mentorings: MentoringRecord[] }) {
+export function StudentMentoringHistory({ studentId, mentorings }: { studentId: string; mentorings: MentoringRecord[] }) {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [statusFilter, setStatusFilter] = useState<MentoringStatus | "ALL">("ALL");
@@ -219,7 +219,7 @@ export function StudentMentoringHistory({ mentorings }: { mentorings: MentoringR
                     )}
                     <div className="flex justify-end pt-1">
                       <Link
-                        href={`/mentoring/${m.id}`}
+                        href={`/mentoring/${m.id}?from=student&studentId=${studentId}`}
                         className="text-xs text-primary hover:underline"
                       >
                         상세 보기 →
