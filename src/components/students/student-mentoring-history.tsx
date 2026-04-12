@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { ChevronDown, Search, FileText, TrendingUp, AlertCircle, Target, MessageSquare } from "lucide-react";
 import Link from "next/link";
+import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import type { MentoringStatus } from "@/generated/prisma";
 
 type MentoringRecord = {
@@ -252,7 +253,9 @@ function ContentSection({
         {icon}
         {label}
       </div>
-      <p className="text-sm leading-relaxed whitespace-pre-wrap pl-5">{text}</p>
+      <div className="pl-5 text-sm">
+        <MarkdownViewer source={text} />
+      </div>
     </div>
   );
 }
