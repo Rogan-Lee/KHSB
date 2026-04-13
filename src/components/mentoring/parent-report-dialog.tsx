@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 interface Props {
   mentoringId: string;
   studentName: string;
+  mentoringDate?: string; // "4월 11일" 형식
   open: boolean;
   onClose: () => void;
 }
@@ -49,7 +50,7 @@ const FIELD_LABELS: { key: keyof EditableContent; label: string; rows: number }[
   { key: "notes", label: "기타 메모", rows: 2 },
 ];
 
-export function ParentReportDialog({ mentoringId, studentName, open, onClose }: Props) {
+export function ParentReportDialog({ mentoringId, studentName, mentoringDate, open, onClose }: Props) {
   const [, startTransition] = useTransition();
   const [step, setStep] = useState<Step>("choose");
   const [edited, setEdited] = useState<EditableContent>({
@@ -119,8 +120,9 @@ export function ParentReportDialog({ mentoringId, studentName, open, onClose }: 
     });
   }
 
+  const dateLabel = mentoringDate || "오늘";
   const shareText = reportUrl
-    ? `안녕하세요, ${studentName} 학부모님.\n오늘 멘토링 내용을 정리해 드립니다.\n아래 링크를 통해 확인해 주세요 👇\n\n${reportUrl}`
+    ? `안녕하세요, ${studentName} 학부모님.\n${dateLabel} 멘토링 내용을 정리해 드립니다.\n아래 링크를 통해 확인해 주세요 👇\n\n${reportUrl}`
     : "";
 
   async function handleShare() {
