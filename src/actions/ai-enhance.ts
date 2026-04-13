@@ -55,12 +55,25 @@ export async function enhanceMentoringWithAI(mentoringId: string): Promise<Enhan
   ].some(Boolean);
   if (!hasContent) throw new Error("멘토링 내용을 먼저 작성해주세요");
 
+  // 이미지 마크다운을 필드별로 추출 (AI가 이미지를 제거하므로 보존)
+  const imagePattern = /!\[.*?\]\(.*?\)/g;
+  const extractImages = (text: string | null) => text?.match(imagePattern) ?? [];
+  const stripImages = (text: string | null) => text?.replace(imagePattern, "").trim() ?? null;
+
+  const imagesByField = {
+    content: extractImages(mentoring.content),
+    improvements: extractImages(mentoring.improvements),
+    weaknesses: extractImages(mentoring.weaknesses),
+    nextGoals: extractImages(mentoring.nextGoals),
+    notes: extractImages(mentoring.notes),
+  };
+
   const rawContent = [
-    mentoring.content && `[오늘 멘토링 내용]\n${mentoring.content}`,
-    mentoring.improvements && `[개선된 점]\n${mentoring.improvements}`,
-    mentoring.weaknesses && `[보완할 점]\n${mentoring.weaknesses}`,
-    mentoring.nextGoals && `[다음 멘토링 목표]\n${mentoring.nextGoals}`,
-    mentoring.notes && `[기타 메모]\n${mentoring.notes}`,
+    stripImages(mentoring.content) && `[오늘 멘토링 내용]\n${stripImages(mentoring.content)}`,
+    stripImages(mentoring.improvements) && `[개선된 점]\n${stripImages(mentoring.improvements)}`,
+    stripImages(mentoring.weaknesses) && `[보완할 점]\n${stripImages(mentoring.weaknesses)}`,
+    stripImages(mentoring.nextGoals) && `[다음 멘토링 목표]\n${stripImages(mentoring.nextGoals)}`,
+    stripImages(mentoring.notes) && `[기타 메모]\n${stripImages(mentoring.notes)}`,
   ].filter(Boolean).join("\n\n");
 
   const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -125,12 +138,18 @@ JSON 형식으로만 응답하세요 (원본이 없는 항목은 null):
     throw new Error("AI 응답 파싱에 실패했습니다");
   }
 
+  // AI 응답에 보존된 이미지 마크다운을 다시 붙여넣기
+  const reattachImages = (text: string | null, images: string[]) => {
+    if (!text || images.length === 0) return text;
+    return text + "\n\n" + images.join("\n");
+  };
+
   return {
-    content: enhanced.content ?? mentoring.content,
-    improvements: enhanced.improvements ?? mentoring.improvements,
-    weaknesses: enhanced.weaknesses ?? mentoring.weaknesses,
-    nextGoals: enhanced.nextGoals ?? mentoring.nextGoals,
-    notes: enhanced.notes ?? mentoring.notes,
+    content: reattachImages(enhanced.content ?? mentoring.content, imagesByField.content),
+    improvements: reattachImages(enhanced.improvements ?? mentoring.improvements, imagesByField.improvements),
+    weaknesses: reattachImages(enhanced.weaknesses ?? mentoring.weaknesses, imagesByField.weaknesses),
+    nextGoals: reattachImages(enhanced.nextGoals ?? mentoring.nextGoals, imagesByField.nextGoals),
+    notes: reattachImages(enhanced.notes ?? mentoring.notes, imagesByField.notes),
   };
 }
 
