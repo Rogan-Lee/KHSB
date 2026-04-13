@@ -3,6 +3,7 @@ import { getParentReport } from "@/actions/parent-reports";
 import { getStudentAnalytics } from "@/actions/analytics";
 import { BookOpen, GraduationCap, User, Calendar, Clock, CheckCircle2, TrendingUp, TrendingDown, Target, FileText, MessageSquare, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 
 export default async function ParentReportPage({
   params,
@@ -122,7 +123,9 @@ export default async function ParentReportPage({
               {mentoring!.content && (
                 <div>
                   <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">오늘 멘토링 내용</p>
-                  <p className="text-sm text-gray-800 whitespace-pre-wrap break-words leading-relaxed">{mentoring!.content}</p>
+                  <div className="text-sm text-gray-800 leading-relaxed">
+                    <MarkdownViewer source={mentoring!.content} />
+                  </div>
                 </div>
               )}
 
@@ -134,7 +137,7 @@ export default async function ParentReportPage({
                         <TrendingUp className="h-3.5 w-3.5 text-green-600 shrink-0" />
                         <p className="text-[11px] font-semibold text-green-700">개선된 점</p>
                       </div>
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap break-words leading-relaxed">{mentoring!.improvements}</p>
+                      <div className="text-sm text-gray-700 leading-relaxed"><MarkdownViewer source={mentoring!.improvements} /></div>
                     </div>
                   )}
                   {mentoring!.weaknesses && (
@@ -143,7 +146,7 @@ export default async function ParentReportPage({
                         <TrendingDown className="h-3.5 w-3.5 text-orange-600 shrink-0" />
                         <p className="text-[11px] font-semibold text-orange-700">보완할 점</p>
                       </div>
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap break-words leading-relaxed">{mentoring!.weaknesses}</p>
+                      <div className="text-sm text-gray-700 leading-relaxed"><MarkdownViewer source={mentoring!.weaknesses} /></div>
                     </div>
                   )}
                 </div>
@@ -155,14 +158,14 @@ export default async function ParentReportPage({
                     <Target className="h-3.5 w-3.5 text-blue-600 shrink-0" />
                     <p className="text-[11px] font-bold text-blue-700 uppercase tracking-wide">다음 멘토링 목표</p>
                   </div>
-                  <p className="text-sm text-gray-800 whitespace-pre-wrap break-words leading-relaxed">{mentoring!.nextGoals}</p>
+                  <div className="text-sm text-gray-800 leading-relaxed"><MarkdownViewer source={mentoring!.nextGoals} /></div>
                 </div>
               )}
 
               {mentoring!.notes && (
                 <div className="border-t border-gray-100 pt-4">
                   <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">기타 메모</p>
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap break-words leading-relaxed">{mentoring!.notes}</p>
+                  <div className="text-sm text-gray-700 leading-relaxed"><MarkdownViewer source={mentoring!.notes} /></div>
                 </div>
               )}
             </div>
