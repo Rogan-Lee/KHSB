@@ -78,7 +78,9 @@ export async function enhanceMentoringWithAI(mentoringId: string): Promise<Enhan
 
   const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-  const completion = await groq.chat.completions.create({
+  let completion;
+  try {
+    completion = await groq.chat.completions.create({
     model: "llama-3.3-70b-versatile",
     temperature: 0.4,
     max_tokens: 4000,
@@ -126,6 +128,25 @@ JSON 형식으로만 응답하세요 (원본이 없는 항목은 null):
       },
     ],
   });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const retryMatch = msg.match(/Please try again in (\d+h)?(\d+m)?(\d+[\d.]*s)?/);
+    if (retryMatch || msg.includes("rate_limit") || msg.includes("Rate limit")) {
+      let waitTime = "";
+      if (retryMatch) {
+        const h = retryMatch[1] ? parseInt(retryMatch[1]) : 0;
+        const m = retryMatch[2] ? parseInt(retryMatch[2]) : 0;
+        const parts = [];
+        if (h > 0) parts.push(`${h}시간`);
+        if (m > 0) parts.push(`${m}분`);
+        waitTime = parts.length > 0 ? ` 약 ${parts.join(" ")} 후에` : " 잠시 후";
+      } else {
+        waitTime = " 잠시 후";
+      }
+      throw new Error(`AI 사용량 한도에 도달했습니다.${waitTime} 다시 시도해주세요.`);
+    }
+    throw new Error("AI 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+  }
 
   const raw = completion.choices[0]?.message?.content ?? "{}";
   // ```json ... ``` 블록이 포함된 경우 추출
