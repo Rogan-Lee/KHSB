@@ -382,6 +382,7 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
       <ParentReportDialog
         mentoringId={mentoring.id}
         studentName={studentName}
+        mentoringDate={new Date(mentoring.actualDate ?? mentoring.scheduledAt).toLocaleDateString("ko-KR", { month: "long", day: "numeric" })}
         open={reportDialogOpen}
         onClose={() => setReportDialogOpen(false)}
       />
