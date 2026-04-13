@@ -15,7 +15,6 @@ import {
 import { createParentReport } from "@/actions/parent-reports";
 import {
   enhanceMentoringWithAI,
-  applyMentoringEnhancement,
   type EnhancedMentoringContent,
 } from "@/actions/ai-enhance";
 import {
@@ -103,14 +102,18 @@ export function ParentReportDialog({ mentoringId, studentName, mentoringDate, op
     setStep("creating");
     startTransition(async () => {
       try {
-        await applyMentoringEnhancement(mentoringId, {
-          content: edited.content || null,
-          improvements: edited.improvements || null,
-          weaknesses: edited.weaknesses || null,
-          nextGoals: edited.nextGoals || null,
-          notes: edited.notes || null,
+        // AI 고도화 내용을 customNote에 저장 (원본 멘토링 데이터 보존)
+        const enhancedNote = [
+          edited.content && `[오늘 멘토링 내용]\n${edited.content}`,
+          edited.improvements && `[개선된 점]\n${edited.improvements}`,
+          edited.weaknesses && `[보완할 점]\n${edited.weaknesses}`,
+          edited.nextGoals && `[다음 멘토링 목표]\n${edited.nextGoals}`,
+          edited.notes && `[기타 메모]\n${edited.notes}`,
+        ].filter(Boolean).join("\n\n");
+        const { token } = await createParentReport(mentoringId, {
+          studyPlanImages: [],
+          customNote: enhancedNote || undefined,
         });
-        const { token } = await createParentReport(mentoringId, { studyPlanImages: [] });
         setReportUrl(`${window.location.origin}/r/${token}`);
         setStep("done");
       } catch (err) {

@@ -7,6 +7,7 @@ export async function createParentReport(
   mentoringId: string,
   data: {
     studyPlanImages?: string[];
+    customNote?: string;
   }
 ) {
   const session = await auth();
@@ -23,7 +24,7 @@ export async function createParentReport(
       studentId: mentoring.studentId,
       mentoringId,
       studyPlanImages: data.studyPlanImages ?? [],
-      customNote: mentoring.notes || null,
+      customNote: data.customNote || mentoring.notes || null,
       createdById: session.user.id,
     },
     select: { token: true },
