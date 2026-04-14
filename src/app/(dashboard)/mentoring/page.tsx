@@ -19,7 +19,7 @@ export default async function MentoringPage() {
 
   const mentorings = await prisma.mentoring.findMany({
     include: {
-      student: { select: { id: true, name: true, grade: true, seat: true, vocabTestDate: true } },
+      student: { select: { id: true, name: true, grade: true, seat: true, vocabTestDate: true, schedules: { select: { dayOfWeek: true, startTime: true, endTime: true } } } },
       mentor: { select: { id: true, name: true } },
     },
     orderBy: { scheduledAt: "desc" },
