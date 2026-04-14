@@ -483,7 +483,9 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                           )}
                           title="입퇴실 일정"
                         >
-                          {isCheckedIn ? `~${sched.endTime}` : `${sched.startTime}~${sched.endTime}`}
+                          {isCheckedIn
+                            ? `~${sched.endTime === "FLEXIBLE" ? "자율" : sched.endTime}`
+                            : `${sched.startTime === "FLEXIBLE" ? "자율" : sched.startTime}~${sched.endTime === "FLEXIBLE" ? "자율" : sched.endTime}`}
                         </span>
                       );
                     })()}
