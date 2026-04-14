@@ -474,7 +474,15 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                       if (!sched) return null;
                       const isCheckedIn = checkedInSet.has(m.student.id);
                       return (
-                        <span className="text-[11px] text-muted-foreground ml-1.5" title="입퇴실 일정">
+                        <span
+                          className={cn(
+                            "text-[11px] font-medium ml-1.5 px-1.5 py-0.5 rounded",
+                            isCheckedIn
+                              ? "bg-blue-50 text-blue-700 border border-blue-200"
+                              : "bg-gray-100 text-gray-700 border border-gray-200"
+                          )}
+                          title="입퇴실 일정"
+                        >
                           {isCheckedIn ? `~${sched.endTime}` : `${sched.startTime}~${sched.endTime}`}
                         </span>
                       );
