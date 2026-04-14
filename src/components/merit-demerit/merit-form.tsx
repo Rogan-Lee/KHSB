@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { MessageCircle, Check, Search, X, ChevronDown } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 
-type Student = { id: string; name: string; grade: string };
+type Student = { id: string; name: string; grade: string; seat: string | null };
 
 function StudentMultiCombobox({
   students,
@@ -39,7 +39,8 @@ function StudentMultiCombobox({
     ? students.filter(
         (s) =>
           s.name.includes(query.trim()) ||
-          s.grade.includes(query.trim())
+          s.grade.includes(query.trim()) ||
+          (s.seat && s.seat.includes(query.trim()))
       )
     : students;
 
@@ -86,7 +87,7 @@ function StudentMultiCombobox({
                 key={s.id}
                 className="inline-flex items-center gap-0.5 bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5 text-xs font-medium"
               >
-                {s.name}
+                {s.seat ? `[${s.seat}] ` : ""}{s.name}
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); toggleStudent(s.id); }}
@@ -140,6 +141,7 @@ function StudentMultiCombobox({
                   )}>
                     {selectedIds.has(s.id) && <Check className="h-3 w-3 text-primary-foreground" />}
                   </div>
+                  {s.seat && <span className="text-xs font-mono text-muted-foreground shrink-0">[{s.seat}]</span>}
                   <span>{s.name}</span>
                   <span className="text-xs text-muted-foreground">{s.grade}</span>
                 </button>

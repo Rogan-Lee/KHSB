@@ -10,8 +10,7 @@ export default async function MeritDemeritPage() {
   const [students, recentMerits] = await Promise.all([
     prisma.student.findMany({
       where: { status: "ACTIVE" },
-      select: { id: true, name: true, grade: true },
-      orderBy: { name: "asc" },
+      select: { id: true, name: true, grade: true, seat: true },
     }),
     prisma.meritDemerit.findMany({
       include: { student: { select: { name: true, grade: true } } },
@@ -19,6 +18,14 @@ export default async function MeritDemeritPage() {
       take: 50,
     }),
   ]);
+
+  // 좌석번호 숫자순 정렬 (1, 2, 3, ... 10, 11), 좌석 없는 학생은 마지막
+  students.sort((a, b) => {
+    const numA = a.seat ? parseInt(a.seat, 10) : Infinity;
+    const numB = b.seat ? parseInt(b.seat, 10) : Infinity;
+    if (numA !== numB) return numA - numB;
+    return a.name.localeCompare(b.name, "ko");
+  });
 
   return (
     <div className="space-y-6">
