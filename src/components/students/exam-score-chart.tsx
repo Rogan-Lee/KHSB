@@ -97,12 +97,48 @@ function Trend({ current, prev }: { current?: number; prev?: number }) {
   return <span className="flex items-center gap-0.5 text-muted-foreground text-xs"><Minus className="h-3 w-3" /> 0</span>;
 }
 
-function ExamTableView({ scores, filterType, onEdit, onDelete }: {
+function ExamTableView({ scores, filterType, studentId, onUpdate, onDelete }: {
   scores: ExamScore[];
   filterType: ExamType | "ALL";
-  onEdit?: (score: ExamScore) => void;
+  studentId: string;
+  onUpdate?: (updated: ExamScore) => void;
   onDelete?: (id: string) => void;
 }) {
+  const [editId, setEditId] = useState<string | null>(null);
+  const [ef, setEf] = useState({ subject: "", rawScore: "", grade: "", percentile: "", notes: "" });
+  const [pending, setPending] = useState(false);
+
+  function startInlineEdit(s: ExamScore) {
+    setEditId(s.id);
+    setEf({
+      subject: s.subject,
+      rawScore: s.rawScore?.toString() ?? "",
+      grade: s.grade?.toString() ?? "",
+      percentile: s.percentile?.toString() ?? "",
+      notes: s.notes ?? "",
+    });
+  }
+
+  async function saveInlineEdit(s: ExamScore) {
+    setPending(true);
+    try {
+      const updated = await updateExamScore(s.id, {
+        studentId,
+        examType: s.examType,
+        examName: s.examName,
+        examDate: new Date(s.examDate).toISOString().split("T")[0],
+        subject: ef.subject,
+        rawScore: ef.rawScore ? parseInt(ef.rawScore) : undefined,
+        grade: ef.grade ? parseInt(ef.grade) : undefined,
+        percentile: ef.percentile ? parseFloat(ef.percentile) : undefined,
+        notes: ef.notes || undefined,
+      });
+      onUpdate?.(updated);
+      setEditId(null);
+    } catch { /* toast handled by parent */ }
+    setPending(false);
+  }
+
   const typeScores = filterType === "ALL" ? scores : scores.filter((s) => s.examType === filterType);
   const examGroups = new Map<string, { examName: string; examDate: Date; examType: ExamType; scores: ExamScore[] }>();
   for (const s of typeScores) {
@@ -137,13 +173,51 @@ function ExamTableView({ scores, filterType, onEdit, onDelete }: {
                 <th className="px-3 py-2 text-right font-medium">등급</th>
                 <th className="px-3 py-2 text-right font-medium">백분위</th>
                 <th className="px-3 py-2 text-left font-medium">메모</th>
-                {(onEdit || onDelete) && <th className="px-3 py-2 w-16"></th>}
+                <th className="px-3 py-2 w-16"></th>
               </tr>
             </thead>
             <tbody>
               {g.scores
                 .sort((a, b) => allSubjects.indexOf(a.subject) - allSubjects.indexOf(b.subject))
-                .map((s) => (
+                .map((s) => editId === s.id ? (
+                <tr key={s.id} className="border-b last:border-0 bg-blue-50/50">
+                  <td className="px-2 py-1.5">
+                    <select value={ef.subject} onChange={(e) => setEf((f) => ({ ...f, subject: e.target.value }))}
+                      className="border rounded px-1 py-1 text-xs bg-background w-full">
+                      {SUBJECTS.map((sub) => <option key={sub} value={sub}>{sub}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <input type="number" value={ef.rawScore} min={0} max={100}
+                      onChange={(e) => setEf((f) => ({ ...f, rawScore: e.target.value }))}
+                      className="w-14 border rounded px-1.5 py-1 text-xs bg-background text-right" />
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <input type="number" value={ef.grade} min={1} max={9}
+                      onChange={(e) => setEf((f) => ({ ...f, grade: e.target.value }))}
+                      className="w-12 border rounded px-1.5 py-1 text-xs bg-background text-right" />
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <input type="number" value={ef.percentile} step={0.1}
+                      onChange={(e) => setEf((f) => ({ ...f, percentile: e.target.value }))}
+                      className="w-14 border rounded px-1.5 py-1 text-xs bg-background text-right" />
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <input type="text" value={ef.notes} onChange={(e) => setEf((f) => ({ ...f, notes: e.target.value }))}
+                      className="w-full border rounded px-1.5 py-1 text-xs bg-background" placeholder="메모" />
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => saveInlineEdit(s)} disabled={pending} className="text-green-600 hover:text-green-800 transition-colors">
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => setEditId(null)} className="text-muted-foreground hover:text-foreground transition-colors">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
                 <tr key={s.id} className="border-b last:border-0 hover:bg-muted/20">
                   <td className="px-3 py-2 font-medium">{s.subject}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{s.rawScore != null ? `${s.rawScore}점` : "—"}</td>
@@ -152,22 +226,18 @@ function ExamTableView({ scores, filterType, onEdit, onDelete }: {
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{s.percentile != null ? `${s.percentile}%` : "—"}</td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">{s.notes || "—"}</td>
-                  {(onEdit || onDelete) && (
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-1.5">
-                        {onEdit && (
-                          <button onClick={() => onEdit(s)} className="text-muted-foreground/50 hover:text-blue-600 transition-colors">
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                        {onDelete && (
-                          <button onClick={() => onDelete(s.id)} className="text-muted-foreground/50 hover:text-destructive transition-colors">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  )}
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => startInlineEdit(s)} className="text-muted-foreground/50 hover:text-blue-600 transition-colors">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      {onDelete && (
+                        <button onClick={() => onDelete(s.id)} className="text-muted-foreground/50 hover:text-destructive transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -535,7 +605,7 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
       </div>
 
       {/* 시험별 전체 과목 테이블 뷰 */}
-      {viewMode === "table" && <ExamTableView scores={scores} filterType={filterType} onEdit={(s) => { startEdit(s); setViewMode("all"); setFilterSubject(s.subject); }} onDelete={handleDelete} />}
+      {viewMode === "table" && <ExamTableView scores={scores} filterType={filterType} studentId={studentId} onUpdate={(updated) => setScores((prev) => prev.map((s) => s.id === updated.id ? updated : s))} onDelete={handleDelete} />}
 
       {/* 데이터 없음 */}
       {chartData.length === 0 && viewMode !== "table" ? (
