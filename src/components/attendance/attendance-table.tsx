@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveAttendanceRecord, createDailyOuting, updateDailyOuting, deleteDailyOuting } from "@/actions/attendance";
-import { patchStudentTextFields, patchStudentCheckDate } from "@/actions/students";
+import { patchStudentTextFields, patchStudentCheckDate, resetWeeklyCheckDates } from "@/actions/students";
 import { createMeritDemerit } from "@/actions/merit-demerit";
 import { createStudyPlanReport } from "@/actions/study-plan-reports";
 import { toast } from "sonner";
@@ -579,7 +579,27 @@ export function AttendanceTable({ students, today }: Props) {
               <th className="px-3 py-2.5 text-center w-12">좌석</th>
               <th className="px-3 py-2.5 text-left w-28">이름</th>
               <th className="px-3 py-2.5 text-center w-28">플래너 전송</th>
-              <th className="px-2 py-2.5 text-center w-16">공부계획</th>
+              <th className="px-2 py-2.5 text-center w-16">
+                <div className="flex items-center justify-center gap-1">
+                  <span>공부계획</span>
+                  <button
+                    onClick={async () => {
+                      if (!confirm("공부계획 체크를 모두 초기화하시겠습니까?")) return;
+                      await resetWeeklyCheckDates();
+                      setLocalCheckDates((prev) => {
+                        const m = new Map(prev);
+                        for (const [id, dates] of m) m.set(id, { ...dates, weeklyPlanDate: null });
+                        return m;
+                      });
+                      toast.success("공부계획이 초기화되었습니다");
+                    }}
+                    title="공부계획 전체 초기화"
+                    className="p-0.5 text-muted-foreground/50 hover:text-red-500 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              </th>
               <th className="px-3 py-2.5 text-left w-24">학교·학년</th>
               <th className="px-3 py-2.5 text-left w-16">반</th>
               <th className="px-3 py-2.5 text-left" style={{ minWidth: "380px" }}>입퇴실</th>
@@ -1613,7 +1633,40 @@ export function AttendanceTable({ students, today }: Props) {
               )}
 
               {panelTab === "studyplan" && (
-                <StudyPlanSharePanel studentId={selected.id} studentName={selected.name} />
+                <div className="space-y-4">
+                  {/* 체크 항목 */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground">체크 현황</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {CHECK_ITEMS.map(({ key, label }) => {
+                        const dateVal = localCheckDates.get(selected.id)?.[key] ?? null;
+                        const done = dateVal && isDoneThisWeek(key, dateVal);
+                        const pending = checkDatePending === `${selected.id}:${key}`;
+                        return (
+                          <button
+                            key={key}
+                            onClick={() => saveCheckDate(selected.id, key, done ? null : new Date().toISOString().split("T")[0])}
+                            disabled={pending}
+                            className={cn(
+                              "flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors disabled:opacity-40",
+                              done
+                                ? "bg-green-50 text-green-700 border-green-200"
+                                : "bg-background text-muted-foreground border-border hover:bg-accent"
+                            )}
+                          >
+                            {done ? <Check className="h-3.5 w-3.5" /> : <div className="h-3.5 w-3.5 rounded border border-current" />}
+                            {label}
+                            {dateVal && <span className="text-[10px] opacity-60 ml-auto">{fmtCheckDate(dateVal)}</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {/* 구분선 */}
+                  <div className="border-t" />
+                  {/* 공유 패널 */}
+                  <StudyPlanSharePanel studentId={selected.id} studentName={selected.name} />
+                </div>
               )}
 
               {panelTab === "assignments" && (
