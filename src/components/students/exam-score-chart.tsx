@@ -29,6 +29,7 @@ const EXAM_TYPE_LABELS: Record<ExamType, string> = {
 
 const SUBJECTS = [
   "국어", "수학", "영어", "한국사",
+  "사회", "과학",
   // 사회탐구
   "생활과윤리", "윤리와사상", "한국지리", "세계지리",
   "동아시아사", "세계사", "경제", "정치와법", "사회·문화",
@@ -404,6 +405,8 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
                   <option value="수학">수학</option>
                   <option value="영어">영어</option>
                   <option value="한국사">한국사</option>
+                  <option value="사회">사회</option>
+                  <option value="과학">과학</option>
                 </optgroup>
                 <optgroup label="사회탐구">
                   <option value="생활과윤리">생활과윤리</option>
