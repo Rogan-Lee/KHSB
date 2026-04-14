@@ -1633,40 +1633,7 @@ export function AttendanceTable({ students, today }: Props) {
               )}
 
               {panelTab === "studyplan" && (
-                <div className="space-y-4">
-                  {/* 체크 항목 */}
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground">체크 현황</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {CHECK_ITEMS.map(({ key, label }) => {
-                        const dateVal = localCheckDates.get(selected.id)?.[key] ?? null;
-                        const done = dateVal && isDoneThisWeek(key, dateVal);
-                        const pending = checkDatePending === `${selected.id}:${key}`;
-                        return (
-                          <button
-                            key={key}
-                            onClick={() => saveCheckDate(selected.id, key, done ? null : new Date().toISOString().split("T")[0])}
-                            disabled={pending}
-                            className={cn(
-                              "flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-colors disabled:opacity-40",
-                              done
-                                ? "bg-green-50 text-green-700 border-green-200"
-                                : "bg-background text-muted-foreground border-border hover:bg-accent"
-                            )}
-                          >
-                            {done ? <Check className="h-3.5 w-3.5" /> : <div className="h-3.5 w-3.5 rounded border border-current" />}
-                            {label}
-                            {dateVal && <span className="text-[10px] opacity-60 ml-auto">{fmtCheckDate(dateVal)}</span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  {/* 구분선 */}
-                  <div className="border-t" />
-                  {/* 공유 패널 */}
-                  <StudyPlanSharePanel studentId={selected.id} studentName={selected.name} />
-                </div>
+                <StudyPlanSharePanel studentId={selected.id} studentName={selected.name} />
               )}
 
               {panelTab === "assignments" && (
