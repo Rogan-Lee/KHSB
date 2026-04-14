@@ -98,18 +98,35 @@ export default async function ParentReportPage({
           </div>
         </div>
 
-        {/* 멘토 안내사항 */}
+        {/* AI 고도화 리포트 (customNote에 전체 내용 포함) */}
+        {customNote && customNote.includes("[오늘 멘토링 내용]") ? (
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
+            <div className="px-5 py-4 border-b border-gray-50">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-blue-500 shrink-0" />
+                <p className="text-sm font-bold text-gray-800">멘토링 내용</p>
+              </div>
+            </div>
+            <div className="px-5 py-4 text-sm text-gray-800 leading-relaxed">
+              <MarkdownViewer source={customNote} />
+            </div>
+          </div>
+        ) : (
+        <>
+        {/* 멘토 안내사항 (일반 customNote) */}
         {customNote && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
               <MessageSquare className="h-4 w-4 text-amber-600 shrink-0" />
               <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">멘토 안내사항</p>
             </div>
-            <p className="text-sm text-gray-800 whitespace-pre-wrap break-words leading-relaxed">{customNote}</p>
+            <div className="text-sm text-gray-800 leading-relaxed">
+              <MarkdownViewer source={customNote} />
+            </div>
           </div>
         )}
 
-        {/* 멘토링 내용 */}
+        {/* 멘토링 내용 (원본) */}
         {hasMentoringContent && (
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
             <div className="px-5 py-4 border-b border-gray-50">
@@ -170,6 +187,8 @@ export default async function ParentReportPage({
               )}
             </div>
           </div>
+        )}
+        </>
         )}
 
         {/* 학습 계획 */}
