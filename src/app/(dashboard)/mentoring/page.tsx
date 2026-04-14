@@ -52,11 +52,16 @@ export default async function MentoringPage() {
       date: new Date(today),
       checkIn: { not: null },
     },
-    select: { studentId: true, checkOut: true },
+    select: { studentId: true, checkOut: true, checkIn: true, notes: true },
   });
   const checkedInStudentIds = new Set(
     todayAttendance.filter((a) => !a.checkOut).map((a) => a.studentId)
   );
+  // 오늘 출석 특이사항 맵 (studentId → notes)
+  const attendanceNotesMap: Record<string, string> = {};
+  for (const a of todayAttendance) {
+    if (a.notes) attendanceNotesMap[a.studentId] = a.notes;
+  }
 
   const upcoming = mentorings.filter((m) => m.status === "SCHEDULED").length;
   const completed = mentorings.filter((m) => m.status === "COMPLETED").length;
@@ -106,7 +111,7 @@ export default async function MentoringPage() {
           </Link>
         </CardHeader>
         <CardContent>
-          <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} vocabEnrolledStudentIds={vocabEnrolledIds} />
+          <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} vocabEnrolledStudentIds={vocabEnrolledIds} attendanceNotes={attendanceNotesMap} />
         </CardContent>
       </Card>
     </div>
