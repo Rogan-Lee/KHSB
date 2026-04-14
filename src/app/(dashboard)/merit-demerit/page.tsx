@@ -10,8 +10,8 @@ export default async function MeritDemeritPage() {
   const [students, recentMerits] = await Promise.all([
     prisma.student.findMany({
       where: { status: "ACTIVE" },
-      select: { id: true, name: true, grade: true },
-      orderBy: { name: "asc" },
+      select: { id: true, name: true, grade: true, seat: true },
+      orderBy: [{ seat: { sort: "asc", nulls: "last" } }, { name: "asc" }],
     }),
     prisma.meritDemerit.findMany({
       include: { student: { select: { name: true, grade: true } } },
