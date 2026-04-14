@@ -995,62 +995,7 @@ export function AttendanceTable({ students, today }: Props) {
                               </span>
                             )}
                             <div className="flex items-stretch gap-3 w-full">
-                              {/* 왼쪽: 체크 항목 */}
-                              <div className="flex flex-col justify-center gap-2 shrink-0 rounded-md border border-border bg-muted/30 px-4 py-3">
-                                {CHECK_ITEMS.map(({ key, label, permanent }) => {
-                                  const dateVal = localCheckDates.get(student.id)?.[key] ?? null;
-                                  const isPending = checkDatePending === `${student.id}:${key}`;
-                                  const todayISO = new Date().toISOString().split("T")[0];
-                                  const hasDate = !!dateVal;
-                                  const isCurrentWeek = hasDate && isDoneThisWeek(key, dateVal);
-                                  return (
-                                    <div key={key} className="flex items-center gap-2">
-                                      <span className="text-xs text-muted-foreground w-24 shrink-0">{label}</span>
-                                      {hasDate ? (
-                                        <div className="inline-flex items-center gap-1">
-                                          <DatePicker
-                                            value={dateVal}
-                                            onChange={(d) => saveCheckDate(student.id, key, d)}
-                                            disabled={isPending || !!permanent}
-                                            className={!isCurrentWeek && WEEKLY_KEYS.has(key) ? "!text-amber-600 !bg-amber-50 !border-amber-200" : undefined}
-                                          />
-                                          {!isCurrentWeek && WEEKLY_KEYS.has(key) && (
-                                            <span className="text-[10px] text-amber-500">지난주</span>
-                                          )}
-                                          {!permanent && (
-                                            <button
-                                              onClick={() => saveCheckDate(student.id, key, null)}
-                                              disabled={isPending}
-                                              title="취소"
-                                              className="p-0.5 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-40"
-                                            >
-                                              <X className="h-3 w-3" />
-                                            </button>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <div className="inline-flex items-center gap-1">
-                                          <button
-                                            onClick={() => saveCheckDate(student.id, key, todayISO)}
-                                            disabled={isPending}
-                                            className="px-2 py-0.5 text-[10px] rounded border border-border bg-background hover:bg-accent text-muted-foreground font-medium transition-colors disabled:opacity-40"
-                                          >
-                                            {isPending ? "..." : "오늘"}
-                                          </button>
-                                          <DatePicker
-                                            value={null}
-                                            onChange={(d) => { if (d) saveCheckDate(student.id, key, d); }}
-                                            disabled={isPending}
-                                            compact
-                                          />
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              {/* 가운데: 요청/전달 */}
+                              {/* 왼쪽: 요청/전달 */}
                               <div className="w-72 shrink-0 rounded-md border border-border bg-muted/30 px-3 py-3 overflow-y-auto max-h-56">
                                 <CommunicationPanel
                                   studentId={student.id}
