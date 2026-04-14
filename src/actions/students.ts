@@ -238,6 +238,17 @@ export async function patchStudentCheckDate(
   revalidatePath("/attendance");
 }
 
+export async function resetWeeklyCheckDates() {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  await prisma.student.updateMany({
+    where: { status: "ACTIVE" },
+    data: { weeklyPlanDate: null },
+  });
+  revalidatePath("/attendance");
+}
+
 export async function getStudents() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
