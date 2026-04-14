@@ -50,7 +50,10 @@ type Mentoring = {
   scheduledTimeEnd: string | null;
   status: keyof typeof STATUS_MAP;
   notes: string | null;
-  student: { id: string; name: string; grade: string; seat?: string | null; vocabTestDate?: Date | null };
+  student: {
+    id: string; name: string; grade: string; seat?: string | null; vocabTestDate?: Date | null;
+    schedules?: { dayOfWeek: number; startTime: string; endTime: string }[];
+  };
   mentor: { id: string; name: string };
 };
 
@@ -465,6 +468,17 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                       <span className="font-medium">{m.student.name}</span>
                     </span>
                     <span className="text-xs text-muted-foreground ml-1">{m.student.grade}</span>
+                    {(() => {
+                      const dow = new Date(m.scheduledAt).getDay();
+                      const sched = m.student.schedules?.find((s) => s.dayOfWeek === dow);
+                      if (!sched) return null;
+                      const isCheckedIn = checkedInSet.has(m.student.id);
+                      return (
+                        <span className="text-[11px] text-muted-foreground ml-1.5" title="입퇴실 일정">
+                          {isCheckedIn ? `~${sched.endTime}` : `${sched.startTime}~${sched.endTime}`}
+                        </span>
+                      );
+                    })()}
                   </TableCell>
                   {mentors.length > 0 && <TableCell className="whitespace-nowrap">{m.mentor.name}</TableCell>}
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
