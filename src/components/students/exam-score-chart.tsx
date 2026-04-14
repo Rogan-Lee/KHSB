@@ -96,7 +96,12 @@ function Trend({ current, prev }: { current?: number; prev?: number }) {
   return <span className="flex items-center gap-0.5 text-muted-foreground text-xs"><Minus className="h-3 w-3" /> 0</span>;
 }
 
-function ExamTableView({ scores, filterType }: { scores: ExamScore[]; filterType: ExamType | "ALL" }) {
+function ExamTableView({ scores, filterType, onEdit, onDelete }: {
+  scores: ExamScore[];
+  filterType: ExamType | "ALL";
+  onEdit?: (score: ExamScore) => void;
+  onDelete?: (id: string) => void;
+}) {
   const typeScores = filterType === "ALL" ? scores : scores.filter((s) => s.examType === filterType);
   const examGroups = new Map<string, { examName: string; examDate: Date; examType: ExamType; scores: ExamScore[] }>();
   for (const s of typeScores) {
@@ -131,6 +136,7 @@ function ExamTableView({ scores, filterType }: { scores: ExamScore[]; filterType
                 <th className="px-3 py-2 text-right font-medium">등급</th>
                 <th className="px-3 py-2 text-right font-medium">백분위</th>
                 <th className="px-3 py-2 text-left font-medium">메모</th>
+                {(onEdit || onDelete) && <th className="px-3 py-2 w-16"></th>}
               </tr>
             </thead>
             <tbody>
@@ -145,6 +151,22 @@ function ExamTableView({ scores, filterType }: { scores: ExamScore[]; filterType
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{s.percentile != null ? `${s.percentile}%` : "—"}</td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">{s.notes || "—"}</td>
+                  {(onEdit || onDelete) && (
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1.5">
+                        {onEdit && (
+                          <button onClick={() => onEdit(s)} className="text-muted-foreground/50 hover:text-blue-600 transition-colors">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button onClick={() => onDelete(s.id)} className="text-muted-foreground/50 hover:text-destructive transition-colors">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -510,7 +532,7 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
       </div>
 
       {/* 시험별 전체 과목 테이블 뷰 */}
-      {viewMode === "table" && <ExamTableView scores={scores} filterType={filterType} />}
+      {viewMode === "table" && <ExamTableView scores={scores} filterType={filterType} onEdit={(s) => { startEdit(s); setViewMode("all"); setFilterSubject(s.subject); }} onDelete={handleDelete} />}
 
       {/* 데이터 없음 */}
       {chartData.length === 0 && viewMode !== "table" ? (
