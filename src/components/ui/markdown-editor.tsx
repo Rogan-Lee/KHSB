@@ -28,7 +28,7 @@ export function MarkdownEditor({ value, onChange, placeholder }: Props) {
       Placeholder.configure({
         placeholder: placeholder ?? "내용을 입력하세요... (# 제목, **굵게**, - 목록, > 인용 등)",
       }),
-      Markdown.configure({ html: false, transformPastedText: true }),
+      Markdown.configure({ html: true, transformPastedText: true }),
     ],
     content: value || "",
     immediatelyRender: false,
