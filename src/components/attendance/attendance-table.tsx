@@ -579,8 +579,8 @@ export function AttendanceTable({ students, today }: Props) {
               <th className="px-3 py-2.5 text-center w-12">좌석</th>
               <th className="px-3 py-2.5 text-left w-28">이름</th>
               <th className="px-3 py-2.5 text-center w-28">플래너 전송</th>
-              <th className="px-2 py-2.5 text-center w-16">
-                <div className="flex items-center justify-center gap-1">
+              <th className="px-2 py-2.5 text-center w-20">
+                <div className="flex flex-col items-center gap-0.5">
                   <span>공부계획</span>
                   <button
                     onClick={async () => {
@@ -593,10 +593,9 @@ export function AttendanceTable({ students, today }: Props) {
                       });
                       toast.success("공부계획이 초기화되었습니다");
                     }}
-                    title="공부계획 전체 초기화"
-                    className="p-0.5 text-muted-foreground/50 hover:text-red-500 transition-colors"
+                    className="px-1.5 py-0.5 text-[9px] rounded border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
                   >
-                    <X className="h-3 w-3" />
+                    초기화
                   </button>
                 </div>
               </th>
