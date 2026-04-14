@@ -66,6 +66,7 @@ type Props = {
   currentUserId?: string;
   checkedInStudentIds?: string[];
   vocabEnrolledStudentIds?: string[];
+  attendanceNotes?: Record<string, string>;
 };
 
 function isVocabDone(vocabTestDate: Date | null | undefined): boolean {
@@ -233,7 +234,7 @@ function saveFilters(f: FilterState) {
   try { sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(f)); } catch { /* ignore */ }
 }
 
-export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [], vocabEnrolledStudentIds = [] }: Props) {
+export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [], vocabEnrolledStudentIds = [], attendanceNotes = {} }: Props) {
   const checkedInSet = new Set(checkedInStudentIds);
   const vocabEnrolledSet = new Set(vocabEnrolledStudentIds);
   const today = getToday();
@@ -457,38 +458,50 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                   </TableCell>
                   <TableCell className="text-center text-xs text-muted-foreground font-mono">{m.student.seat || "—"}</TableCell>
                   <TableCell className="whitespace-nowrap">{formatDate(m.scheduledAt)}</TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1.5">
-                      {checkedInSet.has(m.student.id) && (
-                        <span className="relative flex h-2 w-2 shrink-0" title="입실 중">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {/* 입실 상태 표시 */}
+                      {checkedInSet.has(m.student.id) ? (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200 shrink-0">
+                          <span className="relative flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500" />
+                          </span>
+                          입실
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-red-600 border border-red-200 shrink-0">
+                          미입실
                         </span>
                       )}
-                      <span className="font-medium">{m.student.name}</span>
-                    </span>
-                    <span className="text-xs text-muted-foreground ml-1">{m.student.grade}</span>
-                    {(() => {
-                      const dow = new Date(m.scheduledAt).getDay();
-                      const sched = m.student.schedules?.find((s) => s.dayOfWeek === dow);
-                      if (!sched) return null;
-                      const isCheckedIn = checkedInSet.has(m.student.id);
-                      return (
-                        <span
-                          className={cn(
-                            "text-[11px] font-medium ml-1.5 px-1.5 py-0.5 rounded",
-                            isCheckedIn
-                              ? "bg-blue-50 text-blue-700 border border-blue-200"
-                              : "bg-gray-100 text-gray-700 border border-gray-200"
-                          )}
-                          title="입퇴실 일정"
-                        >
-                          {isCheckedIn
-                            ? `~${sched.endTime === "FLEXIBLE" ? "자율" : sched.endTime}`
-                            : `${sched.startTime === "FLEXIBLE" ? "자율" : sched.startTime}~${sched.endTime === "FLEXIBLE" ? "자율" : sched.endTime}`}
-                        </span>
-                      );
-                    })()}
+                      {/* 이름 + 학년 */}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium whitespace-nowrap">{m.student.name}</span>
+                          <span className="text-xs text-muted-foreground">{m.student.grade}</span>
+                          {/* 입퇴실 시간 */}
+                          {(() => {
+                            const dow = new Date(m.scheduledAt).getDay();
+                            const sched = m.student.schedules?.find((s) => s.dayOfWeek === dow);
+                            if (!sched) return null;
+                            const isCheckedIn = checkedInSet.has(m.student.id);
+                            return (
+                              <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                                {isCheckedIn
+                                  ? `~${sched.endTime === "FLEXIBLE" ? "자율" : sched.endTime}`
+                                  : `${sched.startTime === "FLEXIBLE" ? "자율" : sched.startTime}~${sched.endTime === "FLEXIBLE" ? "자율" : sched.endTime}`}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                        {/* 특이사항 */}
+                        {attendanceNotes[m.student.id] && (
+                          <p className="text-[11px] text-amber-600 truncate max-w-[200px] mt-0.5" title={attendanceNotes[m.student.id]}>
+                            {attendanceNotes[m.student.id]}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </TableCell>
                   {mentors.length > 0 && <TableCell className="whitespace-nowrap">{m.mentor.name}</TableCell>}
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
