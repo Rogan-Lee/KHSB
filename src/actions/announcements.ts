@@ -31,16 +31,16 @@ export async function getAnnouncementHistory(page: string, skip: number, take: n
     prisma.announcement.count({ where: { page } }),
   ]);
 
-  return { items, total: Math.max(total - 1, 0) }; // 현재 공지 제외한 총 수
+  return { items, total: Math.max(total - 1, 0) };
 }
 
-export async function createAnnouncement(page: string, content: string) {
+export async function createAnnouncement(page: string, title: string, content: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
   requireFullAccess(session.user.role);
 
   await prisma.announcement.create({
-    data: { content, page, authorId: session.user.id },
+    data: { title, content, page, authorId: session.user.id },
   });
 
   revalidatePath("/mentoring");
