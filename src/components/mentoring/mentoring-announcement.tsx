@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { createAnnouncement, getAnnouncementHistory } from "@/actions/announcements";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
@@ -41,6 +41,11 @@ function HistoryTab() {
   const [isPending, startTransition] = useTransition();
   const pageSize = 5;
 
+  useEffect(() => {
+    loadPage(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function loadPage(p: number) {
     startTransition(async () => {
       const result = await getAnnouncementHistory("mentoring", p * pageSize, pageSize);
@@ -52,7 +57,6 @@ function HistoryTab() {
   }
 
   if (!loaded) {
-    loadPage(0);
     return (
       <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
