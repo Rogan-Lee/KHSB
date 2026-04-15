@@ -139,8 +139,15 @@ export function MentoringAnnouncement({ announcement, isDirector }: Props) {
     setEditing(false);
   }
 
+  const [tab, setTab] = useState("current");
+
+  function handleNewAnnouncement() {
+    setTab("current");
+    setEditing(true);
+  }
+
   return (
-    <Tabs defaultValue="current">
+    <Tabs value={tab} onValueChange={setTab}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Megaphone className="h-5 w-5 text-orange-500" />
@@ -155,7 +162,7 @@ export function MentoringAnnouncement({ announcement, isDirector }: Props) {
             </TabsTrigger>
           </TabsList>
           {isDirector && !editing && (
-            <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+            <Button variant="ghost" size="sm" onClick={handleNewAnnouncement}>
               <Pencil className="h-3.5 w-3.5 mr-1" />
               새 공지
             </Button>
