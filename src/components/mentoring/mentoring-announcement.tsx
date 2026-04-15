@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createAnnouncement, updateAnnouncement, deleteAnnouncement, getAnnouncementHistory } from "@/actions/announcements";
+import { createAnnouncement, updateAnnouncement, deleteAnnouncement, deleteAnnouncementsBulk, getAnnouncementHistory } from "@/actions/announcements";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Megaphone, Pencil, X, Check, Loader2, ChevronLeft, ChevronRight, History, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface AnnouncementData {
   id: string;
@@ -24,14 +25,20 @@ interface Props {
   isDirector: boolean;
 }
 
-function HistoryTab({ isDirector }: { isDirector: boolean }) {
+interface HistoryTabProps {
+  isDirector: boolean;
+  onEdit: (item: AnnouncementData) => void;
+}
+
+function HistoryTab({ isDirector, onEdit }: HistoryTabProps) {
   const [items, setItems] = useState<AnnouncementData[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const pageSize = 5;
   const router = useRouter();
 
@@ -48,21 +55,40 @@ function HistoryTab({ isDirector }: { isDirector: boolean }) {
       setPage(p);
       setLoaded(true);
       setExpandedIdx(null);
+      setSelected(new Set());
     });
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("이 공지를 삭제하시겠습니까?")) return;
-    setDeleting(id);
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (selected.size === items.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(items.map((item) => item.id)));
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    if (!confirm(`선택한 ${selected.size}개 공지를 삭제하시겠습니까?`)) return;
+    setBulkDeleting(true);
     try {
-      await deleteAnnouncement(id);
-      toast.success("공지가 삭제되었습니다");
+      await deleteAnnouncementsBulk([...selected]);
+      toast.success(`${selected.size}개 공지가 삭제되었습니다`);
       router.refresh();
       loadPage(page);
     } catch {
       toast.error("삭제에 실패했습니다");
     } finally {
-      setDeleting(null);
+      setBulkDeleting(false);
     }
   }
 
@@ -87,6 +113,23 @@ function HistoryTab({ isDirector }: { isDirector: boolean }) {
 
   return (
     <div className="space-y-3">
+      {/* 선택 삭제 바 */}
+      {isDirector && selected.size > 0 && (
+        <div className="flex items-center justify-between bg-destructive/10 rounded-md px-3 py-2">
+          <span className="text-sm font-medium">{selected.size}개 선택됨</span>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={handleBulkDelete}
+            disabled={bulkDeleting}
+          >
+            {bulkDeleting ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
+            선택 삭제
+          </Button>
+        </div>
+      )}
+
       {isPending ? (
         <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -97,10 +140,20 @@ function HistoryTab({ isDirector }: { isDirector: boolean }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
+                {isDirector && (
+                  <th className="w-10 px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={items.length > 0 && selected.size === items.length}
+                      onChange={toggleAll}
+                      className="rounded border-input"
+                    />
+                  </th>
+                )}
                 <th className="text-left px-3 py-2 font-medium">제목</th>
                 <th className="text-left px-3 py-2 font-medium w-20">작성자</th>
                 <th className="text-left px-3 py-2 font-medium w-28">작성일</th>
-                {isDirector && <th className="w-10" />}
+                {isDirector && <th className="w-16" />}
               </tr>
             </thead>
             <tbody>
@@ -108,9 +161,22 @@ function HistoryTab({ isDirector }: { isDirector: boolean }) {
                 <>
                   <tr
                     key={`row-${page}-${i}`}
-                    className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
+                    className={cn(
+                      "border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors",
+                      selected.has(item.id) && "bg-primary/5"
+                    )}
                     onClick={() => setExpandedIdx(expandedIdx === i ? null : i)}
                   >
+                    {isDirector && (
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(item.id)}
+                          onChange={() => toggleSelect(item.id)}
+                          className="rounded border-input"
+                        />
+                      </td>
+                    )}
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1.5">
                         {expandedIdx === i ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
@@ -123,19 +189,20 @@ function HistoryTab({ isDirector }: { isDirector: boolean }) {
                     </td>
                     {isDirector && (
                       <td className="px-2 py-2">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
-                          disabled={deleting === item.id}
-                          className="text-muted-foreground hover:text-destructive transition-colors"
-                        >
-                          {deleting === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                        </button>
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => onEdit(item)}
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     )}
                   </tr>
                   {expandedIdx === i && (
                     <tr key={`detail-${page}-${i}`}>
-                      <td colSpan={isDirector ? 4 : 3} className="px-4 py-3 bg-muted/20">
+                      <td colSpan={isDirector ? 5 : 3} className="px-4 py-3 bg-muted/20">
                         <MarkdownViewer source={item.content} />
                       </td>
                     </tr>
@@ -164,7 +231,7 @@ function HistoryTab({ isDirector }: { isDirector: boolean }) {
 
 export function MentoringAnnouncement({ announcement, isDirector }: Props) {
   const [editing, setEditing] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null); // null = 신규, string = 수정
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
@@ -212,15 +279,24 @@ export function MentoringAnnouncement({ announcement, isDirector }: Props) {
     setEditing(true);
   }
 
-  function handleEdit() {
+  function handleEditCurrent() {
     if (!announcement) return;
+    setTab("current");
     setEditingId(announcement.id);
     setTitle(announcement.title);
     setContent(announcement.content);
     setEditing(true);
   }
 
-  async function handleDelete() {
+  function handleEditHistory(item: AnnouncementData) {
+    setTab("current");
+    setEditingId(item.id);
+    setTitle(item.title);
+    setContent(item.content);
+    setEditing(true);
+  }
+
+  async function handleDeleteCurrent() {
     if (!announcement) return;
     if (!confirm("현재 공지를 삭제하시겠습니까?")) return;
     setSaving(true);
@@ -298,11 +374,11 @@ export function MentoringAnnouncement({ announcement, isDirector }: Props) {
               </p>
               {isDirector && (
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleEdit}>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleEditCurrent}>
                     <Pencil className="h-3 w-3 mr-1" />
                     수정
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive" onClick={handleDelete} disabled={saving}>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive" onClick={handleDeleteCurrent} disabled={saving}>
                     <Trash2 className="h-3 w-3 mr-1" />
                     삭제
                   </Button>
@@ -324,7 +400,7 @@ export function MentoringAnnouncement({ announcement, isDirector }: Props) {
       </TabsContent>
 
       <TabsContent value="history" className="mt-0">
-        <HistoryTab isDirector={isDirector} />
+        <HistoryTab isDirector={isDirector} onEdit={handleEditHistory} />
       </TabsContent>
     </Tabs>
   );

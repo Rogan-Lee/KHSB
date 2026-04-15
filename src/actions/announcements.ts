@@ -68,3 +68,13 @@ export async function deleteAnnouncement(id: string) {
 
   revalidatePath("/mentoring");
 }
+
+export async function deleteAnnouncementsBulk(ids: string[]) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
+
+  await prisma.announcement.deleteMany({ where: { id: { in: ids } } });
+
+  revalidatePath("/mentoring");
+}
