@@ -111,6 +111,7 @@ model User {
   mentorSchedules MentorSchedule[]
   parentReports   ParentReport[]
   timetableEntries TimetableEntry[]
+  announcements    Announcement[]
   kakaoAccessToken  String?
   kakaoRefreshToken String?
   kakaoTokenExpiry  DateTime?
@@ -730,4 +731,15 @@ model GoogleCalendarToken {
   calendarId   String   @default("primary")
   connectedBy  String   // 연동한 사용자 이름
   updatedAt    DateTime @updatedAt
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String   @default("")
+  content   String   @db.Text
+  page      String   @default("mentoring")
+  author    User     @relation(fields: [authorId], references: [id])
+  authorId  String
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
 }
