@@ -363,12 +363,10 @@ export function MentoringAnnouncement({ announcement, isDirector }: Props) {
         ) : announcement ? (
           <div>
             {announcement.title && (
-              <h4 className="font-semibold text-sm mb-2">{announcement.title}</h4>
+              <h2 className="text-lg font-bold mb-3">{announcement.title}</h2>
             )}
-            <div className="rounded-md border bg-orange-50/50 dark:bg-orange-950/20 p-4">
-              <MarkdownViewer source={announcement.content} />
-            </div>
-            <div className="flex items-center justify-between mt-2">
+            <MarkdownViewer source={announcement.content} />
+            <div className="flex items-center justify-between mt-3 pt-3 border-t">
               <p className="text-xs text-muted-foreground">
                 작성: {announcement.author.name} · {new Date(announcement.createdAt).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
               </p>
