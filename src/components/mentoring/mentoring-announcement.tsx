@@ -237,6 +237,7 @@ export function MentoringAnnouncement({ announcement, isDirector }: Props) {
   const [saving, setSaving] = useState(false);
   const router = useRouter();
   const [tab, setTab] = useState("current");
+  const [collapsed, setCollapsed] = useState(false);
 
   async function handleSave() {
     if (!title.trim()) {
@@ -313,20 +314,29 @@ export function MentoringAnnouncement({ announcement, isDirector }: Props) {
 
   return (
     <Tabs value={tab} onValueChange={setTab}>
-      <div className="flex items-center justify-between mb-3">
+      <div
+        className="flex items-center justify-between cursor-pointer select-none"
+        onClick={() => !editing && setCollapsed(!collapsed)}
+      >
         <div className="flex items-center gap-2">
+          {collapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
           <Megaphone className="h-5 w-5 text-orange-500" />
           <h3 className="font-semibold text-base">공지사항</h3>
+          {collapsed && announcement?.title && (
+            <span className="text-sm text-muted-foreground truncate max-w-[200px]">— {announcement.title}</span>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <TabsList className="h-8">
-            <TabsTrigger value="current" className="text-xs px-3 h-7">이번 주</TabsTrigger>
-            <TabsTrigger value="history" className="text-xs px-3 h-7">
-              <History className="h-3 w-3 mr-1" />
-              목록
-            </TabsTrigger>
-          </TabsList>
-          {isDirector && !editing && (
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          {!collapsed && (
+            <TabsList className="h-8">
+              <TabsTrigger value="current" className="text-xs px-3 h-7">이번 주</TabsTrigger>
+              <TabsTrigger value="history" className="text-xs px-3 h-7">
+                <History className="h-3 w-3 mr-1" />
+                목록
+              </TabsTrigger>
+            </TabsList>
+          )}
+          {isDirector && !editing && !collapsed && (
             <Button variant="ghost" size="sm" onClick={handleNewAnnouncement}>
               <Pencil className="h-3.5 w-3.5 mr-1" />
               새 공지
@@ -335,7 +345,7 @@ export function MentoringAnnouncement({ announcement, isDirector }: Props) {
         </div>
       </div>
 
-      <TabsContent value="current" className="mt-0">
+      {!collapsed && <><TabsContent value="current" className="mt-3">
         {editing ? (
           <div className="space-y-3">
             <Input
@@ -397,9 +407,11 @@ export function MentoringAnnouncement({ announcement, isDirector }: Props) {
         )}
       </TabsContent>
 
-      <TabsContent value="history" className="mt-0">
+      <TabsContent value="history" className="mt-3">
         <HistoryTab isDirector={isDirector} onEdit={handleEditHistory} />
       </TabsContent>
+      </>}
+
     </Tabs>
   );
 }
