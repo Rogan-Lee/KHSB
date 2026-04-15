@@ -735,6 +735,7 @@ model GoogleCalendarToken {
 
 model Announcement {
   id        String   @id @default(cuid())
+  title     String   @default("")
   content   String   @db.Text
   page      String   @default("mentoring")
   author    User     @relation(fields: [authorId], references: [id])
