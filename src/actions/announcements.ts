@@ -45,3 +45,26 @@ export async function createAnnouncement(page: string, title: string, content: s
 
   revalidatePath("/mentoring");
 }
+
+export async function updateAnnouncement(id: string, title: string, content: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
+
+  await prisma.announcement.update({
+    where: { id },
+    data: { title, content, authorId: session.user.id },
+  });
+
+  revalidatePath("/mentoring");
+}
+
+export async function deleteAnnouncement(id: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
+
+  await prisma.announcement.delete({ where: { id } });
+
+  revalidatePath("/mentoring");
+}
