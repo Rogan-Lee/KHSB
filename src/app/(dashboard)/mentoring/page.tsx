@@ -6,7 +6,9 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { TodayMentoringPanel } from "@/components/mentoring/today-mentoring-panel";
 import { MentoringList } from "@/components/mentoring/mentoring-list";
+import { MentoringAnnouncement } from "@/components/mentoring/mentoring-announcement";
 import { getTodayWorkingMentors } from "@/actions/mentoring";
+import { getAnnouncement } from "@/actions/announcements";
 import { Calendar } from "lucide-react";
 import { isFullAccess } from "@/lib/roles";
 
@@ -46,6 +48,8 @@ export default async function MentoringPage() {
   });
   const vocabEnrolledIds = vocabEnrolled.map((v) => v.studentId);
 
+  const announcement = await getAnnouncement("mentoring");
+
   // 오늘 입실 중인 학생 ID 목록
   const todayAttendance = await prisma.attendanceRecord.findMany({
     where: {
@@ -63,25 +67,14 @@ export default async function MentoringPage() {
     if (a.notes) attendanceNotesMap[a.studentId] = a.notes;
   }
 
-  const upcoming = mentorings.filter((m) => m.status === "SCHEDULED").length;
-  const completed = mentorings.filter((m) => m.status === "COMPLETED").length;
-
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 md:gap-4">
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">예정된 멘토링</p>
-            <p className="text-2xl font-bold">{upcoming}건</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">완료된 멘토링</p>
-            <p className="text-2xl font-bold">{completed}건</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* 이번 주 공지사항 */}
+      <Card>
+        <CardContent className="pt-4">
+          <MentoringAnnouncement announcement={announcement} isDirector={isDirector} />
+        </CardContent>
+      </Card>
 
       {/* 오늘의 멘토링 추천 */}
       <Card>
