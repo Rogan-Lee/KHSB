@@ -104,7 +104,7 @@ function HistoryTab({ isDirector, onEdit }: HistoryTabProps) {
   if (total === 0) {
     return (
       <div className="text-center py-8 text-sm text-muted-foreground">
-        이전 공지사항이 없습니다
+        등록된 공지사항이 없습니다
       </div>
     );
   }
@@ -323,7 +323,7 @@ export function MentoringAnnouncement({ announcement, isDirector }: Props) {
             <TabsTrigger value="current" className="text-xs px-3 h-7">이번 주</TabsTrigger>
             <TabsTrigger value="history" className="text-xs px-3 h-7">
               <History className="h-3 w-3 mr-1" />
-              이전
+              목록
             </TabsTrigger>
           </TabsList>
           {isDirector && !editing && (
