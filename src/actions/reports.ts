@@ -268,6 +268,68 @@ export async function getMonthlyReports(year: number, month: number) {
   });
 }
 
+/**
+ * 이번 달 멘토링 기록을 자동으로 분석·요약 (AI 없이, 구조화된 추출).
+ * 각 멘토링의 content/improvements/weaknesses/nextGoals를 일자별로 정리하여 마크다운 반환.
+ */
+export async function extractMonthlyMentoringDigest(
+  studentId: string,
+  year: number,
+  month: number
+): Promise<string> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const start = startOfMonth(new Date(year, month - 1));
+  const end = endOfMonth(new Date(year, month - 1));
+
+  const mentorings = await prisma.mentoring.findMany({
+    where: {
+      studentId,
+      scheduledAt: { gte: start, lte: end },
+      status: "COMPLETED",
+    },
+    select: {
+      actualDate: true,
+      scheduledAt: true,
+      content: true,
+      improvements: true,
+      weaknesses: true,
+      nextGoals: true,
+      notes: true,
+      mentor: { select: { name: true } },
+    },
+    orderBy: { scheduledAt: "asc" },
+  });
+
+  if (mentorings.length === 0) {
+    return `${year}년 ${month}월 진행된 멘토링이 없습니다.`;
+  }
+
+  // 마크다운으로 회차별 정리
+  const sections: string[] = [
+    `**${year}년 ${month}월 총 ${mentorings.length}회 멘토링 진행**`,
+    "",
+  ];
+
+  mentorings.forEach((m, i) => {
+    const date = m.actualDate ?? m.scheduledAt;
+    const dateStr = new Date(date).toLocaleDateString("ko-KR", {
+      month: "numeric",
+      day: "numeric",
+      weekday: "short",
+    });
+    sections.push(`### ${i + 1}회차 · ${dateStr} (${m.mentor?.name ?? "담당 멘토"})`);
+    if (m.content?.trim()) sections.push(`**내용**\n${m.content.trim()}`);
+    if (m.improvements?.trim()) sections.push(`**성장한 점**\n${m.improvements.trim()}`);
+    if (m.weaknesses?.trim()) sections.push(`**보완할 점**\n${m.weaknesses.trim()}`);
+    if (m.nextGoals?.trim()) sections.push(`**다음 목표**\n${m.nextGoals.trim()}`);
+    sections.push("");
+  });
+
+  return sections.join("\n");
+}
+
 /** 공유 토큰 발급 (없으면 생성) */
 export async function ensureReportShareToken(id: string) {
   const session = await auth();
