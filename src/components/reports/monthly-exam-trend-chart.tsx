@@ -4,6 +4,11 @@ import { useMemo, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { cn } from "@/lib/utils";
 
+function round2(n: number | null | undefined): number | null {
+  if (n == null) return null;
+  return Math.round(n * 100) / 100;
+}
+
 interface Score {
   examDate: string;
   examName: string;
@@ -48,7 +53,7 @@ export function MonthlyExamTrendChart({ scores }: Props) {
         });
       }
       const entry = byExam.get(key)!;
-      entry[s.subject] = metric === "grade" ? s.grade : s.percentile;
+      entry[s.subject] = round2(metric === "grade" ? s.grade : s.percentile);
     }
 
     const sorted = Array.from(byExam.values()).sort((a, b) =>
@@ -167,6 +172,7 @@ export function MonthlyExamTrendChart({ scores }: Props) {
             : metric === "grade"
             ? diff < 0
             : diff > 0;
+          const diffRounded = diff != null ? round2(Math.abs(diff)) : null;
           return (
             <div key={subject} className="rounded-md border p-2">
               <div className="flex items-center gap-1.5">
@@ -177,9 +183,9 @@ export function MonthlyExamTrendChart({ scores }: Props) {
                 <span className="text-lg font-bold" style={{ color }}>
                   {metric === "grade" ? `${s.value}등급` : s.value}
                 </span>
-                {diff != null && diff !== 0 && (
+                {diffRounded != null && diffRounded !== 0 && (
                   <span className={cn("text-[10px] font-medium", isImprovement ? "text-emerald-600" : "text-red-500")}>
-                    {isImprovement ? "▲" : "▼"} {Math.abs(diff)}
+                    {isImprovement ? "▲" : "▼"} {diffRounded}
                   </span>
                 )}
               </div>

@@ -5,12 +5,17 @@ import { MonthlyExamTrendChart } from "@/components/reports/monthly-exam-trend-c
 import { MonthlyAttendanceDonut } from "@/components/reports/monthly-attendance-donut";
 import { User, Clock, TrendingUp, TrendingDown, Award, BookOpen, Bell, GraduationCap, Trophy } from "lucide-react";
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 function formatMinutes(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}분`;
-  if (m === 0) return `${h}시간`;
-  return `${h}시간 ${m}분`;
+  const h = minutes / 60;
+  const hRounded = round2(h);
+  if (hRounded < 1) {
+    return `${Math.round(minutes)}분`;
+  }
+  return `${hRounded}시간`;
 }
 
 function diffSign(curr: number, prev: number | null): { sign: "up" | "down" | "same"; diff: number } {
