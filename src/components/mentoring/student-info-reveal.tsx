@@ -10,14 +10,12 @@ type Props = {
   mockScoreRange?: string | null;
   targetUniversity?: string | null;
   studentInfo?: string | null;
-  academySchedule?: string | null;
   selectedSubjects?: string | null;
   admissionType?: string | null;
   onlineLectures?: string | null;
 };
 
 const DETAIL_FIELDS: { key: keyof Props; label: string }[] = [
-  { key: "academySchedule",  label: "학원 스케줄" },
   { key: "selectedSubjects", label: "선택과목" },
   { key: "admissionType",    label: "입시 전형" },
   { key: "onlineLectures",   label: "수강중인 인강" },

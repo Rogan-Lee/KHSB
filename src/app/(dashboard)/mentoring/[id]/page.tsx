@@ -43,7 +43,7 @@ export default async function MentoringDetailPage({
           id: true, name: true, grade: true, school: true,
           mentoringNotes: true, studentInfo: true, internalScoreRange: true,
           mockScoreRange: true, targetUniversity: true, parentEmail: true,
-          academySchedule: true, selectedSubjects: true, admissionType: true, onlineLectures: true,
+          selectedSubjects: true, admissionType: true, onlineLectures: true,
           communications: { orderBy: { createdAt: "desc" } },
           examScores: { orderBy: { examDate: "desc" } },
           assignments: { orderBy: { createdAt: "desc" } },
@@ -245,7 +245,6 @@ export default async function MentoringDetailPage({
                 mockScoreRange={s.mockScoreRange}
                 targetUniversity={s.targetUniversity}
                 studentInfo={s.studentInfo}
-                academySchedule={s.academySchedule}
                 selectedSubjects={s.selectedSubjects}
                 admissionType={s.admissionType}
                 onlineLectures={s.onlineLectures}

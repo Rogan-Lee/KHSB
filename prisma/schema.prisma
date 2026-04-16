@@ -137,7 +137,8 @@ model Student {
   mockScoreRange      String?               // 모의고사 성적대 (예: "3~4등급")
   targetUniversity    String?               // 희망 대학
   mentoringNotes      String?               // 멘토링 주의사항
-  academySchedule     String?               // 학원 스케줄 (텍스트)
+  dailyNote           String?               // 당일 변동 사항 (매일 00시 KST 기준 초기화)
+  dailyNoteDate       DateTime? @db.Date    // 당일 변동 기록 날짜 (조회 시 오늘이 아니면 표시 안함)
   studentInfo         String?               // 학생정보 (추가 메모)
   selectedSubjects    String?               // 선택과목 (예: "수학, 영어, 사탐")
   admissionType       String?               // 대학 입시 전형 (예: "수시 학종, 정시")
