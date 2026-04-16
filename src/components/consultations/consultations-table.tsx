@@ -326,9 +326,8 @@ function ConsultationCard({
 
 // ─── Main List ────────────────────────────────────────────────────────────────
 
-const CONSULT_FILTER_KEY = "consultations-list-filters";
-function loadConsultFilters() {
-  try { return JSON.parse(sessionStorage.getItem(CONSULT_FILTER_KEY) ?? "{}"); } catch { return {}; }
+function loadConsultFilters(key: string) {
+  try { return JSON.parse(sessionStorage.getItem(key) ?? "{}"); } catch { return {}; }
 }
 
 type CategoryFilter = "ALL" | "ENROLLED" | "NEW_ADMISSION" | "CONSIDERING";
@@ -336,7 +335,9 @@ type TypeFilter = "ALL" | "STUDENT" | "PARENT";
 
 export function ConsultationsList({ consultations, owner = "DIRECTOR" }: { consultations: Consultation[]; owner?: string }) {
   const router = useRouter();
-  const saved = typeof window !== "undefined" ? loadConsultFilters() : {};
+  // owner별 독립 필터 저장 (DIRECTOR/HEAD_TEACHER 카테고리 탭 구성이 달라 키 분리 필수)
+  const filterKey = `consultations-list-filters:${owner}`;
+  const saved = typeof window !== "undefined" ? loadConsultFilters(filterKey) : {};
   const [query, setQuery] = useState<string>(saved.q ?? "");
   const [statusFilter, setStatusFilter] = useState<Status | "ALL">(saved.status ?? "ALL");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>(saved.category ?? "ALL");
@@ -344,20 +345,34 @@ export function ConsultationsList({ consultations, owner = "DIRECTOR" }: { consu
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    try { sessionStorage.setItem(CONSULT_FILTER_KEY, JSON.stringify({ q: query, status: statusFilter, category: categoryFilter, type: typeFilter })); } catch {}
-  }, [query, statusFilter, categoryFilter, typeFilter]);
+    try { sessionStorage.setItem(filterKey, JSON.stringify({ q: query, status: statusFilter, category: categoryFilter, type: typeFilter })); } catch {}
+  }, [filterKey, query, statusFilter, categoryFilter, typeFilter]);
 
   const q = query.trim().toLowerCase();
 
-  const filtered = consultations.filter((c) => {
+  // 개별 매처 (재사용을 위해 분리)
+  function matchQuery(c: Consultation) {
+    if (!q) return true;
     const name = c.student?.name ?? c.prospectName ?? "";
     const grade = c.student?.grade ?? c.prospectGrade ?? "";
-    const matchesQuery = !q || name.toLowerCase().includes(q) || grade.toLowerCase().includes(q);
-    const matchesStatus = statusFilter === "ALL" || c.status === statusFilter;
-    const matchesCategory = categoryFilter === "ALL" || c.category === categoryFilter;
-    const matchesType = typeFilter === "ALL" || c.type === typeFilter;
-    return matchesQuery && matchesStatus && matchesCategory && matchesType;
-  });
+    return name.toLowerCase().includes(q) || grade.toLowerCase().includes(q);
+  }
+  const matchStatus = (c: Consultation) => statusFilter === "ALL" || c.status === statusFilter;
+  const matchCategory = (c: Consultation) => categoryFilter === "ALL" || c.category === categoryFilter;
+  const matchType = (c: Consultation) => typeFilter === "ALL" || c.type === typeFilter;
+
+  const filtered = consultations.filter((c) => matchQuery(c) && matchStatus(c) && matchCategory(c) && matchType(c));
+
+  // 탭 카운트: 해당 탭의 자체 필터를 제외하고 나머지 활성 필터를 반영
+  const countByStatus = (status: Status) => consultations.filter((c) =>
+    c.status === status && matchQuery(c) && matchCategory(c) && matchType(c)
+  ).length;
+  const countByCategory = (category: CategoryFilter) => consultations.filter((c) =>
+    (category === "ALL" || c.category === category) && matchQuery(c) && matchStatus(c) && matchType(c)
+  ).length;
+  const countByType = (type: TypeFilter) => consultations.filter((c) =>
+    (type === "ALL" || c.type === type) && matchQuery(c) && matchStatus(c) && matchCategory(c)
+  ).length;
 
   function quickStatus(id: string, status: "COMPLETED" | "CANCELLED") {
     startTransition(async () => {
@@ -423,7 +438,7 @@ export function ConsultationsList({ consultations, owner = "DIRECTOR" }: { consu
               className={cn("px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
                 statusFilter === t.key ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>
               {t.label}
-              {t.key !== "ALL" && <span className="ml-1 text-[10px] opacity-60">{consultations.filter((c) => c.status === t.key).length}</span>}
+              {t.key !== "ALL" && <span className="ml-1 text-[10px] opacity-60">{countByStatus(t.key as Status)}</span>}
             </button>
           ))}
         </div>
@@ -435,6 +450,7 @@ export function ConsultationsList({ consultations, owner = "DIRECTOR" }: { consu
               className={cn("px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
                 categoryFilter === t.key ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>
               {t.label}
+              {t.key !== "ALL" && <span className="ml-1 text-[10px] opacity-60">{countByCategory(t.key)}</span>}
             </button>
           ))}
         </div>
@@ -446,6 +462,7 @@ export function ConsultationsList({ consultations, owner = "DIRECTOR" }: { consu
               className={cn("px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
                 typeFilter === t.key ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>
               {t.label}
+              {t.key !== "ALL" && <span className="ml-1 text-[10px] opacity-60">{countByType(t.key)}</span>}
             </button>
           ))}
         </div>}
