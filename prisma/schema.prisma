@@ -163,6 +163,7 @@ model Student {
   consultations  DirectorConsultation[]
   messages       MessageLog[]
   monthlyReports MonthlyReport[]
+  monthlyAwards  MonthlyAward[]
   communications Communication[]
   examScores     ExamScore[]
   calendarEvents CalendarEvent[]
@@ -331,24 +332,61 @@ model MessageLog {
 }
 
 model MonthlyReport {
-  id              String    @id @default(cuid())
-  studentId       String
-  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  year            Int
-  month           Int
-  attendanceDays  Int       @default(0)
-  absentDays      Int       @default(0)
-  tardyCount      Int       @default(0)
-  earlyLeaveCount Int       @default(0)
-  totalMerits     Int       @default(0)
-  totalDemerits   Int       @default(0)
-  mentoringCount  Int       @default(0)
-  overallComment  String?
-  sentAt          DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                    String    @id @default(cuid())
+  studentId             String
+  student               Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  year                  Int
+  month                 Int
+  attendanceDays        Int       @default(0)
+  absentDays            Int       @default(0)
+  tardyCount            Int       @default(0)
+  earlyLeaveCount       Int       @default(0)
+  totalMerits           Int       @default(0)
+  totalDemerits         Int       @default(0)
+  mentoringCount        Int       @default(0)
+  // 월간 학부모 리포트 추가 필드
+  totalStudyMinutes     Int       @default(0)   // 월간 총 순공 시간 (분)
+  prevMonthStudyMinutes Int?                    // 전월 순공 시간 (비교용)
+  studyRankInRoom       Int?                    // 독서실 내 순위
+  studyRankTotal        Int?                    // 전체 인원 수
+  gradeAvgMinutes       Int?                    // 같은 학년 평균 순공 시간
+  outingCount           Int       @default(0)   // 외출 횟수
+  totalOutingMinutes    Int       @default(0)   // 총 외출 시간 (분)
+  mentoringSummary      String?                 // 월간 멘토링 종합 의견
+  overallComment        String?                 // (기존) 전체 코멘트
+  shareToken            String?   @unique       // 학부모 공유 토큰
+  sentAt                DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   @@unique([studentId, year, month])
+}
+
+// 월별 입시 정보 (모든 학생 공통, 관리자가 매월 작성)
+model MonthlyAdmissionInfo {
+  id        String   @id @default(cuid())
+  year      Int
+  month     Int
+  grade     String?                  // null = 전체, 특정 학년만 대상
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, month, grade])
+}
+
+// 이달의 시상 (태도 우수자/멘토 선정 우수자 등)
+model MonthlyAward {
+  id          String   @id @default(cuid())
+  year        Int
+  month       Int
+  category    String                   // "ATTITUDE" | "MENTOR_PICK" | "IMPROVEMENT"
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@index([year, month])
 }
 
 model Communication {
