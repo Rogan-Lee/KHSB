@@ -14,7 +14,6 @@ export type CSVImportRow = {
   parentEmail?: string;
   grade: string;
   mentorName?: string;
-  academySchedule?: string;
   studentInfo?: string;
   selectedSubjects?: string;
   admissionType?: string;
@@ -70,7 +69,6 @@ export async function importStudentsCSV(rows: CSVImportRow[]): Promise<ImportRes
         parentPhone: row.parentPhone?.trim() || "",
         parentEmail: row.parentEmail?.trim() || null,
         grade: row.grade?.trim() || "",
-        academySchedule: row.academySchedule?.trim() || null,
         studentInfo: row.studentInfo?.trim() || null,
         selectedSubjects: row.selectedSubjects?.trim() || null,
         admissionType: row.admissionType?.trim() || null,
