@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { todayKST } from "@/lib/utils";
 
 const studentSchema = z.object({
   name: z.string().min(1, "이름을 입력하세요").max(50),
@@ -23,7 +24,6 @@ const studentSchema = z.object({
   mockScoreRange: z.string().max(50).optional(),
   targetUniversity: z.string().max(100).optional(),
   mentoringNotes: z.string().max(2000).optional(),
-  academySchedule: z.string().max(1000).optional(),
   studentInfo: z.string().max(2000).optional(),
   selectedSubjects: z.string().max(500).optional(),
   admissionType: z.string().max(100).optional(),
@@ -53,7 +53,6 @@ export async function createStudent(formData: FormData) {
       mockScoreRange: data.mockScoreRange || null,
       targetUniversity: data.targetUniversity || null,
       mentoringNotes: data.mentoringNotes || null,
-      academySchedule: data.academySchedule || null,
       studentInfo: data.studentInfo || null,
       selectedSubjects: data.selectedSubjects || null,
       admissionType: data.admissionType || null,
@@ -89,7 +88,6 @@ export async function updateStudent(id: string, formData: FormData) {
       mockScoreRange: data.mockScoreRange || null,
       targetUniversity: data.targetUniversity || null,
       mentoringNotes: data.mentoringNotes || null,
-      academySchedule: data.academySchedule || null,
       studentInfo: data.studentInfo || null,
       selectedSubjects: data.selectedSubjects || null,
       admissionType: data.admissionType || null,
@@ -207,16 +205,22 @@ export async function updateStudentSeat(studentId: string, seat: string | null) 
 
 export async function patchStudentTextFields(
   id: string,
-  fields: { studentInfo?: string; changeNote?: string; academySchedule?: string }
+  fields: { studentInfo?: string; changeNote?: string; dailyNote?: string }
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  const dailyNoteChange = fields.dailyNote !== undefined
+    ? {
+        dailyNote: fields.dailyNote || null,
+        dailyNoteDate: fields.dailyNote ? todayKST() : null,
+      }
+    : {};
   await prisma.student.update({
     where: { id },
     data: {
       ...(fields.studentInfo !== undefined && { studentInfo: fields.studentInfo || null }),
       ...(fields.changeNote !== undefined && { changeNote: fields.changeNote || null }),
-      ...(fields.academySchedule !== undefined && { academySchedule: fields.academySchedule || null }),
+      ...dailyNoteChange,
     },
   });
   revalidatePath("/attendance");
