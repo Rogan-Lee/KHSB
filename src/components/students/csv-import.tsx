@@ -58,7 +58,6 @@ function mapHeader(h: string): string {
   if (/학부모이메일|부모이메일/.test(s)) return "parentEmail";
   if (/수강과정|학년|과정/.test(s)) return "grade";
   if (/담당멘토|담당선생|멘토/.test(s)) return "mentorName";
-  if (/학원스케줄|학원일정|학원시간|학원/.test(s)) return "academySchedule";
   if (/학생정보|추가정보|메모/.test(s)) return "studentInfo";
   if (/선택과목|수능과목|응시과목/.test(s)) return "selectedSubjects";
   if (/입시전형|전형|지원전형|대학전형/.test(s)) return "admissionType";
@@ -182,7 +181,6 @@ function csvToRows(text: string): CSVImportRow[] {
       parentEmail: obj.parentEmail || undefined,
       grade,
       mentorName: obj.mentorName || undefined,
-      academySchedule: obj.academySchedule || undefined,
       studentInfo: obj.studentInfo || undefined,
       selectedSubjects: obj.selectedSubjects || undefined,
       admissionType: obj.admissionType || undefined,
@@ -336,7 +334,6 @@ export function CsvImport() {
                   <th className="px-2 py-1.5 text-left">학년</th>
                   <th className="px-2 py-1.5 text-left">반</th>
                   <th className="px-2 py-1.5 text-left">담당 멘토</th>
-                  <th className="px-2 py-1.5 text-left">학원일정</th>
                   <th className="px-2 py-1.5 text-left">선택과목</th>
                   <th className="px-2 py-1.5 text-left">입시전형</th>
                   <th className="px-2 py-1.5 text-left">인강</th>
@@ -354,7 +351,6 @@ export function CsvImport() {
                     <td className="px-2 py-1.5">{row.grade || "-"}</td>
                     <td className="px-2 py-1.5 text-muted-foreground">{row.classGroup || "-"}</td>
                     <td className="px-2 py-1.5 text-muted-foreground">{row.mentorName || "-"}</td>
-                    <td className="px-2 py-1.5 text-muted-foreground max-w-[120px] truncate" title={row.academySchedule}>{row.academySchedule || "-"}</td>
                     <td className="px-2 py-1.5 text-muted-foreground max-w-[100px] truncate" title={row.selectedSubjects}>{row.selectedSubjects || "-"}</td>
                     <td className="px-2 py-1.5 text-muted-foreground max-w-[100px] truncate" title={row.admissionType}>{row.admissionType || "-"}</td>
                     <td className="px-2 py-1.5 text-muted-foreground max-w-[100px] truncate" title={row.onlineLectures}>{row.onlineLectures || "-"}</td>
@@ -431,7 +427,6 @@ export function CsvImport() {
           <div><span className="font-mono bg-muted px-1 rounded">학부모 전화번호</span> 학부모 연락처 (선택)</div>
           <div><span className="font-mono bg-muted px-1 rounded">학부모 이메일</span> 학부모 이메일 (선택)</div>
           <div><span className="font-mono bg-muted px-1 rounded">월 입실약속시간</span> 월요일 입실 시간</div>
-          <div><span className="font-mono bg-muted px-1 rounded">학원 스케줄</span> 학원일정 텍스트 (선택, 예: 수학학원 월수금)</div>
           <div><span className="font-mono bg-muted px-1 rounded">학생정보</span> 학생 특이사항 메모 (선택)</div>
           <div><span className="font-mono bg-muted px-1 rounded">선택과목</span> 수능 선택과목 (선택, 예: 수학, 영어, 사탐)</div>
           <div><span className="font-mono bg-muted px-1 rounded">입시전형</span> 대학 입시 전형 (선택, 예: 수시 학종, 정시)</div>

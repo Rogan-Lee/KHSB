@@ -172,14 +172,22 @@ export function AttendanceTable({ students, today }: Props) {
     return map;
   });
 
-  type StudentTextField = { studentInfo: string; changeNote: string; academySchedule: string };
+  type StudentTextField = { studentInfo: string; changeNote: string; dailyNote: string };
   const [localStudentFields, setLocalStudentFields] = useState<Map<string, StudentTextField>>(() => {
     const map = new Map<string, StudentTextField>();
-    students.forEach((s) => map.set(s.id, {
-      studentInfo: s.studentInfo ?? "",
-      changeNote: s.changeNote ?? "",
-      academySchedule: s.academySchedule ?? "",
-    }));
+    // KST 오늘 날짜 (YYYY-MM-DD)
+    const now = new Date();
+    const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const todayISO = kst.toISOString().split("T")[0];
+    students.forEach((s) => {
+      const noteDateISO = s.dailyNoteDate ? new Date(s.dailyNoteDate).toISOString().split("T")[0] : null;
+      const isToday = noteDateISO === todayISO;
+      map.set(s.id, {
+        studentInfo: s.studentInfo ?? "",
+        changeNote: s.changeNote ?? "",
+        dailyNote: isToday ? (s.dailyNote ?? "") : "",
+      });
+    });
     return map;
   });
 
@@ -222,7 +230,7 @@ export function AttendanceTable({ students, today }: Props) {
   });
   const [checkDatePending, setCheckDatePending] = useState<string | null>(null); // "studentId:key"
 
-  type EditFocus = "attendance" | "notes" | "changeNote" | "academySchedule";
+  type EditFocus = "attendance" | "notes" | "changeNote" | "dailyNote";
   const [expandFocus, setExpandFocus] = useState<Map<string, EditFocus>>(new Map());
   const [studentFieldPending, setStudentFieldPending] = useState<string | null>(null);
   const [expandedTimelines, setExpandedTimelines] = useState<Set<string>>(new Set());
@@ -500,7 +508,7 @@ export function AttendanceTable({ students, today }: Props) {
   }
 
   async function saveStudentFields(student: StudentWithAttendance) {
-    const fields = localStudentFields.get(student.id) ?? { studentInfo: "", changeNote: "", academySchedule: "" };
+    const fields = localStudentFields.get(student.id) ?? { studentInfo: "", changeNote: "", dailyNote: "" };
     setStudentFieldPending(student.id);
     try {
       await patchStudentTextFields(student.id, fields);
@@ -604,6 +612,7 @@ export function AttendanceTable({ students, today }: Props) {
               <th className="px-3 py-2.5 text-left" style={{ minWidth: "380px" }}>입퇴실</th>
               <th className="px-3 py-2.5 text-left w-32">특이사항</th>
               <th className="px-3 py-2.5 text-left w-32">메모</th>
+              <th className="px-3 py-2.5 text-left w-32">당일변동</th>
               <th className="px-3 py-2.5 text-left w-32">변동예정</th>
             </tr>
           </thead>
@@ -960,6 +969,29 @@ export function AttendanceTable({ students, today }: Props) {
                     )}
                   </td>
 
+                  {/* 당일 변동 (오늘 기록만 표시) */}
+                  {(() => {
+                    const noteDateISO = student.dailyNoteDate ? new Date(student.dailyNoteDate).toISOString().split("T")[0] : null;
+                    const now = new Date();
+                    const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+                    const todayISO = kst.toISOString().split("T")[0];
+                    const showDailyNote = noteDateISO === todayISO && student.dailyNote;
+                    return (
+                      <td
+                        className="px-3 py-3 cursor-pointer"
+                        onClick={(e) => expandAndFocus(student.id, "dailyNote", e)}
+                        onMouseEnter={(e) => showTooltip(e, showDailyNote ? student.dailyNote ?? "" : "")}
+                        onMouseLeave={() => setTooltip(null)}
+                      >
+                        {showDailyNote ? (
+                          <span className="text-xs text-rose-700 font-medium truncate block max-w-[130px]">{student.dailyNote}</span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                    );
+                  })()}
+
                   {/* 추후 변동 예정 */}
                   <td
                     className="px-3 py-3 cursor-pointer"
@@ -980,12 +1012,12 @@ export function AttendanceTable({ students, today }: Props) {
                 {/* 타임라인 + 인라인 편집 확장 행 */}
                 {isExpanded && (
                   <tr className={cn("border-b", isSelected ? "bg-blue-50/60" : "bg-muted/20")}>
-                    <td colSpan={12} className="px-4 py-4">
+                    <td colSpan={13} className="px-4 py-4">
                       {(() => {
                         const focus = expandFocus.get(student.id);
                         const focusLabel: Record<EditFocus, string> = {
                           attendance: "출결 상태", notes: "입퇴실 메모",
-                          changeNote: "추후 변동 예정", academySchedule: "학원일정",
+                          changeNote: "추후 변동 예정", dailyNote: "당일 변동",
                         };
                         return (
                           <div className="pt-3 border-t" onClick={(e) => e.stopPropagation()}>
@@ -1059,11 +1091,11 @@ export function AttendanceTable({ students, today }: Props) {
                                 />
                               </div>
 
-                              {/* 오른쪽: 학원일정 + 추후 변동 예정 */}
+                              {/* 오른쪽: 당일 변동 + 추후 변동 예정 */}
                               <div className="flex-1 min-w-[320px] flex flex-col gap-2">
                                 {(
                                   [
-                                    { key: "academySchedule", label: "학원일정", ph: "학원일정", af: focus === "academySchedule" },
+                                    { key: "dailyNote", label: "당일 변동 (00시 자동 초기화)", ph: "오늘 학원 때문에 늦어요 등 당일 변동사항", af: focus === "dailyNote" },
                                     { key: "changeNote", label: "추후 변동 예정", ph: "추후 변동 예정", af: focus === "changeNote" },
                                   ] as { key: keyof StudentTextField; label: string; ph: string; af: boolean }[]
                                 ).map(({ key, label, ph, af }) => (
@@ -1074,7 +1106,7 @@ export function AttendanceTable({ students, today }: Props) {
                                     <span className="text-[10px] text-muted-foreground font-medium">{label}</span>
                                     <textarea
                                       value={localStudentFields.get(student.id)?.[key] ?? ""}
-                                      onChange={(e) => setLocalStudentFields((prev) => { const m = new Map(prev); m.set(student.id, { ...(m.get(student.id) ?? { studentInfo: "", changeNote: "", academySchedule: "" }), [key]: e.target.value }); return m; })}
+                                      onChange={(e) => setLocalStudentFields((prev) => { const m = new Map(prev); m.set(student.id, { ...(m.get(student.id) ?? { studentInfo: "", changeNote: "", dailyNote: "" }), [key]: e.target.value }); return m; })}
                                       autoFocus={isExpanded && af}
                                       placeholder={ph}
                                       rows={2}
