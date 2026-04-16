@@ -48,6 +48,14 @@ export default async function ReportsPage({
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <a
+          href="/reports/monthly"
+          className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          월간 학부모 리포트 →
+        </a>
+      </div>
       <div className="grid grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-4">
