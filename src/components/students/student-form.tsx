@@ -297,16 +297,6 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
             rows={2}
           />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="academySchedule">학원 스케줄</Label>
-          <Textarea
-            id="academySchedule"
-            name="academySchedule"
-            defaultValue={(student as { academySchedule?: string | null } | undefined)?.academySchedule || ""}
-            placeholder="다니는 학원, 수강 시간 등 (예: 수학학원 월수금 17-19시, 영어학원 화목 18-20시)"
-            rows={2}
-          />
-        </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="selectedSubjects">선택과목</Label>

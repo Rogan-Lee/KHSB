@@ -24,7 +24,6 @@ function mapStudentHeader(h: string): string {
   if (/학부모이메일|부모이메일/.test(s)) return "parentEmail";
   if (/수강과정|학년|과정/.test(s)) return "grade";
   if (/담당멘토|담당선생|멘토/.test(s)) return "mentorName";
-  if (/학원스케줄|학원일정|학원시간|학원/.test(s)) return "academySchedule";
   if (/학생정보|추가정보|메모/.test(s)) return "studentInfo";
   if (/선택과목|수능과목|응시과목/.test(s)) return "selectedSubjects";
   if (/입시전형|전형|지원전형|대학전형/.test(s)) return "admissionType";
@@ -122,7 +121,6 @@ function sheetRowsToStudentRows(data: string[][]): CSVImportRow[] {
       parentEmail: obj.parentEmail || undefined,
       grade,
       mentorName: obj.mentorName || undefined,
-      academySchedule: obj.academySchedule || undefined,
       studentInfo: obj.studentInfo || undefined,
       selectedSubjects: obj.selectedSubjects || undefined,
       admissionType: obj.admissionType || undefined,
