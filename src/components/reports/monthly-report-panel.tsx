@@ -56,10 +56,9 @@ interface Props {
 }
 
 function formatMinutes(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}분`;
-  return m === 0 ? `${h}시간` : `${h}시간 ${m}분`;
+  const h = Math.round((minutes / 60) * 100) / 100;
+  if (h < 1) return `${Math.round(minutes)}분`;
+  return `${h}시간`;
 }
 
 export function MonthlyReportPanel({ year, month, students, reports }: Props) {
@@ -396,8 +395,8 @@ function ReportActions({
       </Button>
 
       {detailOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setDetailOpen(false)}>
-          <div className="bg-background rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 text-left" onClick={() => setDetailOpen(false)}>
+          <div className="bg-background rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto text-left" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b flex items-center justify-between">
               <h3 className="font-semibold">{report.student.name} {report.year}년 {report.month}월 리포트</h3>
               <button onClick={() => setDetailOpen(false)} className="text-muted-foreground hover:text-foreground">
