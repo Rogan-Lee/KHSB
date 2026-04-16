@@ -8,6 +8,7 @@ import {
   updateReportMentoringSummary,
   updateReportComment,
   markReportSent,
+  extractMonthlyMentoringDigest,
 } from "@/actions/reports";
 import { generateMonthlyMentoringSummary } from "@/actions/ai-enhance";
 import { Button } from "@/components/ui/button";
@@ -311,6 +312,20 @@ function ReportActions({
     }
   }
 
+  async function handleAutoExtract() {
+    setBusy("extract");
+    try {
+      const digest = await extractMonthlyMentoringDigest(report.studentId, report.year, report.month);
+      setSummary(digest);
+      setEditingSummary(true);
+      toast.success("이번 달 멘토링 기록에서 자동 추출했습니다");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function handleSaveSummary() {
     setBusy("summary");
     try {
@@ -395,9 +410,13 @@ function ReportActions({
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-medium text-sm">월간 멘토링 종합 의견</h4>
                   <div className="flex gap-1">
+                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleAutoExtract} disabled={busy === "extract"}>
+                      {busy === "extract" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Pencil className="h-3 w-3 mr-1" />}
+                      자동 추출
+                    </Button>
                     <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleAiSummary} disabled={busy === "ai"}>
                       {busy === "ai" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
-                      AI 초안
+                      AI 요약
                     </Button>
                     {!editingSummary && (
                       <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditingSummary(true)}>
