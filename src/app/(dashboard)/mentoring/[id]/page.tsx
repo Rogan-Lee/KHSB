@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { MentoringRecordForm, type PreviousMentoring } from "@/components/mentoring/mentoring-record-form";
 import { CommunicationPanel } from "@/components/communications/communication-panel";
 import dynamic from "next/dynamic";
-const ExamScoreChart = dynamic(() => import("@/components/students/exam-score-chart").then(m => m.ExamScoreChart), { ssr: false });
+const ExamScoreChart = dynamic(() => import("@/components/students/exam-score-chart").then(m => m.ExamScoreChart));
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/utils";
