@@ -1,3 +1,5 @@
+export const revalidate = 30;
+
 import { auth } from "@/lib/auth";
 import { getTodos } from "@/actions/todos";
 import { getStaffList } from "@/actions/handover";

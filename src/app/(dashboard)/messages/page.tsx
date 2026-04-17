@@ -1,3 +1,5 @@
+export const revalidate = 30;
+
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent } from "@/components/ui/card";
 import { KakaoMessagePanel } from "@/components/messages/kakao-message-panel";

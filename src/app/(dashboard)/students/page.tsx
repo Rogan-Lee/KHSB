@@ -1,3 +1,5 @@
+export const revalidate = 30;
+
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";

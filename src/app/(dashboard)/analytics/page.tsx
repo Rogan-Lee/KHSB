@@ -1,3 +1,5 @@
+export const revalidate = 30;
+
 import { getOverallAnalytics } from "@/actions/analytics";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
