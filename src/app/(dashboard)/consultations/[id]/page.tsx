@@ -10,7 +10,7 @@ import { TimetableGrid } from "@/components/timetable/timetable-grid";
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
 import { CommunicationPanel } from "@/components/communications/communication-panel";
 import dynamic from "next/dynamic";
-const ExamScoreChart = dynamic(() => import("@/components/students/exam-score-chart").then(m => m.ExamScoreChart), { ssr: false });
+const ExamScoreChart = dynamic(() => import("@/components/students/exam-score-chart").then(m => m.ExamScoreChart));
 import { StudentInfoReveal } from "@/components/mentoring/student-info-reveal";
 import { ConsultationRecordForm } from "@/components/consultations/consultation-record-form";
 import { FollowUpMessagePanel } from "@/components/consultations/followup-message-panel";
