@@ -4,12 +4,15 @@ import { AttendanceTable } from "@/components/attendance/attendance-table";
 import { CheckCircle2, XCircle, Clock, LogOut, Minus } from "lucide-react";
 import { todayKST } from "@/lib/utils";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 30; // 30초 캐싱 (force-dynamic 대비 성능 향상)
 
 export default async function AttendancePage() {
   const today = todayKST();
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const dayOfWeek = kstNow.getUTCDay();
+
+  // 이번 달 1일 (상벌점 범위 제한용)
+  const monthStart = new Date(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), 1);
 
   const students = await prisma.student.findMany({
     where: { status: "ACTIVE" },
@@ -18,9 +21,9 @@ export default async function AttendancePage() {
       schedules: { where: { dayOfWeek } },
       outings: { where: { dayOfWeek } },
       dailyOutings: { where: { date: today }, orderBy: { outStart: "asc" as const } },
-      communications: { orderBy: { createdAt: "desc" as const } },
-      assignments: { orderBy: { createdAt: "desc" as const } },
-      merits: { select: { type: true, points: true, date: true } },
+      communications: { orderBy: { createdAt: "desc" as const }, take: 30 },
+      assignments: { orderBy: { createdAt: "desc" as const }, take: 20 },
+      merits: { where: { date: { gte: monthStart } }, select: { type: true, points: true, date: true } },
       vocabEnrollment: { select: { isActive: true } },
     },
     orderBy: { seat: "asc" },

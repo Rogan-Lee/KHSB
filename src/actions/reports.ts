@@ -14,7 +14,6 @@ type AttendanceWithTimes = {
   checkOut: Date | null;
   outStart: Date | null;
   outEnd: Date | null;
-  date: Date;
 };
 
 /**
@@ -69,24 +68,52 @@ export async function getMonthlyStudyMinutes(
 }
 
 /**
- * 모든 ACTIVE 학생의 월간 순공시간 순위 맵 반환.
- * { studentId: { rank, total, minutes } }
+ * 모든 ACTIVE 학생의 월간 순공시간을 SQL 일괄 집계로 계산.
+ * 개별 쿼리 N+1 문제 제거 (200쿼리 → 2쿼리).
  */
 export async function getStudyRankMap(year: number, month: number) {
-  const students = await prisma.student.findMany({
+  const start = startOfMonth(new Date(year, month - 1));
+  const end = endOfMonth(new Date(year, month - 1));
+
+  // 1. 출결 기반 체류시간 일괄 집계
+  const attendanceData = await prisma.attendanceRecord.findMany({
+    where: { date: { gte: start, lte: end }, student: { status: "ACTIVE" } },
+    select: { studentId: true, checkIn: true, checkOut: true, outStart: true, outEnd: true },
+  });
+
+  // 2. 당일 외출 일괄 집계
+  const dailyOutingData = await prisma.dailyOuting.findMany({
+    where: { date: { gte: start, lte: end }, student: { status: "ACTIVE" } },
+    select: { studentId: true, outStart: true, outEnd: true },
+  });
+
+  // 학생별 순공시간 합산
+  const minutesByStudent = new Map<string, number>();
+
+  for (const r of attendanceData) {
+    const mins = calcStudyMinutes(r);
+    minutesByStudent.set(r.studentId, (minutesByStudent.get(r.studentId) ?? 0) + mins);
+  }
+  for (const o of dailyOutingData) {
+    const mins = diffMinutes(o.outStart, o.outEnd);
+    if (mins > 0) {
+      minutesByStudent.set(o.studentId, (minutesByStudent.get(o.studentId) ?? 0) - mins);
+    }
+  }
+
+  // ACTIVE 학생 중 데이터 없는 학생도 포함
+  const activeStudents = await prisma.student.findMany({
     where: { status: "ACTIVE" },
     select: { id: true },
   });
+  for (const s of activeStudents) {
+    if (!minutesByStudent.has(s.id)) minutesByStudent.set(s.id, 0);
+  }
 
-  const entries = await Promise.all(
-    students.map(async (s) => ({
-      studentId: s.id,
-      minutes: await getMonthlyStudyMinutes(s.id, year, month),
-    }))
-  );
-
-  // 순공시간 내림차순 정렬
-  entries.sort((a, b) => b.minutes - a.minutes);
+  // 내림차순 정렬 후 순위 매기기
+  const entries = Array.from(minutesByStudent.entries())
+    .map(([studentId, minutes]) => ({ studentId, minutes: Math.max(minutes, 0) }))
+    .sort((a, b) => b.minutes - a.minutes);
 
   const rankMap: Record<string, { rank: number; total: number; minutes: number }> = {};
   entries.forEach((e, i) => {
@@ -97,12 +124,13 @@ export async function getStudyRankMap(year: number, month: number) {
 }
 
 /**
- * 특정 학년의 월간 평균 순공시간(분) 반환.
+ * 특정 학년의 월간 평균 순공시간(분) — getStudyRankMap 결과 재활용.
  */
 export async function getGradeAverageStudyMinutes(
   grade: string,
   year: number,
-  month: number
+  month: number,
+  rankMap?: Record<string, { rank: number; total: number; minutes: number }>
 ): Promise<number> {
   const students = await prisma.student.findMany({
     where: { status: "ACTIVE", grade },
@@ -110,6 +138,13 @@ export async function getGradeAverageStudyMinutes(
   });
   if (students.length === 0) return 0;
 
+  // rankMap이 이미 계산되어 있으면 재활용
+  if (rankMap) {
+    const sum = students.reduce((acc, s) => acc + (rankMap[s.id]?.minutes ?? 0), 0);
+    return Math.round(sum / students.length);
+  }
+
+  // fallback: 개별 계산
   const totals = await Promise.all(
     students.map((s) => getMonthlyStudyMinutes(s.id, year, month))
   );
@@ -200,7 +235,7 @@ export async function generateMonthlyReport(
   const prevMonth = month === 1 ? 12 : month - 1;
   const [prevMonthStudyMinutes, gradeAvg, outing] = await Promise.all([
     getMonthlyStudyMinutes(studentId, prevYear, prevMonth),
-    getGradeAverageStudyMinutes(student.grade, year, month),
+    getGradeAverageStudyMinutes(student.grade, year, month, rankMap),
     getMonthlyOutingStats(studentId, year, month),
   ]);
 
