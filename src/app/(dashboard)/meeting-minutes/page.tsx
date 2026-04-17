@@ -1,3 +1,5 @@
+export const revalidate = 30;
+
 import { auth } from "@/lib/auth";
 import { getMeetingMinutesList } from "@/actions/meeting-minutes";
 import { getStaffList } from "@/actions/handover";
