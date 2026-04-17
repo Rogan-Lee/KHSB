@@ -174,6 +174,91 @@ JSON 형식으로만 응답하세요 (원본이 없는 항목은 null):
   };
 }
 
+/**
+ * 월간 멘토링 내용들을 기반으로 학부모 리포트용 종합 의견 생성.
+ * 주요 내용, 개선점, 다음 목표를 통합하여 학부모 친화적 톤으로 요약.
+ */
+export async function generateMonthlyMentoringSummary(
+  studentId: string,
+  year: number,
+  month: number
+): Promise<string> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const start = new Date(year, month - 1, 1);
+  const end = new Date(year, month, 0, 23, 59, 59);
+
+  const [student, mentorings] = await Promise.all([
+    prisma.student.findUnique({
+      where: { id: studentId },
+      select: { name: true, grade: true },
+    }),
+    prisma.mentoring.findMany({
+      where: {
+        studentId,
+        scheduledAt: { gte: start, lte: end },
+        status: "COMPLETED",
+      },
+      select: {
+        content: true,
+        improvements: true,
+        weaknesses: true,
+        nextGoals: true,
+        notes: true,
+        scheduledAt: true,
+      },
+      orderBy: { scheduledAt: "asc" },
+    }),
+  ]);
+
+  if (!student) throw new Error("학생을 찾을 수 없습니다");
+  if (mentorings.length === 0) {
+    return `${year}년 ${month}월 진행된 멘토링이 없습니다.`;
+  }
+
+  const mentoringText = mentorings
+    .map((m, i) => {
+      const parts: string[] = [`[${i + 1}회차]`];
+      if (m.content) parts.push(`내용: ${m.content}`);
+      if (m.improvements) parts.push(`개선점: ${m.improvements}`);
+      if (m.weaknesses) parts.push(`보완점: ${m.weaknesses}`);
+      if (m.nextGoals) parts.push(`목표: ${m.nextGoals}`);
+      return parts.join("\n");
+    })
+    .join("\n\n");
+
+  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+  try {
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content:
+            "너는 학원 관리자가 학부모에게 전달할 월간 멘토링 종합 의견을 작성하는 조력자야. " +
+            "개별 멘토링 기록을 바탕으로 한 달 간의 학습 흐름, 성장한 점, 보완할 점, 다음 달 목표를 담아 " +
+            "3~5문장의 자연스러운 한국어 단락으로 요약해줘. 이미지 마크다운은 포함하지 마.",
+        },
+        {
+          role: "user",
+          content: `${student.name}(${student.grade}) 학생의 ${year}년 ${month}월 멘토링 기록:\n\n${mentoringText}\n\n위 내용을 바탕으로 학부모에게 전달할 월간 종합 의견을 작성해줘.`,
+        },
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.5,
+    });
+
+    return completion.choices[0]?.message?.content?.trim() ?? "";
+  } catch (error) {
+    const err = error as { status?: number; message?: string };
+    if (err.status === 429) {
+      throw new Error("AI 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.");
+    }
+    throw new Error(`AI 요약 생성 실패: ${err.message ?? "알 수 없는 오류"}`);
+  }
+}
+
 export async function applyMentoringEnhancement(
   mentoringId: string,
   data: EnhancedMentoringContent
