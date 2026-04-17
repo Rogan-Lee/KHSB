@@ -8,7 +8,8 @@ import { formatDate, formatTime, parseSchool } from "@/lib/utils";
 import { StudentForm } from "@/components/students/student-form";
 import { StudentScheduleEditor } from "@/components/students/student-schedule-editor";
 import { CommunicationPanel } from "@/components/communications/communication-panel";
-import { ExamScoreChart } from "@/components/students/exam-score-chart";
+import dynamic from "next/dynamic";
+const ExamScoreChart = dynamic(() => import("@/components/students/exam-score-chart").then(m => m.ExamScoreChart), { ssr: false });
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
 import { StudentMentoringHistory } from "@/components/students/student-mentoring-history";
 import { StudentDetailTabs } from "@/components/students/student-detail-tabs";
@@ -60,12 +61,13 @@ export default async function StudentDetailPage({
         merits: { orderBy: { date: "desc" }, take: 20 },
         mentorings: {
           orderBy: { scheduledAt: "desc" },
+          take: 20,
           include: { mentor: { select: { name: true } } },
         },
         consultations: { orderBy: { scheduledAt: "desc" }, take: 10 },
-        communications: { orderBy: { createdAt: "desc" } },
+        communications: { orderBy: { createdAt: "desc" }, take: 30 },
         examScores: { orderBy: { examDate: "desc" } },
-        assignments: { orderBy: { createdAt: "desc" } },
+        assignments: { orderBy: { createdAt: "desc" }, take: 20 },
       },
     });
   } catch (e) {
