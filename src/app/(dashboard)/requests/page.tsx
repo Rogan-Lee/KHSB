@@ -1,3 +1,5 @@
+export const revalidate = 30;
+
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getFeatureRequests } from "@/actions/feature-requests";

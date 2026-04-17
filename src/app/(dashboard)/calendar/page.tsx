@@ -1,3 +1,5 @@
+export const revalidate = 30;
+
 import { prisma } from "@/lib/prisma";
 import { parseSchool } from "@/lib/utils";
 import { CalendarView } from "@/components/calendar/calendar-view";
