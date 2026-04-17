@@ -203,6 +203,7 @@ model AttendanceRecord {
   updatedAt DateTime       @updatedAt
 
   @@unique([studentId, date])
+  @@index([date])
 }
 
 model OutingSchedule {
@@ -240,6 +241,9 @@ model MeritDemerit {
   category    String?
   createdById String
   createdAt   DateTime  @default(now())
+
+  @@index([studentId, date])
+  @@index([date])
 }
 
 model Mentoring {
@@ -265,6 +269,10 @@ model Mentoring {
   parentReports      ParentReport[]
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
+
+  @@index([studentId, scheduledAt])
+  @@index([mentorId, scheduledAt])
+  @@index([status, scheduledAt])
 }
 
 model MentorSchedule {
