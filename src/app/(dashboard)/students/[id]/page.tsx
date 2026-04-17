@@ -9,7 +9,7 @@ import { StudentForm } from "@/components/students/student-form";
 import { StudentScheduleEditor } from "@/components/students/student-schedule-editor";
 import { CommunicationPanel } from "@/components/communications/communication-panel";
 import dynamic from "next/dynamic";
-const ExamScoreChart = dynamic(() => import("@/components/students/exam-score-chart").then(m => m.ExamScoreChart), { ssr: false });
+const ExamScoreChart = dynamic(() => import("@/components/students/exam-score-chart").then(m => m.ExamScoreChart));
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
 import { StudentMentoringHistory } from "@/components/students/student-mentoring-history";
 import { StudentDetailTabs } from "@/components/students/student-detail-tabs";
