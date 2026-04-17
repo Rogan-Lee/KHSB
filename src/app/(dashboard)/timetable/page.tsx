@@ -1,3 +1,5 @@
+export const revalidate = 30;
+
 import { prisma } from "@/lib/prisma";
 import { TimetablePageClient } from "./timetable-client";
 

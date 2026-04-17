@@ -1,3 +1,5 @@
+export const revalidate = 30;
+
 import { getRecentHandovers, getStaffList } from "@/actions/handover";
 import { HandoverBoard } from "@/components/handover/handover-board";
 import { auth } from "@/lib/auth";

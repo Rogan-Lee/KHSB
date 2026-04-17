@@ -12,52 +12,46 @@ import { getAnnouncement } from "@/actions/announcements";
 import { Calendar } from "lucide-react";
 import { isFullAccess } from "@/lib/roles";
 
+export const revalidate = 30;
+
 export default async function MentoringPage() {
   const session = await auth();
   const isDirector = isFullAccess(session?.user?.role);
-  // 로컬 날짜 기준 (출결 페이지와 동일)
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
-  const mentorings = await prisma.mentoring.findMany({
-    include: {
-      student: { select: { id: true, name: true, grade: true, seat: true, vocabTestDate: true, schedules: { select: { dayOfWeek: true, startTime: true, endTime: true } } } },
-      mentor: { select: { id: true, name: true } },
-    },
-    orderBy: { scheduledAt: "desc" },
-    take: 200,
-  });
-
-  const todaySlots = await getTodayWorkingMentors();
-
-  const mentors = await prisma.user.findMany({
-    where: {
-      OR: [
-        { role: "MENTOR" },
-        { name: "정지훈", role: { in: ["ADMIN", "DIRECTOR"] } },
-      ],
-    },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-
-  // 영단어 시험 대상자 ID 목록
-  const vocabEnrolled = await prisma.vocabTestEnrollment.findMany({
-    where: { isActive: true },
-    select: { studentId: true },
-  });
+  // 모든 쿼리를 병렬 실행 (순차 6개 → 병렬 1회 RTT)
+  const [mentorings, todaySlots, mentors, vocabEnrolled, announcement, todayAttendance] = await Promise.all([
+    prisma.mentoring.findMany({
+      include: {
+        student: { select: { id: true, name: true, grade: true, seat: true, vocabTestDate: true, schedules: { select: { dayOfWeek: true, startTime: true, endTime: true } } } },
+        mentor: { select: { id: true, name: true } },
+      },
+      orderBy: { scheduledAt: "desc" },
+      take: 200,
+    }),
+    getTodayWorkingMentors(),
+    prisma.user.findMany({
+      where: {
+        OR: [
+          { role: "MENTOR" },
+          { name: "정지훈", role: { in: ["ADMIN", "DIRECTOR"] } },
+        ],
+      },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.vocabTestEnrollment.findMany({
+      where: { isActive: true },
+      select: { studentId: true },
+    }),
+    getAnnouncement("mentoring"),
+    prisma.attendanceRecord.findMany({
+      where: { date: new Date(today), checkIn: { not: null } },
+      select: { studentId: true, checkOut: true, checkIn: true, notes: true },
+    }),
+  ]);
   const vocabEnrolledIds = vocabEnrolled.map((v) => v.studentId);
-
-  const announcement = await getAnnouncement("mentoring");
-
-  // 오늘 입실 중인 학생 ID 목록
-  const todayAttendance = await prisma.attendanceRecord.findMany({
-    where: {
-      date: new Date(today),
-      checkIn: { not: null },
-    },
-    select: { studentId: true, checkOut: true, checkIn: true, notes: true },
-  });
   const checkedInStudentIds = new Set(
     todayAttendance.filter((a) => !a.checkOut).map((a) => a.studentId)
   );

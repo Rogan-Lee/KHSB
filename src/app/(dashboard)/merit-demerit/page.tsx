@@ -1,3 +1,5 @@
+export const revalidate = 30;
+
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MeritForm } from "@/components/merit-demerit/merit-form";
