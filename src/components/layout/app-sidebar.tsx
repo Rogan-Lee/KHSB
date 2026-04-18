@@ -142,14 +142,14 @@ export function AppSidebar({
         className={cn(
           "flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors duration-100",
           isActive
-            ? "bg-[#eaf2fe] text-[#005eeb]"
-            : "text-[#464c53] hover:bg-[#f4f4f5] hover:text-[#1e2124]"
+            ? "bg-accent text-foreground"
+            : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
         )}
       >
         <Icon
           className={cn(
             "h-4 w-4 shrink-0",
-            isActive ? "text-[#0066ff]" : "text-[#6d7882]"
+            isActive ? "text-primary" : "text-muted-foreground"
           )}
         />
         {label}
@@ -160,7 +160,7 @@ export function AppSidebar({
   const renderSection = ({ label, items }: NavSection, idx: number) => (
     <div key={idx} className={cn("space-y-0.5", idx > 0 && "pt-4")}>
       {label && (
-        <p className="px-3 pb-1.5 text-[11px] font-semibold text-[#b1b8be] uppercase tracking-widest">
+        <p className="px-3 pb-1.5 text-[10.5px] font-semibold text-muted-foreground/60 uppercase tracking-[0.04em]">
           {label}
         </p>
       )}
@@ -170,18 +170,30 @@ export function AppSidebar({
 
   return (
     <aside className={cn(
-      "h-screen w-[240px] bg-white border-r border-[#e1e2e4] flex flex-col",
+      "h-screen w-[224px] bg-sidebar border-r border-sidebar-border flex flex-col",
       !mobile && "fixed left-0 top-0"
     )}>
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 h-14 border-b border-[#e1e2e4] shrink-0">
-        <div className="w-7 h-7 rounded-lg bg-[#0066ff] flex items-center justify-center shrink-0">
-          <BookOpen className="h-3.5 w-3.5 text-white" />
+      <div className="flex items-center gap-2.5 px-3 h-14 border-b border-sidebar-border shrink-0">
+        <div className="w-[22px] h-[22px] rounded-md bg-gradient-to-br from-[#FF6A1A] to-[#E8B54A] flex items-center justify-center shrink-0 shadow-[0_6px_14px_-6px_rgba(255,106,26,0.5)]">
+          <BookOpen className="h-3 w-3 text-[#0B0C0E]" />
         </div>
         <div className="min-w-0">
-          <p className="font-semibold text-[13px] text-[#1e2124] tracking-tight truncate">KHSB BackOffice</p>
-          <p className="text-[10px] text-[#b1b8be] leading-none mt-0.5">Admin System</p>
+          <p className="font-semibold text-[12.5px] text-foreground tracking-tight truncate">KHSB BackOffice</p>
+          <p className="text-[10px] text-muted-foreground font-mono leading-none mt-0.5">operator · v3</p>
         </div>
+      </div>
+
+      {/* Search trigger */}
+      <div className="px-3 pt-2 pb-1">
+        <button
+          onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+          className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-[7px] bg-muted/60 border border-border/50 hover:border-border transition-colors cursor-text"
+        >
+          <svg className="h-3.5 w-3.5 text-muted-foreground shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3" strokeLinecap="round"/></svg>
+          <span className="flex-1 text-left text-xs text-muted-foreground">빠른 이동 · 원생 검색</span>
+          <kbd className="font-mono text-[10px] text-muted-foreground bg-background border border-border px-1.5 py-px rounded">⌘K</kbd>
+        </button>
       </div>
 
       {/* Nav */}
