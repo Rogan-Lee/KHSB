@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
 import { ReportGeneratorPanel } from "@/components/reports/report-generator-panel";
+import { PageIntro } from "@/components/ui/page-intro";
 
 export default async function ReportsPage({
   searchParams,
@@ -50,6 +51,13 @@ export default async function ReportsPage({
 
   return (
     <div className="space-y-6">
+      <PageIntro
+        tag="REPORTS · 05"
+        title={`월간 리포트 · ${year}년 ${month}월`}
+        description={`${students.length}명 원생 기준 · ${generated}건 생성 · ${sent}건 발송`}
+        accent="text-warn"
+      />
+
       <div className="flex justify-end">
         <a
           href="/reports/monthly"
