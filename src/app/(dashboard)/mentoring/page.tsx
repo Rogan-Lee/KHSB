@@ -11,6 +11,7 @@ import { getTodayWorkingMentors } from "@/actions/mentoring";
 import { getAnnouncement } from "@/actions/announcements";
 import { Calendar } from "lucide-react";
 import { isFullAccess } from "@/lib/roles";
+import { PageIntro } from "@/components/ui/page-intro";
 
 export const revalidate = 30;
 
@@ -63,6 +64,13 @@ export default async function MentoringPage() {
 
   return (
     <div className="space-y-6">
+      <PageIntro
+        tag="MENTORING · 03"
+        title="멘토링"
+        description="멘토링 일정 관리, 기록, 학부모 리포트"
+        accent="text-info"
+      />
+
       {/* 이번 주 공지사항 */}
       <Card>
         <CardContent className="pt-4">

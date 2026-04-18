@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, UserCheck, UserX, GraduationCap, LogOut } from "lucide-react";
+import { PageIntro } from "@/components/ui/page-intro";
 import { StudentsScheduleTable } from "@/components/students/students-schedule-table";
 import { StudentsTable } from "@/components/students/students-table";
 import { CsvImport } from "@/components/students/csv-import";
@@ -39,6 +40,19 @@ export default async function StudentsPage() {
 
   return (
     <div className="space-y-4">
+      <PageIntro
+        tag="STUDENTS · 02"
+        title={`원생 · ${active}명 재원 중`}
+        description="원생 정보 관리, 일정 확인, 성적 입력"
+        accent="text-ok"
+        stats={[
+          { label: "재원", value: active },
+          { label: "휴원", value: inactive },
+          { label: "졸업", value: graduated },
+          { label: "퇴원", value: withdrawn },
+        ]}
+      />
+
       {/* Stats */}
       <div className="grid grid-cols-4 gap-2 md:gap-4">
         <Card>
