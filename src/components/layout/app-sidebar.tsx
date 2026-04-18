@@ -184,6 +184,18 @@ export function AppSidebar({
         </div>
       </div>
 
+      {/* Search trigger */}
+      <div className="px-3 pt-2 pb-1">
+        <button
+          onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+          className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-[7px] bg-muted/60 border border-border/50 hover:border-border transition-colors cursor-text"
+        >
+          <svg className="h-3.5 w-3.5 text-muted-foreground shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3" strokeLinecap="round"/></svg>
+          <span className="flex-1 text-left text-xs text-muted-foreground">빠른 이동 · 원생 검색</span>
+          <kbd className="font-mono text-[10px] text-muted-foreground bg-background border border-border px-1.5 py-px rounded">⌘K</kbd>
+        </button>
+      </div>
+
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-3">
         {navSections.map(renderSection)}
