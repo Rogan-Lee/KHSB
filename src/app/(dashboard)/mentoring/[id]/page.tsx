@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { notFound } from "next/navigation";
 import { getTimetableEntries, getStudentSchoolEvents } from "@/actions/timetable";
 import { DayView } from "@/components/timetable/day-view";

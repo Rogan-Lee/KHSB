@@ -13,7 +13,7 @@ import { Calendar } from "lucide-react";
 import { isFullAccess } from "@/lib/roles";
 import { PageIntro } from "@/components/ui/page-intro";
 
-export const revalidate = 30;
+export const revalidate = 10;
 
 export default async function MentoringPage() {
   const session = await auth();
