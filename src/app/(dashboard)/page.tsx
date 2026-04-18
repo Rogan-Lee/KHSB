@@ -5,6 +5,8 @@ import { auth } from "@/lib/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatTime, todayKST } from "@/lib/utils";
+import { PageIntro } from "@/components/ui/page-intro";
+import { KpiTile, KpiStrip } from "@/components/ui/kpi-tile";
 import {
   Users,
   CheckCircle2,
@@ -13,6 +15,8 @@ import {
   Star,
   MessageSquare,
   CalendarDays,
+  AlertTriangle,
+  FileText,
 } from "lucide-react";
 import Link from "next/link";
 import { getRecentHandovers, getStaffList } from "@/actions/handover";
@@ -90,67 +94,32 @@ export default async function DashboardPage() {
     (h) => h.authorId !== session?.user?.id && !h.reads.some((r) => r.userId === session?.user?.id)
   ).length;
 
+  const completedMentorings = upcomingMentorings.length; // scheduled count
+  const dateLabel = today.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long", timeZone: "Asia/Seoul" });
+
   // Normal dashboard content
   const dashboardContent = (
-    <div className="space-y-6">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Link href="/students">
-          <Card className="hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5">
-            <CardContent className="flex items-center gap-3 pt-5 pb-5">
-              <div className="p-2 rounded-xl bg-[#eaf2fe]">
-                <Users className="h-5 w-5 text-[#0066ff]" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold tracking-tight">{totalActive}</p>
-                <p className="text-xs text-muted-foreground">재원생</p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
+    <div className="space-y-4">
+      {/* Page Intro */}
+      <PageIntro
+        tag="DASHBOARD · 01"
+        title={`좋은 하루에요, ${session?.user?.name ?? "관리자"}님.`}
+        description={dateLabel}
+        stats={[
+          { label: "현재 재실", value: normalCount },
+          { label: "예정 멘토링", value: completedMentorings },
+          { label: "미읽음 인수인계", value: unreadCount },
+        ]}
+      />
 
-        <Link href="/attendance">
-          <Card className="hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5">
-            <CardContent className="flex items-center gap-3 pt-5 pb-5">
-              <div className="p-2 rounded-xl bg-[#d9f7eb]">
-                <CheckCircle2 className="h-5 w-5 text-[#00985a]" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold tracking-tight">{normalCount}</p>
-                <p className="text-xs text-muted-foreground">오늘 출석</p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/attendance">
-          <Card className="hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5">
-            <CardContent className="flex items-center gap-3 pt-5 pb-5">
-              <div className="p-2 rounded-xl bg-red-50">
-                <XCircle className="h-5 w-5 text-[#ff4242]" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold tracking-tight">{absentCount}</p>
-                <p className="text-xs text-muted-foreground">오늘 결석</p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/attendance">
-          <Card className="hover:shadow-md transition-all duration-200 cursor-pointer hover:-translate-y-0.5">
-            <CardContent className="flex items-center gap-3 pt-5 pb-5">
-              <div className="p-2 rounded-xl bg-[#fed9c4]">
-                <Clock className="h-5 w-5 text-[#ff5e00]" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold tracking-tight">{tardyCount}</p>
-                <p className="text-xs text-muted-foreground">오늘 지각</p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
+      {/* KPI Strip — 5칸 */}
+      <KpiStrip className="grid-cols-2 md:grid-cols-5">
+        <KpiTile label="재원생" value={totalActive} unit="명" accent="var(--primary)" />
+        <KpiTile label="오늘 출석" value={normalCount} unit={`/${totalActive}`} dir="up" delta={`${Math.round(normalCount / totalActive * 100)}%`} accent="var(--ok)" />
+        <KpiTile label="지각·결석" value={tardyCount + absentCount} unit="명" dir={tardyCount + absentCount > 0 ? "down" : null} delta={tardyCount + absentCount > 0 ? `+${tardyCount + absentCount}` : null} accent="var(--bad)" />
+        <KpiTile label="예정 멘토링" value={upcomingMentorings.length} unit="건" accent="var(--info)" />
+        <KpiTile label="인수인계" value={unreadCount} unit="건 미읽음" accent="var(--warn)" />
+      </KpiStrip>
 
       {/* Detail panels */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
