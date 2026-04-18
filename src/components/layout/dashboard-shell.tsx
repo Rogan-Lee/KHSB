@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { AppSidebar } from "./app-sidebar";
 import { AppHeader } from "./app-header";
+import { CommandPalette } from "@/components/ui/command-palette";
 import { getCurrentPlan } from "@/lib/features";
 import type { Role } from "@/generated/prisma";
 
@@ -19,7 +20,8 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Desktop sidebar — 인쇄 시 숨김 (globals.css @media print) */}
+      <CommandPalette />
+      {/* Desktop sidebar */}
       <div className="hidden md:block" data-print-hide>
         <AppSidebar role={user.role} plan={plan} />
       </div>
@@ -33,7 +35,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
       </Sheet>
 
       {/* Main content */}
-      <div className="md:ml-[240px] flex flex-col min-h-screen" data-print-main>
+      <div className="md:ml-[224px] flex flex-col min-h-screen" data-print-main>
         <div data-print-hide>
           <AppHeader
             user={user}
@@ -41,7 +43,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
             onMenuClick={() => setOpen(true)}
           />
         </div>
-        <main className="flex-1 p-4 md:p-6 max-w-[1400px]" data-print-content>
+        <main className="flex-1 p-4 md:p-[18px] max-w-[1400px]" data-print-content>
           {children}
         </main>
       </div>
