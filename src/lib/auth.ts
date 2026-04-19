@@ -1,12 +1,11 @@
-import { cache } from "react";
 import { auth as clerkAuth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "./prisma";
 
-// Clerk 인증 기반으로 Prisma User를 반환 (React cache로 요청당 1회만 실행)
+// Clerk 인증 기반으로 Prisma User를 반환
 // - clerkId로 먼저 조회
 // - 없으면 email로 기존 유저 조회 후 clerkId 연결 (기존 계정 마이그레이션)
 // - 둘 다 없으면 신규 생성 (기본 role: MENTOR)
-export const getUser = cache(async function getUser() {
+export async function getUser() {
   const { userId: clerkId } = await clerkAuth();
   if (!clerkId) return null;
 
@@ -28,7 +27,7 @@ export const getUser = cache(async function getUser() {
     create: { clerkId, email, name, role: "MENTOR" },
   });
   return user;
-});
+}
 
 // 기존 server action들과의 호환성 레이어
 // session.user.id / session.user.role / session.user.name 그대로 사용 가능
