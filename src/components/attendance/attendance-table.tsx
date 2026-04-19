@@ -631,10 +631,8 @@ export function AttendanceTable({ students, today }: Props) {
               const commCount = student.communications.filter((c) => !c.isChecked).length;
               const assignCount = student.assignments.filter((a) => !a.isCompleted).length;
               const schoolGrade = [student.school, student.grade].filter(Boolean).join(" ");
-              // 이달 상벌점만 집계 (매월 1일 초기화)
-              const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0,0,0,0);
+              // 당일 상벌점만 집계 (서버에서 오늘 데이터만 전달됨)
               const meritBalance = student.merits
-                .filter((m) => new Date(m.date) >= monthStart)
                 .reduce((sum, m) => sum + (m.type === "MERIT" ? m.points : -m.points), 0);
               const attNotes = student.attendances[0]?.notes ?? "";
               const isExpanded = expandedTimelines.has(student.id);
