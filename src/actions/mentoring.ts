@@ -45,10 +45,8 @@ export async function updateMentoring(id: string, formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  // 소유권 검증: 본인의 멘토링이거나 DIRECTOR/ADMIN만 수정 가능
-  const existing = await prisma.mentoring.findUnique({ where: { id }, select: { mentorId: true } });
-  if (!existing) throw new Error("멘토링을 찾을 수 없습니다");
-  requireOwnerOrFullAccess(existing.mentorId, session.user.id, session.user.role);
+  // 스태프 이상이면 모든 멘토링 수정 가능 (팀 협업)
+  requireStaff(session.user.role);
 
   const raw = Object.fromEntries(formData.entries());
 
@@ -439,9 +437,7 @@ export async function deleteMentoring(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const existing = await prisma.mentoring.findUnique({ where: { id }, select: { mentorId: true } });
-  if (!existing) throw new Error("멘토링을 찾을 수 없습니다");
-  requireOwnerOrFullAccess(existing.mentorId, session.user.id, session.user.role);
+  requireStaff(session.user.role);
 
   await prisma.mentoring.delete({ where: { id } });
   revalidatePath("/mentoring");
@@ -462,9 +458,7 @@ export async function updateMentoringStatus(id: string, status: MentoringStatus)
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const existing = await prisma.mentoring.findUnique({ where: { id }, select: { mentorId: true } });
-  if (!existing) throw new Error("멘토링을 찾을 수 없습니다");
-  requireOwnerOrFullAccess(existing.mentorId, session.user.id, session.user.role);
+  requireStaff(session.user.role);
 
   await prisma.mentoring.update({ where: { id }, data: { status } });
   revalidatePath("/mentoring");
