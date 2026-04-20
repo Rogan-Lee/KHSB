@@ -11,9 +11,6 @@ export default async function AttendancePage() {
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const dayOfWeek = kstNow.getUTCDay();
 
-  // 이번 달 1일 (상벌점 범위 제한용)
-  const monthStart = new Date(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), 1);
-
   const students = await prisma.student.findMany({
     where: { status: "ACTIVE" },
     include: {
@@ -23,7 +20,7 @@ export default async function AttendancePage() {
       dailyOutings: { where: { date: today }, orderBy: { outStart: "asc" as const } },
       communications: { orderBy: { createdAt: "desc" as const }, take: 30 },
       assignments: { orderBy: { createdAt: "desc" as const }, take: 20 },
-      merits: { where: { date: { gte: monthStart } }, select: { type: true, points: true, date: true } },
+      merits: { where: { date: today }, select: { type: true, points: true, date: true } },
       vocabEnrollment: { select: { isActive: true } },
     },
     orderBy: { seat: "asc" },
