@@ -123,7 +123,7 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
     const students: WeeklyPlanStudent[] = mentor.students.map((student) => {
       const lastDate = lastMap.get(student.id) ?? null;
       const daysSinceLast = lastDate
-        ? Math.floor((today.getTime() - new Date(lastDate).setHours(0, 0, 0, 0)) / 86400000)
+        ? Math.floor((today.getTime() - new Date(lastDate).setUTCHours(0, 0, 0, 0)) / 86400000)
         : null;
 
       let priority: 1 | 2 | 3;
@@ -165,7 +165,7 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
       if (!extra) continue;
       const lastDate = lastMap.get(sid) ?? null;
       const daysSinceLast = lastDate
-        ? Math.floor((today.getTime() - new Date(lastDate).setHours(0, 0, 0, 0)) / 86400000)
+        ? Math.floor((today.getTime() - new Date(lastDate).setUTCHours(0, 0, 0, 0)) / 86400000)
         : null;
       let priority: 1 | 2 | 3;
       if (daysSinceLast === null || daysSinceLast >= 7) priority = 1;
