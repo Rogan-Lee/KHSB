@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent } from "@/components/ui/card";
 import { AttendanceTable } from "@/components/attendance/attendance-table";
-import { CheckCircle2, XCircle, Clock, Minus, UserX } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Minus, UserX, BookOpen } from "lucide-react";
 import { todayKST } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,7 @@ export default async function AttendancePage({
 }) {
   const { filter } = await searchParams;
   const isAbsentFilter = filter === "absent";
+  const isSelfStudyFilter = filter === "self-study";
 
   const today = todayKST();
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
@@ -32,6 +33,10 @@ export default async function AttendancePage({
       assignments: { orderBy: { createdAt: "desc" as const }, take: 20 },
       merits: { where: { date: today }, select: { type: true, points: true, date: true } },
       vocabEnrollment: { select: { isActive: true } },
+      timetableEntries: {
+        where: { dayOfWeek },
+        select: { startTime: true, endTime: true, subject: true },
+      },
     },
     orderBy: { seat: "asc" },
   });
@@ -54,7 +59,22 @@ export default async function AttendancePage({
   });
   const absentNowCount = absentNowList.length;
 
-  const visibleStudents = isAbsentFilter ? absentNowList : students;
+  // 현재 시간 기준 자습 중인 원생: 이 시각에 학원/과외 등 외부 일정이 없는 원생.
+  // 시간표 entry가 현재 시각을 덮지 않거나, 덮더라도 subject에 "자습" 포함이면 해당.
+  const selfStudyNowList = students.filter((s) => {
+    const currentEntry = s.timetableEntries.find(
+      (e) => e.startTime <= nowHHMM && nowHHMM < e.endTime,
+    );
+    if (!currentEntry) return true;
+    return currentEntry.subject.includes("자습");
+  });
+  const selfStudyNowCount = selfStudyNowList.length;
+
+  const visibleStudents = isAbsentFilter
+    ? absentNowList
+    : isSelfStudyFilter
+    ? selfStudyNowList
+    : students;
 
   const dateLabel = today.toLocaleDateString("ko-KR", {
     year: "numeric",
@@ -72,7 +92,7 @@ export default async function AttendancePage({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 sm:gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-7 sm:gap-3">
         <Card>
           <CardContent className="flex items-center gap-2 pt-4 pb-3">
             <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0" />
@@ -137,6 +157,30 @@ export default async function AttendancePage({
                 <p className="text-xl font-bold leading-none">{absentNowCount}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {isAbsentFilter ? "필터 해제" : "결석자 보기"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link
+          href={isSelfStudyFilter ? "/attendance" : "/attendance?filter=self-study"}
+          aria-pressed={isSelfStudyFilter}
+          title={isSelfStudyFilter ? "전체 보기로 돌아가기" : "현재 시각 기준 자습 중이어야 할 원생만 보기 (시간표 기준)"}
+        >
+          <Card
+            className={cn(
+              "cursor-pointer transition-all hover:shadow-sm",
+              isSelfStudyFilter
+                ? "ring-2 ring-indigo-500 bg-indigo-50 hover:bg-indigo-100"
+                : "hover:bg-accent/50"
+            )}
+          >
+            <CardContent className="flex items-center gap-2 pt-4 pb-3">
+              <BookOpen className={cn("h-6 w-6 shrink-0", isSelfStudyFilter ? "text-indigo-600" : "text-indigo-500")} />
+              <div>
+                <p className="text-xl font-bold leading-none">{selfStudyNowCount}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {isSelfStudyFilter ? "필터 해제" : "자습 중 보기"}
                 </p>
               </div>
             </CardContent>
