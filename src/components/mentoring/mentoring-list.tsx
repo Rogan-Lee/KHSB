@@ -59,7 +59,20 @@ type Props = {
   checkedInStudentIds?: string[];
   vocabEnrolledStudentIds?: string[];
   attendanceNotes?: Record<string, string>;
+  /** 이달 기준 학생별 상/벌점 누적 (§2.17) */
+  meritPoints?: Record<string, { positive: number; negative: number }>;
 };
+
+/** 이달 상벌점 임계값을 넘으면 이모지 표시 (§2.17). 임계값: 상점 10↑ / 벌점 15↑ */
+function MeritBadge({ positive, negative }: { positive: number; negative: number }) {
+  if (positive < 10 && negative < 15) return null;
+  return (
+    <span className="inline-flex items-center gap-0.5 text-sm leading-none shrink-0">
+      {positive >= 10 && <span title={`이달 상점 ${positive}점`}>👍</span>}
+      {negative >= 15 && <span title={`이달 벌점 ${negative}점`}>🤬</span>}
+    </span>
+  );
+}
 
 function isVocabDone(vocabTestDate: Date | null | undefined): boolean {
   if (!vocabTestDate) return false;
@@ -224,7 +237,7 @@ function saveFilters(f: FilterState) {
   try { sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(f)); } catch { /* ignore */ }
 }
 
-export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [], vocabEnrolledStudentIds = [], attendanceNotes = {} }: Props) {
+export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [], vocabEnrolledStudentIds = [], attendanceNotes = {}, meritPoints = {} }: Props) {
   const checkedInSet = new Set(checkedInStudentIds);
   const vocabEnrolledSet = new Set(vocabEnrolledStudentIds);
   const today = getToday();
@@ -459,6 +472,10 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                         <div className="flex items-center gap-1">
                           <span className="font-medium whitespace-nowrap">{m.student.name}</span>
                           <span className="text-xs text-muted-foreground">{m.student.grade}</span>
+                          {(() => {
+                            const p = meritPoints[m.student.id];
+                            return p ? <MeritBadge positive={p.positive} negative={p.negative} /> : null;
+                          })()}
                           {/* 입퇴실 시간 */}
                           {(() => {
                             const dow = new Date(m.scheduledAt).getDay();
