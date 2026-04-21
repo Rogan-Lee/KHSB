@@ -194,8 +194,8 @@ export function AttendanceTable({ students, today }: Props) {
   type CheckDateKey = "vocabTestDate" | "pledgeDate" | "mockAnalysisDate" | "schoolAnalysisDate" | "plannerSentDate" | "weeklyPlanDate";
   type CheckDateState = Record<CheckDateKey, string | null>;
 
-  // 매주 화요일 초기화 대상 키
-  const WEEKLY_KEYS = new Set<CheckDateKey>(["vocabTestDate", "plannerSentDate", "weeklyPlanDate"]);
+  // 매주 화요일 초기화 대상 키 (공부계획은 수동 초기화만)
+  const WEEKLY_KEYS = new Set<CheckDateKey>(["vocabTestDate", "plannerSentDate"]);
 
   // 이번 주 화요일 기준일 계산
   function getLastTuesday(): Date {
