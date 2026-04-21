@@ -21,8 +21,12 @@ export default async function MentoringPage() {
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
+  // 이달 상벌점 집계 기간 (KST 월 시작/종료)
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
   // 모든 쿼리를 병렬 실행 (순차 6개 → 병렬 1회 RTT)
-  const [mentorings, todaySlots, mentors, vocabEnrolled, announcement, todayAttendance] = await Promise.all([
+  const [mentorings, todaySlots, mentors, vocabEnrolled, announcement, todayAttendance, meritAgg] = await Promise.all([
     prisma.mentoring.findMany({
       include: {
         student: { select: { id: true, name: true, grade: true, seat: true, vocabTestDate: true, schedules: { select: { dayOfWeek: true, startTime: true, endTime: true } } } },
@@ -51,6 +55,11 @@ export default async function MentoringPage() {
       where: { date: new Date(today), checkIn: { not: null } },
       select: { studentId: true, checkOut: true, checkIn: true, notes: true },
     }),
+    prisma.meritDemerit.groupBy({
+      by: ["studentId", "type"],
+      where: { date: { gte: monthStart, lt: monthEnd } },
+      _sum: { points: true },
+    }),
   ]);
   const vocabEnrolledIds = vocabEnrolled.map((v) => v.studentId);
   const checkedInStudentIds = new Set(
@@ -60,6 +69,14 @@ export default async function MentoringPage() {
   const attendanceNotesMap: Record<string, string> = {};
   for (const a of todayAttendance) {
     if (a.notes) attendanceNotesMap[a.studentId] = a.notes;
+  }
+  // 이달 상벌점 맵 (studentId → { positive, negative })
+  const meritPointsByStudent: Record<string, { positive: number; negative: number }> = {};
+  for (const row of meritAgg) {
+    const entry = (meritPointsByStudent[row.studentId] ??= { positive: 0, negative: 0 });
+    const sum = row._sum.points ?? 0;
+    if (row.type === "MERIT") entry.positive += sum;
+    else if (row.type === "DEMERIT") entry.negative += sum;
   }
 
   return (
@@ -106,7 +123,7 @@ export default async function MentoringPage() {
           </Link>
         </CardHeader>
         <CardContent>
-          <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} vocabEnrolledStudentIds={vocabEnrolledIds} attendanceNotes={attendanceNotesMap} />
+          <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} vocabEnrolledStudentIds={vocabEnrolledIds} attendanceNotes={attendanceNotesMap} meritPoints={meritPointsByStudent} />
         </CardContent>
       </Card>
     </div>
