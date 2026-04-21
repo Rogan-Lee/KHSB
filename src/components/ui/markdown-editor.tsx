@@ -85,6 +85,23 @@ export function MarkdownEditor({ value, onChange, placeholder }: Props) {
     handleImageFile(file);
   }
 
+  // 클립보드에서 이미지를 붙여넣으면 자동 업로드.
+  // 이미지가 없으면 기본 텍스트 붙여넣기로 넘김 (tiptap이 처리).
+  function handlePaste(e: React.ClipboardEvent) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.kind === "file" && item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          handleImageFile(file);
+          return;
+        }
+      }
+    }
+  }
+
   return (
     <div className="border rounded-lg overflow-hidden bg-background">
       {/* Toolbar */}
@@ -102,6 +119,7 @@ export function MarkdownEditor({ value, onChange, placeholder }: Props) {
           )}
           이미지 첨부
         </button>
+        <span className="text-[10px] text-muted-foreground/70 select-none">드래그 · Ctrl+V</span>
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
         <span className="ml-auto text-[11px] text-muted-foreground select-none">
           # 제목 &nbsp;·&nbsp; **굵게** &nbsp;·&nbsp; _기울임_ &nbsp;·&nbsp; - 목록 &nbsp;·&nbsp; &gt; 인용
@@ -109,7 +127,7 @@ export function MarkdownEditor({ value, onChange, placeholder }: Props) {
       </div>
 
       {/* Editable content */}
-      <div onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
+      <div onDrop={handleDrop} onDragOver={(e) => e.preventDefault()} onPaste={handlePaste}>
         <EditorContent
           editor={editor}
           className="notion-editor-content px-4 py-3 min-h-[200px] focus-within:outline-none"
