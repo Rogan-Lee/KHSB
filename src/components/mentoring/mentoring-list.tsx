@@ -21,10 +21,12 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowUp, ArrowDown, ArrowUpDown, MoreHorizontal, Search, Trash2, X } from "lucide-react";
+import { MoreHorizontal, Search, Trash2, X } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 import { updateMentoringStatus, deleteMentoring, bulkDeleteMentorings } from "@/actions/mentoring";
 import { toast } from "sonner";
+import { useSortableTable } from "@/hooks/use-sortable-table";
+import { SortableHeader } from "@/components/ui/sortable-header";
 
 const STATUS_MAP = {
   SCHEDULED: { label: "예정", variant: "secondary" as const },
@@ -32,16 +34,6 @@ const STATUS_MAP = {
   CANCELLED: { label: "취소", variant: "destructive" as const },
   RESCHEDULED: { label: "일정변경", variant: "outline" as const },
 };
-
-type SortKey = "scheduledAt" | "studentName" | "mentorName" | "time" | "status";
-type SortDir = "asc" | "desc";
-
-function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
-  if (col !== sortKey) return <ArrowUpDown className="inline h-3 w-3 ml-1 opacity-30" />;
-  return sortDir === "asc"
-    ? <ArrowUp className="inline h-3 w-3 ml-1 text-foreground" />
-    : <ArrowDown className="inline h-3 w-3 ml-1 text-foreground" />;
-}
 
 type Mentoring = {
   id: string;
@@ -222,8 +214,6 @@ type FilterState = {
   from: string;
   to: string;
   q: string;
-  sort: SortKey;
-  dir: SortDir;
 };
 
 function loadFilters(): Partial<FilterState> {
@@ -248,8 +238,6 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
   const [dateFrom, setDateFrom] = useState<string>(saved.from ?? "");
   const [dateTo, setDateTo] = useState<string>(saved.to ?? "");
   const [query, setQuery] = useState(saved.q ?? "");
-  const [sortKey, setSortKey] = useState<SortKey>(saved.sort ?? "scheduledAt");
-  const [sortDir, setSortDir] = useState<SortDir>(saved.dir ?? "desc");
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<Mentoring | null>(null);
@@ -258,34 +246,26 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
 
   // 필터 변경 시 sessionStorage에 저장
   useEffect(() => {
-    saveFilters({ mentor: selectedMentorId, from: dateFrom, to: dateTo, q: query, sort: sortKey, dir: sortDir });
-  }, [selectedMentorId, dateFrom, dateTo, query, sortKey, sortDir]);
-
-  function handleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("desc");
-    }
-  }
+    saveFilters({ mentor: selectedMentorId, from: dateFrom, to: dateTo, q: query });
+  }, [selectedMentorId, dateFrom, dateTo, query]);
 
   const q = query.trim().toLowerCase();
-  const filtered = mentorings.filter((m) => {
+  const baseFiltered = mentorings.filter((m) => {
     if (selectedMentorId !== "all" && m.mentor.id !== selectedMentorId) return false;
     const dateStr = toLocalDateString(m.scheduledAt);
     if (dateFrom && dateStr < dateFrom) return false;
     if (dateTo && dateStr > dateTo) return false;
     if (q && !m.student.name.toLowerCase().includes(q)) return false;
     return true;
-  }).sort((a, b) => {
-    let cmp = 0;
-    if (sortKey === "scheduledAt") cmp = new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
-    else if (sortKey === "studentName") cmp = a.student.name.localeCompare(b.student.name, "ko");
-    else if (sortKey === "mentorName") cmp = a.mentor.name.localeCompare(b.mentor.name, "ko");
-    else if (sortKey === "time") cmp = (a.scheduledTimeStart ?? "").localeCompare(b.scheduledTimeStart ?? "");
-    else if (sortKey === "status") cmp = a.status.localeCompare(b.status);
-    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  // 헤더 클릭으로 정렬 (3-state 토글). 미정렬 시 서버 순서(scheduledAt desc) 유지.
+  const { rows: filtered, sort, toggle } = useSortableTable(baseFiltered, {
+    scheduledAt: (m) => new Date(m.scheduledAt).getTime(),
+    studentName: (m) => m.student.name,
+    mentorName: (m) => m.mentor.name,
+    time: (m) => m.scheduledTimeStart ?? "",
+    status: (m) => m.status,
   });
 
   const filteredIds = filtered.map((m) => m.id);
@@ -413,23 +393,23 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                 />
               </TableHead>
               <TableHead className="w-10 text-center">좌석</TableHead>
-              <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("scheduledAt")}>
-                예정일<SortIcon col="scheduledAt" sortKey={sortKey} sortDir={sortDir} />
-              </TableHead>
-              <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("studentName")}>
-                원생<SortIcon col="studentName" sortKey={sortKey} sortDir={sortDir} />
-              </TableHead>
+              <SortableHeader sortKey="scheduledAt" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2 whitespace-nowrap">
+                예정일
+              </SortableHeader>
+              <SortableHeader sortKey="studentName" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2 whitespace-nowrap">
+                원생
+              </SortableHeader>
               {mentors.length > 0 && (
-                <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("mentorName")}>
-                  멘토<SortIcon col="mentorName" sortKey={sortKey} sortDir={sortDir} />
-                </TableHead>
+                <SortableHeader sortKey="mentorName" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2 whitespace-nowrap">
+                  멘토
+                </SortableHeader>
               )}
-              <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("time")}>
-                시간<SortIcon col="time" sortKey={sortKey} sortDir={sortDir} />
-              </TableHead>
-              <TableHead className="cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap" onClick={() => handleSort("status")}>
-                상태<SortIcon col="status" sortKey={sortKey} sortDir={sortDir} />
-              </TableHead>
+              <SortableHeader sortKey="time" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2 whitespace-nowrap">
+                시간
+              </SortableHeader>
+              <SortableHeader sortKey="status" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2 whitespace-nowrap">
+                상태
+              </SortableHeader>
               <TableHead>메모</TableHead>
               <TableHead></TableHead>
             </TableRow>
