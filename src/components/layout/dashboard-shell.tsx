@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { AppSidebar } from "./app-sidebar";
@@ -8,25 +8,42 @@ import { AppHeader } from "./app-header";
 import { CommandPalette } from "@/components/ui/command-palette";
 import { getCurrentPlan } from "@/lib/features";
 import type { Role } from "@/generated/prisma";
+import { cn } from "@/lib/utils";
 
 interface DashboardShellProps {
   user: { name: string; email: string; role: Role };
   children: React.ReactNode;
 }
 
+const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
+
 export function DashboardShell({ user, children }: DashboardShellProps) {
   const plan = getCurrentPlan();
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  // localStorage에서 초기 상태 복원 (mount 후 1회)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    if (saved === "true") setCollapsed(true);
+  }, []);
+
+  // collapsed 상태 변경 시 localStorage 저장
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+  }, [collapsed]);
 
   return (
     <div className="min-h-screen bg-background">
       <CommandPalette />
       {/* Desktop sidebar */}
       <div className="hidden md:block" data-print-hide>
-        <AppSidebar role={user.role} plan={plan} />
+        <AppSidebar role={user.role} plan={plan} collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
       </div>
 
-      {/* Mobile sidebar (Sheet) */}
+      {/* Mobile sidebar (Sheet) — 접기 기능 미적용, 항상 펼침 */}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="p-0 w-[240px] [&>button]:hidden">
           <VisuallyHidden><SheetTitle>내비게이션 메뉴</SheetTitle></VisuallyHidden>
@@ -35,7 +52,13 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
       </Sheet>
 
       {/* Main content */}
-      <div className="md:ml-[224px] flex flex-col min-h-screen" data-print-main>
+      <div
+        className={cn(
+          "flex flex-col min-h-screen transition-[margin] duration-300",
+          collapsed ? "md:ml-16" : "md:ml-[224px]"
+        )}
+        data-print-main
+      >
         <div data-print-hide>
           <AppHeader
             user={user}
