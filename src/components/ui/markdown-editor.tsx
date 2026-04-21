@@ -19,7 +19,13 @@ interface Props {
 export function MarkdownEditor({ value, onChange, placeholder }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const isInternalRef = useRef(false);
+
+  // onChange가 부모에서 매 렌더마다 새 함수로 생성되어도
+  // useEditor 내부 onUpdate가 최신 참조를 쓰도록 ref로 고정
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
 
   const editor = useEditor({
     extensions: [
@@ -33,23 +39,21 @@ export function MarkdownEditor({ value, onChange, placeholder }: Props) {
     content: value || "",
     immediatelyRender: false,
     onUpdate({ editor }) {
-      isInternalRef.current = true;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      onChange((editor.storage as any).markdown.getMarkdown() as string);
+      onChangeRef.current((editor.storage as any).markdown.getMarkdown() as string);
     },
   });
 
-  // Sync value from outside (e.g. form reset / edit open)
+  // 외부 value 변화를 에디터에 반영.
+  // 단, 에디터가 포커스 상태면 사용자가 입력 중이므로 덮어쓰지 않는다.
+  // emitUpdate=false로 onUpdate 재진입(피드백 루프) 방지.
   useEffect(() => {
     if (!editor) return;
-    if (isInternalRef.current) {
-      isInternalRef.current = false;
-      return;
-    }
+    if (editor.isFocused) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const current = (editor.storage as any).markdown.getMarkdown() as string;
     if (value !== current) {
-      editor.commands.setContent(value || "");
+      editor.commands.setContent(value || "", { emitUpdate: false });
     }
   }, [value, editor]);
 
