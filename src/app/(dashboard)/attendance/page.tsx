@@ -1,15 +1,25 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent } from "@/components/ui/card";
 import { AttendanceTable } from "@/components/attendance/attendance-table";
-import { CheckCircle2, XCircle, Clock, LogOut, Minus } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Minus, UserX } from "lucide-react";
 import { todayKST } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 export const revalidate = 30; // 30초 캐싱 (force-dynamic 대비 성능 향상)
 
-export default async function AttendancePage() {
+export default async function AttendancePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
+  const { filter } = await searchParams;
+  const isAbsentFilter = filter === "absent";
+
   const today = todayKST();
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const dayOfWeek = kstNow.getUTCDay();
+  const nowHHMM = kstNow.toISOString().slice(11, 16); // "HH:MM" KST
 
   const students = await prisma.student.findMany({
     where: { status: "ACTIVE" },
@@ -34,6 +44,17 @@ export default async function AttendancePage() {
   const notifiedAbsent = withSchedule.filter((s) => s.attendances[0]?.type === "NOTIFIED_ABSENT").length;
   const tardy = withSchedule.filter((s) => s.attendances[0]?.type === "TARDY").length;
   const noSchedule = students.filter((s) => s.schedules.length === 0).length;
+
+  // 현재 시간 기준 입실 기록 없는 원생: 예정 입실 시각이 지났고 아직 체크인 안 된 원생
+  const absentNowList = withSchedule.filter((s) => {
+    const schedIn = s.schedules[0]?.startTime;
+    if (!schedIn || schedIn === "FLEXIBLE") return false;
+    if (s.attendances[0]?.checkIn) return false;
+    return schedIn <= nowHHMM;
+  });
+  const absentNowCount = absentNowList.length;
+
+  const visibleStudents = isAbsentFilter ? absentNowList : students;
 
   const dateLabel = today.toLocaleDateString("ko-KR", {
     year: "numeric",
@@ -97,9 +118,33 @@ export default async function AttendancePage() {
             </div>
           </CardContent>
         </Card>
+        <Link
+          href={isAbsentFilter ? "/attendance" : "/attendance?filter=absent"}
+          aria-pressed={isAbsentFilter}
+          title={isAbsentFilter ? "전체 보기로 돌아가기" : "현재 시각 기준 아직 입실 안 한 원생만 보기"}
+        >
+          <Card
+            className={cn(
+              "cursor-pointer transition-all hover:shadow-sm",
+              isAbsentFilter
+                ? "ring-2 ring-red-500 bg-red-50 hover:bg-red-100"
+                : "hover:bg-accent/50"
+            )}
+          >
+            <CardContent className="flex items-center gap-2 pt-4 pb-3">
+              <UserX className={cn("h-6 w-6 shrink-0", isAbsentFilter ? "text-red-600" : "text-rose-500")} />
+              <div>
+                <p className="text-xl font-bold leading-none">{absentNowCount}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {isAbsentFilter ? "필터 해제" : "결석자 보기"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
-      <AttendanceTable students={students} today={today.toISOString()} />
+      <AttendanceTable students={visibleStudents} today={today.toISOString()} />
     </div>
   );
 }
