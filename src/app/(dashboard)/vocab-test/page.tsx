@@ -9,14 +9,13 @@ export default async function VocabTestPage() {
   const session = await auth();
   if (!session?.user) redirect("/sign-in");
 
-  const [students, enrollments, scores] = await Promise.all([
+  const [studentsRaw, enrollments, scores] = await Promise.all([
     prisma.student.findMany({
       where: { status: "ACTIVE" },
       select: {
-        id: true, name: true, grade: true, school: true,
+        id: true, name: true, grade: true, school: true, seat: true,
         vocabEnrollment: true,
       },
-      orderBy: { name: "asc" },
     }),
     prisma.vocabTestEnrollment.findMany({
       where: { isActive: true },
@@ -28,6 +27,14 @@ export default async function VocabTestPage() {
       take: 200,
     }),
   ]);
+
+  // 기본 정렬: 좌석번호 오름차순 (숫자 자리 우선, 비숫자는 뒤로, 동일 시 이름)
+  const students = [...studentsRaw].sort((a, b) => {
+    const na = a.seat && /^\d+$/.test(a.seat) ? parseInt(a.seat, 10) : Number.MAX_SAFE_INTEGER;
+    const nb = b.seat && /^\d+$/.test(b.seat) ? parseInt(b.seat, 10) : Number.MAX_SAFE_INTEGER;
+    if (na !== nb) return na - nb;
+    return a.name.localeCompare(b.name, "ko");
+  });
 
   return (
     <div className="space-y-6">
