@@ -189,18 +189,19 @@ model AttendanceSchedule {
 }
 
 model AttendanceRecord {
-  id        String         @id @default(cuid())
-  studentId String
-  student   Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  date      DateTime       @db.Date
-  checkIn   DateTime?
-  checkOut  DateTime?
-  outStart  DateTime?      // 실제 외출 시각
-  outEnd    DateTime?      // 실제 복귀 시각
-  type      AttendanceType @default(NORMAL)
-  notes     String?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id           String         @id @default(cuid())
+  studentId    String
+  student      Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date         DateTime       @db.Date
+  checkIn      DateTime?
+  checkOut     DateTime?
+  outStart     DateTime?      // 실제 외출 시각
+  outEnd       DateTime?      // 실제 복귀 시각
+  type         AttendanceType @default(NORMAL)
+  notes        String?
+  isAutoClosed Boolean        @default(false) // 자정 크론에서 자동 퇴실 처리됨
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   @@unique([studentId, date])
   @@index([date])

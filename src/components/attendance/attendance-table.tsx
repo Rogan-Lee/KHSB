@@ -897,6 +897,14 @@ export function AttendanceTable({ students, today }: Props) {
                             checkOutTime ? "text-foreground font-semibold" : "text-gray-400"
                           )}
                         />
+                        {student.attendances[0]?.isAutoClosed && (
+                          <span
+                            className="text-[10px] text-gray-400 border border-gray-200 rounded px-1 py-0.5 shrink-0"
+                            title="자정 크론에 의해 자동 퇴실 처리됨"
+                          >
+                            자동
+                          </span>
+                        )}
                       </div>
 
                       {/* 복귀 */}
