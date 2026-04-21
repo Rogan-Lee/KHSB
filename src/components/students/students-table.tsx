@@ -29,10 +29,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, ArrowLeftRight, LogOut, LogIn, ChevronRight, Search, X, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { MoreHorizontal, ArrowLeftRight, LogOut, LogIn, ChevronRight, Search, X } from "lucide-react";
 import { checkoutStudent, readmitStudent, moveStudentSeat, swapStudentSeats, updateStudentSeat } from "@/actions/students";
 import { toast } from "sonner";
 import type { Student, User, AttendanceSchedule } from "@/generated/prisma";
+import { useSortableTable } from "@/hooks/use-sortable-table";
+import { SortableHeader } from "@/components/ui/sortable-header";
 
 type StudentWithRelations = Student & {
   mentor: Pick<User, "name"> | null;
@@ -57,16 +59,6 @@ const STATUS_MAP = {
   GRADUATED: { label: "졸업", variant: "outline" as const },
   WITHDRAWN: { label: "퇴원", variant: "destructive" as const },
 };
-
-type SortKey = "seat" | "name" | "school" | "mentor" | "startDate" | "status";
-type SortDir = "asc" | "desc";
-
-function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
-  if (col !== sortKey) return <ArrowUpDown className="inline h-3 w-3 ml-1 opacity-30" />;
-  return sortDir === "asc"
-    ? <ArrowUp className="inline h-3 w-3 ml-1 text-foreground" />
-    : <ArrowDown className="inline h-3 w-3 ml-1 text-foreground" />;
-}
 
 // ── 좌석 변경 다이얼로그 ──────────────────────────────
 function SeatChangeDialog({
@@ -306,16 +298,14 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
   const saved = typeof window !== "undefined" ? loadStudentFilters() : {};
   const [query, setQuery] = useState<string>(saved.q ?? "");
   const [showWithdrawn, setShowWithdrawn] = useState<boolean>(saved.withdrawn ?? false);
-  const [sortKey, setSortKey] = useState<SortKey>(saved.sort ?? "seat");
-  const [sortDir, setSortDir] = useState<SortDir>(saved.dir ?? "asc");
   const [mentorFilter, setMentorFilter] = useState<string>("ALL");
 
   // 멘토 목록 추출 (이름 가나다순)
   const mentorNames = [...new Set(students.map((s) => s.mentor?.name).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, "ko"));
 
   useEffect(() => {
-    try { sessionStorage.setItem(STUDENTS_FILTER_KEY, JSON.stringify({ q: query, withdrawn: showWithdrawn, sort: sortKey, dir: sortDir })); } catch {}
-  }, [query, showWithdrawn, sortKey, sortDir]);
+    try { sessionStorage.setItem(STUDENTS_FILTER_KEY, JSON.stringify({ q: query, withdrawn: showWithdrawn })); } catch {}
+  }, [query, showWithdrawn]);
 
   // 퇴원생 보기 모드: WITHDRAWN만 표시 / 기본: WITHDRAWN 제외
   const statusFiltered = showWithdrawn
@@ -327,14 +317,18 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
     ? statusFiltered
     : statusFiltered.filter((s) => s.mentor?.name === mentorFilter);
 
-  function handleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("asc");
-    }
-  }
+  // 정렬 (헤더 클릭으로 3-state 토글)
+  const { rows: sortedStudents, sort, toggle } = useSortableTable(visibleStudents, {
+    seat: (s) => {
+      const n = s.seat ? parseInt(s.seat, 10) : NaN;
+      return isNaN(n) ? Number.MAX_SAFE_INTEGER : n;
+    },
+    name: (s) => s.name,
+    school: (s) => `${s.school ?? ""} ${s.grade ?? ""}`,
+    mentor: (s) => s.mentor?.name ?? "",
+    startDate: (s) => new Date(s.startDate).getTime(),
+    status: (s) => s.status,
+  });
 
   const [readmitDialog, setReadmitDialog] = useState<StudentWithRelations | null>(null);
 
@@ -347,17 +341,14 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
 
   const q = query.trim().toLowerCase();
 
-  // 좌석번호(숫자 문자열) → student 맵
+  // 기본 뷰(정렬/검색/퇴원생 모드 전부 미활성)일 때만 빈 좌석 표시.
+  // 정렬 활성 또는 검색어 있으면 학생 row만 보여줌 (빈 좌석은 관련 없음).
   type Row = { type: "student"; student: StudentWithRelations } | { type: "empty"; seatNum: string };
-  const allRows: Row[] = [];
+  const showEmptySeats = !showWithdrawn && !sort && !q;
 
-  if (showWithdrawn) {
-    // 퇴원생 모드: 학생만 이름순으로 (빈 좌석 행 불필요)
-    [...visibleStudents]
-      .sort((a, b) => a.name.localeCompare(b.name, "ko"))
-      .forEach((s) => allRows.push({ type: "student", student: s }));
-  } else {
-    // 재원 모드: 좌석 순서 + 빈 좌석 표시
+  const rows: Row[] = [];
+  if (showEmptySeats) {
+    // 재원 모드 + 정렬/검색 없음: 좌석 1~TOTAL_SEATS 순회하며 빈 좌석 같이 표시
     const seatMap = new Map<string, StudentWithRelations>();
     const noSeatStudents: StudentWithRelations[] = [];
     for (const s of visibleStudents) {
@@ -368,71 +359,25 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
       const key = String(i);
       const student = seatMap.get(key);
       if (student) {
-        allRows.push({ type: "student", student });
+        rows.push({ type: "student", student });
         seatMap.delete(key);
       } else {
-        allRows.push({ type: "empty", seatNum: key });
+        rows.push({ type: "empty", seatNum: key });
       }
     }
     // 비숫자 좌석(A-57 등) 학생 추가
-    for (const [, student] of seatMap) allRows.push({ type: "student", student });
-    for (const s of noSeatStudents) allRows.push({ type: "student", student: s });
-  }
-
-  const isDefaultSort = sortKey === "seat" && sortDir === "asc";
-
-  const filtered = q
-    ? allRows.filter(
-        (r) =>
-          r.type === "student" &&
-          [r.student.name, r.student.school, r.student.grade, r.student.mentor?.name, r.student.seat, r.student.phone, r.student.parentPhone]
+    for (const [, student] of seatMap) rows.push({ type: "student", student });
+    for (const s of noSeatStudents) rows.push({ type: "student", student: s });
+  } else {
+    // 정렬/검색/퇴원생 모드: useSortableTable 결과에 검색 필터 추가
+    const filtered = q
+      ? sortedStudents.filter((s) =>
+          [s.name, s.school, s.grade, s.mentor?.name, s.seat, s.phone, s.parentPhone]
             .some((v) => v?.toLowerCase().includes(q))
-      )
-    : allRows;
-
-  const rows = isDefaultSort && !q
-    ? filtered
-    : (() => {
-        const studentRows = filtered.filter((r): r is { type: "student"; student: StudentWithRelations } => r.type === "student");
-        if (isDefaultSort) return studentRows;
-        return [...studentRows].sort((a, b) => {
-          let cmp = 0;
-          const sa = a.student;
-          const sb = b.student;
-          switch (sortKey) {
-            case "seat": {
-              const na = sa.seat ? parseInt(sa.seat, 10) : Infinity;
-              const nb = sb.seat ? parseInt(sb.seat, 10) : Infinity;
-              cmp = (isNaN(na) ? Infinity : na) - (isNaN(nb) ? Infinity : nb);
-              break;
-            }
-            case "name":
-              cmp = sa.name.localeCompare(sb.name, "ko");
-              break;
-            case "school": {
-              const schoolA = sa.school || "";
-              const schoolB = sb.school || "";
-              cmp = schoolA.localeCompare(schoolB, "ko");
-              if (cmp === 0) {
-                const gradeA = sa.grade || "";
-                const gradeB = sb.grade || "";
-                cmp = gradeA.localeCompare(gradeB, "ko");
-              }
-              break;
-            }
-            case "startDate":
-              cmp = new Date(sa.startDate).getTime() - new Date(sb.startDate).getTime();
-              break;
-            case "mentor":
-              cmp = (sa.mentor?.name || "").localeCompare(sb.mentor?.name || "", "ko");
-              break;
-            case "status":
-              cmp = sa.status.localeCompare(sb.status);
-              break;
-          }
-          return sortDir === "asc" ? cmp : -cmp;
-        });
-      })();
+        )
+      : sortedStudents;
+    for (const s of filtered) rows.push({ type: "student", student: s });
+  }
 
   return (
     <>
@@ -497,27 +442,27 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-14 whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("seat")}>
-                좌석<SortIcon col="seat" sortKey={sortKey} sortDir={sortDir} />
-              </TableHead>
-              <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("name")}>
-                이름<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
-              </TableHead>
-              <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("school")}>
-                학교/학년<SortIcon col="school" sortKey={sortKey} sortDir={sortDir} />
-              </TableHead>
+              <SortableHeader sortKey="seat" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="w-14 whitespace-nowrap h-10 px-2">
+                좌석
+              </SortableHeader>
+              <SortableHeader sortKey="name" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="whitespace-nowrap h-10 px-2">
+                이름
+              </SortableHeader>
+              <SortableHeader sortKey="school" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="whitespace-nowrap h-10 px-2">
+                학교/학년
+              </SortableHeader>
               <TableHead className="whitespace-nowrap">연락처</TableHead>
               <TableHead className="whitespace-nowrap">학부모 연락처</TableHead>
-              <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("mentor")}>
-                담당 멘토<SortIcon col="mentor" sortKey={sortKey} sortDir={sortDir} />
-              </TableHead>
+              <SortableHeader sortKey="mentor" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="whitespace-nowrap h-10 px-2">
+                담당 멘토
+              </SortableHeader>
               <TableHead className="whitespace-nowrap">특이사항</TableHead>
-              <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("startDate")}>
-                등원일<SortIcon col="startDate" sortKey={sortKey} sortDir={sortDir} />
-              </TableHead>
-              <TableHead className="whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors" onClick={() => handleSort("status")}>
-                상태<SortIcon col="status" sortKey={sortKey} sortDir={sortDir} />
-              </TableHead>
+              <SortableHeader sortKey="startDate" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="whitespace-nowrap h-10 px-2">
+                등원일
+              </SortableHeader>
+              <SortableHeader sortKey="status" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="whitespace-nowrap h-10 px-2">
+                상태
+              </SortableHeader>
               <TableHead className="w-8"></TableHead>
               <TableHead className="w-8"></TableHead>
             </TableRow>
