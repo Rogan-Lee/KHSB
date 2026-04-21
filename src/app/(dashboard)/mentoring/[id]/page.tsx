@@ -2,7 +2,6 @@ export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
 import { getTimetableEntries, getStudentSchoolEvents } from "@/actions/timetable";
-import { DayView } from "@/components/timetable/day-view";
 import { TimetableGrid } from "@/components/timetable/timetable-grid";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -175,46 +174,21 @@ export default async function MentoringDetailPage({
         </TabsContent>
 
         <TabsContent value="timetable" className="mt-4">
-          <Tabs defaultValue="daily">
-            <TabsList className="mb-4">
-              <TabsTrigger value="daily">일간</TabsTrigger>
-              <TabsTrigger value="weekly">주간</TabsTrigger>
-            </TabsList>
-            <TabsContent value="daily">
-              <DayView
-                studentId={s.id}
-                entries={timetableEntries.map((e) => ({
-                  id: e.id,
-                  dayOfWeek: e.dayOfWeek,
-                  startTime: e.startTime,
-                  endTime: e.endTime,
-                  subject: e.subject,
-                  details: e.details ?? null,
-                  colorCode: e.colorCode,
-                  allDay: e.allDay,
-                }))}
-                initialDate={mentoring.scheduledAt.toISOString().slice(0, 10)}
-                schoolEvents={mentoringSchoolEvents}
-              />
-            </TabsContent>
-            <TabsContent value="weekly">
-              <TimetableGrid
-                studentId={s.id}
-                studentName={s.name}
-                initialEntries={timetableEntries.map((e) => ({
-                  id: e.id,
-                  dayOfWeek: e.dayOfWeek,
-                  startTime: e.startTime,
-                  endTime: e.endTime,
-                  subject: e.subject,
-                  details: e.details ?? null,
-                  colorCode: e.colorCode,
-                  allDay: e.allDay,
-                }))}
-                schoolEvents={mentoringSchoolEvents}
-              />
-            </TabsContent>
-          </Tabs>
+          <TimetableGrid
+            studentId={s.id}
+            studentName={s.name}
+            initialEntries={timetableEntries.map((e) => ({
+              id: e.id,
+              dayOfWeek: e.dayOfWeek,
+              startTime: e.startTime,
+              endTime: e.endTime,
+              subject: e.subject,
+              details: e.details ?? null,
+              colorCode: e.colorCode,
+              allDay: e.allDay,
+            }))}
+            schoolEvents={mentoringSchoolEvents}
+          />
         </TabsContent>
 
         <TabsContent value="assignments" className="mt-4">
