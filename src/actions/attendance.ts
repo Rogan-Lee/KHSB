@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AttendanceType } from "@/generated/prisma";
@@ -276,6 +277,7 @@ export async function createDailyOuting(data: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   const record = await prisma.dailyOuting.create({
     data: {
@@ -299,6 +301,10 @@ export async function updateDailyOuting(id: string, data: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  const existing = await prisma.dailyOuting.findUnique({ where: { id } });
+  if (!existing) throw new Error("외출 기록을 찾을 수 없습니다");
 
   await prisma.dailyOuting.update({
     where: { id },
@@ -315,6 +321,10 @@ export async function updateDailyOuting(id: string, data: {
 export async function deleteDailyOuting(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  const existing = await prisma.dailyOuting.findUnique({ where: { id } });
+  if (!existing) throw new Error("외출 기록을 찾을 수 없습니다");
 
   await prisma.dailyOuting.delete({ where: { id } });
   revalidatePath("/attendance");

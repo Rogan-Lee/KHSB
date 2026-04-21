@@ -194,7 +194,7 @@ export async function getMentoringMatches(mentorId: string, date?: string): Prom
   const candidates: MatchCandidate[] = presentStudents.map((a) => {
     const lastDate = lastMap.get(a.studentId) ?? null;
     const daysSinceLast = lastDate
-      ? Math.floor((today.getTime() - new Date(lastDate).setHours(0, 0, 0, 0)) / 86400000)
+      ? Math.floor((today.getTime() - new Date(lastDate).setUTCHours(0, 0, 0, 0)) / 86400000)
       : null;
 
     let priority: 1 | 2 | 3;
@@ -374,7 +374,7 @@ export async function getTodayWorkingMentors(): Promise<MentorTodaySlot[]> {
     const candidates: MatchCandidate[] = presentAttendances.map((a) => {
       const lastDate = lastMap.get(a.studentId) ?? null;
       const daysSinceLast = lastDate
-        ? Math.floor((todayStart.getTime() - new Date(lastDate).setHours(0, 0, 0, 0)) / 86400000)
+        ? Math.floor((todayStart.getTime() - new Date(lastDate).setUTCHours(0, 0, 0, 0)) / 86400000)
         : null;
 
       let priority: 1 | 2 | 3;
