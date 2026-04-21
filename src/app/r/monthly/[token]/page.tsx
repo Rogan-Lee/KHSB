@@ -125,46 +125,28 @@ export default async function MonthlyParentReportPage({
           </h2>
 
           {/* 순공 시간 + 전월 비교 */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg bg-blue-50 p-4">
-              <p className="text-xs text-muted-foreground">월간 총 순공 시간</p>
-              <p className="text-2xl font-bold text-blue-900 mt-1">{formatMinutes(report.totalStudyMinutes)}</p>
-              {report.prevMonthStudyMinutes != null && (
-                <div className="flex items-center gap-1 mt-2 text-xs">
-                  {studyDiff.sign === "up" && (
-                    <span className="flex items-center gap-1 text-emerald-700">
-                      <TrendingUp className="h-3 w-3" />
-                      전월 대비 +{formatMinutes(studyDiff.diff)}
-                    </span>
-                  )}
-                  {studyDiff.sign === "down" && (
-                    <span className="flex items-center gap-1 text-red-600">
-                      <TrendingDown className="h-3 w-3" />
-                      전월 대비 -{formatMinutes(studyDiff.diff)}
-                    </span>
-                  )}
-                  {studyDiff.sign === "same" && (
-                    <span className="text-muted-foreground">전월과 동일</span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* 등수 */}
-            <div className="rounded-lg bg-amber-50 p-4">
-              <p className="text-xs text-muted-foreground">독서실 내 순위</p>
-              {report.studyRankInRoom && report.studyRankTotal ? (
-                <>
-                  <p className="text-2xl font-bold text-amber-900 mt-1">
-                    {report.studyRankInRoom}위
-                    <span className="text-sm font-normal text-muted-foreground"> / {report.studyRankTotal}명</span>
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-2">순공시간 기준</p>
-                </>
-              ) : (
-                <p className="text-muted-foreground text-sm mt-1">—</p>
-              )}
-            </div>
+          <div className="rounded-lg bg-blue-50 p-4">
+            <p className="text-xs text-muted-foreground">월간 총 순공 시간</p>
+            <p className="text-2xl font-bold text-blue-900 mt-1">{formatMinutes(report.totalStudyMinutes)}</p>
+            {report.prevMonthStudyMinutes != null && (
+              <div className="flex items-center gap-1 mt-2 text-xs">
+                {studyDiff.sign === "up" && (
+                  <span className="flex items-center gap-1 text-emerald-700">
+                    <TrendingUp className="h-3 w-3" />
+                    전월 대비 +{formatMinutes(studyDiff.diff)}
+                  </span>
+                )}
+                {studyDiff.sign === "down" && (
+                  <span className="flex items-center gap-1 text-red-600">
+                    <TrendingDown className="h-3 w-3" />
+                    전월 대비 -{formatMinutes(studyDiff.diff)}
+                  </span>
+                )}
+                {studyDiff.sign === "same" && (
+                  <span className="text-muted-foreground">전월과 동일</span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 학년 평균 비교 */}

@@ -182,7 +182,6 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
               <th className="w-10 px-3 py-2"></th>
               <th className="text-left px-3 py-2 font-medium">학생</th>
               <th className="text-left px-3 py-2 font-medium w-24">순공시간</th>
-              <th className="text-left px-3 py-2 font-medium w-20">등수</th>
               <th className="text-left px-3 py-2 font-medium w-20">출결</th>
               <th className="text-left px-3 py-2 font-medium w-16">멘토링</th>
               <th className="text-left px-3 py-2 font-medium w-16">상태</th>
@@ -205,15 +204,6 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
                   </td>
                   <td className="px-3 py-2 text-xs">
                     {report ? formatMinutes(report.totalStudyMinutes) : <span className="text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-3 py-2 text-xs">
-                    {report?.studyRankInRoom ? (
-                      <span>
-                        {report.studyRankInRoom}위 / {report.studyRankTotal}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
                   </td>
                   <td className="px-3 py-2 text-xs">
                     {report ? (
