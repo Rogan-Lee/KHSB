@@ -25,7 +25,7 @@ import { useRouter } from "next/navigation";
 import { Search, X, UserPlus, UserMinus, BookOpen, TrendingUp, Sparkles, Trash2 } from "lucide-react";
 import type { VocabTestEnrollment, VocabTestScore, VocabEnrollReason } from "@/generated/prisma";
 
-type StudentBasic = { id: string; name: string; grade: string; school: string | null; vocabEnrollment: VocabTestEnrollment | null };
+type StudentBasic = { id: string; name: string; grade: string; school: string | null; seat: string | null; vocabEnrollment: VocabTestEnrollment | null };
 type ScoreWithStudent = VocabTestScore & { student: { id: string; name: string; grade: string } };
 
 const REASON_LABEL: Record<string, { label: string; style: string }> = {
