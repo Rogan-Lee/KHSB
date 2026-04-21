@@ -85,6 +85,10 @@ jobs:
           cat "$REPORT"
           echo "REPORT_PATH=$REPORT" >> $GITHUB_ENV
 
+      - name: Save raw JSON cache
+        run: |
+          cp /tmp/requests.json reports/feature-requests-latest.json
+
       - name: Commit report
         run: |
           if [ -z "$(git status --porcelain reports/)" ]; then
