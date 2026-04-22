@@ -175,6 +175,7 @@ model Student {
   vocabEnrollment  VocabTestEnrollment?
   vocabScores      VocabTestScore[]
   examSeatAssignments ExamSeatAssignment[]
+  photos           Photo[]
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
 }
@@ -449,6 +450,47 @@ model ExamSession {
   scores      ExamScore[]
 
   @@index([examDate])
+}
+
+model PhotoFolder {
+  id        String        @id @default(cuid())
+  name      String
+  parentId  String?
+  parent    PhotoFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  PhotoFolder[] @relation("FolderTree")
+  photos    Photo[]
+  // 연/월 자동 폴더 여부 — auto=true 면 YYYY/MM 자동, 수동 폴더는 false
+  isAuto    Boolean       @default(false)
+  autoKey   String?       @unique  // "2026/04" 같은 자동 폴더 식별 키 (중복 방지)
+  createdById String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([parentId])
+}
+
+model Photo {
+  id            String       @id @default(cuid())
+  folderId      String?
+  folder        PhotoFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  fileName      String       // 원본 파일명 (중복 시 (1), (2) suffix 포함)
+  url           String       // 원본 blob URL
+  thumbnailUrl  String?      // 썸네일 blob URL (sharp 생성)
+  mimeType      String
+  sizeBytes     Int
+  parsedDate    DateTime?    @db.Date  // 파일명 파싱 결과
+  parsedSeatNumber Int?                // 파일명 파싱 결과
+  parsedName    String?                // 파일명 파싱 결과
+  studentId     String?
+  student       Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  uploadedById  String
+  uploadedByName String
+  uploadedAt    DateTime     @default(now())
+
+  @@index([folderId])
+  @@index([parsedDate])
+  @@index([parsedSeatNumber])
+  @@index([studentId])
 }
 
 model ExamSeatAssignment {
