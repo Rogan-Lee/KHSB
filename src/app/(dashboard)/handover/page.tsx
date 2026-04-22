@@ -1,6 +1,6 @@
 export const revalidate = 30;
 
-import { getRecentHandovers, getStaffList } from "@/actions/handover";
+import { getRecentHandovers, getHandoversSince, getStaffList } from "@/actions/handover";
 import { getMonthlyNotes } from "@/actions/monthly-notes";
 import { prisma } from "@/lib/prisma";
 import { HandoverBoard } from "@/components/handover/handover-board";
@@ -8,14 +8,24 @@ import { MonthlyNotesPanel } from "@/components/handover/monthly-notes-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { auth } from "@/lib/auth";
 
-export default async function HandoverPage() {
+export default async function HandoverPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ since?: string }>;
+}) {
   const session = await auth();
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
+  const sp = await searchParams;
+  const since = sp.since;
+
+  const handoversPromise = since
+    ? getHandoversSince(since)
+    : getRecentHandovers(14);
 
   const [handovers, staffList, monthlyNotes, students] = await Promise.all([
-    getRecentHandovers(14),
+    handoversPromise,
     getStaffList(),
     getMonthlyNotes(year, month),
     prisma.student.findMany({
@@ -44,6 +54,7 @@ export default async function HandoverPage() {
           currentUserId={session?.user?.id ?? ""}
           currentUserName={session?.user?.name ?? ""}
           currentUserRole={session?.user?.role ?? ""}
+          activeSince={since}
         />
       </TabsContent>
 
