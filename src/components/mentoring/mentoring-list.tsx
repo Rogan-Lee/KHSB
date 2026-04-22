@@ -21,7 +21,8 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { MoreHorizontal, Search, Trash2, X } from "lucide-react";
+import { MoreHorizontal, Search, Trash2, X, Link2, ExternalLink, CheckCircle2 } from "lucide-react";
+import { ParentReportDialog } from "./parent-report-dialog";
 import { DatePicker } from "@/components/ui/date-picker";
 import { updateMentoringStatus, deleteMentoring, bulkDeleteMentorings } from "@/actions/mentoring";
 import { toast } from "sonner";
@@ -47,6 +48,8 @@ type Mentoring = {
     schedules?: { dayOfWeek: number; startTime: string; endTime: string }[];
   };
   mentor: { id: string; name: string };
+  /** 이 멘토링에 연결된 학부모 리포트 (최신 1건) */
+  parentReports?: { id: string; token: string; createdAt: Date }[];
 };
 
 type Mentor = { id: string; name: string };
@@ -255,6 +258,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<Mentoring | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [parentReportTarget, setParentReportTarget] = useState<Mentoring | null>(null);
   const [isBulkPending, startBulkTransition] = useTransition();
 
   // 필터 변경 시 sessionStorage에 저장
@@ -424,13 +428,14 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                 상태
               </SortableHeader>
               <TableHead>메모</TableHead>
+              <TableHead className="whitespace-nowrap">학부모 리포트</TableHead>
               <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={mentors.length > 0 ? 8 : 7} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={mentors.length > 0 ? 9 : 8} className="text-center text-muted-foreground py-8">
                   멘토링 기록이 없습니다
                 </TableCell>
               </TableRow>
@@ -515,6 +520,51 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                     {m.notes || "—"}
                   </TableCell>
                   <TableCell>
+                    {(() => {
+                      const pr = m.parentReports?.[0];
+                      return (
+                        <div className="flex items-center gap-1">
+                          {pr ? (
+                            <>
+                              <Badge variant="outline" className="text-[10px] border-emerald-300 text-emerald-700 gap-1">
+                                <CheckCircle2 className="h-3 w-3" />
+                                생성됨
+                              </Badge>
+                              <a
+                                href={`/r/${pr.token}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1 text-muted-foreground hover:text-foreground"
+                                title="학부모 화면 열기"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </a>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-[11px] px-2"
+                                onClick={() => setParentReportTarget(m)}
+                                title="다시 생성/공유"
+                              >
+                                재발송
+                              </Button>
+                            </>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => setParentReportTarget(m)}
+                            >
+                              <Link2 className="h-3 w-3 mr-1" />
+                              리포트 생성
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell>
                     <div className="flex items-center gap-1">
                       <Link href={`/mentoring/${m.id}`}>
                         <Button variant="ghost" size="sm">기록</Button>
@@ -546,6 +596,15 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
         onConfirm={handleBulkDelete}
         isPending={isBulkPending}
       />
+      {parentReportTarget && (
+        <ParentReportDialog
+          mentoringId={parentReportTarget.id}
+          studentName={parentReportTarget.student.name}
+          mentoringDate={formatDate(parentReportTarget.scheduledAt)}
+          open={!!parentReportTarget}
+          onClose={() => setParentReportTarget(null)}
+        />
+      )}
     </div>
   );
 }
