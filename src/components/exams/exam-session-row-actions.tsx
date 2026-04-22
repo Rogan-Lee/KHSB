@@ -1,9 +1,10 @@
 "use client";
 
 import { useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { deleteExamSession } from "@/actions/exam-sessions";
 
 export function ExamSessionRowActions({ sessionId, title }: { sessionId: string; title: string }) {
@@ -19,8 +20,22 @@ export function ExamSessionRowActions({ sessionId, title }: { sessionId: string;
   }
 
   return (
-    <Button variant="ghost" size="sm" onClick={handleDelete} disabled={pending} className="text-destructive hover:text-destructive">
-      <Trash2 className="h-3.5 w-3.5" />
-    </Button>
+    <div className="flex items-center justify-end gap-1">
+      <Link href={`/exams/${sessionId}/edit`}>
+        <Button variant="ghost" size="sm" title="세션 정보 수정">
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+      </Link>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={handleDelete}
+        disabled={pending}
+        className="text-destructive hover:text-destructive"
+        title="세션 삭제"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </Button>
+    </div>
   );
 }
