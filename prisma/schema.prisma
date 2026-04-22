@@ -112,11 +112,65 @@ model User {
   parentReports   ParentReport[]
   timetableEntries TimetableEntry[]
   announcements    Announcement[]
+  workTags        WorkTag[]
+  payrollSetting  PayrollSetting?
+  payrollRecords  PayrollRecord[]
   kakaoAccessToken  String?
   kakaoRefreshToken String?
   kakaoTokenExpiry  DateTime?
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
+}
+
+enum WorkTagType {
+  CLOCK_IN
+  CLOCK_OUT
+}
+
+model WorkTag {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       WorkTagType
+  taggedAt   DateTime    @default(now())
+  note       String?
+  // 관리자 편집 흔적
+  editedById   String?
+  editedByName String?
+  editedAt     DateTime?
+  createdAt  DateTime    @default(now())
+
+  @@index([userId, taggedAt])
+  @@index([taggedAt])
+}
+
+model PayrollSetting {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hourlyRate       Int                          // 원
+  weeklyHolidayPay Boolean  @default(true)      // 주휴수당 지급 여부
+  note             String?
+  updatedById      String?
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+}
+
+model PayrollRecord {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  year              Int
+  month             Int
+  workMinutes       Int
+  baseWage          Int                         // 기본급 (시급×시간)
+  weeklyHolidayWage Int      @default(0)        // 주휴수당 합계
+  totalWage         Int                         // baseWage + weeklyHolidayWage
+  hourlyRateAtCalc  Int                         // 계산 시점 시급 (이력 보존)
+  calculatedAt      DateTime @default(now())
+
+  @@unique([userId, year, month])
+  @@index([year, month])
 }
 
 model Student {
