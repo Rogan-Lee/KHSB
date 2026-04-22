@@ -4,12 +4,14 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   generateMonthlyReport,
+  generateMonthlyReportsBulk,
   ensureReportShareToken,
   updateReportMentoringSummary,
   updateReportComment,
   markReportSent,
   extractMonthlyMentoringDigest,
 } from "@/actions/reports";
+import type { BulkReportResult } from "@/actions/reports";
 import { generateMonthlyMentoringSummary } from "@/actions/ai-enhance";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,6 +68,10 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkGenerating, setBulkGenerating] = useState(false);
   const [individualPending, setIndividualPending] = useState<string | null>(null);
+  // 일괄 생성 개별 상태: studentId → 상태
+  const [bulkProgress, setBulkProgress] = useState<Record<string, "pending" | "success" | "failed">>({});
+  // 실패한 건의 이유
+  const [bulkErrors, setBulkErrors] = useState<Record<string, string>>({});
   const [, startTransition] = useTransition();
 
   const reportMap = new Map(reports.map((r) => [r.studentId, r]));
@@ -84,26 +90,52 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
     });
   }
 
+  async function runBulk(ids: string[]) {
+    // 초기화: 전부 pending
+    const initial: Record<string, "pending"> = {};
+    for (const id of ids) initial[id] = "pending";
+    setBulkProgress(initial);
+    setBulkErrors({});
+    setBulkGenerating(true);
+
+    try {
+      const results: BulkReportResult[] = await generateMonthlyReportsBulk(ids, year, month);
+      const nextProg: Record<string, "success" | "failed"> = {};
+      const nextErr: Record<string, string> = {};
+      let success = 0, failed = 0;
+      for (const r of results) {
+        nextProg[r.studentId] = r.status;
+        if (r.status === "failed") {
+          failed++;
+          if (r.reason) nextErr[r.studentId] = r.reason;
+        } else success++;
+      }
+      setBulkProgress(nextProg);
+      setBulkErrors(nextErr);
+      toast.success(`생성 완료: ${success}건${failed > 0 ? ` (실패 ${failed}건)` : ""}`);
+      startTransition(() => router.refresh());
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "일괄 생성 실패");
+    } finally {
+      setBulkGenerating(false);
+    }
+  }
+
   async function handleBulkGenerate() {
     if (selected.size === 0) {
       toast.error("학생을 선택하세요");
       return;
     }
-    setBulkGenerating(true);
-    let success = 0;
-    let failed = 0;
-    for (const id of selected) {
-      try {
-        await generateMonthlyReport(id, year, month);
-        success++;
-      } catch {
-        failed++;
-      }
-    }
-    setBulkGenerating(false);
+    await runBulk(Array.from(selected));
     setSelected(new Set());
-    toast.success(`생성 완료: ${success}건${failed > 0 ? ` (실패 ${failed}건)` : ""}`);
-    startTransition(() => router.refresh());
+  }
+
+  async function handleRetryFailed() {
+    const failedIds = Object.entries(bulkProgress)
+      .filter(([, s]) => s === "failed")
+      .map(([id]) => id);
+    if (failedIds.length === 0) return;
+    await runBulk(failedIds);
   }
 
   async function handleIndividualGenerate(studentId: string) {
@@ -157,21 +189,40 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
           전체 선택
         </label>
         <span className="text-xs text-muted-foreground">{selected.size}명 선택됨</span>
-        <Button
-          size="sm"
-          className="ml-auto"
-          disabled={bulkGenerating || selected.size === 0}
-          onClick={handleBulkGenerate}
-        >
-          {bulkGenerating ? (
-            <>
-              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-              생성 중...
-            </>
-          ) : (
-            <>선택 학생 리포트 생성</>
-          )}
-        </Button>
+        {(() => {
+          const total = Object.keys(bulkProgress).length;
+          const done = Object.values(bulkProgress).filter((s) => s !== "pending").length;
+          const failed = Object.values(bulkProgress).filter((s) => s === "failed").length;
+          const hasFailed = failed > 0 && !bulkGenerating;
+          return (
+            <div className="ml-auto flex items-center gap-2">
+              {bulkGenerating && total > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  {done}/{total} 진행 중
+                </span>
+              )}
+              {hasFailed && (
+                <Button size="sm" variant="outline" onClick={handleRetryFailed}>
+                  실패 {failed}건 재시도
+                </Button>
+              )}
+              <Button
+                size="sm"
+                disabled={bulkGenerating || selected.size === 0}
+                onClick={handleBulkGenerate}
+              >
+                {bulkGenerating ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    생성 중…
+                  </>
+                ) : (
+                  <>선택 학생 리포트 생성 ({selected.size})</>
+                )}
+              </Button>
+            </div>
+          );
+        })()}
       </div>
 
       {/* 학생별 테이블 */}
@@ -220,7 +271,20 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
                     {report ? `${report.mentoringCount}회` : <span className="text-muted-foreground">—</span>}
                   </td>
                   <td className="px-3 py-2">
-                    {!report ? (
+                    {bulkProgress[s.id] === "pending" ? (
+                      <Badge variant="outline" className="text-[10px] border-blue-300 text-blue-700">
+                        <Loader2 className="h-2.5 w-2.5 animate-spin mr-1 inline" />
+                        생성 중
+                      </Badge>
+                    ) : bulkProgress[s.id] === "failed" ? (
+                      <Badge variant="outline" className="text-[10px] border-red-300 text-red-700" title={bulkErrors[s.id]}>
+                        실패
+                      </Badge>
+                    ) : bulkProgress[s.id] === "success" ? (
+                      <Badge variant="outline" className="text-[10px] border-emerald-400 text-emerald-700">
+                        완료
+                      </Badge>
+                    ) : !report ? (
                       <Badge variant="outline" className="text-[10px]">
                         미생성
                       </Badge>
