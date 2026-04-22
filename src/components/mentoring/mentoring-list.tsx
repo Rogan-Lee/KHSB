@@ -21,10 +21,11 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { MoreHorizontal, Search, Trash2, X, Link2, ExternalLink, CheckCircle2, ChevronDown, ChevronRight } from "lucide-react";
+import { MoreHorizontal, Search, Trash2, X, Link2, ExternalLink, CheckCircle2, ChevronDown, ChevronRight, Send, Loader2, Filter } from "lucide-react";
 import { ParentReportInlinePanel } from "./parent-report-inline-panel";
 import { DatePicker } from "@/components/ui/date-picker";
 import { updateMentoringStatus, deleteMentoring, bulkDeleteMentorings } from "@/actions/mentoring";
+import { createParentReportsBulk, type BulkParentReportResult } from "@/actions/parent-reports";
 import { toast } from "sonner";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 import { SortableHeader } from "@/components/ui/sortable-header";
@@ -260,6 +261,9 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   // 학부모 리포트 인라인 패널 열린 멘토링 ID (한 번에 하나만 펼침)
   const [parentReportOpenId, setParentReportOpenId] = useState<string | null>(null);
+  const [bulkGenerating, setBulkGenerating] = useState(false);
+  const [bulkResults, setBulkResults] = useState<Record<string, "pending" | "created" | "existing" | "failed">>({});
+  const [showOnlyWithReport, setShowOnlyWithReport] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
 
   // 필터 변경 시 sessionStorage에 저장
@@ -274,6 +278,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
     if (dateFrom && dateStr < dateFrom) return false;
     if (dateTo && dateStr > dateTo) return false;
     if (q && !m.student.name.toLowerCase().includes(q)) return false;
+    if (showOnlyWithReport && !(m.parentReports && m.parentReports.length > 0)) return false;
     return true;
   });
 
@@ -324,6 +329,59 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
         toast.error("삭제에 실패했습니다");
       }
     });
+  }
+
+  async function handleBulkCreateReports() {
+    const targets = filteredIds.filter((id) => selected.has(id));
+    if (targets.length === 0) return;
+    const initial: Record<string, "pending"> = {};
+    for (const id of targets) initial[id] = "pending";
+    setBulkResults(initial);
+    setBulkGenerating(true);
+    try {
+      const results: BulkParentReportResult[] = await createParentReportsBulk(targets);
+      const next: Record<string, "created" | "existing" | "failed"> = {};
+      let created = 0, existing = 0, failed = 0;
+      for (const r of results) {
+        next[r.mentoringId] = r.status;
+        if (r.status === "created") created++;
+        else if (r.status === "existing") existing++;
+        else failed++;
+      }
+      setBulkResults(next);
+      toast.success(
+        `생성 ${created}건 · 기존 ${existing}건${failed > 0 ? ` · 실패 ${failed}건` : ""}`
+      );
+      // 자동으로 "생성된 리포트만 보기" 필터 활성화해서 검토 단계로 이동
+      setShowOnlyWithReport(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "일괄 생성 실패");
+    } finally {
+      setBulkGenerating(false);
+    }
+  }
+
+  async function handleBulkShare() {
+    const targets = filteredIds
+      .filter((id) => selected.has(id))
+      .map((id) => mentorings.find((m) => m.id === id))
+      .filter((m): m is Mentoring => !!m && !!m.parentReports?.[0]);
+    if (targets.length === 0) {
+      toast.error("공유할 리포트가 없습니다 (선택 중 학부모 리포트 없는 건)");
+      return;
+    }
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const lines = targets.map((m) => {
+      const token = m.parentReports![0].token;
+      return `${m.student.name} ${m.student.grade} — ${origin}/r/${token}`;
+    });
+    const text = `${targets.length}건의 학부모 리포트 링크\n\n${lines.join("\n")}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${targets.length}건 링크 복사됨`);
+    } catch {
+      toast.error("복사 실패 — 브라우저 권한 확인");
+    }
   }
 
   return (
@@ -383,17 +441,47 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
             </button>
           )}
         </div>
+        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none ml-2">
+          <input
+            type="checkbox"
+            checked={showOnlyWithReport}
+            onChange={(e) => setShowOnlyWithReport(e.target.checked)}
+            className="rounded h-3 w-3"
+          />
+          <Filter className="h-3 w-3" />
+          리포트 있는 것만
+        </label>
         <div className="ml-auto flex items-center gap-2">
           {someSelected && selectedCount > 0 && (
-            <Button
-              variant="destructive"
-              size="sm"
-              className="h-8 gap-1.5"
-              onClick={() => setBulkDeleteOpen(true)}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              {selectedCount}건 삭제
-            </Button>
+            <>
+              <Button
+                size="sm"
+                className="h-8 gap-1.5"
+                onClick={handleBulkCreateReports}
+                disabled={bulkGenerating}
+              >
+                {bulkGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+                {selectedCount}건 리포트 생성
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                onClick={handleBulkShare}
+              >
+                <Send className="h-3.5 w-3.5" />
+                링크 복사
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="h-8 gap-1.5"
+                onClick={() => setBulkDeleteOpen(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {selectedCount}건 삭제
+              </Button>
+            </>
           )}
           <span className="text-xs text-muted-foreground">{filtered.length}건</span>
         </div>
@@ -524,13 +612,32 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                     {(() => {
                       const pr = m.parentReports?.[0];
                       const isOpen = parentReportOpenId === m.id;
+                      const bulk = bulkResults[m.id];
                       return (
                         <div className="flex items-center gap-1">
-                          {pr && (
+                          {bulk === "pending" && (
+                            <Badge variant="outline" className="text-[10px] border-blue-300 text-blue-700 gap-1">
+                              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                              생성 중
+                            </Badge>
+                          )}
+                          {bulk === "failed" && (
+                            <Badge variant="outline" className="text-[10px] border-red-300 text-red-700">실패</Badge>
+                          )}
+                          {!bulk && pr && (
                             <Badge variant="outline" className="text-[10px] border-emerald-300 text-emerald-700 gap-1">
                               <CheckCircle2 className="h-3 w-3" />
                               생성됨
                             </Badge>
+                          )}
+                          {bulk === "created" && (
+                            <Badge variant="outline" className="text-[10px] border-emerald-500 bg-emerald-50 text-emerald-700 gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              방금 생성
+                            </Badge>
+                          )}
+                          {bulk === "existing" && (
+                            <Badge variant="outline" className="text-[10px] border-gray-300 text-muted-foreground">기존</Badge>
                           )}
                           <Button
                             size="sm"
