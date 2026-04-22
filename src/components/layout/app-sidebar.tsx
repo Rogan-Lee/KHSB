@@ -29,6 +29,7 @@ import {
   CalendarClock,
   MapPin,
   Megaphone,
+  GraduationCap,
   Lock,
   ChevronRight,
 } from "lucide-react";
@@ -54,6 +55,7 @@ const navSections: NavSection[] = [
       { href: "/merit-demerit", label: "상벌점", icon: Star, feature: "merit-demerit" },
       { href: "/vocab-test", label: "영단어 시험", icon: BookOpen, feature: "vocab-test" },
       { href: "/assignments", label: "과제 관리", icon: ClipboardCheck, feature: "assignments" },
+      { href: "/exams", label: "시험 관리", icon: GraduationCap, feature: "exam-scores" },
     ],
   },
   {
