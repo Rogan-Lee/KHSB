@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { Fragment, useState, useTransition, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,8 +21,8 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { MoreHorizontal, Search, Trash2, X, Link2, ExternalLink, CheckCircle2 } from "lucide-react";
-import { ParentReportDialog } from "./parent-report-dialog";
+import { MoreHorizontal, Search, Trash2, X, Link2, ExternalLink, CheckCircle2, ChevronDown, ChevronRight } from "lucide-react";
+import { ParentReportInlinePanel } from "./parent-report-inline-panel";
 import { DatePicker } from "@/components/ui/date-picker";
 import { updateMentoringStatus, deleteMentoring, bulkDeleteMentorings } from "@/actions/mentoring";
 import { toast } from "sonner";
@@ -258,7 +258,8 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<Mentoring | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  const [parentReportTarget, setParentReportTarget] = useState<Mentoring | null>(null);
+  // 학부모 리포트 인라인 패널 열린 멘토링 ID (한 번에 하나만 펼침)
+  const [parentReportOpenId, setParentReportOpenId] = useState<string | null>(null);
   const [isBulkPending, startBulkTransition] = useTransition();
 
   // 필터 변경 시 sessionStorage에 저장
@@ -441,8 +442,8 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
               </TableRow>
             ) : (
               filtered.map((m, idx) => (
+                <Fragment key={m.id}>
                 <TableRow
-                  key={m.id}
                   data-state={selected.has(m.id) ? "selected" : undefined}
                   className={vocabEnrolledSet.has(m.student.id) && !isVocabDone(m.student.vocabTestDate) ? "bg-orange-50" : undefined}
                   title={vocabEnrolledSet.has(m.student.id) && !isVocabDone(m.student.vocabTestDate) ? "영단어 시험 미응시" : undefined}
@@ -522,43 +523,35 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                   <TableCell>
                     {(() => {
                       const pr = m.parentReports?.[0];
+                      const isOpen = parentReportOpenId === m.id;
                       return (
                         <div className="flex items-center gap-1">
-                          {pr ? (
-                            <>
-                              <Badge variant="outline" className="text-[10px] border-emerald-300 text-emerald-700 gap-1">
-                                <CheckCircle2 className="h-3 w-3" />
-                                생성됨
-                              </Badge>
-                              <a
-                                href={`/r/${pr.token}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-1 text-muted-foreground hover:text-foreground"
-                                title="학부모 화면 열기"
-                              >
-                                <ExternalLink className="h-3.5 w-3.5" />
-                              </a>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 text-[11px] px-2"
-                                onClick={() => setParentReportTarget(m)}
-                                title="다시 생성/공유"
-                              >
-                                재발송
-                              </Button>
-                            </>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs"
-                              onClick={() => setParentReportTarget(m)}
+                          {pr && (
+                            <Badge variant="outline" className="text-[10px] border-emerald-300 text-emerald-700 gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              생성됨
+                            </Badge>
+                          )}
+                          <Button
+                            size="sm"
+                            variant={isOpen ? "default" : "outline"}
+                            className="h-7 text-xs"
+                            onClick={() => setParentReportOpenId(isOpen ? null : m.id)}
+                          >
+                            {isOpen ? <ChevronDown className="h-3 w-3 mr-0.5" /> : <ChevronRight className="h-3 w-3 mr-0.5" />}
+                            <Link2 className="h-3 w-3 mr-1" />
+                            {pr ? "관리" : "생성"}
+                          </Button>
+                          {pr && (
+                            <a
+                              href={`/r/${pr.token}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-1 text-muted-foreground hover:text-foreground"
+                              title="학부모 화면 열기"
                             >
-                              <Link2 className="h-3 w-3 mr-1" />
-                              리포트 생성
-                            </Button>
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
                           )}
                         </div>
                       );
@@ -576,6 +569,20 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                     </div>
                   </TableCell>
                 </TableRow>
+                {parentReportOpenId === m.id && (
+                  <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableCell colSpan={mentors.length > 0 ? 10 : 9} className="p-3">
+                      <ParentReportInlinePanel
+                        mentoringId={m.id}
+                        studentName={m.student.name}
+                        mentoringDate={formatDate(m.scheduledAt)}
+                        existingToken={m.parentReports?.[0]?.token ?? null}
+                        onClose={() => setParentReportOpenId(null)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                )}
+                </Fragment>
               ))
             )}
           </TableBody>
@@ -596,15 +603,6 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
         onConfirm={handleBulkDelete}
         isPending={isBulkPending}
       />
-      {parentReportTarget && (
-        <ParentReportDialog
-          mentoringId={parentReportTarget.id}
-          studentName={parentReportTarget.student.name}
-          mentoringDate={formatDate(parentReportTarget.scheduledAt)}
-          open={!!parentReportTarget}
-          onClose={() => setParentReportTarget(null)}
-        />
-      )}
     </div>
   );
 }
