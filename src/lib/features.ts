@@ -88,6 +88,7 @@ export const ROUTE_FEATURE_MAP: Record<string, FeatureKey> = {
   "/merit-demerit": "merit-demerit",
   "/consultations": "consultations",
   "/assignments": "assignments",
+  "/exams": "exam-scores",
   "/reports": "reports",
   "/vocab-test": "vocab-test",
   "/academic-plans": "academic-plans",

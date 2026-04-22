@@ -174,6 +174,7 @@ model Student {
   monthlyNotes     MonthlyNote[]
   vocabEnrollment  VocabTestEnrollment?
   vocabScores      VocabTestScore[]
+  examSeatAssignments ExamSeatAssignment[]
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
 }
@@ -424,8 +425,45 @@ model ExamScore {
   grade       Int?
   percentile  Float?
   notes       String?
+  sessionId   String?
+  session     ExamSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([sessionId])
+}
+
+model ExamSession {
+  id          String   @id @default(cuid())
+  title       String                        // 예: "2026년 4월 시스모의고사"
+  examDate    DateTime @db.Date
+  room        String   @default("H")        // "H" | "K"
+  examType    ExamType @default(OFFICIAL_MOCK)
+  subjects    String[]                      // ["국어","수학","영어","탐구1","탐구2"]
+  notes       String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignments ExamSeatAssignment[]
+  scores      ExamScore[]
+
+  @@index([examDate])
+}
+
+model ExamSeatAssignment {
+  id         String      @id @default(cuid())
+  sessionId  String
+  session    ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  seatNumber Int
+  studentId  String
+  student    Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@unique([sessionId, seatNumber])
+  @@unique([sessionId, studentId])
+  @@index([studentId])
 }
 
 model Assignment {
