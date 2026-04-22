@@ -352,7 +352,7 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
       </div>
 
       {/* 2-col main */}
-      <div className="grid grid-cols-[1fr_320px] gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 items-start">
 
         {/* LEFT -- feed */}
         <div className="space-y-4">
