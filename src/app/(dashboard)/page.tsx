@@ -22,9 +22,11 @@ import { getChecklistTemplates } from "@/actions/checklist-templates";
 import { getMonthlyNotes } from "@/actions/monthly-notes";
 import { getTodos } from "@/actions/todos";
 import { getAllAssignmentStatus, getEnrollmentDelta } from "@/actions/dashboard-widgets";
+import { getMyClockStatus } from "@/actions/payroll";
 import { DashboardWrapper } from "@/components/dashboard/dashboard-wrapper";
 import { AllAssignmentsWidget } from "@/components/dashboard/all-assignments-widget";
 import { EnrollmentDeltaWidget } from "@/components/dashboard/enrollment-delta-widget";
+import { ClockWidget } from "@/components/dashboard/clock-widget";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -47,6 +49,7 @@ export default async function DashboardPage() {
     todos,
     allAssignments,
     enrollmentDelta,
+    clockStatus,
   ] = await Promise.all([
     prisma.student.count({ where: { status: "ACTIVE" } }),
     prisma.attendanceRecord.findMany({
@@ -89,6 +92,7 @@ export default async function DashboardPage() {
     getTodos(),
     getAllAssignmentStatus(),
     getEnrollmentDelta(year, month),
+    getMyClockStatus(),
   ]);
 
   const normalCount = todayAttendances.filter((a) => a.type === "NORMAL").length;
@@ -143,6 +147,9 @@ export default async function DashboardPage() {
           { label: "미읽음 인수인계", value: unreadCount, tone: unreadCount > 0 ? "warn" : "ink" },
         ]}
       />
+
+      {/* 내 출퇴근 (Payroll §2.21 후속) */}
+      <ClockWidget initial={clockStatus} />
 
       {/* KPI strip — 5 tiles */}
       <KpiStrip className="grid-cols-2 md:grid-cols-5">
