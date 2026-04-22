@@ -16,7 +16,7 @@ import { generateMonthlyMentoringSummary } from "@/actions/ai-enhance";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
-import { Loader2, Link as LinkIcon, Sparkles, Send, Pencil, Check, X, Eye } from "lucide-react";
+import { Loader2, Link as LinkIcon, Sparkles, Send, Pencil, Check, X, Eye, Image as ImageIcon, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 interface Student {
@@ -47,6 +47,7 @@ interface Report {
   mentoringSummary: string | null;
   overallComment: string | null;
   shareToken: string | null;
+  attachedPhotoIds: string[];
   sentAt: Date | null;
 }
 
@@ -294,6 +295,20 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
                       <Badge variant="secondary" className="text-[10px]">
                         생성됨
                       </Badge>
+                    )}
+                    {/* §2.22: 첨부 사진 수 */}
+                    {report && (
+                      report.attachedPhotoIds.length > 0 ? (
+                        <span className="ml-1 inline-flex items-center gap-0.5 text-[10px] px-1 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">
+                          <ImageIcon className="h-2.5 w-2.5" />
+                          {report.attachedPhotoIds.length}
+                        </span>
+                      ) : (
+                        <span className="ml-1 inline-flex items-center gap-0.5 text-[10px] px-1 py-0.5 rounded bg-amber-50 text-amber-700 font-medium" title="해당 월에 업로드된 사진이 없거나 아직 첨부되지 않음">
+                          <AlertCircle className="h-2.5 w-2.5" />
+                          사진 0
+                        </span>
+                      )
                     )}
                   </td>
                   <td className="px-3 py-2 text-right">
