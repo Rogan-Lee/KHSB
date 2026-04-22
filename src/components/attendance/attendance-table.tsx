@@ -585,15 +585,15 @@ export function AttendanceTable({ students, today }: Props) {
               <th className="w-8 shrink-0" />
               <th className="px-3 py-2.5 text-center w-12">좌석</th>
               <th className="px-3 py-2.5 text-left w-28">이름</th>
-              <th className="px-3 py-2.5 text-left w-32">특이사항</th>
-              <th className="px-3 py-2.5 text-left w-24">학교·학년</th>
-              <th className="px-3 py-2.5 text-left w-16">반</th>
+              <th className="px-3 py-2.5 text-left w-32 hidden lg:table-cell">특이사항</th>
+              <th className="px-3 py-2.5 text-left w-24 hidden md:table-cell">학교·학년</th>
+              <th className="px-3 py-2.5 text-left w-16 hidden lg:table-cell">반</th>
               <th className="px-3 py-2.5 text-left" style={{ minWidth: "380px" }}>입퇴실</th>
-              <th className="px-3 py-2.5 text-left w-32">메모</th>
-              <th className="px-3 py-2.5 text-left w-32">당일변동</th>
-              <th className="px-3 py-2.5 text-left w-32">변동예정</th>
-              <th className="px-3 py-2.5 text-center w-28">플래너 전송</th>
-              <th className="px-2 py-2.5 text-center w-20">
+              <th className="px-3 py-2.5 text-left w-32 hidden lg:table-cell">메모</th>
+              <th className="px-3 py-2.5 text-left w-32 hidden lg:table-cell">당일변동</th>
+              <th className="px-3 py-2.5 text-left w-32 hidden xl:table-cell">변동예정</th>
+              <th className="px-3 py-2.5 text-center w-28 hidden md:table-cell">플래너 전송</th>
+              <th className="px-2 py-2.5 text-center w-20 hidden md:table-cell">
                 <div className="flex flex-col items-center gap-0.5">
                   <span>공부계획</span>
                   <button
@@ -710,7 +710,7 @@ export function AttendanceTable({ students, today }: Props) {
 
                   {/* 특이사항 */}
                   <td
-                    className="px-3 py-3 cursor-pointer group/info"
+                    className="px-3 py-3 cursor-pointer group/info hidden lg:table-cell"
                     onClick={(e) => { e.stopPropagation(); setInfoModalId(student.id); setInfoModalText(student.studentInfo ?? ""); }}
                   >
                     {student.studentInfo ? (
@@ -724,12 +724,12 @@ export function AttendanceTable({ students, today }: Props) {
                   </td>
 
                   {/* 학교·학년 */}
-                  <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                  <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap hidden md:table-cell">
                     {schoolGrade || "—"}
                   </td>
 
                   {/* 반 */}
-                  <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                  <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap hidden lg:table-cell">
                     {student.classGroup || "—"}
                   </td>
 
@@ -879,7 +879,7 @@ export function AttendanceTable({ students, today }: Props) {
 
                   {/* 입퇴실 메모 */}
                   <td
-                    className="px-3 py-3 cursor-pointer"
+                    className="px-3 py-3 cursor-pointer hidden lg:table-cell"
                     onClick={(e) => expandAndFocus(student.id, "notes", e)}
                     onMouseEnter={(e) => showTooltip(e, attNotes)}
                     onMouseLeave={() => setTooltip(null)}
@@ -900,7 +900,7 @@ export function AttendanceTable({ students, today }: Props) {
                     const showDailyNote = noteDateISO === todayISO && student.dailyNote;
                     return (
                       <td
-                        className="px-3 py-3 cursor-pointer"
+                        className="px-3 py-3 cursor-pointer hidden lg:table-cell"
                         onClick={(e) => expandAndFocus(student.id, "dailyNote", e)}
                         onMouseEnter={(e) => showTooltip(e, showDailyNote ? student.dailyNote ?? "" : "")}
                         onMouseLeave={() => setTooltip(null)}
@@ -916,7 +916,7 @@ export function AttendanceTable({ students, today }: Props) {
 
                   {/* 추후 변동 예정 */}
                   <td
-                    className="px-3 py-3 cursor-pointer"
+                    className="px-3 py-3 cursor-pointer hidden xl:table-cell"
                     onClick={(e) => expandAndFocus(student.id, "changeNote", e)}
                     onMouseEnter={(e) => showTooltip(e, student.changeNote ?? "")}
                     onMouseLeave={() => setTooltip(null)}
@@ -929,7 +929,7 @@ export function AttendanceTable({ students, today }: Props) {
                   </td>
 
                   {/* 플래너 전송 */}
-                  <td className="px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-3 py-3 text-center hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
                     {plannerHasDate ? (
                       <div className="inline-flex items-center gap-1">
                         <DatePicker
@@ -967,7 +967,7 @@ export function AttendanceTable({ students, today }: Props) {
                   </td>
 
                   {/* 주간 공부계획 체크 */}
-                  <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-2 py-3 text-center hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
                     {(() => {
                       const wpDate = localCheckDates.get(student.id)?.weeklyPlanDate ?? null;
                       const wpDone = wpDate && isDoneThisWeek("weeklyPlanDate", wpDate);
