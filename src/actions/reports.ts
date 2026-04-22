@@ -268,6 +268,54 @@ export async function generateMonthlyReport(
   return report;
 }
 
+export type BulkReportResult = {
+  studentId: string;
+  status: "success" | "failed";
+  reason?: string;
+};
+
+/**
+ * 여러 학생의 월간 리포트를 병렬 생성.
+ * - concurrency=5 (DB 부하 제어)
+ * - 개별 실패 시 그 학생만 failed 로 표시, 나머지는 계속 진행
+ */
+export async function generateMonthlyReportsBulk(
+  studentIds: string[],
+  year: number,
+  month: number
+): Promise<BulkReportResult[]> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  const concurrency = 5;
+  const unique = Array.from(new Set(studentIds));
+  const results: BulkReportResult[] = [];
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < unique.length) {
+      const idx = cursor++;
+      const sid = unique[idx];
+      if (!sid) continue;
+      try {
+        await generateMonthlyReport(sid, year, month);
+        results.push({ studentId: sid, status: "success" });
+      } catch (e) {
+        results.push({
+          studentId: sid,
+          status: "failed",
+          reason: e instanceof Error ? e.message : "알 수 없는 오류",
+        });
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+  revalidatePath("/reports/monthly");
+  return results;
+}
+
 export async function updateReportComment(id: string, overallComment: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
