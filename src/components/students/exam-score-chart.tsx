@@ -49,10 +49,10 @@ function fmtDate(d: Date | string) {
 }
 
 function gradeColor(g: number) {
-  if (g <= 2) return "#3B82F6";
-  if (g <= 4) return "#10B981";
-  if (g <= 6) return "#F59E0B";
-  return "#EF4444";
+  if (g <= 2) return "#3D6FD8"; // info
+  if (g <= 4) return "#2E9D6B"; // ok
+  if (g <= 6) return "#C28327"; // warn
+  return "#D14343";             // bad
 }
 
 const DARK_TOOLTIP = {

@@ -1,9 +1,10 @@
 import { cn } from "@/lib/utils";
 
-type BarVariant = "brand" | "ok" | "warn" | "bad";
+type BarVariant = "brand" | "ink" | "ok" | "warn" | "bad";
 
 const variantBg: Record<BarVariant, string> = {
-  brand: "bg-primary",
+  brand: "bg-brand",
+  ink: "bg-ink",
   ok: "bg-ok",
   warn: "bg-warn",
   bad: "bg-bad",
@@ -15,11 +16,11 @@ interface BarProps {
   className?: string;
 }
 
-export function Bar({ value, variant = "brand", className }: BarProps) {
+export function Bar({ value, variant = "ink", className }: BarProps) {
   return (
-    <div className={cn("h-1 rounded-sm bg-muted overflow-hidden relative", className)}>
+    <div className={cn("h-1 rounded-[3px] bg-line-2 overflow-hidden relative", className)}>
       <span
-        className={cn("block h-full rounded-sm", variantBg[variant])}
+        className={cn("block h-full rounded-[3px]", variantBg[variant])}
         style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
       />
     </div>
