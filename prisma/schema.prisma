@@ -645,14 +645,17 @@ model HandoverTask {
 }
 
 model HandoverChecklist {
-  id         String   @id @default(cuid())
-  handoverId String
-  handover   Handover @relation(fields: [handoverId], references: [id], onDelete: Cascade)
-  templateId String?
-  title      String
-  shiftType  String   @default("ALL")
-  isChecked  Boolean  @default(false)
-  order      Int      @default(0)
+  id            String    @id @default(cuid())
+  handoverId    String
+  handover      Handover  @relation(fields: [handoverId], references: [id], onDelete: Cascade)
+  templateId    String?
+  title         String
+  shiftType     String    @default("ALL")
+  isChecked     Boolean   @default(false)
+  checkedAt     DateTime?
+  checkedById   String?
+  checkedByName String?
+  order         Int       @default(0)
 }
 
 model MonthlyNote {
