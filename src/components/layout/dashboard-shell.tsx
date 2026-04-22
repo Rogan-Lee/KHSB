@@ -55,7 +55,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
       <div
         className={cn(
           "flex flex-col min-h-screen transition-[margin] duration-300",
-          collapsed ? "md:ml-16" : "md:ml-[224px]"
+          collapsed ? "md:ml-16" : "md:ml-[240px]"
         )}
         data-print-main
       >
@@ -66,7 +66,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
             onMenuClick={() => setOpen(true)}
           />
         </div>
-        <main className="flex-1 p-4 md:p-[18px] max-w-[1400px]" data-print-content>
+        <main className="flex-1 p-4 md:px-[22px] md:py-[18px] max-w-[1400px]" data-print-content>
           {children}
         </main>
       </div>
