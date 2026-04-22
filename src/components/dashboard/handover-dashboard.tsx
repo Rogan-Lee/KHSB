@@ -202,7 +202,7 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
       )}
 
       {/* 2-col 메인 */}
-      <div className="grid grid-cols-[1fr_300px] gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 items-start">
 
         {/* LEFT: 통합 오늘의 업무 + 인수인계 작성 + 최근 피드 */}
         <div className="space-y-3">
