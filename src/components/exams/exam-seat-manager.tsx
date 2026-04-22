@@ -17,10 +17,10 @@ import {
 
 // ─── H룸 레이아웃 정의 (좌석 배치도와 동일) ─────────────────────────────────
 
-const SEAT_H = 56;
+const SEAT_H = 68;
 const COLS_GAP = 16;
 const SECTION_GAP = 32;
-const H_COL_H = 680;
+const H_COL_H = 820;
 
 const H_COL_A: (number | null)[] = [null, null, 65, 64, 63, 62, 61, 60, 59, 58];
 const H_COL_66: (number | null)[] = [null, 66, null, null, null, null, null, null, null, null];
@@ -110,10 +110,16 @@ export function ExamSeatManager({ sessionId, assignments, students, seatOwnerMap
       </div>
 
       {/* 범례 */}
-      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-        <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 rounded border border-blue-400 bg-blue-50"/> 응시자</span>
-        <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 rounded border border-gray-300 bg-gray-50"/> 빈 좌석 (원 주인만)</span>
-        <span>· 상단 = 응시자, 하단 = 원 좌석 주인</span>
+      <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded border border-blue-500 bg-blue-50"/> 응시자 (상단)
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded border border-amber-300 bg-amber-50"/> 원 좌석 주인 (하단, 응시자와 다를 때만)
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded border border-gray-300 bg-gray-50"/> 빈 좌석
+        </span>
       </div>
 
       {/* H룸 맵 */}
@@ -227,23 +233,40 @@ function SeatCell({
       onClick={onClick}
       style={{ height: SEAT_H, width: "100%" }}
       className={cn(
-        "rounded-lg border flex flex-col items-center justify-center text-center px-1 print:rounded-none print:border-[#333]",
+        "rounded-lg border flex flex-col items-stretch text-center overflow-hidden print:rounded-none print:border-[#333]",
         "transition-all duration-150 select-none",
         occupied
-          ? "border-blue-500 bg-blue-50 hover:bg-blue-100 print:bg-white"
-          : "border-gray-300 bg-gray-50 hover:bg-gray-100 print:bg-white",
+          ? "border-blue-500 hover:border-blue-600 print:bg-white"
+          : "border-gray-300 hover:border-gray-400 bg-gray-50 print:bg-white",
       )}
     >
-      <span className={cn("text-[10px] font-bold leading-none", occupied ? "text-blue-700" : "text-gray-400")}>
-        {num}
-      </span>
-      <span className={cn("text-[11px] font-medium truncate max-w-full leading-tight mt-[2px]", occupied ? "text-gray-900" : "text-gray-300")}>
-        {taker?.studentName ?? "–"}
-      </span>
-      {!sameAsOwner && (
-        <span className="text-[9px] text-gray-400 truncate max-w-full leading-tight">
-          원: {owner?.name ?? "–"}
+      {/* 응시자 영역 (상단 2/3) */}
+      <div
+        className={cn(
+          "flex-1 flex flex-col items-center justify-center px-1 py-0.5",
+          occupied ? "bg-blue-50" : "bg-transparent"
+        )}
+      >
+        <span className={cn("text-[10px] font-bold leading-none", occupied ? "text-blue-700" : "text-gray-400")}>
+          {num}
         </span>
+        <span className={cn("text-[12px] font-semibold truncate max-w-full leading-tight mt-[2px]", occupied ? "text-gray-900" : "text-gray-300")}>
+          {taker?.studentName ?? "–"}
+        </span>
+      </div>
+      {/* 원 주인 영역 (하단 1/3) — 응시자와 다를 때만 */}
+      {!sameAsOwner && owner && (
+        <div className="bg-amber-50 border-t border-amber-200 px-1 py-[1px] flex items-center justify-center gap-1 print:bg-white print:border-[#666]">
+          <span className="text-[9px] font-semibold text-amber-700 shrink-0">원주인</span>
+          <span className="text-[11px] text-amber-900 font-medium truncate">
+            {owner.name}
+          </span>
+        </div>
+      )}
+      {!sameAsOwner && !owner && occupied && (
+        <div className="bg-gray-50 border-t border-gray-200 px-1 py-[1px]">
+          <span className="text-[9px] text-gray-400">원주인 없음</span>
+        </div>
       )}
     </button>
   );
