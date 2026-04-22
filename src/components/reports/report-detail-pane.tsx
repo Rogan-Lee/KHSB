@@ -14,9 +14,8 @@ import { generateMonthlyMentoringSummary } from "@/actions/ai-enhance";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
-import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import {
-  Loader2, Link as LinkIcon, Sparkles, Send, Pencil, Check, Eye,
+  Loader2, Link as LinkIcon, Sparkles, Send, Check, Eye,
   Image as ImageIcon, RefreshCw, User as UserIcon, Clock, ClipboardList,
   TrendingUp, TrendingDown, Minus, AlertCircle,
 } from "lucide-react";
@@ -72,16 +71,12 @@ export function ReportDetailPane({
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
-  const [editingSummary, setEditingSummary] = useState(false);
-  const [editingComment, setEditingComment] = useState(false);
   const [summary, setSummary] = useState(report?.mentoringSummary ?? "");
   const [comment, setComment] = useState(report?.overallComment ?? "");
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
 
   // 선택된 학생 바뀔 때 로컬 편집 상태 초기화
   useEffect(() => {
-    setEditingSummary(false);
-    setEditingComment(false);
     setSummary(report?.mentoringSummary ?? "");
     setComment(report?.overallComment ?? "");
   }, [report?.id, report?.mentoringSummary, report?.overallComment]);
@@ -140,8 +135,7 @@ export function ReportDetailPane({
     try {
       const digest = await extractMonthlyMentoringDigest(student.id, year, month);
       setSummary(digest);
-      setEditingSummary(true);
-      toast.success("멘토링 기록 자동 추출 완료 — 검토 후 저장");
+      toast.success("멘토링 기록 자동 추출 — 검토 후 저장");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "추출 실패");
     } finally {
@@ -155,8 +149,7 @@ export function ReportDetailPane({
     try {
       const generated = await generateMonthlyMentoringSummary(student.id, year, month);
       setSummary(generated);
-      setEditingSummary(true);
-      toast.success("AI 초안 생성 완료 — 검토 후 저장");
+      toast.success("AI 초안 생성 — 검토 후 저장");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "AI 실패");
     } finally {
@@ -170,7 +163,6 @@ export function ReportDetailPane({
     try {
       await updateReportMentoringSummary(report.id, summary);
       toast.success("멘토링 의견 저장");
-      setEditingSummary(false);
       startTransition(() => router.refresh());
     } catch {
       toast.error("저장 실패");
@@ -185,7 +177,6 @@ export function ReportDetailPane({
     try {
       await updateReportComment(report.id, comment);
       toast.success("원장 코멘트 저장");
-      setEditingComment(false);
       startTransition(() => router.refresh());
     } catch {
       toast.error("저장 실패");
@@ -282,7 +273,7 @@ export function ReportDetailPane({
             </div>
           </section>
 
-          {/* 멘토링 종합 의견 */}
+          {/* 멘토링 종합 의견 — 항상 편집 가능 */}
           <section>
             <div className="flex items-center gap-2 mb-2">
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">멘토링 종합 의견</h4>
@@ -295,70 +286,35 @@ export function ReportDetailPane({
                   {busy === "ai" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
                   AI 요약
                 </Button>
-                {!editingSummary && (
-                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditingSummary(true)}>
-                    <Pencil className="h-3 w-3 mr-1" />
-                    수정
-                  </Button>
-                )}
               </div>
             </div>
-            {editingSummary ? (
-              <div className="space-y-2">
-                <MarkdownEditor value={summary} onChange={setSummary} placeholder="월간 종합 의견..." />
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" size="sm" onClick={() => { setSummary(report.mentoringSummary ?? ""); setEditingSummary(false); }} disabled={busy === "summary"}>
-                    취소
-                  </Button>
-                  <Button size="sm" onClick={handleSaveSummary} disabled={busy === "summary"}>
-                    {busy === "summary" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
-                    저장
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-md border bg-muted/20 p-3 text-sm min-h-[80px]">
-                {report.mentoringSummary ? (
-                  <MarkdownViewer source={report.mentoringSummary} />
-                ) : (
-                  <span className="text-muted-foreground">작성된 내용이 없습니다. 자동 추출 또는 AI 요약으로 초안을 만들 수 있어요.</span>
-                )}
-              </div>
-            )}
+            <MarkdownEditor value={summary} onChange={setSummary} placeholder="월간 종합 의견 — 자동 추출/AI 요약으로 초안 생성 가능" />
+            <div className="flex items-center justify-end gap-2 mt-1.5">
+              {summary !== (report.mentoringSummary ?? "") && (
+                <span className="text-[11px] text-amber-700">변경됨 — 저장 필요</span>
+              )}
+              <Button size="sm" onClick={handleSaveSummary} disabled={busy === "summary" || summary === (report.mentoringSummary ?? "")}>
+                {busy === "summary" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+                의견 저장
+              </Button>
+            </div>
           </section>
 
-          {/* 원장 한마디 */}
+          {/* 원장 한마디 — 항상 편집 가능 */}
           <section>
             <div className="flex items-center gap-2 mb-2">
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">원장님 한마디 (선택)</h4>
-              {!editingComment && (
-                <Button variant="outline" size="sm" className="h-7 text-xs ml-auto" onClick={() => setEditingComment(true)}>
-                  <Pencil className="h-3 w-3 mr-1" />수정
-                </Button>
-              )}
             </div>
-            {editingComment ? (
-              <div className="space-y-2">
-                <MarkdownEditor value={comment} onChange={setComment} placeholder="학부모에게 전할 메시지..." />
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" size="sm" onClick={() => { setComment(report.overallComment ?? ""); setEditingComment(false); }} disabled={busy === "comment"}>
-                    취소
-                  </Button>
-                  <Button size="sm" onClick={handleSaveComment} disabled={busy === "comment"}>
-                    {busy === "comment" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
-                    저장
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-md border bg-muted/20 p-3 text-sm min-h-[60px]">
-                {report.overallComment ? (
-                  <MarkdownViewer source={report.overallComment} />
-                ) : (
-                  <span className="text-muted-foreground">작성된 내용이 없습니다</span>
-                )}
-              </div>
-            )}
+            <MarkdownEditor value={comment} onChange={setComment} placeholder="학부모에게 전할 메시지..." />
+            <div className="flex items-center justify-end gap-2 mt-1.5">
+              {comment !== (report.overallComment ?? "") && (
+                <span className="text-[11px] text-amber-700">변경됨 — 저장 필요</span>
+              )}
+              <Button size="sm" onClick={handleSaveComment} disabled={busy === "comment" || comment === (report.overallComment ?? "")}>
+                {busy === "comment" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+                코멘트 저장
+              </Button>
+            </div>
           </section>
 
           {/* 첨부 사진 */}

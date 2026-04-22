@@ -425,6 +425,55 @@ export async function markReportSent(id: string) {
   revalidatePath("/reports");
 }
 
+/**
+ * 여러 리포트를 일괄 발송 처리 (sentAt 기록).
+ * 이미 발송된 건은 skip, 발송 전 건만 업데이트.
+ */
+export async function markReportsSentBulk(ids: string[]) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  if (ids.length === 0) return { updated: 0 };
+
+  const result = await prisma.monthlyReport.updateMany({
+    where: { id: { in: ids }, sentAt: null },
+    data: { sentAt: new Date() },
+  });
+  revalidatePath("/reports");
+  revalidatePath("/reports/monthly");
+  return { updated: result.count };
+}
+
+/**
+ * 여러 리포트의 공유 토큰을 한번에 확보 (복사·일괄 공유용).
+ * 기존 토큰이 있으면 재사용, 없으면 생성.
+ */
+export async function ensureShareTokensBulk(ids: string[]) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  if (ids.length === 0) return [];
+
+  const reports = await prisma.monthlyReport.findMany({
+    where: { id: { in: ids } },
+    include: { student: { select: { name: true } } },
+  });
+
+  const results: { id: string; studentName: string; token: string }[] = [];
+  for (const r of reports) {
+    let token = r.shareToken;
+    if (!token) {
+      token = crypto.randomUUID();
+      await prisma.monthlyReport.update({ where: { id: r.id }, data: { shareToken: token } });
+    }
+    results.push({ id: r.id, studentName: r.student.name, token });
+  }
+  revalidatePath("/reports/monthly");
+  return results;
+}
+
 export async function getMonthlyReports(year: number, month: number) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
