@@ -17,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { Loader2, Link as LinkIcon, Sparkles, Send, Pencil, Check, X, Eye, Image as ImageIcon, AlertCircle } from "lucide-react";
+import { PhotoPickerDialog } from "@/components/reports/photo-picker-dialog";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface Student {
@@ -69,6 +71,7 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkGenerating, setBulkGenerating] = useState(false);
   const [individualPending, setIndividualPending] = useState<string | null>(null);
+  const [photoPickerReportId, setPhotoPickerReportId] = useState<string | null>(null);
   // 일괄 생성 개별 상태: studentId → 상태
   const [bulkProgress, setBulkProgress] = useState<Record<string, "pending" | "success" | "failed">>({});
   // 실패한 건의 이유
@@ -296,19 +299,31 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
                         생성됨
                       </Badge>
                     )}
-                    {/* §2.22: 첨부 사진 수 */}
+                    {/* §2.22: 첨부 사진 수 (클릭 시 수동 picker) */}
                     {report && (
-                      report.attachedPhotoIds.length > 0 ? (
-                        <span className="ml-1 inline-flex items-center gap-0.5 text-[10px] px-1 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">
-                          <ImageIcon className="h-2.5 w-2.5" />
-                          {report.attachedPhotoIds.length}
-                        </span>
-                      ) : (
-                        <span className="ml-1 inline-flex items-center gap-0.5 text-[10px] px-1 py-0.5 rounded bg-amber-50 text-amber-700 font-medium" title="해당 월에 업로드된 사진이 없거나 아직 첨부되지 않음">
-                          <AlertCircle className="h-2.5 w-2.5" />
-                          사진 0
-                        </span>
-                      )
+                      <button
+                        type="button"
+                        onClick={() => setPhotoPickerReportId(report.id)}
+                        title="사진 수동 선택"
+                        className={cn(
+                          "ml-1 inline-flex items-center gap-0.5 text-[10px] px-1 py-0.5 rounded font-medium hover:ring-1 hover:ring-ink-6 transition-all",
+                          report.attachedPhotoIds.length > 0
+                            ? "bg-blue-50 text-blue-700"
+                            : "bg-amber-50 text-amber-700"
+                        )}
+                      >
+                        {report.attachedPhotoIds.length > 0 ? (
+                          <>
+                            <ImageIcon className="h-2.5 w-2.5" />
+                            {report.attachedPhotoIds.length}
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="h-2.5 w-2.5" />
+                            사진 0
+                          </>
+                        )}
+                      </button>
                     )}
                   </td>
                   <td className="px-3 py-2 text-right">
@@ -340,6 +355,16 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
           </tbody>
         </table>
       </div>
+
+      {/* §2.22 수동 사진 picker */}
+      {photoPickerReportId && (
+        <PhotoPickerDialog
+          reportId={photoPickerReportId}
+          open={!!photoPickerReportId}
+          onOpenChange={(v) => !v && setPhotoPickerReportId(null)}
+          studentName={reports.find((r) => r.id === photoPickerReportId)?.student.name}
+        />
+      )}
     </div>
   );
 }
