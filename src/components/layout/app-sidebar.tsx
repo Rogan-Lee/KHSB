@@ -31,6 +31,7 @@ import {
   Megaphone,
   GraduationCap,
   Images,
+  Wallet,
   Lock,
   ChevronRight,
   ChevronsLeft,
@@ -78,6 +79,7 @@ const navSections: NavSection[] = [
       { href: "/photos", label: "사진 관리", icon: Images, feature: "photos" },
       { href: "/messages", label: "카카오 메시지", icon: MessageCircle, feature: "kakao-messages" },
       { href: "/requests", label: "요청사항", icon: Megaphone, feature: "requests" },
+      { href: "/payroll/me", label: "내 출퇴근", icon: Wallet, feature: "payroll" },
     ],
   },
 ];
@@ -86,6 +88,7 @@ const directorSection: NavSection = {
   label: "관리자",
   items: [
     { href: "/mentors", label: "직원 관리", icon: UserCog, feature: "mentors" },
+    { href: "/payroll", label: "급여 정산", icon: Wallet, feature: "payroll" },
     { href: "/reports", label: "월간 리포트", icon: BarChart3, feature: "reports" },
     { href: "/analytics", label: "성과 분석", icon: TrendingUp, feature: "analytics" },
   ],
