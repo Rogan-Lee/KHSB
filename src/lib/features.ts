@@ -17,7 +17,7 @@ export type FeatureKey =
   // Premium
   | "ai-enhance" | "ai-followup" | "card-news" | "google-calendar"
   | "google-sheets" | "kakao-messages" | "analytics" | "parent-reports"
-  | "mentors" | "photos";
+  | "mentors" | "photos" | "payroll";
 
 const STARTER_FEATURES: FeatureKey[] = [
   "students", "attendance", "seat-map", "timetable", "todos", "handover",
@@ -34,7 +34,7 @@ const PREMIUM_FEATURES: FeatureKey[] = [
   ...STANDARD_FEATURES,
   "ai-enhance", "ai-followup", "card-news", "google-calendar",
   "google-sheets", "kakao-messages", "analytics", "parent-reports",
-  "mentors", "photos",
+  "mentors", "photos", "payroll",
 ];
 
 const PLAN_FEATURES: Record<PlanTier, FeatureKey[]> = {
@@ -100,4 +100,6 @@ export const ROUTE_FEATURE_MAP: Record<string, FeatureKey> = {
   "/messages": "kakao-messages",
   "/mentors": "mentors",
   "/photos": "photos",
+  "/payroll": "payroll",
+  "/payroll/me": "payroll",
 };
