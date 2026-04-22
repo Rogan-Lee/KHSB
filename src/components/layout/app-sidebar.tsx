@@ -32,6 +32,7 @@ import {
   GraduationCap,
   Images,
   Wallet,
+  Building2,
   Lock,
   ChevronRight,
   ChevronsLeft,
@@ -91,6 +92,7 @@ const directorSection: NavSection = {
     { href: "/payroll", label: "급여 정산", icon: Wallet, feature: "payroll" },
     { href: "/reports", label: "월간 리포트", icon: BarChart3, feature: "reports" },
     { href: "/analytics", label: "성과 분석", icon: TrendingUp, feature: "analytics" },
+    { href: "/admin/school-stats", label: "학교별 통계", icon: Building2, feature: "school-stats" },
   ],
 };
 
