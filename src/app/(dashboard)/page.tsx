@@ -21,7 +21,10 @@ import { getRecentHandovers, getStaffList } from "@/actions/handover";
 import { getChecklistTemplates } from "@/actions/checklist-templates";
 import { getMonthlyNotes } from "@/actions/monthly-notes";
 import { getTodos } from "@/actions/todos";
+import { getAllAssignmentStatus, getEnrollmentDelta } from "@/actions/dashboard-widgets";
 import { DashboardWrapper } from "@/components/dashboard/dashboard-wrapper";
+import { AllAssignmentsWidget } from "@/components/dashboard/all-assignments-widget";
+import { EnrollmentDeltaWidget } from "@/components/dashboard/enrollment-delta-widget";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -42,6 +45,8 @@ export default async function DashboardPage() {
     students,
     staffList,
     todos,
+    allAssignments,
+    enrollmentDelta,
   ] = await Promise.all([
     prisma.student.count({ where: { status: "ACTIVE" } }),
     prisma.attendanceRecord.findMany({
@@ -82,6 +87,8 @@ export default async function DashboardPage() {
     }),
     getStaffList(),
     getTodos(),
+    getAllAssignmentStatus(),
+    getEnrollmentDelta(year, month),
   ]);
 
   const normalCount = todayAttendances.filter((a) => a.type === "NORMAL").length;
@@ -296,6 +303,12 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      {/* §2.12 위젯: 과제 현황 + 원생 증감 */}
+      <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-4">
+        <AllAssignmentsWidget rows={allAssignments} />
+        <EnrollmentDeltaWidget data={enrollmentDelta} year={year} month={month} />
       </div>
 
       {/* 오늘 입실 (유지, 하단 전체폭) */}
