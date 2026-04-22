@@ -480,12 +480,18 @@ function SingleSeatDialog({
   const [selectedId, setSelectedId] = useState<string>(current?.studentId ?? "");
   const [pending, startTransition] = useTransition();
 
+  // 응시자로 등록된 학생만 노출 (좌석 이동/교환용)
+  const participantStudents = useMemo(
+    () => students.filter((s) => participantIds.has(s.id)),
+    [students, participantIds]
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return students
+    return participantStudents
       .filter((s) => (!q ? true : s.name.toLowerCase().includes(q) || (s.grade ?? "").toLowerCase().includes(q)))
       .slice(0, 50);
-  }, [students, query]);
+  }, [participantStudents, query]);
 
   function handleSave() {
     startTransition(async () => {
@@ -531,7 +537,15 @@ function SingleSeatDialog({
         </DialogHeader>
 
         <div className="space-y-3">
-          <Input placeholder="학생 검색" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <div className="flex items-center justify-between gap-2">
+            <Input placeholder="응시자 검색" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <span className="text-[11px] text-muted-foreground shrink-0">
+              응시자 {participantStudents.length}명 중
+            </span>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            응시자로 등록된 학생 중에서 선택합니다. 신규 응시자 추가는 상단 "응시자 선택 / 변경"을 사용하세요.
+          </p>
           <div className="max-h-64 overflow-y-auto border rounded">
             <button
               type="button"
@@ -543,30 +557,37 @@ function SingleSeatDialog({
             >
               — 비워두기 —
             </button>
-            {filtered.map((s) => {
-              const inSession = participantIds.has(s.id);
-              const isCurrent = current?.studentId === s.id;
-              const otherSeat = assignments.find((a) => a.studentId === s.id && a.seatNumber !== seatNumber);
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setSelectedId(s.id)}
-                  className={cn(
-                    "w-full text-left px-3 py-2 text-sm hover:bg-muted flex justify-between border-b last:border-b-0",
-                    selectedId === s.id && "bg-blue-50"
-                  )}
-                >
-                  <span>
-                    <span className="font-medium">{s.name}</span>
-                    <span className="text-xs text-muted-foreground ml-1">({s.grade})</span>
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {isCurrent ? "현재" : otherSeat ? `${otherSeat.seatNumber}번 → 교환` : inSession ? "응시자" : "미응시"}
-                  </span>
-                </button>
-              );
-            })}
+            {filtered.length === 0 ? (
+              <p className="p-4 text-center text-xs text-muted-foreground">
+                {participantStudents.length === 0
+                  ? "등록된 응시자가 없습니다."
+                  : "검색 결과가 없습니다."}
+              </p>
+            ) : (
+              filtered.map((s) => {
+                const isCurrent = current?.studentId === s.id;
+                const otherSeat = assignments.find((a) => a.studentId === s.id && a.seatNumber !== seatNumber);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setSelectedId(s.id)}
+                    className={cn(
+                      "w-full text-left px-3 py-2 text-sm hover:bg-muted flex justify-between border-b last:border-b-0",
+                      selectedId === s.id && "bg-blue-50"
+                    )}
+                  >
+                    <span>
+                      <span className="font-medium">{s.name}</span>
+                      <span className="text-xs text-muted-foreground ml-1">({s.grade})</span>
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {isCurrent ? "현재" : otherSeat ? `${otherSeat.seatNumber}번 → 교환` : "미배치"}
+                    </span>
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
 
