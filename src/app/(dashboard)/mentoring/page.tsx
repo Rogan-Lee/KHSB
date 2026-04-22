@@ -31,6 +31,11 @@ export default async function MentoringPage() {
       include: {
         student: { select: { id: true, name: true, grade: true, seat: true, vocabTestDate: true, schedules: { select: { dayOfWeek: true, startTime: true, endTime: true } } } },
         mentor: { select: { id: true, name: true } },
+        parentReports: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { id: true, token: true, createdAt: true },
+        },
       },
       orderBy: { scheduledAt: "desc" },
       take: 200,
