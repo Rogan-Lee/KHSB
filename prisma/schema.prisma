@@ -420,6 +420,7 @@ model MonthlyReport {
   mentoringSummary      String?                 // 월간 멘토링 종합 의견
   overallComment        String?                 // (기존) 전체 코멘트
   shareToken            String?   @unique       // 학부모 공유 토큰
+  attachedPhotoIds      String[]  @default([])  // 자동 첨부된 Photo ID 목록 (최신 N장)
   sentAt                DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt

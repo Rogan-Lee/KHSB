@@ -264,8 +264,64 @@ export async function generateMonthlyReport(
     update: stats,
   });
 
+  // 리포트 저장 후 자동 사진 첨부 (§2.22). 실패해도 리포트 생성은 유지.
+  try {
+    await autoAttachPhotosToReport(report.id);
+  } catch {
+    // Silent — 사진 첨부 실패가 리포트 실패로 이어지지 않도록
+  }
+
   revalidatePath("/reports");
   return report;
+}
+
+/**
+ * §2.22: 해당 리포트의 studentId + 월 범위에 해당하는 Photo 를 최신 N장(기본 3) 자동 첨부.
+ * - 파일명 파싱된 parsedDate 가 월 범위에 들어가는 사진만 대상
+ * - attachedPhotoIds 필드에 ID 배열 저장 (덮어쓰기)
+ */
+export async function autoAttachPhotosToReport(reportId: string, limit = 3) {
+  const report = await prisma.monthlyReport.findUnique({
+    where: { id: reportId },
+    select: { studentId: true, year: true, month: true },
+  });
+  if (!report) throw new Error("리포트를 찾을 수 없습니다");
+
+  const start = new Date(report.year, report.month - 1, 1);
+  const end = new Date(report.year, report.month, 1);
+
+  const photos = await prisma.photo.findMany({
+    where: {
+      studentId: report.studentId,
+      parsedDate: { gte: start, lt: end },
+    },
+    orderBy: { parsedDate: "desc" },
+    take: limit,
+    select: { id: true },
+  });
+
+  await prisma.monthlyReport.update({
+    where: { id: reportId },
+    data: { attachedPhotoIds: photos.map((p) => p.id) },
+  });
+
+  return photos.length;
+}
+
+/**
+ * 수동 사진 첨부/해제 (관리자 UI).
+ */
+export async function setReportPhotos(reportId: string, photoIds: string[]) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  await prisma.monthlyReport.update({
+    where: { id: reportId },
+    data: { attachedPhotoIds: photoIds },
+  });
+  revalidatePath("/reports");
+  revalidatePath("/reports/monthly");
 }
 
 export type BulkReportResult = {
