@@ -309,6 +309,38 @@ export async function autoAttachPhotosToReport(reportId: string, limit = 3) {
 }
 
 /**
+ * 리포트 상세 수동 사진 편집용 — 해당 리포트의 학생/월에 해당하는 Photo 목록 반환.
+ */
+export async function getPhotosForReportPeriod(reportId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  const report = await prisma.monthlyReport.findUnique({
+    where: { id: reportId },
+    select: { studentId: true, year: true, month: true, attachedPhotoIds: true },
+  });
+  if (!report) throw new Error("리포트를 찾을 수 없습니다");
+
+  const from = new Date(report.year, report.month - 1, 1);
+  const to = new Date(report.year, report.month, 1);
+
+  const photos = await prisma.photo.findMany({
+    where: { studentId: report.studentId, parsedDate: { gte: from, lt: to } },
+    orderBy: { parsedDate: "desc" },
+    select: {
+      id: true,
+      url: true,
+      thumbnailUrl: true,
+      fileName: true,
+      parsedDate: true,
+    },
+  });
+
+  return { photos, selectedIds: report.attachedPhotoIds };
+}
+
+/**
  * 수동 사진 첨부/해제 (관리자 UI).
  */
 export async function setReportPhotos(reportId: string, photoIds: string[]) {
