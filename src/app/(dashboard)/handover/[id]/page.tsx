@@ -13,11 +13,10 @@ import {
   CheckCircle2,
   User,
   Pencil,
-  CheckSquare,
-  Square,
   Clock,
 } from "lucide-react";
 import { ConfirmButton } from "./confirm-button";
+import { ChecklistToggleButton } from "./checklist-toggle-button";
 import { TaskToggleButton } from "./task-toggle-button";
 
 export default async function HandoverDetailPage({
@@ -60,7 +59,7 @@ export default async function HandoverDetailPage({
 
       {/* 헤더: 아바타 + 작성자 + 시간 */}
       <div className="flex items-start gap-3">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${isUrgent ? "bg-red-100 text-red-700" : "bg-[#eaf2fe] text-[#005eeb]"}`}>
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${isUrgent ? "bg-red-100 text-red-700" : "bg-[#FBE9DE] text-[#C5461A]"}`}>
           {initial}
         </div>
         <div className="flex-1 min-w-0">
@@ -162,10 +161,14 @@ export default async function HandoverDetailPage({
             </div>
             <div className="divide-y">
               {handover.checklist.map((c) => (
-                <div key={c.id} className={`flex items-center gap-2.5 px-4 py-2 text-sm ${c.isChecked ? "text-green-700" : "text-muted-foreground"}`}>
-                  {c.isChecked ? <CheckSquare className="h-4 w-4 text-green-500 shrink-0" /> : <Square className="h-4 w-4 opacity-30 shrink-0" />}
-                  <span className={c.isChecked ? "line-through" : ""}>{c.title}</span>
-                </div>
+                <ChecklistToggleButton
+                  key={c.id}
+                  itemId={c.id}
+                  title={c.title}
+                  isChecked={c.isChecked}
+                  checkedAt={c.checkedAt}
+                  checkedByName={c.checkedByName}
+                />
               ))}
             </div>
           </div>

@@ -15,7 +15,7 @@ import Link from "next/link";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type HandoverTask = { id: string; title: string; content: string; assigneeId: string | null; assigneeName: string | null; order: number; isCompleted: boolean; completedAt: Date | null };
-type HandoverChecklist = { id: string; templateId: string | null; title: string; shiftType: string; isChecked: boolean; order: number };
+type HandoverChecklist = { id: string; templateId: string | null; title: string; shiftType: string; isChecked: boolean; checkedAt: Date | null; checkedById: string | null; checkedByName: string | null; order: number };
 type HandoverRead = { userId: string; userName: string; readAt: Date };
 type Handover = { id: string; date: Date; content: string; priority: "URGENT" | "NORMAL"; category: string | null; isPinned: boolean; authorId: string; authorName: string; recipientId: string | null; recipientName: string | null; reads: HandoverRead[]; tasks: HandoverTask[]; checklist: HandoverChecklist[]; monthlyNotesSnapshot: object | null; createdAt: Date };
 type Staff = { id: string; name: string; role: string };
@@ -26,6 +26,8 @@ interface Props {
   currentUserId: string;
   currentUserName: string;
   currentUserRole: string;
+  /** 이전 날짜 피커로 선택된 기준일 (YYYY-MM-DD). 없으면 최근 14일 기본 */
+  activeSince?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -228,10 +230,18 @@ function DeleteConfirm({ onConfirm, onCancel, isPending }: { onConfirm: () => vo
 }
 
 // ── Main board ────────────────────────────────────────────────────────────────
-export function HandoverBoard({ initialHandovers, staffList, currentUserId, currentUserName, currentUserRole }: Props) {
+export function HandoverBoard({ initialHandovers, staffList, currentUserId, currentUserName, currentUserRole, activeSince }: Props) {
+  const router = useRouter();
   const [handovers, setHandovers] = useState<Handover[]>(initialHandovers);
+  // initialHandovers가 바뀌면 (searchParams 변경 시) 상태 동기화
+  useEffect(() => { setHandovers(initialHandovers); }, [initialHandovers]);
   const [isPending, startTransition] = useTransition();
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  function handleSinceChange(nextYMD: string) {
+    const url = nextYMD ? `/handover?since=${nextYMD}` : "/handover";
+    router.push(url);
+  }
 
   // 각 date 그룹 접힘 상태 (기본: 오늘만 열고 나머지는 접힘)
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
@@ -306,6 +316,34 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
         <KpiChip value={unreadCount} label="미확인" color={unreadCount > 0 ? "red" : "muted"} icon={<AlertTriangle className="h-3.5 w-3.5" />} />
         <KpiChip value={handovers.length} label="인수인계" color="blue" icon={<Clock className="h-3.5 w-3.5" />} />
         <KpiChip value={handovers.reduce((n, h) => n + h.checklist.length, 0)} label="루틴 항목" color="green" icon={<CheckCircle2 className="h-3.5 w-3.5" />} />
+
+        {/* 기준일 피커 */}
+        <div className="flex items-center gap-1.5 ml-2 border rounded-lg px-2 py-1 bg-card">
+          <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-[11px] text-muted-foreground">이후부터</span>
+          <input
+            type="date"
+            value={activeSince ?? ""}
+            onChange={(e) => handleSinceChange(e.target.value)}
+            max={new Date().toISOString().slice(0, 10)}
+            className="text-xs bg-transparent border-0 focus:outline-none cursor-pointer"
+            aria-label="이전 날짜부터 보기"
+          />
+          {activeSince && (
+            <button
+              type="button"
+              onClick={() => handleSinceChange("")}
+              className="text-[10px] text-muted-foreground hover:text-destructive px-1"
+              title="기본(최근 14일)으로"
+            >
+              해제
+            </button>
+          )}
+          {!activeSince && (
+            <span className="text-[10px] text-muted-foreground/60 pl-1">(기본: 최근 14일)</span>
+          )}
+        </div>
+
         <Link href="/handover/new" className="ml-auto">
           <Button size="sm" className="gap-1.5">
             <Plus className="h-4 w-4" />작성하기
