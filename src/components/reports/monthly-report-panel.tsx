@@ -1,25 +1,19 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  generateMonthlyReport,
-  generateMonthlyReportsBulk,
-  ensureReportShareToken,
-  updateReportMentoringSummary,
-  updateReportComment,
-  markReportSent,
-  extractMonthlyMentoringDigest,
-} from "@/actions/reports";
+import { generateMonthlyReportsBulk } from "@/actions/reports";
 import type { BulkReportResult } from "@/actions/reports";
-import { generateMonthlyMentoringSummary } from "@/actions/ai-enhance";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MarkdownEditor } from "@/components/ui/markdown-editor";
-import { Loader2, Link as LinkIcon, Sparkles, Send, Pencil, Check, X, Eye, Image as ImageIcon, AlertCircle } from "lucide-react";
-import { PhotoPickerDialog } from "@/components/reports/photo-picker-dialog";
-import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import {
+  Loader2, Search, X, CheckCircle2, Circle, Image as ImageIcon,
+  AlertCircle, XCircle,
+} from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { ReportDetailPane, type ReportLite } from "./report-detail-pane";
 
 interface Student {
   id: string;
@@ -27,37 +21,11 @@ interface Student {
   grade: string;
 }
 
-interface Report {
-  id: string;
-  studentId: string;
-  year: number;
-  month: number;
-  student: Student;
-  attendanceDays: number;
-  absentDays: number;
-  tardyCount: number;
-  earlyLeaveCount: number;
-  totalMerits: number;
-  totalDemerits: number;
-  mentoringCount: number;
-  totalStudyMinutes: number;
-  prevMonthStudyMinutes: number | null;
-  studyRankInRoom: number | null;
-  studyRankTotal: number | null;
-  gradeAvgMinutes: number | null;
-  outingCount: number;
-  mentoringSummary: string | null;
-  overallComment: string | null;
-  shareToken: string | null;
-  attachedPhotoIds: string[];
-  sentAt: Date | null;
-}
-
 interface Props {
   year: number;
   month: number;
   students: Student[];
-  reports: Report[];
+  reports: ReportLite[];
 }
 
 function formatMinutes(minutes: number): string {
@@ -68,25 +36,41 @@ function formatMinutes(minutes: number): string {
 
 export function MonthlyReportPanel({ year, month, students, reports }: Props) {
   const router = useRouter();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [activeStudentId, setActiveStudentId] = useState<string | null>(students[0]?.id ?? null);
   const [bulkGenerating, setBulkGenerating] = useState(false);
-  const [individualPending, setIndividualPending] = useState<string | null>(null);
-  const [photoPickerReportId, setPhotoPickerReportId] = useState<string | null>(null);
-  // 일괄 생성 개별 상태: studentId → 상태
   const [bulkProgress, setBulkProgress] = useState<Record<string, "pending" | "success" | "failed">>({});
-  // 실패한 건의 이유
   const [bulkErrors, setBulkErrors] = useState<Record<string, string>>({});
   const [, startTransition] = useTransition();
+  const [query, setQuery] = useState("");
 
-  const reportMap = new Map(reports.map((r) => [r.studentId, r]));
+  const reportMap = useMemo(() => new Map(reports.map((r) => [r.studentId, r])), [reports]);
+
+  const filteredStudents = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return students;
+    return students.filter((s) =>
+      s.name.toLowerCase().includes(q) || (s.grade ?? "").toLowerCase().includes(q)
+    );
+  }, [students, query]);
+
+  const activeStudent = useMemo(
+    () => students.find((s) => s.id === activeStudentId) ?? null,
+    [students, activeStudentId]
+  );
+  const activeReport = activeStudentId ? reportMap.get(activeStudentId) ?? null : null;
+
+  // 통계: 전체 / 생성됨 / 발송완료
+  const createdCount = reports.length;
+  const sentCount = reports.filter((r) => r.sentAt).length;
 
   function toggleAll() {
-    if (selected.size === students.length) setSelected(new Set());
-    else setSelected(new Set(students.map((s) => s.id)));
+    if (selectedIds.size === filteredStudents.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredStudents.map((s) => s.id)));
   }
 
-  function toggle(id: string) {
-    setSelected((prev) => {
+  function toggleOne(id: string) {
+    setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -95,7 +79,6 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
   }
 
   async function runBulk(ids: string[]) {
-    // 초기화: 전부 pending
     const initial: Record<string, "pending"> = {};
     for (const id of ids) initial[id] = "pending";
     setBulkProgress(initial);
@@ -106,17 +89,15 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
       const results: BulkReportResult[] = await generateMonthlyReportsBulk(ids, year, month);
       const nextProg: Record<string, "success" | "failed"> = {};
       const nextErr: Record<string, string> = {};
-      let success = 0, failed = 0;
+      let ok = 0, ng = 0;
       for (const r of results) {
         nextProg[r.studentId] = r.status;
-        if (r.status === "failed") {
-          failed++;
-          if (r.reason) nextErr[r.studentId] = r.reason;
-        } else success++;
+        if (r.status === "failed") { ng++; if (r.reason) nextErr[r.studentId] = r.reason; }
+        else ok++;
       }
       setBulkProgress(nextProg);
       setBulkErrors(nextErr);
-      toast.success(`생성 완료: ${success}건${failed > 0 ? ` (실패 ${failed}건)` : ""}`);
+      toast.success(`생성 완료: ${ok}건${ng > 0 ? ` (실패 ${ng}건)` : ""}`);
       startTransition(() => router.refresh());
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "일괄 생성 실패");
@@ -126,12 +107,12 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
   }
 
   async function handleBulkGenerate() {
-    if (selected.size === 0) {
+    if (selectedIds.size === 0) {
       toast.error("학생을 선택하세요");
       return;
     }
-    await runBulk(Array.from(selected));
-    setSelected(new Set());
+    await runBulk(Array.from(selectedIds));
+    setSelectedIds(new Set());
   }
 
   async function handleRetryFailed() {
@@ -142,437 +123,150 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
     await runBulk(failedIds);
   }
 
-  async function handleIndividualGenerate(studentId: string) {
-    setIndividualPending(studentId);
-    try {
-      await generateMonthlyReport(studentId, year, month);
-      toast.success("생성되었습니다");
-      startTransition(() => router.refresh());
-    } catch {
-      toast.error("생성 실패");
-    } finally {
-      setIndividualPending(null);
-    }
-  }
-
-  async function handleShareLink(report: Report) {
-    try {
-      const token = await ensureReportShareToken(report.id);
-      const url = `${window.location.origin}/r/monthly/${token}`;
-      await navigator.clipboard.writeText(url);
-      toast.success("공유 링크가 클립보드에 복사되었습니다");
-    } catch {
-      toast.error("링크 생성 실패");
-    }
-  }
-
-  async function handleMarkSent(id: string) {
-    setIndividualPending(id);
-    try {
-      await markReportSent(id);
-      toast.success("발송 처리되었습니다");
-      startTransition(() => router.refresh());
-    } catch {
-      toast.error("처리 실패");
-    } finally {
-      setIndividualPending(null);
-    }
-  }
+  const failedCount = Object.values(bulkProgress).filter((s) => s === "failed").length;
 
   return (
     <div className="space-y-3">
-      {/* 일괄 생성 바 */}
-      <div className="flex items-center gap-2 bg-muted/40 rounded-md px-3 py-2">
-        <label className="flex items-center gap-2 text-sm cursor-pointer">
-          <input
-            type="checkbox"
-            checked={students.length > 0 && selected.size === students.length}
-            onChange={toggleAll}
-            className="rounded"
-          />
-          전체 선택
-        </label>
-        <span className="text-xs text-muted-foreground">{selected.size}명 선택됨</span>
-        {(() => {
-          const total = Object.keys(bulkProgress).length;
-          const done = Object.values(bulkProgress).filter((s) => s !== "pending").length;
-          const failed = Object.values(bulkProgress).filter((s) => s === "failed").length;
-          const hasFailed = failed > 0 && !bulkGenerating;
-          return (
-            <div className="ml-auto flex items-center gap-2">
-              {bulkGenerating && total > 0 && (
-                <span className="text-xs text-muted-foreground">
-                  {done}/{total} 진행 중
-                </span>
-              )}
-              {hasFailed && (
-                <Button size="sm" variant="outline" onClick={handleRetryFailed}>
-                  실패 {failed}건 재시도
-                </Button>
-              )}
-              <Button
-                size="sm"
-                disabled={bulkGenerating || selected.size === 0}
-                onClick={handleBulkGenerate}
-              >
-                {bulkGenerating ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                    생성 중…
-                  </>
-                ) : (
-                  <>선택 학생 리포트 생성 ({selected.size})</>
-                )}
-              </Button>
-            </div>
-          );
-        })()}
+      {/* 상단 툴바: 요약 + 일괄 생성 */}
+      <div className="flex items-center gap-3 flex-wrap bg-muted/40 rounded-md px-3 py-2">
+        <span className="text-xs text-muted-foreground">
+          총 <b className="text-foreground">{students.length}</b>명
+          {" · "}
+          생성 <b className="text-foreground">{createdCount}</b>
+          {" · "}
+          발송 <b className="text-foreground">{sentCount}</b>
+        </span>
+        <div className="ml-auto flex items-center gap-2">
+          {bulkGenerating && (
+            <span className="text-xs text-muted-foreground">
+              {Object.values(bulkProgress).filter((s) => s !== "pending").length}/{Object.keys(bulkProgress).length} 진행 중
+            </span>
+          )}
+          {failedCount > 0 && !bulkGenerating && (
+            <Button size="sm" variant="outline" onClick={handleRetryFailed}>
+              실패 {failedCount}건 재시도
+            </Button>
+          )}
+          <Button size="sm" onClick={handleBulkGenerate} disabled={bulkGenerating || selectedIds.size === 0}>
+            {bulkGenerating ? (
+              <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />생성 중…</>
+            ) : (
+              <>선택 {selectedIds.size}명 리포트 생성</>
+            )}
+          </Button>
+        </div>
       </div>
 
-      {/* 학생별 테이블 */}
-      <div className="rounded-md border">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b bg-muted/50">
-              <th className="w-10 px-3 py-2"></th>
-              <th className="text-left px-3 py-2 font-medium">학생</th>
-              <th className="text-left px-3 py-2 font-medium w-24">순공시간</th>
-              <th className="text-left px-3 py-2 font-medium w-20">출결</th>
-              <th className="text-left px-3 py-2 font-medium w-16">멘토링</th>
-              <th className="text-left px-3 py-2 font-medium w-16">상태</th>
-              <th className="text-right px-3 py-2 font-medium">관리</th>
-            </tr>
-          </thead>
-          <tbody>
-            {students.map((s) => {
-              const report = reportMap.get(s.id);
-              const isSelected = selected.has(s.id);
-              const isPending = individualPending === s.id;
-              return (
-                <tr key={s.id} className={`border-b last:border-0 ${isSelected ? "bg-primary/5" : ""}`}>
-                  <td className="px-3 py-2">
-                    <input type="checkbox" checked={isSelected} onChange={() => toggle(s.id)} className="rounded" />
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className="font-medium">{s.name}</span>
-                    <span className="text-xs text-muted-foreground ml-1">{s.grade}</span>
-                  </td>
-                  <td className="px-3 py-2 text-xs">
-                    {report ? formatMinutes(report.totalStudyMinutes) : <span className="text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-3 py-2 text-xs">
-                    {report ? (
-                      <span>
-                        {report.attendanceDays}일
-                        {report.tardyCount > 0 && <span className="text-amber-600 ml-1">지각{report.tardyCount}</span>}
-                        {report.absentDays > 0 && <span className="text-red-600 ml-1">결석{report.absentDays}</span>}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-xs">
-                    {report ? `${report.mentoringCount}회` : <span className="text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-3 py-2">
-                    {bulkProgress[s.id] === "pending" ? (
-                      <Badge variant="outline" className="text-[10px] border-blue-300 text-blue-700">
-                        <Loader2 className="h-2.5 w-2.5 animate-spin mr-1 inline" />
-                        생성 중
-                      </Badge>
-                    ) : bulkProgress[s.id] === "failed" ? (
-                      <Badge variant="outline" className="text-[10px] border-red-300 text-red-700" title={bulkErrors[s.id]}>
-                        실패
-                      </Badge>
-                    ) : bulkProgress[s.id] === "success" ? (
-                      <Badge variant="outline" className="text-[10px] border-emerald-400 text-emerald-700">
-                        완료
-                      </Badge>
-                    ) : !report ? (
-                      <Badge variant="outline" className="text-[10px]">
-                        미생성
-                      </Badge>
-                    ) : report.sentAt ? (
-                      <Badge className="text-[10px]">발송완료</Badge>
-                    ) : (
-                      <Badge variant="secondary" className="text-[10px]">
-                        생성됨
-                      </Badge>
-                    )}
-                    {/* §2.22: 첨부 사진 수 (클릭 시 수동 picker) */}
-                    {report && (
-                      <button
-                        type="button"
-                        onClick={() => setPhotoPickerReportId(report.id)}
-                        title="사진 수동 선택"
-                        className={cn(
-                          "ml-1 inline-flex items-center gap-0.5 text-[10px] px-1 py-0.5 rounded font-medium hover:ring-1 hover:ring-ink-6 transition-all",
-                          report.attachedPhotoIds.length > 0
-                            ? "bg-blue-50 text-blue-700"
-                            : "bg-amber-50 text-amber-700"
-                        )}
-                      >
-                        {report.attachedPhotoIds.length > 0 ? (
-                          <>
-                            <ImageIcon className="h-2.5 w-2.5" />
-                            {report.attachedPhotoIds.length}
-                          </>
-                        ) : (
-                          <>
-                            <AlertCircle className="h-2.5 w-2.5" />
-                            사진 0
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      {!report ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs"
-                          disabled={isPending}
-                          onClick={() => handleIndividualGenerate(s.id)}
-                        >
-                          {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "생성"}
-                        </Button>
-                      ) : (
-                        <ReportActions
-                          report={report}
-                          onShare={() => handleShareLink(report)}
-                          onMarkSent={() => handleMarkSent(report.id)}
-                          onRefresh={() => handleIndividualGenerate(s.id)}
-                          pending={isPending}
-                        />
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* §2.22 수동 사진 picker */}
-      {photoPickerReportId && (
-        <PhotoPickerDialog
-          reportId={photoPickerReportId}
-          open={!!photoPickerReportId}
-          onOpenChange={(v) => !v && setPhotoPickerReportId(null)}
-          studentName={reports.find((r) => r.id === photoPickerReportId)?.student.name}
-        />
-      )}
-    </div>
-  );
-}
-
-function ReportActions({
-  report,
-  onShare,
-  onMarkSent,
-  onRefresh,
-  pending,
-}: {
-  report: Report;
-  onShare: () => void;
-  onMarkSent: () => void;
-  onRefresh: () => void;
-  pending: boolean;
-}) {
-  const router = useRouter();
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [editingSummary, setEditingSummary] = useState(false);
-  const [editingComment, setEditingComment] = useState(false);
-  const [summary, setSummary] = useState(report.mentoringSummary ?? "");
-  const [comment, setComment] = useState(report.overallComment ?? "");
-  const [busy, setBusy] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
-
-  async function handleAiSummary() {
-    setBusy("ai");
-    try {
-      const generated = await generateMonthlyMentoringSummary(report.studentId, report.year, report.month);
-      setSummary(generated);
-      setEditingSummary(true);
-      toast.success("AI 초안이 생성되었습니다. 검토 후 저장하세요");
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleAutoExtract() {
-    setBusy("extract");
-    try {
-      const digest = await extractMonthlyMentoringDigest(report.studentId, report.year, report.month);
-      setSummary(digest);
-      setEditingSummary(true);
-      toast.success("이번 달 멘토링 기록에서 자동 추출했습니다");
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleSaveSummary() {
-    setBusy("summary");
-    try {
-      await updateReportMentoringSummary(report.id, summary);
-      toast.success("저장되었습니다");
-      setEditingSummary(false);
-      startTransition(() => router.refresh());
-    } catch {
-      toast.error("저장 실패");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function handleSaveComment() {
-    setBusy("comment");
-    try {
-      await updateReportComment(report.id, comment);
-      toast.success("저장되었습니다");
-      setEditingComment(false);
-      startTransition(() => router.refresh());
-    } catch {
-      toast.error("저장 실패");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  return (
-    <>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 text-xs"
-        onClick={() => setDetailOpen(!detailOpen)}
-      >
-        <Pencil className="h-3 w-3 mr-1" />
-        편집
-      </Button>
-      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onShare}>
-        <LinkIcon className="h-3 w-3 mr-1" />
-        링크
-      </Button>
-      {report.shareToken && (
-        <a
-          href={`/r/monthly/${report.shareToken}`}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <Eye className="h-3 w-3" />
-        </a>
-      )}
-      {!report.sentAt && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs text-emerald-700"
-          onClick={onMarkSent}
-          disabled={pending}
-        >
-          <Send className="h-3 w-3 mr-1" />
-          발송
-        </Button>
-      )}
-      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onRefresh} disabled={pending}>
-        {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : "재집계"}
-      </Button>
-
-      {detailOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 text-left" onClick={() => setDetailOpen(false)}>
-          <div className="bg-background rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto text-left" onClick={(e) => e.stopPropagation()}>
-            <div className="p-5 border-b flex items-center justify-between">
-              <h3 className="font-semibold">{report.student.name} {report.year}년 {report.month}월 리포트</h3>
-              <button onClick={() => setDetailOpen(false)} className="text-muted-foreground hover:text-foreground">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="p-5 space-y-5">
-              {/* 멘토링 종합 의견 */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-sm">월간 멘토링 종합 의견</h4>
-                  <div className="flex gap-1">
-                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleAutoExtract} disabled={busy === "extract"}>
-                      {busy === "extract" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Pencil className="h-3 w-3 mr-1" />}
-                      자동 추출
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleAiSummary} disabled={busy === "ai"}>
-                      {busy === "ai" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
-                      AI 요약
-                    </Button>
-                    {!editingSummary && (
-                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditingSummary(true)}>
-                        <Pencil className="h-3 w-3 mr-1" />
-                        수정
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                {editingSummary ? (
-                  <div className="space-y-2">
-                    <MarkdownEditor value={summary} onChange={setSummary} placeholder="월간 종합 의견..." />
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={() => { setSummary(report.mentoringSummary ?? ""); setEditingSummary(false); }} disabled={busy === "summary"}>
-                        취소
-                      </Button>
-                      <Button size="sm" onClick={handleSaveSummary} disabled={busy === "summary"}>
-                        {busy === "summary" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
-                        저장
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap min-h-[60px]">
-                    {report.mentoringSummary || <span className="text-muted-foreground">작성된 내용이 없습니다</span>}
-                  </div>
-                )}
-              </div>
-
-              {/* 원장 코멘트 */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-sm">원장님 한마디 (선택)</h4>
-                  {!editingComment && (
-                    <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditingComment(true)}>
-                      <Pencil className="h-3 w-3 mr-1" />
-                      수정
-                    </Button>
-                  )}
-                </div>
-                {editingComment ? (
-                  <div className="space-y-2">
-                    <MarkdownEditor value={comment} onChange={setComment} placeholder="학부모에게 전할 메시지..." />
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={() => { setComment(report.overallComment ?? ""); setEditingComment(false); }} disabled={busy === "comment"}>
-                        취소
-                      </Button>
-                      <Button size="sm" onClick={handleSaveComment} disabled={busy === "comment"}>
-                        {busy === "comment" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
-                        저장
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap min-h-[60px]">
-                    {report.overallComment || <span className="text-muted-foreground">작성된 내용이 없습니다</span>}
-                  </div>
-                )}
-              </div>
+      {/* 2-col 마스터-디테일 */}
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-3 min-h-[600px]">
+        {/* 좌측: 학생 리스트 */}
+        <div className="border rounded-lg bg-background overflow-hidden flex flex-col">
+          <div className="px-3 py-2 border-b flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={filteredStudents.length > 0 && selectedIds.size === filteredStudents.length}
+              onChange={toggleAll}
+              className="rounded"
+              title="화면에 보이는 학생 전체 선택"
+            />
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="이름/학년 검색"
+                className="h-7 pl-7 text-xs"
+              />
+              {query && (
+                <button onClick={() => setQuery("")} className="absolute right-2 top-1.5 text-muted-foreground hover:text-foreground">
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
           </div>
+          <div className="flex-1 overflow-y-auto divide-y">
+            {filteredStudents.length === 0 ? (
+              <p className="p-4 text-center text-xs text-muted-foreground">
+                {query ? "검색 결과 없음" : "학생이 없습니다"}
+              </p>
+            ) : (
+              filteredStudents.map((s) => {
+                const report = reportMap.get(s.id);
+                const isActive = activeStudentId === s.id;
+                const isChecked = selectedIds.has(s.id);
+                const prog = bulkProgress[s.id];
+                return (
+                  <div
+                    key={s.id}
+                    onClick={() => setActiveStudentId(s.id)}
+                    className={cn(
+                      "w-full px-3 py-2 text-left cursor-pointer transition-colors border-l-2",
+                      isActive
+                        ? "bg-primary/5 border-primary"
+                        : "hover:bg-muted/40 border-transparent"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => { e.stopPropagation(); toggleOne(s.id); }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="rounded shrink-0"
+                      />
+                      <span className="font-medium text-sm truncate">{s.name}</span>
+                      <span className="text-[10px] text-muted-foreground">{s.grade}</span>
+                      <div className="ml-auto shrink-0 flex items-center gap-1">
+                        {prog === "pending" ? (
+                          <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+                        ) : prog === "failed" ? (
+                          <span title={bulkErrors[s.id]}><XCircle className="h-3.5 w-3.5 text-red-500" /></span>
+                        ) : report ? (
+                          report.sentAt ? (
+                            <Badge className="text-[9px] h-4 px-1">발송</Badge>
+                          ) : (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                          )
+                        ) : (
+                          <Circle className="h-3.5 w-3.5 text-muted-foreground/30" />
+                        )}
+                        {report && (
+                          report.attachedPhotoIds.length > 0 ? (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] text-blue-600">
+                              <ImageIcon className="h-2.5 w-2.5" />
+                              {report.attachedPhotoIds.length}
+                            </span>
+                          ) : (
+                            <span title="사진 없음"><AlertCircle className="h-3 w-3 text-amber-500" /></span>
+                          )
+                        )}
+                      </div>
+                    </div>
+                    {report && (
+                      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
+                        <span>{formatMinutes(report.totalStudyMinutes)}</span>
+                        {report.studyRankInRoom != null && (
+                          <span>· {report.studyRankInRoom}위</span>
+                        )}
+                        {report.tardyCount > 0 && <span className="text-amber-600">지각{report.tardyCount}</span>}
+                        {report.absentDays > 0 && <span className="text-red-600">결석{report.absentDays}</span>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
-      )}
-    </>
+
+        {/* 우측: 디테일 */}
+        <ReportDetailPane
+          student={activeStudent}
+          report={activeReport}
+          year={year}
+          month={month}
+        />
+      </div>
+    </div>
   );
 }
