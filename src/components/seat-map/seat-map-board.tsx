@@ -89,7 +89,7 @@ function AssignDialog({
 
           {/* 선택된 학생 표시 */}
           {selected && selectedStudent && (
-            <div className="flex items-center justify-between border border-[#0066ff]/30 bg-[#eaf2fe] rounded-lg px-3 py-2">
+            <div className="flex items-center justify-between border border-[#E9541C]/30 bg-[#FBE9DE] rounded-lg px-3 py-2">
               <span className="text-sm font-medium">
                 {selectedStudent.name} ({selectedStudent.grade})
                 {selectedStudent.seat && selectedStudent.seat !== seatStr && (
@@ -219,7 +219,7 @@ function AssignDialog({
               "flex-1 px-3 py-2 text-sm text-white rounded-lg transition-colors disabled:opacity-50",
               isSwap
                 ? "bg-amber-500 hover:bg-amber-600"
-                : "bg-[#0066ff] hover:bg-[#005eeb]"
+                : "bg-[#E9541C] hover:bg-[#C5461A]"
             )}
           >
             {isPending ? "저장 중…" : isSwap ? "교환" : "저장"}
@@ -261,14 +261,14 @@ function SeatCell({
             "rounded-lg border flex flex-col items-center justify-center text-center",
             "transition-all duration-150 select-none print:rounded-none print:border-[#333]",
             occupied
-              ? "border-[#0066ff] bg-[#eaf2fe] hover:bg-[#dbeafe] hover:border-[#005eeb] print:bg-white"
+              ? "border-[#E9541C] bg-[#FBE9DE] hover:bg-[#FEF5EF] hover:border-[#C5461A] print:bg-white"
               : "border-[#d1d5db] bg-[#f9fafb] hover:border-[#9ca3af] hover:bg-[#f3f4f6] print:bg-white",
             className
           )}
         >
           <span className={cn(
             "text-[11px] font-bold leading-none print:text-black",
-            occupied ? "text-[#005eeb]" : "text-[#9ca3af] print:text-[#666]"
+            occupied ? "text-[#C5461A]" : "text-[#9ca3af] print:text-[#666]"
           )}>
             {num}
           </span>
@@ -580,7 +580,7 @@ export function SeatMapBoard({ students }: { students: StudentInfo[] }) {
       {/* 요약 — 인쇄 시 숨김 */}
       <div className="flex items-center gap-4 mb-5 flex-wrap print:hidden">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded border border-[#0066ff] bg-[#eaf2fe]" />
+          <div className="w-3 h-3 rounded border border-[#E9541C] bg-[#FBE9DE]" />
           <span className="text-xs text-muted-foreground">배정됨 ({occupiedCount}석)</span>
         </div>
         <div className="flex items-center gap-2">
@@ -611,7 +611,7 @@ export function SeatMapBoard({ students }: { students: StudentInfo[] }) {
             className={cn(
               "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
               activeTab === tab
-                ? "border-[#0066ff] text-[#0066ff]"
+                ? "border-[#E9541C] text-[#E9541C]"
                 : "border-transparent text-[#6d7882] hover:text-[#1e2124]"
             )}
           >

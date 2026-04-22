@@ -20,17 +20,24 @@ import { toast } from "sonner";
 // Mon-Sun display order for Korean work week
 const WEEK_DAYS = [1, 2, 3, 4, 5, 6, 0] as const;
 
+// v4 priority palette — calmer pastel, 2px left stripe model
 const PRIORITY_COLORS = {
-  1: "bg-red-50 border-red-200 text-red-800 hover:bg-red-100",
-  2: "bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100",
-  3: "bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100",
+  1: "bg-bad-soft text-bad-ink hover:brightness-[0.98]",
+  2: "bg-warn-soft text-warn-ink hover:brightness-[0.98]",
+  3: "bg-ok-soft text-ok-ink hover:brightness-[0.98]",
 } as const;
 
 const PRIORITY_DOT = {
-  1: "bg-red-400",
-  2: "bg-amber-400",
-  3: "bg-emerald-400",
+  1: "bg-bad",
+  2: "bg-warn",
+  3: "bg-ok",
 } as const;
+
+// KST today (UTC+9) weekday (0=Sun..6=Sat)
+function getKstTodayDow(): number {
+  const nowKst = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+  return nowKst.getUTCDay();
+}
 
 function addWeeks(weekStart: string, delta: number): string {
   const d = new Date(weekStart);
@@ -192,26 +199,46 @@ export function WeeklyPlanBoard({
   return (
     <>
       {/* ── Header Controls ── */}
-      <div className="flex items-center gap-2 flex-wrap pb-1">
-        <div className="flex items-center gap-1">
-          <Button variant="outline" size="sm" onClick={() => navigateWeek(-1)} disabled={isPending} className="h-8 px-2.5">
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="text-sm font-medium px-2 min-w-[230px] text-center">{label}</span>
-          <Button variant="outline" size="sm" onClick={() => navigateWeek(1)} disabled={isPending} className="h-8 px-2.5">
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+      <div className="flex items-center gap-3 flex-wrap pb-3">
+        <div className="inline-flex items-center gap-[2px] p-[3px] bg-panel border border-line rounded-[9px] shadow-[var(--shadow-xs)]">
+          <button
+            type="button"
+            onClick={() => navigateWeek(-1)}
+            disabled={isPending}
+            className="h-[26px] w-[28px] grid place-items-center rounded-[6px] text-ink-3 hover:bg-canvas-2 hover:text-ink-2 transition-colors disabled:opacity-50"
+            aria-label="이전 주"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => { setWeekStart(initialWeekStart); refresh(initialWeekStart); }}
+            disabled={isPending}
+            className="h-[26px] px-3 text-[11.5px] font-medium rounded-[6px] text-ink-2 hover:bg-canvas-2 transition-colors disabled:opacity-50"
+          >
+            이번 주
+          </button>
+          <button
+            type="button"
+            onClick={() => navigateWeek(1)}
+            disabled={isPending}
+            className="h-[26px] w-[28px] grid place-items-center rounded-[6px] text-ink-3 hover:bg-canvas-2 hover:text-ink-2 transition-colors disabled:opacity-50"
+            aria-label="다음 주"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
         </div>
+        <span className="text-[13px] font-semibold text-ink tracking-[-0.01em]">{label}</span>
         <div className="flex-1" />
-        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400" />P1: 7일↑</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" />P2: 3~6일</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-400" />P3: ~3일</span>
+        <div className="flex items-center gap-3 text-[11px] text-ink-4">
+          <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-bad" />P1 · 7일↑</span>
+          <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-warn" />P2 · 3~6일</span>
+          <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-ok" />P3 · ~3일</span>
         </div>
-        <Button variant="outline" size="sm" onClick={handleCopy} disabled={isPending} className="h-8">
-          {copied ? <><Check className="h-3.5 w-3.5 mr-1.5 text-green-600" />복사됨</> : <><Copy className="h-3.5 w-3.5 mr-1.5" />요약 복사</>}
+        <Button variant="outline" size="compact" onClick={handleCopy} disabled={isPending}>
+          {copied ? <><Check className="h-3 w-3 text-ok" />복사됨</> : <><Copy className="h-3 w-3" />요약 복사</>}
         </Button>
-        {isPending && <span className="text-xs text-muted-foreground animate-pulse">로딩 중...</span>}
+        {isPending && <span className="text-[11px] text-ink-4 animate-pulse">로딩 중</span>}
       </div>
 
       {/* ── Grid ── */}
@@ -221,25 +248,34 @@ export function WeeklyPlanBoard({
           <p className="text-xs">멘토 스케줄 관리 페이지에서 근무 일정을 먼저 설정해주세요.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-[12px] border border-line bg-panel shadow-[var(--shadow-xs)]">
           <table className="w-full border-collapse text-sm" style={{ minWidth: 860 }}>
             <thead>
-              <tr className="border-b bg-muted/40">
-                <th className="px-4 py-3 text-left w-[170px] text-xs font-semibold text-muted-foreground sticky left-0 bg-muted/40 z-10">
+              <tr className="border-b border-line bg-panel-2">
+                <th className="px-4 py-3 text-left w-[170px] text-[11px] font-semibold text-ink-4 sticky left-0 bg-panel-2 z-10 border-r border-line-2">
                   멘토
                 </th>
-                {dayDates.map(({ dow, date }) => (
-                  <th
-                    key={dow}
-                    className={cn(
-                      "px-3 py-3 text-center text-xs font-semibold w-[120px]",
-                      dow === 0 || dow === 6 ? "text-red-500" : "text-muted-foreground"
-                    )}
-                  >
-                    <div>{DAY_NAMES[dow]}</div>
-                    <div className="text-[11px] font-normal text-muted-foreground/70">{date}</div>
-                  </th>
-                ))}
+                {dayDates.map(({ dow, date }) => {
+                  const isToday = dow === getKstTodayDow();
+                  return (
+                    <th
+                      key={dow}
+                      className={cn(
+                        "px-3 py-3 text-center text-[11px] font-semibold w-[120px] border-r border-line-2 last:border-r-0",
+                        isToday ? "bg-brand-softer" : "",
+                        dow === 0 || dow === 6 ? "text-bad" : "text-ink-4"
+                      )}
+                    >
+                      <div className={cn("text-[12.5px] font-[650]", isToday ? "text-brand-2" : "text-ink")}>
+                        {DAY_NAMES[dow]}
+                      </div>
+                      <div className={cn(
+                        "text-[11px] font-mono tabular-nums mt-0.5",
+                        isToday ? "text-brand" : "text-ink-4"
+                      )}>{date}</div>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -306,23 +342,37 @@ function MentorRow({
   const extraStudents = allStudents.filter((s) => !mentorStudentIds.has(s.id));
 
   return (
-    <tr className={cn("align-top", !isLast && "border-b")}>
+    <tr className={cn("align-top", !isLast && "border-b border-line-2")}>
       {/* Mentor name cell — sticky */}
-      <td className="px-4 py-3 sticky left-0 bg-white z-10 border-r">
+      <td className="px-4 py-3 sticky left-0 bg-panel z-10 border-r border-line-2">
         <div className="flex items-start justify-between gap-1">
-          <div>
-            <p className="font-semibold text-[13px] leading-tight">{mentor.name}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {mentor.students.length}명 담당
+          <div className="min-w-0">
+            <p className="font-semibold text-[12.5px] text-ink leading-tight tracking-[-0.01em] truncate">{mentor.name}</p>
+            <p className="text-[11px] text-ink-4 mt-0.5 flex items-center gap-1.5 font-mono tabular-nums">
+              <span>{mentor.students.length}명</span>
               {totalScheduled > 0 && (
-                <span className="ml-1.5 text-blue-600 font-medium">{totalScheduled}건 계획</span>
+                <span className="text-ink-3 font-semibold">{totalScheduled}건</span>
               )}
             </p>
+            {/* Load bar: students assigned vs capacity (fallback capacity=10) */}
+            <div className="mt-2 flex items-center gap-1.5 w-[120px]">
+              <span className="flex-1 h-[3px] rounded-[2px] bg-line-2 overflow-hidden">
+                <span
+                  className={cn(
+                    "block h-full rounded-[2px]",
+                    mentor.students.length >= 10 ? "bg-bad" :
+                    mentor.students.length >= 7 ? "bg-warn" : "bg-ok"
+                  )}
+                  style={{ width: `${Math.min(100, (mentor.students.length / 10) * 100)}%` }}
+                />
+              </span>
+              <span className="font-mono text-[10px] text-ink-4 tabular-nums">{mentor.students.length}/10</span>
+            </div>
           </div>
           {!readonly && (
             <button
               onClick={onEditSchedule}
-              className="text-muted-foreground hover:text-foreground transition-colors mt-0.5 shrink-0"
+              className="text-ink-4 hover:text-ink-2 transition-colors mt-0.5 shrink-0"
               title="근무 스케줄 편집"
             >
               <Settings2 className="h-3.5 w-3.5" />
@@ -333,7 +383,7 @@ function MentorRow({
         {mentor.workDays.length > 0 && (
           <div className="flex flex-wrap gap-0.5 mt-1.5">
             {mentor.workDays.map((w) => (
-              <span key={w.dayOfWeek} className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded border border-blue-100">
+              <span key={w.dayOfWeek} className="text-[10px] font-medium px-1.5 py-px bg-canvas-2 text-ink-3 rounded-[4px]">
                 {DAY_NAMES[w.dayOfWeek]}
               </span>
             ))}
@@ -346,16 +396,18 @@ function MentorRow({
         const workDay = workDayMap.get(dow);
         const isWeekend = dow === 0 || dow === 6;
 
+        const isToday = dow === getKstTodayDow();
+
         if (!workDay) {
           return (
             <td
               key={dow}
               className={cn(
-                "px-3 py-3 text-center",
-                isWeekend ? "bg-muted/30" : "bg-muted/10"
+                "px-3 py-3 text-center border-r border-line-2 last:border-r-0",
+                isToday ? "bg-brand-softer" : isWeekend ? "bg-panel-2" : "bg-panel"
               )}
             >
-              <span className="text-muted-foreground/30 text-xs">—</span>
+              <span className="text-ink-5 text-xs">—</span>
             </td>
           );
         }
@@ -440,10 +492,15 @@ function DayCell({
     setQuery("");
   }
 
+  const isToday = dow === getKstTodayDow();
+
   return (
-    <td className="px-2.5 py-2.5 align-top">
+    <td className={cn(
+      "px-2 py-2.5 align-top border-r border-line-2 last:border-r-0",
+      isToday && "bg-brand-softer"
+    )}>
       {/* Work time badge */}
-      <div className="text-[10px] text-blue-600 font-medium mb-2 text-center">
+      <div className="text-[10px] text-ink-4 font-mono tabular-nums mb-2 text-center">
         {workDay.timeStart}–{workDay.timeEnd}
       </div>
 
@@ -454,16 +511,16 @@ function DayCell({
           return (
             <div
               key={s.id}
-              className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-xs font-medium group"
+              className="relative flex items-center gap-1.5 pl-[10px] pr-1.5 py-1 rounded-[7px] bg-panel border border-line text-ink text-[11.5px] font-medium group"
             >
-              <span className="text-[10px] text-blue-500 w-3 shrink-0">{studentSeatMap.get(s.id)}</span>
-              <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
-              <span className="truncate flex-1">{s.name}</span>
+              <span className={cn("absolute left-[2px] top-1 bottom-1 w-[2px] rounded-[2px]", PRIORITY_DOT[s.priority])} />
+              <span className="text-[10px] text-ink-4 font-mono tabular-nums w-3 shrink-0">{studentSeatMap.get(s.id)}</span>
+              <span className="truncate flex-1 tracking-[-0.01em]">{s.name}</span>
               {!readonly && (
                 <button
                   onClick={() => onCancel(m.id)}
                   disabled={isPending}
-                  className="shrink-0 text-blue-400 hover:text-red-500 transition-colors disabled:opacity-40 opacity-0 group-hover:opacity-100"
+                  className="shrink-0 text-ink-4 hover:text-bad transition-colors disabled:opacity-40 opacity-0 group-hover:opacity-100"
                   title="삭제"
                 >
                   <X className="h-3 w-3" />
@@ -479,14 +536,14 @@ function DayCell({
             <div
               key={s.id}
               className={cn(
-                "w-full flex items-center gap-1 px-2 py-1 rounded-md border text-xs font-medium",
+                "relative w-full flex items-center gap-1.5 pl-[10px] pr-2 py-1 rounded-[7px] text-[11.5px] font-medium",
                 PRIORITY_COLORS[s.priority]
               )}
             >
-              <span className="text-[10px] opacity-50 w-3 shrink-0">{studentSeatMap.get(s.id)}</span>
-              <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
-              <span className="truncate flex-1 text-left">{s.name}</span>
-              <span className="text-[10px] opacity-50">{s.grade}</span>
+              <span className={cn("absolute left-[2px] top-1 bottom-1 w-[2px] rounded-[2px]", PRIORITY_DOT[s.priority])} />
+              <span className="text-[10px] opacity-60 w-3 shrink-0 font-mono">{studentSeatMap.get(s.id)}</span>
+              <span className="truncate flex-1 text-left tracking-[-0.01em]">{s.name}</span>
+              <span className="text-[10px] opacity-60">{s.grade}</span>
             </div>
           ) : (
             <button
@@ -494,16 +551,16 @@ function DayCell({
               onClick={() => onSchedule(s.id)}
               disabled={isPending}
               className={cn(
-                "w-full flex items-center gap-1 px-2 py-1 rounded-md border text-xs font-medium transition-all",
+                "relative w-full flex items-center gap-1.5 pl-[10px] pr-2 py-1 rounded-[7px] text-[11.5px] font-medium transition-all",
                 "cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
                 PRIORITY_COLORS[s.priority]
               )}
               title={`클릭하여 멘토링 배정 (마지막: ${s.daysSinceLast === null ? "기록없음" : s.daysSinceLast + "일 전"})`}
             >
-              <span className="text-[10px] opacity-50 w-3 shrink-0">{studentSeatMap.get(s.id)}</span>
-              <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
-              <span className="truncate flex-1 text-left">{s.name}</span>
-              <span className="text-[10px] opacity-50">{s.grade}</span>
+              <span className={cn("absolute left-[2px] top-1 bottom-1 w-[2px] rounded-[2px]", PRIORITY_DOT[s.priority])} />
+              <span className="text-[10px] opacity-60 w-3 shrink-0 font-mono">{studentSeatMap.get(s.id)}</span>
+              <span className="truncate flex-1 text-left tracking-[-0.01em]">{s.name}</span>
+              <span className="text-[10px] opacity-60">{s.grade}</span>
             </button>
           )
         )}
@@ -513,7 +570,7 @@ function DayCell({
           <PopoverTrigger asChild>
             <button
               disabled={isPending}
-              className="w-full flex items-center justify-center gap-1 px-2 py-1 rounded-md border border-dashed border-muted-foreground/30 text-[11px] text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground transition-colors disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-1 px-2 py-1 rounded-[7px] border border-dashed border-line-strong text-[11px] text-ink-4 hover:border-ink-4 hover:text-ink-2 transition-colors disabled:opacity-50"
             >
               <Plus className="h-3 w-3" />
               {otherUnscheduled.length > 0 ? `${otherUnscheduled.length}명 더` : "추가"}
