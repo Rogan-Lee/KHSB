@@ -2,14 +2,14 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { generateMonthlyReportsBulk } from "@/actions/reports";
+import { generateMonthlyReportsBulk, markReportsSentBulk } from "@/actions/reports";
 import type { BulkReportResult } from "@/actions/reports";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Loader2, Search, X, CheckCircle2, Circle, Image as ImageIcon,
-  AlertCircle, XCircle,
+  AlertCircle, XCircle, Send, Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -43,16 +43,18 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
   const [bulkErrors, setBulkErrors] = useState<Record<string, string>>({});
   const [, startTransition] = useTransition();
   const [query, setQuery] = useState("");
+  const [showOnlyGenerated, setShowOnlyGenerated] = useState(false);
 
   const reportMap = useMemo(() => new Map(reports.map((r) => [r.studentId, r])), [reports]);
 
   const filteredStudents = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return students;
-    return students.filter((s) =>
-      s.name.toLowerCase().includes(q) || (s.grade ?? "").toLowerCase().includes(q)
-    );
-  }, [students, query]);
+    return students.filter((s) => {
+      if (showOnlyGenerated && !reportMap.has(s.id)) return false;
+      if (q && !s.name.toLowerCase().includes(q) && !(s.grade ?? "").toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [students, query, showOnlyGenerated, reportMap]);
 
   const activeStudent = useMemo(
     () => students.find((s) => s.id === activeStudentId) ?? null,
@@ -123,6 +125,26 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
     await runBulk(failedIds);
   }
 
+  // 일괄 발송: 선택한 학생 중 리포트 있고 sentAt==null 인 것들만
+  async function handleBulkMarkSent() {
+    const targetIds = Array.from(selectedIds)
+      .map((sid) => reportMap.get(sid))
+      .filter((r): r is ReportLite => !!r && !r.sentAt)
+      .map((r) => r.id);
+    if (targetIds.length === 0) {
+      toast.error("발송 처리할 리포트가 없습니다 (선택 중 생성된 미발송 리포트 0건)");
+      return;
+    }
+    if (!confirm(`${targetIds.length}개 리포트를 발송 처리하시겠습니까?`)) return;
+    try {
+      const { updated } = await markReportsSentBulk(targetIds);
+      toast.success(`${updated}건 발송 처리 완료`);
+      startTransition(() => router.refresh());
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "발송 처리 실패");
+    }
+  }
+
   const failedCount = Object.values(bulkProgress).filter((s) => s === "failed").length;
 
   return (
@@ -147,6 +169,16 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
               실패 {failedCount}건 재시도
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleBulkMarkSent}
+            disabled={selectedIds.size === 0}
+            className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+          >
+            <Send className="h-3.5 w-3.5 mr-1" />
+            선택 일괄 발송
+          </Button>
           <Button size="sm" onClick={handleBulkGenerate} disabled={bulkGenerating || selectedIds.size === 0}>
             {bulkGenerating ? (
               <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />생성 중…</>
@@ -161,28 +193,43 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
       <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-3 min-h-[600px]">
         {/* 좌측: 학생 리스트 */}
         <div className="border rounded-lg bg-background overflow-hidden flex flex-col">
-          <div className="px-3 py-2 border-b flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={filteredStudents.length > 0 && selectedIds.size === filteredStudents.length}
-              onChange={toggleAll}
-              className="rounded"
-              title="화면에 보이는 학생 전체 선택"
-            />
-            <div className="relative flex-1">
-              <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="이름/학년 검색"
-                className="h-7 pl-7 text-xs"
+          <div className="px-3 py-2 border-b flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={filteredStudents.length > 0 && selectedIds.size === filteredStudents.length}
+                onChange={toggleAll}
+                className="rounded"
+                title="화면에 보이는 학생 전체 선택"
               />
-              {query && (
-                <button onClick={() => setQuery("")} className="absolute right-2 top-1.5 text-muted-foreground hover:text-foreground">
-                  <X className="h-3 w-3" />
-                </button>
-              )}
+              <div className="relative flex-1">
+                <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="이름/학년 검색"
+                  className="h-7 pl-7 text-xs"
+                />
+                {query && (
+                  <button onClick={() => setQuery("")} className="absolute right-2 top-1.5 text-muted-foreground hover:text-foreground">
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
             </div>
+            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showOnlyGenerated}
+                onChange={(e) => setShowOnlyGenerated(e.target.checked)}
+                className="rounded h-3 w-3"
+              />
+              <Filter className="h-3 w-3" />
+              생성된 리포트만 보기
+              <span className="ml-auto tabular-nums">
+                {filteredStudents.length}/{students.length}
+              </span>
+            </label>
           </div>
           <div className="flex-1 overflow-y-auto divide-y">
             {filteredStudents.length === 0 ? (
