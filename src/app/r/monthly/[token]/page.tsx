@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { MonthlyExamTrendChart } from "@/components/reports/monthly-exam-trend-chart";
 import { MonthlyAttendanceDonut } from "@/components/reports/monthly-attendance-donut";
-import { User, Clock, TrendingUp, TrendingDown, Award, BookOpen, Bell, GraduationCap, Trophy } from "lucide-react";
+import { User, Clock, TrendingUp, TrendingDown, Award, BookOpen, Bell, GraduationCap, Trophy, Image as ImageIcon } from "lucide-react";
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -90,6 +90,17 @@ export default async function MonthlyParentReportPage({
     where: { page: "monthly_recommendation" },
     orderBy: { createdAt: "desc" },
   });
+
+  // §2.22: 첨부 사진 조회 (attachedPhotoIds 순서 유지)
+  const attachedPhotos = report.attachedPhotoIds.length > 0
+    ? await prisma.photo.findMany({
+        where: { id: { in: report.attachedPhotoIds } },
+        select: { id: true, url: true, thumbnailUrl: true, parsedDate: true, fileName: true },
+      })
+    : [];
+  const orderedPhotos = report.attachedPhotoIds
+    .map((pid) => attachedPhotos.find((p) => p.id === pid))
+    .filter((p): p is (typeof attachedPhotos)[number] => !!p);
 
   const studyDiff = diffSign(report.totalStudyMinutes, report.prevMonthStudyMinutes);
 
@@ -239,6 +250,38 @@ export default async function MonthlyParentReportPage({
               </span>
             </h2>
             <MarkdownViewer source={report.mentoringSummary} />
+          </section>
+        )}
+
+        {/* 3.5 이달의 사진 (§2.22 자동 첨부) */}
+        {orderedPhotos.length > 0 && (
+          <section className="bg-white rounded-xl border p-5">
+            <h2 className="flex items-center gap-2 text-base font-semibold mb-3">
+              <ImageIcon className="h-4 w-4 text-blue-600" />
+              이달의 기록 사진
+              <span className="text-xs font-normal text-muted-foreground ml-auto">
+                {orderedPhotos.length}장
+              </span>
+            </h2>
+            <div className="grid grid-cols-3 gap-2">
+              {orderedPhotos.map((p) => (
+                <a
+                  key={p.id}
+                  href={p.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block aspect-square rounded-lg overflow-hidden bg-muted hover:opacity-90 transition-opacity"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p.thumbnailUrl ?? p.url}
+                    alt={p.fileName}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </a>
+              ))}
+            </div>
           </section>
         )}
 
