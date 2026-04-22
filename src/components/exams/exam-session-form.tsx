@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { createExamSession, updateExamSession } from "@/actions/exam-sessions";
-import { DEFAULT_SUBJECTS } from "@/lib/exam-seats";
+import { DEFAULT_SUBJECTS, SUBJECT_PRESETS, SUBJECT_CATALOG } from "@/lib/exam-seats";
+import { X, Plus } from "lucide-react";
 import { ExamType } from "@/generated/prisma";
 import { EXAM_TYPE_LABELS } from "./exam-type-label";
 
@@ -38,10 +39,6 @@ export function ExamSessionForm({
   const [subjects, setSubjects] = useState<string[]>(initial?.subjects ?? [...DEFAULT_SUBJECTS]);
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [customSubject, setCustomSubject] = useState("");
-
-  function toggleSubject(s: string) {
-    setSubjects((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
-  }
 
   function addCustomSubject() {
     const trimmed = customSubject.trim();
@@ -82,7 +79,19 @@ export function ExamSessionForm({
     });
   }
 
-  const presetSubjects = [...DEFAULT_SUBJECTS, "한국사", "사회", "과학"];
+  function applyPreset(id: string) {
+    const preset = SUBJECT_PRESETS.find((p) => p.id === id);
+    if (preset) setSubjects([...preset.subjects]);
+  }
+
+  function addSubject(s: string) {
+    if (!s) return;
+    if (!subjects.includes(s)) setSubjects((prev) => [...prev, s]);
+  }
+
+  function removeSubject(s: string) {
+    setSubjects((prev) => prev.filter((x) => x !== s));
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-w-2xl">
@@ -124,53 +133,93 @@ export function ExamSessionForm({
         </div>
       </div>
 
-      <div>
-        <Label>과목</Label>
-        <div className="flex flex-wrap gap-2 mt-1">
-          {presetSubjects.map((s) => {
-            const checked = subjects.includes(s);
-            return (
-              <button
-                key={s}
-                type="button"
-                onClick={() => toggleSubject(s)}
-                className={
-                  "px-3 py-1.5 rounded-full border text-xs transition-colors " +
-                  (checked ? "bg-primary/10 border-primary text-primary" : "border-border text-muted-foreground hover:bg-muted")
-                }
-              >
-                {checked ? "✓ " : ""}
-                {s}
-              </button>
-            );
-          })}
-          {subjects.filter((s) => !presetSubjects.includes(s)).map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => toggleSubject(s)}
-              className="px-3 py-1.5 rounded-full border text-xs bg-primary/10 border-primary text-primary"
-            >
-              ✓ {s}
-            </button>
-          ))}
+      <div className="space-y-3">
+        <div>
+          <Label>시험 과목 프리셋 선택</Label>
+          <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
+            학년/시험 유형에 맞춰 한 번에 세팅할 수 있습니다. 선택 시 아래 과목 목록이 교체됩니다.
+          </p>
+          <Select onValueChange={applyPreset}>
+            <SelectTrigger>
+              <SelectValue placeholder="프리셋을 선택하세요 (선택 사항)" />
+            </SelectTrigger>
+            <SelectContent>
+              {SUBJECT_PRESETS.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <div className="flex gap-2 mt-2">
-          <Input
-            value={customSubject}
-            onChange={(e) => setCustomSubject(e.target.value)}
-            placeholder="과목 추가 (예: 생활과 윤리)"
-            className="max-w-xs"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addCustomSubject();
-              }
-            }}
-          />
-          <Button type="button" variant="outline" size="sm" onClick={addCustomSubject}>
-            추가
-          </Button>
+
+        <div>
+          <Label>개별 과목 추가</Label>
+          <div className="flex gap-2 mt-1 flex-wrap">
+            <Select onValueChange={(v) => addSubject(v)} value="">
+              <SelectTrigger className="max-w-sm">
+                <SelectValue placeholder="과목 선택 → 자동 추가" />
+              </SelectTrigger>
+              <SelectContent>
+                {SUBJECT_CATALOG.map((group) => (
+                  <div key={group.group}>
+                    <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/40">
+                      {group.group}
+                    </div>
+                    {group.items.map((s) => (
+                      <SelectItem key={s} value={s} disabled={subjects.includes(s)}>
+                        {s}
+                        {subjects.includes(s) && <span className="text-muted-foreground ml-2">(추가됨)</span>}
+                      </SelectItem>
+                    ))}
+                  </div>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex gap-1">
+              <Input
+                value={customSubject}
+                onChange={(e) => setCustomSubject(e.target.value)}
+                placeholder="직접 입력"
+                className="w-40"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addCustomSubject();
+                  }
+                }}
+              />
+              <Button type="button" variant="outline" size="sm" onClick={addCustomSubject}>
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <Label>선택된 과목 ({subjects.length}개)</Label>
+          <div className="flex flex-wrap gap-1.5 mt-1.5 min-h-[40px] p-2 border rounded-md bg-muted/30">
+            {subjects.length === 0 ? (
+              <span className="text-xs text-muted-foreground self-center">아직 추가된 과목이 없습니다.</span>
+            ) : (
+              subjects.map((s) => (
+                <span
+                  key={s}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border bg-primary/10 border-primary/30 text-primary text-xs"
+                >
+                  {s}
+                  <button
+                    type="button"
+                    onClick={() => removeSubject(s)}
+                    className="ml-0.5 opacity-70 hover:opacity-100"
+                    aria-label={`${s} 제거`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))
+            )}
+          </div>
         </div>
       </div>
 
