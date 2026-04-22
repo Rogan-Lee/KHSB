@@ -44,6 +44,30 @@ export async function getRecentHandovers(days = 14) {
   });
 }
 
+/** since 이후 전체 조회 (이전 날짜 피커 경유). 상한 90일. */
+export async function getHandoversSince(sinceYMD: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const since = new Date(sinceYMD);
+  if (isNaN(since.getTime())) throw new Error("잘못된 날짜");
+
+  // 안전장치: 90일보다 더 이전은 90일로 클램프
+  const floor = todayKST();
+  floor.setDate(floor.getDate() - 90);
+  const effective = since < floor ? floor : since;
+
+  return prisma.handover.findMany({
+    where: { date: { gte: effective } },
+    include: {
+      reads: { select: { userId: true, userName: true, readAt: true } },
+      tasks: { orderBy: { order: "asc" } },
+      checklist: { orderBy: { order: "asc" } },
+    },
+    orderBy: [{ date: "desc" }, { isPinned: "desc" }, { createdAt: "desc" }],
+  });
+}
+
 export async function getHandoverById(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
@@ -307,6 +331,31 @@ export async function toggleHandoverTask(taskId: string) {
     data: {
       isCompleted: !task.isCompleted,
       completedAt: !task.isCompleted ? new Date() : null,
+    },
+  });
+
+  revalidatePath("/handover");
+  revalidatePath("/");
+}
+
+export async function toggleHandoverChecklist(itemId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const item = await prisma.handoverChecklist.findUnique({
+    where: { id: itemId },
+    select: { isChecked: true },
+  });
+  if (!item) throw new Error("체크리스트 항목을 찾을 수 없습니다");
+
+  const nextChecked = !item.isChecked;
+  await prisma.handoverChecklist.update({
+    where: { id: itemId },
+    data: {
+      isChecked: nextChecked,
+      checkedAt: nextChecked ? new Date() : null,
+      checkedById: nextChecked ? session.user.id : null,
+      checkedByName: nextChecked ? session.user.name ?? "알 수 없음" : null,
     },
   });
 
