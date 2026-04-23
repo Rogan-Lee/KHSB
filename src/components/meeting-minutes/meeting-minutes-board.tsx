@@ -455,7 +455,7 @@ export function MeetingMinutesBoard({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const isAdmin = currentUserRole === "DIRECTOR" || currentUserRole === "ADMIN";
+  const isAdmin = currentUserRole === "DIRECTOR" || currentUserRole === "SUPER_ADMIN";
 
   const emptyForm: FormState = { title: "", date: todayStr(), content: "", attendees: [], team: activeTeam };
 

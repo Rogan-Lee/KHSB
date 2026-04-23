@@ -174,11 +174,12 @@ export default async function DashboardPage() {
         <KpiTile label="인수인계" value={unreadCount} unit="건 미읽음" accent="var(--warn)" />
       </KpiStrip>
 
-      {/* Alert strip */}
-      {(unreadCount > 0 || tardyCount + absentCount > 0 || upcomingConsultations.length > 0) && (
-        <AlertStrip cols={3} className="mb-0">
-          {unreadCount > 0 ? (
+      {/* Alert strip — render only alerts that actually have content */}
+      {(() => {
+        const alerts = [
+          unreadCount > 0 && (
             <AlertCard
+              key="handover"
               tone="info"
               icon={<FileText className="h-4 w-4" />}
               title={`인수인계 ${unreadCount}건 미읽음`}
@@ -186,9 +187,10 @@ export default async function DashboardPage() {
               cta="확인"
               href="/handover"
             />
-          ) : <PlaceholderAlert />}
-          {tardyCount + absentCount > 0 ? (
+          ),
+          tardyCount + absentCount > 0 && (
             <AlertCard
+              key="attendance"
               tone="warn"
               icon={<AlertTriangle className="h-4 w-4" />}
               title={`오늘 지각·결석 ${tardyCount + absentCount}명`}
@@ -196,9 +198,10 @@ export default async function DashboardPage() {
               cta="출결 보기"
               href="/attendance"
             />
-          ) : <PlaceholderAlert />}
-          {upcomingConsultations.length > 0 ? (
+          ),
+          upcomingConsultations.length > 0 && (
             <AlertCard
+              key="consultations"
               tone="bad"
               icon={<Bell className="h-4 w-4" />}
               title={`예정 면담 ${upcomingConsultations.length}건`}
@@ -206,9 +209,11 @@ export default async function DashboardPage() {
               cta="면담 보기"
               href="/consultations"
             />
-          ) : <PlaceholderAlert />}
-        </AlertStrip>
-      )}
+          ),
+        ].filter(Boolean);
+        if (alerts.length === 0) return null;
+        return <AlertStrip cols={alerts.length} className="mb-0">{alerts}</AlertStrip>;
+      })()}
 
       {/* 1.5fr / 1fr layout — activity left, today stack right */}
       <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr] gap-4">
@@ -270,7 +275,7 @@ export default async function DashboardPage() {
                         <span className="w-1.5 h-1.5 rounded-full bg-brand" />
                         <span className="font-semibold text-ink tracking-[-0.01em]">{m.student.name}</span>
                         <span className="text-[11px] text-ink-4">{m.student.grade}</span>
-                        {(session?.user?.role === "DIRECTOR" || session?.user?.role === "ADMIN") && (
+                        {(session?.user?.role === "DIRECTOR" || session?.user?.role === "SUPER_ADMIN") && (
                           <span className="ml-auto text-[11px] text-ink-4">{m.mentor.name}</span>
                         )}
                       </div>
@@ -394,17 +399,6 @@ export default async function DashboardPage() {
     >
       {dashboardContent}
     </DashboardWrapper>
-  );
-}
-
-function PlaceholderAlert() {
-  return (
-    <div className="flex items-center gap-3 px-[14px] py-3 bg-panel-2 border border-line border-dashed rounded-[10px] text-[11.5px] text-ink-4">
-      <span className="grid place-items-center w-[30px] h-[30px] rounded-[8px] bg-canvas-2 text-ink-5">
-        ·
-      </span>
-      <span>이상 없음</span>
-    </div>
   );
 }
 

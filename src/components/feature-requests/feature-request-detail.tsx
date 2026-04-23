@@ -106,7 +106,7 @@ function CommentSection({
   }
 
   const canDelete = (c: FeatureRequestComment) =>
-    c.authorId === currentUserId || currentUserRole === "ADMIN" || currentUserRole === "DIRECTOR";
+    c.authorId === currentUserId || currentUserRole === "SUPER_ADMIN" || currentUserRole === "DIRECTOR";
 
   return (
     <Card>

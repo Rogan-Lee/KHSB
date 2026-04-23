@@ -201,7 +201,7 @@ export async function updateFullHandover(
   if (
     existing.authorId !== session.user.id &&
     session.user.role !== "DIRECTOR" &&
-    session.user.role !== "ADMIN"
+    session.user.role !== "SUPER_ADMIN"
   ) {
     throw new Error("수정 권한이 없습니다");
   }
@@ -289,7 +289,7 @@ export async function deleteHandover(id: string) {
   if (
     existing.authorId !== session.user.id &&
     session.user.role !== "DIRECTOR" &&
-    session.user.role !== "ADMIN"
+    session.user.role !== "SUPER_ADMIN"
   ) {
     throw new Error("삭제 권한이 없습니다");
   }
@@ -381,7 +381,7 @@ export async function getStaffList() {
   if (!session?.user) throw new Error("Unauthorized");
 
   return prisma.user.findMany({
-    where: { role: { in: ["ADMIN", "DIRECTOR", "MENTOR", "STAFF"] } },
+    where: { role: { in: ["SUPER_ADMIN", "DIRECTOR", "MENTOR", "STAFF"] } },
     select: { id: true, name: true, role: true },
     orderBy: { name: "asc" },
   });
