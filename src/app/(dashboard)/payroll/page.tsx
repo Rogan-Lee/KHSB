@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
-import { getAllPayrollData } from "@/actions/payroll";
+import { getAllPayrollData, getPayrollCandidates } from "@/actions/payroll";
 import { PageIntro } from "@/components/ui/page-intro";
 import { Card, CardContent } from "@/components/ui/card";
 import { PayrollAdminBoard } from "@/components/payroll/payroll-admin-board";
@@ -29,7 +29,10 @@ export default async function PayrollPage({
   const year = sp.year ? Number(sp.year) : now.getFullYear();
   const month = sp.month ? Number(sp.month) : now.getMonth() + 1;
 
-  const { staff, tags } = await getAllPayrollData(year, month);
+  const [{ staff, tags }, candidates] = await Promise.all([
+    getAllPayrollData(year, month),
+    getPayrollCandidates(),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -62,6 +65,7 @@ export default async function PayrollPage({
               record: s.payrollRecords[0] ?? null,
             }))}
             tags={tags}
+            candidates={candidates}
           />
         </CardContent>
       </Card>

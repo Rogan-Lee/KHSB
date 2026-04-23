@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
-  Calculator, AlertTriangle, Pencil, Save, Plus, Trash2, Bell, ChevronLeft, ChevronRight,
+  Calculator, AlertTriangle, Pencil, Save, Plus, Trash2, Bell, ChevronLeft, ChevronRight, UserPlus, X,
 } from "lucide-react";
 import {
   setPayrollSetting,
@@ -31,12 +31,15 @@ type StaffRow = {
 };
 
 const ROLE_LABEL: Record<string, string> = {
-  ADMIN: "관리자",
+  SUPER_ADMIN: "시스템 관리자",
+  ADMIN: "(구) 어드민",
   DIRECTOR: "원장",
   MENTOR: "멘토",
   STAFF: "스태프",
   STUDENT: "학생",
 };
+
+type CandidateUser = { id: string; name: string; role: string; email: string };
 
 function formatWon(n: number): string {
   return n.toLocaleString("ko-KR") + "원";
@@ -58,18 +61,22 @@ export function PayrollAdminBoard({
   month,
   staff,
   tags,
+  candidates = [],
 }: {
   year: number;
   month: number;
   staff: StaffRow[];
   tags: WorkTag[];
+  candidates?: CandidateUser[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [expandedStaff, setExpandedStaff] = useState<Record<string, boolean>>({});
+  const [activeStaffId, setActiveStaffId] = useState<string | null>(staff[0]?.id ?? null);
   const [editingTag, setEditingTag] = useState<string | null>(null);
   const [rateEdit, setRateEdit] = useState<Record<string, { rate: string; holiday: boolean }>>({});
   const [addForStaff, setAddForStaff] = useState<string | null>(null);
+  // 신규 직원 추가 드롭다운
+  const [showAddCandidate, setShowAddCandidate] = useState(false);
 
   // 월별 사용자 그룹
   const tagsByUser = useMemo(() => {
@@ -194,125 +201,204 @@ export function PayrollAdminBoard({
         )}
       </div>
 
-      {/* 직원 목록 */}
-      <div className="space-y-2">
-        {staff.map((s) => {
-          const userTags = (tagsByUser.get(s.id) ?? []).slice().sort((a, b) => new Date(a.taggedAt).getTime() - new Date(b.taggedAt).getTime());
-          const computed = s.hourlyRate != null
-            ? calculatePayrollFromTags(userTags, s.hourlyRate, s.weeklyHolidayPay)
-            : null;
-          const isEditing = rateEdit[s.id] !== undefined;
-          const open = expandedStaff[s.id] ?? false;
-          const hasMissing = computed?.missing && computed.missing.length > 0;
-          return (
-            <div key={s.id} className="border rounded-lg overflow-hidden">
-              <div className="flex items-center gap-3 p-3 bg-muted/20">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold">{s.name}</span>
-                    <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{ROLE_LABEL[s.role] ?? s.role}</span>
-                    {hasMissing && (
-                      <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
-                        누락 {computed!.missing.length}
-                      </span>
-                    )}
+      {/* 마스터-디테일 */}
+      <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-3 min-h-[500px]">
+        {/* 좌측: 직원 칩스 + 추가 */}
+        <div className="flex flex-col gap-2">
+          <div className="border rounded-lg bg-background overflow-hidden flex-1 flex flex-col">
+            <div className="px-3 py-2 border-b bg-muted/40 flex items-center gap-2">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex-1">
+                직원 ({staff.length})
+              </span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              {staff.length === 0 ? (
+                <p className="p-4 text-center text-xs text-muted-foreground">
+                  아직 관리 중인 직원이 없습니다.<br />아래 &quot;직원 추가&quot; 로 시작하세요.
+                </p>
+              ) : (
+                staff.map((s) => {
+                  const userTags = (tagsByUser.get(s.id) ?? []);
+                  const computed = s.hourlyRate != null
+                    ? calculatePayrollFromTags(userTags, s.hourlyRate, s.weeklyHolidayPay)
+                    : null;
+                  const hasMissing = computed?.missing && computed.missing.length > 0;
+                  const isActive = activeStaffId === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setActiveStaffId(s.id)}
+                      className={cn(
+                        "w-full text-left rounded-md px-2.5 py-2 transition-colors flex items-start gap-2",
+                        isActive
+                          ? "bg-primary/10 border border-primary"
+                          : "border border-transparent hover:bg-muted/60"
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-sm truncate">{s.name}</span>
+                          <span className="text-[9px] bg-muted px-1 py-0.5 rounded">{ROLE_LABEL[s.role] ?? s.role}</span>
+                        </div>
+                        <div className="text-[10.5px] text-muted-foreground mt-0.5">
+                          {s.hourlyRate != null ? `시급 ${formatWon(s.hourlyRate)}` : <span className="text-red-600">시급 미설정</span>}
+                        </div>
+                        {computed && (
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            {minutesToHm(computed.totalMinutes)} · {formatWon(computed.totalWage)}
+                          </div>
+                        )}
+                      </div>
+                      {hasMissing && (
+                        <span className="text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded shrink-0" title="OUT 누락">
+                          !
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* 직원 추가 */}
+          <div className="border rounded-lg bg-background p-3">
+            {!showAddCandidate ? (
+              <Button size="sm" variant="outline" className="w-full" onClick={() => setShowAddCandidate(true)} disabled={candidates.length === 0}>
+                <UserPlus className="h-3.5 w-3.5 mr-1" />
+                직원 추가 {candidates.length > 0 && <span className="ml-1 text-[10px] text-muted-foreground">({candidates.length})</span>}
+              </Button>
+            ) : (
+              <AddCandidateForm
+                candidates={candidates}
+                onDone={(userId) => {
+                  setShowAddCandidate(false);
+                  setActiveStaffId(userId);
+                  router.refresh();
+                }}
+                onCancel={() => setShowAddCandidate(false)}
+              />
+            )}
+            {candidates.length === 0 && !showAddCandidate && (
+              <p className="text-[10px] text-muted-foreground mt-1 text-center">
+                추가 가능한 직원이 없습니다
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* 우측: 선택된 직원 디테일 */}
+        <div className="border rounded-lg bg-background overflow-hidden">
+          {!activeStaffId ? (
+            <div className="flex items-center justify-center h-full min-h-[500px] text-sm text-muted-foreground">
+              좌측에서 직원을 선택하세요
+            </div>
+          ) : (() => {
+            const s = staff.find((x) => x.id === activeStaffId);
+            if (!s) {
+              return (
+                <div className="flex items-center justify-center h-full min-h-[500px] text-sm text-muted-foreground">
+                  선택된 직원이 목록에서 제거되었습니다.
+                </div>
+              );
+            }
+            const userTags = (tagsByUser.get(s.id) ?? []).slice().sort((a, b) => new Date(a.taggedAt).getTime() - new Date(b.taggedAt).getTime());
+            const computed = s.hourlyRate != null
+              ? calculatePayrollFromTags(userTags, s.hourlyRate, s.weeklyHolidayPay)
+              : null;
+            const isEditing = rateEdit[s.id] !== undefined;
+            const hasMissing = computed?.missing && computed.missing.length > 0;
+            return (
+              <div>
+                {/* 헤더 */}
+                <div className="flex items-center gap-3 p-4 border-b bg-muted/20 flex-wrap">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-base">{s.name}</span>
+                      <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">{ROLE_LABEL[s.role] ?? s.role}</span>
+                      {hasMissing && (
+                        <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                          OUT 누락 {computed!.missing.length}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {s.hourlyRate != null ? (
+                        <>시급 {formatWon(s.hourlyRate)}{s.weeklyHolidayPay && " · 주휴수당 지급"}</>
+                      ) : (
+                        <span className="text-red-600">시급 미설정</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {s.hourlyRate != null ? (
-                      <>
-                        시급 {formatWon(s.hourlyRate)}
-                        {s.weeklyHolidayPay && " · 주휴수당 지급"}
-                      </>
-                    ) : (
-                      <span className="text-red-600">시급 미설정</span>
-                    )}
-                  </div>
+
+                  {/* 시급 편집 */}
+                  {isEditing ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        min={0}
+                        step={10}
+                        className="w-24 h-8"
+                        value={rateEdit[s.id].rate}
+                        onChange={(e) => setRateEdit((p) => ({ ...p, [s.id]: { ...p[s.id], rate: e.target.value } }))}
+                        placeholder="시급"
+                      />
+                      <label className="text-[11px] flex items-center gap-1 text-muted-foreground">
+                        <Checkbox
+                          checked={rateEdit[s.id].holiday}
+                          onCheckedChange={(v) => setRateEdit((p) => ({ ...p, [s.id]: { ...p[s.id], holiday: !!v } }))}
+                        />
+                        주휴
+                      </label>
+                      <Button size="sm" onClick={() => handleRateSave(s.id)} disabled={pending}>
+                        <Save className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setRateEdit((prev) => { const n = { ...prev }; delete n[s.id]; return n; })}>
+                        취소
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => setRateEdit((p) => ({ ...p, [s.id]: { rate: String(s.hourlyRate ?? ""), holiday: s.weeklyHolidayPay } }))}>
+                      <Pencil className="h-3.5 w-3.5 mr-1" />시급
+                    </Button>
+                  )}
+
+                  <Button
+                    size="sm"
+                    onClick={() => handleCalculate(s.id)}
+                    disabled={pending || s.hourlyRate == null}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Calculator className="h-3.5 w-3.5 mr-1" />이 달 계산
+                  </Button>
                 </div>
 
-                {/* 시급 편집 */}
-                {isEditing ? (
-                  <div className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      min={0}
-                      step={10}
-                      className="w-24 h-8"
-                      value={rateEdit[s.id].rate}
-                      onChange={(e) => setRateEdit((p) => ({ ...p, [s.id]: { ...p[s.id], rate: e.target.value } }))}
-                      placeholder="시급"
-                    />
-                    <label className="text-[11px] flex items-center gap-1 text-muted-foreground">
-                      <Checkbox
-                        checked={rateEdit[s.id].holiday}
-                        onCheckedChange={(v) => setRateEdit((p) => ({ ...p, [s.id]: { ...p[s.id], holiday: !!v } }))}
-                      />
-                      주휴
-                    </label>
-                    <Button size="sm" onClick={() => handleRateSave(s.id)} disabled={pending}>
-                      <Save className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setRateEdit((prev) => { const n = { ...prev }; delete n[s.id]; return n; })}>
-                      취소
-                    </Button>
+                {/* 계산 요약 */}
+                <div className="px-4 py-3 border-b grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <Cell label="근무">{computed ? minutesToHm(computed.totalMinutes) : "시급 미설정"}</Cell>
+                  <Cell label="기본급">{computed ? formatWon(computed.baseWage) : "—"}</Cell>
+                  <Cell label="주휴수당">{computed ? formatWon(computed.weeklyHolidayWage) : "—"}</Cell>
+                  <Cell label="총 예상 지급">
+                    <span className="font-bold text-blue-700">{computed ? formatWon(computed.totalWage) : "—"}</span>
+                  </Cell>
+                </div>
+                {s.record && (
+                  <div className="px-4 py-2 border-b bg-emerald-50 text-[11px] text-emerald-800 flex items-center gap-2 flex-wrap">
+                    <span>저장된 정산:</span>
+                    <span>{minutesToHm(s.record.workMinutes)}</span>
+                    <span>· 총 {formatWon(s.record.totalWage)}</span>
+                    <span className="ml-auto">
+                      {new Date(s.record.calculatedAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} 계산됨
+                    </span>
                   </div>
-                ) : (
-                  <Button size="sm" variant="outline" onClick={() => setRateEdit((p) => ({ ...p, [s.id]: { rate: String(s.hourlyRate ?? ""), holiday: s.weeklyHolidayPay } }))}>
-                    <Pencil className="h-3.5 w-3.5 mr-1" />
-                    시급
-                  </Button>
                 )}
 
-                <Button
-                  size="sm"
-                  onClick={() => handleCalculate(s.id)}
-                  disabled={pending || s.hourlyRate == null}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <Calculator className="h-3.5 w-3.5 mr-1" />
-                  이 달 계산
-                </Button>
-
-                <button
-                  type="button"
-                  onClick={() => setExpandedStaff((p) => ({ ...p, [s.id]: !p[s.id] }))}
-                  className="text-xs text-muted-foreground hover:text-foreground ml-1"
-                >
-                  {open ? "접기" : "펼치기"}
-                </button>
-              </div>
-
-              {/* 저장된 PayrollRecord + 실시간 계산 미리보기 */}
-              <div className="px-3 py-2 border-t bg-background grid grid-cols-4 gap-3 text-sm">
-                <Cell label="근무">{computed ? minutesToHm(computed.totalMinutes) : "시급 미설정"}</Cell>
-                <Cell label="기본급">{computed ? formatWon(computed.baseWage) : "—"}</Cell>
-                <Cell label="주휴수당">{computed ? formatWon(computed.weeklyHolidayWage) : "—"}</Cell>
-                <Cell label="총 예상 지급">
-                  <span className="font-bold text-blue-700">{computed ? formatWon(computed.totalWage) : "—"}</span>
-                </Cell>
-              </div>
-              {s.record && (
-                <div className="px-3 py-1.5 border-t bg-emerald-50 text-[11px] text-emerald-800 flex items-center gap-2">
-                  <span>저장된 정산:</span>
-                  <span>{minutesToHm(s.record.workMinutes)}</span>
-                  <span>· 총 {formatWon(s.record.totalWage)}</span>
-                  <span className="ml-auto">
-                    {new Date(s.record.calculatedAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })} 계산됨
-                  </span>
-                </div>
-              )}
-
-              {/* 태그 목록 (펼침) */}
-              {open && (
-                <div className="border-t">
-                  <div className="px-3 py-2 flex items-center gap-2">
-                    <span className="text-xs font-semibold text-muted-foreground">출퇴근 태그</span>
-                    <span className="text-[11px] text-muted-foreground">({userTags.length}개)</span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setAddForStaff(s.id)}
-                      className="ml-auto h-7 text-xs"
-                    >
+                {/* 태그 목록 (항상 표시) */}
+                <div>
+                  <div className="px-4 py-2 flex items-center gap-2 border-b">
+                    <span className="text-xs font-semibold text-muted-foreground">출퇴근 태그 ({userTags.length})</span>
+                    <Button size="sm" variant="outline" onClick={() => setAddForStaff(s.id)} className="ml-auto h-7 text-xs">
                       <Plus className="h-3 w-3 mr-1" />수동 추가
                     </Button>
                   </div>
@@ -370,10 +456,77 @@ export function PayrollAdminBoard({
                     </table>
                   )}
                 </div>
-              )}
-            </div>
-          );
-        })}
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 직원 추가 ─────────────────────────────────────────────────────────
+
+function AddCandidateForm({
+  candidates,
+  onDone,
+  onCancel,
+}: {
+  candidates: CandidateUser[];
+  onDone: (userId: string) => void;
+  onCancel: () => void;
+}) {
+  const [selectedId, setSelectedId] = useState<string>(candidates[0]?.id ?? "");
+  const [rate, setRate] = useState<string>("");
+  const [holiday, setHoliday] = useState<boolean>(true);
+  const [pending, startTransition] = useTransition();
+
+  function save() {
+    const n = Number(rate);
+    if (!selectedId) { toast.error("직원 선택"); return; }
+    if (!Number.isFinite(n) || n < 0) { toast.error("시급은 0 이상"); return; }
+    startTransition(async () => {
+      try {
+        await setPayrollSetting(selectedId, { hourlyRate: Math.round(n), weeklyHolidayPay: holiday });
+        toast.success("직원 추가 완료");
+        onDone(selectedId);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "추가 실패");
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-2">
+      <select
+        className="w-full h-8 text-xs border rounded px-2 bg-background"
+        value={selectedId}
+        onChange={(e) => setSelectedId(e.target.value)}
+      >
+        {candidates.map((c) => (
+          <option key={c.id} value={c.id}>{c.name} ({c.role})</option>
+        ))}
+      </select>
+      <Input
+        type="number"
+        min={0}
+        step={10}
+        value={rate}
+        onChange={(e) => setRate(e.target.value)}
+        placeholder="시급 (원)"
+        className="h-8 text-xs"
+      />
+      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <Checkbox checked={holiday} onCheckedChange={(v) => setHoliday(!!v)} />
+        주휴수당 지급
+      </label>
+      <div className="flex gap-1">
+        <Button size="sm" onClick={save} disabled={pending} className="flex-1 h-7 text-xs">
+          {pending ? "저장 중…" : "추가"}
+        </Button>
+        <Button size="sm" variant="outline" onClick={onCancel} className="h-7 text-xs">
+          <X className="h-3 w-3" />
+        </Button>
       </div>
     </div>
   );
