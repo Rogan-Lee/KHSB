@@ -33,6 +33,7 @@ export async function clockIn(note?: string) {
       note: note?.trim() || null,
     },
   });
+  revalidatePath("/");
   revalidatePath("/payroll/me");
   revalidatePath("/payroll");
   return tag;
@@ -58,6 +59,7 @@ export async function clockOut(note?: string) {
       note: note?.trim() || null,
     },
   });
+  revalidatePath("/");
   revalidatePath("/payroll/me");
   revalidatePath("/payroll");
   return tag;
