@@ -7,7 +7,7 @@ export async function GET() {
   if (!session?.user) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
-  if (session.user.role !== "DIRECTOR" && session.user.role !== "ADMIN") {
+  if (session.user.role !== "DIRECTOR" && session.user.role !== "SUPER_ADMIN") {
     return new NextResponse("Forbidden", { status: 403 });
   }
   if (!isOAuthAppConfigured()) {

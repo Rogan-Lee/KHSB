@@ -14,7 +14,8 @@ import { LogOut, Menu, User, Bell } from "lucide-react";
 import type { Role } from "@/generated/prisma";
 
 const ROLE_LABELS: Record<Role, string> = {
-  ADMIN: "어드민",
+  SUPER_ADMIN: "시스템 관리자",
+  ADMIN: "(구) 어드민",
   DIRECTOR: "원장",
   MENTOR: "멘토",
   STAFF: "운영조교",
@@ -35,7 +36,7 @@ export function AppHeader({ user, title, onMenuClick }: AppHeaderProps) {
   const { signOut } = useClerk();
 
   return (
-    <header className="h-12 border-b border-line bg-panel flex items-center justify-between px-4 md:px-5 sticky top-0 z-10">
+    <header className="h-12 bg-panel flex items-center justify-between px-4 md:px-5 sticky top-0 z-10">
       <div className="flex items-center gap-2">
         <button
           className="md:hidden p-1.5 rounded-[8px] hover:bg-canvas-2 text-ink-3 transition-colors"

@@ -65,7 +65,7 @@ export function MonthlyNotesPanel({
   const setSelectedStudent = (s: Student | null) => setFormDraft((d) => ({ ...d, selectedStudent: s }));
   const setManualName = (v: string) => setFormDraft((d) => ({ ...d, manualName: v }));
 
-  const isAdmin = currentUserRole === "DIRECTOR" || currentUserRole === "ADMIN";
+  const isAdmin = currentUserRole === "DIRECTOR" || currentUserRole === "SUPER_ADMIN";
 
   const filteredStudents = students.filter((s) =>
     s.name.includes(studentQuery) || s.grade.includes(studentQuery)

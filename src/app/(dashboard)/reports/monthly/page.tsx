@@ -14,7 +14,7 @@ export default async function MonthlyReportsPage({
 }) {
   const session = await auth();
   if (!session?.user) redirect("/sign-in");
-  if (session.user.role !== "DIRECTOR" && session.user.role !== "ADMIN") redirect("/");
+  if (session.user.role !== "DIRECTOR" && session.user.role !== "SUPER_ADMIN") redirect("/");
 
   const params = await searchParams;
   const now = new Date();

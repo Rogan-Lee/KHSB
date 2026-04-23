@@ -36,7 +36,7 @@ export default async function CalendarPage({
     }),
   ]);
 
-  const isDirector = session?.user?.role === "DIRECTOR" || session?.user?.role === "ADMIN";
+  const isDirector = session?.user?.role === "DIRECTOR" || session?.user?.role === "SUPER_ADMIN";
   const googleConnected = await isGoogleCalendarConfigured();
   const oauthConfigured = isOAuthAppConfigured();
 

@@ -7,7 +7,7 @@ import { CardNewsClient } from "@/components/card-news/card-news-client";
 export default async function CardNewsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "DIRECTOR" && session.user.role !== "ADMIN") {
+  if (session.user.role !== "DIRECTOR" && session.user.role !== "SUPER_ADMIN") {
     redirect("/");
   }
 

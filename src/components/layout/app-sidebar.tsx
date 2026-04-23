@@ -289,7 +289,7 @@ export function AppSidebar({
       {/* Nav */}
       <nav className={cn("flex-1 overflow-y-auto pt-[18px]", isCollapsed && "px-0")}>
         {navSections.map(renderSection)}
-        {(role === "DIRECTOR" || role === "ADMIN") &&
+        {(role === "DIRECTOR" || role === "SUPER_ADMIN") &&
           renderSection(directorSection, navSections.length)}
       </nav>
 
