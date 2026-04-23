@@ -287,7 +287,7 @@ export async function getAllPayrollData(year: number, month: number) {
   requireFullAccess(session?.user?.role);
 
   const staff = await prisma.user.findMany({
-    where: { role: { in: ["MENTOR", "STAFF", "DIRECTOR", "ADMIN"] } },
+    where: { role: { in: ["MENTOR", "STAFF", "DIRECTOR", "SUPER_ADMIN"] } },
     select: {
       id: true,
       name: true,

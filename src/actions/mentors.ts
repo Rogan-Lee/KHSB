@@ -36,9 +36,9 @@ export async function updateMentor(id: string, formData: FormData) {
 
   if (!name || !email) throw new Error("필수 항목을 입력하세요");
 
-  const validRoles = ["MENTOR", "STAFF", "DIRECTOR", "ADMIN"];
-  const data: { name: string; email: string; role?: "MENTOR" | "STAFF" | "DIRECTOR" | "ADMIN" } = { name, email };
-  if (role && validRoles.includes(role)) data.role = role as "MENTOR" | "STAFF" | "DIRECTOR" | "ADMIN";
+  const validRoles = ["MENTOR", "STAFF", "DIRECTOR", "SUPER_ADMIN"];
+  const data: { name: string; email: string; role?: "MENTOR" | "STAFF" | "DIRECTOR" | "SUPER_ADMIN" } = { name, email };
+  if (role && validRoles.includes(role)) data.role = role as "MENTOR" | "STAFF" | "DIRECTOR" | "SUPER_ADMIN";
 
   await prisma.user.update({ where: { id }, data });
   revalidatePath("/mentors");

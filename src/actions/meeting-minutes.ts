@@ -65,7 +65,7 @@ export async function updateMeetingMinutes(
   if (
     existing.authorId !== session.user.id &&
     session.user.role !== "DIRECTOR" &&
-    session.user.role !== "ADMIN"
+    session.user.role !== "SUPER_ADMIN"
   ) {
     throw new Error("수정 권한이 없습니다");
   }
@@ -97,7 +97,7 @@ export async function deleteMeetingMinutes(id: string) {
   if (
     existing.authorId !== session.user.id &&
     session.user.role !== "DIRECTOR" &&
-    session.user.role !== "ADMIN"
+    session.user.role !== "SUPER_ADMIN"
   ) {
     throw new Error("삭제 권한이 없습니다");
   }

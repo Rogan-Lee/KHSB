@@ -46,7 +46,7 @@ export async function updateMonthlyNote(id: string, content: string) {
 
   const existing = await prisma.monthlyNote.findUnique({ where: { id } });
   if (!existing) throw new Error("메모를 찾을 수 없습니다");
-  if (existing.authorId !== session.user.id && session.user.role !== "DIRECTOR" && session.user.role !== "ADMIN") {
+  if (existing.authorId !== session.user.id && session.user.role !== "DIRECTOR" && session.user.role !== "SUPER_ADMIN") {
     throw new Error("수정 권한이 없습니다");
   }
 
@@ -65,7 +65,7 @@ export async function deleteMonthlyNote(id: string) {
 
   const existing = await prisma.monthlyNote.findUnique({ where: { id } });
   if (!existing) throw new Error("메모를 찾을 수 없습니다");
-  if (existing.authorId !== session.user.id && session.user.role !== "DIRECTOR" && session.user.role !== "ADMIN") {
+  if (existing.authorId !== session.user.id && session.user.role !== "DIRECTOR" && session.user.role !== "SUPER_ADMIN") {
     throw new Error("삭제 권한이 없습니다");
   }
 

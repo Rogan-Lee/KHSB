@@ -426,7 +426,7 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
             <span className="text-sm font-semibold">루틴 관리</span>
           </div>
           <div className="p-4">
-            {currentUserRole === "DIRECTOR" || currentUserRole === "ADMIN" ? (
+            {currentUserRole === "DIRECTOR" || currentUserRole === "SUPER_ADMIN" ? (
               <ChecklistManager initialTemplates={initialTemplates} />
             ) : (
               <p className="text-sm text-muted-foreground text-center py-4">루틴 관리는 관리자만 가능합니다.</p>

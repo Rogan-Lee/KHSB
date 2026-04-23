@@ -8,8 +8,9 @@ datasource db {
 }
 
 enum Role {
-  ADMIN
-  DIRECTOR
+  SUPER_ADMIN   // 시스템 최상위 관리자 (다계정 가능)
+  ADMIN         // (deprecated) 이전 버전 호환, 신규 생성 금지
+  DIRECTOR      // 원장
   MENTOR
   STAFF
   STUDENT
