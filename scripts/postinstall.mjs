@@ -9,6 +9,6 @@ if (result.status !== 0) process.exit(result.status ?? 1);
 
 writeFileSync(
   "src/generated/prisma/index.ts",
-  "export * from './client'\nexport type * from './models'\n"
+  "export * from './client'\nexport * from './enums'\nexport type * from './models'\n"
 );
 console.log("✅ src/generated/prisma/index.ts 재생성 완료");
