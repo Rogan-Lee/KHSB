@@ -90,7 +90,7 @@ const directorSection: NavSection = {
   items: [
     { href: "/mentors", label: "직원 관리", icon: UserCog, feature: "mentors" },
     { href: "/payroll", label: "급여 정산", icon: Wallet, feature: "payroll" },
-    { href: "/reports", label: "월간 리포트", icon: BarChart3, feature: "reports" },
+    { href: "/reports/monthly", label: "월간 리포트", icon: BarChart3, feature: "reports" },
     { href: "/analytics", label: "성과 분석", icon: TrendingUp, feature: "analytics" },
     { href: "/admin/school-stats", label: "학교별 통계", icon: Building2, feature: "school-stats" },
   ],
@@ -196,69 +196,94 @@ export function AppSidebar({
 
   return (
     <aside className={cn(
-      "h-screen bg-sidebar flex flex-col transition-[width] duration-300 p-2.5",
+      "group/sb h-screen bg-sidebar flex flex-col transition-[width] duration-300 p-2.5",
       isCollapsed ? "w-16" : "w-[240px]",
       !mobile && "fixed left-0 top-0"
     )}>
-      {/* Workspace card */}
-      <div className="group relative shrink-0">
-        <button
-          type="button"
-          onClick={onToggle}
-          disabled={!onToggle}
-          title={isCollapsed ? "사이드바 펼치기" : "사이드바 접기"}
-          className={cn(
-            "w-full flex items-center gap-2.5 p-2.5 rounded-[10px] bg-panel border border-line shadow-[var(--shadow-xs)]",
-            onToggle && "hover:border-line-strong cursor-pointer",
-            isCollapsed && "justify-center p-2"
-          )}
-        >
-          <div className="w-8 h-8 rounded-[9px] bg-ink text-white grid place-items-center shrink-0 text-[13px] font-bold tracking-[-0.02em] relative overflow-hidden">
-            K
-            <span className="absolute inset-[2px] rounded-[7px] bg-[linear-gradient(135deg,rgba(255,255,255,0.08),transparent_60%)] pointer-events-none" />
-          </div>
-          {!isCollapsed && (
-            <div className="min-w-0 text-left flex-1">
-              <p className="font-semibold text-[12.5px] text-ink tracking-[-0.015em] truncate">KHSB BackOffice</p>
-              <p className="text-[11px] text-ink-4 leading-none mt-0.5">원장 · {PLAN_LABELS[plan].label}</p>
-            </div>
-          )}
-          {!isCollapsed && onToggle && (
-            <ChevronsLeft className="h-3.5 w-3.5 text-ink-4 shrink-0" />
-          )}
-        </button>
-        {isCollapsed && onToggle && (
+      {/* Workspace / logo — icon-only when collapsed, full card when expanded */}
+      <div className="shrink-0">
+        {isCollapsed ? (
           <button
             type="button"
             onClick={onToggle}
+            disabled={!onToggle}
             title="사이드바 펼치기"
-            className="hidden group-hover:flex absolute top-1/2 -right-3 -translate-y-1/2 h-6 w-6 items-center justify-center rounded-full border border-line bg-panel shadow-[var(--shadow-sm)] hover:bg-canvas-2 z-10"
+            aria-label="사이드바 펼치기"
+            className={cn(
+              "relative w-8 h-8 mx-auto grid place-items-center rounded-[9px] bg-ink text-white",
+              "text-[13px] font-bold tracking-[-0.02em] overflow-visible",
+              onToggle && "cursor-pointer transition-transform group-hover/sb:scale-[1.04]"
+            )}
           >
-            <ChevronRight className="h-3.5 w-3.5 text-ink-3" />
+            <span className="relative w-full h-full grid place-items-center rounded-[9px] overflow-hidden">
+              K
+              <span className="absolute inset-[2px] rounded-[7px] bg-[linear-gradient(135deg,rgba(255,255,255,0.08),transparent_60%)] pointer-events-none" />
+            </span>
+            {/* Expand affordance — small pulsing chevron attached to the logo */}
+            {onToggle && (
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "absolute -right-[9px] top-1/2 -translate-y-1/2",
+                  "w-4 h-4 rounded-full bg-panel border border-line shadow-[var(--shadow-sm)]",
+                  "grid place-items-center text-ink-3",
+                  "opacity-60 group-hover/sb:opacity-100 group-hover/sb:text-ink",
+                  "transition-all"
+                )}
+              >
+                <ChevronRight className="h-3 w-3" />
+              </span>
+            )}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onToggle}
+            disabled={!onToggle}
+            title="사이드바 접기"
+            className={cn(
+              "w-full flex items-center gap-2.5 p-2.5 rounded-[10px] bg-panel border border-line shadow-[var(--shadow-xs)]",
+              onToggle && "hover:border-line-strong cursor-pointer"
+            )}
+          >
+            <span className="w-8 h-8 rounded-[9px] bg-ink text-white grid place-items-center shrink-0 text-[13px] font-bold tracking-[-0.02em] relative overflow-hidden">
+              K
+              <span className="absolute inset-[2px] rounded-[7px] bg-[linear-gradient(135deg,rgba(255,255,255,0.08),transparent_60%)] pointer-events-none" />
+            </span>
+            <span className="min-w-0 text-left flex-1">
+              <span className="block font-semibold text-[12.5px] text-ink tracking-[-0.015em] truncate">KHSB BackOffice</span>
+              <span className="block text-[11px] text-ink-4 leading-none mt-0.5">원장 · {PLAN_LABELS[plan].label}</span>
+            </span>
+            {onToggle && <ChevronsLeft className="h-3.5 w-3.5 text-ink-4 shrink-0" />}
           </button>
         )}
       </div>
 
       {/* Search trigger */}
-      <div className={cn("pt-2.5", isCollapsed && "px-0")}>
-        <button
-          onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
-          title={isCollapsed ? "빠른 이동 · 원생 검색 (⌘K)" : undefined}
-          className={cn(
-            "flex items-center gap-2 w-full rounded-[10px] bg-panel border border-line shadow-[var(--shadow-xs)] hover:border-line-strong transition-colors cursor-text",
-            isCollapsed ? "justify-center py-2" : "px-3 py-2"
-          )}
-        >
-          <svg className="h-3.5 w-3.5 text-ink-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" strokeLinecap="round" />
-          </svg>
-          {!isCollapsed && (
-            <>
-              <span className="flex-1 text-left text-[12.5px] text-ink-4">빠른 이동 · 원생 검색</span>
-              <kbd className="font-mono text-[10px] text-ink-4 bg-canvas-2 px-1.5 py-px rounded-[4px]">⌘K</kbd>
-            </>
-          )}
-        </button>
+      <div className="pt-2.5">
+        {isCollapsed ? (
+          <button
+            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+            title="빠른 이동 · 원생 검색 (⌘K)"
+            aria-label="검색"
+            className="w-8 h-8 mx-auto grid place-items-center rounded-[8px] text-ink-3 hover:bg-canvas-2 hover:text-ink transition-colors cursor-pointer"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" strokeLinecap="round" />
+            </svg>
+          </button>
+        ) : (
+          <button
+            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+            className="flex items-center gap-2 w-full rounded-[10px] bg-panel border border-line shadow-[var(--shadow-xs)] hover:border-line-strong transition-colors cursor-text px-3 py-2"
+          >
+            <svg className="h-3.5 w-3.5 text-ink-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" strokeLinecap="round" />
+            </svg>
+            <span className="flex-1 text-left text-[12.5px] text-ink-4">빠른 이동 · 원생 검색</span>
+            <kbd className="font-mono text-[10px] text-ink-4 bg-canvas-2 px-1.5 py-px rounded-[4px]">⌘K</kbd>
+          </button>
+        )}
       </div>
 
       {/* Nav */}
