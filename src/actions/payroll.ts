@@ -286,8 +286,12 @@ export async function getAllPayrollData(year: number, month: number) {
   const session = await auth();
   requireFullAccess(session?.user?.role);
 
+  // PayrollSetting 이 설정된 직원만 payroll 대상. 미설정 직원은 추가 버튼으로 편입.
   const staff = await prisma.user.findMany({
-    where: { role: { in: ["MENTOR", "STAFF", "DIRECTOR", "SUPER_ADMIN"] } },
+    where: {
+      role: { in: ["MENTOR", "STAFF", "DIRECTOR", "SUPER_ADMIN"] },
+      payrollSetting: { isNot: null },
+    },
     select: {
       id: true,
       name: true,
@@ -307,6 +311,23 @@ export async function getAllPayrollData(year: number, month: number) {
   });
 
   return { staff, tags };
+}
+
+/**
+ * Payroll 대상 후보 (아직 PayrollSetting 없는 staff — 추가 버튼용).
+ */
+export async function getPayrollCandidates() {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+
+  return prisma.user.findMany({
+    where: {
+      role: { in: ["MENTOR", "STAFF", "DIRECTOR", "SUPER_ADMIN"] },
+      payrollSetting: { is: null },
+    },
+    select: { id: true, name: true, role: true, email: true },
+    orderBy: { name: "asc" },
+  });
 }
 
 export async function canSeeAllPayroll() {
