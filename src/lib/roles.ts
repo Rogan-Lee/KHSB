@@ -2,10 +2,14 @@
 // - SUPER_ADMIN: 시스템 최상위 관리자 (다계정 가능, 개발자/파운더)
 // - DIRECTOR: 원장 (시설 운영 오너)
 // - ADMIN: (deprecated) 구버전 호환용. 전체 접근 권한 가지지 않음. 기존 데이터는 SUPER_ADMIN 으로 이관 완료.
-// - MENTOR / STAFF / STUDENT: 일반 사용자
+// - MENTOR / STAFF / STUDENT: 오프라인 자습실 일반 사용자
+// - CONSULTANT: 온라인 관리 — 입시/수행평가 설계. 오프라인 자습실 화면 접근 금지.
+// - MANAGER_MENTOR: 온라인 관리 — 진도/주간/카톡 로그. 오프라인 자습실 화면 접근 금지.
 
 export const FULL_ACCESS_ROLES = ["SUPER_ADMIN", "DIRECTOR"] as const;
 export const STAFF_ROLES = ["SUPER_ADMIN", "DIRECTOR", "MENTOR", "STAFF"] as const;
+// 온라인 관리 모듈 접근 가능한 역할. 원장·시스템 관리자는 전체 접근이므로 포함.
+export const ONLINE_ROLES = ["SUPER_ADMIN", "DIRECTOR", "CONSULTANT", "MANAGER_MENTOR"] as const;
 
 /** SUPER_ADMIN · DIRECTOR 만 true — 관리자 메뉴 접근 가능 */
 export function isFullAccess(role?: string | null): boolean {
@@ -47,6 +51,42 @@ export function requireOwnerOrFullAccess(
   }
 }
 
+// ─── 온라인 관리 모듈 전용 가드 ───
+
+/** 온라인 관리 모듈(/online/*) 접근 가능 역할 */
+export function isOnlineStaff(role?: string | null): boolean {
+  return !!role && (ONLINE_ROLES as readonly string[]).includes(role);
+}
+
+export function requireOnlineStaff(role?: string | null) {
+  if (!isOnlineStaff(role)) throw new Error("Forbidden");
+}
+
+export function isConsultant(role?: string | null): boolean {
+  return role === "CONSULTANT";
+}
+
+export function requireConsultant(role?: string | null) {
+  if (!isConsultant(role) && !isFullAccess(role)) throw new Error("Forbidden");
+}
+
+export function isManagerMentor(role?: string | null): boolean {
+  return role === "MANAGER_MENTOR";
+}
+
+export function requireManagerMentor(role?: string | null) {
+  if (!isManagerMentor(role) && !isFullAccess(role)) throw new Error("Forbidden");
+}
+
+/**
+ * 카톡 대화 원문(DailyKakaoLog.rawContent) 접근 가능 여부.
+ * 컨설턴트는 기본 차단 — 학생 개인 민감정보 보호.
+ * 원장/SUPER_ADMIN/MANAGER_MENTOR 만 허용.
+ */
+export function canViewKakaoRaw(role?: string | null): boolean {
+  return isFullAccess(role) || isManagerMentor(role);
+}
+
 export const ROLE_DISPLAY: Record<string, string> = {
   SUPER_ADMIN: "시스템 관리자",
   DIRECTOR: "원장",
@@ -54,6 +94,8 @@ export const ROLE_DISPLAY: Record<string, string> = {
   MENTOR: "멘토",
   STAFF: "운영조교",
   STUDENT: "원생",
+  CONSULTANT: "컨설턴트",
+  MANAGER_MENTOR: "관리 멘토",
 };
 
 /** UI Role selector 에 보여줄 선택 가능한 역할 (ADMIN 은 제외) */
@@ -63,4 +105,6 @@ export const ASSIGNABLE_ROLES = [
   "MENTOR",
   "STAFF",
   "STUDENT",
+  "CONSULTANT",
+  "MANAGER_MENTOR",
 ] as const;
