@@ -51,7 +51,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
         </SheetContent>
       </Sheet>
 
-      {/* Main content */}
+      {/* Main content — header + content sit inside one panel, clearly separated from the canvas sidebar */}
       <div
         className={cn(
           "flex flex-col min-h-screen transition-[margin] duration-300",
@@ -59,16 +59,20 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
         )}
         data-print-main
       >
-        <div data-print-hide>
-          <AppHeader
-            user={user}
-            title="독서실 관리 시스템"
-            onMenuClick={() => setOpen(true)}
-          />
+        <div className="flex-1 p-3 md:p-3.5" data-print-content>
+          <main className="h-full bg-panel border border-line rounded-[14px] shadow-[var(--shadow-xs)] overflow-hidden max-w-[1400px] flex flex-col">
+            <div data-print-hide className="border-b border-line-2">
+              <AppHeader
+                user={user}
+                title="독서실 관리 시스템"
+                onMenuClick={() => setOpen(true)}
+              />
+            </div>
+            <div className="flex-1 p-4 md:px-[22px] md:py-[20px]">
+              {children}
+            </div>
+          </main>
         </div>
-        <main className="flex-1 p-4 md:px-[22px] md:py-[18px] max-w-[1400px]" data-print-content>
-          {children}
-        </main>
       </div>
     </div>
   );
