@@ -17,7 +17,7 @@ export type FeatureKey =
   // Premium
   | "ai-enhance" | "ai-followup" | "card-news" | "google-calendar"
   | "google-sheets" | "kakao-messages" | "analytics" | "parent-reports"
-  | "mentors";
+  | "mentors" | "photos" | "payroll" | "school-stats";
 
 const STARTER_FEATURES: FeatureKey[] = [
   "students", "attendance", "seat-map", "timetable", "todos", "handover",
@@ -34,7 +34,7 @@ const PREMIUM_FEATURES: FeatureKey[] = [
   ...STANDARD_FEATURES,
   "ai-enhance", "ai-followup", "card-news", "google-calendar",
   "google-sheets", "kakao-messages", "analytics", "parent-reports",
-  "mentors",
+  "mentors", "photos", "payroll", "school-stats",
 ];
 
 const PLAN_FEATURES: Record<PlanTier, FeatureKey[]> = {
@@ -88,6 +88,7 @@ export const ROUTE_FEATURE_MAP: Record<string, FeatureKey> = {
   "/merit-demerit": "merit-demerit",
   "/consultations": "consultations",
   "/assignments": "assignments",
+  "/exams": "exam-scores",
   "/reports": "reports",
   "/vocab-test": "vocab-test",
   "/academic-plans": "academic-plans",
@@ -98,4 +99,8 @@ export const ROUTE_FEATURE_MAP: Record<string, FeatureKey> = {
   "/card-news": "card-news",
   "/messages": "kakao-messages",
   "/mentors": "mentors",
+  "/photos": "photos",
+  "/payroll": "payroll",
+  "/payroll/me": "payroll",
+  "/admin/school-stats": "school-stats",
 };

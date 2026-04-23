@@ -140,7 +140,7 @@ function MeetingForm({
               className={cn(
                 "px-4 py-1.5 text-sm rounded-lg border transition-colors",
                 form.team === t
-                  ? "bg-[#0066ff] text-white border-[#0066ff]"
+                  ? "bg-[#E9541C] text-white border-[#E9541C]"
                   : "border-border text-muted-foreground hover:bg-muted"
               )}
             >
@@ -179,7 +179,7 @@ function MeetingForm({
               className={cn(
                 "text-[11px] px-2 py-0.5 rounded-full border transition-colors",
                 form.attendees.includes(s.name)
-                  ? "bg-[#eaf2fe] border-[#c5d8fd] text-[#005eeb]"
+                  ? "bg-[#FBE9DE] border-[#F6DBC7] text-[#C5461A]"
                   : "bg-muted/40 border-border text-muted-foreground hover:bg-muted"
               )}
             >
@@ -190,7 +190,7 @@ function MeetingForm({
         {form.attendees.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {form.attendees.map((name) => (
-              <span key={name} className="flex items-center gap-1 text-xs bg-[#eaf2fe] text-[#005eeb] px-2 py-0.5 rounded-full">
+              <span key={name} className="flex items-center gap-1 text-xs bg-[#FBE9DE] text-[#C5461A] px-2 py-0.5 rounded-full">
                 {name}
                 <button onClick={() => updateForm({ attendees: form.attendees.filter((a) => a !== name) })} className="hover:text-red-500">
                   <X className="h-3 w-3" />
@@ -218,7 +218,7 @@ function MeetingForm({
         <button
           onClick={() => handleSubmitWithClear(form)}
           disabled={isPending}
-          className="px-4 py-2 text-sm bg-[#0066ff] text-white rounded-lg hover:bg-[#0052cc] transition-colors disabled:opacity-50"
+          className="px-4 py-2 text-sm bg-[#E9541C] text-white rounded-lg hover:bg-[#C5461A] transition-colors disabled:opacity-50"
         >
           {isEdit ? "수정 완료" : "등록"}
         </button>
@@ -259,7 +259,7 @@ function MinutesCard({
       >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            {!hasRead && <span className="w-1.5 h-1.5 rounded-full bg-[#0066ff] shrink-0" />}
+            {!hasRead && <span className="w-1.5 h-1.5 rounded-full bg-[#E9541C] shrink-0" />}
             <p className="text-sm font-semibold truncate">{m.title}</p>
           </div>
           <div className="flex items-center gap-3 mt-0.5">
@@ -313,7 +313,7 @@ function MinutesCard({
                 <button
                   onClick={() => onRead(m.id)}
                   disabled={isPending}
-                  className="flex items-center gap-1.5 text-xs text-[#0066ff] border border-[#c5d8fd] bg-[#eaf2fe] px-3 py-1.5 rounded-lg hover:bg-[#d0e6ff] transition-colors"
+                  className="flex items-center gap-1.5 text-xs text-[#E9541C] border border-[#F6DBC7] bg-[#FBE9DE] px-3 py-1.5 rounded-lg hover:bg-[#FEF5EF] transition-colors"
                 >
                   <CheckCheck className="h-3.5 w-3.5" />
                   확인했습니다
@@ -409,7 +409,7 @@ function TeamPanel({
                 <span className="text-sm font-semibold">{monthLabel(key)}</span>
                 <span className="text-xs text-muted-foreground">{items.length}건</span>
                 {unread > 0 && (
-                  <span className="text-[11px] bg-[#0066ff] text-white px-1.5 py-0.5 rounded-full">
+                  <span className="text-[11px] bg-[#E9541C] text-white px-1.5 py-0.5 rounded-full">
                     미확인 {unread}
                   </span>
                 )}
@@ -455,7 +455,7 @@ export function MeetingMinutesBoard({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const isAdmin = currentUserRole === "DIRECTOR" || currentUserRole === "ADMIN";
+  const isAdmin = currentUserRole === "DIRECTOR" || currentUserRole === "SUPER_ADMIN";
 
   const emptyForm: FormState = { title: "", date: todayStr(), content: "", attendees: [], team: activeTeam };
 
@@ -538,7 +538,7 @@ export function MeetingMinutesBoard({
         <h1 className="text-lg font-bold">회의록</h1>
         <button
           onClick={openNew}
-          className="flex items-center gap-1.5 text-sm bg-[#0066ff] text-white px-3 py-1.5 rounded-lg hover:bg-[#0052cc] transition-colors"
+          className="flex items-center gap-1.5 text-sm bg-[#E9541C] text-white px-3 py-1.5 rounded-lg hover:bg-[#C5461A] transition-colors"
         >
           <Plus className="h-3.5 w-3.5" />
           새 회의록
@@ -572,19 +572,19 @@ export function MeetingMinutesBoard({
               className={cn(
                 "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors",
                 activeTeam === team
-                  ? "border-[#0066ff] text-[#0066ff]"
+                  ? "border-[#E9541C] text-[#E9541C]"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               )}
             >
               {team}
               <span className={cn(
                 "text-[11px] px-1.5 py-0.5 rounded-full",
-                activeTeam === team ? "bg-[#eaf2fe] text-[#005eeb]" : "bg-muted text-muted-foreground"
+                activeTeam === team ? "bg-[#FBE9DE] text-[#C5461A]" : "bg-muted text-muted-foreground"
               )}>
                 {count}
               </span>
               {unread > 0 && (
-                <span className="w-1.5 h-1.5 rounded-full bg-[#0066ff]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#E9541C]" />
               )}
             </button>
           );
@@ -593,7 +593,7 @@ export function MeetingMinutesBoard({
 
       {/* 미확인 안내 */}
       {teamUnread > 0 && (
-        <p className="text-xs text-[#0066ff]">미확인 회의록 {teamUnread}건이 있습니다</p>
+        <p className="text-xs text-[#E9541C]">미확인 회의록 {teamUnread}건이 있습니다</p>
       )}
 
       {/* 월별 목록 */}

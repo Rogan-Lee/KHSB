@@ -1,31 +1,47 @@
 import { cn } from "@/lib/utils";
 
-type TagVariant = "ok" | "warn" | "bad" | "info" | "brand" | "neutral";
+type TagVariant = "ok" | "warn" | "bad" | "info" | "brand" | "violet" | "neutral";
 
 const variantStyles: Record<TagVariant, string> = {
-  ok: "bg-ok-soft text-ok shadow-[inset_0_0_0_1px_rgba(39,193,155,0.2)]",
-  warn: "bg-warn-soft text-warn shadow-[inset_0_0_0_1px_rgba(232,181,74,0.2)]",
-  bad: "bg-bad-soft text-bad shadow-[inset_0_0_0_1px_rgba(240,85,90,0.2)]",
-  info: "bg-info-soft text-info shadow-[inset_0_0_0_1px_rgba(138,108,255,0.2)]",
-  brand: "bg-secondary text-primary shadow-[inset_0_0_0_1px_rgba(255,106,26,0.2)]",
-  neutral: "bg-muted text-muted-foreground shadow-[inset_0_0_0_1px] shadow-border",
+  ok: "bg-ok-soft text-ok-ink",
+  warn: "bg-warn-soft text-warn-ink",
+  bad: "bg-bad-soft text-bad-ink",
+  info: "bg-info-soft text-info-ink",
+  brand: "bg-brand-soft text-brand-2",
+  violet: "bg-violet-soft text-violet-ink",
+  neutral: "bg-canvas-2 text-ink-2",
 };
+
+type TagSize = "sm" | "md";
 
 interface TagPillProps {
   variant?: TagVariant;
+  size?: TagSize;
   dot?: boolean;
+  uppercase?: boolean;
   children: React.ReactNode;
   className?: string;
 }
 
-export function TagPill({ variant = "neutral", dot = false, children, className }: TagPillProps) {
+// v4 soft pastel pill. Default is rounded, lowercase, non-mono.
+// Set uppercase + mono via explicit prop for label-style usage.
+export function TagPill({
+  variant = "neutral",
+  size = "sm",
+  dot = false,
+  uppercase = false,
+  children,
+  className,
+}: TagPillProps) {
   return (
     <span className={cn(
-      "inline-flex items-center gap-1.5 font-mono text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full",
+      "inline-flex items-center rounded-full font-medium leading-[1.4] tracking-[-0.005em]",
+      size === "sm" ? "gap-1 px-[9px] py-[2px] text-[11px]" : "gap-1.5 px-[11px] py-[3px] text-[12px]",
+      uppercase && "font-mono uppercase tracking-[0.06em]",
       variantStyles[variant],
       className
     )}>
-      {dot && <span className="w-[5px] h-[5px] rounded-full bg-current" />}
+      {dot && <span className="w-[5px] h-[5px] rounded-full bg-current opacity-80" />}
       {children}
     </span>
   );

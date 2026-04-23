@@ -161,7 +161,7 @@ export async function analyzeReferenceImage(
 ): Promise<{ success: true; style: ExtractedStyle } | { success: false; error: string }> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
-  if (session.user.role !== "DIRECTOR" && session.user.role !== "ADMIN") {
+  if (session.user.role !== "DIRECTOR" && session.user.role !== "SUPER_ADMIN") {
     return { success: false, error: "권한이 없습니다." };
   }
 
@@ -225,7 +225,7 @@ export async function generateCardNewsSlides(
 ): Promise<{ success: true; data: GeneratedSlides } | { success: false; error: string }> {
   const session = await auth();
   if (!session?.user) return { success: false, error: "Unauthorized" };
-  if (session.user.role !== "DIRECTOR" && session.user.role !== "ADMIN") {
+  if (session.user.role !== "DIRECTOR" && session.user.role !== "SUPER_ADMIN") {
     return { success: false, error: "권한이 없습니다." };
   }
 

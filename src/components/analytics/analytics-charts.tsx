@@ -21,17 +21,17 @@ export function ImprovementBarChart({ students }: { students: StudentAnalytics[]
   return (
     <ResponsiveContainer width="100%" height={260}>
       <BarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 40 }}>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EFEFEC" />
         <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
         <YAxis tick={{ fontSize: 11 }} />
         <Tooltip
           formatter={(v) => [`${Number(v) > 0 ? "+" : ""}${v} 등급`, "평균 등급 상승"]}
           labelStyle={{ fontSize: 12 }}
         />
-        <ReferenceLine y={0} stroke="#e5e7eb" />
+        <ReferenceLine y={0} stroke="#D8D9DC" />
         <Bar dataKey="value" radius={[4, 4, 0, 0]}>
           {data.map((entry, i) => (
-            <Cell key={i} fill={entry.value > 0 ? "#10b981" : entry.value < 0 ? "#ef4444" : "#94a3b8"} />
+            <Cell key={i} fill={entry.value > 0 ? "#2E9D6B" : entry.value < 0 ? "#D14343" : "#8A8D94"} />
           ))}
         </Bar>
       </BarChart>
@@ -46,10 +46,10 @@ export function CorrelationScatter({ data }: { data: OverallAnalytics["correlati
   return (
     <ResponsiveContainer width="100%" height={260}>
       <ScatterChart margin={{ top: 4, right: 12, left: -20, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+        <CartesianGrid strokeDasharray="3 3" stroke="#EFEFEC" />
         <XAxis dataKey="mentoringCount" name="멘토링 횟수" tick={{ fontSize: 11 }} label={{ value: "멘토링 횟수", position: "insideBottom", offset: -2, fontSize: 11 }} />
         <YAxis dataKey="avgImprovement" name="등급 상승" tick={{ fontSize: 11 }} />
-        <ReferenceLine y={0} stroke="#e5e7eb" />
+        <ReferenceLine y={0} stroke="#D8D9DC" />
         <Tooltip
           cursor={{ strokeDasharray: "3 3" }}
           content={({ payload }) => {
@@ -66,7 +66,7 @@ export function CorrelationScatter({ data }: { data: OverallAnalytics["correlati
         />
         <Scatter
           data={data}
-          fill="#6366f1"
+          fill="#E9541C"
           opacity={0.8}
         />
       </ScatterChart>
@@ -87,11 +87,11 @@ export function StudyHoursChart({ students }: { students: StudentAnalytics[] }) 
   return (
     <ResponsiveContainer width="100%" height={260}>
       <BarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 40 }}>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EFEFEC" />
         <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
         <YAxis tick={{ fontSize: 11 }} unit="h" />
         <Tooltip formatter={(v) => [`${v}시간`, "총 재원 시간"]} />
-        <Bar dataKey="hours" fill="#6366f1" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="hours" fill="#E9541C" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -110,12 +110,12 @@ export function SubjectTrendChart({ student }: { student: StudentAnalytics }) {
     { label: "최근", ...Object.fromEntries(subjects.map((s) => [s.subject, s.latestGrade])) },
   ];
 
-  const COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+  const COLORS = ["#E9541C", "#2E9D6B", "#C28327", "#D14343", "#6E5BD0"];
 
   return (
     <ResponsiveContainer width="100%" height={200}>
       <LineChart data={data} margin={{ top: 4, right: 12, left: -20, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+        <CartesianGrid strokeDasharray="3 3" stroke="#EFEFEC" />
         <XAxis dataKey="label" tick={{ fontSize: 11 }} />
         <YAxis reversed tick={{ fontSize: 11 }} domain={[1, 9]} ticks={[1, 2, 3, 4, 5, 6, 7, 8, 9]} />
         <Tooltip formatter={(v) => [`${v}등급`]} />

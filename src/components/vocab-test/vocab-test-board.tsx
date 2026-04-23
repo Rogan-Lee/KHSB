@@ -24,8 +24,10 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { useRouter } from "next/navigation";
 import { Search, X, UserPlus, UserMinus, BookOpen, TrendingUp, Sparkles, Trash2 } from "lucide-react";
 import type { VocabTestEnrollment, VocabTestScore, VocabEnrollReason } from "@/generated/prisma";
+import { useSortableTable } from "@/hooks/use-sortable-table";
+import { SortableHeader } from "@/components/ui/sortable-header";
 
-type StudentBasic = { id: string; name: string; grade: string; school: string | null; vocabEnrollment: VocabTestEnrollment | null };
+type StudentBasic = { id: string; name: string; grade: string; school: string | null; seat: string | null; vocabEnrollment: VocabTestEnrollment | null };
 type ScoreWithStudent = VocabTestScore & { student: { id: string; name: string; grade: string } };
 
 const REASON_LABEL: Record<string, { label: string; style: string }> = {
@@ -46,10 +48,17 @@ function EnrollmentTab({ students, enrollments }: { students: StudentBasic[]; en
   const enrolledMap = new Map(enrollments.map((e) => [e.studentId, e]));
 
   const q = query.trim().toLowerCase();
-  const filtered = students.filter((s) => {
+  const filteredBase = students.filter((s) => {
     if (q && !s.name.toLowerCase().includes(q) && !(s.grade ?? "").toLowerCase().includes(q)) return false;
     if (gradeFilter !== "ALL" && !s.grade.includes(gradeFilter)) return false;
     return true;
+  });
+
+  const { rows: filtered, sort, toggle } = useSortableTable(filteredBase, {
+    name: (s: StudentBasic) => s.name,
+    grade: (s: StudentBasic) => s.grade,
+    school: (s: StudentBasic) => s.school ?? "",
+    enrolled: (s: StudentBasic) => (enrolledMap.get(s.id)?.isActive ? 1 : 0),
   });
 
   const enrolledCount = filtered.filter((s) => enrolledMap.get(s.id)?.isActive).length;
@@ -149,10 +158,10 @@ function EnrollmentTab({ students, enrollments }: { students: StudentBasic[]; en
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-14 text-center">대상</TableHead>
-                  <TableHead>이름</TableHead>
-                  <TableHead>학년</TableHead>
-                  <TableHead>학교</TableHead>
+                  <SortableHeader sortKey="enrolled" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} align="center" className="w-14 h-10 px-2">대상</SortableHeader>
+                  <SortableHeader sortKey="name" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2">이름</SortableHeader>
+                  <SortableHeader sortKey="grade" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2">학년</SortableHeader>
+                  <SortableHeader sortKey="school" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2">학교</SortableHeader>
                   <TableHead>등록 사유</TableHead>
                 </TableRow>
               </TableHeader>
@@ -212,9 +221,19 @@ function ScoresTab({ enrollments, scores }: {
 
   const selectedStudent = studentNames.find((s) => s.id === studentFilter);
 
-  const filteredScores = studentFilter === "ALL"
+  // 기본 정렬: 날짜 내림차순
+  const filteredScoresDefaultSorted = (studentFilter === "ALL"
     ? scores
-    : scores.filter((s) => s.student.id === studentFilter);
+    : scores.filter((s) => s.student.id === studentFilter)
+  ).slice().sort((a, b) => new Date(b.testDate).getTime() - new Date(a.testDate).getTime());
+
+  const { rows: filteredScores, sort: scoreSort, toggle: scoreToggle } = useSortableTable(filteredScoresDefaultSorted, {
+    testDate: (s: ScoreWithStudent) => new Date(s.testDate).getTime(),
+    name: (s: ScoreWithStudent) => s.student.name,
+    totalWords: (s: ScoreWithStudent) => s.totalWords,
+    correctWords: (s: ScoreWithStudent) => s.correctWords,
+    score: (s: ScoreWithStudent) => s.score,
+  });
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -327,11 +346,11 @@ function ScoresTab({ enrollments, scores }: {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>날짜</TableHead>
-                <TableHead>이름</TableHead>
-                <TableHead>총 단어</TableHead>
-                <TableHead>정답</TableHead>
-                <TableHead>점수</TableHead>
+                <SortableHeader sortKey="testDate" activeKey={scoreSort?.key} dir={scoreSort?.dir} onToggle={scoreToggle} className="h-10 px-2">날짜</SortableHeader>
+                <SortableHeader sortKey="name" activeKey={scoreSort?.key} dir={scoreSort?.dir} onToggle={scoreToggle} className="h-10 px-2">이름</SortableHeader>
+                <SortableHeader sortKey="totalWords" activeKey={scoreSort?.key} dir={scoreSort?.dir} onToggle={scoreToggle} className="h-10 px-2">총 단어</SortableHeader>
+                <SortableHeader sortKey="correctWords" activeKey={scoreSort?.key} dir={scoreSort?.dir} onToggle={scoreToggle} className="h-10 px-2">정답</SortableHeader>
+                <SortableHeader sortKey="score" activeKey={scoreSort?.key} dir={scoreSort?.dir} onToggle={scoreToggle} className="h-10 px-2">점수</SortableHeader>
                 <TableHead>메모</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>

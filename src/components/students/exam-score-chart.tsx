@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Trash2, Plus, TrendingUp, TrendingDown, Minus, Pencil, Check, X } from "lucide-react";
 import type { ExamScore, ExamType } from "@/generated/prisma";
+import { useSortableTable } from "@/hooks/use-sortable-table";
+import { SortableHeader } from "@/components/ui/sortable-header";
 
 interface Props {
   studentId: string;
@@ -47,10 +49,10 @@ function fmtDate(d: Date | string) {
 }
 
 function gradeColor(g: number) {
-  if (g <= 2) return "#3B82F6";
-  if (g <= 4) return "#10B981";
-  if (g <= 6) return "#F59E0B";
-  return "#EF4444";
+  if (g <= 2) return "#3D6FD8"; // info
+  if (g <= 4) return "#2E9D6B"; // ok
+  if (g <= 6) return "#C28327"; // warn
+  return "#D14343";             // bad
 }
 
 const DARK_TOOLTIP = {
@@ -271,6 +273,20 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
     const typeOk = filterType === "ALL" || s.examType === filterType;
     const subjectOk = s.subject === filterSubject;
     return typeOk && subjectOk;
+  });
+
+  // 성적 목록 테이블용 정렬 상태 (기본: 날짜 내림차순)
+  const tableDefaultSorted = [...filtered].sort(
+    (a, b) => new Date(b.examDate).getTime() - new Date(a.examDate).getTime()
+  );
+  const { rows: sortedForTable, sort: tableSort, toggle: tableToggle } = useSortableTable(tableDefaultSorted, {
+    examDate: (s: ExamScore) => new Date(s.examDate).getTime(),
+    examName: (s: ExamScore) => s.examName,
+    examType: (s: ExamScore) => s.examType,
+    subject: (s: ExamScore) => s.subject,
+    rawScore: (s: ExamScore) => s.rawScore ?? -Infinity,
+    grade: (s: ExamScore) => s.grade ?? -Infinity,
+    percentile: (s: ExamScore) => s.percentile ?? -Infinity,
   });
 
   const chartData = [...filtered]
@@ -881,21 +897,19 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-muted/40 text-xs text-muted-foreground border-b">
-                <th className="px-3 py-2.5 text-left font-medium">날짜</th>
-                <th className="px-3 py-2.5 text-left font-medium">시험명</th>
-                <th className="px-3 py-2.5 text-left font-medium">유형</th>
-                <th className="px-3 py-2.5 text-left font-medium">과목</th>
-                <th className="px-3 py-2.5 text-right font-medium">원점수</th>
+                <SortableHeader sortKey="examDate" activeKey={tableSort?.key} dir={tableSort?.dir} onToggle={tableToggle} className="px-3 py-2.5 font-medium">날짜</SortableHeader>
+                <SortableHeader sortKey="examName" activeKey={tableSort?.key} dir={tableSort?.dir} onToggle={tableToggle} className="px-3 py-2.5 font-medium">시험명</SortableHeader>
+                <SortableHeader sortKey="examType" activeKey={tableSort?.key} dir={tableSort?.dir} onToggle={tableToggle} className="px-3 py-2.5 font-medium">유형</SortableHeader>
+                <SortableHeader sortKey="subject" activeKey={tableSort?.key} dir={tableSort?.dir} onToggle={tableToggle} className="px-3 py-2.5 font-medium">과목</SortableHeader>
+                <SortableHeader sortKey="rawScore" activeKey={tableSort?.key} dir={tableSort?.dir} onToggle={tableToggle} align="right" className="px-3 py-2.5 font-medium">원점수</SortableHeader>
                 <th className="px-3 py-2.5 text-left font-medium">메모</th>
-                <th className="px-3 py-2.5 text-right font-medium">등급</th>
-                <th className="px-3 py-2.5 text-right font-medium">백분위</th>
+                <SortableHeader sortKey="grade" activeKey={tableSort?.key} dir={tableSort?.dir} onToggle={tableToggle} align="right" className="px-3 py-2.5 font-medium">등급</SortableHeader>
+                <SortableHeader sortKey="percentile" activeKey={tableSort?.key} dir={tableSort?.dir} onToggle={tableToggle} align="right" className="px-3 py-2.5 font-medium">백분위</SortableHeader>
                 <th className="px-3 py-2.5 w-8"></th>
               </tr>
             </thead>
             <tbody>
-              {[...filtered]
-                .sort((a, b) => new Date(b.examDate).getTime() - new Date(a.examDate).getTime())
-                .map((s) => editingId === s.id ? (
+              {sortedForTable.map((s) => editingId === s.id ? (
                   <tr key={s.id} className="border-t bg-blue-50/50">
                     <td className="px-2 py-1.5">
                       <input type="date" value={editForm.examDate} onChange={(e) => setEditForm((f) => ({ ...f, examDate: e.target.value }))}

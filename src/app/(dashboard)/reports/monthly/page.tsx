@@ -14,7 +14,7 @@ export default async function MonthlyReportsPage({
 }) {
   const session = await auth();
   if (!session?.user) redirect("/sign-in");
-  if (session.user.role !== "DIRECTOR" && session.user.role !== "ADMIN") redirect("/");
+  if (session.user.role !== "DIRECTOR" && session.user.role !== "SUPER_ADMIN") redirect("/");
 
   const params = await searchParams;
   const now = new Date();
@@ -60,62 +60,78 @@ export default async function MonthlyReportsPage({
         <MonthSelector year={year} month={month} />
       </div>
 
-      {/* 공통 리소스 (모든 학생에게 공통 적용) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">익월 입시 정보</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MonthlyAdmissionInfoEditor year={year} month={month} initial={admissionInfo} />
-          </CardContent>
-        </Card>
+      {/* STEP 1: 공통 내용 등록 (모든 학부모 페이지에 공통 표시) */}
+      <details className="rounded-lg border bg-card open:shadow-sm" open>
+        <summary className="cursor-pointer list-none px-5 py-3 flex items-center gap-3">
+          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">1</span>
+          <div className="flex-1">
+            <h3 className="font-bold text-sm">공통 내용 등록</h3>
+            <p className="text-xs text-muted-foreground">입시 정보 · 시상 · 운영 공지 · 권장 학습 — 모든 학부모 페이지에 공통으로 노출됩니다.</p>
+          </div>
+          <span className="text-[11px] text-muted-foreground">접기 / 펼치기 ▾</span>
+        </summary>
+        <div className="px-5 pb-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">익월 입시 정보</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MonthlyAdmissionInfoEditor year={year} month={month} initial={admissionInfo} />
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">이달의 시상</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MonthlyAwardsManager year={year} month={month} awards={awards} students={students} />
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">이달의 시상</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MonthlyAwardsManager year={year} month={month} awards={awards} students={students} />
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">운영 공지</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MonthlyNoticeEditor
-              page="monthly_notice"
-              label="운영 공지 (운영 일정 등)"
-              initial={operationsNotice}
-            />
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">운영 공지</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MonthlyNoticeEditor
+                  page="monthly_notice"
+                  label="운영 공지 (운영 일정 등)"
+                  initial={operationsNotice}
+                />
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">이달의 권장 과목 · 인강 · 교재</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MonthlyNoticeEditor
-              page="monthly_recommendation"
-              label="권장 학습 리소스"
-              initial={recommendation}
-            />
-          </CardContent>
-        </Card>
-      </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">이달의 권장 과목 · 인강 · 교재</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MonthlyNoticeEditor
+                  page="monthly_recommendation"
+                  label="권장 학습 리소스"
+                  initial={recommendation}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </details>
 
-      {/* 학생별 리포트 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">학생별 리포트</CardTitle>
-        </CardHeader>
-        <CardContent>
+      {/* STEP 2~5: 학생별 리포트 (다중선택 → 일괄생성 → 수정 → URL → 발송) */}
+      <div className="rounded-lg border bg-card">
+        <div className="px-5 py-3 border-b flex items-center gap-3">
+          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">2</span>
+          <div className="flex-1">
+            <h3 className="font-bold text-sm">학생별 리포트</h3>
+            <p className="text-xs text-muted-foreground">학생 다중 선택 → 일괄 생성 → 내용 수정 → URL 생성 → 발송. 좌측에서 학생을 고르면 우측에서 바로 편집할 수 있어요.</p>
+          </div>
+        </div>
+        <div className="p-5">
           <MonthlyReportPanel year={year} month={month} students={students} reports={reports} />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

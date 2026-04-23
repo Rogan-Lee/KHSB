@@ -19,7 +19,7 @@ export default async function MentoringPlanPage() {
   if (!session?.user) redirect("/sign-in");
 
   const role = session.user.role;
-  if (role !== "DIRECTOR" && role !== "ADMIN" && role !== "MENTOR") redirect("/");
+  if (role !== "DIRECTOR" && role !== "SUPER_ADMIN" && role !== "MENTOR") redirect("/");
 
   const readonly = role === "MENTOR";
 

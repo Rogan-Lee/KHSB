@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { ShiftType } from "@/generated/prisma";
 
 function requireAdmin(role?: string) {
-  if (role !== "DIRECTOR" && role !== "ADMIN") throw new Error("권한이 없습니다");
+  if (role !== "DIRECTOR" && role !== "SUPER_ADMIN") throw new Error("권한이 없습니다");
 }
 
 export async function getChecklistTemplates() {

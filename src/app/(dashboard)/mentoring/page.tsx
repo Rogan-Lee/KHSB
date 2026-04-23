@@ -7,8 +7,11 @@ import { Plus } from "lucide-react";
 import { TodayMentoringPanel } from "@/components/mentoring/today-mentoring-panel";
 import { MentoringList } from "@/components/mentoring/mentoring-list";
 import { MentoringAnnouncement } from "@/components/mentoring/mentoring-announcement";
+import { MentoringReportTab } from "@/components/mentoring/mentoring-report-tab";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getTodayWorkingMentors } from "@/actions/mentoring";
 import { getAnnouncement } from "@/actions/announcements";
+import { getStudentsForReportDispatch } from "@/actions/parent-reports";
 import { Calendar } from "lucide-react";
 import { isFullAccess } from "@/lib/roles";
 import { PageIntro } from "@/components/ui/page-intro";
@@ -21,12 +24,21 @@ export default async function MentoringPage() {
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
-  // 모든 쿼리를 병렬 실행 (순차 6개 → 병렬 1회 RTT)
-  const [mentorings, todaySlots, mentors, vocabEnrolled, announcement, todayAttendance] = await Promise.all([
+  // 이달 상벌점 집계 기간 (KST 월 시작/종료)
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+  // 모든 쿼리를 병렬 실행
+  const [mentorings, todaySlots, mentors, vocabEnrolled, announcement, todayAttendance, meritAgg, reportRows] = await Promise.all([
     prisma.mentoring.findMany({
       include: {
         student: { select: { id: true, name: true, grade: true, seat: true, vocabTestDate: true, schedules: { select: { dayOfWeek: true, startTime: true, endTime: true } } } },
         mentor: { select: { id: true, name: true } },
+        parentReports: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { id: true, token: true, createdAt: true },
+        },
       },
       orderBy: { scheduledAt: "desc" },
       take: 200,
@@ -36,7 +48,7 @@ export default async function MentoringPage() {
       where: {
         OR: [
           { role: "MENTOR" },
-          { name: "정지훈", role: { in: ["ADMIN", "DIRECTOR"] } },
+          { name: "정지훈", role: { in: ["SUPER_ADMIN", "DIRECTOR"] } },
         ],
       },
       select: { id: true, name: true },
@@ -51,6 +63,12 @@ export default async function MentoringPage() {
       where: { date: new Date(today), checkIn: { not: null } },
       select: { studentId: true, checkOut: true, checkIn: true, notes: true },
     }),
+    prisma.meritDemerit.groupBy({
+      by: ["studentId", "type"],
+      where: { date: { gte: monthStart, lt: monthEnd } },
+      _sum: { points: true },
+    }),
+    getStudentsForReportDispatch(),
   ]);
   const vocabEnrolledIds = vocabEnrolled.map((v) => v.studentId);
   const checkedInStudentIds = new Set(
@@ -60,6 +78,14 @@ export default async function MentoringPage() {
   const attendanceNotesMap: Record<string, string> = {};
   for (const a of todayAttendance) {
     if (a.notes) attendanceNotesMap[a.studentId] = a.notes;
+  }
+  // 이달 상벌점 맵 (studentId → { positive, negative })
+  const meritPointsByStudent: Record<string, { positive: number; negative: number }> = {};
+  for (const row of meritAgg) {
+    const entry = (meritPointsByStudent[row.studentId] ??= { positive: 0, negative: 0 });
+    const sum = row._sum.points ?? 0;
+    if (row.type === "MERIT") entry.positive += sum;
+    else if (row.type === "DEMERIT") entry.negative += sum;
   }
 
   return (
@@ -95,20 +121,43 @@ export default async function MentoringPage() {
         </Link>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>멘토링 목록</CardTitle>
-          <Link href="/mentoring/new">
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-1" />
-              멘토링 등록
-            </Button>
-          </Link>
-        </CardHeader>
-        <CardContent>
-          <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} vocabEnrolledStudentIds={vocabEnrolledIds} attendanceNotes={attendanceNotesMap} />
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="list" className="space-y-3">
+        <TabsList>
+          <TabsTrigger value="list">멘토링 기록</TabsTrigger>
+          <TabsTrigger value="report">리포트 발송</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="list">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>멘토링 목록</CardTitle>
+              <Link href="/mentoring/new">
+                <Button size="sm">
+                  <Plus className="h-4 w-4 mr-1" />
+                  멘토링 등록
+                </Button>
+              </Link>
+            </CardHeader>
+            <CardContent>
+              <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} vocabEnrolledStudentIds={vocabEnrolledIds} attendanceNotes={attendanceNotesMap} meritPoints={meritPointsByStudent} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="report">
+          <Card>
+            <CardHeader>
+              <CardTitle>학부모 리포트 발송</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                학생 다중 선택 → 일괄 생성 → URL 내용 수정 → URL 생성 → 카카오/문자 발송
+              </p>
+            </CardHeader>
+            <CardContent>
+              <MentoringReportTab rows={reportRows} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

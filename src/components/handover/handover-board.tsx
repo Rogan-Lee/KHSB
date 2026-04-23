@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   Pin, PinOff, CheckCircle2, Clock, Trash2, AlertTriangle,
   Eye, ListChecks, Users, User, CheckSquare, Square, Plus,
+  ChevronDown, ChevronRight, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { deleteHandover, markHandoverRead, togglePin, toggleHandoverTask } from "@/actions/handover";
@@ -14,7 +15,7 @@ import Link from "next/link";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type HandoverTask = { id: string; title: string; content: string; assigneeId: string | null; assigneeName: string | null; order: number; isCompleted: boolean; completedAt: Date | null };
-type HandoverChecklist = { id: string; templateId: string | null; title: string; shiftType: string; isChecked: boolean; order: number };
+type HandoverChecklist = { id: string; templateId: string | null; title: string; shiftType: string; isChecked: boolean; checkedAt: Date | null; checkedById: string | null; checkedByName: string | null; order: number };
 type HandoverRead = { userId: string; userName: string; readAt: Date };
 type Handover = { id: string; date: Date; content: string; priority: "URGENT" | "NORMAL"; category: string | null; isPinned: boolean; authorId: string; authorName: string; recipientId: string | null; recipientName: string | null; reads: HandoverRead[]; tasks: HandoverTask[]; checklist: HandoverChecklist[]; monthlyNotesSnapshot: object | null; createdAt: Date };
 type Staff = { id: string; name: string; role: string };
@@ -25,6 +26,8 @@ interface Props {
   currentUserId: string;
   currentUserName: string;
   currentUserRole: string;
+  /** 이전 날짜 피커로 선택된 기준일 (YYYY-MM-DD). 없으면 최근 14일 기본 */
+  activeSince?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -60,6 +63,22 @@ function ReadersPopover({ reads, onClose }: { reads: HandoverRead[]; onClose: ()
 }
 
 // ── Summary card (슬랙/노션 스타일) ──────────────────────────────────────────
+// content에서 Markdown 서식(**, *, #, -)을 제거한 평문 미리보기를 만든다 (최대 N글자).
+function stripMarkdownPreview(src: string, max = 140): string {
+  const flat = src
+    .replace(/```[\s\S]*?```/g, " ")          // 코드 블록
+    .replace(/`[^`]*`/g, " ")                  // 인라인 코드
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")    // 이미지
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")  // 링크
+    .replace(/^#{1,6}\s+/gm, "")              // 헤더
+    .replace(/^[-*+]\s+/gm, "• ")             // 리스트
+    .replace(/\*\*([^*]+)\*\*/g, "$1")        // bold
+    .replace(/\*([^*]+)\*/g, "$1")            // italic
+    .replace(/\s+/g, " ")
+    .trim();
+  return flat.length > max ? flat.slice(0, max) + "…" : flat;
+}
+
 function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRead, onTogglePin, isPending }: {
   h: Handover; currentUserId: string; currentUserName: string; onDelete: (id: string) => void; onRead: (h: Handover) => void; onTogglePin: (h: Handover) => void; isPending: boolean;
 }) {
@@ -99,7 +118,7 @@ function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRe
       {/* 아바타 */}
       <div className={cn(
         "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
-        isUrgent ? "bg-red-100 text-red-700" : "bg-[#eaf2fe] text-[#005eeb]"
+        isUrgent ? "bg-red-100 text-red-700" : "bg-[#FBE9DE] text-[#C5461A]"
       )}>
         {initial}
       </div>
@@ -115,6 +134,13 @@ function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRe
           {h.category && <span className="text-[10px] bg-muted text-muted-foreground rounded px-1.5 py-0.5">{h.category}</span>}
           {!isRead && !isAuthor && <span className="text-[10px] font-semibold bg-blue-500 text-white rounded px-1.5 py-0.5">NEW</span>}
         </div>
+
+        {/* 본문 미리보기 (Markdown 평문화) */}
+        {h.content && (
+          <p className="text-[13px] text-foreground/85 line-clamp-2 leading-snug">
+            {stripMarkdownPreview(h.content)}
+          </p>
+        )}
 
         {/* 하단 정보 */}
         <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
@@ -204,10 +230,24 @@ function DeleteConfirm({ onConfirm, onCancel, isPending }: { onConfirm: () => vo
 }
 
 // ── Main board ────────────────────────────────────────────────────────────────
-export function HandoverBoard({ initialHandovers, staffList, currentUserId, currentUserName, currentUserRole }: Props) {
+export function HandoverBoard({ initialHandovers, staffList, currentUserId, currentUserName, currentUserRole, activeSince }: Props) {
+  const router = useRouter();
   const [handovers, setHandovers] = useState<Handover[]>(initialHandovers);
+  // initialHandovers가 바뀌면 (searchParams 변경 시) 상태 동기화
+  useEffect(() => { setHandovers(initialHandovers); }, [initialHandovers]);
   const [isPending, startTransition] = useTransition();
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  function handleSinceChange(nextYMD: string) {
+    const url = nextYMD ? `/handover?since=${nextYMD}` : "/handover";
+    router.push(url);
+  }
+
+  // 각 date 그룹 접힘 상태 (기본: 오늘만 열고 나머지는 접힘)
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  function toggleGroup(label: string) {
+    setCollapsedGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  }
 
   const sorted = [...handovers].sort((a, b) => {
     const dd = new Date(b.date).getTime() - new Date(a.date).getTime();
@@ -217,13 +257,20 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
   const byDate = sorted.filter((h) => !h.isPinned);
   const unreadCount = handovers.filter((h) => h.authorId !== currentUserId && !h.reads.some((r) => r.userId === currentUserId)).length;
 
-  // Group by date
-  const groups: { label: string; items: Handover[] }[] = [];
+  // Group by date — "오늘" 그룹은 상단 고정 카드로 분리
+  const today: Handover[] = [];
+  const olderGroups: { label: string; items: Handover[] }[] = [];
   for (const h of byDate) {
     const label = relDate(h.date);
-    const g = groups.find((g) => g.label === label);
-    if (g) g.items.push(h); else groups.push({ label, items: [h] });
+    if (label === "오늘") {
+      today.push(h);
+    } else {
+      const g = olderGroups.find((g) => g.label === label);
+      if (g) g.items.push(h);
+      else olderGroups.push({ label, items: [h] });
+    }
   }
+  const todayUnread = today.filter((h) => h.authorId !== currentUserId && !h.reads.some((r) => r.userId === currentUserId)).length;
 
   function handleDelete(id: string) {
     startTransition(async () => {
@@ -259,62 +306,142 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
     });
   }
 
+  const hasAny = pinned.length > 0 || today.length > 0 || olderGroups.length > 0;
+
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">인수인계</h1>
-        <Link href="/handover/new">
+      {/* Top bar: KPI + 작성하기 */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <KpiChip value={unreadCount} label="미확인" color={unreadCount > 0 ? "red" : "muted"} icon={<AlertTriangle className="h-3.5 w-3.5" />} />
+        <KpiChip value={handovers.length} label="인수인계" color="blue" icon={<Clock className="h-3.5 w-3.5" />} />
+        <KpiChip value={handovers.reduce((n, h) => n + h.checklist.length, 0)} label="루틴 항목" color="green" icon={<CheckCircle2 className="h-3.5 w-3.5" />} />
+
+        {/* 기준일 피커 */}
+        <div className="flex items-center gap-1.5 ml-2 border rounded-lg px-2 py-1 bg-card">
+          <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-[11px] text-muted-foreground">이후부터</span>
+          <input
+            type="date"
+            value={activeSince ?? ""}
+            onChange={(e) => handleSinceChange(e.target.value)}
+            max={new Date().toISOString().slice(0, 10)}
+            className="text-xs bg-transparent border-0 focus:outline-none cursor-pointer"
+            aria-label="이전 날짜부터 보기"
+          />
+          {activeSince && (
+            <button
+              type="button"
+              onClick={() => handleSinceChange("")}
+              className="text-[10px] text-muted-foreground hover:text-destructive px-1"
+              title="기본(최근 14일)으로"
+            >
+              해제
+            </button>
+          )}
+          {!activeSince && (
+            <span className="text-[10px] text-muted-foreground/60 pl-1">(기본: 최근 14일)</span>
+          )}
+        </div>
+
+        <Link href="/handover/new" className="ml-auto">
           <Button size="sm" className="gap-1.5">
             <Plus className="h-4 w-4" />작성하기
           </Button>
         </Link>
       </div>
 
-      {/* KPI chips */}
-      <div className="grid grid-cols-3 gap-2">
-        <KpiChip value={unreadCount} label="미확인" color={unreadCount > 0 ? "red" : "muted"} icon={<AlertTriangle className="h-3.5 w-3.5" />} />
-        <KpiChip value={handovers.length} label="인수인계" color="blue" icon={<Clock className="h-3.5 w-3.5" />} />
-        <KpiChip value={handovers.reduce((n, h) => n + h.checklist.length, 0)} label="루틴 항목" color="green" icon={<CheckCircle2 className="h-3.5 w-3.5" />} />
-      </div>
-
       {/* 2-col main */}
-      <div className="grid grid-cols-[1fr_320px] gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 items-start">
 
         {/* LEFT -- feed */}
-        <div className="rounded-xl border bg-card divide-y">
-          {/* Pinned */}
-          {pinned.length > 0 && (
-            <div className="px-3 pt-3 pb-1">
-              <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wide flex items-center gap-1.5 mb-1">
-                <Pin className="h-3 w-3" />고정됨
-              </p>
-              {pinned.map((h) =>
-                deleteConfirmId === h.id
-                  ? <DeleteConfirm key={h.id} onConfirm={() => handleDelete(h.id)} onCancel={() => setDeleteConfirmId(null)} isPending={isPending} />
-                  : <HandoverSummaryCard key={h.id} h={h} currentUserId={currentUserId} currentUserName={currentUserName} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} isPending={isPending} />
+        <div className="space-y-4">
+          {/* 오늘 섹션 — 상단 고정 강조 카드 */}
+          <div className="rounded-xl border-2 border-blue-500/40 bg-gradient-to-br from-blue-50/80 via-blue-50/30 to-transparent shadow-sm">
+            <div className="px-4 py-3 border-b border-blue-100 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-blue-600" />
+              <span className="text-sm font-bold text-blue-900">오늘 인수인계</span>
+              <span className="text-[11px] bg-blue-600 text-white rounded-full px-2 py-0.5 font-semibold">
+                {today.length}건
+              </span>
+              {todayUnread > 0 && (
+                <span className="text-[11px] bg-red-100 text-red-700 border border-red-200 rounded-full px-2 py-0.5 font-semibold">
+                  미확인 {todayUnread}
+                </span>
               )}
+              <button
+                type="button"
+                onClick={() => toggleGroup("오늘")}
+                className="ml-auto p-1 rounded hover:bg-blue-100 text-blue-700 transition-colors"
+                aria-label={collapsedGroups["오늘"] ? "펼치기" : "접기"}
+              >
+                {collapsedGroups["오늘"] ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+            </div>
+            {!collapsedGroups["오늘"] && (
+              <div className="px-3 py-2">
+                {today.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    오늘 작성된 인수인계가 없습니다
+                  </p>
+                ) : (
+                  today.map((h) =>
+                    deleteConfirmId === h.id
+                      ? <DeleteConfirm key={h.id} onConfirm={() => handleDelete(h.id)} onCancel={() => setDeleteConfirmId(null)} isPending={isPending} />
+                      : <HandoverSummaryCard key={h.id} h={h} currentUserId={currentUserId} currentUserName={currentUserName} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} isPending={isPending} />
+                  )
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Pinned + 이전 날짜 그룹 */}
+          {(pinned.length > 0 || olderGroups.length > 0) && (
+            <div className="rounded-xl border bg-card divide-y">
+              {pinned.length > 0 && (
+                <div className="px-3 pt-3 pb-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup("__pinned")}
+                    className="w-full flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-amber-600 uppercase tracking-wide hover:opacity-70"
+                  >
+                    {collapsedGroups["__pinned"] ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                    <Pin className="h-3 w-3" />
+                    고정됨 ({pinned.length})
+                  </button>
+                  {!collapsedGroups["__pinned"] && pinned.map((h) =>
+                    deleteConfirmId === h.id
+                      ? <DeleteConfirm key={h.id} onConfirm={() => handleDelete(h.id)} onCancel={() => setDeleteConfirmId(null)} isPending={isPending} />
+                      : <HandoverSummaryCard key={h.id} h={h} currentUserId={currentUserId} currentUserName={currentUserName} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} isPending={isPending} />
+                  )}
+                </div>
+              )}
+
+              {olderGroups.map(({ label, items }) => (
+                <div key={label} className="px-3 pt-3 pb-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(label)}
+                    className="w-full flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground"
+                  >
+                    {collapsedGroups[label] ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                    {label} ({items.length})
+                  </button>
+                  {!collapsedGroups[label] && items.map((h) =>
+                    deleteConfirmId === h.id
+                      ? <DeleteConfirm key={h.id} onConfirm={() => handleDelete(h.id)} onCancel={() => setDeleteConfirmId(null)} isPending={isPending} />
+                      : <HandoverSummaryCard key={h.id} h={h} currentUserId={currentUserId} currentUserName={currentUserName} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} isPending={isPending} />
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
-          {/* Date groups */}
-          {groups.length === 0 && pinned.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          {!hasAny && (
+            <div className="rounded-xl border bg-card flex flex-col items-center justify-center py-16 text-muted-foreground">
               <Clock className="h-10 w-10 mb-3 opacity-20" />
               <p className="text-sm">아직 인수인계 내역이 없습니다</p>
             </div>
-          ) : (
-            groups.map(({ label, items }) => (
-              <div key={label} className="px-3 pt-3 pb-1">
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
-                {items.map((h) =>
-                  deleteConfirmId === h.id
-                    ? <DeleteConfirm key={h.id} onConfirm={() => handleDelete(h.id)} onCancel={() => setDeleteConfirmId(null)} isPending={isPending} />
-                    : <HandoverSummaryCard key={h.id} h={h} currentUserId={currentUserId} currentUserName={currentUserName} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} isPending={isPending} />
-                )}
-              </div>
-            ))
           )}
         </div>
 
