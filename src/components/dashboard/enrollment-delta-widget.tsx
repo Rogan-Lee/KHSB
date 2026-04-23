@@ -27,9 +27,10 @@ export function EnrollmentDeltaWidget({
         <div className="grid grid-cols-3 divide-x divide-line-2">
           <Cell
             icon={<Users className="h-3.5 w-3.5" />}
-            label="재원 총원"
+            label="현재 재원"
             value={data.total}
             delta={data.deltaVsLastMonth.total}
+            deltaLabel="이번 달 순증"
             tone="ink"
           />
           <Cell
@@ -37,6 +38,7 @@ export function EnrollmentDeltaWidget({
             label="신규 등록"
             value={data.newThisMonth}
             delta={data.deltaVsLastMonth.new}
+            deltaLabel="전월비"
             tone="ok"
           />
           <Cell
@@ -44,12 +46,13 @@ export function EnrollmentDeltaWidget({
             label="이탈"
             value={data.leftThisMonth}
             delta={data.deltaVsLastMonth.left}
+            deltaLabel="전월비"
             tone="bad"
             deltaInverse
           />
         </div>
         <p className="px-[18px] py-2 text-[10.5px] text-ink-4 border-t border-line-2 bg-panel-2">
-          전월 대비 증감은 같은 항목 기준. 이탈은 감소(-)가 좋음.
+          현재 재원은 실제 재원(ACTIVE) 기준. 신규·이탈은 해당 월 등록·종료일 기준.
         </p>
       </CardContent>
     </Card>
@@ -61,6 +64,7 @@ function Cell({
   label,
   value,
   delta,
+  deltaLabel,
   tone,
   deltaInverse,
 }: {
@@ -68,6 +72,7 @@ function Cell({
   label: string;
   value: number;
   delta: number;
+  deltaLabel: string;
   tone: "ink" | "ok" | "bad";
   deltaInverse?: boolean;
 }) {
@@ -94,7 +99,7 @@ function Cell({
         <DeltaIcon className="h-3 w-3" />
         <span>
           {delta > 0 ? "+" : ""}
-          {delta} 전월비
+          {delta} {deltaLabel}
         </span>
       </div>
     </div>
