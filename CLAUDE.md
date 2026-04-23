@@ -6,7 +6,7 @@
 
 - **Framework:** Next.js 16 (App Router), React 19, TypeScript 5
 - **Styling:** TailwindCSS v4, shadcn/ui
-- **ORM:** Prisma v7 + Neon Serverless PostgreSQL (ap-southeast-1)
+- **ORM:** Prisma v7 + Supabase PostgreSQL (aws-1-ap-northeast-2, pgbouncer pooler)
 - **Auth:** Clerk (Google/Kakao OAuth)
 - **AI:** Groq SDK (LLaMA 3.3 70B)
 - **Deploy:** Vercel (icn1 Seoul)
@@ -36,7 +36,9 @@ src/
   - `requireFullAccess(role)` — ADMIN/DIRECTOR만 허용
   - `requireStaff(role)` — ADMIN/DIRECTOR/MENTOR/STAFF 허용
   - `requireOwnerOrFullAccess(ownerId, userId, role)` — 소유자 또는 관리자
-- **Prisma:** `import { prisma } from "@/lib/prisma"` (PrismaNeon 어댑터)
+- **Prisma:** `import { prisma } from "@/lib/prisma"` (PrismaPg 어댑터, Supabase pooler URL)
+  - `DATABASE_URL`: Supabase pooler(pgbouncer, port 6543) — 일반 쿼리용
+  - `DIRECT_URL` (선택): non-pooler 직결 URL — `npm run db:push` 등 DDL 작업 시 사용. 미설정 시 DATABASE_URL로 폴백(pooler 제약 주의)
 - **시간 처리:** `todayKST()`, `nowKSTTimeString()`, `toKSTDateTime()` from `@/lib/utils`
 - **Slack:** `import { notifySlack } from "@/lib/slack"` — fire-and-forget, 실패해도 비즈니스 로직 미차단
 - **Cron API:** `/api/cron/*` routes는 `Authorization: Bearer ${CRON_SECRET}` 필수
