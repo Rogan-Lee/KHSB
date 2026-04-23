@@ -57,9 +57,11 @@ export type EnrollmentDelta = {
 
 /**
  * 특정 연/월 기준 원생 증감 통계.
- * - total: 월말 기준 ACTIVE 원생 수 (= 월말 이전에 등록 + 아직 end 안함)
+ * - total: 현재 ACTIVE 원생 수 (대시보드 '재원생' KPI와 일치)
  * - new:   startDate 가 해당 월 내
- * - left:  endDate 가 해당 월 내 (status != ACTIVE)
+ * - left:  endDate 가 해당 월 내
+ * - deltaVsLastMonth.total: 이번 달 순증 (= newThisMonth - leftThisMonth)
+ *   전월 대비 ACTIVE 수 역산 대신, 실제 월내 이벤트 기반 순증을 사용.
  */
 export async function getEnrollmentDelta(year: number, month: number): Promise<EnrollmentDelta> {
   const session = await auth();
@@ -70,25 +72,14 @@ export async function getEnrollmentDelta(year: number, month: number): Promise<E
   const prevMonthStart = new Date(year, month - 2, 1);
   const prevMonthEnd = monthStart;
 
-  const [currentTotal, currentNew, currentLeft, prevTotal, prevNew, prevLeft] =
+  const [currentTotal, currentNew, currentLeft, prevNew, prevLeft] =
     await Promise.all([
-      prisma.student.count({
-        where: {
-          startDate: { lt: monthEnd },
-          OR: [{ endDate: null }, { endDate: { gte: monthEnd } }],
-        },
-      }),
+      prisma.student.count({ where: { status: "ACTIVE" } }),
       prisma.student.count({
         where: { startDate: { gte: monthStart, lt: monthEnd } },
       }),
       prisma.student.count({
         where: { endDate: { gte: monthStart, lt: monthEnd } },
-      }),
-      prisma.student.count({
-        where: {
-          startDate: { lt: prevMonthEnd },
-          OR: [{ endDate: null }, { endDate: { gte: prevMonthEnd } }],
-        },
       }),
       prisma.student.count({
         where: { startDate: { gte: prevMonthStart, lt: prevMonthEnd } },
@@ -103,7 +94,7 @@ export async function getEnrollmentDelta(year: number, month: number): Promise<E
     newThisMonth: currentNew,
     leftThisMonth: currentLeft,
     deltaVsLastMonth: {
-      total: currentTotal - prevTotal,
+      total: currentNew - currentLeft,
       new: currentNew - prevNew,
       left: currentLeft - prevLeft,
     },
