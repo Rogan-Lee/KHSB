@@ -264,8 +264,144 @@ export async function generateMonthlyReport(
     update: stats,
   });
 
+  // 리포트 저장 후 자동 사진 첨부 (§2.22). 실패해도 리포트 생성은 유지.
+  try {
+    await autoAttachPhotosToReport(report.id);
+  } catch {
+    // Silent — 사진 첨부 실패가 리포트 실패로 이어지지 않도록
+  }
+
   revalidatePath("/reports");
   return report;
+}
+
+/**
+ * §2.22: 해당 리포트의 studentId + 월 범위에 해당하는 Photo 를 최신 N장(기본 3) 자동 첨부.
+ * - 파일명 파싱된 parsedDate 가 월 범위에 들어가는 사진만 대상
+ * - attachedPhotoIds 필드에 ID 배열 저장 (덮어쓰기)
+ */
+export async function autoAttachPhotosToReport(reportId: string, limit = 3) {
+  const report = await prisma.monthlyReport.findUnique({
+    where: { id: reportId },
+    select: { studentId: true, year: true, month: true },
+  });
+  if (!report) throw new Error("리포트를 찾을 수 없습니다");
+
+  const start = new Date(report.year, report.month - 1, 1);
+  const end = new Date(report.year, report.month, 1);
+
+  const photos = await prisma.photo.findMany({
+    where: {
+      studentId: report.studentId,
+      parsedDate: { gte: start, lt: end },
+    },
+    orderBy: { parsedDate: "desc" },
+    take: limit,
+    select: { id: true },
+  });
+
+  await prisma.monthlyReport.update({
+    where: { id: reportId },
+    data: { attachedPhotoIds: photos.map((p) => p.id) },
+  });
+
+  return photos.length;
+}
+
+/**
+ * 리포트 상세 수동 사진 편집용 — 해당 리포트의 학생/월에 해당하는 Photo 목록 반환.
+ */
+export async function getPhotosForReportPeriod(reportId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  const report = await prisma.monthlyReport.findUnique({
+    where: { id: reportId },
+    select: { studentId: true, year: true, month: true, attachedPhotoIds: true },
+  });
+  if (!report) throw new Error("리포트를 찾을 수 없습니다");
+
+  const from = new Date(report.year, report.month - 1, 1);
+  const to = new Date(report.year, report.month, 1);
+
+  const photos = await prisma.photo.findMany({
+    where: { studentId: report.studentId, parsedDate: { gte: from, lt: to } },
+    orderBy: { parsedDate: "desc" },
+    select: {
+      id: true,
+      url: true,
+      thumbnailUrl: true,
+      fileName: true,
+      parsedDate: true,
+    },
+  });
+
+  return { photos, selectedIds: report.attachedPhotoIds };
+}
+
+/**
+ * 수동 사진 첨부/해제 (관리자 UI).
+ */
+export async function setReportPhotos(reportId: string, photoIds: string[]) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  await prisma.monthlyReport.update({
+    where: { id: reportId },
+    data: { attachedPhotoIds: photoIds },
+  });
+  revalidatePath("/reports");
+  revalidatePath("/reports/monthly");
+}
+
+export type BulkReportResult = {
+  studentId: string;
+  status: "success" | "failed";
+  reason?: string;
+};
+
+/**
+ * 여러 학생의 월간 리포트를 병렬 생성.
+ * - concurrency=5 (DB 부하 제어)
+ * - 개별 실패 시 그 학생만 failed 로 표시, 나머지는 계속 진행
+ */
+export async function generateMonthlyReportsBulk(
+  studentIds: string[],
+  year: number,
+  month: number
+): Promise<BulkReportResult[]> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  const concurrency = 5;
+  const unique = Array.from(new Set(studentIds));
+  const results: BulkReportResult[] = [];
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < unique.length) {
+      const idx = cursor++;
+      const sid = unique[idx];
+      if (!sid) continue;
+      try {
+        await generateMonthlyReport(sid, year, month);
+        results.push({ studentId: sid, status: "success" });
+      } catch (e) {
+        results.push({
+          studentId: sid,
+          status: "failed",
+          reason: e instanceof Error ? e.message : "알 수 없는 오류",
+        });
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+  revalidatePath("/reports/monthly");
+  return results;
 }
 
 export async function updateReportComment(id: string, overallComment: string) {
@@ -287,6 +423,55 @@ export async function markReportSent(id: string) {
   if (!session?.user) throw new Error("Unauthorized");
   await prisma.monthlyReport.update({ where: { id }, data: { sentAt: new Date() } });
   revalidatePath("/reports");
+}
+
+/**
+ * 여러 리포트를 일괄 발송 처리 (sentAt 기록).
+ * 이미 발송된 건은 skip, 발송 전 건만 업데이트.
+ */
+export async function markReportsSentBulk(ids: string[]) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  if (ids.length === 0) return { updated: 0 };
+
+  const result = await prisma.monthlyReport.updateMany({
+    where: { id: { in: ids }, sentAt: null },
+    data: { sentAt: new Date() },
+  });
+  revalidatePath("/reports");
+  revalidatePath("/reports/monthly");
+  return { updated: result.count };
+}
+
+/**
+ * 여러 리포트의 공유 토큰을 한번에 확보 (복사·일괄 공유용).
+ * 기존 토큰이 있으면 재사용, 없으면 생성.
+ */
+export async function ensureShareTokensBulk(ids: string[]) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  if (ids.length === 0) return [];
+
+  const reports = await prisma.monthlyReport.findMany({
+    where: { id: { in: ids } },
+    include: { student: { select: { name: true } } },
+  });
+
+  const results: { id: string; studentName: string; token: string }[] = [];
+  for (const r of reports) {
+    let token = r.shareToken;
+    if (!token) {
+      token = crypto.randomUUID();
+      await prisma.monthlyReport.update({ where: { id: r.id }, data: { shareToken: token } });
+    }
+    results.push({ id: r.id, studentName: r.student.name, token });
+  }
+  revalidatePath("/reports/monthly");
+  return results;
 }
 
 export async function getMonthlyReports(year: number, month: number) {

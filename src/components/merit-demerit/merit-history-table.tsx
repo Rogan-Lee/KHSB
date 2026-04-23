@@ -15,12 +15,14 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { formatDate } from "@/lib/utils";
-import { Search, X, ArrowUp, ArrowDown, ArrowUpDown, Pencil, Trash2 } from "lucide-react";
+import { Search, X, Pencil, Trash2 } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Checkbox } from "@/components/ui/checkbox";
 import { updateMeritDemerit, deleteMeritDemerit, bulkDeleteMeritDemerits } from "@/actions/merit-demerit";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { useSortableTable } from "@/hooks/use-sortable-table";
+import { SortableHeader } from "@/components/ui/sortable-header";
 
 type MeritRecord = {
   id: string;
@@ -31,16 +33,6 @@ type MeritRecord = {
   reason: string;
   student: { name: string; grade: string };
 };
-
-type SortKey = "date" | "name" | "points";
-type SortDir = "asc" | "desc";
-
-function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
-  if (col !== sortKey) return <ArrowUpDown className="inline h-3 w-3 ml-1 opacity-30" />;
-  return sortDir === "asc"
-    ? <ArrowUp className="inline h-3 w-3 ml-1 text-foreground" />
-    : <ArrowDown className="inline h-3 w-3 ml-1 text-foreground" />;
-}
 
 const MERIT_FILTER_KEY = "merit-history-filters";
 function loadMeritFilters() {
@@ -144,42 +136,30 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
   const router = useRouter();
   const saved = typeof window !== "undefined" ? loadMeritFilters() : {};
   const [query, setQuery] = useState<string>(saved.q ?? "");
-  const [sortKey, setSortKey] = useState<SortKey>(saved.sort ?? "points");
-  const [sortDir, setSortDir] = useState<SortDir>(saved.dir ?? "desc");
   const [editTarget, setEditTarget] = useState<MeritRecord | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isBulkPending, startBulkTransition] = useTransition();
 
   useEffect(() => {
-    try { sessionStorage.setItem(MERIT_FILTER_KEY, JSON.stringify({ q: query, sort: sortKey, dir: sortDir })); } catch {}
-  }, [query, sortKey, sortDir]);
+    try { sessionStorage.setItem(MERIT_FILTER_KEY, JSON.stringify({ q: query })); } catch {}
+  }, [query]);
 
   const q = query.trim().toLowerCase();
 
-  function handleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("desc");
-    }
-  }
+  const baseFiltered = q
+    ? records.filter(
+        (r) =>
+          r.student.name.toLowerCase().includes(q) ||
+          r.reason.toLowerCase().includes(q) ||
+          (r.category ?? "").toLowerCase().includes(q)
+      )
+    : records;
 
-  const filtered = (
-    q
-      ? records.filter(
-          (r) =>
-            r.student.name.toLowerCase().includes(q) ||
-            r.reason.toLowerCase().includes(q) ||
-            (r.category ?? "").toLowerCase().includes(q)
-        )
-      : [...records]
-  ).sort((a, b) => {
-    let cmp = 0;
-    if (sortKey === "date") cmp = new Date(a.date).getTime() - new Date(b.date).getTime();
-    else if (sortKey === "points") cmp = a.points - b.points;
-    else if (sortKey === "name") cmp = a.student.name.localeCompare(b.student.name, "ko");
-    return sortDir === "asc" ? cmp : -cmp;
+  // 헤더 클릭으로 정렬 (3-state 토글). 미정렬 시 서버 순서 유지.
+  const { rows: filtered, sort, toggle } = useSortableTable(baseFiltered, {
+    date: (r) => new Date(r.date).getTime(),
+    name: (r) => r.student.name,
+    points: (r) => r.points,
   });
 
   const filteredIds = filtered.map((m) => m.id);
@@ -207,8 +187,6 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
       } catch { toast.error("삭제 실패"); }
     });
   }
-
-  const thClass = "cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap";
 
   return (
     <div className="space-y-3">
@@ -241,16 +219,16 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
             <TableHead className="w-10">
               <Checkbox checked={allSelected} onCheckedChange={toggleAll} aria-label="전체 선택" />
             </TableHead>
-            <TableHead className={thClass} onClick={() => handleSort("date")}>
-              날짜<SortIcon col="date" sortKey={sortKey} sortDir={sortDir} />
-            </TableHead>
-            <TableHead className={thClass} onClick={() => handleSort("name")}>
-              이름<SortIcon col="name" sortKey={sortKey} sortDir={sortDir} />
-            </TableHead>
+            <SortableHeader sortKey="date" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2 whitespace-nowrap">
+              날짜
+            </SortableHeader>
+            <SortableHeader sortKey="name" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2 whitespace-nowrap">
+              이름
+            </SortableHeader>
             <TableHead>구분</TableHead>
-            <TableHead className={thClass} onClick={() => handleSort("points")}>
-              점수<SortIcon col="points" sortKey={sortKey} sortDir={sortDir} />
-            </TableHead>
+            <SortableHeader sortKey="points" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2 whitespace-nowrap">
+              점수
+            </SortableHeader>
             <TableHead>카테고리</TableHead>
             <TableHead>사유</TableHead>
             <TableHead className="w-10"></TableHead>

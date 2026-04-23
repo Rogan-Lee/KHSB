@@ -84,7 +84,7 @@ export async function updateFeatureRequest(id: string, data: {
   const user = await getSession();
   const existing = await prisma.featureRequest.findUnique({ where: { id } });
   if (!existing) throw new Error("요청을 찾을 수 없습니다");
-  if (existing.authorId !== user.id && user.role !== "DIRECTOR" && user.role !== "ADMIN") {
+  if (existing.authorId !== user.id && user.role !== "DIRECTOR" && user.role !== "SUPER_ADMIN") {
     throw new Error("수정 권한이 없습니다");
   }
 
@@ -107,7 +107,7 @@ export async function deleteFeatureRequest(id: string) {
   const user = await getSession();
   const existing = await prisma.featureRequest.findUnique({ where: { id } });
   if (!existing) throw new Error("요청을 찾을 수 없습니다");
-  if (existing.authorId !== user.id && user.role !== "DIRECTOR" && user.role !== "ADMIN") {
+  if (existing.authorId !== user.id && user.role !== "DIRECTOR" && user.role !== "SUPER_ADMIN") {
     throw new Error("삭제 권한이 없습니다");
   }
 
@@ -139,7 +139,7 @@ export async function deleteFeatureRequestComment(commentId: string) {
   const user = await getSession();
   const comment = await prisma.featureRequestComment.findUnique({ where: { id: commentId } });
   if (!comment) throw new Error("댓글을 찾을 수 없습니다");
-  if (comment.authorId !== user.id && user.role !== "DIRECTOR" && user.role !== "ADMIN") {
+  if (comment.authorId !== user.id && user.role !== "DIRECTOR" && user.role !== "SUPER_ADMIN") {
     throw new Error("삭제 권한이 없습니다");
   }
 

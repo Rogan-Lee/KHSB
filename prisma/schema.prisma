@@ -8,8 +8,9 @@ datasource db {
 }
 
 enum Role {
-  ADMIN
-  DIRECTOR
+  SUPER_ADMIN   // 시스템 최상위 관리자 (다계정 가능)
+  ADMIN         // (deprecated) 이전 버전 호환, 신규 생성 금지
+  DIRECTOR      // 원장
   MENTOR
   STAFF
   STUDENT
@@ -112,11 +113,65 @@ model User {
   parentReports   ParentReport[]
   timetableEntries TimetableEntry[]
   announcements    Announcement[]
+  workTags        WorkTag[]
+  payrollSetting  PayrollSetting?
+  payrollRecords  PayrollRecord[]
   kakaoAccessToken  String?
   kakaoRefreshToken String?
   kakaoTokenExpiry  DateTime?
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
+}
+
+enum WorkTagType {
+  CLOCK_IN
+  CLOCK_OUT
+}
+
+model WorkTag {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       WorkTagType
+  taggedAt   DateTime    @default(now())
+  note       String?
+  // 관리자 편집 흔적
+  editedById   String?
+  editedByName String?
+  editedAt     DateTime?
+  createdAt  DateTime    @default(now())
+
+  @@index([userId, taggedAt])
+  @@index([taggedAt])
+}
+
+model PayrollSetting {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hourlyRate       Int                          // 원
+  weeklyHolidayPay Boolean  @default(true)      // 주휴수당 지급 여부
+  note             String?
+  updatedById      String?
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+}
+
+model PayrollRecord {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  year              Int
+  month             Int
+  workMinutes       Int
+  baseWage          Int                         // 기본급 (시급×시간)
+  weeklyHolidayWage Int      @default(0)        // 주휴수당 합계
+  totalWage         Int                         // baseWage + weeklyHolidayWage
+  hourlyRateAtCalc  Int                         // 계산 시점 시급 (이력 보존)
+  calculatedAt      DateTime @default(now())
+
+  @@unique([userId, year, month])
+  @@index([year, month])
 }
 
 model Student {
@@ -174,6 +229,8 @@ model Student {
   monthlyNotes     MonthlyNote[]
   vocabEnrollment  VocabTestEnrollment?
   vocabScores      VocabTestScore[]
+  examSeatAssignments ExamSeatAssignment[]
+  photos           Photo[]
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
 }
@@ -189,18 +246,19 @@ model AttendanceSchedule {
 }
 
 model AttendanceRecord {
-  id        String         @id @default(cuid())
-  studentId String
-  student   Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  date      DateTime       @db.Date
-  checkIn   DateTime?
-  checkOut  DateTime?
-  outStart  DateTime?      // 실제 외출 시각
-  outEnd    DateTime?      // 실제 복귀 시각
-  type      AttendanceType @default(NORMAL)
-  notes     String?
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id           String         @id @default(cuid())
+  studentId    String
+  student      Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date         DateTime       @db.Date
+  checkIn      DateTime?
+  checkOut     DateTime?
+  outStart     DateTime?      // 실제 외출 시각
+  outEnd       DateTime?      // 실제 복귀 시각
+  type         AttendanceType @default(NORMAL)
+  notes        String?
+  isAutoClosed Boolean        @default(false) // 자정 크론에서 자동 퇴실 처리됨
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
   @@unique([studentId, date])
   @@index([date])
@@ -363,6 +421,7 @@ model MonthlyReport {
   mentoringSummary      String?                 // 월간 멘토링 종합 의견
   overallComment        String?                 // (기존) 전체 코멘트
   shareToken            String?   @unique       // 학부모 공유 토큰
+  attachedPhotoIds      String[]  @default([])  // 자동 첨부된 Photo ID 목록 (최신 N장)
   sentAt                DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
@@ -423,8 +482,86 @@ model ExamScore {
   grade       Int?
   percentile  Float?
   notes       String?
+  sessionId   String?
+  session     ExamSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([sessionId])
+}
+
+model ExamSession {
+  id          String   @id @default(cuid())
+  title       String                        // 예: "2026년 4월 시스모의고사"
+  examDate    DateTime @db.Date
+  room        String   @default("H")        // "H" | "K"
+  examType    ExamType @default(OFFICIAL_MOCK)
+  subjects    String[]                      // ["국어","수학","영어","탐구1","탐구2"]
+  notes       String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignments ExamSeatAssignment[]
+  scores      ExamScore[]
+
+  @@index([examDate])
+}
+
+model PhotoFolder {
+  id        String        @id @default(cuid())
+  name      String
+  parentId  String?
+  parent    PhotoFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  PhotoFolder[] @relation("FolderTree")
+  photos    Photo[]
+  // 연/월 자동 폴더 여부 — auto=true 면 YYYY/MM 자동, 수동 폴더는 false
+  isAuto    Boolean       @default(false)
+  autoKey   String?       @unique  // "2026/04" 같은 자동 폴더 식별 키 (중복 방지)
+  createdById String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([parentId])
+}
+
+model Photo {
+  id            String       @id @default(cuid())
+  folderId      String?
+  folder        PhotoFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  fileName      String       // 원본 파일명 (중복 시 (1), (2) suffix 포함)
+  url           String       // 원본 blob URL
+  thumbnailUrl  String?      // 썸네일 blob URL (sharp 생성)
+  mimeType      String
+  sizeBytes     Int
+  parsedDate    DateTime?    @db.Date  // 파일명 파싱 결과
+  parsedSeatNumber Int?                // 파일명 파싱 결과
+  parsedName    String?                // 파일명 파싱 결과
+  studentId     String?
+  student       Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  uploadedById  String
+  uploadedByName String
+  uploadedAt    DateTime     @default(now())
+
+  @@index([folderId])
+  @@index([parsedDate])
+  @@index([parsedSeatNumber])
+  @@index([studentId])
+}
+
+model ExamSeatAssignment {
+  id         String      @id @default(cuid())
+  sessionId  String
+  session    ExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  seatNumber Int
+  studentId  String
+  student    Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@unique([sessionId, seatNumber])
+  @@unique([sessionId, studentId])
+  @@index([studentId])
 }
 
 model Assignment {
@@ -606,14 +743,17 @@ model HandoverTask {
 }
 
 model HandoverChecklist {
-  id         String   @id @default(cuid())
-  handoverId String
-  handover   Handover @relation(fields: [handoverId], references: [id], onDelete: Cascade)
-  templateId String?
-  title      String
-  shiftType  String   @default("ALL")
-  isChecked  Boolean  @default(false)
-  order      Int      @default(0)
+  id            String    @id @default(cuid())
+  handoverId    String
+  handover      Handover  @relation(fields: [handoverId], references: [id], onDelete: Cascade)
+  templateId    String?
+  title         String
+  shiftType     String    @default("ALL")
+  isChecked     Boolean   @default(false)
+  checkedAt     DateTime?
+  checkedById   String?
+  checkedByName String?
+  order         Int       @default(0)
 }
 
 model MonthlyNote {

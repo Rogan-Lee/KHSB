@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-  hasFeature, getMinimumPlan, PLAN_LABELS, ROUTE_FEATURE_MAP,
+  hasFeature, getMinimumPlan, PLAN_LABELS,
   type PlanTier, type FeatureKey,
 } from "@/lib/features";
 import {
@@ -29,7 +29,13 @@ import {
   CalendarClock,
   MapPin,
   Megaphone,
+  GraduationCap,
+  Images,
+  Wallet,
+  Building2,
   Lock,
+  ChevronRight,
+  ChevronsLeft,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType; feature?: FeatureKey };
@@ -53,6 +59,7 @@ const navSections: NavSection[] = [
       { href: "/merit-demerit", label: "상벌점", icon: Star, feature: "merit-demerit" },
       { href: "/vocab-test", label: "영단어 시험", icon: BookOpen, feature: "vocab-test" },
       { href: "/assignments", label: "과제 관리", icon: ClipboardCheck, feature: "assignments" },
+      { href: "/exams", label: "시험 관리", icon: GraduationCap, feature: "exam-scores" },
     ],
   },
   {
@@ -70,8 +77,10 @@ const navSections: NavSection[] = [
     items: [
       { href: "/calendar", label: "캘린더", icon: CalendarDays, feature: "calendar" },
       { href: "/meeting-minutes", label: "회의록", icon: NotebookText, feature: "meeting-minutes" },
+      { href: "/photos", label: "사진 관리", icon: Images, feature: "photos" },
       { href: "/messages", label: "카카오 메시지", icon: MessageCircle, feature: "kakao-messages" },
       { href: "/requests", label: "요청사항", icon: Megaphone, feature: "requests" },
+      { href: "/payroll/me", label: "내 출퇴근", icon: Wallet, feature: "payroll" },
     ],
   },
 ];
@@ -80,8 +89,10 @@ const directorSection: NavSection = {
   label: "관리자",
   items: [
     { href: "/mentors", label: "직원 관리", icon: UserCog, feature: "mentors" },
-    { href: "/reports", label: "월간 리포트", icon: BarChart3, feature: "reports" },
+    { href: "/payroll", label: "급여 정산", icon: Wallet, feature: "payroll" },
+    { href: "/reports/monthly", label: "월간 리포트", icon: BarChart3, feature: "reports" },
     { href: "/analytics", label: "성과 분석", icon: TrendingUp, feature: "analytics" },
+    { href: "/admin/school-stats", label: "학교별 통계", icon: Building2, feature: "school-stats" },
   ],
 };
 
@@ -90,11 +101,15 @@ export function AppSidebar({
   plan = "PREMIUM",
   mobile,
   onClose,
+  collapsed = false,
+  onToggle,
 }: {
   role?: string;
   plan?: PlanTier;
   mobile?: boolean;
   onClose?: () => void;
+  collapsed?: boolean;
+  onToggle?: () => void;
 }) {
   const pathname = usePathname();
 
@@ -124,12 +139,19 @@ export function AppSidebar({
       return (
         <div
           key={href}
-          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-[#c4c9ce] cursor-not-allowed"
-          title={minPlan ? `${PLAN_LABELS[minPlan].label} 플랜부터 사용 가능` : undefined}
+          className={cn(
+            "flex items-center gap-2.5 px-2.5 py-[7px] rounded-[8px] text-[12.5px] font-medium text-ink-5 cursor-not-allowed",
+            collapsed && "justify-center px-2"
+          )}
+          title={collapsed ? label : (minPlan ? `${PLAN_LABELS[minPlan].label} 플랜부터 사용 가능` : undefined)}
         >
-          <Icon className="h-4 w-4 shrink-0 text-[#d4d8dc]" />
-          <span className="flex-1">{label}</span>
-          <Lock className="h-3 w-3 text-[#d4d8dc]" />
+          <Icon className="h-4 w-4 shrink-0 text-ink-6" />
+          {!collapsed && (
+            <>
+              <span className="flex-1">{label}</span>
+              <Lock className="h-3 w-3 text-ink-6" />
+            </>
+          )}
         </div>
       );
     }
@@ -139,28 +161,30 @@ export function AppSidebar({
         key={href}
         href={href}
         onClick={mobile ? onClose : undefined}
+        title={collapsed ? label : undefined}
         className={cn(
-          "flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors duration-100",
+          "flex items-center gap-2.5 px-2.5 py-[7px] rounded-[8px] text-[12.5px] font-medium transition-colors duration-100",
+          collapsed && "justify-center px-2",
           isActive
-            ? "bg-accent text-foreground"
-            : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+            ? "bg-panel text-ink font-semibold shadow-[inset_0_0_0_1px_var(--line),var(--shadow-xs)]"
+            : "text-ink-2 hover:bg-[rgba(20,20,25,0.04)]"
         )}
       >
         <Icon
           className={cn(
             "h-4 w-4 shrink-0",
-            isActive ? "text-primary" : "text-muted-foreground"
+            isActive ? "text-ink" : "text-ink-3"
           )}
         />
-        {label}
+        {!collapsed && label}
       </Link>
     );
   };
 
   const renderSection = ({ label, items }: NavSection, idx: number) => (
-    <div key={idx} className={cn("space-y-0.5", idx > 0 && "pt-4")}>
-      {label && (
-        <p className="px-3 pb-1.5 text-[10.5px] font-semibold text-muted-foreground/60 uppercase tracking-[0.04em]">
+    <div key={idx} className={cn("space-y-[1px]", idx > 0 && "pt-[18px]")}>
+      {label && !collapsed && (
+        <p className="px-2 pb-1.5 text-[11px] font-semibold text-ink-4 tracking-[-0.005em]">
           {label}
         </p>
       )}
@@ -168,53 +192,119 @@ export function AppSidebar({
     </div>
   );
 
+  const isCollapsed = !mobile && collapsed;
+
   return (
     <aside className={cn(
-      "h-screen w-[224px] bg-sidebar border-r border-sidebar-border flex flex-col",
+      "group/sb h-screen bg-sidebar flex flex-col transition-[width] duration-300 p-2.5",
+      isCollapsed ? "w-16" : "w-[240px]",
       !mobile && "fixed left-0 top-0"
     )}>
-      {/* Logo */}
-      <div className="flex items-center gap-2.5 px-3 h-14 border-b border-sidebar-border shrink-0">
-        <div className="w-[22px] h-[22px] rounded-md bg-gradient-to-br from-[#FF6A1A] to-[#E8B54A] flex items-center justify-center shrink-0 shadow-[0_6px_14px_-6px_rgba(255,106,26,0.5)]">
-          <BookOpen className="h-3 w-3 text-[#0B0C0E]" />
-        </div>
-        <div className="min-w-0">
-          <p className="font-semibold text-[12.5px] text-foreground tracking-tight truncate">KHSB BackOffice</p>
-          <p className="text-[10px] text-muted-foreground font-mono leading-none mt-0.5">operator · v3</p>
-        </div>
+      {/* Workspace / logo — icon-only when collapsed, full card when expanded */}
+      <div className="shrink-0">
+        {isCollapsed ? (
+          <button
+            type="button"
+            onClick={onToggle}
+            disabled={!onToggle}
+            title="사이드바 펼치기"
+            aria-label="사이드바 펼치기"
+            className={cn(
+              "relative w-8 h-8 mx-auto grid place-items-center rounded-[9px] bg-ink text-white",
+              "text-[13px] font-bold tracking-[-0.02em] overflow-visible",
+              onToggle && "cursor-pointer transition-transform group-hover/sb:scale-[1.04]"
+            )}
+          >
+            <span className="relative w-full h-full grid place-items-center rounded-[9px] overflow-hidden">
+              K
+              <span className="absolute inset-[2px] rounded-[7px] bg-[linear-gradient(135deg,rgba(255,255,255,0.08),transparent_60%)] pointer-events-none" />
+            </span>
+            {/* Expand affordance — small pulsing chevron attached to the logo */}
+            {onToggle && (
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "absolute -right-[9px] top-1/2 -translate-y-1/2",
+                  "w-4 h-4 rounded-full bg-panel border border-line shadow-[var(--shadow-sm)]",
+                  "grid place-items-center text-ink-3",
+                  "opacity-60 group-hover/sb:opacity-100 group-hover/sb:text-ink",
+                  "transition-all"
+                )}
+              >
+                <ChevronRight className="h-3 w-3" />
+              </span>
+            )}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onToggle}
+            disabled={!onToggle}
+            title="사이드바 접기"
+            className={cn(
+              "w-full flex items-center gap-2.5 p-2.5 rounded-[10px] bg-panel border border-line shadow-[var(--shadow-xs)]",
+              onToggle && "hover:border-line-strong cursor-pointer"
+            )}
+          >
+            <span className="w-8 h-8 rounded-[9px] bg-ink text-white grid place-items-center shrink-0 text-[13px] font-bold tracking-[-0.02em] relative overflow-hidden">
+              K
+              <span className="absolute inset-[2px] rounded-[7px] bg-[linear-gradient(135deg,rgba(255,255,255,0.08),transparent_60%)] pointer-events-none" />
+            </span>
+            <span className="min-w-0 text-left flex-1">
+              <span className="block font-semibold text-[12.5px] text-ink tracking-[-0.015em] truncate">KHSB BackOffice</span>
+              <span className="block text-[11px] text-ink-4 leading-none mt-0.5">원장 · {PLAN_LABELS[plan].label}</span>
+            </span>
+            {onToggle && <ChevronsLeft className="h-3.5 w-3.5 text-ink-4 shrink-0" />}
+          </button>
+        )}
       </div>
 
       {/* Search trigger */}
-      <div className="px-3 pt-2 pb-1">
-        <button
-          onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
-          className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-[7px] bg-muted/60 border border-border/50 hover:border-border transition-colors cursor-text"
-        >
-          <svg className="h-3.5 w-3.5 text-muted-foreground shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3" strokeLinecap="round"/></svg>
-          <span className="flex-1 text-left text-xs text-muted-foreground">빠른 이동 · 원생 검색</span>
-          <kbd className="font-mono text-[10px] text-muted-foreground bg-background border border-border px-1.5 py-px rounded">⌘K</kbd>
-        </button>
+      <div className="pt-2.5">
+        {isCollapsed ? (
+          <button
+            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+            title="빠른 이동 · 원생 검색 (⌘K)"
+            aria-label="검색"
+            className="w-8 h-8 mx-auto grid place-items-center rounded-[8px] text-ink-3 hover:bg-canvas-2 hover:text-ink transition-colors cursor-pointer"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" strokeLinecap="round" />
+            </svg>
+          </button>
+        ) : (
+          <button
+            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+            className="flex items-center gap-2 w-full rounded-[10px] bg-panel border border-line shadow-[var(--shadow-xs)] hover:border-line-strong transition-colors cursor-text px-3 py-2"
+          >
+            <svg className="h-3.5 w-3.5 text-ink-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" strokeLinecap="round" />
+            </svg>
+            <span className="flex-1 text-left text-[12.5px] text-ink-4">빠른 이동 · 원생 검색</span>
+            <kbd className="font-mono text-[10px] text-ink-4 bg-canvas-2 px-1.5 py-px rounded-[4px]">⌘K</kbd>
+          </button>
+        )}
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-3">
+      <nav className={cn("flex-1 overflow-y-auto pt-[18px]", isCollapsed && "px-0")}>
         {navSections.map(renderSection)}
-        {(role === "DIRECTOR" || role === "ADMIN") &&
+        {(role === "DIRECTOR" || role === "SUPER_ADMIN") &&
           renderSection(directorSection, navSections.length)}
       </nav>
 
       {/* Footer — plan badge */}
-      <div className="px-4 py-3 border-t border-[#e1e2e4] shrink-0">
-        <div className="flex items-center justify-center gap-1.5">
+      {!isCollapsed && (
+        <div className="pt-2 shrink-0 flex items-center justify-center gap-1.5">
           <span className={cn(
-            "text-[10px] font-semibold px-2 py-0.5 rounded-full border",
+            "text-[10px] font-semibold rounded-full px-2 py-0.5 border",
             PLAN_LABELS[plan].color,
           )}>
             {PLAN_LABELS[plan].label}
           </span>
-          <span className="text-[11px] text-[#b1b8be]">v2.0</span>
+          <span className="text-[11px] text-ink-5 font-mono">v4</span>
         </div>
-      </div>
+      )}
     </aside>
   );
 }

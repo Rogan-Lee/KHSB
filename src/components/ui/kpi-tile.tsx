@@ -8,42 +8,42 @@ interface KpiTileProps {
   delta?: string | number | null;
   dir?: "up" | "down" | null;
   spark?: number[];
-  accent?: string; // tailwind color class like "text-primary" or hex
+  accent?: string; // hex color for the dot next to the label
+  ago?: string;    // e.g. "7일"
 }
 
-export function KpiTile({ label, value, unit, delta, dir, spark, accent }: KpiTileProps) {
+export function KpiTile({ label, value, unit, delta, dir, spark, accent, ago = "7일" }: KpiTileProps) {
   return (
-    <div className="relative px-4 py-3.5 border-r border-border last:border-r-0">
-      <div className="flex items-center gap-2 text-[11px] text-muted-foreground font-medium tracking-tight mb-2.5">
+    <div className="relative px-[18px] py-4 border-r border-line-2 last:border-r-0">
+      <div className="flex items-center gap-1.5 text-[11.5px] text-ink-4 font-medium mb-1.5">
         {accent && <span className="w-1.5 h-1.5 rounded-full" style={{ background: accent }} />}
         {label}
       </div>
-      <div className="text-[26px] font-[650] tracking-tight leading-none tabular-nums text-foreground">
+      <div className="flex items-baseline gap-1 text-[26px] font-[650] tracking-[-0.03em] leading-none tabular-nums text-ink">
         {value}
-        {unit && <span className="text-xs font-medium text-muted-foreground ml-1">{unit}</span>}
+        {unit && <span className="text-xs font-medium text-ink-4 tracking-[-0.01em]">{unit}</span>}
       </div>
       {(delta != null || dir) && (
-        <div className="flex items-center gap-1.5 mt-2 text-[11px] text-muted-foreground tabular-nums">
+        <div className="flex items-center gap-1.5 mt-1 text-[11px] text-ink-4 tabular-nums">
           {delta != null && (
             <span className={cn(
-              "inline-flex items-center gap-0.5 px-1.5 py-px rounded font-mono text-[10px] font-semibold",
-              dir === "up" ? "bg-ok-soft text-ok" : dir === "down" ? "bg-bad-soft text-bad" : "bg-muted text-muted-foreground"
+              "inline-flex items-center gap-0.5 font-semibold tabular-nums",
+              dir === "up" ? "text-ok" : dir === "down" ? "text-bad" : "text-ink-3"
             )}>
               {dir === "up" && <TrendingUp className="h-2.5 w-2.5" />}
               {dir === "down" && <TrendingDown className="h-2.5 w-2.5" />}
               {typeof delta === "number" ? (delta > 0 ? `+${delta}` : delta) : delta}
             </span>
           )}
-          <span>7일 추이</span>
+          <span className="text-ink-4">{ago}</span>
         </div>
       )}
       {spark && spark.length > 0 && (
-        <svg className="absolute right-3.5 top-3.5 opacity-40" width="52" height="18" viewBox="0 0 52 18">
+        <svg className="absolute right-3.5 top-3.5 text-brand" width="52" height="18" viewBox="0 0 52 18">
           <polyline
             points={spark.map((y, i) => `${i * 8 + 2},${18 - y * 2}`).join(" ")}
             fill="none"
             stroke="currentColor"
-            className="text-primary"
             strokeWidth="1.5"
             strokeLinecap="round"
           />
@@ -56,7 +56,7 @@ export function KpiTile({ label, value, unit, delta, dir, spark, accent }: KpiTi
 export function KpiStrip({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={cn(
-      "grid border border-border rounded-[10px] overflow-hidden bg-card",
+      "grid border border-line rounded-[12px] overflow-hidden bg-panel shadow-[var(--shadow-xs)]",
       className
     )}>
       {children}
