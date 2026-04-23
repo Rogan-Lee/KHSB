@@ -48,7 +48,7 @@ export default async function MentoringPage() {
       where: {
         OR: [
           { role: "MENTOR" },
-          { name: "정지훈", role: { in: ["ADMIN", "DIRECTOR"] } },
+          { name: "정지훈", role: { in: ["SUPER_ADMIN", "DIRECTOR"] } },
         ],
       },
       select: { id: true, name: true },

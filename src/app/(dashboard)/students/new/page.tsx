@@ -6,7 +6,7 @@ import { parseSchool } from "@/lib/utils";
 export default async function NewStudentPage() {
   const [mentors, schoolRows, seatRows] = await Promise.all([
     prisma.user.findMany({
-      where: { role: { in: ["ADMIN", "DIRECTOR", "MENTOR"] } },
+      where: { role: { in: ["SUPER_ADMIN", "DIRECTOR", "MENTOR"] } },
       select: { id: true, name: true },
     }),
     prisma.student.findMany({ select: { school: true } }),

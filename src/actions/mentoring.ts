@@ -318,7 +318,7 @@ export async function getTodayWorkingMentors(): Promise<MentorTodaySlot[]> {
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const dayOfWeek = kstNow.getUTCDay();
   const targetDate = todayKST();
-  const isDirector = session.user.role === "DIRECTOR" || session.user.role === "ADMIN";
+  const isDirector = session.user.role === "DIRECTOR" || session.user.role === "SUPER_ADMIN";
 
   // 오늘 근무하는 멘토 스케줄 조회
   const todaySchedules = await prisma.mentorSchedule.findMany({
@@ -414,7 +414,7 @@ export async function bulkCreateMentorings(studentIds: string[], mentorId: strin
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const isDirector = session.user.role === "DIRECTOR" || session.user.role === "ADMIN";
+  const isDirector = session.user.role === "DIRECTOR" || session.user.role === "SUPER_ADMIN";
   const isOwnMentor = mentorId === session.user.id;
   if (!isDirector && !isOwnMentor) throw new Error("Unauthorized");
 
@@ -469,7 +469,7 @@ export async function quickStartMentoring(studentId: string, mentorId: string): 
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const isDirector = session.user.role === "DIRECTOR" || session.user.role === "ADMIN";
+  const isDirector = session.user.role === "DIRECTOR" || session.user.role === "SUPER_ADMIN";
   const isOwnMentor = mentorId === session.user.id;
   if (!isDirector && !isOwnMentor) throw new Error("Unauthorized");
 
