@@ -7,6 +7,7 @@ import {
   hasFeature, getMinimumPlan, PLAN_LABELS,
   type PlanTier, type FeatureKey,
 } from "@/lib/features";
+import { isOnlineStaff } from "@/lib/roles";
 import {
   BookOpen,
   Users,
@@ -33,6 +34,7 @@ import {
   Images,
   Wallet,
   Building2,
+  Globe,
   Lock,
   ChevronRight,
   ChevronsLeft,
@@ -85,6 +87,15 @@ const navSections: NavSection[] = [
   },
 ];
 
+// 온라인 관리 모듈. ONLINE_ROLES(원장·SUPER_ADMIN·CONSULTANT·MANAGER_MENTOR) 에만 노출.
+const onlineSection: NavSection = {
+  label: "온라인 관리",
+  items: [
+    { href: "/online", label: "온라인 대시보드", icon: Globe },
+    { href: "/online/students", label: "온라인 학생", icon: Users },
+  ],
+};
+
 const directorSection: NavSection = {
   label: "관리자",
   items: [
@@ -115,6 +126,7 @@ export function AppSidebar({
 
   const allNavItems = [
     ...navSections.flatMap((s) => s.items),
+    ...onlineSection.items,
     ...directorSection.items,
   ];
 
@@ -289,8 +301,10 @@ export function AppSidebar({
       {/* Nav */}
       <nav className={cn("flex-1 overflow-y-auto pt-[18px]", isCollapsed && "px-0")}>
         {navSections.map(renderSection)}
+        {isOnlineStaff(role) &&
+          renderSection(onlineSection, navSections.length)}
         {(role === "DIRECTOR" || role === "SUPER_ADMIN") &&
-          renderSection(directorSection, navSections.length)}
+          renderSection(directorSection, navSections.length + 1)}
       </nav>
 
       {/* Footer — plan badge */}
