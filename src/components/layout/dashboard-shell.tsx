@@ -60,7 +60,7 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
         data-print-main
       >
         <div className="flex-1 p-3 md:p-3.5" data-print-content>
-          <main className="h-full bg-panel border border-line rounded-[14px] shadow-[var(--shadow-xs)] overflow-hidden max-w-[1400px] flex flex-col">
+          <main className="h-full bg-panel border border-line rounded-[14px] shadow-[var(--shadow-xs)] overflow-clip max-w-[1400px] flex flex-col">
             <div data-print-hide className="border-b border-line-2">
               <AppHeader
                 user={user}
