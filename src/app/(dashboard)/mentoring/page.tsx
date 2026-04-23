@@ -48,7 +48,8 @@ export default async function MentoringPage() {
       where: {
         OR: [
           { role: "MENTOR" },
-          { name: "정지훈", role: { in: ["SUPER_ADMIN", "DIRECTOR"] } },
+          // 멘토 겸직 관리자/스태프: 어드민으로 승격돼도 isMentor=true 면 드롭다운에 노출
+          { isMentor: true, role: { in: ["SUPER_ADMIN", "DIRECTOR", "STAFF"] } },
         ],
       },
       select: { id: true, name: true },
