@@ -38,6 +38,12 @@ export type WeeklyPlanMentor = {
   students: WeeklyPlanStudent[];
 };
 
+// KST 기준 날짜의 UTC 자정을 반환 (todayKST()와 동일한 방식으로 비교하기 위함)
+function toKSTMidnightUTC(date: Date): Date {
+  const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  return new Date(kst.toISOString().slice(0, 10));
+}
+
 export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMentor[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
@@ -123,7 +129,7 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
     const students: WeeklyPlanStudent[] = mentor.students.map((student) => {
       const lastDate = lastMap.get(student.id) ?? null;
       const daysSinceLast = lastDate
-        ? Math.floor((today.getTime() - new Date(lastDate).setHours(0, 0, 0, 0)) / 86400000)
+        ? Math.floor((today.getTime() - toKSTMidnightUTC(lastDate).getTime()) / 86400000)
         : null;
 
       let priority: 1 | 2 | 3;
@@ -165,7 +171,7 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
       if (!extra) continue;
       const lastDate = lastMap.get(sid) ?? null;
       const daysSinceLast = lastDate
-        ? Math.floor((today.getTime() - new Date(lastDate).setHours(0, 0, 0, 0)) / 86400000)
+        ? Math.floor((today.getTime() - toKSTMidnightUTC(lastDate).getTime()) / 86400000)
         : null;
       let priority: 1 | 2 | 3;
       if (daysSinceLast === null || daysSinceLast >= 7) priority = 1;
