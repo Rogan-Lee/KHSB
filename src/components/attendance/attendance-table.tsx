@@ -582,9 +582,9 @@ export function AttendanceTable({ students, today }: Props) {
         <table className="text-sm border-collapse min-w-max w-full">
           <thead>
             <tr className="border-b bg-muted/50 text-muted-foreground text-xs font-medium">
-              <th className="w-8 shrink-0" />
-              <th className="px-3 py-2.5 text-center w-12">좌석</th>
-              <th className="px-3 py-2.5 text-left w-28">이름</th>
+              <th className="w-8 shrink-0 sticky left-0 bg-muted z-[3]" />
+              <th className="px-3 py-2.5 text-center w-12 sticky left-8 bg-muted z-[3]">좌석</th>
+              <th className="px-3 py-2.5 text-left w-28 sticky left-20 bg-muted z-[3] border-r border-border">이름</th>
               <th className="px-3 py-2.5 text-left w-32 hidden lg:table-cell">특이사항</th>
               <th className="px-3 py-2.5 text-left w-24 hidden md:table-cell">학교·학년</th>
               <th className="px-3 py-2.5 text-left w-16 hidden lg:table-cell">반</th>
@@ -654,20 +654,31 @@ export function AttendanceTable({ students, today }: Props) {
               const vocabChecks = localCheckDates.get(student.id);
               const vocabDone = vocabChecks ? isDoneThisWeek("vocabTestDate", vocabChecks.vocabTestDate) : false;
 
+              // 좌측 고정 컬럼(chevron/좌석/이름)에도 동일한 행 배경을 적용해
+              // 가로 스크롤 시 하이라이트 일관성 유지. hover는 group-hover 로.
+              const rowBg = isSelected
+                ? "bg-blue-50"
+                : isExpanded
+                ? "bg-muted/30"
+                : isCheckInImminent
+                ? "bg-red-50/60 group-hover:bg-red-50"
+                : isVocabTarget && !vocabDone
+                ? "bg-orange-50/60"
+                : "bg-background group-hover:bg-accent/50";
+
               return (
                 <Fragment key={student.id}>
                 <tr
                   onClick={(e) => toggleTimeline(student.id, e)}
                   className={cn(
-                    "border-b transition-colors cursor-pointer",
-                    isSelected ? "bg-blue-50 border-l-2 border-l-blue-500" : isExpanded ? "bg-muted/30" : "hover:bg-accent/50",
-                    state === "NO_SCHEDULE" && "opacity-50",
-                    isCheckInImminent && !isSelected && "bg-red-50/60 hover:bg-red-50",
-                    isVocabTarget && !vocabDone && !isSelected && !isCheckInImminent && "bg-orange-50/60"
+                    "group border-b transition-colors cursor-pointer",
+                    rowBg,
+                    isSelected && "border-l-2 border-l-blue-500",
+                    state === "NO_SCHEDULE" && "opacity-50"
                   )}
                 >
                   {/* 타임라인 토글 */}
-                  <td className="pl-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                  <td className={cn("pl-2 py-3 text-center sticky left-0 z-[2]", rowBg)} onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={(e) => toggleTimeline(student.id, e)}
                       className="p-1 rounded hover:bg-accent text-muted-foreground transition-colors"
@@ -677,12 +688,12 @@ export function AttendanceTable({ students, today }: Props) {
                     </button>
                   </td>
                   {/* 좌석 */}
-                  <td className="px-3 py-3 text-center text-sm text-muted-foreground font-mono font-medium">
+                  <td className={cn("px-3 py-3 text-center text-sm text-muted-foreground font-mono font-medium sticky left-8 z-[2]", rowBg)}>
                     {student.seat ?? "—"}
                   </td>
 
                   {/* 이름 + 배지 */}
-                  <td className="px-3 py-3">
+                  <td className={cn("px-3 py-3 sticky left-20 z-[2] border-r border-border", rowBg)}>
                     <div className="flex items-center gap-1.5 min-w-0">
                       <p className="font-semibold text-sm truncate">{student.name}</p>
                       {commCount > 0 && (
