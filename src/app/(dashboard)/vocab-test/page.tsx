@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { VocabTestBoard } from "@/components/vocab-test/vocab-test-board";
+import { offlineStudentWhere } from "@/lib/student-filters";
 
 export default async function VocabTestPage() {
   const session = await auth();
@@ -11,7 +12,7 @@ export default async function VocabTestPage() {
 
   const [studentsRaw, enrollments, scores] = await Promise.all([
     prisma.student.findMany({
-      where: { status: "ACTIVE" },
+      where: offlineStudentWhere({ status: "ACTIVE" }),
       select: {
         id: true, name: true, grade: true, school: true, seat: true,
         vocabEnrollment: true,
