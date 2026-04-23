@@ -581,7 +581,7 @@ export function AttendanceTable({ students, today }: Props) {
         <div ref={scrollRef} className="rounded-lg border overflow-hidden overflow-x-auto mx-6">
         <table className="text-sm border-collapse min-w-max w-full">
           <thead>
-            <tr className="border-b bg-muted/50 text-muted-foreground text-xs font-medium">
+            <tr className="border-b bg-muted text-muted-foreground text-xs font-medium">
               <th className="w-8 shrink-0 sticky left-0 bg-muted z-[3]" />
               <th className="px-3 py-2.5 text-center w-12 sticky left-8 bg-muted z-[3]">좌석</th>
               <th className="px-3 py-2.5 text-left w-28 sticky left-20 bg-muted z-[3] border-r border-border">이름</th>
@@ -656,15 +656,16 @@ export function AttendanceTable({ students, today }: Props) {
 
               // 좌측 고정 컬럼(chevron/좌석/이름)에도 동일한 행 배경을 적용해
               // 가로 스크롤 시 하이라이트 일관성 유지. hover는 group-hover 로.
+              // sticky 셀은 불투명(alpha 없음)이어야 뒤에 스크롤되는 내용이 비치지 않음.
               const rowBg = isSelected
                 ? "bg-blue-50"
                 : isExpanded
-                ? "bg-muted/30"
+                ? "bg-muted"
                 : isCheckInImminent
-                ? "bg-red-50/60 group-hover:bg-red-50"
+                ? "bg-red-50 group-hover:bg-red-100"
                 : isVocabTarget && !vocabDone
-                ? "bg-orange-50/60"
-                : "bg-background group-hover:bg-accent/50";
+                ? "bg-orange-50"
+                : "bg-background group-hover:bg-accent";
 
               return (
                 <Fragment key={student.id}>
