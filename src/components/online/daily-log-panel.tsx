@@ -11,9 +11,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Search, X, CheckCircle2, Circle, Check, Filter,
-  Eye, EyeOff, ExternalLink,
+  Eye, EyeOff, ExternalLink, Sparkles,
 } from "lucide-react";
-import { upsertDailyKakaoLog } from "@/actions/online/daily-kakao-log";
+import {
+  upsertDailyKakaoLog,
+  summarizeKakaoRaw,
+} from "@/actions/online/daily-kakao-log";
 import { KAKAO_LOG_TAGS } from "@/lib/online/kakao-tags";
 
 export type DailyLogRow = {
@@ -55,12 +58,16 @@ export function DailyLogPanel({
   );
 
   // 편집 draft (활성 학생 바뀌면 리셋)
+  const [mode, setMode] = useState<"summary" | "raw">("summary");
   const [summary, setSummary] = useState<string>(activeRow?.log?.summary ?? "");
   const [tags, setTags] = useState<string[]>(activeRow?.log?.tags ?? []);
+  const [rawContent, setRawContent] = useState<string>("");
   const [isParentVisible, setIsParentVisible] = useState<boolean>(
     activeRow?.log?.isParentVisible ?? true
   );
   const [saving, setSaving] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiSummarized, setAiSummarized] = useState(false);
 
   // 활성 학생 변경 감지
   const activeKey = `${activeRow?.studentId ?? ""}/${activeRow?.log?.id ?? ""}`;
@@ -68,6 +75,9 @@ export function DailyLogPanel({
   if (activeKey !== lastKey) {
     setSummary(activeRow?.log?.summary ?? "");
     setTags(activeRow?.log?.tags ?? []);
+    setRawContent("");
+    setAiSummarized(false);
+    setMode("summary");
     setIsParentVisible(activeRow?.log?.isParentVisible ?? true);
     setLastKey(activeKey);
   }
@@ -113,8 +123,13 @@ export function DailyLogPanel({
           summary,
           tags,
           isParentVisible,
+          rawContent: rawContent || null,
+          aiSummarized,
         });
         toast.success("저장되었습니다");
+        setRawContent("");
+        setAiSummarized(false);
+        setMode("summary");
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "저장 실패");
@@ -122,6 +137,29 @@ export function DailyLogPanel({
         setSaving(false);
       }
     });
+  };
+
+  const handleAiSummarize = async () => {
+    if (!activeRow) return;
+    if (!rawContent.trim()) {
+      toast.error("원문을 붙여넣어 주세요");
+      return;
+    }
+    setAiBusy(true);
+    try {
+      const result = await summarizeKakaoRaw({
+        rawContent,
+        studentName: activeRow.studentName,
+      });
+      setSummary(result.summary);
+      setTags(result.tags);
+      setAiSummarized(true);
+      toast.success("AI 요약 — 검토 후 저장하세요");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "AI 실패");
+    } finally {
+      setAiBusy(false);
+    }
   };
 
   return (
@@ -278,15 +316,86 @@ export function DailyLogPanel({
               </div>
 
               <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                {/* 모드 switcher */}
+                <div className="inline-flex rounded-md border bg-muted/40 p-0.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setMode("summary")}
+                    className={cn(
+                      "px-3 py-1 rounded font-medium transition-colors",
+                      mode === "summary" ? "bg-background shadow-sm" : "text-muted-foreground"
+                    )}
+                  >
+                    요약 직접 입력
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode("raw")}
+                    className={cn(
+                      "px-3 py-1 rounded font-medium transition-colors inline-flex items-center gap-1",
+                      mode === "raw" ? "bg-background shadow-sm" : "text-muted-foreground"
+                    )}
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    원문 붙여넣기 + AI 요약
+                  </button>
+                </div>
+
+                {/* 원문 (AI 모드만) */}
+                {mode === "raw" && (
+                  <section>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        카톡 원문
+                      </h4>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={handleAiSummarize}
+                        disabled={aiBusy || !rawContent.trim()}
+                      >
+                        {aiBusy ? (
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <Sparkles className="h-3 w-3 mr-1" />
+                        )}
+                        AI 요약
+                      </Button>
+                    </div>
+                    <Textarea
+                      value={rawContent}
+                      onChange={(e) => setRawContent(e.target.value)}
+                      rows={8}
+                      placeholder="카톡 대화 원문을 그대로 붙여넣고 'AI 요약' 버튼을 누르면 요약·태그가 자동으로 채워집니다. (최대 20,000자)"
+                      className="text-[12px] leading-relaxed resize-y font-mono"
+                    />
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      원문은 DB 에 저장되지만 학부모 공개 페이지엔 노출되지 않습니다 (요약만 보임).
+                    </p>
+                  </section>
+                )}
+
                 {/* 요약 */}
                 <section>
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                    오늘 대화 요약
-                  </h4>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      {mode === "raw" ? "AI 추천 요약 (검토 후 저장)" : "오늘 대화 요약"}
+                    </h4>
+                    {aiSummarized && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium rounded-full bg-purple-100 text-purple-800 px-2 py-0.5">
+                        <Sparkles className="h-2.5 w-2.5" />
+                        AI 생성
+                      </span>
+                    )}
+                  </div>
                   <Textarea
                     value={summary}
-                    onChange={(e) => setSummary(e.target.value)}
-                    rows={8}
+                    onChange={(e) => {
+                      setSummary(e.target.value);
+                      if (aiSummarized) setAiSummarized(false);
+                    }}
+                    rows={mode === "raw" ? 5 : 8}
                     placeholder="오늘 학생과 나눈 카톡 대화의 핵심 요약을 적어 주세요. 학부모 공개 시 보고서 자료로 활용됩니다."
                     className="text-sm leading-relaxed resize-y"
                   />
