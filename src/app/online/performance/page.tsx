@@ -124,7 +124,14 @@ export default async function PerformanceOverviewPage({
                       <span className="ml-1 text-[11px] text-ink-5">({t.student.grade})</span>
                     </td>
                     <td className="px-3 py-2 text-ink-3">{t.subject}</td>
-                    <td className="px-3 py-2 text-ink">{t.title}</td>
+                    <td className="px-3 py-2 text-ink">
+                      <Link
+                        href={`/online/students/${t.student.id}/tasks/${t.id}`}
+                        className="hover:underline"
+                      >
+                        {t.title}
+                      </Link>
+                    </td>
                     <td className={`px-3 py-2 tabular-nums ${dueClass}`}>
                       {due.toLocaleDateString("ko-KR")}
                       <span className="ml-1 text-[11px]">
