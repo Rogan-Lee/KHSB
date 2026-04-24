@@ -805,23 +805,49 @@ model HandoverRead {
 }
 
 model Todo {
-  id           String    @id @default(cuid())
-  title        String
-  content      String?
-  dueDate      DateTime? @db.Date
-  priority     String    @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
-  isCompleted  Boolean   @default(false)
-  completedAt  DateTime?
-  authorId     String
-  authorName   String
-  assigneeId   String?
-  assigneeName String?
-  category     String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id             String        @id @default(cuid())
+  title          String
+  content        String?
+  dueDate        DateTime?     @db.Date
+  priority       String        @default("NORMAL") // URGENT, HIGH, NORMAL, LOW
+  isCompleted    Boolean       @default(false)
+  completedAt    DateTime?
+  authorId       String
+  authorName     String
+  assigneeId     String?
+  assigneeName   String?
+  category       String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  // 마지막 편집 메타 (목록에서 빠른 표시용 역정규화)
+  lastEditorId   String?
+  lastEditorName String?
+  lastEditedAt   DateTime?
+  versions       TodoVersion[]
 
   @@index([authorId])
   @@index([assigneeId])
+}
+
+// Todo 수정 이력. v1 = 최초 등록 스냅샷. 이후 수정 전 상태를 순차 저장.
+model TodoVersion {
+  id           String    @id @default(cuid())
+  todoId       String
+  todo         Todo      @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  version      Int       // 1부터 증분
+  title        String
+  content      String?
+  dueDate      DateTime? @db.Date
+  priority     String
+  assigneeId   String?
+  assigneeName String?
+  category     String?
+  editorId     String
+  editorName   String
+  createdAt    DateTime  @default(now())
+
+  @@unique([todoId, version])
+  @@index([todoId])
 }
 
 model MeetingMinutes {
