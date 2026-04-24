@@ -25,7 +25,7 @@ type ChecklistTemplate = { id: string; title: string; shiftType: string; order: 
 type MonthlyNote = { id: string; studentName: string; content: string; authorName: string; createdAt: Date };
 type Student = { id: string; name: string; grade: string };
 type Staff = { id: string; name: string; role: string };
-type Todo = { id: string; title: string; content: string | null; dueDate: Date | null; priority: string; isCompleted: boolean; completedAt: Date | null; authorId: string; authorName: string; assigneeId: string | null; assigneeName: string | null; category: string | null; createdAt: Date };
+type Todo = { id: string; title: string; content: string | null; dueDate: Date | null; priority: string; isCompleted: boolean; completedAt: Date | null; authorId: string; authorName: string; assigneeId: string | null; assigneeName: string | null; category: string | null; createdAt: Date; lastEditorId?: string | null; lastEditorName?: string | null; lastEditedAt?: Date | null };
 
 interface Props {
   handovers: Handover[];
@@ -502,9 +502,26 @@ function TodoHistoryDialog({ todo, onClose }: { todo: Todo; onClose: () => void 
         <div className="flex-1 overflow-y-auto p-4">
           {err && <p className="text-xs text-red-500 text-center py-4">{err}</p>}
           {!rows && !err && <p className="text-xs text-muted-foreground text-center py-4">불러오는 중...</p>}
-          {rows && rows.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">이력이 없습니다</p>}
-          {rows && rows.length > 0 && (
+          {rows && (
             <ol className="space-y-2">
+              {/* 현재 상태 (라이브) — 초록색 강조 */}
+              <li className="rounded-lg border border-green-300 bg-green-50 p-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-green-600 text-white">
+                    현재
+                  </span>
+                  <span className="text-xs font-semibold text-green-900">
+                    {todo.lastEditorName ?? todo.authorName}
+                  </span>
+                  <span className="ml-auto text-[11px] text-green-800">
+                    {fmtDateTimeLong(todo.lastEditedAt ?? todo.createdAt)}
+                  </span>
+                </div>
+                <p className="text-xs font-medium">{todo.title}</p>
+                {todo.content && <p className="text-[11px] text-green-900/70 whitespace-pre-wrap mt-1">{todo.content}</p>}
+              </li>
+
+              {/* 과거 버전 */}
               {rows.map((v) => (
                 <li key={v.id} className="rounded-lg border bg-muted/20 p-3">
                   <div className="flex items-center gap-2 mb-1">
@@ -521,6 +538,9 @@ function TodoHistoryDialog({ todo, onClose }: { todo: Todo; onClose: () => void 
                   {v.content && <p className="text-[11px] text-muted-foreground whitespace-pre-wrap mt-1">{v.content}</p>}
                 </li>
               ))}
+              {rows.length === 0 && (
+                <li className="text-[11px] text-muted-foreground text-center py-2">과거 수정 이력이 없습니다</li>
+              )}
             </ol>
           )}
         </div>
