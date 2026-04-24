@@ -123,6 +123,11 @@ export default async function OnlineStudentDetailPage({
           title="주간 계획"
           description="주 단위 과목별 목표 · 예상 학습시간 · 회고"
         />
+        <NavCard
+          href={`/online/students/${student.id}/daily-log`}
+          title="카톡 일일 보고"
+          description="관리멘토 일일 대화 요약 · 태그 · 학부모 공개 여부"
+        />
       </div>
 
       {canManage && (
