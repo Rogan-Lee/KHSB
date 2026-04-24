@@ -535,11 +535,34 @@ function VersionsDialog({ todo, onClose }: { todo: Todo; onClose: () => void }) 
         <div className="flex-1 overflow-y-auto p-[18px]">
           {loading && <p className="text-[12.5px] text-ink-4 text-center py-6">불러오는 중...</p>}
           {error && <p className="text-[12.5px] text-bad text-center py-6">{error}</p>}
-          {versions && versions.length === 0 && (
-            <p className="text-[12.5px] text-ink-4 text-center py-6">이력이 없습니다</p>
-          )}
-          {versions && versions.length > 0 && (
+          {versions && (
             <ol className="space-y-3">
+              {/* 현재 상태 (라이브) — 초록색 강조 */}
+              <li className="rounded-[10px] border border-ok/40 bg-ok-soft p-3">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-[10px] font-mono uppercase tracking-[0.06em] px-1.5 py-0.5 rounded-[4px] bg-ok text-white">
+                    현재
+                  </span>
+                  <span className="text-[11.5px] font-semibold text-ok-ink">
+                    {todo.lastEditorName ?? todo.authorName}
+                  </span>
+                  <span className="text-[11px] text-ink-4 font-mono tabular-nums ml-auto">
+                    {fmtDateTime(todo.lastEditedAt ?? todo.createdAt)}
+                  </span>
+                </div>
+                <p className="text-[12.5px] font-medium text-ink mb-0.5">{todo.title}</p>
+                {todo.content && (
+                  <p className="text-[11.5px] text-ink-2 whitespace-pre-wrap line-clamp-4">{todo.content}</p>
+                )}
+                <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1.5 text-[10.5px] text-ink-3">
+                  {todo.dueDate && <span>기한 {new Date(todo.dueDate).toLocaleDateString("ko-KR")}</span>}
+                  <span>우선 {PRIORITY_LABEL[todo.priority] ?? todo.priority}</span>
+                  {todo.assigneeName && <span>담당 {todo.assigneeName}</span>}
+                  {todo.category && <span>분류 {todo.category}</span>}
+                </div>
+              </li>
+
+              {/* 과거 버전들 */}
               {versions.map((v, idx) => {
                 const isOriginal = v.version === 1;
                 const newer = versions[idx - 1];
@@ -575,6 +598,11 @@ function VersionsDialog({ todo, onClose }: { todo: Todo; onClose: () => void }) 
                   </li>
                 );
               })}
+              {versions.length === 0 && (
+                <li className="text-[11.5px] text-ink-4 text-center py-2">
+                  과거 수정 이력이 없습니다
+                </li>
+              )}
             </ol>
           )}
         </div>
