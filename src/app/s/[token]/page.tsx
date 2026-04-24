@@ -19,15 +19,21 @@ export default async function StudentPortalHomePage({
     Math.ceil((session.link.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
   );
 
-  const survey = await prisma.onboardingSurvey.findUnique({
-    where: { studentId: student.id },
-    select: { submittedAt: true, updatedAt: true },
-  });
+  const [survey, taskCount] = await Promise.all([
+    prisma.onboardingSurvey.findUnique({
+      where: { studentId: student.id },
+      select: { submittedAt: true, updatedAt: true },
+    }),
+    prisma.performanceTask.count({
+      where: { studentId: student.id, status: { not: "DONE" } },
+    }),
+  ]);
   const surveyHint = survey?.submittedAt
     ? "제출 완료"
     : survey
       ? "작성 중 — 계속 작성"
       : "작성 시작";
+  const taskHint = taskCount > 0 ? `진행 중 ${taskCount}건` : "등록된 과제 없음";
 
   return (
     <div className="space-y-4">
@@ -55,8 +61,7 @@ export default async function StudentPortalHomePage({
           href={`/s/${token}/tasks`}
           icon={<ClipboardCheck className="h-4 w-4 text-ink-3" />}
           label="수행평가 일정"
-          hint="Sprint 2 진행 중"
-          disabled
+          hint={taskHint}
         />
         <PortalLink
           href={`/s/${token}/feedback`}

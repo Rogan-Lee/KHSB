@@ -93,6 +93,7 @@ const onlineSection: NavSection = {
   items: [
     { href: "/online", label: "온라인 대시보드", icon: Globe },
     { href: "/online/students", label: "온라인 학생", icon: Users },
+    { href: "/online/performance", label: "수행평가", icon: ClipboardCheck },
   ],
 };
 

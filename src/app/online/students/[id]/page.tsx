@@ -102,20 +102,36 @@ export default async function OnlineStudentDetailPage({
         </dl>
       </section>
 
-      <Link
-        href={`/online/students/${student.id}/survey`}
-        className="block rounded-[12px] border border-line bg-panel p-4 hover:border-line-strong transition-colors"
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-[13px] font-semibold text-ink">초기 설문</h2>
-            <p className="mt-0.5 text-[12px] text-ink-4">
-              학생이 작성한 학습 이력 · 목표 · 강점/약점 등을 확인합니다.
-            </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Link
+          href={`/online/students/${student.id}/survey`}
+          className="block rounded-[12px] border border-line bg-panel p-4 hover:border-line-strong transition-colors"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-[13px] font-semibold text-ink">초기 설문</h2>
+              <p className="mt-0.5 text-[12px] text-ink-4">
+                학습 이력 · 목표 · 강점/약점 확인
+              </p>
+            </div>
+            <ChevronLeft className="h-4 w-4 text-ink-4 rotate-180" />
           </div>
-          <ChevronLeft className="h-4 w-4 text-ink-4 rotate-180" />
-        </div>
-      </Link>
+        </Link>
+        <Link
+          href={`/online/students/${student.id}/tasks`}
+          className="block rounded-[12px] border border-line bg-panel p-4 hover:border-line-strong transition-colors"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-[13px] font-semibold text-ink">수행평가 일정</h2>
+              <p className="mt-0.5 text-[12px] text-ink-4">
+                과제 등록 · 마감 관리 · 상태 변경
+              </p>
+            </div>
+            <ChevronLeft className="h-4 w-4 text-ink-4 rotate-180" />
+          </div>
+        </Link>
+      </div>
 
       {canManage && (
         <section className="rounded-[12px] border border-line bg-panel p-4">
