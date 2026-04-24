@@ -10,6 +10,7 @@ import { ExamSeatManager } from "@/components/exams/exam-seat-manager";
 import { ExamScoreBulkEditor } from "@/components/exams/exam-score-bulk-editor";
 import { EXAM_TYPE_LABELS } from "@/components/exams/exam-type-label";
 import { H_ROOM_SEATS } from "@/lib/exam-seats";
+import { offlineStudentWhere } from "@/lib/student-filters";
 
 export default async function ExamSessionDetailPage({
   params,
@@ -32,12 +33,12 @@ export default async function ExamSessionDetailPage({
 
   const [students, allAssignedSeatOwners] = await Promise.all([
     prisma.student.findMany({
-      where: { status: "ACTIVE" },
+      where: offlineStudentWhere({ status: "ACTIVE" }),
       select: { id: true, name: true, grade: true, seat: true, school: true },
       orderBy: [{ grade: "asc" }, { name: "asc" }],
     }),
     prisma.student.findMany({
-      where: { status: "ACTIVE", seat: { not: null } },
+      where: offlineStudentWhere({ status: "ACTIVE", seat: { not: null } }),
       select: { id: true, name: true, seat: true },
     }),
   ]);

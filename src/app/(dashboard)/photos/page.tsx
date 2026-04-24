@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { PageIntro } from "@/components/ui/page-intro";
 import { PhotosBoard } from "@/components/photos/photos-board";
+import { offlineStudentWhere } from "@/lib/student-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export default async function PhotosPage({
           take: 100,
         }),
     prisma.student.findMany({
-      where: { status: "ACTIVE" },
+      where: offlineStudentWhere({ status: "ACTIVE" }),
       select: { id: true, name: true, grade: true, seat: true },
       orderBy: { name: "asc" },
     }),
