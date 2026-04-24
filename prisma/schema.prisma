@@ -112,6 +112,8 @@ model User {
   students        Student[]        @relation("MentorStudents")
   onlineStudents     Student[]     @relation("OnlineManagerStudents")  // MANAGER_MENTOR 담당 온라인 학생
   consultingStudents Student[]     @relation("ConsultantStudents")     // CONSULTANT 담당 온라인 학생
+  createdPerformanceTasks PerformanceTask[] @relation("PerformanceTaskCreator")
+  taskFeedbacks           TaskFeedback[]
   mentorings      Mentoring[]
   mentorSchedules MentorSchedule[]
   parentReports   ParentReport[]
@@ -219,6 +221,9 @@ model Student {
   assignedConsultantId String?                // CONSULTANT
   assignedConsultant   User?                  @relation("ConsultantStudents", fields: [assignedConsultantId], references: [id])
   magicLinks           StudentMagicLink[]
+  onboardingSurvey     OnboardingSurvey?
+  performanceTasks     PerformanceTask[]
+  taskResults          TaskResult[]
   // ─────────────────────────────────
   schedules      AttendanceSchedule[]
   attendances    AttendanceRecord[]
@@ -268,6 +273,105 @@ model StudentMagicLink {
 
   @@index([studentId, revokedAt])
   @@index([expiresAt])
+}
+
+// A-1 학생 초기 설문 (입시/수행평가/학습 이력).
+// 섹션별 JSON 구조로 저장 → 프론트에서 자동저장. 학생당 1개, 재설문 시 version++.
+model OnboardingSurvey {
+  id          String   @id @default(cuid())
+  studentId   String   @unique
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  version     Int      @default(1)
+  sections    Json     @default("{}") // { basicInfo, history, goals, strengths, weaknesses, admissionType, performance, freeform }
+  submittedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// A-2 수행평가 일정.
+enum PerformanceTaskStatus {
+  OPEN            // 등록만 됨
+  IN_PROGRESS     // 학생 준비 중
+  SUBMITTED       // 학생이 제출 완료 (컨설턴트 피드백 대기)
+  NEEDS_REVISION  // 컨설턴트가 수정 요청
+  DONE            // 최종 완료 (TaskResult 확정)
+}
+
+model PerformanceTask {
+  id            String                 @id @default(cuid())
+  studentId     String
+  student       Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject       String                 // 과목 (국어, 수학, 영어, 통합사회, ...)
+  title         String
+  description   String?
+  dueDate       DateTime               @db.Date
+  scoreWeight   Int?                   // 배점 (퍼센트/점수 자유)
+  format        String?                // "개인과제" | "조별" | "발표" | "보고서" ...
+  status        PerformanceTaskStatus  @default(OPEN)
+  createdById   String
+  createdBy     User                   @relation("PerformanceTaskCreator", fields: [createdById], references: [id])
+  submissions   TaskSubmission[]
+  result        TaskResult?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  @@index([studentId, dueDate])
+  @@index([status, dueDate])
+}
+
+// A-3 학생이 제출한 과제물. Phase 1 은 version=1 고정 (버전 관리 Phase 2).
+model TaskSubmission {
+  id          String          @id @default(cuid())
+  taskId      String
+  task        PerformanceTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  studentId   String           // 조회 편의용 denormalize (task.studentId 와 동일)
+  version     Int              @default(1)
+  files       Json             @default("[]") // [{ url, name, sizeBytes, mimeType }]
+  note        String?
+  submittedAt DateTime         @default(now())
+  feedbacks   TaskFeedback[]
+
+  @@unique([taskId, version])
+  @@index([studentId, submittedAt])
+}
+
+// A-3 컨설턴트 피드백. Phase 1 은 단일 선형 리스트 (쓰레드 X).
+enum TaskFeedbackStatus {
+  COMMENT         // 단순 코멘트
+  NEEDS_REVISION  // 수정 요청 → PerformanceTask.status 도 NEEDS_REVISION 으로
+  APPROVED        // 승인 (TaskResult 확정 전 단계)
+}
+
+model TaskFeedback {
+  id           String             @id @default(cuid())
+  submissionId String
+  submission   TaskSubmission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  authorId     String
+  author       User               @relation(fields: [authorId], references: [id])
+  content      String
+  status       TaskFeedbackStatus @default(COMMENT)
+  createdAt    DateTime           @default(now())
+
+  @@index([submissionId, createdAt])
+}
+
+// A-4 결과물 (Phase 2 확장 예정).
+// Phase 1 은 모델만 선반영 — status=DONE 시 컨설턴트가 최종본·점수·총평 기입.
+model TaskResult {
+  id                String   @id @default(cuid())
+  taskId            String   @unique
+  task              PerformanceTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  studentId         String           // 조회 편의용
+  student           Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  finalFiles        Json     @default("[]")
+  score             String?          // 자유 텍스트 (% / 등급 / 점수)
+  consultantSummary String?
+  includeInReport   Boolean  @default(false)
+  finalizedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([studentId, finalizedAt])
 }
 
 model AttendanceSchedule {
