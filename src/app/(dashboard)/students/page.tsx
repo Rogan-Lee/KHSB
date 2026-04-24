@@ -14,10 +14,12 @@ import { CsvImportScores } from "@/components/students/csv-import-scores";
 import { SheetsImport } from "@/components/students/sheets-import";
 import { getGoogleSheetsConfig } from "@/actions/google-sheets";
 import { isGoogleCalendarConfigured, getGoogleAuthUrl, isOAuthAppConfigured } from "@/lib/google-calendar";
+import { offlineStudentWhere } from "@/lib/student-filters";
 
 export default async function StudentsPage() {
   const [students, studentsSheetConfig, scoresSheetConfig, googleConnected] = await Promise.all([
     prisma.student.findMany({
+      where: offlineStudentWhere(),
       include: {
         mentor: { select: { name: true } },
         schedules: true,
