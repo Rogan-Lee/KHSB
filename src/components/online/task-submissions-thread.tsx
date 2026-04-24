@@ -159,7 +159,19 @@ export function TaskSubmissionsThread({
 
               {/* 피드백 작성 — 최신 버전 + 활성 상태일 때만 */}
               {isLatest && canWriteFeedback && allowNewFeedback && (
-                <TaskFeedbackForm submissionId={sub.id} />
+                <div id={`feedback-v${sub.version}`} className="scroll-mt-4">
+                  {sub.feedbacks.length === 0 && (
+                    <p className="text-[12px] text-ink-4 mb-2 flex items-center gap-1.5">
+                      <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                      <span className="font-medium">아직 피드백이 없습니다</span>
+                      <span className="text-ink-5">— 이 제출물에 대한 피드백을 남겨주세요</span>
+                    </p>
+                  )}
+                  <TaskFeedbackForm
+                    submissionId={sub.id}
+                    versionLabel={`v${sub.version} 제출물`}
+                  />
+                </div>
               )}
 
               {/* 학생 포털로의 가이드 — 학생용일 때 */}

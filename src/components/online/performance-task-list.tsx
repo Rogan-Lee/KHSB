@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, MessageSquarePlus, MessageSquare } from "lucide-react";
 import {
   createPerformanceTask,
   updatePerformanceTaskStatus,
@@ -21,6 +21,9 @@ export type PerformanceTaskRow = {
   scoreWeight: number | null;
   format: string | null;
   status: PerformanceTaskStatus;
+  hasSubmission?: boolean;
+  latestVersion?: number;
+  latestHasFeedback?: boolean;
 };
 
 const STATUS_LABEL: Record<PerformanceTaskStatus, string> = {
@@ -116,6 +119,7 @@ export function PerformanceTaskList({
                 <th className="text-left px-3 py-2 font-semibold">제목</th>
                 <th className="text-left px-3 py-2 font-semibold">마감일</th>
                 <th className="text-left px-3 py-2 font-semibold">상태</th>
+                <th className="text-left px-3 py-2 font-semibold">피드백</th>
                 {canManage && <th className="w-8" />}
               </tr>
             </thead>
@@ -184,6 +188,25 @@ export function PerformanceTaskList({
                         >
                           {STATUS_LABEL[t.status]}
                         </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {t.hasSubmission && !t.latestHasFeedback ? (
+                        <Link
+                          href={`/online/students/${studentId}/tasks/${t.id}#feedback-v${t.latestVersion ?? 1}`}
+                          className="inline-flex items-center gap-1 rounded-[6px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 text-[11px] font-semibold hover:bg-amber-200"
+                          title={`v${t.latestVersion} 제출됨 — 피드백 작성 필요`}
+                        >
+                          <MessageSquarePlus className="h-3 w-3" />
+                          작성 필요
+                        </Link>
+                      ) : t.latestHasFeedback ? (
+                        <span className="inline-flex items-center gap-1 rounded-[6px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[11px]">
+                          <MessageSquare className="h-3 w-3" />
+                          작성됨
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-ink-5">—</span>
                       )}
                     </td>
                     {canManage && (

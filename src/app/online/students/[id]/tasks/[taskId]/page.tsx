@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, MessageSquarePlus, Inbox } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { isOnlineStaff } from "@/lib/roles";
@@ -92,6 +92,55 @@ export default async function StaffTaskDetailPage({
           마감: {task.dueDate.toLocaleDateString("ko-KR")}
         </p>
       </header>
+
+      {(() => {
+        const latest = task.submissions[0];
+        const latestHasFeedback = (latest?.feedbacks.length ?? 0) > 0;
+        const needsFeedback =
+          task.status !== "DONE" && !!latest && !latestHasFeedback;
+        const noSubmission = !latest;
+
+        if (noSubmission) {
+          return (
+            <div className="rounded-[12px] border border-slate-200 bg-slate-50 p-4 flex items-center gap-3">
+              <Inbox className="h-5 w-5 text-slate-500 shrink-0" />
+              <div>
+                <p className="text-[13px] font-semibold text-slate-900">
+                  학생 제출 대기 중
+                </p>
+                <p className="text-[11.5px] text-slate-600 mt-0.5">
+                  학생이 자료를 올리면 여기에 표시되며, 버전별로 피드백을 남길 수 있습니다.
+                </p>
+              </div>
+            </div>
+          );
+        }
+        if (needsFeedback) {
+          return (
+            <a
+              href={`#feedback-v${latest.version}`}
+              className="block rounded-[12px] border border-amber-300 bg-amber-50 p-4 hover:border-amber-400 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <MessageSquarePlus className="h-5 w-5 text-amber-700 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-[13px] font-semibold text-amber-900">
+                    이 자료에 피드백을 남겨주세요
+                  </p>
+                  <p className="text-[11.5px] text-amber-800 mt-0.5">
+                    학생이 v{latest.version} 을 제출했습니다 — 아래 카드에서 피드백을 작성할 수 있어요.
+                    승인 / 수정 요청 / 코멘트 3가지 중 선택.
+                  </p>
+                </div>
+                <span className="inline-flex items-center rounded-full bg-amber-200 text-amber-900 px-2.5 py-1 text-[11px] font-semibold">
+                  피드백 필요
+                </span>
+              </div>
+            </a>
+          );
+        }
+        return null;
+      })()}
 
       {task.status === "DONE" && (
         <TaskResultEditor
