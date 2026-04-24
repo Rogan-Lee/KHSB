@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft, Paperclip, Download } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { isOnlineStaff } from "@/lib/roles";
-import { TaskFeedbackForm } from "@/components/online/task-feedback-form";
-import type { TaskFeedbackStatus, PerformanceTaskStatus } from "@/generated/prisma";
+import {
+  TaskSubmissionsThread,
+  type SubmissionVersion,
+} from "@/components/online/task-submissions-thread";
+import type { PerformanceTaskStatus } from "@/generated/prisma";
 import type { UploadedFile } from "@/actions/online/task-submissions";
 
 const STATUS_LABEL: Record<PerformanceTaskStatus, string> = {
@@ -14,18 +17,6 @@ const STATUS_LABEL: Record<PerformanceTaskStatus, string> = {
   SUBMITTED: "제출 완료",
   NEEDS_REVISION: "수정 필요",
   DONE: "최종 완료",
-};
-
-const FEEDBACK_LABEL: Record<TaskFeedbackStatus, string> = {
-  COMMENT: "코멘트",
-  NEEDS_REVISION: "수정 요청",
-  APPROVED: "승인",
-};
-
-const FEEDBACK_COLORS: Record<TaskFeedbackStatus, string> = {
-  COMMENT: "bg-slate-100 text-slate-700",
-  NEEDS_REVISION: "bg-red-100 text-red-800",
-  APPROVED: "bg-emerald-100 text-emerald-800",
 };
 
 export default async function StaffTaskDetailPage({
@@ -45,7 +36,7 @@ export default async function StaffTaskDetailPage({
         orderBy: { version: "desc" },
         include: {
           feedbacks: {
-            orderBy: { createdAt: "desc" },
+            orderBy: { createdAt: "asc" },
             include: { author: { select: { name: true } } },
           },
         },
@@ -54,11 +45,20 @@ export default async function StaffTaskDetailPage({
   });
   if (!task || task.student.id !== id) notFound();
 
-  const submission = task.submissions[0] ?? null;
-  const files: UploadedFile[] = Array.isArray(submission?.files)
-    ? (submission.files as unknown as UploadedFile[])
-    : [];
-  const feedbacks = task.submissions.flatMap((s) => s.feedbacks);
+  const versions: SubmissionVersion[] = task.submissions.map((s) => ({
+    id: s.id,
+    version: s.version,
+    files: Array.isArray(s.files) ? (s.files as unknown as UploadedFile[]) : [],
+    note: s.note,
+    submittedAt: s.submittedAt.toISOString(),
+    feedbacks: s.feedbacks.map((f) => ({
+      id: f.id,
+      authorName: f.author.name,
+      content: f.content,
+      status: f.status,
+      createdAt: f.createdAt.toISOString(),
+    })),
+  }));
 
   return (
     <div className="space-y-5">
@@ -79,6 +79,7 @@ export default async function StaffTaskDetailPage({
         <p className="mt-1 text-[13px] text-ink-4">
           {task.student.name} ({task.student.grade}) · {task.subject}
           {task.format && ` · ${task.format}`} · {STATUS_LABEL[task.status]}
+          {task.submissions.length > 0 && ` · v${task.submissions[0].version}까지 제출`}
         </p>
         {task.description && (
           <p className="mt-2 text-[12.5px] text-ink-3 leading-relaxed whitespace-pre-wrap">
@@ -90,84 +91,11 @@ export default async function StaffTaskDetailPage({
         </p>
       </header>
 
-      <section className="rounded-[12px] border border-line bg-panel p-4">
-        <h2 className="text-[13px] font-semibold text-ink mb-3">학생 제출물</h2>
-        {!submission ? (
-          <p className="text-[12.5px] text-ink-5">아직 제출되지 않았습니다.</p>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-[11.5px] text-ink-4">
-              제출일: {submission.submittedAt.toLocaleString("ko-KR")}
-            </p>
-            <ul className="space-y-1.5">
-              {files.map((f, i) => (
-                <li
-                  key={i}
-                  className="flex items-center gap-2 rounded-[6px] bg-canvas-2 px-3 py-2 text-[12.5px]"
-                >
-                  <Paperclip className="h-3.5 w-3.5 text-ink-4 shrink-0" />
-                  <span className="flex-1 truncate text-ink">{f.name}</span>
-                  <span className="shrink-0 text-[11px] text-ink-5">
-                    {(f.sizeBytes / 1024 / 1024).toFixed(1)}MB
-                  </span>
-                  <a
-                    href={f.url}
-                    target="_blank"
-                    rel="noopener"
-                    className="inline-flex items-center gap-1 text-[12px] text-ink-3 hover:text-ink"
-                    download={f.name}
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    다운로드
-                  </a>
-                </li>
-              ))}
-            </ul>
-            {submission.note && (
-              <div className="rounded-[8px] border border-line-2 bg-canvas px-3 py-2.5 text-[12.5px] text-ink whitespace-pre-wrap leading-relaxed">
-                <span className="text-[11px] font-semibold text-ink-4 block mb-1">학생 코멘트</span>
-                {submission.note}
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-
-      {submission && task.status !== "DONE" && (
-        <TaskFeedbackForm submissionId={submission.id} />
-      )}
-
-      <section>
-        <h2 className="text-[13px] font-semibold text-ink mb-2">
-          피드백 히스토리 ({feedbacks.length})
-        </h2>
-        {feedbacks.length === 0 ? (
-          <p className="text-[12px] text-ink-5">작성된 피드백이 없습니다.</p>
-        ) : (
-          <ul className="space-y-2">
-            {feedbacks.map((f) => (
-              <li
-                key={f.id}
-                className="rounded-[10px] border border-line bg-panel p-3"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <span
-                    className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${FEEDBACK_COLORS[f.status]}`}
-                  >
-                    {FEEDBACK_LABEL[f.status]}
-                  </span>
-                  <span className="text-[11px] text-ink-5">
-                    {f.author.name} · {f.createdAt.toLocaleString("ko-KR")}
-                  </span>
-                </div>
-                <p className="text-[12.5px] text-ink whitespace-pre-wrap leading-relaxed">
-                  {f.content}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <TaskSubmissionsThread
+        versions={versions}
+        taskStatus={task.status}
+        canWriteFeedback={true}
+      />
     </div>
   );
 }
