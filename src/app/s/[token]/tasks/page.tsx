@@ -77,9 +77,10 @@ export default async function StudentTasksPage({
                     ? "text-amber-600"
                     : "text-ink-3";
             return (
-              <div
+              <Link
                 key={t.id}
-                className="rounded-[10px] border border-line bg-panel p-3"
+                href={`/s/${token}/tasks/${t.id}`}
+                className="block rounded-[10px] border border-line bg-panel p-3 hover:border-line-strong transition-colors"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
@@ -120,10 +121,7 @@ export default async function StudentTasksPage({
                     </div>
                   </div>
                 </div>
-                <p className="mt-2 text-[11px] text-ink-5">
-                  제출 업로드는 Sprint 2 진행 중 — 곧 열립니다.
-                </p>
-              </div>
+              </Link>
             );
           })}
         </section>

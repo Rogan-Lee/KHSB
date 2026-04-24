@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
@@ -136,7 +137,12 @@ export function PerformanceTaskList({
                   <tr key={t.id} className="border-t border-line">
                     <td className="px-3 py-2 text-ink">{t.subject}</td>
                     <td className="px-3 py-2 text-ink">
-                      {t.title}
+                      <Link
+                        href={`/online/students/${studentId}/tasks/${t.id}`}
+                        className="hover:underline"
+                      >
+                        {t.title}
+                      </Link>
                       {t.format && (
                         <span className="ml-2 text-[11px] text-ink-5">({t.format})</span>
                       )}
