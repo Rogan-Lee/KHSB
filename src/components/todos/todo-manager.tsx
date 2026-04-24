@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useDraft } from "@/hooks/use-draft";
@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
-import { createTodo, updateTodo, deleteTodo, toggleTodo } from "@/actions/todos";
+import { createTodo, updateTodo, deleteTodo, toggleTodo, getTodoVersions } from "@/actions/todos";
 import { ChecklistManager } from "@/components/handover/checklist-manager";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -29,7 +29,31 @@ type Todo = {
   assigneeName: string | null;
   category: string | null;
   createdAt: Date;
+  lastEditorId?: string | null;
+  lastEditorName?: string | null;
+  lastEditedAt?: Date | null;
 };
+type TodoVersion = {
+  id: string;
+  version: number;
+  title: string;
+  content: string | null;
+  dueDate: Date | null;
+  priority: string;
+  assigneeId: string | null;
+  assigneeName: string | null;
+  category: string | null;
+  editorId: string;
+  editorName: string;
+  createdAt: Date;
+};
+
+function isFullAccessRole(role?: string | null) {
+  return role === "DIRECTOR" || role === "ADMIN" || role === "SUPER_ADMIN";
+}
+function isStaffRole(role?: string | null) {
+  return role === "DIRECTOR" || role === "ADMIN" || role === "SUPER_ADMIN" || role === "MENTOR" || role === "STAFF";
+}
 type Staff = { id: string; name: string; role: string };
 
 interface Props {
@@ -189,15 +213,18 @@ function TodoForm({
 
 // ── 할 일 카드 ────────────────────────────────────────────────────────────────
 function TodoCard({
-  todo, currentUserId, isPending,
-  onToggle, onEdit, onDelete,
+  todo, currentUserId, currentUserRole, isPending,
+  onToggle, onEdit, onDelete, onShowHistory,
 }: {
-  todo: Todo; currentUserId: string; isPending: boolean;
+  todo: Todo; currentUserId: string; currentUserRole?: string; isPending: boolean;
   onToggle: (id: string) => void; onEdit: (t: Todo) => void; onDelete: (id: string) => void;
+  onShowHistory: (t: Todo) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const overdue = isOverdue(todo.dueDate, todo.isCompleted);
-  const isAuthor = todo.authorId === currentUserId;
+  const canEdit = isStaffRole(currentUserRole); // 전체 스태프 편집 가능
+  const canDelete = todo.authorId === currentUserId || isFullAccessRole(currentUserRole);
+  const wasEdited = !!(todo.lastEditedAt && todo.lastEditorId && todo.lastEditorId !== todo.authorId);
 
   return (
     <div className={cn(
@@ -245,7 +272,12 @@ function TodoCard({
                 </span>
               )}
               {todo.authorName && (
-                <span className="text-[10px] text-muted-foreground/60 ml-auto">{todo.authorName}</span>
+                <span className="text-[10px] text-muted-foreground/60 ml-auto">
+                  {todo.authorName}
+                  {wasEdited && todo.lastEditorName && (
+                    <> · 수정 {todo.lastEditorName}</>
+                  )}
+                </span>
               )}
             </div>
           </div>
@@ -256,10 +288,23 @@ function TodoCard({
                 {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
               </button>
             )}
-            {isAuthor && <>
-              <button onClick={() => onEdit(todo)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"><Pencil className="h-3 w-3" /></button>
-              <button onClick={() => onDelete(todo.id)} className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600"><Trash2 className="h-3 w-3" /></button>
-            </>}
+            <button
+              onClick={() => onShowHistory(todo)}
+              title="수정 이력"
+              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+            >
+              <span className="font-mono text-[10px] leading-none">이력</span>
+            </button>
+            {canEdit && (
+              <button onClick={() => onEdit(todo)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
+                <Pencil className="h-3 w-3" />
+              </button>
+            )}
+            {canDelete && (
+              <button onClick={() => onDelete(todo.id)} className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </div>
         {/* 상세 내용 */}
@@ -281,6 +326,7 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(true);
+  const [historyTodo, setHistoryTodo] = useState<Todo | null>(null);
 
   const pending = todos.filter((t) => !t.isCompleted);
   const completed = todos.filter((t) => t.isCompleted);
@@ -380,10 +426,12 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
                 key={todo.id}
                 todo={todo}
                 currentUserId={currentUserId}
+                currentUserRole={currentUserRole}
                 isPending={isPending}
                 onToggle={handleToggle}
                 onEdit={(t) => { setEditingTodo(t); setShowForm(false); }}
                 onDelete={setDeleteConfirmId}
+                onShowHistory={setHistoryTodo}
               />
             )
           )
@@ -407,15 +455,20 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
                   key={todo.id}
                   todo={todo}
                   currentUserId={currentUserId}
+                  currentUserRole={currentUserRole}
                   isPending={isPending}
                   onToggle={handleToggle}
                   onEdit={(t) => { setEditingTodo(t); setShowForm(false); }}
                   onDelete={setDeleteConfirmId}
+                  onShowHistory={setHistoryTodo}
                 />
               ))}
             </div>
           )}
         </div>
+      )}
+      {historyTodo && (
+        <VersionsDialog todo={historyTodo} onClose={() => setHistoryTodo(null)} />
       )}
 
       {/* 루틴 관리 (관리자 전용) */}
@@ -436,4 +489,106 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
       )}
     </div>
   );
+}
+
+// ── 수정 이력 다이얼로그 ──────────────────────────────────────────────────────
+function fmtDateTime(d: Date | string) {
+  return new Date(d).toLocaleString("ko-KR", {
+    year: "numeric", month: "numeric", day: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function VersionsDialog({ todo, onClose }: { todo: Todo; onClose: () => void }) {
+  const [versions, setVersions] = useState<TodoVersion[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    getTodoVersions(todo.id)
+      .then((rows) => { if (!cancelled) setVersions(rows as unknown as TodoVersion[]); })
+      .catch((e: unknown) => { if (!cancelled) setError(e instanceof Error ? e.message : "이력을 불러오지 못했습니다"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [todo.id]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border border-line rounded-[14px] shadow-[var(--shadow-pop)] w-full max-w-[560px] max-h-[80vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 px-[18px] py-3 border-b border-line-2">
+          <span className="text-[13.5px] font-[650] tracking-[-0.015em] text-ink">수정 이력</span>
+          <span className="text-[11.5px] text-ink-4 truncate">· {todo.title}</span>
+          <button onClick={onClose} className="ml-auto p-1 rounded hover:bg-canvas-2 text-ink-4 hover:text-ink">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-[18px]">
+          {loading && <p className="text-[12.5px] text-ink-4 text-center py-6">불러오는 중...</p>}
+          {error && <p className="text-[12.5px] text-bad text-center py-6">{error}</p>}
+          {versions && versions.length === 0 && (
+            <p className="text-[12.5px] text-ink-4 text-center py-6">이력이 없습니다</p>
+          )}
+          {versions && versions.length > 0 && (
+            <ol className="space-y-3">
+              {versions.map((v, idx) => {
+                const isOriginal = v.version === 1;
+                const newer = versions[idx - 1];
+                return (
+                  <li key={v.id} className="rounded-[10px] border border-line bg-panel-2 p-3">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className={cn(
+                        "text-[10px] font-mono uppercase tracking-[0.06em] px-1.5 py-0.5 rounded-[4px]",
+                        isOriginal ? "bg-brand-soft text-brand-2" : "bg-canvas-2 text-ink-3"
+                      )}>
+                        v{v.version}{isOriginal && " · 최초"}
+                      </span>
+                      <span className="text-[11.5px] font-semibold text-ink">{v.editorName}</span>
+                      <span className="text-[11px] text-ink-4 font-mono tabular-nums ml-auto">
+                        {fmtDateTime(v.createdAt)}
+                      </span>
+                    </div>
+                    <p className="text-[12.5px] font-medium text-ink mb-0.5">{v.title}</p>
+                    {v.content && (
+                      <p className="text-[11.5px] text-ink-3 whitespace-pre-wrap line-clamp-4">{v.content}</p>
+                    )}
+                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1.5 text-[10.5px] text-ink-4">
+                      {v.dueDate && <span>기한 {new Date(v.dueDate).toLocaleDateString("ko-KR")}</span>}
+                      <span>우선 {PRIORITY_LABEL[v.priority] ?? v.priority}</span>
+                      {v.assigneeName && <span>담당 {v.assigneeName}</span>}
+                      {v.category && <span>분류 {v.category}</span>}
+                    </div>
+                    {newer && (
+                      <div className="mt-2 pt-2 border-t border-line-2 text-[10.5px] text-ink-4">
+                        변경: {diffSummary(v, newer)}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function diffSummary(prev: TodoVersion, next: TodoVersion): string {
+  const parts: string[] = [];
+  if (prev.title !== next.title) parts.push("제목");
+  if ((prev.content ?? "") !== (next.content ?? "")) parts.push("내용");
+  if (String(prev.dueDate ?? "") !== String(next.dueDate ?? "")) parts.push("기한");
+  if (prev.priority !== next.priority) parts.push("우선순위");
+  if ((prev.assigneeId ?? "") !== (next.assigneeId ?? "")) parts.push("담당자");
+  if ((prev.category ?? "") !== (next.category ?? "")) parts.push("분류");
+  return parts.length ? parts.join(", ") : "메타 정보";
 }
