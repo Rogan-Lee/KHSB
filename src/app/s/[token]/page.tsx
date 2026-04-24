@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { validateMagicLink } from "@/lib/student-auth";
+import { prisma } from "@/lib/prisma";
 import { FileText, ClipboardCheck, MessageSquare } from "lucide-react";
 
 export default async function StudentPortalHomePage({
@@ -17,6 +18,16 @@ export default async function StudentPortalHomePage({
     0,
     Math.ceil((session.link.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
   );
+
+  const survey = await prisma.onboardingSurvey.findUnique({
+    where: { studentId: student.id },
+    select: { submittedAt: true, updatedAt: true },
+  });
+  const surveyHint = survey?.submittedAt
+    ? "제출 완료"
+    : survey
+      ? "작성 중 — 계속 작성"
+      : "작성 시작";
 
   return (
     <div className="space-y-4">
@@ -38,21 +49,20 @@ export default async function StudentPortalHomePage({
           href={`/s/${token}/survey`}
           icon={<FileText className="h-4 w-4 text-ink-3" />}
           label="초기 설문"
-          hint="Sprint 2 오픈 예정"
-          disabled
+          hint={surveyHint}
         />
         <PortalLink
           href={`/s/${token}/tasks`}
           icon={<ClipboardCheck className="h-4 w-4 text-ink-3" />}
           label="수행평가 일정"
-          hint="Sprint 2 오픈 예정"
+          hint="Sprint 2 진행 중"
           disabled
         />
         <PortalLink
           href={`/s/${token}/feedback`}
           icon={<MessageSquare className="h-4 w-4 text-ink-3" />}
           label="받은 피드백"
-          hint="Sprint 2 오픈 예정"
+          hint="Sprint 2 진행 중"
           disabled
         />
       </section>
