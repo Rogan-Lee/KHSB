@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
-import { EnableOnlineStudentForm } from "@/components/online/enable-online-student-form";
+import { AddOnlineStudentTabs } from "@/components/online/add-online-student-tabs";
 import { ChevronRight } from "lucide-react";
 
 export default async function OnlineStudentsPage() {
@@ -60,10 +60,10 @@ export default async function OnlineStudentsPage() {
 
       {canManage && (
         <section className="rounded-[12px] border border-line bg-panel p-4">
-          <h2 className="text-[13px] font-semibold text-ink mb-2">
-            오프라인 학생을 온라인 관리로 전환
+          <h2 className="text-[13px] font-semibold text-ink mb-3">
+            온라인 학생 추가
           </h2>
-          <EnableOnlineStudentForm
+          <AddOnlineStudentTabs
             offlineStudents={offlineStudents}
             mentors={mentors}
             consultants={consultants}
