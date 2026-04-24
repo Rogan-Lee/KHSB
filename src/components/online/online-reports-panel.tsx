@@ -13,7 +13,7 @@ import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import {
   Loader2, Search, X, CheckCircle2, Circle, Link2, Send,
   ExternalLink, Copy, Check, Filter, MessageCircle, Sparkles,
-  AlertCircle, ChevronLeft, ChevronRight,
+  AlertCircle, ChevronLeft, ChevronRight, Mail,
 } from "lucide-react";
 import {
   batchGenerateWeeklyReports,
@@ -30,6 +30,7 @@ export type OnlineReportRow = {
   studentId: string;
   studentName: string;
   grade: string;
+  parentEmail: string | null;
   assignedMentorName: string | null;
   report: {
     id: string;
@@ -261,6 +262,30 @@ export function OnlineReportsPanel({
         });
         startTransition(() => router.refresh());
       } catch { /* ignore */ }
+    }
+  }
+
+  function handleEmailMailto() {
+    if (!activeRow?.report) return;
+    const url = `${origin}/r/online/${activeRow.report.token}`;
+    const subject = `${activeRow.studentName} 학부모 보고서 — ${formatWeekRange(weekStart)}`;
+    const body =
+      `안녕하세요, ${activeRow.studentName} 학부모님.\n` +
+      `${formatWeekRange(weekStart)} 주간 보고서를 정리해 드립니다.\n` +
+      `아래 링크를 통해 확인해 주세요.\n\n${url}`;
+    const to = activeRow.parentEmail ?? "";
+    const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailto;
+    if (
+      activeRow.report.status === "APPROVED" ||
+      activeRow.report.status === "SENT"
+    ) {
+      markReportSent({
+        reportId: activeRow.report.id,
+        channel: "EMAIL",
+      })
+        .then(() => startTransition(() => router.refresh()))
+        .catch(() => {});
     }
   }
 
@@ -689,6 +714,19 @@ export function OnlineReportsPanel({
                       >
                         <MessageCircle className="h-4 w-4" />
                         카카오톡으로 보내기
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full gap-2"
+                        onClick={handleEmailMailto}
+                      >
+                        <Mail className="h-4 w-4" />
+                        이메일로 보내기
+                        {activeRow.parentEmail && (
+                          <span className="text-[10.5px] text-muted-foreground font-normal">
+                            → {activeRow.parentEmail}
+                          </span>
+                        )}
                       </Button>
                       <p className="text-[11px] text-muted-foreground">
                         개별 발송 외에 상단 &quot;선택 링크 복사&quot;로 여러 명 링크를 한번에 복사할 수 있어요.
