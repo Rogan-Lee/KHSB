@@ -12,6 +12,10 @@
     {
       "path": "/api/cron/online-weekly-report-draft",
       "schedule": "0 1 * * 0"
+    },
+    {
+      "path": "/api/cron/online-tag-pattern-alert",
+      "schedule": "0 0 * * 1"
     }
   ]
 }
