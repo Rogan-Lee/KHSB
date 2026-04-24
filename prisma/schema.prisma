@@ -114,6 +114,9 @@ model User {
   consultingStudents Student[]     @relation("ConsultantStudents")     // CONSULTANT 담당 온라인 학생
   createdPerformanceTasks PerformanceTask[] @relation("PerformanceTaskCreator")
   taskFeedbacks           TaskFeedback[]
+  authoredSubjectProgress SubjectProgress[] @relation("SubjectProgressAuthor")
+  authoredWeeklyPlans     WeeklyPlan[]      @relation("WeeklyPlanAuthor")
+  authoredDailyKakaoLogs  DailyKakaoLog[]   @relation("DailyKakaoLogAuthor")
   mentorings      Mentoring[]
   mentorSchedules MentorSchedule[]
   parentReports   ParentReport[]
@@ -224,6 +227,9 @@ model Student {
   onboardingSurvey     OnboardingSurvey?
   performanceTasks     PerformanceTask[]
   taskResults          TaskResult[]
+  subjectProgress      SubjectProgress[]
+  weeklyPlans          WeeklyPlan[]
+  dailyKakaoLogs       DailyKakaoLog[]
   // ─────────────────────────────────
   schedules      AttendanceSchedule[]
   attendances    AttendanceRecord[]
@@ -372,6 +378,63 @@ model TaskResult {
   updatedAt         DateTime @updatedAt
 
   @@index([studentId, finalizedAt])
+}
+
+// B-1 과목별 진도. 매 주 스냅샷을 append 해 히스토리 구성 (PK 없이 recordedAt 기반).
+model SubjectProgress {
+  id             String   @id @default(cuid())
+  studentId      String
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject        String   // "국어" | "수학" | "영어" | "탐구1" | ...
+  currentTopic   String   // 현재 단원 · 학습 위치
+  textbookPage   String?  // "쎈 수2 p.45~60" 등
+  weeklyProgress Int?     // 0-100 주간 진행률
+  notes          String?  // 이슈 · 특이사항
+  recordedAt     DateTime @default(now())
+  authorId       String
+  author         User     @relation("SubjectProgressAuthor", fields: [authorId], references: [id])
+
+  @@index([studentId, subject, recordedAt])
+  @@index([studentId, recordedAt])
+}
+
+// B-2 주간 계획. 학생당 주 1건 unique (월요일 기준).
+model WeeklyPlan {
+  id            String   @id @default(cuid())
+  studentId     String
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  weekStart     DateTime @db.Date      // 해당 주 월요일 (KST 자정)
+  goals         Json     @default("{}") // { subject: [ { text, done } ] } 자유 JSON
+  studyHours    Int?                   // 주간 예상 학습시간 (시간)
+  retrospective String?                // 주말 회고
+  authorId      String
+  author        User     @relation("WeeklyPlanAuthor", fields: [authorId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([studentId, weekStart])
+  @@index([authorId, weekStart])
+}
+
+// B-4 카톡 일일 보고. 학생×날짜 unique. Phase 1 은 summary only (rawContent 는 Phase 2).
+model DailyKakaoLog {
+  id              String    @id @default(cuid())
+  studentId       String
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  authorId        String
+  author          User      @relation("DailyKakaoLogAuthor", fields: [authorId], references: [id])
+  logDate         DateTime  @db.Date
+  rawContent      String?   @db.Text  // Phase 2: 원문 붙여넣기
+  summary         String    @db.Text
+  tags            String[]  @default([]) // 진도질문·컨디션·고민상담·수면·식사·기타
+  isParentVisible Boolean   @default(true)
+  aiSummarized    Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([studentId, logDate])
+  @@index([authorId, logDate])
+  @@index([studentId, logDate])
 }
 
 model AttendanceSchedule {
