@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { useDraft } from "@/hooks/use-draft";
 import {
   Plus, CheckSquare, Square, Pencil, Trash2, AlertTriangle,
-  Calendar, User, ChevronDown, ChevronUp, X, Check, Settings2,
+  Calendar, User, ChevronDown, ChevronUp, X, Check, Settings2, History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -291,9 +291,10 @@ function TodoCard({
             <button
               onClick={() => onShowHistory(todo)}
               title="수정 이력"
-              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+              className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
             >
-              <span className="font-mono text-[10px] leading-none">이력</span>
+              <History className="h-3 w-3" />
+              <span className="text-[11px] leading-none">이력</span>
             </button>
             {canEdit && (
               <button onClick={() => onEdit(todo)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
