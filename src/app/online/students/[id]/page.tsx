@@ -118,6 +118,11 @@ export default async function OnlineStudentDetailPage({
           title="과목별 진도"
           description="과목별 현재 위치 · 주간 진행률 · 이슈"
         />
+        <NavCard
+          href={`/online/students/${student.id}/plans`}
+          title="주간 계획"
+          description="주 단위 과목별 목표 · 예상 학습시간 · 회고"
+        />
       </div>
 
       {canManage && (
