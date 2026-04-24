@@ -17,7 +17,10 @@ export type UploadedFile = {
 
 /**
  * 학생이 수행평가 제출.
- * Phase 1 은 version 항상 1 — 기존 제출이 있으면 그것을 update (덮어쓰기).
+ * 버전 관리 규칙:
+ *  - 첫 제출 → version=1 생성
+ *  - 최신 제출에 피드백이 없으면 → 같은 버전 덮어쓰기 (단순 수정)
+ *  - 최신 제출에 피드백이 있으면 → 새 version 생성 (수정본 재제출)
  * 제출 시 task.status = SUBMITTED 로 자동 전환 + 컨설턴트에게 Slack 알림.
  */
 export async function createOrUpdateSubmission(params: {
@@ -43,23 +46,48 @@ export async function createOrUpdateSubmission(params: {
     throw new Error("최소 1개 이상의 파일을 첨부하세요");
   }
 
-  await prisma.taskSubmission.upsert({
-    where: {
-      taskId_version: { taskId: params.taskId, version: 1 },
-    },
-    update: {
-      files: params.files as unknown as object,
-      note: params.note?.trim() || null,
-      submittedAt: new Date(),
-    },
-    create: {
-      taskId: params.taskId,
-      studentId: session.student.id,
-      version: 1,
-      files: params.files as unknown as object,
-      note: params.note?.trim() || null,
-    },
+  const latest = await prisma.taskSubmission.findFirst({
+    where: { taskId: params.taskId },
+    orderBy: { version: "desc" },
+    include: { _count: { select: { feedbacks: true } } },
   });
+
+  let isNewVersion = false;
+  if (!latest) {
+    // 첫 제출
+    await prisma.taskSubmission.create({
+      data: {
+        taskId: params.taskId,
+        studentId: session.student.id,
+        version: 1,
+        files: params.files as unknown as object,
+        note: params.note?.trim() || null,
+      },
+    });
+    isNewVersion = true;
+  } else if (latest._count.feedbacks === 0) {
+    // 피드백 없음 → 동일 버전 덮어쓰기
+    await prisma.taskSubmission.update({
+      where: { id: latest.id },
+      data: {
+        files: params.files as unknown as object,
+        note: params.note?.trim() || null,
+        submittedAt: new Date(),
+      },
+    });
+  } else {
+    // 피드백 있음 → 새 버전
+    await prisma.taskSubmission.create({
+      data: {
+        taskId: params.taskId,
+        studentId: session.student.id,
+        version: latest.version + 1,
+        files: params.files as unknown as object,
+        note: params.note?.trim() || null,
+      },
+    });
+    isNewVersion = true;
+  }
 
   // task 상태가 OPEN/IN_PROGRESS/NEEDS_REVISION 이면 SUBMITTED 로
   if (task.status !== "DONE" && task.status !== "SUBMITTED") {
@@ -69,8 +97,9 @@ export async function createOrUpdateSubmission(params: {
     });
   }
 
+  const nextVersion = isNewVersion ? (latest?.version ?? 0) + 1 : latest?.version ?? 1;
   notifySlack(
-    `[수행평가] ${task.student.name} 학생이 "${task.subject} - ${task.title}" 을 제출했습니다.\n` +
+    `[수행평가] ${task.student.name} 학생이 "${task.subject} - ${task.title}" 을 제출했습니다 (v${nextVersion}).\n` +
       `_/online/students/${task.studentId}/tasks 에서 확인_`
   );
 
