@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
 import { useDraft } from "@/hooks/use-draft";
 import { type MeetingTeam, createMeetingMinutes, updateMeetingMinutes, deleteMeetingMinutes, markMeetingMinutesRead } from "@/actions/meeting-minutes";
-import { Plus, Pencil, Trash2, CheckCheck, ChevronDown, ChevronUp, Users, X, CalendarDays } from "lucide-react";
+import { Plus, Pencil, Trash2, CheckCheck, ChevronDown, ChevronUp, Users, X, CalendarDays, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
@@ -21,6 +21,7 @@ type Minutes = {
   content: string;
   attendees: string[];
   team: string;
+  visibleTo?: string[];
   authorId: string;
   authorName: string;
   reads: Read[];
@@ -35,7 +36,7 @@ type Props = {
   staffList: { id: string; name: string }[];
 };
 
-const TEAMS: MeetingTeam[] = ["운영팀", "멘토링팀"];
+const TEAMS: MeetingTeam[] = ["운영팀", "멘토링팀", "면담"];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -66,7 +67,14 @@ function groupByMonth(list: Minutes[]) {
 
 // ─── Form component ───────────────────────────────────────────────────────────
 
-type FormState = { title: string; date: string; content: string; attendees: string[]; team: MeetingTeam };
+type FormState = {
+  title: string;
+  date: string;
+  content: string;
+  attendees: string[];
+  team: MeetingTeam;
+  visibleTo: string[]; // 빈 배열 = 공개. user.id 배열.
+};
 
 function MeetingForm({
   initialForm,
@@ -201,6 +209,51 @@ function MeetingForm({
         )}
       </div>
 
+      {/* 열람 제한 */}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5">
+          <Lock className="h-3 w-3 text-muted-foreground" />
+          <label className="text-xs text-muted-foreground">
+            열람 가능 범위{" "}
+            <span className="text-muted-foreground/60">
+              (선택하지 않으면 전체 공개. 선택 시 지정한 사람 + 작성자 + 원장만)
+            </span>
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-1.5 pt-0.5">
+          {staffList.map((s) => {
+            const selected = form.visibleTo.includes(s.id);
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() =>
+                  updateForm({
+                    visibleTo: selected
+                      ? form.visibleTo.filter((id) => id !== s.id)
+                      : [...form.visibleTo, s.id],
+                  })
+                }
+                className={cn(
+                  "text-[11px] px-2 py-0.5 rounded-full border transition-colors",
+                  selected
+                    ? "bg-[#E9541C] border-[#C5461A] text-white"
+                    : "bg-muted/40 border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {s.name}
+              </button>
+            );
+          })}
+        </div>
+        {form.visibleTo.length > 0 && (
+          <p className="text-[11px] text-[#C5461A]">
+            <Lock className="h-2.5 w-2.5 inline mr-1" />
+            {form.visibleTo.length}명 + 작성자 + 원장만 열람 가능
+          </p>
+        )}
+      </div>
+
       {/* 내용 */}
       <div className="space-y-1">
         <label className="text-xs text-muted-foreground">회의 내용</label>
@@ -261,6 +314,12 @@ function MinutesCard({
           <div className="flex items-center gap-2">
             {!hasRead && <span className="w-1.5 h-1.5 rounded-full bg-[#E9541C] shrink-0" />}
             <p className="text-sm font-semibold truncate">{m.title}</p>
+            {m.visibleTo && m.visibleTo.length > 0 && (
+              <span className="flex items-center gap-0.5 text-[10px] text-[#C5461A] bg-[#FBE9DE] border border-[#F6DBC7] rounded-full px-1.5 py-0.5 shrink-0" title="열람 제한">
+                <Lock className="h-2.5 w-2.5" />
+                제한
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 mt-0.5">
             <span className="text-xs text-muted-foreground">{formatDate(m.date)}</span>
@@ -457,7 +516,7 @@ export function MeetingMinutesBoard({
 
   const isAdmin = currentUserRole === "DIRECTOR" || currentUserRole === "SUPER_ADMIN";
 
-  const emptyForm: FormState = { title: "", date: todayStr(), content: "", attendees: [], team: activeTeam };
+  const emptyForm: FormState = { title: "", date: todayStr(), content: "", attendees: [], team: activeTeam, visibleTo: [] };
 
   const teamList = minutesList.filter((m) => m.team === activeTeam);
   const teamUnread = minutesList.filter(
@@ -528,7 +587,14 @@ export function MeetingMinutesBoard({
   // editingId에 해당하는 회의록 찾기
   const editingMinutes = editingId ? minutesList.find((m) => m.id === editingId) : null;
   const editForm: FormState = editingMinutes
-    ? { title: editingMinutes.title, date: editingMinutes.date.toISOString().slice(0, 10), content: editingMinutes.content, attendees: [...editingMinutes.attendees], team: editingMinutes.team as MeetingTeam }
+    ? {
+        title: editingMinutes.title,
+        date: editingMinutes.date.toISOString().slice(0, 10),
+        content: editingMinutes.content,
+        attendees: [...editingMinutes.attendees],
+        team: editingMinutes.team as MeetingTeam,
+        visibleTo: [...(editingMinutes.visibleTo ?? [])],
+      }
     : emptyForm;
 
   return (
