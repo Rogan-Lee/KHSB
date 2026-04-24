@@ -856,7 +856,10 @@ model MeetingMinutes {
   date       DateTime             @db.Date
   content    String               @default("")
   attendees  String[]             // 참석자 이름 목록
-  team       String               @default("운영팀")  // "멘토링팀" | "운영팀"
+  team       String               @default("운영팀")  // "멘토링팀" | "운영팀" | "면담"
+  // 열람 제한. 빈 배열 = 공개(기존 동작).
+  // 값이 있으면 해당 user.id + 작성자 + DIRECTOR/SUPER_ADMIN 만 열람 가능.
+  visibleTo  String[]             @default([])
   authorId   String
   authorName String
   reads      MeetingMinutesRead[]
