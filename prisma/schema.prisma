@@ -117,6 +117,7 @@ model User {
   authoredSubjectProgress SubjectProgress[] @relation("SubjectProgressAuthor")
   authoredWeeklyPlans     WeeklyPlan[]      @relation("WeeklyPlanAuthor")
   authoredDailyKakaoLogs  DailyKakaoLog[]   @relation("DailyKakaoLogAuthor")
+  approvedParentReports   OnlineParentReport[] @relation("OnlineParentReportApprover")
   mentorings      Mentoring[]
   mentorSchedules MentorSchedule[]
   parentReports   ParentReport[]
@@ -230,6 +231,7 @@ model Student {
   subjectProgress      SubjectProgress[]
   weeklyPlans          WeeklyPlan[]
   dailyKakaoLogs       DailyKakaoLog[]
+  onlineParentReports  OnlineParentReport[]
   // ─────────────────────────────────
   schedules      AttendanceSchedule[]
   attendances    AttendanceRecord[]
@@ -414,6 +416,48 @@ model WeeklyPlan {
 
   @@unique([studentId, weekStart])
   @@index([authorId, weekStart])
+}
+
+// C 학부모 주간/월간/수시 보고서.
+// Phase 1 은 주간만. 월간 은 MONTHLY 값만 선반영하고 스프린트 4 이후.
+enum OnlineReportType {
+  WEEKLY
+  MONTHLY
+  ADHOC
+}
+
+enum OnlineReportStatus {
+  DRAFT         // AI 초안 생성 완료 (원장 검토 대기)
+  DRAFT_FAILED  // Groq 배치 생성 중 실패 (rate limit 등) — 재시도 UI 노출
+  REVIEW        // 원장 편집 중
+  APPROVED      // 원장 승인 (발송 대기)
+  SENT          // 발송 완료
+}
+
+model OnlineParentReport {
+  id            String             @id @default(cuid())
+  studentId     String
+  student       Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type          OnlineReportType
+  periodStart   DateTime           @db.Date
+  periodEnd     DateTime           @db.Date
+  content       Json               @default("{}") // { markdown, sections? } — Phase 1 은 markdown 단일
+  status        OnlineReportStatus @default(DRAFT)
+  token         String             @unique @default(cuid())
+  sentChannels  String[]           @default([])  // MANUAL_COPY, KAKAO_FRIEND, EMAIL
+  viewCount     Int                @default(0)
+  lastViewedAt  DateTime?
+  approvedById  String?
+  approvedBy    User?              @relation("OnlineParentReportApprover", fields: [approvedById], references: [id])
+  approvedAt    DateTime?
+  sentAt        DateTime?
+  errorMessage  String?                            // DRAFT_FAILED 시 사유
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@unique([studentId, type, periodStart])
+  @@index([status])
+  @@index([type, periodStart])
 }
 
 // B-4 카톡 일일 보고. 학생×날짜 unique. Phase 1 은 summary only (rawContent 는 Phase 2).
