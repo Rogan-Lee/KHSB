@@ -382,18 +382,79 @@ export async function markReportSent(params: {
   revalidatePath("/online/reports");
 }
 
-/** 공개 페이지에서 viewCount 증가. 무인증. */
-export async function incrementReportView(token: string) {
-  // Slack 과 달리 view 는 자주 호출되므로 실패 무시
+/**
+ * 공개 페이지에서 viewCount 증가. 무인증.
+ * isUnique=true 이면 쿨다운 통과한 유니크 조회 (uniqueViewCount 증가).
+ * 일반 viewCount 는 항상 증가 (새로고침·단순 조회 모두 포함).
+ */
+export async function incrementReportView(params: {
+  token: string;
+  isUnique?: boolean;
+}) {
   await prisma.onlineParentReport
     .updateMany({
-      where: { token, status: "SENT" },
+      where: { token: params.token, status: "SENT" },
       data: {
         viewCount: { increment: 1 },
+        uniqueViewCount: params.isUnique ? { increment: 1 } : undefined,
         lastViewedAt: new Date(),
       },
     })
     .catch(() => {});
+}
+
+/**
+ * 학부모 피드백 제출 — 공개 페이지에서 무인증 호출.
+ * 제출 즉시 원장에게 Slack 알림.
+ */
+export async function submitParentFeedback(params: {
+  token: string;
+  name?: string | null;
+  content: string;
+}) {
+  if (!params.content.trim()) throw new Error("내용을 입력해 주세요");
+  if (params.content.length > 2000) throw new Error("2000자 이내로 작성해 주세요");
+
+  const report = await prisma.onlineParentReport.findUnique({
+    where: { token: params.token },
+    select: {
+      id: true,
+      status: true,
+      student: { select: { id: true, name: true } },
+    },
+  });
+  if (!report || report.status !== "SENT") {
+    throw new Error("유효하지 않은 보고서입니다");
+  }
+
+  await prisma.onlineParentFeedback.create({
+    data: {
+      reportId: report.id,
+      name: params.name?.trim() || null,
+      content: params.content.trim(),
+    },
+  });
+
+  const label = params.name?.trim() ? `"${params.name.trim()}" 님` : "학부모님";
+  await notifySlack(
+    `💬 *${report.student.name} 학부모 피드백 도착*\n${label}: ${params.content.slice(0, 200)}${params.content.length > 200 ? "..." : ""}\n_/online/reports/${report.id} 에서 확인_`
+  );
+
+  revalidatePath(`/online/reports/${report.id}`);
+  return { ok: true };
+}
+
+/**
+ * 원장이 피드백 읽음 처리.
+ */
+export async function markFeedbackRead(feedbackId: string) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+
+  await prisma.onlineParentFeedback.updateMany({
+    where: { id: feedbackId, readAt: null },
+    data: { readAt: new Date() },
+  });
 }
 
 // ────────────────── 월간 보고서 (Phase 2) ──────────────────

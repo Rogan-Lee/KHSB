@@ -21,6 +21,7 @@ export default async function ReportEditPage({
     include: {
       student: { select: { id: true, name: true, grade: true } },
       approvedBy: { select: { name: true } },
+      feedbacks: { orderBy: { createdAt: "desc" } },
     },
   });
   if (!report) notFound();
@@ -66,6 +67,39 @@ export default async function ReportEditPage({
         publicUrl={publicUrl}
         errorMessage={report.errorMessage}
       />
+
+      {report.feedbacks.length > 0 && (
+        <section className="rounded-[12px] border border-line bg-panel p-4">
+          <h2 className="text-[13px] font-semibold text-ink mb-3">
+            학부모 피드백 ({report.feedbacks.length})
+          </h2>
+          <ul className="space-y-2">
+            {report.feedbacks.map((f) => (
+              <li
+                key={f.id}
+                className={`rounded-[10px] border p-3 ${f.readAt ? "border-line bg-canvas-2/30" : "border-amber-200 bg-amber-50"}`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[12px] font-semibold text-ink">
+                    {f.name?.trim() || "익명 학부모"}
+                  </span>
+                  <span className="text-[11px] text-ink-5">
+                    {f.createdAt.toLocaleString("ko-KR")}
+                  </span>
+                  {!f.readAt && (
+                    <span className="ml-auto inline-flex items-center rounded-full bg-amber-200 text-amber-900 px-2 py-0.5 text-[10.5px] font-medium">
+                      미확인
+                    </span>
+                  )}
+                </div>
+                <p className="text-[12.5px] text-ink whitespace-pre-wrap leading-relaxed">
+                  {f.content}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }
