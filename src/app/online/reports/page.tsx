@@ -8,6 +8,7 @@ import {
   OnlineReportsPanel,
   type OnlineReportRow,
 } from "@/components/online/online-reports-panel";
+import { ReportsTypeNav } from "@/components/online/reports-type-nav";
 
 export default async function ReportsDashboardPage({
   searchParams,
@@ -28,6 +29,7 @@ export default async function ReportsDashboardPage({
         id: true,
         name: true,
         grade: true,
+        parentEmail: true,
         assignedMentor: { select: { name: true } },
       },
       orderBy: { name: "asc" },
@@ -48,6 +50,7 @@ export default async function ReportsDashboardPage({
       studentId: s.id,
       studentName: s.name,
       grade: s.grade,
+      parentEmail: s.parentEmail,
       assignedMentorName: s.assignedMentor?.name ?? null,
       report: r
         ? {
@@ -75,13 +78,16 @@ export default async function ReportsDashboardPage({
 
   return (
     <div className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
-          학부모 주간 보고서
-        </h1>
-        <p className="mt-1 text-[13px] text-ink-4">
-          AI 초안은 매주 일요일 10시 자동 생성. 좌측에서 학생 선택 → 우측에서 편집·승인·발송.
-        </p>
+      <header className="space-y-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
+            학부모 보고서
+          </h1>
+          <p className="mt-1 text-[13px] text-ink-4">
+            AI 초안 자동 생성 · 원장 편집·승인·발송. 좌측에서 학생 선택 → 우측에서 편집.
+          </p>
+        </div>
+        <ReportsTypeNav current="WEEKLY" />
       </header>
 
       <OnlineReportsPanel rows={rows} weekStart={weekStart} origin={origin} />

@@ -10,6 +10,10 @@ import {
   buildWeeklyReportPrompt,
   type WeeklyReportInputs,
 } from "@/lib/online/weekly-report-prompt";
+import {
+  buildMonthlyReportPrompt,
+  type MonthlyReportInputs,
+} from "@/lib/online/monthly-report-prompt";
 
 const GROQ_MODEL = "llama-3.3-70b-versatile";
 const GROQ_CONCURRENCY = 3;       // 30명 배치 시 순차 3병렬
@@ -259,7 +263,7 @@ export async function batchGenerateWeeklyReports(params: {
   return { total: studentIds.length, success, failed };
 }
 
-/** 원장이 단일 학생 재생성. 실패 후 재시도 또는 편집 전 초기화. */
+/** 원장이 단일 학생 재생성. 실패 후 재시도 또는 편집 전 초기화. WEEKLY/MONTHLY 지원. */
 export async function regenerateReportDraft(reportId: string) {
   const session = await auth();
   requireFullAccess(session?.user?.role);
@@ -269,13 +273,19 @@ export async function regenerateReportDraft(reportId: string) {
     select: { studentId: true, type: true, periodStart: true },
   });
   if (!existing) throw new Error("보고서를 찾을 수 없습니다");
-  if (existing.type !== "WEEKLY") throw new Error("주간 보고서만 지원합니다");
 
-  const weekStart = existing.periodStart.toISOString().slice(0, 10);
-  return generateWeeklyReportDraft({
-    studentId: existing.studentId,
-    weekStart,
-  });
+  if (existing.type === "WEEKLY") {
+    const weekStart = existing.periodStart.toISOString().slice(0, 10);
+    return generateWeeklyReportDraft({ studentId: existing.studentId, weekStart });
+  }
+  if (existing.type === "MONTHLY") {
+    const yearMonth = existing.periodStart.toISOString().slice(0, 7);
+    return generateMonthlyReportDraft({
+      studentId: existing.studentId,
+      yearMonth,
+    });
+  }
+  throw new Error("ADHOC 보고서는 재생성 대상이 아닙니다");
 }
 
 /** 원장 수동 편집 저장. 상태는 REVIEW 로 전환. */
@@ -385,6 +395,182 @@ export async function incrementReportView(token: string) {
     })
     .catch(() => {});
 }
+
+// ────────────────── 월간 보고서 (Phase 2) ──────────────────
+
+function monthRange(yearMonth: string): { start: Date; end: Date } {
+  const [y, m] = yearMonth.split("-").map(Number);
+  const start = new Date(Date.UTC(y, m - 1, 1));
+  const end = new Date(Date.UTC(y, m, 0, 23, 59, 59)); // 해당 월 말일 23:59:59
+  return { start, end };
+}
+
+async function collectMonthlyInputs(
+  studentId: string,
+  yearMonth: string
+): Promise<MonthlyReportInputs> {
+  const { start, end } = monthRange(yearMonth);
+
+  const [student, dailyLogs, subjectProgress, completedResults, weeklyPlans, monthlyPlan] =
+    await Promise.all([
+      prisma.student.findUnique({
+        where: { id: studentId },
+        select: { name: true, grade: true },
+      }),
+      prisma.dailyKakaoLog.findMany({
+        where: { studentId, logDate: { gte: start, lte: end } },
+        select: { logDate: true, summary: true, tags: true, isParentVisible: true },
+        orderBy: { logDate: "asc" },
+      }),
+      prisma.subjectProgress.findMany({
+        where: { studentId, recordedAt: { gte: start, lte: end } },
+        orderBy: { recordedAt: "desc" },
+      }),
+      prisma.taskResult.findMany({
+        where: {
+          studentId,
+          includeInReport: true,
+          finalizedAt: { gte: start, lte: end },
+        },
+        include: { task: { select: { subject: true, title: true } } },
+      }),
+      prisma.weeklyPlan.findMany({
+        where: { studentId, weekStart: { gte: start, lte: end } },
+        orderBy: { weekStart: "asc" },
+      }),
+      prisma.monthlyPlan.findUnique({
+        where: { studentId_yearMonth: { studentId, yearMonth } },
+      }),
+    ]);
+
+  if (!student) throw new Error("학생을 찾을 수 없습니다");
+
+  return {
+    studentName: student.name,
+    studentGrade: student.grade,
+    yearMonth,
+    periodStartIso: start.toISOString().slice(0, 10),
+    periodEndIso: end.toISOString().slice(0, 10),
+    dailyLogs,
+    subjectProgress,
+    completedTaskResults: completedResults.map((r) => ({
+      subject: r.task.subject,
+      title: r.task.title,
+      score: r.score,
+      consultantSummary: r.consultantSummary,
+      finalizedAt: r.finalizedAt,
+    })),
+    weeklyPlans: weeklyPlans.map((wp) => ({
+      weekStart: wp.weekStart,
+      goals: (wp.goals as unknown as Record<string, string>) ?? {},
+      studyHours: wp.studyHours,
+      retrospective: wp.retrospective,
+    })),
+    monthlyPlan: monthlyPlan
+      ? {
+          subjectGoals: (monthlyPlan.subjectGoals as unknown as Record<string, string>) ?? {},
+          milestones: (monthlyPlan.milestones as unknown as Record<string, string>) ?? {},
+          retrospective: monthlyPlan.retrospective,
+        }
+      : null,
+  };
+}
+
+export async function generateMonthlyReportDraft(params: {
+  studentId: string;
+  yearMonth: string;
+}): Promise<{ reportId: string; status: "DRAFT" | "DRAFT_FAILED" }> {
+  const { start, end } = monthRange(params.yearMonth);
+
+  try {
+    const inputs = await collectMonthlyInputs(params.studentId, params.yearMonth);
+    const { systemPrompt, userPrompt } = buildMonthlyReportPrompt(inputs);
+    const markdown = await callGroqWithRetry(systemPrompt, userPrompt);
+
+    const content: ReportContent = {
+      markdown,
+      generatedAt: new Date().toISOString(),
+    };
+
+    const report = await prisma.onlineParentReport.upsert({
+      where: {
+        studentId_type_periodStart: {
+          studentId: params.studentId,
+          type: "MONTHLY",
+          periodStart: start,
+        },
+      },
+      update: { content, status: "DRAFT", errorMessage: null, periodEnd: end },
+      create: {
+        studentId: params.studentId,
+        type: "MONTHLY",
+        periodStart: start,
+        periodEnd: end,
+        content,
+        status: "DRAFT",
+      },
+    });
+    return { reportId: report.id, status: "DRAFT" };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const report = await prisma.onlineParentReport.upsert({
+      where: {
+        studentId_type_periodStart: {
+          studentId: params.studentId,
+          type: "MONTHLY",
+          periodStart: start,
+        },
+      },
+      update: { status: "DRAFT_FAILED", errorMessage: message },
+      create: {
+        studentId: params.studentId,
+        type: "MONTHLY",
+        periodStart: start,
+        periodEnd: end,
+        content: { markdown: "" },
+        status: "DRAFT_FAILED",
+        errorMessage: message,
+      },
+    });
+    return { reportId: report.id, status: "DRAFT_FAILED" };
+  }
+}
+
+export async function batchGenerateMonthlyReports(params: {
+  yearMonth: string;
+  studentIds?: string[];
+}): Promise<{ total: number; success: number; failed: number }> {
+  const studentIds =
+    params.studentIds ??
+    (await prisma.student.findMany({
+      where: { isOnlineManaged: true, status: "ACTIVE" },
+      select: { id: true },
+    })).map((s) => s.id);
+
+  let success = 0;
+  let failed = 0;
+  for (let i = 0; i < studentIds.length; i += GROQ_CONCURRENCY) {
+    const batch = studentIds.slice(i, i + GROQ_CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map((studentId) =>
+        generateMonthlyReportDraft({ studentId, yearMonth: params.yearMonth })
+      )
+    );
+    for (const r of results) {
+      if (r.status === "fulfilled") {
+        if (r.value.status === "DRAFT") success++;
+        else failed++;
+      } else {
+        failed++;
+      }
+    }
+  }
+
+  revalidatePath("/online/reports");
+  return { total: studentIds.length, success, failed };
+}
+
+// ──────────────────────────────────────────────────────────
 
 /** 배치 생성 후 Slack 알림용 헬퍼 (크론이 사용). */
 export async function notifyBatchComplete(params: {
