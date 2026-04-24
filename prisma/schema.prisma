@@ -448,18 +448,33 @@ model OnlineParentReport {
   token         String             @unique @default(cuid())
   sentChannels  String[]           @default([])  // MANUAL_COPY, KAKAO_FRIEND, EMAIL
   viewCount     Int                @default(0)
+  uniqueViewCount Int              @default(0)   // 일일 쿨다운 적용된 유니크 방문수
   lastViewedAt  DateTime?
   approvedById  String?
   approvedBy    User?              @relation("OnlineParentReportApprover", fields: [approvedById], references: [id])
   approvedAt    DateTime?
   sentAt        DateTime?
   errorMessage  String?                            // DRAFT_FAILED 시 사유
+  feedbacks     OnlineParentFeedback[]
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
   @@unique([studentId, type, periodStart])
   @@index([status])
   @@index([type, periodStart])
+}
+
+// 학부모 피드백 채널 — 공개 페이지에서 학부모가 남기는 질문/코멘트.
+model OnlineParentFeedback {
+  id        String             @id @default(cuid())
+  reportId  String
+  report    OnlineParentReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  name      String?                            // 학부모 이름 (선택)
+  content   String             @db.Text
+  createdAt DateTime           @default(now())
+  readAt    DateTime?                          // 원장 확인 시각
+
+  @@index([reportId, createdAt])
 }
 
 // B-3 월간 계획. 학생×yearMonth unique.
