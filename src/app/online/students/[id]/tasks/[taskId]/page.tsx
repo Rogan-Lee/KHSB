@@ -8,6 +8,7 @@ import {
   TaskSubmissionsThread,
   type SubmissionVersion,
 } from "@/components/online/task-submissions-thread";
+import { TaskResultEditor } from "@/components/online/task-result-editor";
 import type { PerformanceTaskStatus } from "@/generated/prisma";
 import type { UploadedFile } from "@/actions/online/task-submissions";
 
@@ -32,6 +33,7 @@ export default async function StaffTaskDetailPage({
     where: { id: taskId },
     include: {
       student: { select: { id: true, name: true, grade: true } },
+      result: true,
       submissions: {
         orderBy: { version: "desc" },
         include: {
@@ -90,6 +92,15 @@ export default async function StaffTaskDetailPage({
           마감: {task.dueDate.toLocaleDateString("ko-KR")}
         </p>
       </header>
+
+      {task.status === "DONE" && (
+        <TaskResultEditor
+          taskId={task.id}
+          initialScore={task.result?.score ?? null}
+          initialSummary={task.result?.consultantSummary ?? null}
+          initialIncludeInReport={task.result?.includeInReport ?? false}
+        />
+      )}
 
       <TaskSubmissionsThread
         versions={versions}
