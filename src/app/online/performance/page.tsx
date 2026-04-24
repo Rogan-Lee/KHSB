@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MessageSquarePlus, MessageSquare } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -44,6 +45,14 @@ export default async function PerformanceOverviewPage({
       orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
       include: {
         student: { select: { id: true, name: true, grade: true } },
+        submissions: {
+          orderBy: { version: "desc" },
+          take: 1,
+          select: {
+            version: true,
+            _count: { select: { feedbacks: true } },
+          },
+        },
       },
       take: 200,
     }),
@@ -96,6 +105,7 @@ export default async function PerformanceOverviewPage({
                 <th className="text-left px-3 py-2 font-semibold">제목</th>
                 <th className="text-left px-3 py-2 font-semibold">마감일</th>
                 <th className="text-left px-3 py-2 font-semibold">상태</th>
+                <th className="text-left px-3 py-2 font-semibold">피드백</th>
               </tr>
             </thead>
             <tbody>
@@ -148,6 +158,33 @@ export default async function PerformanceOverviewPage({
                       >
                         {STATUS_LABEL[t.status]}
                       </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      {(() => {
+                        const latest = t.submissions[0];
+                        const hasSubmission = !!latest;
+                        const hasFeedback = (latest?._count.feedbacks ?? 0) > 0;
+                        if (hasSubmission && !hasFeedback) {
+                          return (
+                            <Link
+                              href={`/online/students/${t.student.id}/tasks/${t.id}#feedback-v${latest.version}`}
+                              className="inline-flex items-center gap-1 rounded-[6px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 text-[11px] font-semibold hover:bg-amber-200"
+                            >
+                              <MessageSquarePlus className="h-3 w-3" />
+                              작성 필요
+                            </Link>
+                          );
+                        }
+                        if (hasFeedback) {
+                          return (
+                            <span className="inline-flex items-center gap-1 rounded-[6px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[11px]">
+                              <MessageSquare className="h-3 w-3" />
+                              작성됨
+                            </span>
+                          );
+                        }
+                        return <span className="text-[11px] text-ink-5">—</span>;
+                      })()}
                     </td>
                   </tr>
                 );

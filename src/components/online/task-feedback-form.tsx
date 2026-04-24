@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { MessageSquarePlus } from "lucide-react";
 import { createFeedback } from "@/actions/online/task-submissions";
 import type { TaskFeedbackStatus } from "@/generated/prisma";
 
@@ -12,7 +13,13 @@ const STATUS_OPTIONS: { value: TaskFeedbackStatus; label: string; hint: string }
   { value: "APPROVED", label: "최종 승인", hint: "수행평가 종료 → 상태: 최종 완료" },
 ];
 
-export function TaskFeedbackForm({ submissionId }: { submissionId: string }) {
+export function TaskFeedbackForm({
+  submissionId,
+  versionLabel,
+}: {
+  submissionId: string;
+  versionLabel?: string;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [content, setContent] = useState("");
@@ -43,14 +50,20 @@ export function TaskFeedbackForm({ submissionId }: { submissionId: string }) {
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-3 rounded-[12px] border border-line bg-panel p-4">
-      <h3 className="text-[13px] font-semibold text-ink">피드백 작성</h3>
+    <form
+      onSubmit={onSubmit}
+      className="space-y-3 rounded-[12px] border-2 border-ink/10 bg-panel p-4 shadow-sm"
+    >
+      <h3 className="text-[13px] font-semibold text-ink inline-flex items-center gap-1.5">
+        <MessageSquarePlus className="h-3.5 w-3.5 text-ink-3" />
+        {versionLabel ? `${versionLabel} 에 대한 피드백 작성` : "피드백 작성"}
+      </h3>
 
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
         rows={4}
-        placeholder="제출 내용에 대한 피드백을 작성하세요"
+        placeholder="제출 내용을 확인한 뒤 학생에게 전달할 피드백을 작성하세요. 아래에서 상태도 선택."
         className="w-full rounded-[8px] border border-line bg-canvas px-3 py-2 text-[12.5px] text-ink resize-y focus:outline-none focus:border-line-strong"
       />
 

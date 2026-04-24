@@ -27,18 +27,34 @@ export default async function StudentPerformanceTasksPage({
   const tasks = await prisma.performanceTask.findMany({
     where: { studentId: id },
     orderBy: { dueDate: "asc" },
+    include: {
+      submissions: {
+        orderBy: { version: "desc" },
+        take: 1,
+        select: {
+          version: true,
+          _count: { select: { feedbacks: true } },
+        },
+      },
+    },
   });
 
-  const rows: PerformanceTaskRow[] = tasks.map((t) => ({
-    id: t.id,
-    subject: t.subject,
-    title: t.title,
-    description: t.description,
-    dueDate: t.dueDate.toISOString(),
-    scoreWeight: t.scoreWeight,
-    format: t.format,
-    status: t.status,
-  }));
+  const rows: PerformanceTaskRow[] = tasks.map((t) => {
+    const latest = t.submissions[0];
+    return {
+      id: t.id,
+      subject: t.subject,
+      title: t.title,
+      description: t.description,
+      dueDate: t.dueDate.toISOString(),
+      scoreWeight: t.scoreWeight,
+      format: t.format,
+      status: t.status,
+      hasSubmission: !!latest,
+      latestVersion: latest?.version ?? 0,
+      latestHasFeedback: (latest?._count.feedbacks ?? 0) > 0,
+    };
+  });
 
   return (
     <div className="space-y-5">
