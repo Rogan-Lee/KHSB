@@ -128,6 +128,11 @@ export default async function OnlineStudentDetailPage({
           title="카톡 일일 보고"
           description="관리멘토 일일 대화 요약 · 태그 · 학부모 공개 여부"
         />
+        <NavCard
+          href={`/online/students/${student.id}/portfolio`}
+          title="포트폴리오"
+          description="완료된 수행평가 결과물 · 점수 · 총평 · 학부모 보고서 포함 플래그"
+        />
       </div>
 
       {canManage && (

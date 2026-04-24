@@ -130,6 +130,7 @@ export async function createFeedback(params: {
     where: { id: params.submissionId },
     include: {
       task: { select: { id: true, studentId: true, status: true } },
+      feedbacks: { select: { id: true }, take: 1 },
     },
   });
   if (!submission) throw new Error("제출물을 찾을 수 없습니다");
@@ -150,6 +151,21 @@ export async function createFeedback(params: {
       data: { status: "NEEDS_REVISION" },
     });
   } else if (params.status === "APPROVED") {
+    // APPROVED: 최신 제출을 결과물로 확정 (TaskResult auto-upsert)
+    const finalFilesJson = submission.files as unknown as object;
+    await prisma.taskResult.upsert({
+      where: { taskId: submission.task.id },
+      update: {
+        finalFiles: finalFilesJson,
+        finalizedAt: new Date(),
+      },
+      create: {
+        taskId: submission.task.id,
+        studentId: submission.task.studentId,
+        finalFiles: finalFilesJson,
+        finalizedAt: new Date(),
+      },
+    });
     await prisma.performanceTask.update({
       where: { id: submission.task.id },
       data: { status: "DONE" },
