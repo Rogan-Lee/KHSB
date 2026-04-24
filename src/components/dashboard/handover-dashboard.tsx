@@ -9,11 +9,11 @@ import {
   CheckCircle2, AlertTriangle, StickyNote, Pin,
   Plus, CheckSquare, Square, User, Send,
   Clock, ListChecks, MessageSquare, Pencil,
-  ChevronDown, ChevronUp, Calendar, ListTodo,
+  ChevronDown, ChevronUp, Calendar, ListTodo, History, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { markHandoverRead, toggleHandoverTask } from "@/actions/handover";
-import { toggleTodo } from "@/actions/todos";
+import { toggleTodo, getTodoVersions } from "@/actions/todos";
 import { createMonthlyNote } from "@/actions/monthly-notes";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -76,6 +76,7 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
 
   // 섹션 접기/펼치기
   const [openSections, setOpenSections] = useState({ handoverTasks: true, routine: false, todos: true });
+  const [historyTodo, setHistoryTodo] = useState<Todo | null>(null);
   function toggleSection(key: keyof typeof openSections) {
     setOpenSections((p) => ({ ...p, [key]: !p[key] }));
   }
@@ -287,11 +288,16 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
               ) : (
                 <div className="divide-y max-h-96 overflow-y-auto flex-1">
                   {myPendingTodos.slice(0, 8).map((t) => (
-                    <button key={t.id} type="button" onClick={() => handleToggleTodo(t.id)} disabled={isPending}
-                      className="w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-muted/20 transition-colors"
-                    >
-                      <Square className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 mt-0.5" />
-                      <div className="flex-1 min-w-0">
+                    <div key={t.id} className="flex items-start gap-2 px-3 py-2 hover:bg-muted/20 transition-colors">
+                      <button type="button" onClick={() => handleToggleTodo(t.id)} disabled={isPending} className="shrink-0 mt-0.5">
+                        <Square className="h-3.5 w-3.5 text-muted-foreground/40" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleTodo(t.id)}
+                        disabled={isPending}
+                        className="flex-1 min-w-0 text-left"
+                      >
                         <p className="text-xs font-medium">{t.title}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           {t.dueDate && (
@@ -301,8 +307,16 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
                           )}
                           {t.assigneeName && <span className="text-[10px] text-muted-foreground">{t.assigneeName}</span>}
                         </div>
-                      </div>
-                    </button>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setHistoryTodo(t); }}
+                        title="수정 이력"
+                        className="shrink-0 p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                      >
+                        <History className="h-3 w-3" />
+                      </button>
+                    </div>
                   ))}
                   {(myCompletedTodos.length > 0 || myPendingTodos.length > 8) && (
                     <div className="px-3 py-2 text-[10px] text-muted-foreground">
@@ -436,6 +450,79 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
               <Send className="h-3.5 w-3.5 text-primary shrink-0" />
             </div>
           </Link>
+        </div>
+      </div>
+      {historyTodo && (
+        <TodoHistoryDialog todo={historyTodo} onClose={() => setHistoryTodo(null)} />
+      )}
+    </div>
+  );
+}
+
+// ── 투두 수정 이력 다이얼로그 ─────────────────────────────────────────────────
+type TodoVersionRow = {
+  id: string;
+  version: number;
+  title: string;
+  content: string | null;
+  dueDate: Date | null;
+  priority: string;
+  editorName: string;
+  createdAt: Date;
+};
+
+function fmtDateTimeLong(d: Date | string) {
+  return new Date(d).toLocaleString("ko-KR", {
+    year: "numeric", month: "numeric", day: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function TodoHistoryDialog({ todo, onClose }: { todo: Todo; onClose: () => void }) {
+  const [rows, setRows] = useState<TodoVersionRow[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getTodoVersions(todo.id)
+      .then((r) => { if (!cancelled) setRows(r as unknown as TodoVersionRow[]); })
+      .catch((e: unknown) => { if (!cancelled) setErr(e instanceof Error ? e.message : "불러오기 실패"); });
+    return () => { cancelled = true; };
+  }, [todo.id]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+      <div className="bg-card border rounded-xl shadow-lg w-full max-w-[520px] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 px-4 py-3 border-b">
+          <History className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-semibold">수정 이력</span>
+          <span className="text-xs text-muted-foreground truncate">· {todo.title}</span>
+          <button onClick={onClose} className="ml-auto p-1 rounded hover:bg-muted text-muted-foreground"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4">
+          {err && <p className="text-xs text-red-500 text-center py-4">{err}</p>}
+          {!rows && !err && <p className="text-xs text-muted-foreground text-center py-4">불러오는 중...</p>}
+          {rows && rows.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">이력이 없습니다</p>}
+          {rows && rows.length > 0 && (
+            <ol className="space-y-2">
+              {rows.map((v) => (
+                <li key={v.id} className="rounded-lg border bg-muted/20 p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={cn(
+                      "text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded",
+                      v.version === 1 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                    )}>
+                      v{v.version}{v.version === 1 && " · 최초"}
+                    </span>
+                    <span className="text-xs font-semibold">{v.editorName}</span>
+                    <span className="ml-auto text-[11px] text-muted-foreground">{fmtDateTimeLong(v.createdAt)}</span>
+                  </div>
+                  <p className="text-xs font-medium">{v.title}</p>
+                  {v.content && <p className="text-[11px] text-muted-foreground whitespace-pre-wrap mt-1">{v.content}</p>}
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       </div>
     </div>
