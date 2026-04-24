@@ -124,6 +124,11 @@ export default async function OnlineStudentDetailPage({
           description="주 단위 과목별 목표 · 예상 학습시간 · 회고"
         />
         <NavCard
+          href={`/online/students/${student.id}/monthly`}
+          title="월간 계획"
+          description="월간 마일스톤 · 과목별 월간 목표 · 회고"
+        />
+        <NavCard
           href={`/online/students/${student.id}/daily-log`}
           title="카톡 일일 보고"
           description="관리멘토 일일 대화 요약 · 태그 · 학부모 공개 여부"
