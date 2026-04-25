@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+import { MessageCircle, ChevronRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
@@ -22,7 +24,7 @@ export default async function ReportsDashboardPage({
   const weekStart = week ?? shiftWeek(mondayOfKST(), -1); // 기본: 지난 주
   const weekStartDate = new Date(weekStart + "T00:00:00.000Z");
 
-  const [students, existingReports] = await Promise.all([
+  const [students, existingReports, reportsWithUnread] = await Promise.all([
     prisma.student.findMany({
       where: { isOnlineManaged: true, status: "ACTIVE" },
       select: {
@@ -41,7 +43,29 @@ export default async function ReportsDashboardPage({
         _count: { select: { feedbacks: { where: { readAt: null } } } },
       },
     }),
+    prisma.onlineParentReport.findMany({
+      where: { feedbacks: { some: { readAt: null } } },
+      select: {
+        id: true,
+        type: true,
+        periodStart: true,
+        student: { select: { name: true, grade: true } },
+        _count: { select: { feedbacks: { where: { readAt: null } } } },
+        feedbacks: {
+          where: { readAt: null },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: { createdAt: true },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+    }),
   ]);
+
+  const totalUnread = reportsWithUnread.reduce(
+    (sum, r) => sum + r._count.feedbacks,
+    0
+  );
 
   const reportByStudent = new Map(existingReports.map((r) => [r.studentId, r]));
 
@@ -91,6 +115,43 @@ export default async function ReportsDashboardPage({
         </div>
         <ReportsTypeNav current="WEEKLY" />
       </header>
+
+      {totalUnread > 0 && (
+        <section className="rounded-[12px] border-2 border-amber-300 bg-amber-50 p-4">
+          <div className="flex items-center gap-2 mb-2.5">
+            <MessageCircle className="h-4 w-4 text-amber-700" />
+            <h2 className="text-[13px] font-semibold text-amber-900">
+              학부모 피드백 {totalUnread}건 미확인 — 보고서별로 확인하세요
+            </h2>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {reportsWithUnread.map((r) => {
+              const latest = r.feedbacks[0]?.createdAt;
+              return (
+                <Link
+                  key={r.id}
+                  href={`/online/reports/${r.id}`}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-white border border-amber-300 hover:border-amber-500 hover:bg-amber-100 px-2.5 py-1 text-[12px] text-amber-900 transition-colors"
+                  title={
+                    latest
+                      ? `최신 피드백: ${new Date(latest).toLocaleString("ko-KR")}`
+                      : undefined
+                  }
+                >
+                  <span className="font-semibold">{r.student.name}</span>
+                  <span className="text-[10.5px] text-amber-700">
+                    {r.student.grade}
+                  </span>
+                  <span className="inline-flex items-center justify-center rounded-full bg-amber-200 text-amber-900 min-w-[18px] h-[18px] px-1 text-[10.5px] font-bold tabular-nums">
+                    {r._count.feedbacks}
+                  </span>
+                  <ChevronRight className="h-3 w-3 text-amber-600" />
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <OnlineReportsPanel rows={rows} weekStart={weekStart} origin={origin} />
     </div>

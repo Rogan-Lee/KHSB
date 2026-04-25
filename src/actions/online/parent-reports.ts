@@ -288,7 +288,11 @@ export async function regenerateReportDraft(reportId: string) {
   throw new Error("ADHOC 보고서는 재생성 대상이 아닙니다");
 }
 
-/** 원장 수동 편집 저장. 상태는 REVIEW 로 전환. */
+/**
+ * 원장 수동 편집 저장.
+ * - DRAFT/DRAFT_FAILED/REVIEW/APPROVED → REVIEW 로 전환
+ * - SENT → 상태 유지(SENT). 학부모 공개 페이지에 즉시 반영됨.
+ */
 export async function updateReportContent(params: {
   reportId: string;
   markdown: string;
@@ -301,9 +305,6 @@ export async function updateReportContent(params: {
     select: { content: true, status: true },
   });
   if (!existing) throw new Error("보고서를 찾을 수 없습니다");
-  if (existing.status === "SENT") {
-    throw new Error("이미 발송된 보고서는 수정할 수 없습니다");
-  }
 
   const prev = (existing.content as unknown as ReportContent) ?? { markdown: "" };
   const content: ReportContent = { ...prev, markdown: params.markdown };
@@ -312,7 +313,7 @@ export async function updateReportContent(params: {
     where: { id: params.reportId },
     data: {
       content,
-      status: existing.status === "DRAFT_FAILED" ? "REVIEW" : "REVIEW",
+      status: existing.status === "SENT" ? "SENT" : "REVIEW",
     },
   });
 
