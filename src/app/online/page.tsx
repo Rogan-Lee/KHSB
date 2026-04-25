@@ -38,6 +38,7 @@ export default async function OnlineHomePage() {
     tasksDueSoon,
     pendingFeedbackCount,
     todayLogsCount,
+    unreadParentFeedbackCount,
   ] = await Promise.all([
     prisma.student.count({ where: { isOnlineManaged: true, status: "ACTIVE" } }),
     prisma.studentMagicLink.count({
@@ -74,6 +75,9 @@ export default async function OnlineHomePage() {
             logDate: today,
           },
         })
+      : Promise.resolve(0),
+    isFA
+      ? prisma.onlineParentFeedback.count({ where: { readAt: null } })
       : Promise.resolve(0),
   ]);
 
@@ -149,6 +153,30 @@ export default async function OnlineHomePage() {
               href="/online/performance"
               label="D-3 이내 수행평가"
               value={tasksDueSoon}
+              total={null}
+              highlight={false}
+              subtle
+            />
+          </div>
+        </section>
+      )}
+
+      {/* 원장/SUPER_ADMIN 전용 "오늘 할 일" — 학부모 피드백 + 피드백 대기 */}
+      {isFA && (
+        <section className="rounded-[12px] border border-line bg-panel p-4 space-y-2">
+          <h2 className="text-[13px] font-semibold text-ink">원장 확인 필요</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <TaskRow
+              href="/online/reports"
+              label="학부모 피드백 미확인"
+              value={unreadParentFeedbackCount}
+              total={null}
+              highlight={unreadParentFeedbackCount > 0}
+            />
+            <TaskRow
+              href="/online/performance?status=SUBMITTED"
+              label="컨설턴트 피드백 대기"
+              value={pendingFeedbackCount}
               total={null}
               highlight={false}
               subtle

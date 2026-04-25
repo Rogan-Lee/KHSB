@@ -38,6 +38,7 @@ export default async function ReportsDashboardPage({
       where: { type: "WEEKLY", periodStart: weekStartDate },
       include: {
         approvedBy: { select: { name: true } },
+        _count: { select: { feedbacks: { where: { readAt: null } } } },
       },
     }),
   ]);
@@ -66,6 +67,7 @@ export default async function ReportsDashboardPage({
             viewCount: r.viewCount,
             sentChannels: r.sentChannels,
             errorMessage: r.errorMessage,
+            unreadFeedbackCount: r._count.feedbacks,
           }
         : null,
     };

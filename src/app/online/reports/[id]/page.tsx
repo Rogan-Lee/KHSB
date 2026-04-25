@@ -16,6 +16,12 @@ export default async function ReportEditPage({
   const user = await getUser();
   if (!isFullAccess(user?.role)) redirect("/online");
 
+  // 진입 시 미확인 피드백을 일괄 읽음 처리 (UI 에는 회색으로 표시됨)
+  await prisma.onlineParentFeedback.updateMany({
+    where: { reportId: id, readAt: null },
+    data: { readAt: new Date() },
+  });
+
   const report = await prisma.onlineParentReport.findUnique({
     where: { id },
     include: {
