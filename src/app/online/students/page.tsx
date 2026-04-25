@@ -101,16 +101,34 @@ export default async function OnlineStudentsPage() {
       </header>
 
       {canManage && (
-        <section className="rounded-[12px] border border-line bg-panel p-4">
-          <h2 className="text-[13px] font-semibold text-ink mb-3">
-            온라인 학생 추가
-          </h2>
-          <AddOnlineStudentTabs
-            offlineStudents={offlineStudents}
-            mentors={mentors}
-            consultants={consultants}
-          />
-        </section>
+        <details className="group rounded-[12px] border border-line bg-panel overflow-hidden">
+          <summary className="cursor-pointer list-none px-4 py-3 flex items-center gap-2 hover:bg-canvas-2/40 transition-colors">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              className="h-3.5 w-3.5 text-ink-4 transition-transform group-open:rotate-90"
+              fill="currentColor"
+            >
+              <path d="M7.05 4.05a1 1 0 0 1 1.4 0l5 5a1 1 0 0 1 0 1.4l-5 5a1 1 0 1 1-1.4-1.4L11.6 9.75 7.05 5.45a1 1 0 0 1 0-1.4Z" />
+            </svg>
+            <h2 className="text-[13px] font-semibold text-ink">
+              온라인 학생 추가
+            </h2>
+            <span className="text-[11px] text-ink-5 ml-auto group-open:hidden">
+              클릭하여 펼치기
+            </span>
+            <span className="text-[11px] text-ink-5 ml-auto hidden group-open:inline">
+              접기
+            </span>
+          </summary>
+          <div className="px-4 pb-4 pt-1 border-t border-line">
+            <AddOnlineStudentTabs
+              offlineStudents={offlineStudents}
+              mentors={mentors}
+              consultants={consultants}
+            />
+          </div>
+        </details>
       )}
 
       {onlineStudents.length === 0 ? (
