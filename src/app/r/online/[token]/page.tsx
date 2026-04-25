@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
-import { incrementReportView } from "@/actions/online/parent-reports";
 import { ParentFeedbackForm } from "@/components/online/parent-feedback-form";
+import { ReportViewBeacon } from "@/components/online/report-view-beacon";
 
 // 학부모 공개 페이지. 무인증, 토큰만으로 접근.
 // 기존 /r/[token] 은 멘토링 회차 리포트. 이 경로는 온라인 주간/월간 전용으로 완전 분리.
@@ -23,19 +22,7 @@ export default async function OnlineParentReportPublicPage({
   if (!report) notFound();
   if (report.status !== "SENT") notFound(); // 승인 전/미발송은 열람 불가
 
-  // 일일 쿨다운: `online-viewed-<token>` 쿠키 존재 시 uniqueViewCount 증가 안 함
-  const cookieStore = await cookies();
-  const cookieName = `online-viewed-${token.slice(0, 12)}`;
-  const alreadyViewedToday = cookieStore.get(cookieName);
-  if (!alreadyViewedToday) {
-    cookieStore.set(cookieName, "1", {
-      maxAge: 60 * 60 * 24, // 24시간
-      sameSite: "lax",
-      httpOnly: false,
-    });
-  }
-  // fire-and-forget view tracking
-  incrementReportView({ token, isUnique: !alreadyViewedToday }).catch(() => {});
+  // 열람 트래킹은 클라이언트 비콘에 위임 (Server Component 는 cookie 쓰기 불가)
 
   const content = (report.content as unknown as { markdown?: string }) ?? {};
   const markdown = content.markdown ?? "";
@@ -64,6 +51,8 @@ export default async function OnlineParentReportPublicPage({
           </p>
         </div>
       </header>
+
+      <ReportViewBeacon token={token} />
 
       <main className="mx-auto max-w-[720px] px-4 py-5 space-y-5">
         <div className="rounded-[12px] border border-line bg-panel p-5">
