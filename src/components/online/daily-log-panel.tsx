@@ -6,11 +6,10 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Loader2, Search, X, CheckCircle2, Circle, Check, Filter,
+  Loader2, CheckCircle2, Circle, Check, Filter,
   Eye, EyeOff, ExternalLink, Sparkles,
 } from "lucide-react";
 import {
@@ -18,11 +17,19 @@ import {
   summarizeKakaoRaw,
 } from "@/actions/online/daily-kakao-log";
 import { KAKAO_LOG_TAGS } from "@/lib/online/kakao-tags";
+import {
+  StudentFilterBar,
+  defaultFilterState,
+  matchesStudentFilter,
+  deriveFilterOptions,
+  type StudentFilterState,
+} from "@/components/online/student-filter-bar";
 
 export type DailyLogRow = {
   studentId: string;
   studentName: string;
   grade: string;
+  school: string | null;
   log: {
     id: string;
     summary: string;
@@ -49,8 +56,9 @@ export function DailyLogPanel({
   const [activeStudentId, setActiveStudentId] = useState<string | null>(
     rows.find((r) => !r.log)?.studentId ?? rows[0]?.studentId ?? null
   );
-  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<StudentFilterState>(defaultFilterState);
   const [onlyUnrecorded, setOnlyUnrecorded] = useState(false);
+  const filterOptions = useMemo(() => deriveFilterOptions(rows), [rows]);
 
   const activeRow = useMemo(
     () => rows.find((r) => r.studentId === activeStudentId) ?? null,
@@ -83,16 +91,12 @@ export function DailyLogPanel({
   }
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return rows.filter((r) => {
       if (onlyUnrecorded && r.log) return false;
-      if (q) {
-        const hay = (r.studentName + " " + r.grade).toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
+      if (!matchesStudentFilter(r, filter)) return false;
       return true;
     });
-  }, [rows, query, onlyUnrecorded]);
+  }, [rows, filter, onlyUnrecorded]);
 
   const recordedCount = rows.filter((r) => r.log).length;
   const unrecordedCount = rows.length - recordedCount;
@@ -199,27 +203,19 @@ export function DailyLogPanel({
         )}
       </div>
 
+      {/* 학생 필터 (학생/학년/학교) */}
+      <StudentFilterBar
+        value={filter}
+        onChange={setFilter}
+        availableGrades={filterOptions.grades}
+        availableSchools={filterOptions.schools}
+        hasUnknownSchool={filterOptions.hasUnknownSchool}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-3 min-h-[600px]">
         {/* 좌측 학생 리스트 */}
         <div className="border rounded-lg bg-background overflow-hidden flex flex-col">
-          <div className="px-3 py-2 border-b flex flex-col gap-1.5">
-            <div className="relative">
-              <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="이름/학년 검색"
-                className="h-7 pl-7 text-xs"
-              />
-              {query && (
-                <button
-                  onClick={() => setQuery("")}
-                  className="absolute right-2 top-1.5 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </div>
+          <div className="px-3 py-2 border-b">
             <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -237,7 +233,7 @@ export function DailyLogPanel({
           <div className="flex-1 overflow-y-auto divide-y max-h-[600px]">
             {filtered.length === 0 ? (
               <p className="p-4 text-center text-xs text-muted-foreground">
-                {query || onlyUnrecorded ? "조건에 맞는 학생 없음" : "담당 학생이 없습니다"}
+                조건에 맞는 학생이 없습니다
               </p>
             ) : (
               filtered.map((r) => {
