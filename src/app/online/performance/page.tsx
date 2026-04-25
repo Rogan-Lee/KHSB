@@ -1,68 +1,86 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
-import { redirect } from "next/navigation";
-import { isOnlineStaff } from "@/lib/roles";
-import type { PerformanceTaskStatus } from "@/generated/prisma";
+import { isOnlineStaff, isFullAccess } from "@/lib/roles";
 import {
-  PerformanceTasksTable,
-  type PerformanceTaskRow,
-} from "@/components/online/performance-tasks-table";
+  PerformancePanel,
+  type PerfPanelStudentRow,
+  type PanelTaskRow,
+} from "@/components/online/performance-panel";
+import type { UploadedFile } from "@/actions/online/task-submissions";
 
-const STATUS_LABEL: Record<PerformanceTaskStatus, string> = {
-  OPEN: "진행 전",
-  IN_PROGRESS: "진행 중",
-  SUBMITTED: "제출 완료",
-  NEEDS_REVISION: "수정 필요",
-  DONE: "최종 완료",
-};
-
-export default async function PerformanceOverviewPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ status?: string }>;
-}) {
+export default async function PerformanceOverviewPage() {
   const user = await getUser();
   if (!isOnlineStaff(user?.role)) redirect("/");
 
-  const { status: statusFilter } = await searchParams;
+  // 컨설턴트/원장은 관리, 멘토는 읽기 + 자기 학생 한정 (필요 시 향후 분리)
+  const canManage = isFullAccess(user?.role) || user?.role === "CONSULTANT";
 
-  const where = {
-    student: { isOnlineManaged: true, status: "ACTIVE" as const },
-    ...(statusFilter && statusFilter !== "ALL"
-      ? { status: statusFilter as PerformanceTaskStatus }
-      : {}),
-  };
-
-  const [tasks, counts] = await Promise.all([
-    prisma.performanceTask.findMany({
-      where,
-      orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
-      include: {
-        student: {
-          select: { id: true, name: true, grade: true, school: true },
-        },
-        submissions: {
-          orderBy: { version: "desc" },
-          take: 1,
-          select: {
-            version: true,
-            _count: { select: { feedbacks: true } },
+  const students = await prisma.student.findMany({
+    where: { isOnlineManaged: true, status: "ACTIVE" },
+    orderBy: [{ grade: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      grade: true,
+      school: true,
+      performanceTasks: {
+        orderBy: { dueDate: "asc" },
+        include: {
+          result: true,
+          submissions: {
+            orderBy: { version: "desc" },
+            include: {
+              feedbacks: {
+                orderBy: { createdAt: "asc" },
+                include: { author: { select: { name: true } } },
+              },
+            },
           },
         },
       },
-      take: 200,
-    }),
-    prisma.performanceTask.groupBy({
-      by: ["status"],
-      where: { student: { isOnlineManaged: true, status: "ACTIVE" } },
-      _count: true,
-    }),
-  ]);
+    },
+  });
 
-  const countByStatus = Object.fromEntries(
-    counts.map((c) => [c.status, c._count])
-  ) as Record<PerformanceTaskStatus, number>;
+  const rows: PerfPanelStudentRow[] = students.map((s) => ({
+    studentId: s.id,
+    studentName: s.name,
+    grade: s.grade,
+    school: s.school,
+    tasks: s.performanceTasks.map<PanelTaskRow>((t) => ({
+      id: t.id,
+      subject: t.subject,
+      title: t.title,
+      description: t.description,
+      format: t.format,
+      scoreWeight: t.scoreWeight,
+      dueDate: t.dueDate.toISOString(),
+      status: t.status,
+      result: t.result
+        ? {
+            score: t.result.score,
+            consultantSummary: t.result.consultantSummary,
+            includeInReport: t.result.includeInReport,
+          }
+        : null,
+      submissions: t.submissions.map((sub) => ({
+        id: sub.id,
+        version: sub.version,
+        files: Array.isArray(sub.files)
+          ? (sub.files as unknown as UploadedFile[])
+          : [],
+        note: sub.note,
+        submittedAt: sub.submittedAt.toISOString(),
+        feedbacks: sub.feedbacks.map((f) => ({
+          id: f.id,
+          authorName: f.author.name,
+          content: f.content,
+          status: f.status,
+          createdAt: f.createdAt.toISOString(),
+        })),
+      })),
+    })),
+  }));
 
   return (
     <div className="space-y-5">
@@ -71,64 +89,11 @@ export default async function PerformanceOverviewPage({
           수행평가 대시보드
         </h1>
         <p className="mt-1 text-[13px] text-ink-4">
-          온라인 학생 전체 수행평가 · 마감 임박순
+          학생을 선택하면 우측에서 과제 등록·상태 변경·피드백 작성까지 모두 진행할 수 있어요.
         </p>
       </header>
 
-      {/* Status filter chips */}
-      <div className="flex flex-wrap gap-2">
-        <FilterChip label="전체" href="/online/performance" active={!statusFilter || statusFilter === "ALL"} />
-        {(Object.keys(STATUS_LABEL) as PerformanceTaskStatus[]).map((s) => (
-          <FilterChip
-            key={s}
-            label={`${STATUS_LABEL[s]} (${countByStatus[s] ?? 0})`}
-            href={`/online/performance?status=${s}`}
-            active={statusFilter === s}
-          />
-        ))}
-      </div>
-
-      <PerformanceTasksTable
-        rows={tasks.map<PerformanceTaskRow>((t) => {
-          const latest = t.submissions[0];
-          return {
-            id: t.id,
-            subject: t.subject,
-            title: t.title,
-            dueDate: t.dueDate.toISOString(),
-            status: t.status,
-            studentId: t.student.id,
-            studentName: t.student.name,
-            grade: t.student.grade,
-            school: t.student.school,
-            latestSubmissionVersion: latest?.version ?? null,
-            latestSubmissionFeedbackCount: latest?._count.feedbacks ?? 0,
-          };
-        })}
-      />
+      <PerformancePanel rows={rows} canManage={canManage} />
     </div>
-  );
-}
-
-function FilterChip({
-  label,
-  href,
-  active,
-}: {
-  label: string;
-  href: string;
-  active: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`inline-flex items-center rounded-full px-3 py-1 text-[12px] font-medium transition-colors ${
-        active
-          ? "bg-ink text-white"
-          : "bg-panel border border-line text-ink-3 hover:text-ink hover:border-line-strong"
-      }`}
-    >
-      {label}
-    </Link>
   );
 }
