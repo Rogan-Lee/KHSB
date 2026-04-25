@@ -117,6 +117,7 @@ export function AppSidebar({
   onClose,
   collapsed = false,
   onToggle,
+  badges,
 }: {
   role?: string;
   plan?: PlanTier;
@@ -124,6 +125,7 @@ export function AppSidebar({
   onClose?: () => void;
   collapsed?: boolean;
   onToggle?: () => void;
+  badges?: Record<string, number>;
 }) {
   const pathname = usePathname();
 
@@ -178,7 +180,7 @@ export function AppSidebar({
         onClick={mobile ? onClose : undefined}
         title={collapsed ? label : undefined}
         className={cn(
-          "flex items-center gap-2.5 px-2.5 py-[7px] rounded-[8px] text-[12.5px] font-medium transition-colors duration-100",
+          "relative flex items-center gap-2.5 px-2.5 py-[7px] rounded-[8px] text-[12.5px] font-medium transition-colors duration-100",
           collapsed && "justify-center px-2",
           isActive
             ? "bg-panel text-ink font-semibold shadow-[inset_0_0_0_1px_var(--line),var(--shadow-xs)]"
@@ -191,7 +193,25 @@ export function AppSidebar({
             isActive ? "text-ink" : "text-ink-3"
           )}
         />
-        {!collapsed && label}
+        {!collapsed && (
+          <>
+            <span className="flex-1">{label}</span>
+            {(badges?.[href] ?? 0) > 0 && (
+              <span
+                className="inline-flex items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-bold min-w-[16px] h-4 px-1"
+                title={`미확인 ${badges?.[href]}건`}
+              >
+                {badges?.[href]}
+              </span>
+            )}
+          </>
+        )}
+        {collapsed && (badges?.[href] ?? 0) > 0 && (
+          <span
+            className="absolute top-0 right-0 inline-block h-2 w-2 rounded-full bg-amber-500"
+            title={`미확인 ${badges?.[href]}건`}
+          />
+        )}
       </Link>
     );
   };

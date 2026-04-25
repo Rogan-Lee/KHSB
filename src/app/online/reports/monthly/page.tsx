@@ -56,6 +56,9 @@ export default async function MonthlyReportsPage({
     }),
     prisma.onlineParentReport.findMany({
       where: { type: "MONTHLY", periodStart },
+      include: {
+        _count: { select: { feedbacks: { where: { readAt: null } } } },
+      },
     }),
   ]);
 
@@ -130,9 +133,19 @@ export default async function MonthlyReportsPage({
                     className="border-t border-line hover:bg-canvas-2/50"
                   >
                     <td className="px-3 py-2 font-medium text-ink">
-                      {s.name}
-                      <span className="ml-1 text-[11px] text-ink-5">
-                        ({s.grade})
+                      <span className="inline-flex items-center gap-1.5">
+                        {s.name}
+                        <span className="text-[11px] text-ink-5">
+                          ({s.grade})
+                        </span>
+                        {(report?._count?.feedbacks ?? 0) > 0 && (
+                          <span
+                            title={`학부모 의견 ${report?._count.feedbacks}건 미확인`}
+                            className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-px text-[10px] font-bold"
+                          >
+                            💬 {report?._count.feedbacks}
+                          </span>
+                        )}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-ink-3">

@@ -44,6 +44,7 @@ export type OnlineReportRow = {
     viewCount: number;
     sentChannels: string[];
     errorMessage: string | null;
+    unreadFeedbackCount: number;
   } | null;
 };
 
@@ -503,6 +504,14 @@ export function OnlineReportsPanel({
                           )
                         ) : (
                           <Circle className="h-3.5 w-3.5 text-muted-foreground/30" />
+                        )}
+                        {(r.report?.unreadFeedbackCount ?? 0) > 0 && (
+                          <span
+                            title={`학부모 의견 ${r.report?.unreadFeedbackCount}건 미확인`}
+                            className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-px text-[9px] font-bold"
+                          >
+                            💬 {r.report?.unreadFeedbackCount}
+                          </span>
                         )}
                       </div>
                     </div>
