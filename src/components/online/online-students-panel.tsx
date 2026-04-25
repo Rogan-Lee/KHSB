@@ -10,10 +10,12 @@ import {
   ClipboardList,
   CalendarDays,
   CalendarRange,
+  CalendarClock,
   MessageSquare,
   FolderOpen,
   FileQuestion,
   ChevronRight,
+  Video,
 } from "lucide-react";
 import {
   StudentFilterBar,
@@ -24,6 +26,10 @@ import {
 } from "@/components/online/student-filter-bar";
 import { ReassignOnlineStudentForm } from "@/components/online/reassign-online-student-form";
 import { MagicLinkManager } from "@/components/online/magic-link-manager";
+import {
+  MentoringSessionsSection,
+  type MentoringSessionRow,
+} from "@/components/online/mentoring-sessions-section";
 
 // ─────────────── 데이터 타입 ───────────────
 
@@ -53,6 +59,8 @@ export type OnlineStudentPanelRow = {
   assignedConsultantName: string | null;
   activeLinks: OnlineStudentPanelMagicLink[];
   pendingFeedbackCount: number;
+  upcomingSessionCount: number;
+  mentoringSessions: MentoringSessionRow[];
 };
 
 export type AssignableUser = { id: string; name: string };
@@ -135,14 +143,25 @@ export function OnlineStudentsPanel({
                         {r.studentName}
                       </span>
                       <span className="text-[10.5px] text-ink-5">{r.grade}</span>
-                      {r.pendingFeedbackCount > 0 && (
-                        <span
-                          className="ml-auto inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-px text-[10px] font-bold"
-                          title={`피드백 작성 필요 ${r.pendingFeedbackCount}건`}
-                        >
-                          💬 {r.pendingFeedbackCount}
-                        </span>
-                      )}
+                      <div className="ml-auto inline-flex items-center gap-1 shrink-0">
+                        {r.upcomingSessionCount > 0 && (
+                          <span
+                            className="inline-flex items-center gap-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200 px-1.5 py-px text-[10px] font-semibold"
+                            title={`예정된 화상 세션 ${r.upcomingSessionCount}건`}
+                          >
+                            <Video className="h-2.5 w-2.5" />
+                            {r.upcomingSessionCount}
+                          </span>
+                        )}
+                        {r.pendingFeedbackCount > 0 && (
+                          <span
+                            className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-px text-[10px] font-bold"
+                            title={`피드백 작성 필요 ${r.pendingFeedbackCount}건`}
+                          >
+                            💬 {r.pendingFeedbackCount}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="mt-1 text-[10.5px] text-ink-5 flex items-center gap-1.5 flex-wrap">
                       {r.school ? (
@@ -294,6 +313,23 @@ function StudentDetailPane({
             />
           </section>
         )}
+
+        {/* 화상 1:1 세션 */}
+        <section className="rounded-[12px] border border-line bg-canvas p-4">
+          <h4 className="text-[12px] font-semibold text-ink-3 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+            <CalendarClock className="h-3.5 w-3.5" />
+            화상 1:1 세션
+            {row.upcomingSessionCount > 0 && (
+              <span className="ml-1 inline-flex items-center rounded-full bg-blue-100 text-blue-800 border border-blue-200 px-1.5 py-px text-[10px] font-semibold">
+                예정 {row.upcomingSessionCount}
+              </span>
+            )}
+          </h4>
+          <MentoringSessionsSection
+            studentId={row.studentId}
+            sessions={row.mentoringSessions}
+          />
+        </section>
 
         {/* 빠른 진입 */}
         <section>
