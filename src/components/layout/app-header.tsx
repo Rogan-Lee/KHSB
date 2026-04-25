@@ -63,7 +63,10 @@ export function AppHeader({ user, title, onMenuClick }: AppHeaderProps) {
         </button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-2.5 rounded-[8px] px-2 py-1 hover:bg-canvas-2 transition-colors">
+            <button
+              suppressHydrationWarning
+              className="flex items-center gap-2.5 rounded-[8px] px-2 py-1 hover:bg-canvas-2 transition-colors"
+            >
               <Avatar className="h-7 w-7">
                 <AvatarFallback className="text-[11px] bg-brand-soft text-brand-2 font-semibold">
                   {user.name.slice(0, 2)}
