@@ -31,6 +31,7 @@ export default async function ReportsDashboardPage({
         id: true,
         name: true,
         grade: true,
+        school: true,
         parentEmail: true,
         assignedMentor: { select: { name: true } },
       },
@@ -75,6 +76,7 @@ export default async function ReportsDashboardPage({
       studentId: s.id,
       studentName: s.name,
       grade: s.grade,
+      school: s.school,
       parentEmail: s.parentEmail,
       assignedMentorName: s.assignedMentor?.name ?? null,
       report: r

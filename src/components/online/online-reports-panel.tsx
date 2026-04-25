@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import {
-  Loader2, Search, X, CheckCircle2, Circle, Link2, Send,
+  Loader2, CheckCircle2, Circle, Link2, Send,
   ExternalLink, Copy, Check, Filter, MessageCircle, Sparkles,
   AlertCircle, ChevronLeft, ChevronRight, Mail, ArrowUpRight,
   Lock, Unlock,
@@ -26,11 +26,19 @@ import {
 } from "@/actions/online/parent-reports";
 import { formatWeekRange, shiftWeek } from "@/lib/online/week";
 import type { OnlineReportStatus } from "@/generated/prisma";
+import {
+  StudentFilterBar,
+  defaultFilterState,
+  matchesStudentFilter,
+  deriveFilterOptions,
+  type StudentFilterState,
+} from "@/components/online/student-filter-bar";
 
 export type OnlineReportRow = {
   studentId: string;
   studentName: string;
   grade: string;
+  school: string | null;
   parentEmail: string | null;
   assignedMentorName: string | null;
   report: {
@@ -81,8 +89,9 @@ export function OnlineReportsPanel({
   const [activeStudentId, setActiveStudentId] = useState<string | null>(
     rows[0]?.studentId ?? null
   );
-  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<StudentFilterState>(defaultFilterState);
   const [onlyWithReport, setOnlyWithReport] = useState(false);
+  const filterOptions = useMemo(() => deriveFilterOptions(rows), [rows]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<
     Record<string, "pending" | "done" | "failed">
@@ -112,16 +121,12 @@ export function OnlineReportsPanel({
   }
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return rows.filter((r) => {
       if (onlyWithReport && !r.report) return false;
-      if (q) {
-        const hay = (r.studentName + " " + r.grade).toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
+      if (!matchesStudentFilter(r, filter)) return false;
       return true;
     });
-  }, [rows, query, onlyWithReport]);
+  }, [rows, filter, onlyWithReport]);
 
   const createdCount = rows.filter((r) => !!r.report).length;
 
@@ -418,40 +423,30 @@ export function OnlineReportsPanel({
         </div>
       </div>
 
+      {/* 학생 필터 (학생/학년/학교) */}
+      <StudentFilterBar
+        value={filter}
+        onChange={setFilter}
+        availableGrades={filterOptions.grades}
+        availableSchools={filterOptions.schools}
+        hasUnknownSchool={filterOptions.hasUnknownSchool}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-3 min-h-[600px]">
         {/* 좌측 학생 리스트 */}
         <div className="border rounded-lg bg-background overflow-hidden flex flex-col">
-          <div className="px-3 py-2 border-b flex flex-col gap-1.5">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={
-                  filtered.length > 0 &&
-                  filtered.every((r) => selectedIds.has(r.studentId))
-                }
-                onChange={toggleAll}
-                className="rounded"
-                title="화면에 보이는 학생 전체 선택"
-              />
-              <div className="relative flex-1">
-                <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="이름/학년 검색"
-                  className="h-7 pl-7 text-xs"
-                />
-                {query && (
-                  <button
-                    onClick={() => setQuery("")}
-                    className="absolute right-2 top-1.5 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-            </div>
-            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
+          <div className="px-3 py-2 border-b flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={
+                filtered.length > 0 &&
+                filtered.every((r) => selectedIds.has(r.studentId))
+              }
+              onChange={toggleAll}
+              className="rounded"
+              title="화면에 보이는 학생 전체 선택"
+            />
+            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none flex-1">
               <input
                 type="checkbox"
                 checked={onlyWithReport}
@@ -459,7 +454,7 @@ export function OnlineReportsPanel({
                 className="rounded h-3 w-3"
               />
               <Filter className="h-3 w-3" />
-              생성된 보고서만 보기
+              생성된 보고서만
               <span className="ml-auto tabular-nums">
                 {filtered.length}/{rows.length}
               </span>
@@ -468,7 +463,7 @@ export function OnlineReportsPanel({
           <div className="flex-1 overflow-y-auto divide-y max-h-[600px]">
             {filtered.length === 0 ? (
               <p className="p-4 text-center text-xs text-muted-foreground">
-                {query || onlyWithReport ? "조건에 맞는 학생 없음" : "온라인 학생이 없습니다"}
+                조건에 맞는 학생이 없습니다
               </p>
             ) : (
               filtered.map((r) => {

@@ -48,6 +48,7 @@ export default async function DailyLogBoardPage({
       studentId: s.id,
       studentName: s.name,
       grade: s.grade,
+      school: s.school,
       log: log
         ? {
             id: log.id,

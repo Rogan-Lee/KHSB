@@ -1,10 +1,13 @@
 import Link from "next/link";
-import { MessageSquarePlus, MessageSquare } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { isOnlineStaff } from "@/lib/roles";
 import type { PerformanceTaskStatus } from "@/generated/prisma";
+import {
+  PerformanceTasksTable,
+  type PerformanceTaskRow,
+} from "@/components/online/performance-tasks-table";
 
 const STATUS_LABEL: Record<PerformanceTaskStatus, string> = {
   OPEN: "진행 전",
@@ -12,14 +15,6 @@ const STATUS_LABEL: Record<PerformanceTaskStatus, string> = {
   SUBMITTED: "제출 완료",
   NEEDS_REVISION: "수정 필요",
   DONE: "최종 완료",
-};
-
-const STATUS_COLORS: Record<PerformanceTaskStatus, string> = {
-  OPEN: "bg-slate-100 text-slate-700",
-  IN_PROGRESS: "bg-blue-100 text-blue-800",
-  SUBMITTED: "bg-amber-100 text-amber-800",
-  NEEDS_REVISION: "bg-red-100 text-red-800",
-  DONE: "bg-emerald-100 text-emerald-800",
 };
 
 export default async function PerformanceOverviewPage({
@@ -44,7 +39,9 @@ export default async function PerformanceOverviewPage({
       where,
       orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
       include: {
-        student: { select: { id: true, name: true, grade: true } },
+        student: {
+          select: { id: true, name: true, grade: true, school: true },
+        },
         submissions: {
           orderBy: { version: "desc" },
           take: 1,
@@ -91,108 +88,24 @@ export default async function PerformanceOverviewPage({
         ))}
       </div>
 
-      {tasks.length === 0 ? (
-        <div className="rounded-[12px] border border-line bg-panel p-8 text-center text-[13px] text-ink-4">
-          조건에 해당하는 수행평가가 없습니다.
-        </div>
-      ) : (
-        <div className="rounded-[12px] border border-line bg-panel overflow-hidden">
-          <table className="w-full text-[12.5px]">
-            <thead className="bg-canvas-2 text-ink-4 text-[11px] uppercase tracking-wide">
-              <tr>
-                <th className="text-left px-3 py-2 font-semibold">학생</th>
-                <th className="text-left px-3 py-2 font-semibold">과목</th>
-                <th className="text-left px-3 py-2 font-semibold">제목</th>
-                <th className="text-left px-3 py-2 font-semibold">마감일</th>
-                <th className="text-left px-3 py-2 font-semibold">상태</th>
-                <th className="text-left px-3 py-2 font-semibold">피드백</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.map((t) => {
-                const due = t.dueDate;
-                const daysLeft = Math.ceil(
-                  (due.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-                );
-                const dueClass =
-                  daysLeft < 0
-                    ? "text-red-700 font-semibold"
-                    : daysLeft <= 1
-                      ? "text-amber-700 font-semibold"
-                      : daysLeft <= 3
-                        ? "text-amber-600"
-                        : "text-ink-3";
-                return (
-                  <tr key={t.id} className="border-t border-line hover:bg-canvas-2/50 transition-colors">
-                    <td className="px-3 py-2 font-medium">
-                      <Link
-                        href={`/online/students/${t.student.id}/tasks`}
-                        className="hover:underline"
-                      >
-                        {t.student.name}
-                      </Link>
-                      <span className="ml-1 text-[11px] text-ink-5">({t.student.grade})</span>
-                    </td>
-                    <td className="px-3 py-2 text-ink-3">{t.subject}</td>
-                    <td className="px-3 py-2 text-ink">
-                      <Link
-                        href={`/online/students/${t.student.id}/tasks/${t.id}`}
-                        className="hover:underline"
-                      >
-                        {t.title}
-                      </Link>
-                    </td>
-                    <td className={`px-3 py-2 tabular-nums ${dueClass}`}>
-                      {due.toLocaleDateString("ko-KR")}
-                      <span className="ml-1 text-[11px]">
-                        {daysLeft < 0
-                          ? `D+${-daysLeft}`
-                          : daysLeft === 0
-                            ? "D-Day"
-                            : `D-${daysLeft}`}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={`inline-block rounded-[6px] px-2 py-0.5 text-[11.5px] font-medium ${STATUS_COLORS[t.status]}`}
-                      >
-                        {STATUS_LABEL[t.status]}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2">
-                      {(() => {
-                        const latest = t.submissions[0];
-                        const hasSubmission = !!latest;
-                        const hasFeedback = (latest?._count.feedbacks ?? 0) > 0;
-                        if (hasSubmission && !hasFeedback) {
-                          return (
-                            <Link
-                              href={`/online/students/${t.student.id}/tasks/${t.id}#feedback-v${latest.version}`}
-                              className="inline-flex items-center gap-1 rounded-[6px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 text-[11px] font-semibold hover:bg-amber-200"
-                            >
-                              <MessageSquarePlus className="h-3 w-3" />
-                              작성 필요
-                            </Link>
-                          );
-                        }
-                        if (hasFeedback) {
-                          return (
-                            <span className="inline-flex items-center gap-1 rounded-[6px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 text-[11px]">
-                              <MessageSquare className="h-3 w-3" />
-                              작성됨
-                            </span>
-                          );
-                        }
-                        return <span className="text-[11px] text-ink-5">—</span>;
-                      })()}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <PerformanceTasksTable
+        rows={tasks.map<PerformanceTaskRow>((t) => {
+          const latest = t.submissions[0];
+          return {
+            id: t.id,
+            subject: t.subject,
+            title: t.title,
+            dueDate: t.dueDate.toISOString(),
+            status: t.status,
+            studentId: t.student.id,
+            studentName: t.student.name,
+            grade: t.student.grade,
+            school: t.student.school,
+            latestSubmissionVersion: latest?.version ?? null,
+            latestSubmissionFeedbackCount: latest?._count.feedbacks ?? 0,
+          };
+        })}
+      />
     </div>
   );
 }

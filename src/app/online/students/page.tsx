@@ -1,9 +1,11 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
 import { AddOnlineStudentTabs } from "@/components/online/add-online-student-tabs";
-import { ChevronRight } from "lucide-react";
+import {
+  OnlineStudentsTable,
+  type OnlineStudentRow,
+} from "@/components/online/online-students-table";
 
 export default async function OnlineStudentsPage() {
   const user = await getUser();
@@ -77,65 +79,18 @@ export default async function OnlineStudentsPage() {
             온라인 관리 학생이 아직 없습니다.
           </div>
         ) : (
-          <div className="rounded-[12px] border border-line bg-panel overflow-hidden">
-            <table className="w-full text-[12.5px]">
-              <thead className="bg-canvas-2 text-ink-4 text-[11px] uppercase tracking-wide">
-                <tr>
-                  <th className="text-left px-3 py-2 font-semibold">이름</th>
-                  <th className="text-left px-3 py-2 font-semibold">학년</th>
-                  <th className="text-left px-3 py-2 font-semibold">관리 멘토</th>
-                  <th className="text-left px-3 py-2 font-semibold">컨설턴트</th>
-                  <th className="text-left px-3 py-2 font-semibold">매직링크</th>
-                  <th className="w-8" />
-                </tr>
-              </thead>
-              <tbody>
-                {onlineStudents.map((s) => {
-                  const activeLink = s.magicLinks[0];
-                  return (
-                    <tr
-                      key={s.id}
-                      className="border-t border-line hover:bg-canvas-2/50 transition-colors"
-                    >
-                      <td className="px-3 py-2 font-medium text-ink">
-                        <Link href={`/online/students/${s.id}`} className="hover:underline">
-                          {s.name}
-                        </Link>
-                      </td>
-                      <td className="px-3 py-2 text-ink-3">{s.grade}</td>
-                      <td className="px-3 py-2 text-ink-3">
-                        {s.assignedMentor?.name ?? (
-                          <span className="text-ink-5">미배정</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-ink-3">
-                        {s.assignedConsultant?.name ?? (
-                          <span className="text-ink-5">미배정</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 tabular-nums text-ink-3">
-                        {activeLink ? (
-                          <>
-                            ~ {activeLink.expiresAt.toLocaleDateString("ko-KR")}
-                          </>
-                        ) : (
-                          <span className="text-ink-5">없음</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <Link
-                          href={`/online/students/${s.id}`}
-                          className="text-ink-4 hover:text-ink"
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <OnlineStudentsTable
+            rows={onlineStudents.map<OnlineStudentRow>((s) => ({
+              id: s.id,
+              studentName: s.name,
+              grade: s.grade,
+              school: s.school,
+              assignedMentorName: s.assignedMentor?.name ?? null,
+              assignedConsultantName: s.assignedConsultant?.name ?? null,
+              magicLinkExpiresAt:
+                s.magicLinks[0]?.expiresAt.toISOString() ?? null,
+            }))}
+          />
         )}
       </section>
     </div>
