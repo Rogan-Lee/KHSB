@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Sparkles, CheckCircle2, Copy, Eye } from "lucide-react";
+import { Sparkles, CheckCircle2, Copy, Eye, Lock, Unlock } from "lucide-react";
 import Link from "next/link";
 import {
   updateReportContent,
@@ -31,15 +31,32 @@ export function ReportEditor({
   const [isPending, startTransition] = useTransition();
   const [markdown, setMarkdown] = useState(initialMarkdown);
   const [status, setStatus] = useState<OnlineReportStatus>(initialStatus);
+  const [sentUnlocked, setSentUnlocked] = useState(false);
 
   const isFailed = status === "DRAFT_FAILED";
   const isSent = status === "SENT";
-  const canEdit = !isSent;
+  const editingLocked = isSent && !sentUnlocked;
+  const canEdit = !editingLocked;
   const canApprove =
     status === "DRAFT" || status === "REVIEW";
   const canSend = status === "APPROVED" || status === "SENT";
 
   const hasEdits = markdown !== initialMarkdown;
+
+  const unlockSent = () => {
+    if (
+      confirm(
+        "발송 완료된 보고서를 수정합니다.\n저장 시 학부모 공개 페이지에 즉시 반영됩니다.\n진행할까요?"
+      )
+    ) {
+      setSentUnlocked(true);
+    }
+  };
+
+  const cancelUnlock = () => {
+    setSentUnlocked(false);
+    setMarkdown(initialMarkdown);
+  };
 
   const doSave = () => {
     if (!markdown.trim()) {
@@ -50,7 +67,9 @@ export function ReportEditor({
       try {
         await updateReportContent({ reportId, markdown });
         toast.success("저장되었습니다");
-        setStatus("REVIEW");
+        // SENT 보고서는 SENT 유지, 그 외엔 REVIEW 로 전환 (서버 동작과 일치)
+        if (status !== "SENT") setStatus("REVIEW");
+        setSentUnlocked(false); // 저장 후 SENT 잠금 자동 복귀
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "저장 실패");
@@ -128,13 +147,54 @@ export function ReportEditor({
           <button
             type="button"
             onClick={doRegenerate}
-            disabled={isPending || isSent}
+            disabled={isPending || editingLocked}
             className="inline-flex items-center gap-1 rounded-[6px] border border-line bg-panel px-2.5 py-1 text-[12px] text-ink-3 hover:text-ink hover:border-line-strong disabled:opacity-50"
           >
             <Sparkles className="h-3 w-3" />
             AI 재생성
           </button>
         </div>
+        {isSent && (
+          <div
+            className={`mb-2 flex items-center justify-between gap-2 rounded-[8px] border px-3 py-2 text-[12px] ${
+              sentUnlocked
+                ? "border-amber-300 bg-amber-50 text-amber-900"
+                : "border-emerald-200 bg-emerald-50 text-emerald-900"
+            }`}
+          >
+            <span className="inline-flex items-center gap-1.5">
+              {sentUnlocked ? (
+                <>
+                  <Unlock className="h-3.5 w-3.5" />
+                  재편집 모드 — 저장 시 학부모 페이지에 즉시 반영됩니다
+                </>
+              ) : (
+                <>
+                  <Lock className="h-3.5 w-3.5" />
+                  발송 완료된 보고서입니다 (편집 잠김)
+                </>
+              )}
+            </span>
+            {sentUnlocked ? (
+              <button
+                type="button"
+                onClick={cancelUnlock}
+                className="rounded-[6px] border border-line bg-panel px-2 py-0.5 text-[11px] hover:border-line-strong"
+              >
+                취소
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={unlockSent}
+                className="inline-flex items-center gap-1 rounded-[6px] bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-amber-600"
+              >
+                <Unlock className="h-3 w-3" />
+                재편집
+              </button>
+            )}
+          </div>
+        )}
         <textarea
           value={markdown}
           onChange={(e) => setMarkdown(e.target.value)}

@@ -13,7 +13,8 @@ import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import {
   Loader2, Search, X, CheckCircle2, Circle, Link2, Send,
   ExternalLink, Copy, Check, Filter, MessageCircle, Sparkles,
-  AlertCircle, ChevronLeft, ChevronRight, Mail,
+  AlertCircle, ChevronLeft, ChevronRight, Mail, ArrowUpRight,
+  Lock, Unlock,
 } from "lucide-react";
 import {
   batchGenerateWeeklyReports,
@@ -97,11 +98,16 @@ export function OnlineReportsPanel({
   const [saving, setSaving] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  // 발송된 보고서 재편집 잠금 해제 (학생 전환 시 자동 잠금)
+  const [sentUnlocked, setSentUnlocked] = useState(false);
 
+  // 활성 학생 변경(또는 첫 마운트)마다 draft 를 서버 값으로 seed.
+  // null sentinel 로 초기화해 첫 렌더에도 반드시 한 번 동기화되게 한다.
   const activeKey = `${activeRow?.studentId ?? ""}/${activeRow?.report?.id ?? ""}`;
-  const [lastKey, setLastKey] = useState(activeKey);
+  const [lastKey, setLastKey] = useState<string | null>(null);
   if (activeKey !== lastKey) {
     setMarkdownDraft(activeRow?.report?.markdown ?? "");
+    setSentUnlocked(false);
     setLastKey(activeKey);
   }
 
@@ -215,6 +221,7 @@ export function OnlineReportsPanel({
         markdown: markdownDraft,
       });
       toast.success("내용 저장");
+      setSentUnlocked(false); // 저장 후 SENT 잠금 자동 복귀
       startTransition(() => router.refresh());
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "저장 실패");
@@ -340,8 +347,20 @@ export function OnlineReportsPanel({
   const reportStatus = activeRow?.report?.status ?? null;
   const canApprove = reportStatus === "DRAFT" || reportStatus === "REVIEW";
   const canSend = reportStatus === "APPROVED" || reportStatus === "SENT";
+  const isSent = reportStatus === "SENT";
+  const editingLocked = isSent && !sentUnlocked;
   const dirty =
     !!activeRow?.report && markdownDraft !== (activeRow.report.markdown ?? "");
+
+  function handleUnlockSent() {
+    if (
+      confirm(
+        "발송 완료된 보고서를 수정합니다.\n저장 시 학부모 공개 페이지에 즉시 반영됩니다.\n진행할까요?"
+      )
+    ) {
+      setSentUnlocked(true);
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -505,13 +524,15 @@ export function OnlineReportsPanel({
                         ) : (
                           <Circle className="h-3.5 w-3.5 text-muted-foreground/30" />
                         )}
-                        {(r.report?.unreadFeedbackCount ?? 0) > 0 && (
-                          <span
-                            title={`학부모 의견 ${r.report?.unreadFeedbackCount}건 미확인`}
-                            className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-px text-[9px] font-bold"
+                        {r.report && (r.report.unreadFeedbackCount ?? 0) > 0 && (
+                          <Link
+                            href={`/online/reports/${r.report.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            title={`학부모 의견 ${r.report.unreadFeedbackCount}건 미확인 — 상세 페이지로 이동`}
+                            className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 px-1.5 py-px text-[9px] font-bold"
                           >
-                            💬 {r.report?.unreadFeedbackCount}
-                          </span>
+                            💬 {r.report.unreadFeedbackCount}
+                          </Link>
                         )}
                       </div>
                     </div>
@@ -582,6 +603,31 @@ export function OnlineReportsPanel({
                       ` · 열람 ${activeRow.report.viewCount}회`}
                   </p>
                 </div>
+                {activeRow.report && (
+                  <Link
+                    href={`/online/reports/${activeRow.report.id}`}
+                    className={cn(
+                      "relative inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[13px] font-semibold shadow-sm transition-all hover:shadow-md hover:-translate-y-px",
+                      (activeRow.report.unreadFeedbackCount ?? 0) > 0
+                        ? "bg-amber-500 text-white hover:bg-amber-600 ring-2 ring-amber-300 ring-offset-2 animate-pulse"
+                        : "bg-primary text-primary-foreground hover:bg-primary/90"
+                    )}
+                    title="보고서 상세 페이지에서 학부모 피드백을 확인합니다"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    {(activeRow.report.unreadFeedbackCount ?? 0) > 0 ? (
+                      <>
+                        새 피드백 확인
+                        <span className="inline-flex items-center justify-center rounded-full bg-white text-amber-700 min-w-[20px] h-[20px] px-1.5 text-[11px] font-bold tabular-nums">
+                          {activeRow.report.unreadFeedbackCount}
+                        </span>
+                      </>
+                    ) : (
+                      <>상세 보고서 · 피드백 보기</>
+                    )}
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                  </Link>
+                )}
               </div>
 
               {!activeRow.report ? (
@@ -635,7 +681,7 @@ export function OnlineReportsPanel({
                         size="sm"
                         className="h-7 text-xs ml-auto"
                         onClick={handleRegenerate}
-                        disabled={aiBusy || activeRow.report.status === "SENT"}
+                        disabled={aiBusy || editingLocked}
                       >
                         {aiBusy ? (
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
@@ -645,11 +691,59 @@ export function OnlineReportsPanel({
                         AI 재생성
                       </Button>
                     </div>
+                    {isSent && (
+                      <div
+                        className={cn(
+                          "mb-2 flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-[11.5px]",
+                          sentUnlocked
+                            ? "border-amber-300 bg-amber-50 text-amber-900"
+                            : "border-emerald-200 bg-emerald-50 text-emerald-900"
+                        )}
+                      >
+                        <span className="inline-flex items-center gap-1.5">
+                          {sentUnlocked ? (
+                            <>
+                              <Unlock className="h-3.5 w-3.5" />
+                              재편집 모드 — 저장 시 학부모 페이지에 즉시 반영됩니다
+                            </>
+                          ) : (
+                            <>
+                              <Lock className="h-3.5 w-3.5" />
+                              발송 완료된 보고서입니다 (편집 잠김)
+                            </>
+                          )}
+                        </span>
+                        {sentUnlocked ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-2 text-[11px]"
+                            onClick={() => {
+                              setSentUnlocked(false);
+                              setMarkdownDraft(activeRow.report?.markdown ?? "");
+                            }}
+                          >
+                            취소
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-6 px-2 text-[11px] bg-amber-500 hover:bg-amber-600 text-white"
+                            onClick={handleUnlockSent}
+                          >
+                            <Unlock className="h-3 w-3 mr-1" />
+                            재편집
+                          </Button>
+                        )}
+                      </div>
+                    )}
                     <Textarea
                       value={markdownDraft}
                       onChange={(e) => setMarkdownDraft(e.target.value)}
                       rows={14}
-                      disabled={activeRow.report.status === "SENT"}
+                      disabled={editingLocked}
                       placeholder="**이번 주 학습 개요** ..."
                       className="text-sm leading-relaxed resize-y font-mono"
                     />
@@ -660,7 +754,7 @@ export function OnlineReportsPanel({
                       <Button
                         size="sm"
                         onClick={handleSaveNote}
-                        disabled={saving || !dirty}
+                        disabled={saving || !dirty || editingLocked}
                       >
                         {saving ? (
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
