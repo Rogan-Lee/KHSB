@@ -119,6 +119,7 @@ model User {
   authoredMonthlyPlans    MonthlyPlan[]     @relation("MonthlyPlanAuthor")
   authoredDailyKakaoLogs  DailyKakaoLog[]   @relation("DailyKakaoLogAuthor")
   approvedParentReports   OnlineParentReport[] @relation("OnlineParentReportApprover")
+  hostedMentoringSessions MentoringSession[] @relation("MentoringSessionHost")
   mentorings      Mentoring[]
   mentorSchedules MentorSchedule[]
   parentReports   ParentReport[]
@@ -234,6 +235,7 @@ model Student {
   monthlyPlans         MonthlyPlan[]
   dailyKakaoLogs       DailyKakaoLog[]
   onlineParentReports  OnlineParentReport[]
+  mentoringSessions    MentoringSession[]
   // ─────────────────────────────────
   schedules      AttendanceSchedule[]
   attendances    AttendanceRecord[]
@@ -353,16 +355,18 @@ enum TaskFeedbackStatus {
 }
 
 model TaskFeedback {
-  id           String             @id @default(cuid())
-  submissionId String
-  submission   TaskSubmission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  authorId     String
-  author       User               @relation(fields: [authorId], references: [id])
-  content      String
-  status       TaskFeedbackStatus @default(COMMENT)
-  createdAt    DateTime           @default(now())
+  id                String             @id @default(cuid())
+  submissionId      String
+  submission        TaskSubmission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  authorId          String
+  author            User               @relation(fields: [authorId], references: [id])
+  content           String
+  status            TaskFeedbackStatus @default(COMMENT)
+  readByStudentAt   DateTime?                                 // 학생이 읽은 시각 (미확인 카운트용)
+  createdAt         DateTime           @default(now())
 
   @@index([submissionId, createdAt])
+  @@index([readByStudentAt])
 }
 
 // A-4 결과물 (Phase 2 확장 예정).
@@ -1212,4 +1216,49 @@ model Announcement {
   authorId  String
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
+}
+
+// ─── 화상 1:1 관리 세션 (온라인 학생 전용) ───
+// 호스트가 시간·대상 입력 → 학원 공용 Google Calendar 에 Meet 링크 포함 이벤트 생성
+// 학부모 이메일이 있으면 attendee 로 invite 자동 발송
+// 통화 중·후 노트 작성 → AI 요약 → DailyKakaoLog 에 적재
+
+enum MentoringSessionStatus {
+  SCHEDULED      // 예약됨 (Calendar 이벤트 생성 완료)
+  IN_PROGRESS    // 진행 중 (수동 전환)
+  COMPLETED      // 종료 + 요약 적재 완료
+  CANCELED       // 취소됨 (Calendar 이벤트도 삭제)
+}
+
+model MentoringSession {
+  id                String                 @id @default(cuid())
+  studentId         String
+  student           Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  hostId            String
+  host              User                   @relation("MentoringSessionHost", fields: [hostId], references: [id])
+  title             String                 // 자동 생성 — [날짜 | 호스트 - 학생] (시간) 일일 관리 세션
+  scheduledAt       DateTime
+  durationMinutes   Int                    @default(30)
+  status            MentoringSessionStatus @default(SCHEDULED)
+
+  // Google Calendar 연동
+  calendarEventId   String?                // Calendar 이벤트 id (취소·수정 시 사용)
+  meetUrl           String?                // Google Meet 입장 URL
+  calendarHtmlLink  String?                // 호스트가 Calendar 에서 직접 보기
+
+  // 노트 + AI 요약
+  notes             String?                @db.Text  // 통화 중/후 markdown 노트
+  summary           String?                @db.Text  // AI 생성 요약
+  summarizedAt      DateTime?
+
+  // DailyKakaoLog 적재 흔적 (요약 반영된 일일 보고)
+  syncedToLogId     String?
+
+  canceledAt        DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([studentId, scheduledAt])
+  @@index([hostId, scheduledAt])
+  @@index([status, scheduledAt])
 }

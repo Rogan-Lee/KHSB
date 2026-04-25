@@ -23,6 +23,11 @@ export default async function OnlineStudentsPage() {
           where: { revokedAt: null, expiresAt: { gt: new Date() } },
           orderBy: { issuedAt: "desc" },
         },
+        mentoringSessions: {
+          orderBy: { scheduledAt: "desc" },
+          take: 20,
+          include: { host: { select: { name: true } } },
+        },
         _count: {
           select: {
             performanceTasks: {
@@ -87,6 +92,23 @@ export default async function OnlineStudentsPage() {
       accessCount: l.accessCount,
     })),
     pendingFeedbackCount: s._count.performanceTasks,
+    upcomingSessionCount: s.mentoringSessions.filter(
+      (ms) =>
+        (ms.status === "SCHEDULED" || ms.status === "IN_PROGRESS") &&
+        ms.scheduledAt.getTime() > Date.now()
+    ).length,
+    mentoringSessions: s.mentoringSessions.map((ms) => ({
+      id: ms.id,
+      title: ms.title,
+      status: ms.status,
+      scheduledAt: ms.scheduledAt.toISOString(),
+      durationMinutes: ms.durationMinutes,
+      meetUrl: ms.meetUrl,
+      calendarHtmlLink: ms.calendarHtmlLink,
+      notes: ms.notes,
+      summary: ms.summary,
+      hostName: ms.host.name,
+    })),
   }));
 
   return (

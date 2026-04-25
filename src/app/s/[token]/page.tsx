@@ -2,7 +2,13 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { validateMagicLink } from "@/lib/student-auth";
 import { prisma } from "@/lib/prisma";
-import { FileText, ClipboardCheck, MessageSquare } from "lucide-react";
+import {
+  FileText,
+  ClipboardCheck,
+  MessageSquare,
+  Video,
+  CalendarClock,
+} from "lucide-react";
 
 export default async function StudentPortalHomePage({
   params,
@@ -19,13 +25,30 @@ export default async function StudentPortalHomePage({
     Math.ceil((session.link.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
   );
 
-  const [survey, taskCount] = await Promise.all([
+  const [survey, taskCount, upcomingSessions] = await Promise.all([
     prisma.onboardingSurvey.findUnique({
       where: { studentId: student.id },
       select: { submittedAt: true, updatedAt: true },
     }),
     prisma.performanceTask.count({
       where: { studentId: student.id, status: { not: "DONE" } },
+    }),
+    prisma.mentoringSession.findMany({
+      where: {
+        studentId: student.id,
+        status: { in: ["SCHEDULED", "IN_PROGRESS"] },
+        scheduledAt: { gte: new Date() },
+      },
+      orderBy: { scheduledAt: "asc" },
+      take: 5,
+      select: {
+        id: true,
+        title: true,
+        scheduledAt: true,
+        durationMinutes: true,
+        meetUrl: true,
+        host: { select: { name: true } },
+      },
     }),
   ]);
   const surveyHint = survey?.submittedAt
@@ -49,6 +72,62 @@ export default async function StudentPortalHomePage({
           만료까지 {daysLeft}일.
         </p>
       </section>
+
+      {upcomingSessions.length > 0 && (
+        <section className="rounded-[12px] border-2 border-blue-200 bg-blue-50/50 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <CalendarClock className="h-4 w-4 text-blue-700" />
+            <h3 className="text-[13px] font-semibold text-blue-900">
+              예정된 화상 세션 {upcomingSessions.length}건
+            </h3>
+          </div>
+          <ul className="space-y-2">
+            {upcomingSessions.map((s) => {
+              const dt = new Date(s.scheduledAt);
+              const dateLabel = dt.toLocaleString("ko-KR", {
+                timeZone: "Asia/Seoul",
+                month: "long",
+                day: "numeric",
+                weekday: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              });
+              return (
+                <li
+                  key={s.id}
+                  className="rounded-[10px] border border-blue-200 bg-white p-3 flex items-start gap-3"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-ink">
+                      {dateLabel}
+                      <span className="ml-1.5 text-[11px] text-ink-5 font-normal">
+                        ({s.durationMinutes}분 · {s.host.name})
+                      </span>
+                    </p>
+                    <p className="text-[11.5px] text-ink-5 mt-0.5">
+                      {s.meetUrl
+                        ? "Meet 링크가 발급되었습니다 — 시간에 맞춰 입장해 주세요."
+                        : "Meet 링크가 아직 준비되지 않았습니다. 곧 안내드릴게요."}
+                    </p>
+                  </div>
+                  {s.meetUrl && (
+                    <a
+                      href={s.meetUrl}
+                      target="_blank"
+                      rel="noopener"
+                      className="inline-flex items-center gap-1 rounded-[8px] bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-[12px] font-semibold shrink-0"
+                    >
+                      <Video className="h-3.5 w-3.5" />
+                      입장
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       <section className="space-y-2">
         <PortalLink
