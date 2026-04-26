@@ -36,7 +36,7 @@ type PhotoRow = {
   parsedSeatNumber: number | null;
   parsedName: string | null;
   studentId: string | null;
-  student: { id: string; name: string; grade: string } | null;
+  student: { id: string; name: string; grade: string; seat: string | null } | null;
   folderId: string | null;
   uploadedAt: Date;
   uploadedByName: string;
@@ -432,8 +432,25 @@ export function PhotosBoard({
                 <p className="flex items-center gap-1.5">
                   <Calendar className="h-3 w-3" /> 파싱 날짜: {fmtDate(selectedPhoto.parsedDate)}
                 </p>
-                <p className="flex items-center gap-1.5">
-                  <MapPin className="h-3 w-3" /> 좌석: {selectedPhoto.parsedSeatNumber ?? "—"}
+                <p className="flex items-center gap-1.5 flex-wrap">
+                  <MapPin className="h-3 w-3" />
+                  <span>촬영 당시 좌석: {selectedPhoto.parsedSeatNumber ?? "—"}</span>
+                  {selectedPhoto.student && (() => {
+                    const currentSeat = selectedPhoto.student.seat;
+                    const recorded = selectedPhoto.parsedSeatNumber != null ? String(selectedPhoto.parsedSeatNumber) : null;
+                    const moved = currentSeat != null && recorded != null && currentSeat !== recorded;
+                    return (
+                      <span className={cn(
+                        "ml-1 px-1.5 py-0.5 rounded text-[10px] border",
+                        moved
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-muted/40 text-muted-foreground border-border"
+                      )}>
+                        현재 좌석: {currentSeat ?? "미배정"}
+                        {moved && " · 이동"}
+                      </span>
+                    );
+                  })()}
                 </p>
                 <p className="flex items-center gap-1.5">
                   <User className="h-3 w-3" /> 파싱 이름: {selectedPhoto.parsedName ?? "—"}
