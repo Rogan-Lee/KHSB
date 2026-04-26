@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Plus,
   AlertCircle,
+  Video,
 } from "lucide-react";
 import {
   ROLE_DISPLAY,
@@ -115,6 +116,40 @@ export default async function OnlineHomePage() {
       ? prisma.onlineParentFeedback.count({ where: { readAt: null } })
       : Promise.resolve(0),
   ]);
+
+  // 화상 1:1 세션 카운트 (역할별 가시성 동일하게 적용)
+  const studentScopeForSessions = {
+    isOnlineManaged: true,
+    status: "ACTIVE" as const,
+    ...myStudentFilter,
+  };
+  const [upcomingSessionCount, todaySessionCount, completedSessionCount] =
+    await Promise.all([
+      prisma.mentoringSession.count({
+        where: {
+          status: { in: ["SCHEDULED", "IN_PROGRESS"] },
+          scheduledAt: { gte: new Date() },
+          student: studentScopeForSessions,
+        },
+      }),
+      prisma.mentoringSession.count({
+        where: {
+          status: { in: ["SCHEDULED", "IN_PROGRESS"] },
+          scheduledAt: {
+            gte: today,
+            lte: new Date(today.getTime() + 24 * 60 * 60 * 1000),
+          },
+          student: studentScopeForSessions,
+        },
+      }),
+      prisma.mentoringSession.count({
+        where: {
+          status: "COMPLETED",
+          scheduledAt: { gte: weekStartDate },
+          student: studentScopeForSessions,
+        },
+      }),
+    ]);
 
   const unrecorded = isMM
     ? myStudents.filter((s) => (s.dailyKakaoLogs?.length ?? 0) === 0).length
@@ -369,6 +404,36 @@ export default async function OnlineHomePage() {
                 ? { label: "이번 주 보고서 보기", href: "/online/reports" }
                 : null
             }
+          />
+
+          {/* 5) 화상 1:1 세션 */}
+          <FeatureCard
+            href="/online/sessions"
+            icon={<Video className="h-5 w-5" />}
+            title="화상 1:1 세션"
+            subtitle="Google Meet 자동 예약 · 노트 → AI 요약"
+            metrics={[
+              {
+                label: "오늘 예정",
+                value: todaySessionCount,
+                suffix: "건",
+                urgent: todaySessionCount > 0,
+              },
+              {
+                label: "전체 예정",
+                value: upcomingSessionCount,
+                suffix: "건",
+              },
+              {
+                label: "이번 주 완료",
+                value: completedSessionCount,
+                suffix: "건",
+              },
+            ]}
+            primaryAction={{
+              label: "세션 예약·관리",
+              href: "/online/sessions",
+            }}
           />
         </div>
       </section>
