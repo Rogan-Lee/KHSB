@@ -20,13 +20,13 @@ export default async function PhotosPage({
     activeFolderId
       ? prisma.photo.findMany({
           where: { folderId: activeFolderId },
-          include: { student: { select: { id: true, name: true, grade: true } } },
+          include: { student: { select: { id: true, name: true, grade: true, seat: true } } },
           orderBy: { parsedDate: "desc" },
           take: 500,
         })
       : prisma.photo.findMany({
           // 폴더 미선택 시 "전체" = 최근 100장
-          include: { student: { select: { id: true, name: true, grade: true } } },
+          include: { student: { select: { id: true, name: true, grade: true, seat: true } } },
           orderBy: { uploadedAt: "desc" },
           take: 100,
         }),
