@@ -59,7 +59,9 @@ const PLAN_COLORS: Record<string, { bg: string; text: string; dot: string; borde
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function timeToMin(t: string) {
+  if (!t) return START_HOUR * 60;
   const [h, m] = t.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return START_HOUR * 60;
   return h * 60 + m;
 }
 function minToTime(min: number) {
