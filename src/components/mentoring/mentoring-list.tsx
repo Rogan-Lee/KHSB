@@ -24,7 +24,7 @@ import {
 import { MoreHorizontal, Search, Trash2, X, Link2, ExternalLink, CheckCircle2, ChevronDown, ChevronRight, Send, Loader2, Filter } from "lucide-react";
 import { ParentReportInlinePanel } from "./parent-report-inline-panel";
 import { DatePicker } from "@/components/ui/date-picker";
-import { updateMentoringStatus, deleteMentoring, bulkDeleteMentorings } from "@/actions/mentoring";
+import { updateMentoringStatus, updateMentoringNotes, deleteMentoring, bulkDeleteMentorings } from "@/actions/mentoring";
 import { createParentReportsBulk, type BulkParentReportResult } from "@/actions/parent-reports";
 import { toast } from "sonner";
 import { useSortableTable } from "@/hooks/use-sortable-table";
@@ -265,6 +265,35 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
   const [bulkResults, setBulkResults] = useState<Record<string, "pending" | "created" | "existing" | "failed">>({});
   const [showOnlyWithReport, setShowOnlyWithReport] = useState(false);
   const [isBulkPending, startBulkTransition] = useTransition();
+  // 메모 인라인 편집: 클릭한 행만 textarea, 다른 행은 텍스트만.
+  const [notesEditingId, setNotesEditingId] = useState<string | null>(null);
+  const [notesDraft, setNotesDraft] = useState("");
+  // 서버 revalidate 가 props 를 갱신하기 전까지 화면을 안 깜빡이게 로컬 오버라이드.
+  const [notesOverride, setNotesOverride] = useState<Record<string, string | null>>({});
+  const [, startNotesTransition] = useTransition();
+
+  function startNotesEdit(m: Mentoring) {
+    setNotesEditingId(m.id);
+    setNotesDraft(notesOverride[m.id] ?? m.notes ?? "");
+  }
+
+  function commitNotes(id: string, original: string) {
+    const next = notesDraft.trim();
+    setNotesEditingId(null);
+    if (next === original.trim()) return; // 변경 없으면 호출 생략
+    setNotesOverride((prev) => ({ ...prev, [id]: next.length > 0 ? next : null }));
+    startNotesTransition(async () => {
+      try {
+        await updateMentoringNotes(id, next);
+      } catch {
+        toast.error("메모 저장 실패");
+        setNotesOverride((prev) => {
+          const { [id]: _, ...rest } = prev;
+          return rest;
+        });
+      }
+    });
+  }
 
   // 필터 변경 시 sessionStorage에 저장
   useEffect(() => {
@@ -605,8 +634,47 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                       {STATUS_MAP[m.status].label}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground line-clamp-1 max-w-48">
-                    {m.notes || "—"}
+                  <TableCell className="max-w-56 align-top">
+                    {(() => {
+                      const isEditing = notesEditingId === m.id;
+                      const current = notesOverride[m.id] !== undefined ? notesOverride[m.id] : m.notes;
+                      const isCancelled = m.status === "CANCELLED";
+                      if (isEditing) {
+                        return (
+                          <textarea
+                            autoFocus
+                            value={notesDraft}
+                            onChange={(e) => setNotesDraft(e.target.value)}
+                            onBlur={() => commitNotes(m.id, current ?? "")}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") {
+                                setNotesEditingId(null);
+                              } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                                e.preventDefault();
+                                commitNotes(m.id, current ?? "");
+                              }
+                            }}
+                            placeholder={isCancelled ? "취소 사유를 입력해주세요" : "메모"}
+                            rows={2}
+                            className="w-full text-xs rounded border border-blue-300 px-2 py-1 resize-y focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 bg-background"
+                          />
+                        );
+                      }
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => startNotesEdit({ ...m, notes: current })}
+                          className={cn(
+                            "w-full text-left text-sm rounded px-1.5 py-1 -ml-1.5 hover:bg-muted/40 transition-colors line-clamp-2",
+                            current ? "text-foreground" : "text-muted-foreground/60",
+                            isCancelled && !current && "text-rose-500/80"
+                          )}
+                          title={current ?? (isCancelled ? "취소 사유를 입력해주세요" : "메모 추가")}
+                        >
+                          {current || (isCancelled ? "취소 사유 입력" : "—")}
+                        </button>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>
                     {(() => {
