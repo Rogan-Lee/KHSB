@@ -41,7 +41,10 @@ const COLORS: Record<string, {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function timeToMin(t: string): number {
+  if (!t) return START_HOUR * 60;
   const [h, m] = t.split(":").map(Number);
+  // "FLEXIBLE" 등 비HH:MM 문자열이 들어오면 NaN → 캔버스 위치/높이 망가짐. 안전한 기본값.
+  if (Number.isNaN(h) || Number.isNaN(m)) return START_HOUR * 60;
   return h * 60 + m;
 }
 function minToTime(min: number): string {
