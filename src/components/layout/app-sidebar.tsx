@@ -38,6 +38,7 @@ import {
   Lock,
   ChevronRight,
   ChevronsLeft,
+  Video,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType; feature?: FeatureKey };
@@ -94,6 +95,7 @@ const onlineSection: NavSection = {
     { href: "/online", label: "온라인 대시보드", icon: Globe },
     { href: "/online/students", label: "온라인 학생", icon: Users },
     { href: "/online/performance", label: "수행평가", icon: ClipboardCheck },
+    { href: "/online/sessions", label: "화상 1:1 세션", icon: Video },
     { href: "/online/daily-log", label: "일일 보고", icon: MessageSquare },
     { href: "/online/reports", label: "학부모 보고서", icon: FileText },
   ],
