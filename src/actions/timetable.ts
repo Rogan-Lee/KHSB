@@ -110,18 +110,32 @@ export async function getAttendanceAutoBlocks(studentId: string) {
     }),
   ]);
 
+  // 시간표 캔버스(timetable-grid)는 "HH:MM" 만 파싱 가능 — "FLEXIBLE" 이 들어가면
+  // timeToMin → NaN 으로 top/height 가 망가져 블록이 콘텐츠 크기로 쪼그라든다.
+  // 자율 입실 → 06:00, 자율 퇴실 → 22:00 으로 가시화. 양쪽 다 자율이면 종일 블록.
+  const FLEX_START = "06:00";
+  const FLEX_END = "22:00";
+  const fix = (t: string, fallback: string) => (t === "FLEXIBLE" ? fallback : t);
+
   return [
     ...schedules.map((s) => ({
       dayOfWeek: s.dayOfWeek,
-      startTime: s.startTime,
-      endTime: s.endTime,
+      startTime: fix(s.startTime, FLEX_START),
+      endTime: fix(s.endTime, FLEX_END),
       type: "ATTENDANCE" as const,
-      label: "등원",
+      label:
+        s.startTime === "FLEXIBLE" && s.endTime === "FLEXIBLE"
+          ? "등원 (자율)"
+          : s.startTime === "FLEXIBLE"
+            ? "등원 (입실 자율)"
+            : s.endTime === "FLEXIBLE"
+              ? "등원 (퇴실 자율)"
+              : "등원",
     })),
     ...outings.map((o) => ({
       dayOfWeek: o.dayOfWeek,
-      startTime: o.outStart,
-      endTime: o.outEnd,
+      startTime: fix(o.outStart, FLEX_START),
+      endTime: fix(o.outEnd, FLEX_END),
       type: "OUTING" as const,
       label: o.reason ?? "외출",
     })),

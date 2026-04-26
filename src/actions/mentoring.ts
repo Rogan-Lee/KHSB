@@ -465,6 +465,21 @@ export async function updateMentoringStatus(id: string, status: MentoringStatus)
   revalidatePath(`/mentoring/${id}`);
 }
 
+export async function updateMentoringNotes(id: string, notes: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  requireStaff(session.user.role);
+
+  const trimmed = notes.trim();
+  await prisma.mentoring.update({
+    where: { id },
+    data: { notes: trimmed.length > 0 ? trimmed : null },
+  });
+  revalidatePath("/mentoring");
+  revalidatePath(`/mentoring/${id}`);
+}
+
 export async function quickStartMentoring(studentId: string, mentorId: string): Promise<string> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
