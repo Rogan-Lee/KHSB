@@ -193,6 +193,60 @@ async function getMonthlyOutingStats(
   return { count, totalMinutes: total };
 }
 
+// ─── 학습 정량 분석 (멘토링 페이지 상단 노출용) ────────────────────────
+
+/**
+ * 멘토링 화면에서 멘토/학생이 함께 볼 수 있는 학습 정량 분석.
+ * MonthlyReport 와 동일한 메트릭을 실시간 계산 (스냅샷 X).
+ * 인증 안 함 — 멘토링 페이지 자체가 STAFF 전용 라우트라 그쪽에서 보호.
+ */
+export async function getStudentStudyAnalysis(
+  studentId: string,
+  year: number,
+  month: number,
+) {
+  const start = startOfMonth(new Date(year, month - 1));
+  const end = endOfMonth(new Date(year, month - 1));
+
+  const student = await prisma.student.findUnique({
+    where: { id: studentId },
+    select: { grade: true },
+  });
+  if (!student) return null;
+
+  const [attendances, rankMap, outing] = await Promise.all([
+    prisma.attendanceRecord.findMany({
+      where: { studentId, date: { gte: start, lte: end } },
+      select: { type: true },
+    }),
+    getStudyRankMap(year, month),
+    getMonthlyOutingStats(studentId, year, month),
+  ]);
+
+  const prevYear = month === 1 ? year - 1 : year;
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const [prevMonthStudyMinutes, gradeAvgMinutes] = await Promise.all([
+    getMonthlyStudyMinutes(studentId, prevYear, prevMonth),
+    getGradeAverageStudyMinutes(student.grade, year, month, rankMap),
+  ]);
+
+  const myRank = rankMap[studentId];
+
+  return {
+    grade: student.grade,
+    attendanceDays: attendances.filter((a) => a.type === "NORMAL").length,
+    absentDays: attendances.filter((a) => a.type === "ABSENT").length,
+    tardyCount: attendances.filter((a) => a.type === "TARDY").length,
+    earlyLeaveCount: attendances.filter((a) => a.type === "EARLY_LEAVE").length,
+    totalStudyMinutes: myRank?.minutes ?? 0,
+    prevMonthStudyMinutes,
+    gradeAvgMinutes,
+    outingCount: outing.count,
+    studyRankInRoom: myRank?.rank ?? null,
+    studyRankTotal: myRank?.total ?? null,
+  };
+}
+
 // ─── 월간 리포트 생성 ─────────────────────────────────────────────────
 
 export async function generateMonthlyReport(

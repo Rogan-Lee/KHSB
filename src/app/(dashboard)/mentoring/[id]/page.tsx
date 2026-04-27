@@ -14,6 +14,8 @@ import { AssignmentPanel } from "@/components/assignments/assignment-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatDate } from "@/lib/utils";
 import { StudentInfoReveal } from "@/components/mentoring/student-info-reveal";
+import { StudyQuantityPanel } from "@/components/mentoring/study-quantity-panel";
+import { getStudentStudyAnalysis } from "@/actions/reports";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
@@ -59,9 +61,14 @@ export default async function MentoringDetailPage({
 
   const evtFrom = new Date(); evtFrom.setMonth(evtFrom.getMonth() - 3);
   const evtTo = new Date(); evtTo.setMonth(evtTo.getMonth() + 3);
-  const [timetableEntries, mentoringSchoolEvents] = await Promise.all([
+  // 학습 정량 분석은 멘토링 예정일 기준 월. 과거 기록을 봐도 그 시점 컨텍스트가 노출됨.
+  const analysisDate = mentoring.scheduledAt ?? new Date();
+  const analysisYear = analysisDate.getFullYear();
+  const analysisMonth = analysisDate.getMonth() + 1;
+  const [timetableEntries, mentoringSchoolEvents, studyAnalysis] = await Promise.all([
     getTimetableEntries(mentoring.studentId),
     getStudentSchoolEvents(mentoring.studentId, evtFrom, evtTo),
+    getStudentStudyAnalysis(mentoring.studentId, analysisYear, analysisMonth),
   ]);
 
   // 해당 학생의 직전 멘토링 (현재 제외, 상태 무관 — 가장 최근 기록)
@@ -131,6 +138,16 @@ export default async function MentoringDetailPage({
           </div>
         </CardContent>
       </Card>
+
+      {/* 학습 정량 분석 — 멘토와 학생이 함께 확인하며 멘토링 자료로 활용 */}
+      {studyAnalysis && (
+        <StudyQuantityPanel
+          studentName={s.name}
+          year={analysisYear}
+          month={analysisMonth}
+          analysis={studyAnalysis}
+        />
+      )}
 
       <Tabs defaultValue="record">
         <TabsList>
