@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveAttendanceRecord, createDailyOuting, updateDailyOuting, deleteDailyOuting } from "@/actions/attendance";
-import { patchStudentTextFields, patchStudentCheckDate, resetWeeklyCheckDates } from "@/actions/students";
+import { patchStudentTextFields, patchStudentCheckDate, resetWeeklyCheckDates, resetCheckDateForAll } from "@/actions/students";
 import { createMeritDemerit } from "@/actions/merit-demerit";
 import { createStudyPlanReport } from "@/actions/study-plan-reports";
 import { toast } from "sonner";
@@ -613,6 +613,46 @@ export function AttendanceTable({ students, today }: Props) {
                   </button>
                 </div>
               </th>
+              <th className="px-2 py-2.5 text-center w-20 hidden md:table-cell">
+                <div className="flex flex-col items-center gap-0.5">
+                  <span>모의 분석</span>
+                  <button
+                    onClick={async () => {
+                      if (!confirm("모의고사 분석지 체크를 모두 초기화하시겠습니까?")) return;
+                      await resetCheckDateForAll("mockAnalysisDate");
+                      setLocalCheckDates((prev) => {
+                        const m = new Map(prev);
+                        for (const [id, dates] of m) m.set(id, { ...dates, mockAnalysisDate: null });
+                        return m;
+                      });
+                      toast.success("모의고사 분석지가 초기화되었습니다");
+                    }}
+                    className="px-1.5 py-0.5 text-[9px] rounded border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                  >
+                    초기화
+                  </button>
+                </div>
+              </th>
+              <th className="px-2 py-2.5 text-center w-20 hidden md:table-cell">
+                <div className="flex flex-col items-center gap-0.5">
+                  <span>내신 분석</span>
+                  <button
+                    onClick={async () => {
+                      if (!confirm("내신 분석지 체크를 모두 초기화하시겠습니까?")) return;
+                      await resetCheckDateForAll("schoolAnalysisDate");
+                      setLocalCheckDates((prev) => {
+                        const m = new Map(prev);
+                        for (const [id, dates] of m) m.set(id, { ...dates, schoolAnalysisDate: null });
+                        return m;
+                      });
+                      toast.success("내신 분석지가 초기화되었습니다");
+                    }}
+                    className="px-1.5 py-0.5 text-[9px] rounded border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                  >
+                    초기화
+                  </button>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -1009,13 +1049,42 @@ export function AttendanceTable({ students, today }: Props) {
                     })()}
                   </td>
 
+                  {/* 모의고사 분석지 체크 — 수동 관리(주간 갱신 X), 제출 여부만 표시 */}
+                  {(["mockAnalysisDate", "schoolAnalysisDate"] as const).map((analysisKey) => {
+                    const aDate = localCheckDates.get(student.id)?.[analysisKey] ?? null;
+                    const aPending = checkDatePending === `${student.id}:${analysisKey}`;
+                    return (
+                      <td key={analysisKey} className="px-2 py-3 text-center hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
+                        {aDate ? (
+                          <div className="inline-flex items-center gap-0.5">
+                            <span className="text-green-600 inline-flex items-center gap-1">
+                              <Check className="h-4 w-4" />
+                              <span className="text-[10px] text-muted-foreground font-mono">{fmtCheckDate(aDate)}</span>
+                            </span>
+                            <button
+                              onClick={() => saveCheckDate(student.id, analysisKey, null)}
+                              disabled={aPending}
+                              title="취소"
+                              className="p-0.5 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-40"
+                            ><X className="h-3 w-3" /></button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => saveCheckDate(student.id, analysisKey, new Date().toISOString().split("T")[0])}
+                            disabled={aPending}
+                            className="px-2 py-0.5 text-[10px] rounded border border-border bg-background text-muted-foreground hover:bg-accent font-medium transition-colors disabled:opacity-40"
+                          >{aPending ? "..." : "제출"}</button>
+                        )}
+                      </td>
+                    );
+                  })}
 
                 </tr>
 
                 {/* 타임라인 + 인라인 편집 확장 행 */}
                 {isExpanded && (
                   <tr className={cn("border-b", isSelected ? "bg-blue-50/60" : "bg-muted/20")}>
-                    <td colSpan={12} className="px-4 py-4">
+                    <td colSpan={14} className="px-4 py-4">
                       {(() => {
                         const focus = expandFocus.get(student.id);
                         const focusLabel: Record<EditFocus, string> = {
@@ -1032,7 +1101,7 @@ export function AttendanceTable({ students, today }: Props) {
                             <div className="flex items-stretch gap-3 w-full">
                               {/* 왼쪽: 체크 항목 (주간 공부계획/플래너 전송 제외) */}
                               <div className="flex flex-col justify-center gap-2 shrink-0 rounded-md border border-border bg-muted/30 px-4 py-3">
-                                {CHECK_ITEMS.filter(({ key }) => key !== "weeklyPlanDate" && key !== "plannerSentDate").map(({ key, label, permanent }) => {
+                                {CHECK_ITEMS.filter(({ key }) => key !== "weeklyPlanDate" && key !== "plannerSentDate" && key !== "mockAnalysisDate" && key !== "schoolAnalysisDate").map(({ key, label, permanent }) => {
                                   const dateVal = localCheckDates.get(student.id)?.[key] ?? null;
                                   const isPending = checkDatePending === `${student.id}:${key}`;
                                   const todayISO = new Date().toISOString().split("T")[0];
