@@ -253,6 +253,21 @@ export async function resetWeeklyCheckDates() {
   revalidatePath("/attendance");
 }
 
+/**
+ * ACTIVE 학생 전체에 대해 특정 체크 키만 일괄 초기화.
+ * 모의고사/내신 분석지처럼 새 분석 사이클을 시작할 때 미제출자 가시화 용도.
+ */
+export async function resetCheckDateForAll(key: CheckDateKey) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  await prisma.student.updateMany({
+    where: { status: "ACTIVE" },
+    data: { [key]: null },
+  });
+  revalidatePath("/attendance");
+}
+
 export async function getStudents() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
