@@ -2,15 +2,16 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { isStaff, STAFF_ROLES } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { todayKST } from "@/lib/utils";
 
 function assertDirector(role?: string) {
-  if (role !== "DIRECTOR" && role !== "SUPER_ADMIN") throw new Error("Unauthorized");
+  if (!isStaff(role)) throw new Error("Unauthorized");
 }
 
 function assertDirectorOrMentor(role?: string) {
-  if (role !== "DIRECTOR" && role !== "SUPER_ADMIN" && role !== "MENTOR") throw new Error("Unauthorized");
+  if (!isStaff(role)) throw new Error("Unauthorized");
 }
 
 export type WeeklyPlanStudent = {
@@ -48,7 +49,7 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
 
   const mentors = await prisma.user.findMany({
     where: {
-      role: { in: ["MENTOR", "STAFF", "DIRECTOR", "SUPER_ADMIN"] },
+      role: { in: [...STAFF_ROLES] },
       mentorSchedules: { some: {} },
     },
     include: {
