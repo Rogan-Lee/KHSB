@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Student Portal">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F06A34"/>
+      <stop offset="100%" stop-color="#C5461A"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <g fill="#FFFFFF" transform="translate(102 102)">
+    <path d="M154 14c-32 0-58 26-58 58v26h-20c-12 0-22 10-22 22v124c0 12 10 22 22 22h156c12 0 22-10 22-22V120c0-12-10-22-22-22h-20V72c0-32-26-58-58-58zm-30 58c0-17 13-30 30-30s30 13 30 30v26h-60V72zm30 118a21 21 0 1 0 0-42 21 21 0 0 0 0 42z"/>
+  </g>
+</svg>

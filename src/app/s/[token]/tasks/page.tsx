@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ChevronRight, ClipboardList, CheckCircle2 } from "lucide-react";
 import { validateMagicLink } from "@/lib/student-auth";
 import { prisma } from "@/lib/prisma";
+import { SegmentTabs } from "../_components/segment-tabs";
 import type { PerformanceTaskStatus } from "@/generated/prisma";
 
 const STATUS_LABEL: Record<PerformanceTaskStatus, string> = {
@@ -13,20 +14,24 @@ const STATUS_LABEL: Record<PerformanceTaskStatus, string> = {
   DONE: "최종 완료",
 };
 
-const STATUS_COLORS: Record<PerformanceTaskStatus, string> = {
-  OPEN: "bg-slate-100 text-slate-700",
-  IN_PROGRESS: "bg-blue-100 text-blue-800",
-  SUBMITTED: "bg-amber-100 text-amber-800",
-  NEEDS_REVISION: "bg-red-100 text-red-800",
-  DONE: "bg-emerald-100 text-emerald-800",
+const STATUS_TONE: Record<PerformanceTaskStatus, string> = {
+  OPEN: "bg-canvas-2 text-ink-3",
+  IN_PROGRESS: "bg-info-soft text-info-ink",
+  SUBMITTED: "bg-warn-soft text-warn-ink",
+  NEEDS_REVISION: "bg-bad-soft text-bad-ink",
+  DONE: "bg-ok-soft text-ok-ink",
 };
+
+type TabKey = "open" | "done";
 
 export default async function StudentTasksPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
-  const { token } = await params;
+  const [{ token }, sp] = await Promise.all([params, searchParams]);
   const session = await validateMagicLink(token);
   if (!session) redirect("/s/expired");
 
@@ -38,116 +43,139 @@ export default async function StudentTasksPage({
   const upcoming = tasks.filter((t) => t.status !== "DONE");
   const done = tasks.filter((t) => t.status === "DONE");
 
+  const tab: TabKey = sp.tab === "done" ? "done" : "open";
+  const list = tab === "done" ? done : upcoming;
+
   return (
-    <div className="space-y-4">
-      <div>
-        <Link
-          href={`/s/${token}`}
-          className="inline-flex items-center gap-1 text-[12px] text-ink-4 hover:text-ink"
+    <div>
+      <SegmentTabs
+        defaultKey="open"
+        options={[
+          { key: "open", label: "진행중", count: upcoming.length },
+          { key: "done", label: "완료", count: done.length },
+        ]}
+      />
+
+      {list.length === 0 ? (
+        <EmptyState tab={tab} />
+      ) : (
+        <ul className="space-y-2.5">
+          {list.map((t) => (
+            <li key={t.id}>
+              <TaskCard token={token} task={t} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function TaskCard({
+  token,
+  task,
+}: {
+  token: string;
+  task: {
+    id: string;
+    subject: string;
+    title: string;
+    description: string | null;
+    format: string | null;
+    dueDate: Date;
+    status: PerformanceTaskStatus;
+  };
+}) {
+  const days = Math.ceil(
+    (task.dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+  );
+  const isOverdue = days < 0 && task.status !== "DONE";
+  const isUrgent = days >= 0 && days <= 1 && task.status !== "DONE";
+
+  const dueLabel =
+    days < 0 ? `D+${-days}` : days === 0 ? "D-Day" : `D-${days}`;
+
+  const dueTone = isOverdue
+    ? "bg-bad-soft text-bad-ink"
+    : isUrgent
+      ? "bg-warn-soft text-warn-ink"
+      : days <= 3 && task.status !== "DONE"
+        ? "bg-warn-soft/70 text-warn-ink"
+        : "bg-canvas-2 text-ink-3";
+
+  return (
+    <Link
+      href={`/s/${token}/tasks/${task.id}`}
+      className={`block rounded-[14px] border bg-panel p-4 transition-colors active:bg-canvas-2 ${
+        isOverdue || isUrgent
+          ? "border-line shadow-xs ring-1 ring-bad/10"
+          : "border-line"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="rounded-full bg-canvas-2 px-2 py-0.5 text-[10.5px] font-medium text-ink-3">
+            {task.subject}
+          </span>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[10.5px] font-medium ${STATUS_TONE[task.status]}`}
+          >
+            {STATUS_LABEL[task.status]}
+          </span>
+        </div>
+        <span
+          className={`shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold tabular-nums ${dueTone}`}
         >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          포털 홈
-        </Link>
+          {dueLabel}
+        </span>
       </div>
 
-      <header>
-        <h2 className="text-[16px] font-semibold text-ink">수행평가 일정</h2>
-        <p className="mt-1 text-[12.5px] text-ink-4">
-          마감 임박순으로 정렬되어 있어요. 각 과제를 눌러 제출할 수 있습니다.
+      <p className="mt-2.5 text-[15px] font-semibold leading-snug text-ink">
+        {task.title}
+        {task.format && (
+          <span className="ml-1.5 text-[11.5px] font-normal text-ink-4">
+            ({task.format})
+          </span>
+        )}
+      </p>
+
+      {task.description && (
+        <p className="mt-1 line-clamp-2 text-[12.5px] leading-relaxed text-ink-4">
+          {task.description}
         </p>
-      </header>
-
-      {upcoming.length === 0 ? (
-        <div className="rounded-[12px] border border-dashed border-line bg-canvas-2/50 p-6 text-center text-[12.5px] text-ink-5">
-          진행 중인 수행평가가 없습니다.
-        </div>
-      ) : (
-        <section className="space-y-2">
-          {upcoming.map((t) => {
-            const due = t.dueDate;
-            const daysLeft = Math.ceil(
-              (due.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-            );
-            const dueClass =
-              daysLeft < 0
-                ? "text-red-700 font-semibold"
-                : daysLeft <= 1
-                  ? "text-amber-700 font-semibold"
-                  : daysLeft <= 3
-                    ? "text-amber-600"
-                    : "text-ink-3";
-            return (
-              <Link
-                key={t.id}
-                href={`/s/${token}/tasks/${t.id}`}
-                className="block rounded-[10px] border border-line bg-panel p-3 hover:border-line-strong transition-colors"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-ink-4 rounded bg-canvas-2 px-1.5 py-0.5">
-                        {t.subject}
-                      </span>
-                      <span
-                        className={`text-[11px] rounded px-1.5 py-0.5 ${STATUS_COLORS[t.status]}`}
-                      >
-                        {STATUS_LABEL[t.status]}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[13px] font-medium text-ink">
-                      {t.title}
-                      {t.format && (
-                        <span className="ml-1 text-[11px] font-normal text-ink-5">
-                          ({t.format})
-                        </span>
-                      )}
-                    </p>
-                    {t.description && (
-                      <p className="mt-1 text-[12px] text-ink-4 leading-relaxed">
-                        {t.description}
-                      </p>
-                    )}
-                  </div>
-                  <div className={`shrink-0 text-right ${dueClass}`}>
-                    <div className="tabular-nums text-[12px]">
-                      {due.toLocaleDateString("ko-KR")}
-                    </div>
-                    <div className="text-[11px]">
-                      {daysLeft < 0
-                        ? `D+${-daysLeft}`
-                        : daysLeft === 0
-                          ? "D-Day"
-                          : `D-${daysLeft}`}
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </section>
       )}
 
-      {done.length > 0 && (
-        <section>
-          <h3 className="text-[12px] font-semibold text-ink-4 mt-4 mb-2">
-            완료 ({done.length})
-          </h3>
-          <div className="space-y-1">
-            {done.map((t) => (
-              <div
-                key={t.id}
-                className="rounded-[8px] border border-line bg-panel px-3 py-2 text-[12px] text-ink-3 flex items-center gap-2"
-              >
-                <span className="text-ink-5">{t.subject}</span>
-                <span className="text-ink">{t.title}</span>
-                <span className="ml-auto tabular-nums text-[11px] text-ink-5">
-                  {t.dueDate.toLocaleDateString("ko-KR")}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <div className="mt-3 flex items-center justify-between border-t border-line pt-2.5">
+        <span className="text-[11.5px] tabular-nums text-ink-4">
+          마감 {task.dueDate.toLocaleDateString("ko-KR")}
+        </span>
+        <span className="inline-flex items-center text-[12px] font-semibold text-brand">
+          열기
+          <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} />
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+function EmptyState({ tab }: { tab: TabKey }) {
+  return (
+    <div className="rounded-[14px] border border-dashed border-line bg-canvas-2/40 px-5 py-12 text-center">
+      <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-panel text-ink-4">
+        {tab === "done" ? (
+          <CheckCircle2 className="h-6 w-6" />
+        ) : (
+          <ClipboardList className="h-6 w-6" />
+        )}
+      </span>
+      <p className="mt-3 text-[13.5px] font-semibold text-ink-2">
+        {tab === "done" ? "완료한 과제가 없어요" : "진행 중인 과제가 없어요"}
+      </p>
+      <p className="mt-1 text-[12px] text-ink-4">
+        {tab === "done"
+          ? "과제를 끝내면 여기에 모여요."
+          : "새로운 수행평가가 등록되면 여기에 표시됩니다."}
+      </p>
     </div>
   );
 }
