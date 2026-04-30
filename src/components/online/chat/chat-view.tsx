@@ -42,6 +42,7 @@ export function ChatView({
   initialMessages,
   partnerName,
   partnerLabel,
+  containerVariant = "student",
 }: {
   chatId: string;
   studentToken?: string;
@@ -49,6 +50,7 @@ export function ChatView({
   initialMessages: ChatMessageView[];
   partnerName: string;
   partnerLabel?: string;
+  containerVariant?: "student" | "staff";
 }) {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMessageView[]>(initialMessages);
@@ -162,17 +164,24 @@ export function ChatView({
     bucket.items.push(m);
   }
 
+  const outerClass =
+    containerVariant === "student"
+      ? "-mx-4 -mt-3 flex h-[calc(100svh-3rem-env(safe-area-inset-top)-64px-env(safe-area-inset-bottom))] flex-col"
+      : "flex h-full flex-col";
+
   return (
-    <div className="-mx-4 -mt-3 flex h-[calc(100svh-3rem-env(safe-area-inset-top)-64px-env(safe-area-inset-bottom))] flex-col">
+    <div className={outerClass}>
       {/* Header bar with partner info */}
-      <div className="border-b border-line bg-panel/85 px-4 py-2.5 backdrop-blur-md">
-        <p className="text-[14px] font-semibold leading-tight text-ink">
-          {partnerName}
-        </p>
-        {partnerLabel && (
-          <p className="text-[11px] text-ink-4">{partnerLabel}</p>
-        )}
-      </div>
+      {containerVariant === "student" && (
+        <div className="border-b border-line bg-panel/85 px-4 py-2.5 backdrop-blur-md">
+          <p className="text-[14px] font-semibold leading-tight text-ink">
+            {partnerName}
+          </p>
+          {partnerLabel && (
+            <p className="text-[11px] text-ink-4">{partnerLabel}</p>
+          )}
+        </div>
+      )}
 
       {/* Messages scroll area */}
       <div
