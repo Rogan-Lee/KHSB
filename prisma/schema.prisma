@@ -8,12 +8,14 @@ datasource db {
 }
 
 enum Role {
-  SUPER_ADMIN   // 시스템 최상위 관리자 (다계정 가능)
-  ADMIN         // (deprecated) 이전 버전 호환, 신규 생성 금지
-  DIRECTOR      // 원장
-  MENTOR
+  SUPER_ADMIN       // 시스템 최상위 관리자 (다계정 가능)
+  ADMIN             // (deprecated) 이전 버전 호환, 신규 생성 금지
+  DIRECTOR          // 원장
+  MENTOR            // 오프라인 자습실 멘토
   STAFF
   STUDENT
+  CONSULTANT        // 온라인 관리 — 컨설턴트 (입시/수행평가 설계)
+  MANAGER_MENTOR    // 온라인 관리 — 관리 멘토 (진도/계획/카톡 로그)
 }
 
 enum StudentStatus {
@@ -108,6 +110,8 @@ model User {
   role       Role        @default(MENTOR)
   isMentor   Boolean     @default(false)
   students        Student[]        @relation("MentorStudents")
+  onlineStudents     Student[]     @relation("OnlineManagerStudents")  // MANAGER_MENTOR 담당 온라인 학생
+  consultingStudents Student[]     @relation("ConsultantStudents")     // CONSULTANT 담당 온라인 학생
   mentorings      Mentoring[]
   mentorSchedules MentorSchedule[]
   parentReports   ParentReport[]
@@ -207,6 +211,15 @@ model Student {
   weeklyPlanDate      DateTime? @db.Date    // 주간 공부계획 일자 (매주 화요일 초기화)
   mentorId            String?
   mentor              User?                  @relation("MentorStudents", fields: [mentorId], references: [id])
+  // ─── 온라인 관리 모듈 (Phase 1) ───
+  isOnlineManaged      Boolean                @default(false)
+  onlineStartedAt      DateTime?
+  assignedMentorId     String?                // MANAGER_MENTOR
+  assignedMentor       User?                  @relation("OnlineManagerStudents", fields: [assignedMentorId], references: [id])
+  assignedConsultantId String?                // CONSULTANT
+  assignedConsultant   User?                  @relation("ConsultantStudents", fields: [assignedConsultantId], references: [id])
+  magicLinks           StudentMagicLink[]
+  // ─────────────────────────────────
   schedules      AttendanceSchedule[]
   attendances    AttendanceRecord[]
   outings        OutingSchedule[]
@@ -233,6 +246,28 @@ model Student {
   photos           Photo[]
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
+
+  @@index([isOnlineManaged, status])
+  @@index([assignedMentorId])
+  @@index([assignedConsultantId])
+}
+
+// 온라인 학생 포털(`/s/[token]`) 접근용 매직링크.
+// 로그인 없이 토큰만으로 학생 본인 식별. 만료/무효화 지원.
+model StudentMagicLink {
+  id             String    @id @default(cuid())
+  studentId      String
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  token          String    @unique @default(cuid())
+  issuedAt       DateTime  @default(now())
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  lastAccessedAt DateTime?
+  accessCount    Int       @default(0)
+  issuedById     String?   // User.id — 발급자(원장 등)
+
+  @@index([studentId, revokedAt])
+  @@index([expiresAt])
 }
 
 model AttendanceSchedule {

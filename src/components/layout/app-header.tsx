@@ -20,6 +20,8 @@ const ROLE_LABELS: Record<Role, string> = {
   MENTOR: "멘토",
   STAFF: "운영조교",
   STUDENT: "원생",
+  CONSULTANT: "컨설턴트",
+  MANAGER_MENTOR: "관리 멘토",
 };
 
 interface AppHeaderProps {
