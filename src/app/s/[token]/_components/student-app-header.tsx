@@ -24,6 +24,12 @@ function resolveHeader(pathname: string, token: string): HeaderConfig {
   if (pathname === `${root}/survey` || pathname.startsWith(`${root}/survey/`)) {
     return { title: "초기 설문", showBack: true, backHref: root };
   }
+  if (pathname === `${root}/chat`) {
+    return { title: "메시지", showBack: false };
+  }
+  if (pathname.startsWith(`${root}/chat/`)) {
+    return { title: "대화", showBack: true, backHref: `${root}/chat` };
+  }
   if (pathname.startsWith(`${root}/feedback`)) {
     return { title: "피드백", showBack: true, backHref: root };
   }

@@ -96,6 +96,7 @@ const onlineSection: NavSection = {
     { href: "/online/students", label: "온라인 학생", icon: Users },
     { href: "/online/performance", label: "수행평가", icon: ClipboardCheck },
     { href: "/online/sessions", label: "화상 1:1 세션", icon: Video },
+    { href: "/online/inbox", label: "학생 메시지", icon: MessageCircle },
     { href: "/online/daily-log", label: "일일 보고", icon: MessageSquare },
     { href: "/online/reports", label: "학부모 보고서", icon: FileText },
   ],

@@ -27,6 +27,7 @@ export async function createOnlineStudent(params: {
   admissionType?: string | null;
   assignedMentorId?: string | null;
   assignedConsultantId?: string | null;
+  assignedStaffId?: string | null;
 }) {
   const session = await auth();
   requireFullAccess(session?.user?.role);
@@ -60,6 +61,7 @@ export async function createOnlineStudent(params: {
       onlineStartedAt,
       assignedMentorId: params.assignedMentorId ?? null,
       assignedConsultantId: params.assignedConsultantId ?? null,
+      assignedStaffId: params.assignedStaffId ?? null,
       mentorId: null, // 오프라인 자습실 멘토 없음
     },
   });
@@ -76,6 +78,7 @@ export async function enableOnlineManagement(params: {
   studentId: string;
   assignedMentorId?: string | null;
   assignedConsultantId?: string | null;
+  assignedStaffId?: string | null;
 }) {
   const session = await auth();
   requireFullAccess(session?.user?.role);
@@ -93,6 +96,7 @@ export async function enableOnlineManagement(params: {
       onlineStartedAt: student.isOnlineManaged ? undefined : new Date(),
       assignedMentorId: params.assignedMentorId ?? undefined,
       assignedConsultantId: params.assignedConsultantId ?? undefined,
+      assignedStaffId: params.assignedStaffId ?? undefined,
     },
   });
 
@@ -114,6 +118,7 @@ export async function disableOnlineManagement(studentId: string) {
       isOnlineManaged: false,
       assignedMentorId: null,
       assignedConsultantId: null,
+      assignedStaffId: null,
     },
   });
   await revokeAllLinksForStudent(studentId);
@@ -130,6 +135,7 @@ export async function reassignOnlineStudent(params: {
   studentId: string;
   assignedMentorId?: string | null;
   assignedConsultantId?: string | null;
+  assignedStaffId?: string | null;
 }) {
   const session = await auth();
   requireFullAccess(session?.user?.role);
@@ -139,6 +145,7 @@ export async function reassignOnlineStudent(params: {
     data: {
       assignedMentorId: params.assignedMentorId ?? null,
       assignedConsultantId: params.assignedConsultantId ?? null,
+      assignedStaffId: params.assignedStaffId ?? null,
     },
   });
 

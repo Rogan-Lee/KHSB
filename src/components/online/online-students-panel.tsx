@@ -55,8 +55,10 @@ export type OnlineStudentPanelRow = {
   admissionType: string | null;
   assignedMentorId: string | null;
   assignedConsultantId: string | null;
+  assignedStaffId: string | null;
   assignedMentorName: string | null;
   assignedConsultantName: string | null;
+  assignedStaffName: string | null;
   activeLinks: OnlineStudentPanelMagicLink[];
   pendingFeedbackCount: number;
   upcomingSessionCount: number;
@@ -71,12 +73,14 @@ export function OnlineStudentsPanel({
   rows,
   mentors,
   consultants,
+  staffs,
   portalOrigin,
   canManage,
 }: {
   rows: OnlineStudentPanelRow[];
   mentors: AssignableUser[];
   consultants: AssignableUser[];
+  staffs: AssignableUser[];
   portalOrigin: string;
   canManage: boolean;
 }) {
@@ -199,6 +203,7 @@ export function OnlineStudentsPanel({
               row={activeRow}
               mentors={mentors}
               consultants={consultants}
+              staffs={staffs}
               portalOrigin={portalOrigin}
               canManage={canManage}
             />
@@ -215,12 +220,14 @@ function StudentDetailPane({
   row,
   mentors,
   consultants,
+  staffs,
   portalOrigin,
   canManage,
 }: {
   row: OnlineStudentPanelRow;
   mentors: AssignableUser[];
   consultants: AssignableUser[];
+  staffs: AssignableUser[];
   portalOrigin: string;
   canManage: boolean;
 }) {
@@ -287,13 +294,16 @@ function StudentDetailPane({
               studentName={row.studentName}
               currentMentorId={row.assignedMentorId}
               currentConsultantId={row.assignedConsultantId}
+              currentStaffId={row.assignedStaffId}
               mentors={mentors}
               consultants={consultants}
+              staffs={staffs}
             />
           ) : (
             <div className="text-[12.5px] text-ink-3 space-y-1">
               <p>관리 멘토: {row.assignedMentorName ?? "미배정"}</p>
               <p>컨설턴트: {row.assignedConsultantName ?? "미배정"}</p>
+              <p>운영조교: {row.assignedStaffName ?? "미배정"}</p>
             </div>
           )}
         </section>

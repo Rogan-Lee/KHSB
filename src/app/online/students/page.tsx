@@ -12,13 +12,14 @@ export default async function OnlineStudentsPage() {
   const user = await getUser();
   const canManage = isFullAccess(user?.role);
 
-  const [onlineStudents, offlineStudents, mentors, consultants] = await Promise.all([
+  const [onlineStudents, offlineStudents, mentors, consultants, staffs] = await Promise.all([
     prisma.student.findMany({
       where: { isOnlineManaged: true, status: "ACTIVE" },
       orderBy: [{ grade: "asc" }, { name: "asc" }],
       include: {
         assignedMentor: { select: { id: true, name: true } },
         assignedConsultant: { select: { id: true, name: true } },
+        assignedStaff: { select: { id: true, name: true } },
         magicLinks: {
           where: { revokedAt: null, expiresAt: { gt: new Date() } },
           orderBy: { issuedAt: "desc" },
@@ -61,6 +62,13 @@ export default async function OnlineStudentsPage() {
           select: { id: true, name: true },
         })
       : Promise.resolve([]),
+    canManage
+      ? prisma.user.findMany({
+          where: { role: "STAFF" },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const hdrs = await headers();
@@ -81,8 +89,10 @@ export default async function OnlineStudentsPage() {
     admissionType: s.admissionType,
     assignedMentorId: s.assignedMentorId,
     assignedConsultantId: s.assignedConsultantId,
+    assignedStaffId: s.assignedStaffId,
     assignedMentorName: s.assignedMentor?.name ?? null,
     assignedConsultantName: s.assignedConsultant?.name ?? null,
+    assignedStaffName: s.assignedStaff?.name ?? null,
     activeLinks: s.magicLinks.map((l) => ({
       id: l.id,
       token: l.token,
@@ -162,6 +172,7 @@ export default async function OnlineStudentsPage() {
           rows={rows}
           mentors={mentors}
           consultants={consultants}
+          staffs={staffs}
           portalOrigin={portalOrigin}
           canManage={canManage}
         />

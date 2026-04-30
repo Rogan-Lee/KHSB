@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Home,
   ClipboardList,
-  FileText,
+  MessageSquare,
   MessageCircle,
   type LucideIcon,
 } from "lucide-react";
@@ -32,10 +32,10 @@ const TABS: readonly Tab[] = [
     Icon: ClipboardList,
   },
   {
-    href: (t) => `/s/${t}/survey`,
-    match: (p, t) => p.startsWith(`/s/${t}/survey`),
-    label: "설문",
-    Icon: FileText,
+    href: (t) => `/s/${t}/chat`,
+    match: (p, t) => p.startsWith(`/s/${t}/chat`),
+    label: "메시지",
+    Icon: MessageSquare,
   },
   {
     href: (t) => `/s/${t}/feedback`,
@@ -48,11 +48,13 @@ const TABS: readonly Tab[] = [
 export function StudentBottomNav({
   token,
   taskBadge,
-  surveyBadge,
+  chatBadge,
+  feedbackBadge,
 }: {
   token: string;
   taskBadge?: number;
-  surveyBadge?: "incomplete" | "submitted" | null;
+  chatBadge?: number;
+  feedbackBadge?: number;
 }) {
   const pathname = usePathname() ?? "";
 
@@ -65,11 +67,15 @@ export function StudentBottomNav({
       <ul className="mx-auto grid max-w-[480px] grid-cols-4">
         {TABS.map(({ href, match, label, Icon }) => {
           const active = match(pathname, token);
-          const isTask = label === "수행평가";
-          const isSurvey = label === "설문";
-          const showTaskBadge = isTask && (taskBadge ?? 0) > 0;
-          const showSurveyDot =
-            isSurvey && surveyBadge && surveyBadge !== "submitted";
+          const badge =
+            label === "수행평가"
+              ? taskBadge
+              : label === "메시지"
+                ? chatBadge
+                : label === "피드백"
+                  ? feedbackBadge
+                  : 0;
+          const showBadge = (badge ?? 0) > 0;
           return (
             <li key={label} className="flex">
               <Link
@@ -84,13 +90,10 @@ export function StudentBottomNav({
                     className="h-[22px] w-[22px]"
                     strokeWidth={active ? 2.4 : 2}
                   />
-                  {showTaskBadge && (
+                  {showBadge && (
                     <span className="absolute -right-1.5 -top-1 inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-brand px-1 text-[9.5px] font-semibold leading-none text-white">
-                      {taskBadge! > 9 ? "9+" : taskBadge}
+                      {badge! > 9 ? "9+" : badge}
                     </span>
-                  )}
-                  {showSurveyDot && (
-                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-brand" />
                   )}
                 </span>
                 <span className="tracking-[-0.01em]">{label}</span>

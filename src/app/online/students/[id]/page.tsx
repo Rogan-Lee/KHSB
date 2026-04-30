@@ -31,7 +31,7 @@ export default async function OnlineStudentDetailPage({
 
   if (!student || !student.isOnlineManaged) notFound();
 
-  const [mentors, consultants, feedbackPendingCount] = await Promise.all([
+  const [mentors, consultants, staffs, feedbackPendingCount] = await Promise.all([
     canManage
       ? prisma.user.findMany({
           where: { role: "MANAGER_MENTOR" },
@@ -42,6 +42,13 @@ export default async function OnlineStudentDetailPage({
     canManage
       ? prisma.user.findMany({
           where: { role: "CONSULTANT" },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true },
+        })
+      : Promise.resolve([]),
+    canManage
+      ? prisma.user.findMany({
+          where: { role: "STAFF" },
           orderBy: { name: "asc" },
           select: { id: true, name: true },
         })
@@ -161,6 +168,8 @@ export default async function OnlineStudentDetailPage({
         <section className="rounded-[12px] border border-line bg-panel p-4">
           <h2 className="text-[13px] font-semibold text-ink mb-3">담당자</h2>
           <ReassignOnlineStudentForm
+            staffs={staffs}
+            currentStaffId={student.assignedStaffId}
             studentId={student.id}
             studentName={student.name}
             currentMentorId={student.assignedMentorId}
