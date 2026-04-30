@@ -1,13 +1,15 @@
 // Role 계층:
-// - SUPER_ADMIN: 시스템 최상위 관리자 (다계정 가능, 개발자/파운더)
-// - DIRECTOR: 원장 (시설 운영 오너)
+// - SUPER_ADMIN: 시스템 최상위 관리자 (개발자/파운더). 급여·시스템 설정 접근 가능.
+// - DIRECTOR: 원장 (시설 운영 오너). 급여·시스템 설정 접근 가능.
 // - ADMIN: (deprecated) 구버전 호환용. 전체 접근 권한 가지지 않음. 기존 데이터는 SUPER_ADMIN 으로 이관 완료.
-// - MENTOR / STAFF / STUDENT: 오프라인 자습실 일반 사용자
+// - HEAD_MENTOR: 총괄 멘토. 직책 표시용 — 권한은 MENTOR/STAFF와 동일 (STAFF_ROLES 포함). 급여·관리자 메뉴 접근 불가.
+// - MENTOR / STAFF: 오프라인 자습실 일반 운영진. 본인 급여만 조회 가능.
+// - STUDENT: 원생.
 // - CONSULTANT: 온라인 관리 — 입시/수행평가 설계. 오프라인 자습실 화면 접근 금지.
 // - MANAGER_MENTOR: 온라인 관리 — 진도/주간/카톡 로그. 오프라인 자습실 화면 접근 금지.
 
 export const FULL_ACCESS_ROLES = ["SUPER_ADMIN", "DIRECTOR"] as const;
-export const STAFF_ROLES = ["SUPER_ADMIN", "DIRECTOR", "MENTOR", "STAFF"] as const;
+export const STAFF_ROLES = ["SUPER_ADMIN", "DIRECTOR", "HEAD_MENTOR", "MENTOR", "STAFF"] as const;
 // 온라인 관리 모듈 접근 가능한 역할. 원장·시스템 관리자는 전체 접근이므로 포함.
 export const ONLINE_ROLES = ["SUPER_ADMIN", "DIRECTOR", "CONSULTANT", "MANAGER_MENTOR"] as const;
 
@@ -91,6 +93,7 @@ export const ROLE_DISPLAY: Record<string, string> = {
   SUPER_ADMIN: "시스템 관리자",
   DIRECTOR: "원장",
   ADMIN: "(구) 어드민",      // 구버전 호환 표시
+  HEAD_MENTOR: "총괄 멘토",
   MENTOR: "멘토",
   STAFF: "운영조교",
   STUDENT: "원생",
@@ -102,6 +105,7 @@ export const ROLE_DISPLAY: Record<string, string> = {
 export const ASSIGNABLE_ROLES = [
   "SUPER_ADMIN",
   "DIRECTOR",
+  "HEAD_MENTOR",
   "MENTOR",
   "STAFF",
   "STUDENT",

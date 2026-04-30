@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { HandoverPriority } from "@/generated/prisma";
+import { STAFF_ROLES } from "@/lib/roles";
 import { todayKST } from "@/lib/utils";
 
 // ── 조회 ──────────────────────────────────────────────────────────────────────
@@ -381,7 +382,7 @@ export async function getStaffList() {
   if (!session?.user) throw new Error("Unauthorized");
 
   return prisma.user.findMany({
-    where: { role: { in: ["SUPER_ADMIN", "DIRECTOR", "MENTOR", "STAFF"] } },
+    where: { role: { in: [...STAFF_ROLES] } },
     select: { id: true, name: true, role: true },
     orderBy: { name: "asc" },
   });

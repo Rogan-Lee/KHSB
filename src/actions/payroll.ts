@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireFullAccess, isFullAccess } from "@/lib/roles";
+import { requireFullAccess, isFullAccess, STAFF_ROLES } from "@/lib/roles";
 import { notifySlack } from "@/lib/slack";
 import { revalidatePath } from "next/cache";
 import { calculatePayrollFromTags } from "@/lib/payroll";
@@ -291,7 +291,7 @@ export async function getAllPayrollData(year: number, month: number) {
   // PayrollSetting 이 설정된 직원만 payroll 대상. 미설정 직원은 추가 버튼으로 편입.
   const staff = await prisma.user.findMany({
     where: {
-      role: { in: ["MENTOR", "STAFF", "DIRECTOR", "SUPER_ADMIN"] },
+      role: { in: [...STAFF_ROLES] },
       payrollSetting: { isNot: null },
     },
     select: {
@@ -324,7 +324,7 @@ export async function getPayrollCandidates() {
 
   return prisma.user.findMany({
     where: {
-      role: { in: ["MENTOR", "STAFF", "DIRECTOR", "SUPER_ADMIN"] },
+      role: { in: [...STAFF_ROLES] },
       payrollSetting: { is: null },
     },
     select: { id: true, name: true, role: true, email: true },
