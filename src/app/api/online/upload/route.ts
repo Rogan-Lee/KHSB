@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
+import { auth } from "@/lib/auth";
+import { isOnlineStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -12,6 +14,8 @@ const ALLOWED_MIMES = new Set<string>([
   "image/png",
   "image/jpeg",
   "image/jpg",
+  "image/webp",
+  "image/gif",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // docx
   "application/msword", // doc
   "application/x-hwp",
@@ -23,7 +27,7 @@ const ALLOWED_MIMES = new Set<string>([
 ]);
 
 const ALLOWED_EXTENSIONS = new Set<string>([
-  "pdf", "png", "jpg", "jpeg", "docx", "doc", "hwp", "hwpx", "zip",
+  "pdf", "png", "jpg", "jpeg", "webp", "gif", "docx", "doc", "hwp", "hwpx", "zip",
 ]);
 
 function getExt(filename: string): string {
@@ -32,12 +36,13 @@ function getExt(filename: string): string {
 }
 
 function safeName(filename: string): string {
-  // 한글 등 유지하되 path traversal 위험 문자 제거
   return filename
     .replace(/[\\/]/g, "_")
     .replace(/\.\./g, "_")
     .slice(0, 200);
 }
+
+type UploadContext = "task" | "chat";
 
 export async function POST(request: NextRequest) {
   let formData: FormData;
@@ -48,35 +53,80 @@ export async function POST(request: NextRequest) {
   }
 
   const file = formData.get("file");
-  const taskId = formData.get("taskId");
-  const studentToken = formData.get("studentToken");
+  const contextRaw = formData.get("context");
+  const context: UploadContext =
+    contextRaw === "chat" ? "chat" : "task"; // default = task (BC)
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "파일이 누락되었습니다" }, { status: 400 });
   }
-  if (typeof taskId !== "string" || !taskId) {
-    return NextResponse.json({ error: "taskId 가 필요합니다" }, { status: 400 });
-  }
-  if (typeof studentToken !== "string" || !studentToken) {
-    return NextResponse.json({ error: "인증 토큰이 필요합니다" }, { status: 401 });
+
+  // Authorize per-context
+  let blobPathPrefix: string;
+  if (context === "task") {
+    const taskId = formData.get("taskId");
+    const studentToken = formData.get("studentToken");
+    if (typeof taskId !== "string" || !taskId) {
+      return NextResponse.json({ error: "taskId 가 필요합니다" }, { status: 400 });
+    }
+    if (typeof studentToken !== "string" || !studentToken) {
+      return NextResponse.json({ error: "인증 토큰이 필요합니다" }, { status: 401 });
+    }
+    const session = await validateMagicLink(studentToken);
+    if (!session) {
+      return NextResponse.json({ error: "인증이 만료되었습니다" }, { status: 401 });
+    }
+    const task = await prisma.performanceTask.findUnique({
+      where: { id: taskId },
+      select: { id: true, studentId: true },
+    });
+    if (!task || task.studentId !== session.student.id) {
+      return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
+    }
+    blobPathPrefix = `online/tasks/${taskId}`;
+  } else {
+    // context === "chat"
+    const chatId = formData.get("chatId");
+    if (typeof chatId !== "string" || !chatId) {
+      return NextResponse.json({ error: "chatId 가 필요합니다" }, { status: 400 });
+    }
+    const chat = await prisma.portalChat.findUnique({
+      where: { id: chatId },
+      select: { id: true, studentId: true, staffId: true },
+    });
+    if (!chat) {
+      return NextResponse.json({ error: "채팅방을 찾을 수 없습니다" }, { status: 404 });
+    }
+
+    const studentToken = formData.get("studentToken");
+    let authorized = false;
+
+    // 1) student token path
+    if (typeof studentToken === "string" && studentToken) {
+      const session = await validateMagicLink(studentToken);
+      if (session && session.student.id === chat.studentId) authorized = true;
+    }
+
+    // 2) staff session path
+    if (!authorized) {
+      const session = await auth();
+      const role = session?.user?.role;
+      if (
+        session?.user?.id === chat.staffId &&
+        role &&
+        isOnlineStaff(role)
+      ) {
+        authorized = true;
+      }
+    }
+
+    if (!authorized) {
+      return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
+    }
+    blobPathPrefix = `online/chats/${chatId}`;
   }
 
-  // 1) 토큰 → 학생 인증
-  const session = await validateMagicLink(studentToken);
-  if (!session) {
-    return NextResponse.json({ error: "인증이 만료되었습니다" }, { status: 401 });
-  }
-
-  // 2) 해당 task 가 이 학생의 것인지 확인
-  const task = await prisma.performanceTask.findUnique({
-    where: { id: taskId },
-    select: { id: true, studentId: true },
-  });
-  if (!task || task.studentId !== session.student.id) {
-    return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
-  }
-
-  // 3) 파일 크기/타입 검증
+  // 파일 크기/타입 검증
   if (file.size > MAX_FILE_SIZE_BYTES) {
     return NextResponse.json(
       { error: `파일 크기는 ${MAX_FILE_SIZE_MB}MB 이하여야 합니다` },
@@ -88,14 +138,13 @@ export async function POST(request: NextRequest) {
   const extOk = ALLOWED_EXTENSIONS.has(ext);
   if (!mimeOk && !extOk) {
     return NextResponse.json(
-      { error: "허용되지 않는 파일 형식입니다 (PDF/PNG/JPG/DOCX/HWP/ZIP)" },
+      { error: "허용되지 않는 파일 형식입니다 (PDF/이미지/DOCX/HWP/ZIP)" },
       { status: 415 }
     );
   }
 
-  // 4) Vercel Blob 업로드 (path 에 taskId + 랜덤 토큰 → 추측 어렵게)
   const random = Math.random().toString(36).slice(2, 10);
-  const blobPath = `online/tasks/${taskId}/${Date.now()}-${random}-${safeName(file.name)}`;
+  const blobPath = `${blobPathPrefix}/${Date.now()}-${random}-${safeName(file.name)}`;
 
   try {
     const blob = await put(blobPath, file, {
