@@ -11,6 +11,66 @@ import {
 } from "@/lib/student-auth";
 
 /**
+ * 온라인 전용 학생 신규 등록. 오프라인 자습실 없이 바로 온라인 관리 대상으로 생성.
+ * isOnlineManaged=true + onlineStartedAt=now. mentorId(오프라인 멘토)는 비움.
+ * 원장/SUPER_ADMIN 만 호출 가능.
+ */
+export async function createOnlineStudent(params: {
+  name: string;
+  parentPhone: string;
+  grade: string;
+  startDate: string; // "YYYY-MM-DD"
+  school?: string | null;
+  parentEmail?: string | null;
+  targetUniversity?: string | null;
+  selectedSubjects?: string | null;
+  admissionType?: string | null;
+  assignedMentorId?: string | null;
+  assignedConsultantId?: string | null;
+  assignedStaffId?: string | null;
+}) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+
+  const name = params.name.trim();
+  const parentPhone = params.parentPhone.trim();
+  const grade = params.grade.trim();
+  if (!name) throw new Error("학생 이름을 입력하세요");
+  if (!parentPhone) throw new Error("학부모 연락처를 입력하세요");
+  if (!grade) throw new Error("학년을 입력하세요");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(params.startDate)) {
+    throw new Error("시작일은 YYYY-MM-DD 형식이어야 합니다");
+  }
+
+  const startDate = new Date(params.startDate + "T00:00:00.000Z");
+  const onlineStartedAt = new Date();
+
+  const student = await prisma.student.create({
+    data: {
+      name,
+      parentPhone,
+      grade,
+      startDate,
+      school: params.school?.trim() || null,
+      parentEmail: params.parentEmail?.trim() || null,
+      targetUniversity: params.targetUniversity?.trim() || null,
+      selectedSubjects: params.selectedSubjects?.trim() || null,
+      admissionType: params.admissionType?.trim() || null,
+      status: "ACTIVE",
+      isOnlineManaged: true,
+      onlineStartedAt,
+      assignedMentorId: params.assignedMentorId ?? null,
+      assignedConsultantId: params.assignedConsultantId ?? null,
+      assignedStaffId: params.assignedStaffId ?? null,
+      mentorId: null, // 오프라인 자습실 멘토 없음
+    },
+  });
+
+  revalidatePath("/online/students");
+  return { id: student.id };
+}
+
+/**
  * 기존 학생을 온라인 관리 대상으로 전환.
  * 원장/SUPER_ADMIN 만 호출 가능.
  */
@@ -18,6 +78,7 @@ export async function enableOnlineManagement(params: {
   studentId: string;
   assignedMentorId?: string | null;
   assignedConsultantId?: string | null;
+  assignedStaffId?: string | null;
 }) {
   const session = await auth();
   requireFullAccess(session?.user?.role);
@@ -35,6 +96,7 @@ export async function enableOnlineManagement(params: {
       onlineStartedAt: student.isOnlineManaged ? undefined : new Date(),
       assignedMentorId: params.assignedMentorId ?? undefined,
       assignedConsultantId: params.assignedConsultantId ?? undefined,
+      assignedStaffId: params.assignedStaffId ?? undefined,
     },
   });
 
@@ -56,6 +118,7 @@ export async function disableOnlineManagement(studentId: string) {
       isOnlineManaged: false,
       assignedMentorId: null,
       assignedConsultantId: null,
+      assignedStaffId: null,
     },
   });
   await revokeAllLinksForStudent(studentId);
@@ -72,6 +135,7 @@ export async function reassignOnlineStudent(params: {
   studentId: string;
   assignedMentorId?: string | null;
   assignedConsultantId?: string | null;
+  assignedStaffId?: string | null;
 }) {
   const session = await auth();
   requireFullAccess(session?.user?.role);
@@ -81,6 +145,7 @@ export async function reassignOnlineStudent(params: {
     data: {
       assignedMentorId: params.assignedMentorId ?? null,
       assignedConsultantId: params.assignedConsultantId ?? null,
+      assignedStaffId: params.assignedStaffId ?? null,
     },
   });
 

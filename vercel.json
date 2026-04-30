@@ -4,6 +4,22 @@
     {
       "path": "/api/cron/attendance-auto-close",
       "schedule": "30 15 * * *"
+    },
+    {
+      "path": "/api/cron/online-task-reminders",
+      "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/online-weekly-report-draft",
+      "schedule": "0 1 * * 0"
+    },
+    {
+      "path": "/api/cron/online-tag-pattern-alert",
+      "schedule": "0 0 * * 1"
+    },
+    {
+      "path": "/api/cron/online-monthly-report-draft",
+      "schedule": "0 1 1 * *"
     }
   ]
 }

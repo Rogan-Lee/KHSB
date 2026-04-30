@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getWeeklyPlanData } from "@/actions/mentoring-plan";
 import { WeeklyPlanBoard } from "@/components/mentoring/weekly-plan-board";
+import { offlineStudentWhere } from "@/lib/student-filters";
 
 function getThisMondayKST(): string {
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
@@ -25,7 +26,7 @@ export default async function MentoringPlanPage() {
   const [mentors, allStudents] = await Promise.all([
     getWeeklyPlanData(weekStart),
     prisma.student.findMany({
-      where: { status: "ACTIVE" },
+      where: offlineStudentWhere({ status: "ACTIVE" }),
       select: { id: true, name: true, grade: true, seat: true, mentorId: true },
       orderBy: { name: "asc" },
     }),
