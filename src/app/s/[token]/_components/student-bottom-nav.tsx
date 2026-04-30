@@ -49,10 +49,12 @@ export function StudentBottomNav({
   token,
   taskBadge,
   surveyBadge,
+  feedbackBadge,
 }: {
   token: string;
   taskBadge?: number;
   surveyBadge?: "incomplete" | "submitted" | null;
+  feedbackBadge?: number;
 }) {
   const pathname = usePathname() ?? "";
 
@@ -67,7 +69,9 @@ export function StudentBottomNav({
           const active = match(pathname, token);
           const isTask = label === "수행평가";
           const isSurvey = label === "설문";
+          const isFeedback = label === "피드백";
           const showTaskBadge = isTask && (taskBadge ?? 0) > 0;
+          const showFeedbackBadge = isFeedback && (feedbackBadge ?? 0) > 0;
           const showSurveyDot =
             isSurvey && surveyBadge && surveyBadge !== "submitted";
           return (
@@ -87,6 +91,11 @@ export function StudentBottomNav({
                   {showTaskBadge && (
                     <span className="absolute -right-1.5 -top-1 inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-brand px-1 text-[9.5px] font-semibold leading-none text-white">
                       {taskBadge! > 9 ? "9+" : taskBadge}
+                    </span>
+                  )}
+                  {showFeedbackBadge && (
+                    <span className="absolute -right-1.5 -top-1 inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-brand px-1 text-[9.5px] font-semibold leading-none text-white">
+                      {feedbackBadge! > 9 ? "9+" : feedbackBadge}
                     </span>
                   )}
                   {showSurveyDot && (
