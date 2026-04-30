@@ -17,7 +17,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider localization={koKR}>
+    <ClerkProvider
+      localization={koKR}
+      signInFallbackRedirectUrl="/"
+      signUpFallbackRedirectUrl="/"
+    >
       <html lang="ko" suppressHydrationWarning>
         <body className="antialiased">
           {children}

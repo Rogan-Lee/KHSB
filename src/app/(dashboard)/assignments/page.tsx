@@ -5,17 +5,18 @@ import { auth } from "@/lib/auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { AssignmentsOverview } from "@/components/assignments/assignments-overview";
 import { isFullAccess } from "@/lib/roles";
+import { offlineStudentWhere } from "@/lib/student-filters";
 
 export default async function AssignmentsPage() {
   const session = await auth();
   const isDirector = isFullAccess(session?.user?.role);
 
-  // 원생 목록 (활성)
+  // 원생 목록 (활성 · 오프라인 자습실만)
   const students = await prisma.student.findMany({
-    where: {
+    where: offlineStudentWhere({
       status: "ACTIVE",
       ...(isDirector ? {} : { mentorId: session?.user?.id }),
-    },
+    }),
     select: {
       id: true,
       name: true,

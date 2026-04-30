@@ -13,11 +13,13 @@ import { cn } from "@/lib/utils";
 interface DashboardShellProps {
   user: { name: string; email: string; role: Role };
   children: React.ReactNode;
+  /** 사이드바 NavItem href 별 미확인 카운트 (예: { "/online/reports": 3 }) */
+  sidebarBadges?: Record<string, number>;
 }
 
 const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
 
-export function DashboardShell({ user, children }: DashboardShellProps) {
+export function DashboardShell({ user, children, sidebarBadges }: DashboardShellProps) {
   const plan = getCurrentPlan();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -40,14 +42,14 @@ export function DashboardShell({ user, children }: DashboardShellProps) {
       <CommandPalette />
       {/* Desktop sidebar */}
       <div className="hidden md:block" data-print-hide>
-        <AppSidebar role={user.role} plan={plan} collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
+        <AppSidebar role={user.role} plan={plan} collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} badges={sidebarBadges} />
       </div>
 
       {/* Mobile sidebar (Sheet) — 접기 기능 미적용, 항상 펼침 */}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="p-0 w-[240px] [&>button]:hidden">
           <VisuallyHidden><SheetTitle>내비게이션 메뉴</SheetTitle></VisuallyHidden>
-          <AppSidebar role={user.role} plan={plan} mobile onClose={() => setOpen(false)} />
+          <AppSidebar role={user.role} plan={plan} mobile onClose={() => setOpen(false)} badges={sidebarBadges} />
         </SheetContent>
       </Sheet>
 
