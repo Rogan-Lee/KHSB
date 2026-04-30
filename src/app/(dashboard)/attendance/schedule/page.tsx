@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScheduleEditor } from "@/components/attendance/schedule-editor";
+import { offlineStudentWhere } from "@/lib/student-filters";
 
 export default async function AttendanceSchedulePage() {
   const students = await prisma.student.findMany({
-    where: { status: "ACTIVE" },
+    where: offlineStudentWhere({ status: "ACTIVE" }),
     include: { schedules: true, outings: true },
     orderBy: { name: "asc" },
   });

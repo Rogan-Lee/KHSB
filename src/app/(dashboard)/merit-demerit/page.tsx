@@ -7,11 +7,12 @@ import { MeritHistoryTable } from "@/components/merit-demerit/merit-history-tabl
 import { MeritRangeReport } from "@/components/merit-demerit/merit-range-report";
 import { MeritRanking } from "@/components/merit-demerit/merit-ranking";
 import { Trophy, TrendingDown, CalendarSearch } from "lucide-react";
+import { offlineStudentWhere } from "@/lib/student-filters";
 
 export default async function MeritDemeritPage() {
   const [students, recentMerits] = await Promise.all([
     prisma.student.findMany({
-      where: { status: "ACTIVE" },
+      where: offlineStudentWhere({ status: "ACTIVE" }),
       select: { id: true, name: true, grade: true, seat: true },
     }),
     prisma.meritDemerit.findMany({

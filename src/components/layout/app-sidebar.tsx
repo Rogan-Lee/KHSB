@@ -7,6 +7,7 @@ import {
   hasFeature, getMinimumPlan, PLAN_LABELS,
   type PlanTier, type FeatureKey,
 } from "@/lib/features";
+import { isOnlineStaff } from "@/lib/roles";
 import {
   BookOpen,
   Users,
@@ -33,9 +34,11 @@ import {
   Images,
   Wallet,
   Building2,
+  Globe,
   Lock,
   ChevronRight,
   ChevronsLeft,
+  Video,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType; feature?: FeatureKey };
@@ -84,6 +87,20 @@ const navSections: NavSection[] = [
   },
 ];
 
+// 온라인 관리 모듈. ONLINE_ROLES(원장·SUPER_ADMIN·CONSULTANT·MANAGER_MENTOR) 에만 노출.
+const onlineSection: NavSection = {
+  label: "온라인 관리",
+  items: [
+    { href: "/online", label: "온라인 대시보드", icon: Globe },
+    { href: "/online/students", label: "온라인 학생", icon: Users },
+    { href: "/online/performance", label: "수행평가", icon: ClipboardCheck },
+    { href: "/online/sessions", label: "화상 1:1 세션", icon: Video },
+    { href: "/online/inbox", label: "학생 메시지", icon: MessageCircle },
+    { href: "/online/daily-log", label: "일일 보고", icon: MessageSquare },
+    { href: "/online/reports", label: "학부모 보고서", icon: FileText },
+  ],
+};
+
 const directorSection: NavSection = {
   label: "관리자",
   items: [
@@ -103,6 +120,7 @@ export function AppSidebar({
   onClose,
   collapsed = false,
   onToggle,
+  badges,
 }: {
   role?: string;
   plan?: PlanTier;
@@ -110,11 +128,13 @@ export function AppSidebar({
   onClose?: () => void;
   collapsed?: boolean;
   onToggle?: () => void;
+  badges?: Record<string, number>;
 }) {
   const pathname = usePathname();
 
   const allNavItems = [
     ...navSections.flatMap((s) => s.items),
+    ...onlineSection.items,
     ...directorSection.items,
   ];
 
@@ -163,7 +183,7 @@ export function AppSidebar({
         onClick={mobile ? onClose : undefined}
         title={collapsed ? label : undefined}
         className={cn(
-          "flex items-center gap-2.5 px-2.5 py-[7px] rounded-[8px] text-[12.5px] font-medium transition-colors duration-100",
+          "relative flex items-center gap-2.5 px-2.5 py-[7px] rounded-[8px] text-[12.5px] font-medium transition-colors duration-100",
           collapsed && "justify-center px-2",
           isActive
             ? "bg-panel text-ink font-semibold shadow-[inset_0_0_0_1px_var(--line),var(--shadow-xs)]"
@@ -176,7 +196,25 @@ export function AppSidebar({
             isActive ? "text-ink" : "text-ink-3"
           )}
         />
-        {!collapsed && label}
+        {!collapsed && (
+          <>
+            <span className="flex-1">{label}</span>
+            {(badges?.[href] ?? 0) > 0 && (
+              <span
+                className="inline-flex items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-bold min-w-[16px] h-4 px-1"
+                title={`미확인 ${badges?.[href]}건`}
+              >
+                {badges?.[href]}
+              </span>
+            )}
+          </>
+        )}
+        {collapsed && (badges?.[href] ?? 0) > 0 && (
+          <span
+            className="absolute top-0 right-0 inline-block h-2 w-2 rounded-full bg-amber-500"
+            title={`미확인 ${badges?.[href]}건`}
+          />
+        )}
       </Link>
     );
   };
@@ -289,8 +327,10 @@ export function AppSidebar({
       {/* Nav */}
       <nav className={cn("flex-1 overflow-y-auto pt-[18px]", isCollapsed && "px-0")}>
         {navSections.map(renderSection)}
+        {isOnlineStaff(role) &&
+          renderSection(onlineSection, navSections.length)}
         {(role === "DIRECTOR" || role === "SUPER_ADMIN") &&
-          renderSection(directorSection, navSections.length)}
+          renderSection(directorSection, navSections.length + 1)}
       </nav>
 
       {/* Footer — plan badge */}

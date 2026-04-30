@@ -4,13 +4,14 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { SeatMapBoard } from "@/components/seat-map/seat-map-board";
+import { offlineStudentWhere } from "@/lib/student-filters";
 
 export default async function SeatMapPage() {
   const session = await auth();
   if (!session?.user) redirect("/sign-in");
 
   const students = await prisma.student.findMany({
-    where: { status: "ACTIVE" },
+    where: offlineStudentWhere({ status: "ACTIVE" }),
     select: { id: true, name: true, seat: true, grade: true },
     orderBy: { name: "asc" },
   });

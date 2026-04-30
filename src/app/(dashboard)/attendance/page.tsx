@@ -5,6 +5,7 @@ import { AttendanceTable } from "@/components/attendance/attendance-table";
 import { CheckCircle2, XCircle, Clock, Minus, UserX, BookOpen } from "lucide-react";
 import { todayKST } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { offlineStudentWhere } from "@/lib/student-filters";
 
 export const revalidate = 30; // 30초 캐싱 (force-dynamic 대비 성능 향상)
 
@@ -23,7 +24,7 @@ export default async function AttendancePage({
   const nowHHMM = kstNow.toISOString().slice(11, 16); // "HH:MM" KST
 
   const students = await prisma.student.findMany({
-    where: { status: "ACTIVE" },
+    where: offlineStudentWhere({ status: "ACTIVE" }),
     include: {
       attendances: { where: { date: today } },
       schedules: { where: { dayOfWeek } },
