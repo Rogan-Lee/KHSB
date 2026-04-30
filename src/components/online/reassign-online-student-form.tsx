@@ -12,22 +12,30 @@ export function ReassignOnlineStudentForm({
   studentName,
   currentMentorId,
   currentConsultantId,
+  currentStaffId,
   mentors,
   consultants,
+  staffs,
 }: {
   studentId: string;
   studentName: string;
   currentMentorId: string | null;
   currentConsultantId: string | null;
+  currentStaffId: string | null;
   mentors: UserOption[];
   consultants: UserOption[];
+  staffs: UserOption[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [mentorId, setMentorId] = useState(currentMentorId ?? "");
   const [consultantId, setConsultantId] = useState(currentConsultantId ?? "");
+  const [staffId, setStaffId] = useState(currentStaffId ?? "");
 
-  const changed = mentorId !== (currentMentorId ?? "") || consultantId !== (currentConsultantId ?? "");
+  const changed =
+    mentorId !== (currentMentorId ?? "") ||
+    consultantId !== (currentConsultantId ?? "") ||
+    staffId !== (currentStaffId ?? "");
 
   const onSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +45,7 @@ export function ReassignOnlineStudentForm({
           studentId,
           assignedMentorId: mentorId || null,
           assignedConsultantId: consultantId || null,
+          assignedStaffId: staffId || null,
         });
         toast.success("담당자가 변경되었습니다");
         router.refresh();
@@ -63,7 +72,7 @@ export function ReassignOnlineStudentForm({
 
   return (
     <form onSubmit={onSave} className="space-y-3">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <label className="flex flex-col gap-1">
           <span className="text-[11px] text-ink-4">관리 멘토</span>
           <select
@@ -87,6 +96,19 @@ export function ReassignOnlineStudentForm({
             <option value="">미배정</option>
             {consultants.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] text-ink-4">운영조교</span>
+          <select
+            value={staffId}
+            onChange={(e) => setStaffId(e.target.value)}
+            className="rounded-[8px] border border-line bg-panel px-2.5 py-1.5 text-[12.5px]"
+          >
+            <option value="">미배정</option>
+            {staffs.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
         </label>

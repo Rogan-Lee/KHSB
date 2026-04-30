@@ -29,6 +29,29 @@ export const metadata: Metadata = {
   },
 };
 
+/** 학생 측 미확인 채팅 메시지 합계 (모든 담당자 채팅방 합산). */
+async function countUnreadChatMessagesForStudent(
+  studentId: string
+): Promise<number> {
+  const chats = await prisma.portalChat.findMany({
+    where: { studentId },
+    select: { id: true, studentReadAt: true },
+  });
+  if (chats.length === 0) return 0;
+  const counts = await Promise.all(
+    chats.map((c) =>
+      prisma.portalChatMessage.count({
+        where: {
+          chatId: c.id,
+          senderType: "STAFF",
+          createdAt: c.studentReadAt ? { gt: c.studentReadAt } : undefined,
+        },
+      })
+    )
+  );
+  return counts.reduce((a, b) => a + b, 0);
+}
+
 export default async function StudentPortalLayout({
   children,
   params,
@@ -37,22 +60,21 @@ export default async function StudentPortalLayout({
   const session = await validateMagicLink(token);
   if (!session) redirect("/s/expired");
 
-  const [taskBadge, survey] = await Promise.all([
+  const [taskBadge, feedbackBadge, chatBadge] = await Promise.all([
     prisma.performanceTask.count({
       where: {
         studentId: session.student.id,
         status: { in: ["OPEN", "IN_PROGRESS", "NEEDS_REVISION"] },
       },
     }),
-    prisma.onboardingSurvey.findUnique({
-      where: { studentId: session.student.id },
-      select: { submittedAt: true, sections: true },
+    prisma.taskFeedback.count({
+      where: {
+        readByStudentAt: null,
+        submission: { task: { studentId: session.student.id } },
+      },
     }),
+    countUnreadChatMessagesForStudent(session.student.id),
   ]);
-
-  const surveyBadge: "incomplete" | "submitted" | null = survey?.submittedAt
-    ? "submitted"
-    : "incomplete";
 
   const daysLeft = Math.max(
     0,
@@ -85,7 +107,8 @@ export default async function StudentPortalLayout({
         <StudentBottomNav
           token={token}
           taskBadge={taskBadge}
-          surveyBadge={surveyBadge}
+          feedbackBadge={feedbackBadge}
+          chatBadge={chatBadge}
         />
       </div>
     </>

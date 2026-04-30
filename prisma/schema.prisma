@@ -112,6 +112,9 @@ model User {
   students        Student[]        @relation("MentorStudents")
   onlineStudents     Student[]     @relation("OnlineManagerStudents")  // MANAGER_MENTOR 담당 온라인 학생
   consultingStudents Student[]     @relation("ConsultantStudents")     // CONSULTANT 담당 온라인 학생
+  staffStudents      Student[]     @relation("StaffStudents")          // STAFF 담당 온라인 학생 (운영조교)
+  portalChats        PortalChat[]  @relation("PortalChatStaff")
+  portalChatMessages PortalChatMessage[] @relation("PortalChatMessageAuthor")
   createdPerformanceTasks PerformanceTask[] @relation("PerformanceTaskCreator")
   taskFeedbacks           TaskFeedback[]
   authoredSubjectProgress SubjectProgress[] @relation("SubjectProgressAuthor")
@@ -226,7 +229,10 @@ model Student {
   assignedMentor       User?                  @relation("OnlineManagerStudents", fields: [assignedMentorId], references: [id])
   assignedConsultantId String?                // CONSULTANT
   assignedConsultant   User?                  @relation("ConsultantStudents", fields: [assignedConsultantId], references: [id])
+  assignedStaffId      String?                // STAFF (운영조교)
+  assignedStaff        User?                  @relation("StaffStudents", fields: [assignedStaffId], references: [id])
   magicLinks           StudentMagicLink[]
+  portalChats          PortalChat[]
   onboardingSurvey     OnboardingSurvey?
   performanceTasks     PerformanceTask[]
   taskResults          TaskResult[]
@@ -267,6 +273,7 @@ model Student {
   @@index([isOnlineManaged, status])
   @@index([assignedMentorId])
   @@index([assignedConsultantId])
+  @@index([assignedStaffId])
 }
 
 // 온라인 학생 포털(`/s/[token]`) 접근용 매직링크.
@@ -1261,4 +1268,51 @@ model MentoringSession {
   @@index([studentId, scheduledAt])
   @@index([hostId, scheduledAt])
   @@index([status, scheduledAt])
+}
+
+// ─── 학생 포털 1:1 채팅 (PR 2 — 카톡 스타일 Q&A) ───
+// 학생 ↔ 담당 직원(MANAGER_MENTOR / CONSULTANT / STAFF) 간 별도 채팅방.
+// 학생당 담당자별로 1방씩(unique). 첫 메시지 송신 시 자동 생성.
+
+enum PortalChatSenderType {
+  STUDENT
+  STAFF
+}
+
+model PortalChat {
+  id            String   @id @default(cuid())
+  studentId     String
+  staffId       String
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  staff         User     @relation("PortalChatStaff", fields: [staffId], references: [id])
+  lastMessageAt DateTime?
+  studentReadAt DateTime?
+  staffReadAt   DateTime?
+  messages      PortalChatMessage[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([studentId, staffId])
+  @@index([staffId, lastMessageAt(sort: Desc)])
+  @@index([studentId, lastMessageAt(sort: Desc)])
+}
+
+model PortalChatMessage {
+  id           String              @id @default(cuid())
+  chatId       String
+  chat         PortalChat          @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  senderType   PortalChatSenderType
+  senderUserId String?             // STAFF 발신 시 User.id (STUDENT 발신은 null)
+  senderUser   User?               @relation("PortalChatMessageAuthor", fields: [senderUserId], references: [id])
+  content      String              @db.Text
+  attachments  Json                @default("[]")  // [{ url, name, sizeBytes, mimeType }]
+
+  // 일일 보고 통합 (PR 3)
+  flaggedForDailyLogAt DateTime?   // 직원이 "일일 보고에 포함" 토글한 시각
+  dailyLogId           String?     // 보고서 작성 후 연결된 DailyKakaoLog.id
+
+  createdAt    DateTime            @default(now())
+
+  @@index([chatId, createdAt])
+  @@index([flaggedForDailyLogAt])
 }
