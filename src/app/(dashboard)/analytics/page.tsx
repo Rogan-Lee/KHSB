@@ -8,7 +8,6 @@ import { AnalyticsDashboard } from "@/components/analytics/analytics-dashboard";
 export default async function AnalyticsPage() {
   const session = await auth();
   if (!session?.user) redirect("/sign-in");
-  if (session.user.role !== "DIRECTOR" && session.user.role !== "SUPER_ADMIN") redirect("/");
 
   const data = await getOverallAnalytics();
 
