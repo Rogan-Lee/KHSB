@@ -17,6 +17,7 @@ const ROLE_LABELS: Record<Role, string> = {
   SUPER_ADMIN: "시스템 관리자",
   ADMIN: "(구) 어드민",
   DIRECTOR: "원장",
+  HEAD_MENTOR: "총괄 멘토",
   MENTOR: "멘토",
   STAFF: "운영조교",
   STUDENT: "원생",
