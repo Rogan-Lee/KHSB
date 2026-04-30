@@ -37,7 +37,7 @@ export default async function StudentPortalLayout({
   const session = await validateMagicLink(token);
   if (!session) redirect("/s/expired");
 
-  const [taskBadge, survey] = await Promise.all([
+  const [taskBadge, survey, feedbackBadge] = await Promise.all([
     prisma.performanceTask.count({
       where: {
         studentId: session.student.id,
@@ -47,6 +47,12 @@ export default async function StudentPortalLayout({
     prisma.onboardingSurvey.findUnique({
       where: { studentId: session.student.id },
       select: { submittedAt: true, sections: true },
+    }),
+    prisma.taskFeedback.count({
+      where: {
+        readByStudentAt: null,
+        submission: { task: { studentId: session.student.id } },
+      },
     }),
   ]);
 
@@ -86,6 +92,7 @@ export default async function StudentPortalLayout({
           token={token}
           taskBadge={taskBadge}
           surveyBadge={surveyBadge}
+          feedbackBadge={feedbackBadge}
         />
       </div>
     </>
