@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { STAFF_ROLES } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 
 export type CSVImportRow = {
@@ -43,7 +44,7 @@ export async function importStudentsCSV(rows: CSVImportRow[]): Promise<ImportRes
     if (!trimmed) return null;
     if (mentorCache.has(trimmed)) return mentorCache.get(trimmed)!;
     const mentor = await prisma.user.findFirst({
-      where: { name: trimmed, role: { in: ["MENTOR", "STAFF", "DIRECTOR", "SUPER_ADMIN"] } },
+      where: { name: trimmed, role: { in: [...STAFF_ROLES] } },
       select: { id: true },
     });
     if (mentor) mentorCache.set(trimmed, mentor.id);
