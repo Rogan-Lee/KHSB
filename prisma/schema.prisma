@@ -113,6 +113,17 @@ model User {
   students        Student[]        @relation("MentorStudents")
   onlineStudents     Student[]     @relation("OnlineManagerStudents")  // MANAGER_MENTOR 담당 온라인 학생
   consultingStudents Student[]     @relation("ConsultantStudents")     // CONSULTANT 담당 온라인 학생
+  staffStudents      Student[]     @relation("StaffStudents")          // STAFF 담당 온라인 학생 (운영조교)
+  portalChats        PortalChat[]  @relation("PortalChatStaff")
+  portalChatMessages PortalChatMessage[] @relation("PortalChatMessageAuthor")
+  createdPerformanceTasks PerformanceTask[] @relation("PerformanceTaskCreator")
+  taskFeedbacks           TaskFeedback[]
+  authoredSubjectProgress SubjectProgress[] @relation("SubjectProgressAuthor")
+  authoredWeeklyPlans     WeeklyPlan[]      @relation("WeeklyPlanAuthor")
+  authoredMonthlyPlans    MonthlyPlan[]     @relation("MonthlyPlanAuthor")
+  authoredDailyKakaoLogs  DailyKakaoLog[]   @relation("DailyKakaoLogAuthor")
+  approvedParentReports   OnlineParentReport[] @relation("OnlineParentReportApprover")
+  hostedMentoringSessions MentoringSession[] @relation("MentoringSessionHost")
   mentorings      Mentoring[]
   mentorSchedules MentorSchedule[]
   parentReports   ParentReport[]
@@ -219,7 +230,19 @@ model Student {
   assignedMentor       User?                  @relation("OnlineManagerStudents", fields: [assignedMentorId], references: [id])
   assignedConsultantId String?                // CONSULTANT
   assignedConsultant   User?                  @relation("ConsultantStudents", fields: [assignedConsultantId], references: [id])
+  assignedStaffId      String?                // STAFF (운영조교)
+  assignedStaff        User?                  @relation("StaffStudents", fields: [assignedStaffId], references: [id])
   magicLinks           StudentMagicLink[]
+  portalChats          PortalChat[]
+  onboardingSurvey     OnboardingSurvey?
+  performanceTasks     PerformanceTask[]
+  taskResults          TaskResult[]
+  subjectProgress      SubjectProgress[]
+  weeklyPlans          WeeklyPlan[]
+  monthlyPlans         MonthlyPlan[]
+  dailyKakaoLogs       DailyKakaoLog[]
+  onlineParentReports  OnlineParentReport[]
+  mentoringSessions    MentoringSession[]
   // ─────────────────────────────────
   schedules      AttendanceSchedule[]
   attendances    AttendanceRecord[]
@@ -251,6 +274,7 @@ model Student {
   @@index([isOnlineManaged, status])
   @@index([assignedMentorId])
   @@index([assignedConsultantId])
+  @@index([assignedStaffId])
 }
 
 // 온라인 학생 포털(`/s/[token]`) 접근용 매직링크.
@@ -269,6 +293,241 @@ model StudentMagicLink {
 
   @@index([studentId, revokedAt])
   @@index([expiresAt])
+}
+
+// A-1 학생 초기 설문 (입시/수행평가/학습 이력).
+// 섹션별 JSON 구조로 저장 → 프론트에서 자동저장. 학생당 1개, 재설문 시 version++.
+model OnboardingSurvey {
+  id          String   @id @default(cuid())
+  studentId   String   @unique
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  version     Int      @default(1)
+  sections    Json     @default("{}") // { basicInfo, history, goals, strengths, weaknesses, admissionType, performance, freeform }
+  submittedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// A-2 수행평가 일정.
+enum PerformanceTaskStatus {
+  OPEN            // 등록만 됨
+  IN_PROGRESS     // 학생 준비 중
+  SUBMITTED       // 학생이 제출 완료 (컨설턴트 피드백 대기)
+  NEEDS_REVISION  // 컨설턴트가 수정 요청
+  DONE            // 최종 완료 (TaskResult 확정)
+}
+
+model PerformanceTask {
+  id            String                 @id @default(cuid())
+  studentId     String
+  student       Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject       String                 // 과목 (국어, 수학, 영어, 통합사회, ...)
+  title         String
+  description   String?
+  dueDate       DateTime               @db.Date
+  scoreWeight   Int?                   // 배점 (퍼센트/점수 자유)
+  format        String?                // "개인과제" | "조별" | "발표" | "보고서" ...
+  status        PerformanceTaskStatus  @default(OPEN)
+  createdById   String
+  createdBy     User                   @relation("PerformanceTaskCreator", fields: [createdById], references: [id])
+  submissions   TaskSubmission[]
+  result        TaskResult?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  @@index([studentId, dueDate])
+  @@index([status, dueDate])
+}
+
+// A-3 학생이 제출한 과제물. Phase 1 은 version=1 고정 (버전 관리 Phase 2).
+model TaskSubmission {
+  id          String          @id @default(cuid())
+  taskId      String
+  task        PerformanceTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  studentId   String           // 조회 편의용 denormalize (task.studentId 와 동일)
+  version     Int              @default(1)
+  files       Json             @default("[]") // [{ url, name, sizeBytes, mimeType }]
+  note        String?
+  submittedAt DateTime         @default(now())
+  feedbacks   TaskFeedback[]
+
+  @@unique([taskId, version])
+  @@index([studentId, submittedAt])
+}
+
+// A-3 컨설턴트 피드백. Phase 1 은 단일 선형 리스트 (쓰레드 X).
+enum TaskFeedbackStatus {
+  COMMENT         // 단순 코멘트
+  NEEDS_REVISION  // 수정 요청 → PerformanceTask.status 도 NEEDS_REVISION 으로
+  APPROVED        // 승인 (TaskResult 확정 전 단계)
+}
+
+model TaskFeedback {
+  id                String             @id @default(cuid())
+  submissionId      String
+  submission        TaskSubmission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  authorId          String
+  author            User               @relation(fields: [authorId], references: [id])
+  content           String
+  status            TaskFeedbackStatus @default(COMMENT)
+  readByStudentAt   DateTime?                                 // 학생이 읽은 시각 (미확인 카운트용)
+  createdAt         DateTime           @default(now())
+
+  @@index([submissionId, createdAt])
+  @@index([readByStudentAt])
+}
+
+// A-4 결과물 (Phase 2 확장 예정).
+// Phase 1 은 모델만 선반영 — status=DONE 시 컨설턴트가 최종본·점수·총평 기입.
+model TaskResult {
+  id                String   @id @default(cuid())
+  taskId            String   @unique
+  task              PerformanceTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  studentId         String           // 조회 편의용
+  student           Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  finalFiles        Json     @default("[]")
+  score             String?          // 자유 텍스트 (% / 등급 / 점수)
+  consultantSummary String?
+  includeInReport   Boolean  @default(false)
+  finalizedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([studentId, finalizedAt])
+}
+
+// B-1 과목별 진도. 매 주 스냅샷을 append 해 히스토리 구성 (PK 없이 recordedAt 기반).
+model SubjectProgress {
+  id             String   @id @default(cuid())
+  studentId      String
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject        String   // "국어" | "수학" | "영어" | "탐구1" | ...
+  currentTopic   String   // 현재 단원 · 학습 위치
+  textbookPage   String?  // "쎈 수2 p.45~60" 등
+  weeklyProgress Int?     // 0-100 주간 진행률
+  notes          String?  // 이슈 · 특이사항
+  recordedAt     DateTime @default(now())
+  authorId       String
+  author         User     @relation("SubjectProgressAuthor", fields: [authorId], references: [id])
+
+  @@index([studentId, subject, recordedAt])
+  @@index([studentId, recordedAt])
+}
+
+// B-2 주간 계획. 학생당 주 1건 unique (월요일 기준).
+model WeeklyPlan {
+  id            String   @id @default(cuid())
+  studentId     String
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  weekStart     DateTime @db.Date      // 해당 주 월요일 (KST 자정)
+  goals         Json     @default("{}") // { subject: [ { text, done } ] } 자유 JSON
+  studyHours    Int?                   // 주간 예상 학습시간 (시간)
+  retrospective String?                // 주말 회고
+  authorId      String
+  author        User     @relation("WeeklyPlanAuthor", fields: [authorId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([studentId, weekStart])
+  @@index([authorId, weekStart])
+}
+
+// C 학부모 주간/월간/수시 보고서.
+// Phase 1 은 주간만. 월간 은 MONTHLY 값만 선반영하고 스프린트 4 이후.
+enum OnlineReportType {
+  WEEKLY
+  MONTHLY
+  ADHOC
+}
+
+enum OnlineReportStatus {
+  DRAFT         // AI 초안 생성 완료 (원장 검토 대기)
+  DRAFT_FAILED  // Groq 배치 생성 중 실패 (rate limit 등) — 재시도 UI 노출
+  REVIEW        // 원장 편집 중
+  APPROVED      // 원장 승인 (발송 대기)
+  SENT          // 발송 완료
+}
+
+model OnlineParentReport {
+  id            String             @id @default(cuid())
+  studentId     String
+  student       Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type          OnlineReportType
+  periodStart   DateTime           @db.Date
+  periodEnd     DateTime           @db.Date
+  content       Json               @default("{}") // { markdown, sections? } — Phase 1 은 markdown 단일
+  status        OnlineReportStatus @default(DRAFT)
+  token         String             @unique @default(cuid())
+  sentChannels  String[]           @default([])  // MANUAL_COPY, KAKAO_FRIEND, EMAIL
+  viewCount     Int                @default(0)
+  uniqueViewCount Int              @default(0)   // 일일 쿨다운 적용된 유니크 방문수
+  lastViewedAt  DateTime?
+  approvedById  String?
+  approvedBy    User?              @relation("OnlineParentReportApprover", fields: [approvedById], references: [id])
+  approvedAt    DateTime?
+  sentAt        DateTime?
+  errorMessage  String?                            // DRAFT_FAILED 시 사유
+  feedbacks     OnlineParentFeedback[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@unique([studentId, type, periodStart])
+  @@index([status])
+  @@index([type, periodStart])
+}
+
+// 학부모 피드백 채널 — 공개 페이지에서 학부모가 남기는 질문/코멘트.
+model OnlineParentFeedback {
+  id        String             @id @default(cuid())
+  reportId  String
+  report    OnlineParentReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  name      String?                            // 학부모 이름 (선택)
+  content   String             @db.Text
+  createdAt DateTime           @default(now())
+  readAt    DateTime?                          // 원장 확인 시각
+
+  @@index([reportId, createdAt])
+}
+
+// B-3 월간 계획. 학생×yearMonth unique.
+// milestones: { "YYYY-MM-DD": "모의고사" } 자유 JSON (학생 일정 이벤트)
+// subjectGoals: { 과목: "이번 달 목표" } 자유 JSON
+model MonthlyPlan {
+  id            String   @id @default(cuid())
+  studentId     String
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  yearMonth     String   // "2026-05"
+  milestones    Json     @default("{}")
+  subjectGoals  Json     @default("{}")
+  retrospective String?
+  authorId      String
+  author        User     @relation("MonthlyPlanAuthor", fields: [authorId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([studentId, yearMonth])
+  @@index([authorId, yearMonth])
+}
+
+// B-4 카톡 일일 보고. 학생×날짜 unique. Phase 1 은 summary only (rawContent 는 Phase 2).
+model DailyKakaoLog {
+  id              String    @id @default(cuid())
+  studentId       String
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  authorId        String
+  author          User      @relation("DailyKakaoLogAuthor", fields: [authorId], references: [id])
+  logDate         DateTime  @db.Date
+  rawContent      String?   @db.Text  // Phase 2: 원문 붙여넣기
+  summary         String    @db.Text
+  tags            String[]  @default([]) // 진도질문·컨디션·고민상담·수면·식사·기타
+  isParentVisible Boolean   @default(true)
+  aiSummarized    Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([studentId, logDate])
+  @@index([authorId, logDate])
+  @@index([studentId, logDate])
 }
 
 model AttendanceSchedule {
@@ -994,4 +1253,96 @@ model Announcement {
   authorId  String
   updatedAt DateTime @updatedAt
   createdAt DateTime @default(now())
+}
+
+// ─── 화상 1:1 관리 세션 (온라인 학생 전용) ───
+// 호스트가 시간·대상 입력 → 학원 공용 Google Calendar 에 Meet 링크 포함 이벤트 생성
+// 학부모 이메일이 있으면 attendee 로 invite 자동 발송
+// 통화 중·후 노트 작성 → AI 요약 → DailyKakaoLog 에 적재
+
+enum MentoringSessionStatus {
+  SCHEDULED      // 예약됨 (Calendar 이벤트 생성 완료)
+  IN_PROGRESS    // 진행 중 (수동 전환)
+  COMPLETED      // 종료 + 요약 적재 완료
+  CANCELED       // 취소됨 (Calendar 이벤트도 삭제)
+}
+
+model MentoringSession {
+  id                String                 @id @default(cuid())
+  studentId         String
+  student           Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  hostId            String
+  host              User                   @relation("MentoringSessionHost", fields: [hostId], references: [id])
+  title             String                 // 자동 생성 — [날짜 | 호스트 - 학생] (시간) 일일 관리 세션
+  scheduledAt       DateTime
+  durationMinutes   Int                    @default(30)
+  status            MentoringSessionStatus @default(SCHEDULED)
+
+  // Google Calendar 연동
+  calendarEventId   String?                // Calendar 이벤트 id (취소·수정 시 사용)
+  meetUrl           String?                // Google Meet 입장 URL
+  calendarHtmlLink  String?                // 호스트가 Calendar 에서 직접 보기
+
+  // 노트 + AI 요약
+  notes             String?                @db.Text  // 통화 중/후 markdown 노트
+  summary           String?                @db.Text  // AI 생성 요약
+  summarizedAt      DateTime?
+
+  // DailyKakaoLog 적재 흔적 (요약 반영된 일일 보고)
+  syncedToLogId     String?
+
+  canceledAt        DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([studentId, scheduledAt])
+  @@index([hostId, scheduledAt])
+  @@index([status, scheduledAt])
+}
+
+// ─── 학생 포털 1:1 채팅 (PR 2 — 카톡 스타일 Q&A) ───
+// 학생 ↔ 담당 직원(MANAGER_MENTOR / CONSULTANT / STAFF) 간 별도 채팅방.
+// 학생당 담당자별로 1방씩(unique). 첫 메시지 송신 시 자동 생성.
+
+enum PortalChatSenderType {
+  STUDENT
+  STAFF
+}
+
+model PortalChat {
+  id            String   @id @default(cuid())
+  studentId     String
+  staffId       String
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  staff         User     @relation("PortalChatStaff", fields: [staffId], references: [id])
+  lastMessageAt DateTime?
+  studentReadAt DateTime?
+  staffReadAt   DateTime?
+  messages      PortalChatMessage[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([studentId, staffId])
+  @@index([staffId, lastMessageAt(sort: Desc)])
+  @@index([studentId, lastMessageAt(sort: Desc)])
+}
+
+model PortalChatMessage {
+  id           String              @id @default(cuid())
+  chatId       String
+  chat         PortalChat          @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  senderType   PortalChatSenderType
+  senderUserId String?             // STAFF 발신 시 User.id (STUDENT 발신은 null)
+  senderUser   User?               @relation("PortalChatMessageAuthor", fields: [senderUserId], references: [id])
+  content      String              @db.Text
+  attachments  Json                @default("[]")  // [{ url, name, sizeBytes, mimeType }]
+
+  // 일일 보고 통합 (PR 3)
+  flaggedForDailyLogAt DateTime?   // 직원이 "일일 보고에 포함" 토글한 시각
+  dailyLogId           String?     // 보고서 작성 후 연결된 DailyKakaoLog.id
+
+  createdAt    DateTime            @default(now())
+
+  @@index([chatId, createdAt])
+  @@index([flaggedForDailyLogAt])
 }
