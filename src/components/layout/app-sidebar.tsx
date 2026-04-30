@@ -7,7 +7,7 @@ import {
   hasFeature, getMinimumPlan, PLAN_LABELS,
   type PlanTier, type FeatureKey,
 } from "@/lib/features";
-import { isOnlineStaff } from "@/lib/roles";
+import { isFullAccess, isOnlineStaff, isStaff } from "@/lib/roles";
 import {
   BookOpen,
   Users,
@@ -95,14 +95,22 @@ const onlineSection: NavSection = {
   ],
 };
 
+// 전 직원 접근 가능 — 운영조교/멘토/총괄멘토/원장/SA 모두 노출
+const insightsSection: NavSection = {
+  label: "리포트·분석",
+  items: [
+    { href: "/reports/monthly", label: "월간 리포트", icon: BarChart3, feature: "reports" },
+    { href: "/analytics", label: "성과 분석", icon: TrendingUp, feature: "analytics" },
+  ],
+};
+
+// 원장/SA 전용 — 급여·시스템 관리
 const directorSection: NavSection = {
   label: "관리자",
   items: [
     { href: "/mentors", label: "직원 관리", icon: UserCog, feature: "mentors" },
     { href: "/payroll", label: "급여 정산", icon: Wallet, feature: "payroll" },
     { href: "/payroll/me", label: "내 출퇴근", icon: Wallet, feature: "payroll" },
-    { href: "/reports/monthly", label: "월간 리포트", icon: BarChart3, feature: "reports" },
-    { href: "/analytics", label: "성과 분석", icon: TrendingUp, feature: "analytics" },
     { href: "/admin/school-stats", label: "학교별 통계", icon: Building2, feature: "school-stats" },
   ],
 };
@@ -126,6 +134,7 @@ export function AppSidebar({
 
   const allNavItems = [
     ...navSections.flatMap((s) => s.items),
+    ...insightsSection.items,
     ...onlineSection.items,
     ...directorSection.items,
   ];
@@ -301,10 +310,12 @@ export function AppSidebar({
       {/* Nav */}
       <nav className={cn("flex-1 overflow-y-auto pt-[18px]", isCollapsed && "px-0")}>
         {navSections.map(renderSection)}
+        {isStaff(role) &&
+          renderSection(insightsSection, navSections.length)}
         {isOnlineStaff(role) &&
-          renderSection(onlineSection, navSections.length)}
-        {(role === "DIRECTOR" || role === "SUPER_ADMIN") &&
-          renderSection(directorSection, navSections.length + 1)}
+          renderSection(onlineSection, navSections.length + 1)}
+        {isFullAccess(role) &&
+          renderSection(directorSection, navSections.length + 2)}
       </nav>
 
       {/* Footer — plan badge */}

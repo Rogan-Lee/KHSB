@@ -8,11 +8,12 @@ datasource db {
 }
 
 enum Role {
-  SUPER_ADMIN       // 시스템 최상위 관리자 (다계정 가능)
+  SUPER_ADMIN       // 시스템 최상위 관리자 (개발/디버그, 급여·시스템 설정 접근)
   ADMIN             // (deprecated) 이전 버전 호환, 신규 생성 금지
-  DIRECTOR          // 원장
+  DIRECTOR          // 원장 (시설 운영 오너, 풀 액세스)
+  HEAD_MENTOR       // 총괄 멘토 (직책 표시용. 권한은 MENTOR/STAFF와 동일, 급여·관리자 메뉴 접근 불가)
   MENTOR            // 오프라인 자습실 멘토
-  STAFF
+  STAFF             // 운영조교
   STUDENT
   CONSULTANT        // 온라인 관리 — 컨설턴트 (입시/수행평가 설계)
   MANAGER_MENTOR    // 온라인 관리 — 관리 멘토 (진도/계획/카톡 로그)
