@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>스터디룸 매니저 | 관리형 독서실 전용 운영 솔루션</title>
+  <meta name="description" content="관리형 독서실 운영을 하나의 시스템으로. 출결 관리, 멘토링 기록, 학부모 소통, AI 리포트까지. 엑셀과 카카오톡 없이 월 13만원부터 시작하세요.">
+  <meta name="keywords" content="관리형 독서실, 독서실 관리 프로그램, 학원 원생 관리, 출결 관리 시스템, 멘토링 관리, 독서실 소프트웨어">
+  <meta name="author" content="스터디룸 매니저">
+  <meta name="robots" content="index, follow">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="스터디룸 매니저 | 관리형 독서실 전용 솔루션">
+  <meta property="og:description" content="엑셀과 카카오톡으로 운영하는 시대는 끝났습니다. 출결, 멘토링, 학부모 소통을 하나의 시스템으로 관리하세요. 월 129,000원부터.">
+  <meta property="og:locale" content="ko_KR">
+
+  <!-- JSON-LD 구조화 데이터 -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "스터디룸 매니저",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "description": "관리형 독서실 전용 운영 솔루션. 출결 관리, 멘토링 기록, 학부모 소통, AI 리포트.",
+    "offers": {
+      "@type": "AggregateOffer",
+      "lowPrice": "129000",
+      "highPrice": "239000",
+      "priceCurrency": "KRW",
+      "offerCount": "3"
+    },
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.9",
+      "ratingCount": "1",
+      "bestRating": "5"
+    }
+  }
+  </script>
+
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --black: #0a0a0a;
+      --white: #ffffff;
+      --gray-50: #fafafa;
+      --gray-200: #e5e5e5;
+      --gray-400: #a3a3a3;
+      --gray-500: #737373;
+      --gray-600: #525252;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      background: var(--white); color: var(--black);
+      overflow-x: hidden; word-break: keep-all; -webkit-font-smoothing: antialiased;
+    }
+    nav { position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(255,255,255,0.88); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+    .nav-inner { max-width: 1240px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 0 40px; height: 72px; }
+    .nav-logo { font-weight: 800; font-size: 18px; letter-spacing: -0.03em; color: var(--black); text-decoration: none; }
+    .nav-links { display: flex; align-items: center; gap: 36px; }
+    .nav-links a { font-size: 15px; font-weight: 500; color: var(--gray-600); text-decoration: none; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--black); }
+    .nav-cta { display: inline-flex; align-items: center; gap: 6px; background: var(--black); color: var(--white); padding: 10px 24px; border-radius: 999px; font-size: 14px; font-weight: 600; text-decoration: none; transition: transform 0.2s, box-shadow 0.2s; }
+    .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
+    .nav-cta svg { width: 14px; height: 14px; }
+    .wrap { max-width: 1240px; margin: 0 auto; padding: 0 40px; }
+    .pill-btn { display: inline-flex; align-items: center; gap: 8px; padding: 14px 28px; border-radius: 999px; font-size: 15px; font-weight: 600; text-decoration: none; transition: transform 0.2s, box-shadow 0.2s; border: none; cursor: pointer; font-family: inherit; }
+    .pill-btn-dark { background: var(--black); color: var(--white); }
+    .pill-btn-dark:hover { transform: translateY(-1px); box-shadow: 0 10px 30px rgba(0,0,0,0.18); }
+    .pill-btn-outline { background: var(--white); color: var(--black); border: 1.5px solid var(--gray-200); }
+    .pill-btn-outline:hover { border-color: var(--black); }
+    .pill-btn svg { width: 15px; height: 15px; }
+    .section-label { font-size: 14px; font-weight: 500; color: var(--gray-500); }
+    .r { opacity: 0; transform: translateY(24px); transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1), transform 0.7s cubic-bezier(0.16,1,0.3,1); }
+    .r.in { opacity: 1; transform: none; }
+    .d1 { transition-delay: 100ms; } .d2 { transition-delay: 200ms; } .d3 { transition-delay: 300ms; }
+    .acc-item { border-bottom: 1px solid var(--gray-200); }
+    .acc-q { display: flex; align-items: center; justify-content: space-between; padding: 28px 0; cursor: pointer; gap: 24px; font-size: clamp(22px, 3vw, 36px); font-weight: 700; line-height: 1.3; letter-spacing: -0.02em; }
+    .acc-q svg { width: 24px; height: 24px; flex-shrink: 0; transition: transform 0.3s cubic-bezier(0.16,1,0.3,1); color: var(--gray-400); }
+    .acc-item.open .acc-q svg { transform: rotate(180deg); color: var(--black); }
+    .acc-a { max-height: 0; overflow: hidden; transition: max-height 0.4s cubic-bezier(0.16,1,0.3,1), padding 0.4s; padding: 0; }
+    .acc-item.open .acc-a { max-height: 200px; padding: 0 0 28px; }
+    .acc-a-inner { font-size: 16px; color: var(--gray-500); line-height: 1.8; max-width: 60ch; }
+    .feat-card { background: var(--gray-50); border-radius: 20px; padding: 40px; transition: transform 0.3s cubic-bezier(0.16,1,0.3,1); overflow: hidden; }
+    .feat-card:hover { transform: translateY(-4px); }
+    .ticker-wrap { overflow: hidden; padding: 48px 0; border-top: 1px solid var(--gray-200); border-bottom: 1px solid var(--gray-200); }
+    .ticker-track { display: flex; gap: 80px; align-items: center; animation: ticker 30s linear infinite; width: max-content; }
+    @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+    .ticker-item { font-size: 18px; font-weight: 700; color: var(--gray-400); white-space: nowrap; letter-spacing: -0.01em; }
+    .t-card { background: var(--gray-50); border-radius: 20px; padding: 36px; transition: transform 0.3s; }
+    .t-card:hover { transform: translateY(-3px); }
+    .field { width: 100%; background: var(--gray-50); border: 1.5px solid var(--gray-200); border-radius: 12px; padding: 14px 16px; color: var(--black); font-size: 15px; outline: none; transition: border-color 0.2s; font-family: inherit; }
+    .field:focus { border-color: var(--black); }
+    .field::placeholder { color: var(--gray-400); }
+    @media (max-width: 900px) {
+      .wrap { padding: 0 24px; } .nav-inner { padding: 0 24px; }
+      .split-2col { grid-template-columns: 1fr !important; }
+      .feat-grid-3 { grid-template-columns: 1fr !important; }
+      .tcard-grid { grid-template-columns: 1fr !important; }
+      .footer-grid { grid-template-columns: 1fr 1fr !important; gap: 32px !important; }
+      .nav-links { display: none; }
+      .feat-card { grid-column: span 1 !important; }
+      .pricing-grid { grid-template-columns: 1fr !important; max-width: 400px !important; }
+      .feat-row { grid-template-columns: 1fr !important; gap: 32px !important; }
+    }
+    @media (max-width: 560px) { .metric-row { flex-direction: column; gap: 40px !important; } .metric-divider { display: none; } }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">스터디룸 매니저</a>
+    <div class="nav-links">
+      <a href="#features">기능</a>
+      <a href="#about">소개</a>
+      <a href="#pricing">요금</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <a href="#contact" class="nav-cta">
+      무료 상담
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg>
+    </a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section style="padding: 180px 0 120px;">
+  <div class="wrap">
+    <p class="r section-label" style="margin-bottom: 32px;">관리형 독서실 · 전용 솔루션</p>
+    <h1 class="r d1" style="font-size: clamp(42px, 7vw, 80px); font-weight: 800; line-height: 1.08; letter-spacing: -0.04em; max-width: 900px; margin-bottom: 48px;">
+      엑셀과 카카오톡으로 운영하는 시대는 끝났습니다.
+      <span style="color: var(--gray-400);">이제 하나의 시스템으로 관리하세요.</span>
+    </h1>
+    <div class="r d2" style="display: flex; gap: 16px; flex-wrap: wrap;">
+      <a href="/sign-up" class="pill-btn pill-btn-dark">
+        14일 무료 체험 시작
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg>
+      </a>
+      <a href="#contact" class="pill-btn pill-btn-outline">무료 도입 상담</a>
+    </div>
+  </div>
+</section>
+
+<!-- TICKER -->
+<div class="ticker-wrap r">
+  <div class="ticker-track">
+    <span class="ticker-item">LMS 대비 72% 비용 절감</span><span class="ticker-item" style="color:var(--gray-200);">·</span>
+    <span class="ticker-item">주 8시간 행정 시간 절약</span><span class="ticker-item" style="color:var(--gray-200);">·</span>
+    <span class="ticker-item">3분 만에 학부모 리포트 전송</span><span class="ticker-item" style="color:var(--gray-200);">·</span>
+    <span class="ticker-item">도입 원장 만족도 4.9 / 5.0</span><span class="ticker-item" style="color:var(--gray-200);">·</span>
+    <span class="ticker-item">원생 수 제한 없음</span><span class="ticker-item" style="color:var(--gray-200);">·</span>
+    <span class="ticker-item">1:1 온보딩 지원</span><span class="ticker-item" style="color:var(--gray-200);">·</span>
+    <span class="ticker-item">LMS 대비 72% 비용 절감</span><span class="ticker-item" style="color:var(--gray-200);">·</span>
+    <span class="ticker-item">주 8시간 행정 시간 절약</span><span class="ticker-item" style="color:var(--gray-200);">·</span>
+    <span class="ticker-item">3분 만에 학부모 리포트 전송</span><span class="ticker-item" style="color:var(--gray-200);">·</span>
+    <span class="ticker-item">도입 원장 만족도 4.9 / 5.0</span><span class="ticker-item" style="color:var(--gray-200);">·</span>
+    <span class="ticker-item">원생 수 제한 없음</span><span class="ticker-item" style="color:var(--gray-200);">·</span>
+    <span class="ticker-item">1:1 온보딩 지원</span>
+  </div>
+</div>
+
+<!-- ABOUT -->
+<section id="about" style="padding: 120px 0;">
+  <div class="wrap">
+    <div class="split-2col" style="display: grid; grid-template-columns: 200px 1fr auto; gap: 40px; align-items: start;">
+      <p class="r section-label">스터디룸 매니저</p>
+      <h2 class="r d1" style="font-size: clamp(28px, 4.5vw, 48px); font-weight: 800; line-height: 1.2; letter-spacing: -0.03em; max-width: 700px;">
+        출결 기록부터 AI 학부모 리포트, 멘토링 이력, 상벌점 관리까지.
+        <span style="color: var(--gray-400);">하나의 대시보드에서 처리하세요.</span>
+      </h2>
+      <a href="#features" class="r d2 pill-btn pill-btn-outline" style="white-space: nowrap; flex-shrink: 0;">
+        기능 보기
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- METRICS -->
+<section style="padding: 80px 0; border-top: 1px solid var(--gray-200); border-bottom: 1px solid var(--gray-200);">
+  <div class="wrap">
+    <div class="metric-row r" style="display: flex; justify-content: space-between; align-items: baseline; gap: 60px;">
+      <div style="text-align: center; flex: 1;">
+        <div style="font-size: clamp(48px, 8vw, 72px); font-weight: 800; letter-spacing: -0.04em; line-height: 1;">73%</div>
+        <div style="font-size: 14px; color: var(--gray-500); margin-top: 12px; line-height: 1.5;">범용 LMS 대비<br>비용 절감</div>
+      </div>
+      <div class="metric-divider" style="width: 1px; height: 80px; background: var(--gray-200); flex-shrink: 0;"></div>
+      <div style="text-align: center; flex: 1;">
+        <div style="font-size: clamp(48px, 8vw, 72px); font-weight: 800; letter-spacing: -0.04em; line-height: 1;">2.4<span style="font-size: 0.6em;">배</span></div>
+        <div style="font-size: 14px; color: var(--gray-500); margin-top: 12px; line-height: 1.5;">학부모 상담 횟수<br>증가 효과</div>
+      </div>
+      <div class="metric-divider" style="width: 1px; height: 80px; background: var(--gray-200); flex-shrink: 0;"></div>
+      <div style="text-align: center; flex: 1;">
+        <div style="font-size: clamp(48px, 8vw, 72px); font-weight: 800; letter-spacing: -0.04em; line-height: 1;">3<span style="font-size: 0.6em;">일</span></div>
+        <div style="font-size: 14px; color: var(--gray-500); margin-top: 12px; line-height: 1.5;">도입 후 운영까지<br>걸리는 시간</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES — accordion -->
+<section id="features" style="padding: 120px 0;">
+  <div class="wrap">
+    <div class="split-2col" style="display: grid; grid-template-columns: 200px 1fr; gap: 40px; align-items: start; margin-bottom: 80px;">
+      <p class="r section-label">주요 기능</p>
+      <h2 class="r d1" style="font-size: clamp(28px, 4.5vw, 48px); font-weight: 800; line-height: 1.2; letter-spacing: -0.03em;">
+        관리형 독서실 운영에 필요한 모든 것.
+        <span style="color: var(--blue);">하나의 화면에서.</span>
+      </h2>
+    </div>
+
+    <!-- ── Feature 1: 출결 관리 ── -->
+    <div class="r feat-row" style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 56px; align-items: center; margin-bottom: 100px;">
+      <div>
+        <p style="font-size: 12px; font-weight: 700; color: #0066ff; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 14px;">출결 관리</p>
+        <h3 style="font-size: clamp(24px, 3vw, 32px); font-weight: 800; letter-spacing: -0.025em; line-height: 1.3; margin-bottom: 16px;">실시간 입퇴실 현황,<br>한 화면에서 끝</h3>
+        <p style="font-size: 15px; color: var(--gray-500); line-height: 1.85; margin-bottom: 24px;">매일 엑셀에 수기 입력하던 출결을 클릭 한 번으로. 원생별 주간 일정과 월별 통계를 자동 집계합니다.</p>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00985a" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg><span style="font-size: 14px; color: var(--gray-600);">출석 · 결석 · 지각 · 공결 · 외출 상태 관리</span></div>
+          <div style="display: flex; align-items: center; gap: 10px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00985a" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg><span style="font-size: 14px; color: var(--gray-600);">원생별 요일 스케줄 자동 적용</span></div>
+          <div style="display: flex; align-items: center; gap: 10px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00985a" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg><span style="font-size: 14px; color: var(--gray-600);">월별 출결 통계 자동 집계</span></div>
+        </div>
+      </div>
+      <!-- UI Mockup: 출결 테이블 -->
+      <div style="background: var(--white); border: 1px solid var(--gray-200); border-radius: 16px; overflow: hidden; box-shadow: 0 12px 48px -12px rgba(0,0,0,0.1);">
+        <div style="padding: 12px 16px; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; gap: 6px;">
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #ff5f57;"></span>
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #febc2e;"></span>
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #28c840;"></span>
+          <span style="flex: 1; text-align: center; font-size: 11px; color: var(--gray-400);">출결 관리</span>
+        </div>
+        <div style="padding: 20px;">
+          <!-- KPI row -->
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+            <div style="font-size: 15px; font-weight: 750;">오늘 출결 현황</div>
+            <div style="font-size: 11px; color: var(--gray-400); background: var(--gray-50); padding: 4px 10px; border-radius: 6px;">2026.04.04 금</div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px;">
+            <div style="background: #eaf2fe; border-radius: 10px; padding: 12px; text-align: center;">
+              <div style="font-size: 22px; font-weight: 800; color: #0066ff;">32</div>
+              <div style="font-size: 10px; color: #0066ff; margin-top: 2px; opacity: 0.7;">재원생</div>
+            </div>
+            <div style="background: #d9f7eb; border-radius: 10px; padding: 12px; text-align: center;">
+              <div style="font-size: 22px; font-weight: 800; color: #00985a;">28</div>
+              <div style="font-size: 10px; color: #00985a; margin-top: 2px; opacity: 0.7;">출석</div>
+            </div>
+            <div style="background: #fee2e2; border-radius: 10px; padding: 12px; text-align: center;">
+              <div style="font-size: 22px; font-weight: 800; color: #ff4242;">2</div>
+              <div style="font-size: 10px; color: #ff4242; margin-top: 2px; opacity: 0.7;">결석</div>
+            </div>
+            <div style="background: #fed9c4; border-radius: 10px; padding: 12px; text-align: center;">
+              <div style="font-size: 22px; font-weight: 800; color: #ff5e00;">2</div>
+              <div style="font-size: 10px; color: #ff5e00; margin-top: 2px; opacity: 0.7;">지각</div>
+            </div>
+          </div>
+          <!-- Table -->
+          <div style="border: 1px solid var(--gray-200); border-radius: 10px; overflow: hidden; font-size: 12px;">
+            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; background: var(--gray-50); padding: 8px 14px; font-weight: 650; color: var(--gray-500); font-size: 11px;">
+              <span>학생명</span><span>입실</span><span>퇴실</span><span>상태</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; padding: 10px 14px; border-top: 1px solid var(--gray-100); align-items: center;">
+              <span style="font-weight: 600;">김민준 <span style="color: var(--gray-400); font-weight: 400;">고3</span></span>
+              <span style="color: var(--gray-500);">08:52</span>
+              <span style="color: var(--gray-400);">—</span>
+              <span style="font-size: 10.5px; font-weight: 700; color: #00985a; background: #d9f7eb; padding: 2px 8px; border-radius: 4px; display: inline-block; width: fit-content;">정상</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; padding: 10px 14px; border-top: 1px solid var(--gray-100); align-items: center;">
+              <span style="font-weight: 600;">박서연 <span style="color: var(--gray-400); font-weight: 400;">고2</span></span>
+              <span style="color: var(--gray-400);">—</span>
+              <span style="color: var(--gray-400);">—</span>
+              <span style="font-size: 10.5px; font-weight: 700; color: #ff4242; background: #fee2e2; padding: 2px 8px; border-radius: 4px; display: inline-block; width: fit-content;">결석</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; padding: 10px 14px; border-top: 1px solid var(--gray-100); align-items: center;">
+              <span style="font-weight: 600;">이지호 <span style="color: var(--gray-400); font-weight: 400;">고1</span></span>
+              <span style="color: var(--gray-500);">09:32</span>
+              <span style="color: var(--gray-400);">—</span>
+              <span style="font-size: 10.5px; font-weight: 700; color: #ff5e00; background: #fed9c4; padding: 2px 8px; border-radius: 4px; display: inline-block; width: fit-content;">지각</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; padding: 10px 14px; border-top: 1px solid var(--gray-100); align-items: center;">
+              <span style="font-weight: 600;">최윤서 <span style="color: var(--gray-400); font-weight: 400;">고3</span></span>
+              <span style="color: var(--gray-500);">08:48</span>
+              <span style="color: var(--gray-400);">—</span>
+              <span style="font-size: 10.5px; font-weight: 700; color: #00985a; background: #d9f7eb; padding: 2px 8px; border-radius: 4px; display: inline-block; width: fit-content;">정상</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; padding: 10px 14px; border-top: 1px solid var(--gray-100); align-items: center;">
+              <span style="font-weight: 600;">정하은 <span style="color: var(--gray-400); font-weight: 400;">고2</span></span>
+              <span style="color: var(--gray-500);">08:55</span>
+              <span style="color: var(--gray-400);">—</span>
+              <span style="font-size: 10.5px; font-weight: 700; color: #00985a; background: #d9f7eb; padding: 2px 8px; border-radius: 4px; display: inline-block; width: fit-content;">정상</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Feature 2: 멘토링 기록 ── -->
+    <div class="r feat-row" style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 56px; align-items: center; margin-bottom: 100px;">
+      <!-- UI Mockup: 멘토링 -->
+      <div style="background: var(--white); border: 1px solid var(--gray-200); border-radius: 16px; overflow: hidden; box-shadow: 0 12px 48px -12px rgba(0,0,0,0.1);">
+        <div style="padding: 12px 16px; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; gap: 6px;">
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #ff5f57;"></span>
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #febc2e;"></span>
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #28c840;"></span>
+          <span style="flex: 1; text-align: center; font-size: 11px; color: var(--gray-400);">멘토링 기록</span>
+        </div>
+        <div style="padding: 20px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+            <div>
+              <div style="font-size: 15px; font-weight: 750;">멘토링 세션 기록</div>
+              <div style="font-size: 11px; color: var(--gray-400); margin-top: 2px;">김민준 · 수학 · 멘토 이승현</div>
+            </div>
+            <span style="font-size: 10.5px; font-weight: 700; color: #0066ff; background: #eaf2fe; padding: 3px 10px; border-radius: 4px;">완료</span>
+          </div>
+          <!-- Session card -->
+          <div style="border: 1px solid var(--gray-200); border-radius: 10px; padding: 16px; margin-bottom: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <span style="font-size: 13px; font-weight: 700;">4월 4일 (금) 세션</span>
+              <span style="font-size: 11px; color: var(--gray-400);">14:00 - 14:50</span>
+            </div>
+            <div style="font-size: 12px; color: var(--gray-500); line-height: 1.8; margin-bottom: 12px; padding: 10px 12px; background: var(--gray-50); border-radius: 8px;">
+              <div style="margin-bottom: 8px;"><span style="font-weight: 650; color: var(--gray-700);">수업 내용:</span> 이차함수 판별식 문제 집중 풀이. 근의 공식 계산 정확도 향상.</div>
+              <div style="margin-bottom: 8px;"><span style="font-weight: 650; color: var(--gray-700);">개선 필요:</span> 부등식 적용 시 부호 실수 반복. 조건 범위 체크 미흡.</div>
+              <div><span style="font-weight: 650; color: var(--gray-700);">다음 목표:</span> 부등식 집중 연습 후 모의고사 기출 풀이 진입.</div>
+            </div>
+            <!-- AI report banner -->
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #eaf2fe; border-radius: 8px; border: 1px solid #ccdcf7;">
+              <div style="width: 28px; height: 28px; background: #0066ff; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              </div>
+              <div>
+                <div style="font-size: 12px; font-weight: 700; color: #0066ff;">AI가 학부모 리포트를 자동 작성했습니다</div>
+                <div style="font-size: 10.5px; color: #3b82f6; margin-top: 1px;">클릭하여 확인 및 전송 →</div>
+              </div>
+            </div>
+          </div>
+          <!-- Previous session (faded) -->
+          <div style="border: 1px solid var(--gray-200); border-radius: 10px; padding: 14px; opacity: 0.5;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; font-weight: 650;">4월 2일 (수) 세션</span>
+              <span style="font-size: 10.5px; color: var(--gray-400);">14:00 - 14:50</span>
+            </div>
+            <div style="font-size: 11px; color: var(--gray-400); margin-top: 6px;">이차방정식 근과 계수의 관계 복습. 전반적 이해도 향상...</div>
+          </div>
+        </div>
+      </div>
+      <!-- Text -->
+      <div>
+        <p style="font-size: 12px; font-weight: 700; color: #0066ff; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 14px;">멘토링 기록</p>
+        <h3 style="font-size: clamp(24px, 3vw, 32px); font-weight: 800; letter-spacing: -0.025em; line-height: 1.3; margin-bottom: 16px;">멘토링 이력이<br>데이터가 됩니다</h3>
+        <p style="font-size: 15px; color: var(--gray-500); line-height: 1.85; margin-bottom: 24px;">멘토 선생님의 세션 기록을 체계적으로 관리합니다. AI가 학부모 전달용 리포트 초안을 자동 생성합니다.</p>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00985a" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg><span style="font-size: 14px; color: var(--gray-600);">수업 내용 · 개선점 · 다음 목표 기록</span></div>
+          <div style="display: flex; align-items: center; gap: 10px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00985a" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg><span style="font-size: 14px; color: var(--gray-600);">AI 학부모 리포트 자동 작성</span></div>
+          <div style="display: flex; align-items: center; gap: 10px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00985a" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg><span style="font-size: 14px; color: var(--gray-600);">멘토 교체 시 이력 완벽 인수인계</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Feature 3: 학부모 리포트 ── -->
+    <div class="r feat-row" style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 56px; align-items: center; margin-bottom: 100px;">
+      <div>
+        <p style="font-size: 12px; font-weight: 700; color: #0066ff; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 14px;">학부모 리포트</p>
+        <h3 style="font-size: clamp(24px, 3vw, 32px); font-weight: 800; letter-spacing: -0.025em; line-height: 1.3; margin-bottom: 16px;">원클릭 하나로<br>신뢰를 전달하세요</h3>
+        <p style="font-size: 15px; color: var(--gray-500); line-height: 1.85; margin-bottom: 24px;">출결, 멘토링, 상벌점을 종합한 리포트를 카카오톡으로 전송합니다. 관리형 독서실의 단가를 높이는 실질적 근거가 됩니다.</p>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00985a" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg><span style="font-size: 14px; color: var(--gray-600);">출결 · 멘토링 · 상벌점 종합 리포트</span></div>
+          <div style="display: flex; align-items: center; gap: 10px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00985a" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg><span style="font-size: 14px; color: var(--gray-600);">카카오톡으로 3분 전송</span></div>
+          <div style="display: flex; align-items: center; gap: 10px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00985a" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg><span style="font-size: 14px; color: var(--gray-600);">관리형 단가 인상의 실질적 근거</span></div>
+        </div>
+      </div>
+      <!-- UI Mockup: 학부모 리포트 -->
+      <div style="background: var(--white); border: 1px solid var(--gray-200); border-radius: 16px; overflow: hidden; box-shadow: 0 12px 48px -12px rgba(0,0,0,0.1);">
+        <div style="padding: 12px 16px; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; gap: 6px;">
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #ff5f57;"></span>
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #febc2e;"></span>
+          <span style="width: 10px; height: 10px; border-radius: 50%; background: #28c840;"></span>
+          <span style="flex: 1; text-align: center; font-size: 11px; color: var(--gray-400);">학부모 리포트</span>
+        </div>
+        <div style="padding: 20px;">
+          <!-- Student info -->
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 18px;">
+            <div style="width: 40px; height: 40px; background: #eaf2fe; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; color: #0066ff;">김</div>
+            <div>
+              <div style="font-size: 15px; font-weight: 750;">김민준</div>
+              <div style="font-size: 11px; color: var(--gray-400);">고3 · 2026년 4월 리포트</div>
+            </div>
+          </div>
+          <!-- Stats row -->
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px;">
+            <div style="background: var(--gray-50); border-radius: 10px; padding: 14px; text-align: center; border: 1px solid var(--gray-200);">
+              <div style="font-size: 22px; font-weight: 800; color: #00985a;">85%</div>
+              <div style="font-size: 10px; color: var(--gray-400); margin-top: 3px;">출석률</div>
+            </div>
+            <div style="background: var(--gray-50); border-radius: 10px; padding: 14px; text-align: center; border: 1px solid var(--gray-200);">
+              <div style="font-size: 22px; font-weight: 800; color: #0066ff;">+15</div>
+              <div style="font-size: 10px; color: var(--gray-400); margin-top: 3px;">상벌점</div>
+            </div>
+            <div style="background: var(--gray-50); border-radius: 10px; padding: 14px; text-align: center; border: 1px solid var(--gray-200);">
+              <div style="font-size: 22px; font-weight: 800;">3회</div>
+              <div style="font-size: 10px; color: var(--gray-400); margin-top: 3px;">멘토링</div>
+            </div>
+          </div>
+          <!-- Report content -->
+          <div style="border: 1px solid var(--gray-200); border-radius: 10px; padding: 16px; margin-bottom: 12px;">
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--gray-700);">멘토링 요약</div>
+            <div style="font-size: 12px; color: var(--gray-500); line-height: 1.8; margin-bottom: 14px;">이차함수 단원에서 판별식 활용 문제를 집중 학습했습니다. 근의 공식 계산 정확도가 높아졌으며, 부등식 적용 연습이 추가로 필요합니다.</div>
+            <div style="font-size: 12px; font-weight: 700; margin-bottom: 8px; color: var(--gray-700);">다음 목표</div>
+            <div style="font-size: 12px; color: var(--gray-500); line-height: 1.8;">부등식 파트 집중 보완 후, 모의고사 기출 풀이로 넘어갈 예정입니다.</div>
+          </div>
+          <!-- Kakao send button -->
+          <div style="background: #fee500; border-radius: 10px; padding: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#3c1e1e"><path d="M12 3c-5.52 0-10 3.58-10 8 0 2.84 1.88 5.32 4.7 6.72-.14.86-.87 3.09-.95 3.56 0 0-.02.16.08.22.1.06.22.02.22.02.29-.04 3.38-2.22 4.14-2.75.58.08 1.18.13 1.81.13 5.52 0 10-3.58 10-8s-4.48-8-10-8z"/></svg>
+            <span style="font-size: 13px; font-weight: 700; color: #3c1e1e;">카카오톡으로 전송하기</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Feature 4: 상벌점 & 인수인계 ── -->
+    <div class="r feat-row" style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 56px; align-items: center;">
+      <!-- UI Mockup: 상벌점 + 인수인계 -->
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <!-- 상벌점 카드 -->
+        <div style="background: var(--white); border: 1px solid var(--gray-200); border-radius: 16px; overflow: hidden; box-shadow: 0 12px 48px -12px rgba(0,0,0,0.1);">
+          <div style="padding: 12px 16px; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; gap: 6px;">
+            <span style="width: 10px; height: 10px; border-radius: 50%; background: #ff5f57;"></span>
+            <span style="width: 10px; height: 10px; border-radius: 50%; background: #febc2e;"></span>
+            <span style="width: 10px; height: 10px; border-radius: 50%; background: #28c840;"></span>
+            <span style="flex: 1; text-align: center; font-size: 11px; color: var(--gray-400);">상벌점 관리</span>
+          </div>
+          <div style="padding: 20px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+              <div style="font-size: 15px; font-weight: 750;">4월 상벌점 랭킹</div>
+            </div>
+            <!-- Ranking rows -->
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fffbeb; border-radius: 8px; border: 1px solid #fef08a;">
+                <span style="font-size: 14px; font-weight: 800; color: #d97706; width: 20px;">1</span>
+                <div style="width: 28px; height: 28px; background: #fef9c3; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #92400e;">최</div>
+                <span style="font-size: 13px; font-weight: 650; flex: 1;">최윤서 <span style="color: var(--gray-400); font-weight: 400;">고3</span></span>
+                <span style="font-size: 14px; font-weight: 800; color: #00985a;">+22</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--gray-50); border-radius: 8px;">
+                <span style="font-size: 14px; font-weight: 800; color: var(--gray-400); width: 20px;">2</span>
+                <div style="width: 28px; height: 28px; background: var(--gray-200); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--gray-600);">김</div>
+                <span style="font-size: 13px; font-weight: 650; flex: 1;">김민준 <span style="color: var(--gray-400); font-weight: 400;">고3</span></span>
+                <span style="font-size: 14px; font-weight: 800; color: #00985a;">+15</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--gray-50); border-radius: 8px;">
+                <span style="font-size: 14px; font-weight: 800; color: var(--gray-400); width: 20px;">3</span>
+                <div style="width: 28px; height: 28px; background: var(--gray-200); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--gray-600);">정</div>
+                <span style="font-size: 13px; font-weight: 650; flex: 1;">정하은 <span style="color: var(--gray-400); font-weight: 400;">고2</span></span>
+                <span style="font-size: 14px; font-weight: 800; color: #00985a;">+12</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- 인수인계 카드 -->
+        <div style="background: var(--white); border: 1px solid var(--gray-200); border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px -8px rgba(0,0,0,0.06);">
+          <div style="padding: 14px 20px; border-bottom: 1px solid var(--gray-200); display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 13px; font-weight: 750;">인수인계</span>
+            <span style="font-size: 10px; font-weight: 700; color: #0066ff; background: #eaf2fe; padding: 3px 8px; border-radius: 4px;">NEW</span>
+          </div>
+          <div style="padding: 14px 20px;">
+            <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px;">
+              <div style="width: 28px; height: 28px; background: #eaf2fe; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #0066ff; flex-shrink: 0;">이</div>
+              <div style="flex: 1;">
+                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                  <span style="font-size: 12px; font-weight: 700;">이승현 멘토</span>
+                  <span style="font-size: 10px; color: var(--gray-400);">오늘 18:30</span>
+                </div>
+                <div style="font-size: 11.5px; color: var(--gray-500); line-height: 1.7;">박서연 학생 결석 — 학부모 연락 완료, 컨디션 이슈. 내일 출석 예정. 김민준 학생 수학 과제 미제출 1건.</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 12px; font-size: 10.5px; color: var(--gray-400);">
+              <span>할 일 2/3</span>
+              <span>·</span>
+              <span>2명 확인</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Text -->
+      <div>
+        <p style="font-size: 12px; font-weight: 700; color: #0066ff; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 14px;">운영 관리</p>
+        <h3 style="font-size: clamp(24px, 3vw, 32px); font-weight: 800; letter-spacing: -0.025em; line-height: 1.3; margin-bottom: 16px;">상벌점, 인수인계까지<br>빠짐없이</h3>
+        <p style="font-size: 15px; color: var(--gray-500); line-height: 1.85; margin-bottom: 24px;">상벌점으로 원생의 성취 동기를 높이고, 교대 근무 시 인수인계를 체계적으로 관리합니다. "어제 무슨 일 있었어요?"를 더 이상 묻지 않아도 됩니다.</p>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; align-items: center; gap: 10px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00985a" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg><span style="font-size: 14px; color: var(--gray-600);">상점 · 벌점 자동 분류 & 월별 랭킹</span></div>
+          <div style="display: flex; align-items: center; gap: 10px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00985a" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg><span style="font-size: 14px; color: var(--gray-600);">교대 인수인계 · 할 일 · 확인 기능</span></div>
+          <div style="display: flex; align-items: center; gap: 10px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00985a" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg><span style="font-size: 14px; color: var(--gray-600);">회의록 · Todo · 멘토 계정 관리</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- TARGET -->
+<section style="padding: 120px 0; border-top: 1px solid var(--gray-200);">
+  <div class="wrap">
+    <div class="split-2col" style="display: grid; grid-template-columns: 200px 1fr auto; gap: 40px; align-items: start;">
+      <p class="r section-label">도입 대상</p>
+      <h2 class="r d1" style="font-size: clamp(28px, 4.5vw, 48px); font-weight: 800; line-height: 1.2; letter-spacing: -0.03em; max-width: 700px;">
+        원생 관리와 학부모 소통이 필요한 모든 독서실에 적합합니다.
+        <span style="color: var(--gray-400);">관리형, 자기주도, 멘토링, 입시 전문 독서실.</span>
+      </h2>
+      <a href="#contact" class="r d2 pill-btn pill-btn-outline" style="white-space: nowrap; flex-shrink: 0;">
+        상담 신청
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing" style="padding: 120px 0; background: var(--gray-50);">
+  <div class="wrap">
+    <div class="split-2col" style="display: grid; grid-template-columns: 200px 1fr; gap: 40px; align-items: start;">
+      <p class="r section-label">요금제</p>
+      <div>
+        <h2 class="r" style="font-size: clamp(28px, 4.5vw, 48px); font-weight: 800; line-height: 1.2; letter-spacing: -0.03em; margin-bottom: 16px;">
+          운영 규모에 맞게 선택하세요.
+        </h2>
+        <p class="r d1" style="font-size: 16px; color: var(--gray-500); line-height: 1.8; max-width: 50ch; margin-bottom: 48px;">
+          모든 요금제에 1:1 세팅 지원이 포함됩니다. 최소 계약 기간 없이 월 단위로 운영됩니다.
+        </p>
+
+        <!-- 3-tier pricing grid -->
+        <div class="r d2 pricing-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; max-width: 820px;">
+
+          <!-- Starter -->
+          <div style="background: var(--white); border: 1.5px solid var(--gray-200); border-radius: 20px; padding: 32px 24px; display: flex; flex-direction: column;">
+            <p style="font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gray-400); margin-bottom: 16px;">Starter</p>
+            <div style="font-size: 32px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; margin-bottom: 4px;">
+              129,000<span style="font-size: 0.4em; font-weight: 600;">원</span>
+            </div>
+            <p style="font-size: 13px; color: var(--gray-400); margin-bottom: 24px;">/ 월</p>
+            <p style="font-size: 13.5px; color: var(--gray-500); line-height: 1.6; margin-bottom: 24px;">소규모 독서실을 위한 핵심 기능. 원생 15명까지.</p>
+            <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; flex: 1;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"/></svg>
+                <span style="font-size: 13.5px; color: var(--gray-600);">출결 · 상벌점 관리</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"/></svg>
+                <span style="font-size: 13.5px; color: var(--gray-600);">멘토링 기록</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"/></svg>
+                <span style="font-size: 13.5px; color: var(--gray-600);">멘토 계정 2개</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"/></svg>
+                <span style="font-size: 13.5px; color: var(--gray-600);">이메일 지원</span>
+              </div>
+            </div>
+            <a href="#contact" class="pill-btn pill-btn-outline" style="width: 100%; justify-content: center; font-size: 14px; padding: 12px 20px;">상담 신청</a>
+          </div>
+
+          <!-- Standard (추천) -->
+          <div style="background: var(--white); border: 2px solid var(--black); border-radius: 20px; padding: 32px 24px; display: flex; flex-direction: column; position: relative; box-shadow: 0 8px 32px -8px rgba(0,0,0,0.12);">
+            <span style="position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--black); color: var(--white); font-size: 11px; font-weight: 700; padding: 4px 14px; border-radius: 999px;">추천</span>
+            <p style="font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gray-400); margin-bottom: 16px;">Standard</p>
+            <div style="font-size: 32px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; margin-bottom: 4px;">
+              239,000<span style="font-size: 0.4em; font-weight: 600;">원</span>
+            </div>
+            <p style="font-size: 13px; color: var(--gray-400); margin-bottom: 24px;">/ 월</p>
+            <p style="font-size: 13.5px; color: var(--gray-500); line-height: 1.6; margin-bottom: 24px;">가장 많이 선택하는 요금제. 원생 수 · 멘토 계정 무제한.</p>
+            <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; flex: 1;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"/></svg>
+                <span style="font-size: 13.5px; color: var(--gray-600);">Starter 전체 기능</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"/></svg>
+                <span style="font-size: 13.5px; color: var(--gray-600);">AI 학부모 리포트</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"/></svg>
+                <span style="font-size: 13.5px; color: var(--gray-600);">카카오톡 전송</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"/></svg>
+                <span style="font-size: 13.5px; color: var(--gray-600);">인수인계 · 회의록 · Todo</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"/></svg>
+                <span style="font-size: 13.5px; color: var(--gray-600);">1:1 세팅 + 2주 밀착 지원</span>
+              </div>
+            </div>
+            <a href="#contact" class="pill-btn pill-btn-dark" style="width: 100%; justify-content: center; font-size: 14px; padding: 12px 20px;">상담 신청</a>
+          </div>
+
+          <!-- Premium -->
+          <div style="background: var(--white); border: 1.5px solid var(--gray-200); border-radius: 20px; padding: 32px 24px; display: flex; flex-direction: column;">
+            <p style="font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gray-400); margin-bottom: 16px;">Premium</p>
+            <div style="font-size: 32px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; margin-bottom: 4px;">
+              329,000<span style="font-size: 0.4em; font-weight: 600;">원</span>
+            </div>
+            <p style="font-size: 13px; color: var(--gray-400); margin-bottom: 24px;">/ 월</p>
+            <p style="font-size: 13.5px; color: var(--gray-500); line-height: 1.6; margin-bottom: 24px;">다점포 · 대형 독서실 전용. 맞춤 기능 개발 포함.</p>
+            <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; flex: 1;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"/></svg>
+                <span style="font-size: 13.5px; color: var(--gray-600);">Standard 전체 기능</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"/></svg>
+                <span style="font-size: 13.5px; color: var(--gray-600);">구글 캘린더 연동</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"/></svg>
+                <span style="font-size: 13.5px; color: var(--gray-600);">성적 분석 · 리포트</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"/></svg>
+                <span style="font-size: 13.5px; color: var(--gray-600);">맞춤 기능 개발</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink: 0;"><path d="M20 6L9 17l-5-5"/></svg>
+                <span style="font-size: 13.5px; color: var(--gray-600);">전담 매니저 배정</span>
+              </div>
+            </div>
+            <a href="#contact" class="pill-btn pill-btn-outline" style="width: 100%; justify-content: center; font-size: 14px; padding: 12px 20px;">상담 신청</a>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section style="padding: 120px 0;">
+  <div class="wrap">
+    <div class="split-2col" style="display: grid; grid-template-columns: 200px 1fr; gap: 40px; align-items: start; margin-bottom: 56px;">
+      <p class="r section-label">도입 사례</p>
+      <h2 class="r d1" style="font-size: clamp(28px, 4.5vw, 48px); font-weight: 800; line-height: 1.2; letter-spacing: -0.03em;">원장님들이 직접 말씀하십니다.</h2>
+    </div>
+    <div class="tcard-grid r d2" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+      <div class="t-card">
+        <p style="font-size: 15px; line-height: 1.85; color: var(--gray-600); margin-bottom: 28px;">"기존 LMS보다 훨씬 저렴한데 독서실에 딱 맞는 기능들만 있어서 오히려 더 편합니다. 특히 학부모 리포트 카카오 전송이 진짜 편해요."</p>
+        <div>
+          <p style="font-size: 14px; font-weight: 700;">최지훈 원장</p>
+          <p style="font-size: 13px; color: var(--gray-400);">서울 강남구 관리형 독서실</p>
+        </div>
+      </div>
+      <div class="t-card">
+        <p style="font-size: 15px; line-height: 1.85; color: var(--gray-600); margin-bottom: 28px;">"멘토 선생님들이 기록 안 하던 멘토링 내용을 이제 다 시스템에 남기더라고요. 전체 상황을 볼 수 있게 되니까 운영이 훨씬 체계적으로 됐습니다."</p>
+        <div>
+          <p style="font-size: 14px; font-weight: 700;">김미래 원장</p>
+          <p style="font-size: 13px; color: var(--gray-400);">경기 분당구 관리형 독서실</p>
+        </div>
+      </div>
+      <div class="t-card">
+        <p style="font-size: 15px; line-height: 1.85; color: var(--gray-600); margin-bottom: 28px;">"도입 상담부터 세팅까지 원장 입장에서 하나씩 같이 해주셨어요. 지금은 하루에 한 번 대시보드만 보면 전체 현황이 다 보입니다."</p>
+        <div>
+          <p style="font-size: 14px; font-weight: 700;">박성진 원장</p>
+          <p style="font-size: 13px; color: var(--gray-400);">인천 서구 관리형 독서실</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" style="padding: 120px 0; border-top: 1px solid var(--gray-200);">
+  <div class="wrap">
+    <div class="split-2col" style="display: grid; grid-template-columns: 200px 1fr; gap: 40px; align-items: start;">
+      <p class="r section-label">자주 묻는 질문</p>
+      <div class="r d1">
+        <div class="acc-item">
+          <div class="acc-q" onclick="toggleAcc(this)" style="font-size: clamp(16px, 2vw, 20px);">기존 LMS에서 데이터를 이전할 수 있나요?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div class="acc-a"><div class="acc-a-inner">엑셀이나 CSV 파일로 원생 기본 정보를 가져올 수 있습니다. 도입 시 1:1 온보딩 지원을 통해 데이터 이전을 함께 진행합니다.</div></div>
+        </div>
+        <div class="acc-item">
+          <div class="acc-q" onclick="toggleAcc(this)" style="font-size: clamp(16px, 2vw, 20px);">설치나 사용이 어렵지 않나요?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div class="acc-a"><div class="acc-a-inner">별도 설치 없이 웹 브라우저에서 바로 사용합니다. 스마트폰, 태블릿, PC 모두 지원하며 도입 상담 시 실제 화면을 보여드리며 직접 안내합니다.</div></div>
+        </div>
+        <div class="acc-item">
+          <div class="acc-q" onclick="toggleAcc(this)" style="font-size: clamp(16px, 2vw, 20px);">멘토 선생님들도 따로 사용할 수 있나요?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div class="acc-a"><div class="acc-a-inner">멘토 계정을 별도로 발급할 수 있습니다. 멘토는 자신이 담당하는 원생의 멘토링만 조회·기록하고, 원장은 전체를 확인할 수 있습니다.</div></div>
+        </div>
+        <div class="acc-item">
+          <div class="acc-q" onclick="toggleAcc(this)" style="font-size: clamp(16px, 2vw, 20px);">원생 데이터는 안전하게 보관되나요?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div class="acc-a"><div class="acc-a-inner">독서실별 독립된 서버에 저장되어 다른 독서실과 데이터가 공유되지 않습니다. 서울 리전 데이터센터에 안전하게 보관됩니다.</div></div>
+        </div>
+        <div class="acc-item">
+          <div class="acc-q" onclick="toggleAcc(this)" style="font-size: clamp(16px, 2vw, 20px);">계약 기간이 있나요?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div class="acc-a"><div class="acc-a-inner">최소 계약 기간 없이 월 단위로 운영됩니다. 해지를 원하시면 언제든 연락 주시면 당월 내로 처리해 드립니다.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact" style="padding: 120px 0; background: var(--gray-50);">
+  <div class="wrap">
+    <div class="split-2col" style="display: grid; grid-template-columns: 200px 1fr; gap: 40px; align-items: start;">
+      <p class="r section-label">무료 상담</p>
+      <div>
+        <h2 class="r" style="font-size: clamp(28px, 4.5vw, 48px); font-weight: 800; line-height: 1.2; letter-spacing: -0.03em; margin-bottom: 16px;">
+          30분이면 충분합니다.
+          <span style="color: var(--gray-400);">설치도, 계약도 필요 없습니다.</span>
+        </h2>
+        <p class="r d1" style="font-size: 16px; color: var(--gray-500); line-height: 1.8; max-width: 50ch; margin-bottom: 48px;">
+          현재 운영 방식을 함께 진단하고, 어떻게 개선할 수 있는지 화면으로 직접 보여드립니다.
+        </p>
+        <form id="contactForm" class="r d2" style="background: var(--white); border: 1.5px solid var(--gray-200); border-radius: 20px; padding: 40px; max-width: 560px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+            <div>
+              <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px;">원장님 성함</label>
+              <input id="fieldName" type="text" placeholder="홍길동" class="field" required>
+            </div>
+            <div>
+              <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px;">연락처</label>
+              <input id="fieldPhone" type="tel" placeholder="010-0000-0000" class="field" required>
+            </div>
+          </div>
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px;">독서실 위치 및 규모 <span style="color: var(--gray-400); font-weight: 400;">(선택)</span></label>
+            <input id="fieldLocation" type="text" placeholder="예: 서울 강남구, 원생 35명" class="field">
+          </div>
+          <div style="margin-bottom: 28px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px;">현재 관리 방법 <span style="color: var(--gray-400); font-weight: 400;">(선택)</span></label>
+            <textarea id="fieldMethod" rows="3" placeholder="예: 엑셀로 출결 관리, 카카오로 학부모 소통..." class="field" style="resize: vertical;"></textarea>
+          </div>
+          <button id="submitBtn" type="submit" class="pill-btn pill-btn-dark" style="width: 100%; justify-content: center;">
+            30분 무료 상담 신청하기
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg>
+          </button>
+          <p id="formMsg" style="font-size: 12px; text-align: center; color: var(--gray-400); margin-top: 14px;">영업일 기준 24시간 이내 연락드립니다</p>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer style="background: var(--black); padding: 80px 0 0;">
+  <div style="border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 80px;">
+    <div class="wrap" style="text-align: center;">
+      <h2 class="r" style="font-size: clamp(32px, 6vw, 64px); font-weight: 800; letter-spacing: -0.04em; color: var(--white); line-height: 1.15; margin-bottom: 12px;">지금 바로 시작하세요.</h2>
+      <p class="r d1" style="font-size: 16px; color: rgba(255,255,255,0.35); margin-bottom: 36px;">설치도, 계약도 필요 없습니다.<br>도입 후 3일이면 운영을 시작할 수 있습니다.</p>
+      <a href="#contact" class="r d2 pill-btn" style="background: rgba(255,255,255,0.1); color: var(--white); border: 1px solid rgba(255,255,255,0.15);">
+        무료 상담 신청
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg>
+      </a>
+    </div>
+  </div>
+  <div class="wrap" style="padding-top: 48px; padding-bottom: 48px;">
+    <div class="footer-grid" style="display: grid; grid-template-columns: 2.5fr 1fr 1fr 1fr; gap: 40px; margin-bottom: 48px;">
+      <div>
+        <p style="font-weight: 800; font-size: 16px; color: var(--white); margin-bottom: 14px;">스터디룸 매니저</p>
+        <p style="font-size: 14px; color: rgba(255,255,255,0.3); line-height: 1.8;">관리형 독서실 원장님을 위해<br>만든 통합 관리 솔루션</p>
+      </div>
+      <div>
+        <p style="font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.3); margin-bottom: 16px;">제품</p>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <a href="#features" style="font-size: 14px; color: rgba(255,255,255,0.45); text-decoration: none;">주요 기능</a>
+          <a href="#pricing" style="font-size: 14px; color: rgba(255,255,255,0.45); text-decoration: none;">요금제</a>
+          <a href="#faq" style="font-size: 14px; color: rgba(255,255,255,0.45); text-decoration: none;">FAQ</a>
+        </div>
+      </div>
+      <div>
+        <p style="font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.3); margin-bottom: 16px;">사례</p>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <a href="#" style="font-size: 14px; color: rgba(255,255,255,0.45); text-decoration: none;">원장 후기</a>
+          <a href="#about" style="font-size: 14px; color: rgba(255,255,255,0.45); text-decoration: none;">솔루션 소개</a>
+        </div>
+      </div>
+      <div>
+        <p style="font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.3); margin-bottom: 16px;">문의</p>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <a href="#contact" style="font-size: 14px; color: rgba(255,255,255,0.45); text-decoration: none;">상담 신청</a>
+          <a href="#contact" style="font-size: 14px; color: rgba(255,255,255,0.45); text-decoration: none;">카카오 문의</a>
+        </div>
+      </div>
+    </div>
+    <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 24px; display: flex; justify-content: space-between; align-items: center;">
+      <p style="font-size: 12px; color: rgba(255,255,255,0.2);">&copy; 2026 스터디룸 매니저</p>
+      <div style="display: flex; gap: 24px;">
+        <a href="#" style="font-size: 12px; color: rgba(255,255,255,0.2); text-decoration: none;">개인정보처리방침</a>
+        <a href="#" style="font-size: 12px; color: rgba(255,255,255,0.2); text-decoration: none;">이용약관</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.r').forEach(el => io.observe(el));
+
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const t = document.querySelector(a.getAttribute('href'));
+      if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    });
+  });
+
+  function toggleAcc(el) {
+    const item = el.parentElement;
+    const isOpen = item.classList.contains('open');
+    item.parentElement.querySelectorAll('.acc-item').forEach(i => i.classList.remove('open'));
+    if (!isOpen) item.classList.add('open');
+  }
+
+  // ── 상담 신청 폼 제출 ──
+  // TODO: 아래 URL을 Google Apps Script 웹앱 URL로 교체하세요
+  const FORM_ENDPOINT = 'YOUR_GOOGLE_APPS_SCRIPT_URL';
+
+  document.getElementById('contactForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('submitBtn');
+    const msg = document.getElementById('formMsg');
+    const name = document.getElementById('fieldName').value.trim();
+    const phone = document.getElementById('fieldPhone').value.trim();
+    const location = document.getElementById('fieldLocation').value.trim();
+    const method = document.getElementById('fieldMethod').value.trim();
+
+    if (!name || !phone) {
+      msg.style.color = '#dc2626';
+      msg.textContent = '성함과 연락처는 필수 입력입니다.';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '전송 중...';
+    msg.style.color = 'var(--gray-400)';
+    msg.textContent = '';
+
+    try {
+      const res = await fetch(FORM_ENDPOINT, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name, phone, location, method,
+          timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
+        })
+      });
+
+      btn.innerHTML = '신청 완료!';
+      btn.style.background = '#16a34a';
+      msg.style.color = '#16a34a';
+      msg.textContent = '감사합니다! 영업일 기준 24시간 이내 연락드리겠습니다.';
+      document.getElementById('contactForm').reset();
+
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.style.background = '';
+        btn.innerHTML = '30분 무료 상담 신청하기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg>';
+      }, 4000);
+
+    } catch (err) {
+      btn.disabled = false;
+      btn.innerHTML = '30분 무료 상담 신청하기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg>';
+      msg.style.color = '#dc2626';
+      msg.textContent = '전송에 실패했습니다. 잠시 후 다시 시도해주세요.';
+    }
+  });
+</script>
+</body>
+</html>
