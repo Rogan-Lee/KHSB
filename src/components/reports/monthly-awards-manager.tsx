@@ -5,8 +5,11 @@ import { useRouter } from "next/navigation";
 import { createMonthlyAward, deleteMonthlyAward } from "@/actions/reports";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { Trash2, Plus, Loader2, Award } from "lucide-react";
+import { Trash2, Plus, Loader2, Award, ChevronsUpDown, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface Props {
@@ -33,7 +36,9 @@ export function MonthlyAwardsManager({ year, month, awards, students }: Props) {
   const [category, setCategory] = useState<"ATTITUDE" | "MENTOR_PICK" | "IMPROVEMENT">("ATTITUDE");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [, startTransition] = useTransition();
+  const selectedStudent = students.find((s) => s.id === studentId);
 
   async function handleAdd() {
     if (!studentId) {
@@ -107,18 +112,46 @@ export function MonthlyAwardsManager({ year, month, awards, students }: Props) {
               <SelectItem value="IMPROVEMENT">진보상</SelectItem>
             </SelectContent>
           </Select>
-          <Select value={studentId} onValueChange={setStudentId}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="학생 선택" />
-            </SelectTrigger>
-            <SelectContent>
-              {students.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name} ({s.grade})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={pickerOpen}
+                className={cn(
+                  "h-8 justify-between text-xs font-normal",
+                  !selectedStudent && "text-muted-foreground"
+                )}
+              >
+                {selectedStudent ? `${selectedStudent.name} (${selectedStudent.grade})` : "학생 선택"}
+                <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[260px] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="이름/학년 검색…" className="text-xs" />
+                <CommandList>
+                  <CommandEmpty>일치하는 학생이 없습니다.</CommandEmpty>
+                  <CommandGroup>
+                    {students.map((s) => (
+                      <CommandItem
+                        key={s.id}
+                        value={`${s.name} ${s.grade}`}
+                        onSelect={() => {
+                          setStudentId(s.id);
+                          setPickerOpen(false);
+                        }}
+                        className="text-xs"
+                      >
+                        <Check className={cn("mr-2 h-3.5 w-3.5", studentId === s.id ? "opacity-100" : "opacity-0")} />
+                        {s.name} <span className="ml-1 text-muted-foreground">({s.grade})</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
         <Input
           value={description}
