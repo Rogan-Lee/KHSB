@@ -56,7 +56,20 @@ export function DatePicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      {name && <input type="hidden" name={name} value={current ?? ""} required={required} />}
+      {/* required 검증을 위해 hidden 대신 sr-only — 브라우저는 type=hidden 의 required 를 무시함 */}
+      {name && (
+        <input
+          type="text"
+          name={name}
+          value={current ?? ""}
+          required={required}
+          readOnly
+          tabIndex={-1}
+          aria-hidden="true"
+          onChange={() => {}}
+          className="sr-only absolute pointer-events-none"
+        />
+      )}
       <PopoverTrigger asChild disabled={disabled}>
         {compact ? (
           <button
