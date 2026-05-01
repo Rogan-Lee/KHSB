@@ -47,7 +47,7 @@ export default async function MentoringPage() {
     prisma.user.findMany({
       where: {
         OR: [
-          { role: "MENTOR" },
+          { role: { in: ["MENTOR", "HEAD_MENTOR"] } },
           // 멘토 겸직 관리자/스태프: 어드민으로 승격돼도 isMentor=true 면 드롭다운에 노출
           { isMentor: true, role: { in: ["SUPER_ADMIN", "DIRECTOR", "STAFF"] } },
         ],
