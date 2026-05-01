@@ -1102,12 +1102,14 @@ export function AttendanceTable({ students, today }: Props) {
                     })()}
                   </td>
 
-                  {/* 모의고사/내신 분석지 — 제출 / 미제출 / 정시 면제 3-state */}
+                  {/* 모의고사/내신 분석지 — 내신만 정시 면제 3-state, 모의는 제출/미제출 2-state */}
                   {(["mockAnalysisDate", "schoolAnalysisDate"] as const).map((analysisKey) => {
                     const aDate = localCheckDates.get(student.id)?.[analysisKey] ?? null;
                     const aPending = checkDatePending === `${student.id}:${analysisKey}`;
-                    const exemptKey = analysisKey === "mockAnalysisDate" ? "mockAnalysisExempt" : "schoolAnalysisExempt";
-                    const isExempt = localExempt.get(student.id)?.[exemptKey] ?? false;
+                    // 정시는 내신 분석에만 적용 — 정시 학생도 모의고사 분석은 필요
+                    const supportsExempt = analysisKey === "schoolAnalysisDate";
+                    const exemptKey = "schoolAnalysisExempt" as const;
+                    const isExempt = supportsExempt && (localExempt.get(student.id)?.[exemptKey] ?? false);
                     const ePending = exemptPending === `${student.id}:${exemptKey}`;
                     return (
                       <td key={analysisKey} className="px-2 py-3 text-center hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
@@ -1141,12 +1143,14 @@ export function AttendanceTable({ students, today }: Props) {
                               disabled={aPending || ePending}
                               className="px-2 py-0.5 text-[10px] rounded border border-border bg-background text-muted-foreground hover:bg-accent font-medium transition-colors disabled:opacity-40"
                             >{aPending ? "..." : "제출"}</button>
-                            <button
-                              onClick={() => toggleAnalysisExempt(student.id, exemptKey, true)}
-                              disabled={aPending || ePending}
-                              title="이 학생은 정시 지원이라 분석지 제출 면제"
-                              className="px-2 py-0.5 text-[10px] rounded border border-violet-200 bg-background text-violet-600 hover:bg-violet-50 font-medium transition-colors disabled:opacity-40"
-                            >{ePending ? "..." : "정시"}</button>
+                            {supportsExempt && (
+                              <button
+                                onClick={() => toggleAnalysisExempt(student.id, exemptKey, true)}
+                                disabled={aPending || ePending}
+                                title="이 학생은 정시 지원이라 내신 분석지 제출 면제"
+                                className="px-2 py-0.5 text-[10px] rounded border border-violet-200 bg-background text-violet-600 hover:bg-violet-50 font-medium transition-colors disabled:opacity-40"
+                              >{ePending ? "..." : "정시"}</button>
+                            )}
                           </div>
                         )}
                       </td>
