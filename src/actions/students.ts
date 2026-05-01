@@ -242,6 +242,27 @@ export async function patchStudentCheckDate(
   revalidatePath("/attendance");
 }
 
+// 분석지 정시 면제 토글: 정시 학생은 분석지 제출 면제. 면제 설정 시 해당 분석지 일자도 함께 정리.
+type AnalysisExemptKey = "mockAnalysisExempt" | "schoolAnalysisExempt";
+
+export async function patchStudentAnalysisExempt(
+  id: string,
+  key: AnalysisExemptKey,
+  exempt: boolean
+) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  // 면제 설정 시 같은 카테고리의 일자도 함께 비움 (제출 데이터 + 면제 동시 보유 방지)
+  const dateKey = key === "mockAnalysisExempt" ? "mockAnalysisDate" : "schoolAnalysisDate";
+  await prisma.student.update({
+    where: { id },
+    data: exempt
+      ? { [key]: true, [dateKey]: null }
+      : { [key]: false },
+  });
+  revalidatePath("/attendance");
+}
+
 export async function resetWeeklyCheckDates() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
