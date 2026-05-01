@@ -432,7 +432,10 @@ export function AttendanceTable({ students, today }: Props) {
       const created = await createDailyOuting({ studentId: student.id, date: todayDate, outStart: time });
       setLocalOutings((prev) => {
         const m = new Map(prev);
-        m.set(student.id, [...(m.get(student.id) ?? []), { id: created.id, outStart: created.outStart, outEnd: null }]);
+        m.set(student.id, [
+          ...(m.get(student.id) ?? []).filter((o) => o.id !== null),
+          { id: created.id, outStart: created.outStart, outEnd: null },
+        ]);
         return m;
       });
       toast.success("외출 시작");
@@ -827,24 +830,36 @@ export function AttendanceTable({ students, today }: Props) {
                           onChange={(e) => {
                             const v = e.target.value;
                             const target = activeOuting ?? (localOut.length > 0 ? localOut[localOut.length - 1] : null);
-                            if (target?.id) {
-                              setLocalOutings((prev) => {
-                                const m = new Map(prev);
-                                m.set(student.id, (m.get(student.id) ?? []).map((o) =>
+                            setLocalOutings((prev) => {
+                              const m = new Map(prev);
+                              const list = m.get(student.id) ?? [];
+                              if (target?.id) {
+                                m.set(student.id, list.map((o) =>
                                   o.id === target.id ? { ...o, outStart: v ? new Date(`${todayDate}T${v}:00`) : o.outStart } : o
                                 ));
-                                return m;
-                              });
-                            }
+                              } else if (v) {
+                                const draftIdx = list.findIndex((o) => o.id === null);
+                                const newDraft = { id: null, outStart: new Date(`${todayDate}T${v}:00`), outEnd: null };
+                                if (draftIdx >= 0) {
+                                  const updated = [...list]; updated[draftIdx] = newDraft;
+                                  m.set(student.id, updated);
+                                } else {
+                                  m.set(student.id, [...list, newDraft]);
+                                }
+                              }
+                              return m;
+                            });
                           }}
                           onFocus={() => setActiveTimeInput({ studentId: student.id, field: "outing", studentName: student.name })}
                           onBlur={() => {
                             setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "outing" ? null : prev), 200);
                             const target = activeOuting ?? (localOut.length > 0 ? localOut[localOut.length - 1] : null);
-                            const val = activeOuting ? toTimeString(activeOuting.outStart) :
-                              localOut.length > 0 && localOut[localOut.length - 1]?.outStart ? toTimeString(localOut[localOut.length - 1].outStart) : "";
-                            if (target?.id && val && /^\d{2}:\d{2}$/.test(val)) {
+                            const val = target?.outStart ? toTimeString(target.outStart) : "";
+                            if (!val || !/^\d{2}:\d{2}$/.test(val)) return;
+                            if (target?.id) {
                               updateDailyOuting(target.id, { date: todayDate, outStart: val });
+                            } else {
+                              quickStartOuting(student, val);
                             }
                           }}
                           className={cn(
