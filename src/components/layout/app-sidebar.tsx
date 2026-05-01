@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import {
   hasFeature, getMinimumPlan, PLAN_LABELS,
@@ -139,6 +140,15 @@ export function AppSidebar({
   badges?: Record<string, number>;
 }) {
   const pathname = usePathname();
+
+  // Sidebar nav 스크롤 위치 유지 — (dashboard) ↔ /online 이동 시 layout 리마운트로 인한 리셋 방지
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const saved = sessionStorage.getItem("sidebarScroll");
+    if (saved) el.scrollTop = Number(saved);
+  }, []);
 
   const allNavItems = [
     ...navSections.flatMap((s) => s.items),
@@ -334,7 +344,11 @@ export function AppSidebar({
       </div>
 
       {/* Nav */}
-      <nav className={cn("flex-1 overflow-y-auto pt-[18px]", isCollapsed && "px-0")}>
+      <nav
+        ref={navRef}
+        onScroll={(e) => sessionStorage.setItem("sidebarScroll", String(e.currentTarget.scrollTop))}
+        className={cn("flex-1 overflow-y-auto pt-[18px]", isCollapsed && "px-0")}
+      >
         {navSections.map(renderSection)}
         {isStaff(role) &&
           renderSection(insightsSection, navSections.length)}
