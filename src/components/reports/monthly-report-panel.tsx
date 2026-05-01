@@ -189,8 +189,8 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
         </div>
       </div>
 
-      {/* 2-col 마스터-디테일 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-3 min-h-[600px]">
+      {/* 2-col 마스터-디테일 — viewport 기준 고정 높이로 제약해 학생 리스트만 내부 스크롤되게 */}
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-3 h-[calc(100vh-260px)] min-h-[500px]">
         {/* 좌측: 학생 리스트 */}
         <div className="border rounded-lg bg-background overflow-hidden flex flex-col">
           <div className="px-3 py-2 border-b flex flex-col gap-1.5">
