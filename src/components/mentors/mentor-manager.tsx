@@ -152,7 +152,7 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
                           variant={mentor.role === "SUPER_ADMIN" || mentor.role === "DIRECTOR" ? "default" : mentor.role === "STAFF" ? "outline" : "secondary"}
                           className="text-xs"
                         >
-                          {mentor.role === "SUPER_ADMIN" ? "시스템 관리자" : mentor.role === "DIRECTOR" ? "원장" : mentor.role === "HEAD_MENTOR" ? "총괄 멘토" : mentor.role === "STAFF" ? "운영조교" : "멘토"}
+                          {mentor.role === "SUPER_ADMIN" ? "시스템 관리자" : mentor.role === "DIRECTOR" ? "원장" : mentor.role === "HEAD_MENTOR" ? "총괄 멘토" : mentor.role === "STAFF" ? "운영조교" : mentor.role === "CONSULTANT" ? "컨설턴트" : mentor.role === "MANAGER_MENTOR" ? "관리 멘토" : "멘토"}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{mentor.email}</p>
@@ -203,6 +203,8 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
                           <option value="STAFF">운영조교</option>
                           <option value="MENTOR">멘토</option>
                           <option value="HEAD_MENTOR">총괄 멘토</option>
+                          <option value="CONSULTANT">컨설턴트</option>
+                          <option value="MANAGER_MENTOR">관리 멘토</option>
                           <option value="DIRECTOR">원장</option>
                           <option value="SUPER_ADMIN">시스템 관리자</option>
                         </select>
@@ -296,6 +298,8 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
                     <option value="STAFF">운영조교</option>
                     <option value="MENTOR">멘토</option>
                     <option value="HEAD_MENTOR">총괄 멘토</option>
+                    <option value="CONSULTANT">컨설턴트</option>
+                    <option value="MANAGER_MENTOR">관리 멘토</option>
                   </select>
                 </div>
               </div>

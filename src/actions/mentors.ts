@@ -18,12 +18,14 @@ export async function createMentor(formData: FormData) {
   const role = (formData.get("role") as string) || "MENTOR";
 
   if (!name || !email) throw new Error("필수 항목을 입력하세요");
-  if (role !== "MENTOR" && role !== "STAFF" && role !== "HEAD_MENTOR") {
+  const createValidRoles = ["MENTOR", "STAFF", "HEAD_MENTOR", "CONSULTANT", "MANAGER_MENTOR"] as const;
+  type CreateRole = typeof createValidRoles[number];
+  if (!(createValidRoles as readonly string[]).includes(role)) {
     throw new Error("올바르지 않은 역할입니다");
   }
 
   await prisma.user.create({
-    data: { name, email, role: role as "MENTOR" | "STAFF" | "HEAD_MENTOR" },
+    data: { name, email, role: role as CreateRole },
   });
 
   revalidatePath("/mentors");
@@ -38,7 +40,7 @@ export async function updateMentor(id: string, formData: FormData) {
 
   if (!name || !email) throw new Error("필수 항목을 입력하세요");
 
-  const validRoles = ["MENTOR", "STAFF", "HEAD_MENTOR", "DIRECTOR", "SUPER_ADMIN"] as const;
+  const validRoles = ["MENTOR", "STAFF", "HEAD_MENTOR", "CONSULTANT", "MANAGER_MENTOR", "DIRECTOR", "SUPER_ADMIN"] as const;
   type ValidRole = typeof validRoles[number];
   const data: { name: string; email: string; role?: ValidRole } = { name, email };
   if (role && (validRoles as readonly string[]).includes(role)) data.role = role as ValidRole;
