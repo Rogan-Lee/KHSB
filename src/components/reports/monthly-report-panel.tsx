@@ -231,7 +231,7 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
               </span>
             </label>
           </div>
-          <div className="flex-1 overflow-y-auto divide-y">
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y">
             {filteredStudents.length === 0 ? (
               <p className="p-4 text-center text-xs text-muted-foreground">
                 {query ? "검색 결과 없음" : "학생이 없습니다"}
