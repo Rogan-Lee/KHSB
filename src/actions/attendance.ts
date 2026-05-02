@@ -159,6 +159,18 @@ export async function saveAttendanceRecord(data: {
   revalidatePath(`/students/${data.studentId}`);
 }
 
+/**
+ * 입실 요일 수 → 반 자동 분류
+ * - 0회: null (미배정)
+ * - 1~3회: 선택반
+ * - 4회 이상: 정규반
+ */
+function deriveClassGroup(dayCount: number): string | null {
+  if (dayCount === 0) return null;
+  if (dayCount >= 4) return "정규반";
+  return "선택반";
+}
+
 export async function saveAttendanceSchedule(
   studentId: string,
   schedules: { dayOfWeek: number; startTime: string; endTime: string }[]
@@ -172,6 +184,13 @@ export async function saveAttendanceSchedule(
       data: schedules.map((s) => ({ ...s, studentId })),
     });
   }
+
+  // 입실 요일 수에 따라 정규반/선택반 자동 분류
+  const dayCount = new Set(schedules.map((s) => s.dayOfWeek)).size;
+  await prisma.student.update({
+    where: { id: studentId },
+    data: { classGroup: deriveClassGroup(dayCount) },
+  });
 
   revalidatePath("/attendance/schedule");
   revalidatePath(`/students/${studentId}`);
@@ -224,6 +243,9 @@ export async function saveScheduleAndOutings(
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
+  // 입실 요일 수에 따라 정규반/선택반 자동 분류
+  const dayCount = new Set(schedules.map((s) => s.dayOfWeek)).size;
+
   await prisma.$transaction([
     prisma.attendanceSchedule.deleteMany({ where: { studentId } }),
     ...(schedules.length > 0
@@ -233,6 +255,10 @@ export async function saveScheduleAndOutings(
     ...(outings.length > 0
       ? [prisma.outingSchedule.createMany({ data: outings.map((o) => ({ ...o, studentId })) })]
       : []),
+    prisma.student.update({
+      where: { id: studentId },
+      data: { classGroup: deriveClassGroup(dayCount) },
+    }),
   ]);
 
   revalidatePath("/attendance/schedule");
