@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { reassignOnlineStudent, disableOnlineManagement } from "@/actions/online/students";
+import { Combobox } from "@/components/ui/combobox";
 
 type UserOption = { id: string; name: string };
 
@@ -73,45 +74,48 @@ export function ReassignOnlineStudentForm({
   return (
     <form onSubmit={onSave} className="space-y-3">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <label className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1">
           <span className="text-[11px] text-ink-4">관리 멘토</span>
-          <select
+          <Combobox
             value={mentorId}
-            onChange={(e) => setMentorId(e.target.value)}
-            className="rounded-[8px] border border-line bg-panel px-2.5 py-1.5 text-[12.5px]"
-          >
-            <option value="">미배정</option>
-            {mentors.map((m) => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
+            onChange={setMentorId}
+            items={mentors.map((m) => ({ value: m.id, label: m.name }))}
+            placeholder="미배정"
+            searchPlaceholder="이름 검색…"
+            allowEmpty
+            emptyLabel="미배정"
+            triggerClassName="h-auto py-1.5 text-[12.5px]"
+            popoverClassName="w-[--radix-popover-trigger-width]"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
           <span className="text-[11px] text-ink-4">컨설턴트</span>
-          <select
+          <Combobox
             value={consultantId}
-            onChange={(e) => setConsultantId(e.target.value)}
-            className="rounded-[8px] border border-line bg-panel px-2.5 py-1.5 text-[12.5px]"
-          >
-            <option value="">미배정</option>
-            {consultants.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
+            onChange={setConsultantId}
+            items={consultants.map((c) => ({ value: c.id, label: c.name }))}
+            placeholder="미배정"
+            searchPlaceholder="이름 검색…"
+            allowEmpty
+            emptyLabel="미배정"
+            triggerClassName="h-auto py-1.5 text-[12.5px]"
+            popoverClassName="w-[--radix-popover-trigger-width]"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
           <span className="text-[11px] text-ink-4">운영조교</span>
-          <select
+          <Combobox
             value={staffId}
-            onChange={(e) => setStaffId(e.target.value)}
-            className="rounded-[8px] border border-line bg-panel px-2.5 py-1.5 text-[12.5px]"
-          >
-            <option value="">미배정</option>
-            {staffs.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-        </label>
+            onChange={setStaffId}
+            items={staffs.map((s) => ({ value: s.id, label: s.name }))}
+            placeholder="미배정"
+            searchPlaceholder="이름 검색…"
+            allowEmpty
+            emptyLabel="미배정"
+            triggerClassName="h-auto py-1.5 text-[12.5px]"
+            popoverClassName="w-[--radix-popover-trigger-width]"
+          />
+        </div>
       </div>
       <div className="flex items-center justify-between">
         <button
