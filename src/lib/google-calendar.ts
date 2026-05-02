@@ -4,6 +4,7 @@ import { prisma } from "./prisma";
 const SCOPES = [
   "https://www.googleapis.com/auth/calendar",
   "https://www.googleapis.com/auth/spreadsheets.readonly",
+  "https://www.googleapis.com/auth/drive.readonly",
 ];
 
 function createOAuth2Client() {
