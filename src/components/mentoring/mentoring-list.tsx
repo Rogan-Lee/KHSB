@@ -13,6 +13,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent,
@@ -420,17 +421,16 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
         {mentors.length > 0 && (
           <>
             <span className="text-sm text-muted-foreground">담당 멘토</span>
-            <Select value={selectedMentorId} onValueChange={setSelectedMentorId}>
-              <SelectTrigger className="w-36 h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체</SelectItem>
-                {mentors.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              value={selectedMentorId === "all" ? "" : selectedMentorId}
+              onChange={(v) => setSelectedMentorId(v || "all")}
+              items={mentors.map((m) => ({ value: m.id, label: m.name }))}
+              placeholder="전체"
+              searchPlaceholder="멘토 이름 검색…"
+              allowEmpty
+              emptyLabel="전체"
+              triggerClassName="w-36 h-8 text-sm"
+            />
           </>
         )}
         <span className="text-sm text-muted-foreground">날짜</span>

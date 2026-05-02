@@ -7,6 +7,7 @@ import { Loader2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createOnlineStudent } from "@/actions/online/students";
+import { Combobox } from "@/components/ui/combobox";
 
 type UserOption = { id: string; name: string };
 
@@ -155,32 +156,30 @@ export function NewOnlineStudentForm({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Field label="관리 멘토">
-          <select
+          <Combobox
             value={assignedMentorId}
-            onChange={(e) => setAssignedMentorId(e.target.value)}
-            className="w-full rounded-[8px] border border-line bg-panel px-2.5 py-1.5 text-[13px]"
-          >
-            <option value="">나중에 배정</option>
-            {mentors.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
+            onChange={setAssignedMentorId}
+            items={mentors.map((m) => ({ value: m.id, label: m.name }))}
+            placeholder="나중에 배정"
+            searchPlaceholder="이름 검색…"
+            allowEmpty
+            emptyLabel="나중에 배정"
+            triggerClassName="text-[13px]"
+            popoverClassName="w-[--radix-popover-trigger-width]"
+          />
         </Field>
         <Field label="컨설턴트">
-          <select
+          <Combobox
             value={assignedConsultantId}
-            onChange={(e) => setAssignedConsultantId(e.target.value)}
-            className="w-full rounded-[8px] border border-line bg-panel px-2.5 py-1.5 text-[13px]"
-          >
-            <option value="">나중에 배정</option>
-            {consultants.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            onChange={setAssignedConsultantId}
+            items={consultants.map((c) => ({ value: c.id, label: c.name }))}
+            placeholder="나중에 배정"
+            searchPlaceholder="이름 검색…"
+            allowEmpty
+            emptyLabel="나중에 배정"
+            triggerClassName="text-[13px]"
+            popoverClassName="w-[--radix-popover-trigger-width]"
+          />
         </Field>
       </div>
 
