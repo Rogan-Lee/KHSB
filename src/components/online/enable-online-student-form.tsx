@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { enableOnlineManagement } from "@/actions/online/students";
+import { Combobox } from "@/components/ui/combobox";
 
 type StudentOption = { id: string; name: string; grade: string };
 type UserOption = { id: string; name: string };
@@ -57,53 +58,45 @@ export function EnableOnlineStudentForm({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
-      <label className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
         <span className="text-[11px] text-ink-4">학생</span>
-        <select
+        <Combobox
           value={studentId}
-          onChange={(e) => setStudentId(e.target.value)}
-          className="min-w-[160px] rounded-[8px] border border-line bg-panel px-2.5 py-1.5 text-[12.5px]"
-        >
-          <option value="">선택...</option>
-          {offlineStudents.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name} ({s.grade})
-            </option>
-          ))}
-        </select>
-      </label>
+          onChange={setStudentId}
+          items={offlineStudents.map((s) => ({ value: s.id, label: s.name, subLabel: s.grade }))}
+          placeholder="학생 선택…"
+          searchPlaceholder="이름/학년 검색…"
+          triggerClassName="min-w-[160px] h-auto py-1.5 text-[12.5px]"
+        />
+      </div>
 
-      <label className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
         <span className="text-[11px] text-ink-4">관리 멘토</span>
-        <select
+        <Combobox
           value={assignedMentorId}
-          onChange={(e) => setAssignedMentorId(e.target.value)}
-          className="min-w-[140px] rounded-[8px] border border-line bg-panel px-2.5 py-1.5 text-[12.5px]"
-        >
-          <option value="">나중에 배정</option>
-          {mentors.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-      </label>
+          onChange={setAssignedMentorId}
+          items={mentors.map((m) => ({ value: m.id, label: m.name }))}
+          placeholder="나중에 배정"
+          searchPlaceholder="이름 검색…"
+          allowEmpty
+          emptyLabel="나중에 배정"
+          triggerClassName="min-w-[140px] h-auto py-1.5 text-[12.5px]"
+        />
+      </div>
 
-      <label className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1">
         <span className="text-[11px] text-ink-4">컨설턴트</span>
-        <select
+        <Combobox
           value={assignedConsultantId}
-          onChange={(e) => setAssignedConsultantId(e.target.value)}
-          className="min-w-[140px] rounded-[8px] border border-line bg-panel px-2.5 py-1.5 text-[12.5px]"
-        >
-          <option value="">나중에 배정</option>
-          {consultants.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </label>
+          onChange={setAssignedConsultantId}
+          items={consultants.map((c) => ({ value: c.id, label: c.name }))}
+          placeholder="나중에 배정"
+          searchPlaceholder="이름 검색…"
+          allowEmpty
+          emptyLabel="나중에 배정"
+          triggerClassName="min-w-[140px] h-auto py-1.5 text-[12.5px]"
+        />
+      </div>
 
       <button
         type="submit"

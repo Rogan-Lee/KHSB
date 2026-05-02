@@ -245,11 +245,11 @@ export function ReportDetailPane({
       </div>
 
       {!report ? (
-        <div className="flex-1 flex items-center justify-center p-6 text-center text-sm text-muted-foreground">
+        <div className="flex-1 min-h-0 flex items-center justify-center p-6 text-center text-sm text-muted-foreground">
           아직 생성된 리포트가 없습니다. 상단 "리포트 생성" 버튼으로 집계를 실행하세요.
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-5">
           {/* 통계 요약 */}
           <section>
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">통계</h4>
