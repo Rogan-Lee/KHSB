@@ -60,9 +60,30 @@ export function MarkdownEditor({ value, onChange, placeholder }: Props) {
   async function handleImageFile(file: File) {
     if (!editor) return;
     setUploading(true);
-    const fd = new FormData();
-    fd.append("file", file);
     try {
+      // HEIC/HEIF 는 Chrome/Firefox 인라인 렌더 미지원 → 브라우저에서 JPEG 변환 후 업로드
+      let toUpload: File = file;
+      const isHeic =
+        file.type === "image/heic" ||
+        file.type === "image/heif" ||
+        /\.(heic|heif)$/i.test(file.name);
+      if (isHeic) {
+        try {
+          const { heicTo } = await import("heic-to");
+          const jpegBlob = await heicTo({ blob: file, type: "image/jpeg", quality: 0.88 });
+          toUpload = new File(
+            [jpegBlob],
+            file.name.replace(/\.(heic|heif)$/i, ".jpg"),
+            { type: "image/jpeg" },
+          );
+        } catch (err) {
+          console.warn("[markdown-editor] HEIC 변환 실패, 원본 시도:", err);
+          // 변환 실패 시 원본 그대로 — 서버 sharp fallback 시도
+        }
+      }
+
+      const fd = new FormData();
+      fd.append("file", toUpload);
       const res = await fetch("/api/upload", { method: "POST", body: fd });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "업로드 실패");
