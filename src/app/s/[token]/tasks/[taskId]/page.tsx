@@ -70,6 +70,7 @@ export default async function StudentTaskDetailPage({
       content: f.content,
       status: f.status,
       createdAt: f.createdAt.toISOString(),
+      files: Array.isArray(f.files) ? (f.files as unknown as UploadedFile[]) : [],
     })),
   }));
 
