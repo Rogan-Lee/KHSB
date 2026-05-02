@@ -34,21 +34,22 @@ export default async function OnlineStudentDetailPage({
   const [mentors, consultants, staffs, feedbackPendingCount] = await Promise.all([
     canManage
       ? prisma.user.findMany({
-          where: { role: "MANAGER_MENTOR" },
+          // 관리 멘토: MANAGER_MENTOR 외에도 멘토/운영조교/총괄멘토(/원장/SA) 도 배정 가능
+          where: { role: { in: ["MANAGER_MENTOR", "MENTOR", "STAFF", "HEAD_MENTOR", "DIRECTOR", "SUPER_ADMIN"] } },
           orderBy: { name: "asc" },
           select: { id: true, name: true },
         })
       : Promise.resolve([]),
     canManage
       ? prisma.user.findMany({
-          where: { role: "CONSULTANT" },
+          where: { role: { in: ["CONSULTANT", "SUPER_ADMIN"] } },
           orderBy: { name: "asc" },
           select: { id: true, name: true },
         })
       : Promise.resolve([]),
     canManage
       ? prisma.user.findMany({
-          where: { role: "STAFF" },
+          where: { role: { in: ["STAFF", "SUPER_ADMIN"] } },
           orderBy: { name: "asc" },
           select: { id: true, name: true },
         })
