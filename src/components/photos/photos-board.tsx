@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   FolderTree, FolderPlus, Upload, Search, X, Trash2,
   ImageOff, CheckCircle2, AlertCircle, Calendar, User, MapPin,
-  ChevronRight, ChevronDown, Folder,
+  ChevronRight, ChevronDown, Folder, HardDrive, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -16,6 +16,7 @@ import {
   deletePhotoFolder,
   deletePhoto,
   linkPhotoStudent,
+  importPhotosFromDrive,
 } from "@/actions/photos";
 
 type FolderNode = {
@@ -81,6 +82,43 @@ export function PhotosBoard({
   const [uploadStats, setUploadStats] = useState<{ ok: number; failed: number; total: number; errors: string[] }>({
     ok: 0, failed: 0, total: 0, errors: [],
   });
+
+  // Drive 가져오기 상태
+  const [driveOpen, setDriveOpen] = useState(false);
+  const [driveUrl, setDriveUrl] = useState("");
+  const [driveImporting, setDriveImporting] = useState(false);
+
+  async function handleDriveImport() {
+    if (!driveUrl.trim()) {
+      toast.error("Drive URL 을 입력하세요");
+      return;
+    }
+    setDriveImporting(true);
+    try {
+      const result = await importPhotosFromDrive(driveUrl.trim());
+      const parts: string[] = [];
+      if (result.imported > 0) parts.push(`성공 ${result.imported}건`);
+      if (result.skipped > 0) parts.push(`중복 스킵 ${result.skipped}건`);
+      if (result.failed > 0) parts.push(`실패 ${result.failed}건`);
+      const summary = parts.join(" · ") || "처리할 이미지 없음";
+
+      if (result.imported > 0 || result.skipped > 0) {
+        toast.success(summary);
+        setDriveOpen(false);
+        setDriveUrl("");
+        if (result.imported > 0) router.refresh();
+      } else {
+        toast.error(summary);
+      }
+      if (result.errors.length > 0) {
+        console.warn("[Drive import errors]", result.errors);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "가져오기 실패");
+    } finally {
+      setDriveImporting(false);
+    }
+  }
 
   // 필터
   const filtered = useMemo(() => {
@@ -306,6 +344,15 @@ export function PhotosBoard({
             <Upload className="h-4 w-4 mr-1" />
             {uploading ? `업로드 중 (${uploadStats.ok + uploadStats.failed}/${uploadStats.total})` : "사진 업로드"}
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setDriveOpen(true)}
+            disabled={uploading || driveImporting}
+          >
+            <HardDrive className="h-4 w-4 mr-1" />
+            Drive 에서 가져오기
+          </Button>
           <input
             ref={fileInputRef}
             type="file"
@@ -514,6 +561,52 @@ export function PhotosBoard({
           </div>
         )}
       </div>
+
+      {/* Drive 가져오기 모달 */}
+      {driveOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => !driveImporting && setDriveOpen(false)}
+        >
+          <div
+            className="bg-background rounded-lg shadow-lg w-full max-w-md p-5 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2">
+              <HardDrive className="h-4 w-4 text-muted-foreground" />
+              <h3 className="font-semibold text-sm">Google Drive 에서 사진 가져오기</h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Drive 폴더 또는 파일 URL 을 붙여넣으세요. 폴더면 그 안의 모든 이미지를 한 번에 가져옵니다.
+              파일명이 <code className="bg-muted px-1 rounded">YYYYMMDD_좌석_이름.jpg</code> 형식이면 학생 자동 매칭, 아니면 오늘 날짜 폴더로 들어갑니다.
+            </p>
+            <Input
+              value={driveUrl}
+              onChange={(e) => setDriveUrl(e.target.value)}
+              placeholder="https://drive.google.com/drive/folders/..."
+              className="text-xs"
+              disabled={driveImporting}
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDriveOpen(false)}
+                disabled={driveImporting}
+              >
+                취소
+              </Button>
+              <Button size="sm" onClick={handleDriveImport} disabled={driveImporting || !driveUrl.trim()}>
+                {driveImporting ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />가져오는 중…</> : "가져오기"}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              ⓘ Google 계정에 Drive 권한이 필요합니다. 미연동 상태면 /students 페이지의 Google 연결 버튼으로 먼저 연동하세요.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

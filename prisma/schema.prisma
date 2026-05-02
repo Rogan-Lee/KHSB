@@ -839,6 +839,7 @@ model Photo {
   student       Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
   uploadedById  String
   uploadedByName String
+  driveFileId   String?      @unique // Google Drive 에서 import 한 경우 원본 파일 ID — 중복 import 방지
   uploadedAt    DateTime     @default(now())
 
   @@index([folderId])
