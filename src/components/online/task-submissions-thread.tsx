@@ -30,6 +30,7 @@ export type SubmissionVersion = {
     content: string;
     status: TaskFeedbackStatus;
     createdAt: string;
+    files?: UploadedFile[];
   }[];
 };
 
@@ -152,6 +153,32 @@ export function TaskSubmissionsThread({
                       <p className="text-[12px] text-ink whitespace-pre-wrap leading-relaxed">
                         {f.content}
                       </p>
+                      {f.files && f.files.length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {f.files.map((af, i) => (
+                            <li
+                              key={i}
+                              className="flex items-center gap-2 rounded-[6px] bg-panel border border-line px-2.5 py-1 text-[11.5px]"
+                            >
+                              <Paperclip className="h-3 w-3 text-ink-4 shrink-0" />
+                              <span className="flex-1 truncate text-ink">{af.name}</span>
+                              <span className="shrink-0 text-[10px] text-ink-5 tabular-nums">
+                                {(af.sizeBytes / 1024 / 1024).toFixed(1)}MB
+                              </span>
+                              <a
+                                href={af.url}
+                                target="_blank"
+                                rel="noopener"
+                                download={af.name}
+                                className="inline-flex items-center gap-0.5 text-[10.5px] text-ink-3 hover:text-ink"
+                              >
+                                <Download className="h-3 w-3" />
+                                다운
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -371,6 +371,7 @@ model TaskFeedback {
   authorId          String
   author            User               @relation(fields: [authorId], references: [id])
   content           String
+  files             Json               @default("[]") // [{ url, name, sizeBytes, mimeType }]
   status            TaskFeedbackStatus @default(COMMENT)
   readByStudentAt   DateTime?                                 // 학생이 읽은 시각 (미확인 카운트용)
   createdAt         DateTime           @default(now())

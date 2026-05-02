@@ -42,7 +42,7 @@ function safeName(filename: string): string {
     .slice(0, 200);
 }
 
-type UploadContext = "task" | "chat";
+type UploadContext = "task" | "chat" | "feedback";
 
 export async function POST(request: NextRequest) {
   let formData: FormData;
@@ -55,7 +55,9 @@ export async function POST(request: NextRequest) {
   const file = formData.get("file");
   const contextRaw = formData.get("context");
   const context: UploadContext =
-    contextRaw === "chat" ? "chat" : "task"; // default = task (BC)
+    contextRaw === "chat" ? "chat" :
+    contextRaw === "feedback" ? "feedback" :
+    "task"; // default = task (BC)
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "파일이 누락되었습니다" }, { status: 400 });
@@ -84,8 +86,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
     }
     blobPathPrefix = `online/tasks/${taskId}`;
-  } else {
-    // context === "chat"
+  } else if (context === "chat") {
     const chatId = formData.get("chatId");
     if (typeof chatId !== "string" || !chatId) {
       return NextResponse.json({ error: "chatId 가 필요합니다" }, { status: 400 });
@@ -124,6 +125,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
     }
     blobPathPrefix = `online/chats/${chatId}`;
+  } else {
+    // context === "feedback" — 온라인 staff 가 피드백 작성 시 첨부
+    const submissionId = formData.get("submissionId");
+    if (typeof submissionId !== "string" || !submissionId) {
+      return NextResponse.json({ error: "submissionId 가 필요합니다" }, { status: 400 });
+    }
+    const session = await auth();
+    if (!session?.user || !isOnlineStaff(session.user.role)) {
+      return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
+    }
+    const submission = await prisma.taskSubmission.findUnique({
+      where: { id: submissionId },
+      select: { id: true },
+    });
+    if (!submission) {
+      return NextResponse.json({ error: "제출물을 찾을 수 없습니다" }, { status: 404 });
+    }
+    blobPathPrefix = `online/feedback/${submissionId}`;
   }
 
   // 파일 크기/타입 검증
