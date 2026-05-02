@@ -96,13 +96,19 @@ export function PhotosBoard({
     setDriveImporting(true);
     try {
       const result = await importPhotosFromDrive(driveUrl.trim());
-      if (result.imported > 0) {
-        toast.success(`${result.imported}건 가져오기 완료${result.failed > 0 ? ` (실패 ${result.failed}건)` : ""}`);
+      const parts: string[] = [];
+      if (result.imported > 0) parts.push(`성공 ${result.imported}건`);
+      if (result.skipped > 0) parts.push(`중복 스킵 ${result.skipped}건`);
+      if (result.failed > 0) parts.push(`실패 ${result.failed}건`);
+      const summary = parts.join(" · ") || "처리할 이미지 없음";
+
+      if (result.imported > 0 || result.skipped > 0) {
+        toast.success(summary);
         setDriveOpen(false);
         setDriveUrl("");
-        router.refresh();
+        if (result.imported > 0) router.refresh();
       } else {
-        toast.error(result.failed > 0 ? `모두 실패 (${result.failed}건)` : "가져올 이미지가 없습니다");
+        toast.error(summary);
       }
       if (result.errors.length > 0) {
         console.warn("[Drive import errors]", result.errors);

@@ -143,11 +143,25 @@ export async function importPhotosFromDrive(driveUrl: string) {
   if (files.length === 0) throw new Error("가져올 이미지가 없습니다 (폴더 비었거나 권한 없음)");
 
   let imported = 0;
+  let skipped = 0;
   let failed = 0;
   const errors: { name: string; reason: string }[] = [];
 
+  // 사전 중복 체크 — 이미 같은 driveFileId 로 import 된 사진들 한 번에 조회
+  const existingDrive = await prisma.photo.findMany({
+    where: { driveFileId: { in: files.map((f) => f.id) } },
+    select: { driveFileId: true },
+  });
+  const alreadyImported = new Set(existingDrive.map((p) => p.driveFileId).filter(Boolean) as string[]);
+
   for (const f of files) {
     try {
+      // 중복 스킵
+      if (alreadyImported.has(f.id)) {
+        skipped++;
+        continue;
+      }
+
       // MIME 검증
       const isImage = ALLOWED_MIME_TYPES.includes(f.mimeType) ||
         /\.(jpe?g|png|heic|heif|webp)$/i.test(f.name);
@@ -247,15 +261,22 @@ export async function importPhotosFromDrive(driveUrl: string) {
           studentId,
           uploadedById: session.user.id,
           uploadedByName: session.user.name ?? "알 수 없음",
+          driveFileId: f.id,
         },
       });
       imported++;
     } catch (e) {
-      failed++;
-      errors.push({ name: f.name, reason: e instanceof Error ? e.message : "알 수 없는 오류" });
+      // 동시성으로 인한 unique constraint 위반(같은 driveFileId 중복 insert) 도 skip 으로 처리
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes("Photo_driveFileId_key") || msg.toLowerCase().includes("unique constraint")) {
+        skipped++;
+      } else {
+        failed++;
+        errors.push({ name: f.name, reason: msg });
+      }
     }
   }
 
   revalidatePath("/photos");
-  return { imported, failed, total: files.length, errors };
+  return { imported, skipped, failed, total: files.length, errors };
 }
