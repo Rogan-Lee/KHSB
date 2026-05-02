@@ -118,6 +118,7 @@ export async function createFeedback(params: {
   submissionId: string;
   content: string;
   status: TaskFeedbackStatus;
+  files?: UploadedFile[];
 }) {
   const session = await auth();
   requireOnlineStaff(session?.user?.role);
@@ -141,6 +142,7 @@ export async function createFeedback(params: {
       authorId: session!.user.id,
       content: params.content.trim(),
       status: params.status,
+      files: (params.files ?? []) as unknown as object,
     },
   });
 
