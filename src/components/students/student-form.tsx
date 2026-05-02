@@ -231,6 +231,7 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
               <SelectItem value="선택반">선택반</SelectItem>
             </SelectContent>
           </Select>
+          <p className="text-[10px] text-muted-foreground">입퇴실 일정 저장 시 자동 갱신 (3회까지 선택반 · 4회+ 정규반)</p>
         </div>
       </div>
 
