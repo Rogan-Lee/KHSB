@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { createStudent, updateStudent } from "@/actions/students";
 import { GRADE_OPTIONS, parseSchool } from "@/lib/utils";
 import { toast } from "sonner";
@@ -142,6 +143,7 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
+  const [mentorId, setMentorId] = useState(student?.mentorId ?? "");
 
   function handleSubmit(formData: FormData) {
     startTransition(async () => {
@@ -242,17 +244,17 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
 
       <div className="space-y-2">
         <Label htmlFor="mentorId">담당 멘토</Label>
-        <Select name="mentorId" defaultValue={student?.mentorId || "none"}>
-          <SelectTrigger>
-            <SelectValue placeholder="멘토 선택 (선택사항)" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">미배정</SelectItem>
-            {mentors.map((m) => (
-              <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Combobox
+          name="mentorId"
+          value={mentorId}
+          onChange={setMentorId}
+          items={mentors.map((m) => ({ value: m.id, label: m.name }))}
+          placeholder="멘토 선택 (선택사항)"
+          searchPlaceholder="멘토 이름 검색…"
+          allowEmpty
+          emptyLabel="미배정"
+          popoverClassName="w-[--radix-popover-trigger-width]"
+        />
       </div>
 
       <div className="grid grid-cols-3 gap-4">
