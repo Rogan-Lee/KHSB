@@ -1,6 +1,9 @@
 import { put } from "@vercel/blob";
 import { auth } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
+import sharp from "sharp";
+
+export const runtime = "nodejs"; // sharp 은 node 런타임 필요
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -58,10 +61,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // HEIC/HEIF 는 Chrome/Firefox 가 인라인 렌더 못 함 → JPEG 로 서버 변환 후 저장
+  let uploadBuffer: Buffer = Buffer.from(buffer);
+  let uploadType = file.type;
+  let uploadExt = file.type.split("/")[1];
+
+  if (file.type === "image/heic" || file.type === "image/heif") {
+    try {
+      uploadBuffer = await sharp(Buffer.from(buffer))
+        .rotate() // EXIF 회전 보정
+        .jpeg({ quality: 88 })
+        .toBuffer();
+      uploadType = "image/jpeg";
+      uploadExt = "jpg";
+    } catch (err) {
+      console.warn("[upload] HEIC → JPEG 변환 실패, 원본 유지:", err);
+      // sharp 의 HEIC 디코딩 실패 시 원본 그대로 저장 (브라우저에서 깨질 수 있음을 감수)
+    }
+  }
+
   try {
     const blob = await put(
-      `study-plans/${Date.now()}-${crypto.randomUUID()}.${file.type.split("/")[1]}`,
-      new Blob([buffer], { type: file.type }),
+      `study-plans/${Date.now()}-${crypto.randomUUID()}.${uploadExt}`,
+      new Blob([new Uint8Array(uploadBuffer)], { type: uploadType }),
       { access: "public", token: process.env.BLOB_READ_WRITE_TOKEN }
     );
     return NextResponse.json({ url: blob.url });
