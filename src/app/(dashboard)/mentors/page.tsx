@@ -12,7 +12,8 @@ export default async function MentorsPage() {
 
   const [mentors, schedules] = await Promise.all([
     prisma.user.findMany({
-      where: { role: { in: [...STAFF_ROLES] } },
+      // 직원 관리 노출 대상: STAFF_ROLES + 온라인 전용(CONSULTANT, MANAGER_MENTOR)
+      where: { role: { in: [...STAFF_ROLES, "CONSULTANT", "MANAGER_MENTOR"] } },
       select: { id: true, name: true, email: true, role: true },
       orderBy: { name: "asc" },
     }),
