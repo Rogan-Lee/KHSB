@@ -50,21 +50,24 @@ export default async function OnlineStudentsPage() {
       : Promise.resolve([]),
     canManage
       ? prisma.user.findMany({
-          where: { role: "MANAGER_MENTOR" },
+          // 관리 멘토: MANAGER_MENTOR 외에도 멘토/운영조교/총괄멘토(/원장/SA) 도 배정 가능
+          where: { role: { in: ["MANAGER_MENTOR", "MENTOR", "STAFF", "HEAD_MENTOR", "DIRECTOR", "SUPER_ADMIN"] } },
           orderBy: { name: "asc" },
           select: { id: true, name: true },
         })
       : Promise.resolve([]),
     canManage
       ? prisma.user.findMany({
-          where: { role: "CONSULTANT" },
+          // 컨설턴트: CONSULTANT + SUPER_ADMIN(테스트용)
+          where: { role: { in: ["CONSULTANT", "SUPER_ADMIN"] } },
           orderBy: { name: "asc" },
           select: { id: true, name: true },
         })
       : Promise.resolve([]),
     canManage
       ? prisma.user.findMany({
-          where: { role: "STAFF" },
+          // 운영조교: STAFF + SUPER_ADMIN(테스트용)
+          where: { role: { in: ["STAFF", "SUPER_ADMIN"] } },
           orderBy: { name: "asc" },
           select: { id: true, name: true },
         })
