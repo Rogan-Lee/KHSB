@@ -10,6 +10,15 @@ async function assertDirector() {
   if (!isFullAccess(session?.user?.role)) throw new Error("Unauthorized");
 }
 
+// 멘토 스케줄 관리는 총괄 멘토(HEAD_MENTOR)에게도 허용
+async function assertCanManageMentorSchedules() {
+  const session = await auth();
+  const role = session?.user?.role;
+  if (!isFullAccess(role) && role !== "HEAD_MENTOR") {
+    throw new Error("Unauthorized");
+  }
+}
+
 export async function createMentor(formData: FormData) {
   await assertDirector();
 
@@ -61,7 +70,7 @@ export async function saveMentorScheduleForMentor(
   timeStart: string,
   timeEnd: string
 ) {
-  await assertDirector();
+  await assertCanManageMentorSchedules();
 
   await prisma.mentorSchedule.upsert({
     where: { mentorId_dayOfWeek: { mentorId, dayOfWeek } },
@@ -73,7 +82,7 @@ export async function saveMentorScheduleForMentor(
 }
 
 export async function deleteMentorScheduleById(id: string) {
-  await assertDirector();
+  await assertCanManageMentorSchedules();
   await prisma.mentorSchedule.delete({ where: { id } });
   revalidatePath("/mentors");
 }
