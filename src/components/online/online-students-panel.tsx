@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   ExternalLink,
@@ -16,6 +18,11 @@ import {
   FileQuestion,
   ChevronRight,
   Video,
+  Pencil,
+  Trash2,
+  UserMinus,
+  UserCheck,
+  Loader2,
 } from "lucide-react";
 import {
   StudentFilterBar,
@@ -30,6 +37,12 @@ import {
   MentoringSessionsSection,
   type MentoringSessionRow,
 } from "@/components/online/mentoring-sessions-section";
+import { OnlineStudentEditDialog } from "@/components/online/online-student-edit-dialog";
+import {
+  deleteOnlineStudent,
+  withdrawOnlineStudent,
+  readmitOnlineStudent,
+} from "@/actions/online/students";
 
 // ─────────────── 데이터 타입 ───────────────
 
@@ -47,6 +60,7 @@ export type OnlineStudentPanelRow = {
   studentName: string;
   grade: string;
   school: string | null;
+  status: "ACTIVE" | "INACTIVE" | "GRADUATED" | "WITHDRAWN";
   onlineStartedAt: string | null;
   parentPhone: string;
   parentEmail: string | null;
@@ -143,10 +157,15 @@ export function OnlineStudentsPanel({
                     )}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-[13px] text-ink truncate">
+                      <span className={cn("font-medium text-[13px] truncate", r.status === "WITHDRAWN" ? "text-ink-5 line-through" : "text-ink")}>
                         {r.studentName}
                       </span>
                       <span className="text-[10.5px] text-ink-5">{r.grade}</span>
+                      {r.status === "WITHDRAWN" && (
+                        <span className="rounded-full bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-px text-[10px] font-semibold">
+                          퇴원
+                        </span>
+                      )}
                       <div className="ml-auto inline-flex items-center gap-1 shrink-0">
                         {r.upcomingSessionCount > 0 && (
                           <span
@@ -231,16 +250,63 @@ function StudentDetailPane({
   portalOrigin: string;
   canManage: boolean;
 }) {
+  const router = useRouter();
+  const [editOpen, setEditOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+
+  function handleWithdraw() {
+    if (!confirm(`${row.studentName} 학생을 퇴원 처리합니다.\n매직링크가 모두 무효화됩니다. 계속하시겠어요?`)) return;
+    startTransition(async () => {
+      try {
+        await withdrawOnlineStudent(row.studentId);
+        toast.success("퇴원 처리되었습니다");
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "퇴원 실패");
+      }
+    });
+  }
+
+  function handleReadmit() {
+    startTransition(async () => {
+      try {
+        await readmitOnlineStudent(row.studentId);
+        toast.success("재원 처리되었습니다");
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "재원 실패");
+      }
+    });
+  }
+
+  function handleDelete() {
+    if (!confirm(`${row.studentName} 학생을 영구 삭제합니다.\n관련 데이터(매직링크/제출/피드백 등)가 모두 삭제됩니다. 되돌릴 수 없습니다. 계속하시겠어요?`)) return;
+    startTransition(async () => {
+      try {
+        await deleteOnlineStudent(row.studentId);
+        toast.success("삭제되었습니다");
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "삭제 실패");
+      }
+    });
+  }
+
   return (
     <div className="flex-1 flex flex-col">
       {/* 헤더 */}
       <div className="px-5 py-3 border-b border-line flex items-center gap-3 flex-wrap">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-bold text-base text-ink">{row.studentName}</h3>
+            <h3 className={cn("font-bold text-base", row.status === "WITHDRAWN" ? "text-ink-4 line-through" : "text-ink")}>{row.studentName}</h3>
             <span className="text-xs text-ink-5">{row.grade}</span>
             {row.school && (
               <span className="text-xs text-ink-5">· {row.school}</span>
+            )}
+            {row.status === "WITHDRAWN" && (
+              <span className="rounded-full bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 text-[10.5px] font-semibold">
+                퇴원
+              </span>
             )}
           </div>
           <p className="text-[11px] text-ink-5 mt-0.5">
@@ -254,15 +320,71 @@ function StudentDetailPane({
             )}
           </p>
         </div>
-        <Link
-          href={`/online/students/${row.studentId}`}
-          className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-[11.5px] text-ink-3 hover:text-ink hover:border-line-strong"
-          title="이 학생 전용 상세 페이지로 이동"
-        >
-          <ExternalLink className="h-3 w-3" />
-          상세 페이지
-        </Link>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {canManage && (
+            <>
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                disabled={pending}
+                className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-[11.5px] text-ink-3 hover:text-ink hover:border-line-strong disabled:opacity-50"
+              >
+                <Pencil className="h-3 w-3" />
+                수정
+              </button>
+              {row.status === "WITHDRAWN" ? (
+                <button
+                  type="button"
+                  onClick={handleReadmit}
+                  disabled={pending}
+                  className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11.5px] text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                >
+                  {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserCheck className="h-3 w-3" />}
+                  재원
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleWithdraw}
+                  disabled={pending}
+                  className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-[11.5px] text-ink-3 hover:text-ink hover:border-line-strong disabled:opacity-50"
+                >
+                  {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserMinus className="h-3 w-3" />}
+                  퇴원
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={pending}
+                className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-white px-2 py-1 text-[11.5px] text-red-600 hover:bg-red-50 disabled:opacity-50"
+              >
+                <Trash2 className="h-3 w-3" />
+                삭제
+              </button>
+            </>
+          )}
+          <Link
+            href={`/online/students/${row.studentId}`}
+            className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-[11.5px] text-ink-3 hover:text-ink hover:border-line-strong"
+            title="이 학생 전용 상세 페이지로 이동"
+          >
+            <ExternalLink className="h-3 w-3" />
+            상세 페이지
+          </Link>
+        </div>
       </div>
+
+      {editOpen && (
+        <OnlineStudentEditDialog
+          row={row}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => {
+            setEditOpen(false);
+            router.refresh();
+          }}
+        />
+      )}
 
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         {/* 기본 정보 */}

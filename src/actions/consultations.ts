@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ConsultationStatus, ConsultationType, ConsultationCategory, ConsultationOwner } from "@/generated/prisma";
-import { requireFullAccess } from "@/lib/roles";
+import { requireFullAccess, requireStaff } from "@/lib/roles";
 import { notifySlack, formatConsultationAlert } from "@/lib/slack";
 
 export async function createConsultation(formData: FormData) {
@@ -52,7 +52,8 @@ export async function createConsultation(formData: FormData) {
 export async function updateConsultation(id: string, formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
-  requireFullAccess(session.user.role);
+  // 상태 변경(취소/완료) 등은 STAFF_ROLES 전체 허용 — 총괄 멘토도 취소 처리 가능
+  requireStaff(session.user.role);
 
   const raw = Object.fromEntries(formData.entries());
 
