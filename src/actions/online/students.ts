@@ -108,6 +108,98 @@ export async function enableOnlineManagement(params: {
 /**
  * 온라인 관리 해제. 학생 레코드는 유지, 매직링크 전량 무효화.
  */
+/**
+ * 온라인 학생 기본 정보 수정. 오프라인 등록 학생과 다르게 좌석/등원일 등은 다루지 않고
+ * 이름/학년/학교/연락처/이메일/목표 대학/선택 과목/입시 전형 만 patch.
+ */
+export async function updateOnlineStudent(params: {
+  studentId: string;
+  name?: string;
+  grade?: string;
+  school?: string | null;
+  parentPhone?: string;
+  parentEmail?: string | null;
+  targetUniversity?: string | null;
+  selectedSubjects?: string | null;
+  admissionType?: string | null;
+}) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+
+  const data: Record<string, unknown> = {};
+  if (params.name !== undefined) {
+    if (!params.name.trim()) throw new Error("이름은 필수입니다");
+    data.name = params.name.trim();
+  }
+  if (params.grade !== undefined) {
+    if (!params.grade.trim()) throw new Error("학년은 필수입니다");
+    data.grade = params.grade.trim();
+  }
+  if (params.school !== undefined) data.school = params.school?.trim() || null;
+  if (params.parentPhone !== undefined) {
+    if (!params.parentPhone.trim()) throw new Error("학부모 연락처는 필수입니다");
+    data.parentPhone = params.parentPhone.trim();
+  }
+  if (params.parentEmail !== undefined) data.parentEmail = params.parentEmail?.trim() || null;
+  if (params.targetUniversity !== undefined) data.targetUniversity = params.targetUniversity?.trim() || null;
+  if (params.selectedSubjects !== undefined) data.selectedSubjects = params.selectedSubjects?.trim() || null;
+  if (params.admissionType !== undefined) data.admissionType = params.admissionType?.trim() || null;
+
+  await prisma.student.update({ where: { id: params.studentId }, data });
+  revalidatePath("/online/students");
+  revalidatePath(`/online/students/${params.studentId}`);
+}
+
+/**
+ * 온라인 학생 hard delete. 매직링크 취소 + Student 행 삭제.
+ * 단순 퇴원 처리는 withdrawOnlineStudent 사용.
+ */
+export async function deleteOnlineStudent(studentId: string) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+
+  await revokeAllLinksForStudent(studentId);
+  await prisma.student.delete({ where: { id: studentId } });
+
+  revalidatePath("/online/students");
+  revalidatePath(`/online/students/${studentId}`);
+  revalidatePath("/students");
+}
+
+/**
+ * 온라인 학생 퇴원 처리 (소프트). 데이터 보존 + 매직링크 무효화.
+ * status WITHDRAWN 으로 전환.
+ */
+export async function withdrawOnlineStudent(studentId: string) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+
+  await prisma.student.update({
+    where: { id: studentId },
+    data: { status: "WITHDRAWN" },
+  });
+  await revokeAllLinksForStudent(studentId);
+
+  revalidatePath("/online/students");
+  revalidatePath(`/online/students/${studentId}`);
+}
+
+/**
+ * 퇴원 학생 재원 처리. status ACTIVE 로 복귀.
+ */
+export async function readmitOnlineStudent(studentId: string) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+
+  await prisma.student.update({
+    where: { id: studentId },
+    data: { status: "ACTIVE" },
+  });
+
+  revalidatePath("/online/students");
+  revalidatePath(`/online/students/${studentId}`);
+}
+
 export async function disableOnlineManagement(studentId: string) {
   const session = await auth();
   requireFullAccess(session?.user?.role);
