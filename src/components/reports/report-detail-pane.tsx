@@ -83,7 +83,7 @@ export function ReportDetailPane({
 
   if (!student) {
     return (
-      <div className="border rounded-lg flex items-center justify-center h-full text-sm text-muted-foreground">
+      <div className="border rounded-lg flex items-center justify-center h-full min-h-0 text-sm text-muted-foreground">
         좌측에서 학생을 선택하세요.
       </div>
     );
@@ -191,7 +191,7 @@ export function ReportDetailPane({
     : null;
 
   return (
-    <div className="border rounded-lg bg-background flex flex-col h-full">
+    <div className="border rounded-lg bg-background flex flex-col h-full min-h-0 overflow-hidden">
       {/* 헤더 */}
       <div className="px-5 py-3 border-b flex items-center gap-3 flex-wrap">
         <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
