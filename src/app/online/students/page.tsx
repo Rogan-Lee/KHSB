@@ -14,8 +14,9 @@ export default async function OnlineStudentsPage() {
 
   const [onlineStudents, offlineStudents, mentors, consultants, staffs] = await Promise.all([
     prisma.student.findMany({
-      where: { isOnlineManaged: true, status: "ACTIVE" },
-      orderBy: [{ grade: "asc" }, { name: "asc" }],
+      // 재원/퇴원 처리 가능하도록 WITHDRAWN 도 함께 조회
+      where: { isOnlineManaged: true, status: { in: ["ACTIVE", "WITHDRAWN"] } },
+      orderBy: [{ status: "asc" }, { grade: "asc" }, { name: "asc" }],
       include: {
         assignedMentor: { select: { id: true, name: true } },
         assignedConsultant: { select: { id: true, name: true } },
@@ -84,6 +85,7 @@ export default async function OnlineStudentsPage() {
     studentName: s.name,
     grade: s.grade,
     school: s.school,
+    status: s.status,
     onlineStartedAt: s.onlineStartedAt?.toISOString() ?? null,
     parentPhone: s.parentPhone,
     parentEmail: s.parentEmail,
