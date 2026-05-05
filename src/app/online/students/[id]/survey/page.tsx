@@ -6,9 +6,11 @@ import {
   SURVEY_SECTIONS,
   normalizePerformanceAnswer,
   normalizeHistoryAnswer,
+  normalizeGoalsAnswer,
 } from "@/lib/online/survey-template";
 import { PerformanceSurveyDisplay } from "@/components/online/performance-survey-display";
 import { HistorySurveyDisplay } from "@/components/online/history-survey-display";
+import { GoalsSurveyDisplay } from "@/components/online/goals-survey-display";
 
 export default async function StudentSurveyReviewPage({
   params,
@@ -84,8 +86,14 @@ export default async function StudentSurveyReviewPage({
                         ? (raw as { answer: unknown }).answer
                         : raw,
                     )} />
-                  ) : (
+                  ) : section.kind === "history" ? (
                     <HistorySurveyDisplay value={normalizeHistoryAnswer(
+                      raw && typeof raw === "object" && "answer" in raw
+                        ? (raw as { answer: unknown }).answer
+                        : raw,
+                    )} />
+                  ) : (
+                    <GoalsSurveyDisplay value={normalizeGoalsAnswer(
                       raw && typeof raw === "object" && "answer" in raw
                         ? (raw as { answer: unknown }).answer
                         : raw,
