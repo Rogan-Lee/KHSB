@@ -2,11 +2,21 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { getSurveyForReview } from "@/actions/online/onboarding-survey";
+import { prisma } from "@/lib/prisma";
 import {
   SURVEY_SECTIONS,
   normalizePerformanceAnswer,
+  normalizeHistoryAnswer,
+  normalizeGoalsAnswer,
+  normalizeAdmissionTypeAnswer,
+  normalizeStrengthsWeaknessesAnswer,
+  parseGradeNumber,
 } from "@/lib/online/survey-template";
 import { PerformanceSurveyDisplay } from "@/components/online/performance-survey-display";
+import { HistorySurveyDisplay } from "@/components/online/history-survey-display";
+import { GoalsSurveyDisplay } from "@/components/online/goals-survey-display";
+import { AdmissionTypeSurveyDisplay } from "@/components/online/admission-type-survey-display";
+import { StrengthsWeaknessesSurveyDisplay } from "@/components/online/strengths-weaknesses-survey-display";
 
 export default async function StudentSurveyReviewPage({
   params,
@@ -24,6 +34,13 @@ export default async function StudentSurveyReviewPage({
 
   const { student, survey } = data;
   const sections = (survey?.sections as Record<string, unknown> | null) ?? {};
+
+  // admissionType 학기 노출 판단용 학년
+  const gradeRow = await prisma.student.findUnique({
+    where: { id: student.id },
+    select: { grade: true },
+  });
+  const gradeNumber = parseGradeNumber(gradeRow?.grade ?? null);
 
   return (
     <div className="space-y-5">
@@ -76,8 +93,35 @@ export default async function StudentSurveyReviewPage({
                 <div className="mt-3">
                   {section.kind === "text" ? (
                     <TextAnswerDisplay raw={raw} />
-                  ) : (
+                  ) : section.kind === "performance" ? (
                     <PerformanceSurveyDisplay value={normalizePerformanceAnswer(
+                      raw && typeof raw === "object" && "answer" in raw
+                        ? (raw as { answer: unknown }).answer
+                        : raw,
+                    )} />
+                  ) : section.kind === "history" ? (
+                    <HistorySurveyDisplay value={normalizeHistoryAnswer(
+                      raw && typeof raw === "object" && "answer" in raw
+                        ? (raw as { answer: unknown }).answer
+                        : raw,
+                    )} />
+                  ) : section.kind === "goals" ? (
+                    <GoalsSurveyDisplay value={normalizeGoalsAnswer(
+                      raw && typeof raw === "object" && "answer" in raw
+                        ? (raw as { answer: unknown }).answer
+                        : raw,
+                    )} />
+                  ) : section.kind === "admissionType" ? (
+                    <AdmissionTypeSurveyDisplay
+                      value={normalizeAdmissionTypeAnswer(
+                        raw && typeof raw === "object" && "answer" in raw
+                          ? (raw as { answer: unknown }).answer
+                          : raw,
+                      )}
+                      gradeNumber={gradeNumber}
+                    />
+                  ) : (
+                    <StrengthsWeaknessesSurveyDisplay value={normalizeStrengthsWeaknessesAnswer(
                       raw && typeof raw === "object" && "answer" in raw
                         ? (raw as { answer: unknown }).answer
                         : raw,
