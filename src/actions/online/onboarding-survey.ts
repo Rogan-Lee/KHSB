@@ -10,6 +10,7 @@ import {
   emptySurveySections,
   SURVEY_SECTIONS,
   isSurveyComplete,
+  parseGradeNumber,
 } from "@/lib/online/survey-template";
 
 const VALID_SECTION_KEYS = new Set(SURVEY_SECTIONS.map((s) => s.key));
@@ -113,7 +114,7 @@ export async function submitSurvey(params: { studentToken: string }) {
   if (survey.submittedAt) {
     return { alreadySubmitted: true };
   }
-  if (!isSurveyComplete(survey.sections)) {
+  if (!isSurveyComplete(survey.sections, { gradeNumber: parseGradeNumber(student.grade) })) {
     throw new Error("아직 모든 섹션을 완료하지 않았습니다");
   }
 

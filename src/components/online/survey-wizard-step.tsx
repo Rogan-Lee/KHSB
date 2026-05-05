@@ -17,13 +17,16 @@ import {
   type PerformanceAnswer,
   type HistoryAnswer,
   type GoalsAnswer,
+  type AdmissionTypeAnswer,
   normalizePerformanceAnswer,
   normalizeHistoryAnswer,
   normalizeGoalsAnswer,
+  normalizeAdmissionTypeAnswer,
 } from "@/lib/online/survey-template";
 import { PerformanceSurveyStep } from "./performance-survey-step";
 import { HistorySurveyStep } from "./history-survey-step";
 import { GoalsSurveyStep } from "./goals-survey-step";
+import { AdmissionTypeSurveyStep } from "./admission-type-survey-step";
 
 const AUTOSAVE_DELAY_MS = 800;
 
@@ -36,14 +39,15 @@ export function SurveyWizardStep({
   stepIndex, // 0-based
   totalSteps,
   isSubmitted,
+  gradeNumber = null,
 }: {
   studentToken: string;
   section: SurveySection;
-  // text: 기존 string 호환. performance/history/goals: 구조화 객체.
-  initialValue: string | PerformanceAnswer | HistoryAnswer | GoalsAnswer;
+  initialValue: string | PerformanceAnswer | HistoryAnswer | GoalsAnswer | AdmissionTypeAnswer;
   stepIndex: number;
   totalSteps: number;
   isSubmitted: boolean;
+  gradeNumber?: 1 | 2 | 3 | null;
 }) {
   const router = useRouter();
   const [navPending, startNav] = useTransition();
@@ -177,12 +181,20 @@ export function SurveyWizardStep({
           initial={typeof initialValue === "string" ? normalizeHistoryAnswer(initialValue) : (initialValue as HistoryAnswer)}
           isSubmitted={isSubmitted}
         />
-      ) : (
+      ) : section.kind === "goals" ? (
         <GoalsSurveyStep
           studentToken={studentToken}
           sectionKey={section.key}
           initial={typeof initialValue === "string" ? normalizeGoalsAnswer(initialValue) : (initialValue as GoalsAnswer)}
           isSubmitted={isSubmitted}
+        />
+      ) : (
+        <AdmissionTypeSurveyStep
+          studentToken={studentToken}
+          sectionKey={section.key}
+          initial={typeof initialValue === "string" ? normalizeAdmissionTypeAnswer(initialValue) : (initialValue as AdmissionTypeAnswer)}
+          isSubmitted={isSubmitted}
+          gradeNumber={gradeNumber}
         />
       )}
 

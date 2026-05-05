@@ -27,7 +27,16 @@ export type GoalsSection = BaseSection & {
   kind: "goals";
 };
 
-export type SurveySection = TextSection | PerformanceSection | HistorySection | GoalsSection;
+export type AdmissionTypeSection = BaseSection & {
+  kind: "admissionType";
+};
+
+export type SurveySection =
+  | TextSection
+  | PerformanceSection
+  | HistorySection
+  | GoalsSection
+  | AdmissionTypeSection;
 
 // ─────────────── Q5 (performance) 답변 스키마 ───────────────
 
@@ -411,6 +420,287 @@ export function isGoalsComplete(answer: GoalsAnswer): boolean {
   return true;
 }
 
+// ─────────────── Q3 (admissionType) 답변 스키마 ───────────────
+
+export const ADMISSION_PRIMARY_TRACK_OPTIONS = [
+  { value: "학종 단일", label: "학종 단일" },
+  { value: "교과 단일", label: "교과 단일" },
+  { value: "정시 단일", label: "정시 단일" },
+  { value: "학종+정시 병행", label: "학종+정시 병행" },
+  { value: "교과+정시 병행", label: "교과+정시 병행" },
+] as const;
+
+export const ADMISSION_CSAT_OPTIONS = [
+  { value: "충족 자신", label: "충족 자신" },
+  { value: "빠듯함", label: "빠듯함" },
+  { value: "불가", label: "불가" },
+  { value: "미적용 전형", label: "미적용 전형" },
+] as const;
+
+export const ADMISSION_CARD_TRACK_OPTIONS = [
+  { value: "학종", label: "학종" },
+  { value: "교과", label: "교과" },
+  { value: "정시", label: "정시" },
+  { value: "논술", label: "논술" },
+] as const;
+
+export const ADMISSION_CARD_FIT_OPTIONS = [
+  { value: "적정", label: "적정" },
+  { value: "소신", label: "소신" },
+  { value: "안정", label: "안정" },
+] as const;
+
+export const ALL_INTERNAL_SEMESTERS = ["1-1", "1-2", "2-1", "2-2", "3-1"] as const;
+export type InternalSemesterKey = (typeof ALL_INTERNAL_SEMESTERS)[number];
+
+export const INTERNAL_SUBJECT_KEYS = ["국", "수", "영", "탐1", "탐2", "전체"] as const;
+export type InternalSubjectKey = (typeof INTERNAL_SUBJECT_KEYS)[number];
+
+export const MOCK_SUBJECT_KEYS = ["국", "수", "영", "탐1", "탐2"] as const;
+export type MockSubjectKey = (typeof MOCK_SUBJECT_KEYS)[number];
+
+export type AdmissionPrimaryTrack =
+  | ""
+  | "학종 단일"
+  | "교과 단일"
+  | "정시 단일"
+  | "학종+정시 병행"
+  | "교과+정시 병행";
+
+export type AdmissionCsat = "" | "충족 자신" | "빠듯함" | "불가" | "미적용 전형";
+export type AdmissionCardTrack = "" | "학종" | "교과" | "정시" | "논술";
+export type AdmissionCardFit = "" | "적정" | "소신" | "안정";
+
+/** 한 학기 내신 — 과목별 등급 (string for input flexibility e.g. "1.5") */
+export type InternalSemester = {
+  semester: InternalSemesterKey;
+  unregistered: boolean; // 미진행 또는 미응답
+  grades: Record<InternalSubjectKey, string>;
+};
+
+export type MockExam = {
+  label: string; // 자유 입력 (예: "9월 모평", "3월 학평")
+  unregistered: boolean;
+  grades: Record<MockSubjectKey, string>;     // 등급
+  percentiles: Record<MockSubjectKey, string>; // 백분위
+};
+
+export type AdmissionCard = {
+  university: string;
+  department: string;
+  track: AdmissionCardTrack;
+  fit: AdmissionCardFit;
+};
+
+export type AdmissionTypeAnswer = {
+  primaryTrack: AdmissionPrimaryTrack;
+  internalGrades: InternalSemester[];   // ALL_INTERNAL_SEMESTERS 순서 그대로 5개
+  mockGrades: MockExam[];               // 항상 3개 (최근 3회)
+  csatMinimum: AdmissionCsat;
+  cardStrategy: AdmissionCard[];        // 항상 6개 (수시 카드 풀)
+  rationale: string;
+  legacyText?: string;
+};
+
+function emptyInternalGrades(): Record<InternalSubjectKey, string> {
+  return INTERNAL_SUBJECT_KEYS.reduce(
+    (acc, k) => ({ ...acc, [k]: "" }),
+    {} as Record<InternalSubjectKey, string>,
+  );
+}
+function emptyMockSubjectGrades(): Record<MockSubjectKey, string> {
+  return MOCK_SUBJECT_KEYS.reduce(
+    (acc, k) => ({ ...acc, [k]: "" }),
+    {} as Record<MockSubjectKey, string>,
+  );
+}
+
+export function emptyInternalSemester(semester: InternalSemesterKey): InternalSemester {
+  return { semester, unregistered: false, grades: emptyInternalGrades() };
+}
+export function emptyMockExam(): MockExam {
+  return {
+    label: "",
+    unregistered: false,
+    grades: emptyMockSubjectGrades(),
+    percentiles: emptyMockSubjectGrades(),
+  };
+}
+export function emptyAdmissionCard(): AdmissionCard {
+  return { university: "", department: "", track: "", fit: "" };
+}
+
+export function emptyAdmissionTypeAnswer(): AdmissionTypeAnswer {
+  return {
+    primaryTrack: "",
+    internalGrades: ALL_INTERNAL_SEMESTERS.map((s) => emptyInternalSemester(s)),
+    mockGrades: [emptyMockExam(), emptyMockExam(), emptyMockExam()],
+    csatMinimum: "",
+    cardStrategy: Array.from({ length: 6 }, () => emptyAdmissionCard()),
+    rationale: "",
+  };
+}
+
+/** 학년 문자열에서 정수 학년 추출. 인식 실패 시 null. */
+export function parseGradeNumber(grade: string | null | undefined): 1 | 2 | 3 | null {
+  if (!grade) return null;
+  const m = String(grade).match(/[1-3]/);
+  if (!m) return null;
+  const n = Number(m[0]);
+  return n === 1 || n === 2 || n === 3 ? n : null;
+}
+
+/**
+ * 한국 고교 학사력 기반 — 진행 완료 / 진행 중 / 미진행 분류.
+ * @param gradeNumber 학생 학년 (1·2·3)
+ * @param month 월 (1-12). 1학기는 3~7월, 2학기는 9~12월. 8월·1·2월은 방학.
+ * @returns 노출할 학기 + 진행상태 매핑
+ */
+export function classifyInternalSemesters(
+  gradeNumber: 1 | 2 | 3 | null,
+  now: Date = new Date(),
+): { semester: InternalSemesterKey; status: "completed" | "ongoing" | "future" }[] {
+  if (!gradeNumber) {
+    // 학년 미상 — 5학기 모두 노출, 모두 ongoing (보수적)
+    return ALL_INTERNAL_SEMESTERS.map((s) => ({ semester: s, status: "ongoing" as const }));
+  }
+  const month = now.getMonth() + 1; // 1-12
+  // 학기 단계: 1학기(3~7월), 여름방학(8월), 2학기(9~12월), 겨울방학(1~2월)
+  let currentTermInYear: 1 | 2;
+  if (month >= 3 && month <= 8) currentTermInYear = 1;
+  else currentTermInYear = 2;
+
+  return ALL_INTERNAL_SEMESTERS.map((sem) => {
+    const [y, t] = sem.split("-").map(Number) as [1 | 2 | 3, 1 | 2];
+    if (y < gradeNumber) return { semester: sem, status: "completed" as const };
+    if (y > gradeNumber) return { semester: sem, status: "future" as const };
+    // 같은 학년
+    if (t < currentTermInYear) return { semester: sem, status: "completed" as const };
+    if (t === currentTermInYear) return { semester: sem, status: "ongoing" as const };
+    return { semester: sem, status: "future" as const };
+  });
+}
+
+export function normalizeAdmissionTypeAnswer(raw: unknown): AdmissionTypeAnswer {
+  if (typeof raw === "string") {
+    return { ...emptyAdmissionTypeAnswer(), legacyText: raw };
+  }
+  if (raw && typeof raw === "object") {
+    const r = raw as Partial<AdmissionTypeAnswer>;
+    const internalGrades: InternalSemester[] = ALL_INTERNAL_SEMESTERS.map((sem) => {
+      const found = Array.isArray(r.internalGrades)
+        ? r.internalGrades.find((g) => g?.semester === sem)
+        : undefined;
+      const baseGrades = emptyInternalGrades();
+      if (found?.grades && typeof found.grades === "object") {
+        for (const k of INTERNAL_SUBJECT_KEYS) {
+          const v = (found.grades as Record<string, unknown>)[k];
+          baseGrades[k] = typeof v === "string" ? v : "";
+        }
+      }
+      return {
+        semester: sem,
+        unregistered: !!found?.unregistered,
+        grades: baseGrades,
+      };
+    });
+    const mockGrades: MockExam[] = [];
+    for (let i = 0; i < 3; i++) {
+      const m = Array.isArray(r.mockGrades) ? r.mockGrades[i] : null;
+      const grades = emptyMockSubjectGrades();
+      const percentiles = emptyMockSubjectGrades();
+      if (m?.grades && typeof m.grades === "object") {
+        for (const k of MOCK_SUBJECT_KEYS) {
+          const v = (m.grades as Record<string, unknown>)[k];
+          grades[k] = typeof v === "string" ? v : "";
+        }
+      }
+      if (m?.percentiles && typeof m.percentiles === "object") {
+        for (const k of MOCK_SUBJECT_KEYS) {
+          const v = (m.percentiles as Record<string, unknown>)[k];
+          percentiles[k] = typeof v === "string" ? v : "";
+        }
+      }
+      mockGrades.push({
+        label: typeof m?.label === "string" ? m.label : "",
+        unregistered: !!m?.unregistered,
+        grades,
+        percentiles,
+      });
+    }
+    const cardStrategy: AdmissionCard[] = [];
+    for (let i = 0; i < 6; i++) {
+      const c = Array.isArray(r.cardStrategy) ? r.cardStrategy[i] : null;
+      cardStrategy.push({
+        university: typeof c?.university === "string" ? c.university : "",
+        department: typeof c?.department === "string" ? c.department : "",
+        track: (c?.track ?? "") as AdmissionCardTrack,
+        fit: (c?.fit ?? "") as AdmissionCardFit,
+      });
+    }
+    return {
+      primaryTrack: (r.primaryTrack ?? "") as AdmissionPrimaryTrack,
+      internalGrades,
+      mockGrades,
+      csatMinimum: (r.csatMinimum ?? "") as AdmissionCsat,
+      cardStrategy,
+      rationale: typeof r.rationale === "string" ? r.rationale : "",
+      legacyText: typeof r.legacyText === "string" ? r.legacyText : undefined,
+    };
+  }
+  return emptyAdmissionTypeAnswer();
+}
+
+/**
+ * 완료 검사 — 학년·학사일정 기반으로 "노출되는" 학기만 검사.
+ * 노출 학기 중 unregistered=false 인 row 는 6과목 중 최소 1개 등급 입력.
+ * 미노출(미진행 future) 학기는 검사 스킵.
+ */
+export function isAdmissionTypeComplete(
+  answer: AdmissionTypeAnswer,
+  gradeNumber: 1 | 2 | 3 | null,
+  now: Date = new Date(),
+): boolean {
+  if (!answer.primaryTrack) return false;
+  if (!answer.csatMinimum) return false;
+  if (!answer.rationale.trim()) return false;
+
+  // 내신 — 노출되는 학기 중 등록된 것은 1과목+ 채워야
+  const classified = classifyInternalSemesters(gradeNumber, now);
+  for (const { semester, status } of classified) {
+    if (status === "future") continue;
+    const row = answer.internalGrades.find((g) => g.semester === semester);
+    if (!row) return false;
+    if (row.unregistered) continue;
+    const hasAny = INTERNAL_SUBJECT_KEYS.some((k) => row.grades[k]?.trim().length);
+    if (!hasAny) return false;
+  }
+
+  // 모의 — 3 row 중 등록된 것은 라벨 + 1과목+ 등급 채움
+  let mockRegistered = 0;
+  for (const m of answer.mockGrades) {
+    if (m.unregistered) continue;
+    mockRegistered++;
+    if (!m.label.trim()) return false;
+    const hasAny = MOCK_SUBJECT_KEYS.some((k) => m.grades[k]?.trim().length);
+    if (!hasAny) return false;
+  }
+  if (mockRegistered === 0) return false; // 최소 1회 등록 필수
+
+  // cardStrategy — 정시 단일이면 검사 스킵. 아니면 1 카드+ 채워져야
+  if (answer.primaryTrack !== "정시 단일") {
+    const cardsFilled = answer.cardStrategy.filter(
+      (c) => c.university.trim() || c.department.trim() || c.track || c.fit,
+    );
+    if (cardsFilled.length === 0) return false;
+    for (const c of cardsFilled) {
+      if (!c.university.trim() || !c.department.trim() || !c.track || !c.fit) return false;
+    }
+  }
+
+  return true;
+}
+
 // ─────────────── 섹션 정의 ───────────────
 
 export const SURVEY_SECTIONS: readonly SurveySection[] = [
@@ -429,13 +719,11 @@ export const SURVEY_SECTIONS: readonly SurveySection[] = [
       "1·2·3지망 대학·학과를 모두 채워 주세요. 우선순위 축(학과/대학/노양보)과 진로 일치 여부도 함께 골라 주세요.",
   },
   {
-    kind: "text",
+    kind: "admissionType",
     key: "admissionType",
     title: "희망 지원 전형",
     description:
-      "수시 학생부종합·학생부교과·정시 중 어느 쪽을 주력으로 준비할 예정인가요? 현재 내신·모의고사 대비 판단 근거도 함께 적어 주세요.",
-    placeholder:
-      "예) 수시 학종 주력. 내신 1.8 / 모의고사 2~3등급 편차. 교과 전형은 어렵고 학종으로 생기부 강점 살릴 예정.",
+      "주력 전형, 내신·모의고사 등급, 수능 최저 충족 자신감, 수시 카드 6장 전략, 판단 근거를 항목별로 입력해 주세요.",
   },
   {
     kind: "text",
@@ -487,6 +775,8 @@ export function emptySurveySections(): Record<string, unknown> {
       result[s.key] = emptyHistoryAnswer();
     } else if (s.kind === "goals") {
       result[s.key] = emptyGoalsAnswer();
+    } else if (s.kind === "admissionType") {
+      result[s.key] = emptyAdmissionTypeAnswer();
     }
   }
   return result;
@@ -515,11 +805,24 @@ export function normalizeSectionValue(section: SurveySection, raw: unknown): unk
       ? (raw as { answer: unknown }).answer
       : raw);
   }
+  if (section.kind === "admissionType") {
+    return normalizeAdmissionTypeAnswer(raw && typeof raw === "object" && "answer" in raw
+      ? (raw as { answer: unknown }).answer
+      : raw);
+  }
   return raw;
 }
 
-/** 섹션이 완료된 상태인지 (kind 별 분기). */
-export function isSectionComplete(section: SurveySection, value: unknown): boolean {
+/**
+ * 섹션이 완료된 상태인지 (kind 별 분기).
+ * admissionType 의 경우 학생 학년 컨텍스트가 필요하지만, 컨텍스트 없을 때는
+ * 학년 미상으로 검사 (보수적: 5학기 모두 노출 가정).
+ */
+export function isSectionComplete(
+  section: SurveySection,
+  value: unknown,
+  ctx?: { gradeNumber?: 1 | 2 | 3 | null; now?: Date },
+): boolean {
   if (section.kind === "text") {
     const a = (value as { answer?: string } | null)?.answer;
     return typeof a === "string" && a.trim().length > 0;
@@ -533,12 +836,22 @@ export function isSectionComplete(section: SurveySection, value: unknown): boole
   if (section.kind === "goals") {
     return isGoalsComplete(normalizeGoalsAnswer(value));
   }
+  if (section.kind === "admissionType") {
+    return isAdmissionTypeComplete(
+      normalizeAdmissionTypeAnswer(value),
+      ctx?.gradeNumber ?? null,
+      ctx?.now,
+    );
+  }
   return false;
 }
 
 /** 섹션별 작성 상태. 모든 섹션이 complete 면 true. */
-export function isSurveyComplete(sections: unknown): boolean {
+export function isSurveyComplete(
+  sections: unknown,
+  ctx?: { gradeNumber?: 1 | 2 | 3 | null; now?: Date },
+): boolean {
   if (!sections || typeof sections !== "object") return false;
   const s = sections as Record<string, unknown>;
-  return SURVEY_SECTIONS.every((section) => isSectionComplete(section, s[section.key]));
+  return SURVEY_SECTIONS.every((section) => isSectionComplete(section, s[section.key], ctx));
 }
