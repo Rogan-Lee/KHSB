@@ -6,9 +6,12 @@ import {
   normalizePerformanceAnswer,
   normalizeHistoryAnswer,
   normalizeGoalsAnswer,
+  normalizeAdmissionTypeAnswer,
+  parseGradeNumber,
   type PerformanceAnswer,
   type HistoryAnswer,
   type GoalsAnswer,
+  type AdmissionTypeAnswer,
 } from "@/lib/online/survey-template";
 import { SurveyWizardStep } from "@/components/online/survey-wizard-step";
 
@@ -40,7 +43,12 @@ export default async function SurveyStepPage({
   const section = SURVEY_SECTIONS[stepIndex];
   const raw = sections?.[section.key];
 
-  let initialValue: string | PerformanceAnswer | HistoryAnswer | GoalsAnswer;
+  let initialValue:
+    | string
+    | PerformanceAnswer
+    | HistoryAnswer
+    | GoalsAnswer
+    | AdmissionTypeAnswer;
   if (section.kind === "text") {
     initialValue =
       raw && typeof raw === "object" && "answer" in raw
@@ -60,9 +68,15 @@ export default async function SurveyStepPage({
         ? (raw as { answer: unknown }).answer
         : raw,
     );
-  } else {
-    // goals
+  } else if (section.kind === "goals") {
     initialValue = normalizeGoalsAnswer(
+      raw && typeof raw === "object" && "answer" in raw
+        ? (raw as { answer: unknown }).answer
+        : raw,
+    );
+  } else {
+    // admissionType
+    initialValue = normalizeAdmissionTypeAnswer(
       raw && typeof raw === "object" && "answer" in raw
         ? (raw as { answer: unknown }).answer
         : raw,
@@ -77,6 +91,7 @@ export default async function SurveyStepPage({
       stepIndex={stepIndex}
       totalSteps={SURVEY_SECTIONS.length}
       isSubmitted={!!survey?.submittedAt}
+      gradeNumber={parseGradeNumber(session.student.grade)}
     />
   );
 }
