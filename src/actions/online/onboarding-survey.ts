@@ -6,9 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { requireFullAccess, requireOnlineStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
-import { emptySurveySections, SURVEY_SECTIONS } from "@/lib/online/survey-template";
+import {
+  emptySurveySections,
+  SURVEY_SECTIONS,
+  isSurveyComplete,
+} from "@/lib/online/survey-template";
 
 const VALID_SECTION_KEYS = new Set(SURVEY_SECTIONS.map((s) => s.key));
+const SECTION_BY_KEY = new Map(SURVEY_SECTIONS.map((s) => [s.key, s]));
 
 /** 컨설턴트·원장용 설문 조회. */
 export async function getSurveyForReview(studentId: string) {
@@ -32,16 +37,23 @@ export async function getSurveyForReview(studentId: string) {
  * 학생 포털에서 섹션별 자동저장.
  * 토큰으로 학생 인증 → 해당 학생의 설문만 수정 가능.
  */
+/**
+ * 학생 포털에서 섹션별 자동저장. answer 는 섹션 kind 에 맞는 shape:
+ *  - text: { answer: string }
+ *  - performance: PerformanceAnswer 객체
+ */
 export async function upsertSurveySection(params: {
   studentToken: string;
   sectionKey: string;
-  answer: string;
+  // text 섹션 호환을 위해 string 도 허용 (자동으로 { answer } 로 래핑)
+  answer: string | Record<string, unknown>;
 }) {
   const { studentToken, sectionKey, answer } = params;
 
   if (!VALID_SECTION_KEYS.has(sectionKey)) {
     throw new Error("잘못된 섹션입니다");
   }
+  const section = SECTION_BY_KEY.get(sectionKey)!;
 
   const session = await validateMagicLink(studentToken);
   if (!session) throw new Error("인증이 만료되었습니다");
@@ -53,19 +65,30 @@ export async function upsertSurveySection(params: {
   });
 
   const currentSections =
-    (existing?.sections as Record<string, { answer: string }> | null) ??
-    emptySurveySections();
+    (existing?.sections as Record<string, unknown> | null) ?? emptySurveySections();
+
+  // kind 별 shape 정규화
+  let nextValue: unknown;
+  if (section.kind === "text") {
+    nextValue = typeof answer === "string" ? { answer } : { answer: typeof (answer as { answer?: unknown }).answer === "string" ? (answer as { answer: string }).answer : "" };
+  } else if (section.kind === "performance") {
+    if (typeof answer === "string") throw new Error("performance 섹션은 객체로 저장해야 합니다");
+    nextValue = answer;
+  } else {
+    nextValue = answer;
+  }
+
   const nextSections = {
     ...currentSections,
-    [sectionKey]: { answer },
+    [sectionKey]: nextValue,
   };
 
   await prisma.onboardingSurvey.upsert({
     where: { studentId },
-    update: { sections: nextSections },
+    update: { sections: nextSections as object },
     create: {
       studentId,
-      sections: nextSections,
+      sections: nextSections as object,
     },
   });
 
@@ -89,6 +112,9 @@ export async function submitSurvey(params: { studentToken: string }) {
   if (!survey) throw new Error("설문이 아직 작성되지 않았습니다");
   if (survey.submittedAt) {
     return { alreadySubmitted: true };
+  }
+  if (!isSurveyComplete(survey.sections)) {
+    throw new Error("아직 모든 섹션을 완료하지 않았습니다");
   }
 
   await prisma.onboardingSurvey.update({

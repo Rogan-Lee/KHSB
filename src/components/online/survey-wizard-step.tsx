@@ -12,7 +12,12 @@ import {
   Loader2,
 } from "lucide-react";
 import { upsertSurveySection } from "@/actions/online/onboarding-survey";
-import type { SurveySection } from "@/lib/online/survey-template";
+import {
+  type SurveySection,
+  type PerformanceAnswer,
+  normalizePerformanceAnswer,
+} from "@/lib/online/survey-template";
+import { PerformanceSurveyStep } from "./performance-survey-step";
 
 const AUTOSAVE_DELAY_MS = 800;
 
@@ -28,59 +33,65 @@ export function SurveyWizardStep({
 }: {
   studentToken: string;
   section: SurveySection;
-  initialValue: string;
+  // text: 기존 string 호환. performance: PerformanceAnswer 객체.
+  initialValue: string | PerformanceAnswer;
   stepIndex: number;
   totalSteps: number;
   isSubmitted: boolean;
 }) {
   const router = useRouter();
-  const [value, setValue] = useState(initialValue);
-  const [status, setStatus] = useState<SaveState>("idle");
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSaved = useRef(initialValue);
   const [navPending, startNav] = useTransition();
 
-  // Auto-save with debounce
+  // ───── text 섹션용 state (performance 섹션은 자체 컴포넌트에서 관리) ─────
+  const initialText = typeof initialValue === "string" ? initialValue : "";
+  const [textValue, setTextValue] = useState(initialText);
+  const [textStatus, setTextStatus] = useState<SaveState>("idle");
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSaved = useRef(initialText);
+
+  // text 섹션 — 자동 저장
   useEffect(() => {
+    if (section.kind !== "text") return;
     if (isSubmitted) return;
-    if (value === lastSaved.current) return;
+    if (textValue === lastSaved.current) return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
-      setStatus("saving");
+      setTextStatus("saving");
       try {
         await upsertSurveySection({
           studentToken,
           sectionKey: section.key,
-          answer: value,
+          answer: textValue,
         });
-        lastSaved.current = value;
-        setStatus("saved");
-        setTimeout(() => setStatus("idle"), 1500);
+        lastSaved.current = textValue;
+        setTextStatus("saved");
+        setTimeout(() => setTextStatus("idle"), 1500);
       } catch (err) {
-        setStatus("error");
+        setTextStatus("error");
         toast.error(err instanceof Error ? err.message : "자동저장 실패");
       }
     }, AUTOSAVE_DELAY_MS);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [value, studentToken, section.key, isSubmitted]);
+  }, [textValue, studentToken, section, isSubmitted]);
 
   const flushAndGo = (nextHref: string) => {
     if (timer.current) clearTimeout(timer.current);
     startNav(async () => {
-      if (!isSubmitted && value !== lastSaved.current) {
+      // text 섹션만 명시 flush. performance 는 자체 디바운스 마쳐 있을 가능성 높음.
+      if (section.kind === "text" && !isSubmitted && textValue !== lastSaved.current) {
         try {
-          setStatus("saving");
+          setTextStatus("saving");
           await upsertSurveySection({
             studentToken,
             sectionKey: section.key,
-            answer: value,
+            answer: textValue,
           });
-          lastSaved.current = value;
-          setStatus("saved");
+          lastSaved.current = textValue;
+          setTextStatus("saved");
         } catch (err) {
-          setStatus("error");
+          setTextStatus("error");
           toast.error(err instanceof Error ? err.message : "저장 실패");
           return;
         }
@@ -109,7 +120,7 @@ export function SurveyWizardStep({
             <span className="text-brand">{stepIndex + 1}</span>
             <span className="text-ink-5"> / {totalSteps}</span>
           </span>
-          <SaveBadge status={status} disabled={isSubmitted} />
+          {section.kind === "text" && <SaveBadge status={textStatus} disabled={isSubmitted} />}
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-canvas-2">
           <div
@@ -129,23 +140,33 @@ export function SurveyWizardStep({
         </p>
       </div>
 
-      {/* Answer */}
-      <textarea
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        disabled={isSubmitted}
-        placeholder={section.placeholder}
-        rows={10}
-        className="w-full resize-none rounded-[14px] border border-line bg-panel px-4 py-3.5 text-[14.5px] leading-relaxed text-ink placeholder:text-ink-5 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-60"
-      />
-
-      {!isSubmitted && (
-        <p className="text-[11.5px] text-ink-4">
-          입력하면 자동으로 저장돼요. 자유롭게 적고, 부족하면 나중에 돌아와도 괜찮아요.
-        </p>
+      {/* Answer — kind 별 분기 */}
+      {section.kind === "text" ? (
+        <>
+          <textarea
+            value={textValue}
+            onChange={(e) => setTextValue(e.target.value)}
+            disabled={isSubmitted}
+            placeholder={section.placeholder}
+            rows={10}
+            className="w-full resize-none rounded-[14px] border border-line bg-panel px-4 py-3.5 text-[14.5px] leading-relaxed text-ink placeholder:text-ink-5 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-60"
+          />
+          {!isSubmitted && (
+            <p className="text-[11.5px] text-ink-4">
+              입력하면 자동으로 저장돼요. 자유롭게 적고, 부족하면 나중에 돌아와도 괜찮아요.
+            </p>
+          )}
+        </>
+      ) : (
+        <PerformanceSurveyStep
+          studentToken={studentToken}
+          sectionKey={section.key}
+          initial={typeof initialValue === "string" ? normalizePerformanceAnswer(initialValue) : initialValue}
+          isSubmitted={isSubmitted}
+        />
       )}
 
-      {/* Sticky bottom nav inside content (above bottom tab bar) */}
+      {/* Sticky bottom nav */}
       <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+64px)] -mx-4 mt-6 border-t border-line bg-canvas/85 px-4 py-3 backdrop-blur-md">
         <div className="flex items-center gap-2">
           <Link

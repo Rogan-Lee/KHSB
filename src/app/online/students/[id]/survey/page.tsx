@@ -2,7 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { getSurveyForReview } from "@/actions/online/onboarding-survey";
-import { SURVEY_SECTIONS } from "@/lib/online/survey-template";
+import {
+  SURVEY_SECTIONS,
+  normalizePerformanceAnswer,
+} from "@/lib/online/survey-template";
+import { PerformanceSurveyDisplay } from "@/components/online/performance-survey-display";
 
 export default async function StudentSurveyReviewPage({
   params,
@@ -19,8 +23,7 @@ export default async function StudentSurveyReviewPage({
   }
 
   const { student, survey } = data;
-  const sections =
-    (survey?.sections as Record<string, { answer?: string }> | null) ?? {};
+  const sections = (survey?.sections as Record<string, unknown> | null) ?? {};
 
   return (
     <div className="space-y-5">
@@ -58,7 +61,7 @@ export default async function StudentSurveyReviewPage({
       {survey && (
         <div className="space-y-3">
           {SURVEY_SECTIONS.map((section) => {
-            const answer = sections[section.key]?.answer?.trim() ?? "";
+            const raw = sections[section.key];
             return (
               <section
                 key={section.key}
@@ -70,14 +73,37 @@ export default async function StudentSurveyReviewPage({
                 <p className="mt-1 text-[11.5px] text-ink-5 leading-relaxed">
                   {section.description}
                 </p>
-                <div className="mt-3 rounded-[8px] border border-line-2 bg-canvas px-3 py-2.5 text-[12.5px] text-ink whitespace-pre-wrap leading-relaxed min-h-[2.5em]">
-                  {answer || <span className="text-ink-5">(비어 있음)</span>}
+                <div className="mt-3">
+                  {section.kind === "text" ? (
+                    <TextAnswerDisplay raw={raw} />
+                  ) : (
+                    <PerformanceSurveyDisplay value={normalizePerformanceAnswer(
+                      raw && typeof raw === "object" && "answer" in raw
+                        ? (raw as { answer: unknown }).answer
+                        : raw,
+                    )} />
+                  )}
                 </div>
               </section>
             );
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function TextAnswerDisplay({ raw }: { raw: unknown }) {
+  const answer =
+    raw && typeof raw === "object" && "answer" in raw
+      ? String((raw as { answer: unknown }).answer ?? "")
+      : typeof raw === "string"
+        ? raw
+        : "";
+  const trimmed = answer.trim();
+  return (
+    <div className="rounded-[8px] border border-line-2 bg-canvas px-3 py-2.5 text-[12.5px] text-ink whitespace-pre-wrap leading-relaxed min-h-[2.5em]">
+      {trimmed || <span className="text-ink-5">(비어 있음)</span>}
     </div>
   );
 }

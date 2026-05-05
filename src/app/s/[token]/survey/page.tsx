@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { validateMagicLink } from "@/lib/student-auth";
 import { prisma } from "@/lib/prisma";
-import { SURVEY_SECTIONS } from "@/lib/online/survey-template";
+import { SURVEY_SECTIONS, isSectionComplete } from "@/lib/online/survey-template";
 import { SurveySubmitButton } from "@/components/online/survey-submit-button";
 
 export default async function StudentSurveyIntroPage({
@@ -25,11 +25,10 @@ export default async function StudentSurveyIntroPage({
     select: { sections: true, submittedAt: true },
   });
 
-  const sections =
-    (survey?.sections as Record<string, { answer?: string }> | null) ?? null;
+  const sections = (survey?.sections as Record<string, unknown> | null) ?? null;
 
-  const filledFlags = SURVEY_SECTIONS.map(
-    (s) => (sections?.[s.key]?.answer ?? "").trim().length > 0
+  const filledFlags = SURVEY_SECTIONS.map((s) =>
+    isSectionComplete(s, sections?.[s.key]),
   );
   const filledCount = filledFlags.filter(Boolean).length;
   const total = SURVEY_SECTIONS.length;
