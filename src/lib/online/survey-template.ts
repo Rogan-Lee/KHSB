@@ -19,7 +19,11 @@ export type PerformanceSection = BaseSection & {
   kind: "performance";
 };
 
-export type SurveySection = TextSection | PerformanceSection;
+export type HistorySection = BaseSection & {
+  kind: "history";
+};
+
+export type SurveySection = TextSection | PerformanceSection | HistorySection;
 
 // ─────────────── Q5 (performance) 답변 스키마 ───────────────
 
@@ -133,17 +137,181 @@ export function isPerformanceComplete(answer: PerformanceAnswer): boolean {
   return true;
 }
 
+// ─────────────── Q1 (history) 답변 스키마 ───────────────
+
+export const HISTORY_SUBJECT_OPTIONS = ["국", "수", "영", "사", "과", "기타"] as const;
+export const HISTORY_FORMAT_OPTIONS = [
+  { value: "현강", label: "현강" },
+  { value: "인강", label: "인강" },
+  { value: "과외", label: "과외" },
+  { value: "관리형", label: "관리형" },
+] as const;
+export const HISTORY_PLACE_OPTIONS = [
+  "독서실",
+  "집",
+  "학원 자습실",
+  "카페",
+  "학교 야자",
+  "기타",
+] as const;
+export const HISTORY_MIX_KEYS = ["school", "academy", "online", "selfStudy"] as const;
+export const HISTORY_MIX_LABELS: Record<(typeof HISTORY_MIX_KEYS)[number], string> = {
+  school: "학교",
+  academy: "학원",
+  online: "인강",
+  selfStudy: "자기주도",
+};
+
+export type HistoryFormat = "" | "현강" | "인강" | "과외" | "관리형";
+
+export type PriorEducation = {
+  institution: string;
+  periodFrom: string; // YYYY-MM
+  periodTo: string;   // YYYY-MM
+  subjects: string[]; // HISTORY_SUBJECT_OPTIONS
+  subjectOther?: string;
+  format: HistoryFormat;
+  quitReason: string;
+};
+
+export type StudyMix = {
+  school: number;
+  academy: number;
+  online: number;
+  selfStudy: number;
+};
+
+export type PriorConsulting =
+  | { had: "" }
+  | { had: "no" }
+  | {
+      had: "yes";
+      institution: string;
+      period: string;
+      satisfaction: number; // 1-5
+    };
+
+export type HistoryAnswer = {
+  priorEducation: PriorEducation[];
+  hasPriorEducation: "" | "yes" | "no"; // "no" 면 priorEducation 검사 스킵
+  currentMix: StudyMix;
+  studyPlace: "" | (typeof HISTORY_PLACE_OPTIONS)[number];
+  studyPlaceOther?: string;
+  priorConsulting: PriorConsulting;
+  legacyText?: string;
+};
+
+export function emptyPriorEducation(): PriorEducation {
+  return {
+    institution: "",
+    periodFrom: "",
+    periodTo: "",
+    subjects: [],
+    subjectOther: "",
+    format: "",
+    quitReason: "",
+  };
+}
+export function emptyStudyMix(): StudyMix {
+  return { school: 0, academy: 0, online: 0, selfStudy: 0 };
+}
+export function emptyHistoryAnswer(): HistoryAnswer {
+  return {
+    priorEducation: [emptyPriorEducation()],
+    hasPriorEducation: "",
+    currentMix: emptyStudyMix(),
+    studyPlace: "",
+    studyPlaceOther: "",
+    priorConsulting: { had: "" },
+  };
+}
+
+export function normalizeHistoryAnswer(raw: unknown): HistoryAnswer {
+  if (typeof raw === "string") {
+    return { ...emptyHistoryAnswer(), legacyText: raw };
+  }
+  if (raw && typeof raw === "object") {
+    const r = raw as Partial<HistoryAnswer> & { priorConsulting?: unknown };
+    const pc = (r.priorConsulting ?? { had: "" }) as Partial<PriorConsulting> & { had?: string };
+    let priorConsulting: PriorConsulting;
+    if (pc.had === "yes") {
+      priorConsulting = {
+        had: "yes",
+        institution: typeof (pc as { institution?: string }).institution === "string" ? (pc as { institution: string }).institution : "",
+        period: typeof (pc as { period?: string }).period === "string" ? (pc as { period: string }).period : "",
+        satisfaction: typeof (pc as { satisfaction?: number }).satisfaction === "number" ? (pc as { satisfaction: number }).satisfaction : 0,
+      };
+    } else if (pc.had === "no") {
+      priorConsulting = { had: "no" };
+    } else {
+      priorConsulting = { had: "" };
+    }
+    return {
+      priorEducation: Array.isArray(r.priorEducation) && r.priorEducation.length > 0
+        ? r.priorEducation.map((p) => ({
+            institution: typeof p?.institution === "string" ? p.institution : "",
+            periodFrom: typeof p?.periodFrom === "string" ? p.periodFrom : "",
+            periodTo: typeof p?.periodTo === "string" ? p.periodTo : "",
+            subjects: Array.isArray(p?.subjects) ? p.subjects : [],
+            subjectOther: typeof p?.subjectOther === "string" ? p.subjectOther : "",
+            format: (p?.format ?? "") as HistoryFormat,
+            quitReason: typeof p?.quitReason === "string" ? p.quitReason : "",
+          }))
+        : [emptyPriorEducation()],
+      hasPriorEducation: r.hasPriorEducation === "yes" || r.hasPriorEducation === "no" ? r.hasPriorEducation : "",
+      currentMix: {
+        school: typeof r.currentMix?.school === "number" ? r.currentMix.school : 0,
+        academy: typeof r.currentMix?.academy === "number" ? r.currentMix.academy : 0,
+        online: typeof r.currentMix?.online === "number" ? r.currentMix.online : 0,
+        selfStudy: typeof r.currentMix?.selfStudy === "number" ? r.currentMix.selfStudy : 0,
+      },
+      studyPlace: (HISTORY_PLACE_OPTIONS as readonly string[]).includes(r.studyPlace ?? "") ? (r.studyPlace as HistoryAnswer["studyPlace"]) : "",
+      studyPlaceOther: typeof r.studyPlaceOther === "string" ? r.studyPlaceOther : "",
+      priorConsulting,
+      legacyText: typeof r.legacyText === "string" ? r.legacyText : undefined,
+    };
+  }
+  return emptyHistoryAnswer();
+}
+
+export function isHistoryComplete(answer: HistoryAnswer): boolean {
+  // priorEducation: hasPriorEducation === "no" 면 스킵, "yes" 면 row 1+ 모두 채워야
+  if (!answer.hasPriorEducation) return false;
+  if (answer.hasPriorEducation === "yes") {
+    if (answer.priorEducation.length === 0) return false;
+    for (const p of answer.priorEducation) {
+      if (!p.institution.trim() || !p.periodFrom || !p.periodTo) return false;
+      if (!p.format) return false;
+      if (!p.quitReason.trim()) return false;
+      if (p.subjects.length === 0) return false;
+      if (p.subjects.includes("기타") && !p.subjectOther?.trim()) return false;
+    }
+  }
+  // currentMix: 합 100
+  const mixSum = answer.currentMix.school + answer.currentMix.academy + answer.currentMix.online + answer.currentMix.selfStudy;
+  if (mixSum !== 100) return false;
+  // studyPlace: 선택 + "기타" 시 other 필수
+  if (!answer.studyPlace) return false;
+  if (answer.studyPlace === "기타" && !answer.studyPlaceOther?.trim()) return false;
+  // priorConsulting: 라디오 선택 + yes 시 모든 필드
+  if (answer.priorConsulting.had === "") return false;
+  if (answer.priorConsulting.had === "yes") {
+    if (!answer.priorConsulting.institution.trim()) return false;
+    if (!answer.priorConsulting.period.trim()) return false;
+    if (answer.priorConsulting.satisfaction < 1 || answer.priorConsulting.satisfaction > 5) return false;
+  }
+  return true;
+}
+
 // ─────────────── 섹션 정의 ───────────────
 
 export const SURVEY_SECTIONS: readonly SurveySection[] = [
   {
-    kind: "text",
+    kind: "history",
     key: "history",
     title: "학습 이력",
     description:
-      "이전에 다녔던 학원·과외·인강 등 학습 경험과 현재 학습 환경을 자유롭게 적어 주세요.",
-    placeholder:
-      "예) 중3까지 메가스터디 수학 들었음. 고1부터는 자습 위주. 현재는 국어 독학...",
+      "이전에 다녔던 학원·과외·인강과 현재 학습 환경을 항목별로 입력해 주세요. 학습 시간 분배(학교·학원·인강·자기주도)는 합이 100%가 되어야 합니다.",
   },
   {
     kind: "text",
@@ -209,6 +377,8 @@ export function emptySurveySections(): Record<string, unknown> {
       result[s.key] = { answer: "" };
     } else if (s.kind === "performance") {
       result[s.key] = emptyPerformanceAnswer();
+    } else if (s.kind === "history") {
+      result[s.key] = emptyHistoryAnswer();
     }
   }
   return result;
@@ -227,6 +397,11 @@ export function normalizeSectionValue(section: SurveySection, raw: unknown): unk
       ? (raw as { answer: unknown }).answer
       : raw);
   }
+  if (section.kind === "history") {
+    return normalizeHistoryAnswer(raw && typeof raw === "object" && "answer" in raw
+      ? (raw as { answer: unknown }).answer
+      : raw);
+  }
   return raw;
 }
 
@@ -238,6 +413,9 @@ export function isSectionComplete(section: SurveySection, value: unknown): boole
   }
   if (section.kind === "performance") {
     return isPerformanceComplete(normalizePerformanceAnswer(value));
+  }
+  if (section.kind === "history") {
+    return isHistoryComplete(normalizeHistoryAnswer(value));
   }
   return false;
 }
