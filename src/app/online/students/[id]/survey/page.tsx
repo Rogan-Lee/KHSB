@@ -9,12 +9,14 @@ import {
   normalizeHistoryAnswer,
   normalizeGoalsAnswer,
   normalizeAdmissionTypeAnswer,
+  normalizeStrengthsWeaknessesAnswer,
   parseGradeNumber,
 } from "@/lib/online/survey-template";
 import { PerformanceSurveyDisplay } from "@/components/online/performance-survey-display";
 import { HistorySurveyDisplay } from "@/components/online/history-survey-display";
 import { GoalsSurveyDisplay } from "@/components/online/goals-survey-display";
 import { AdmissionTypeSurveyDisplay } from "@/components/online/admission-type-survey-display";
+import { StrengthsWeaknessesSurveyDisplay } from "@/components/online/strengths-weaknesses-survey-display";
 
 export default async function StudentSurveyReviewPage({
   params,
@@ -109,7 +111,7 @@ export default async function StudentSurveyReviewPage({
                         ? (raw as { answer: unknown }).answer
                         : raw,
                     )} />
-                  ) : (
+                  ) : section.kind === "admissionType" ? (
                     <AdmissionTypeSurveyDisplay
                       value={normalizeAdmissionTypeAnswer(
                         raw && typeof raw === "object" && "answer" in raw
@@ -118,6 +120,12 @@ export default async function StudentSurveyReviewPage({
                       )}
                       gradeNumber={gradeNumber}
                     />
+                  ) : (
+                    <StrengthsWeaknessesSurveyDisplay value={normalizeStrengthsWeaknessesAnswer(
+                      raw && typeof raw === "object" && "answer" in raw
+                        ? (raw as { answer: unknown }).answer
+                        : raw,
+                    )} />
                   )}
                 </div>
               </section>

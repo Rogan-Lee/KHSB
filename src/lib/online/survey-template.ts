@@ -31,12 +31,17 @@ export type AdmissionTypeSection = BaseSection & {
   kind: "admissionType";
 };
 
+export type StrengthsWeaknessesSection = BaseSection & {
+  kind: "strengthsWeaknesses";
+};
+
 export type SurveySection =
   | TextSection
   | PerformanceSection
   | HistorySection
   | GoalsSection
-  | AdmissionTypeSection;
+  | AdmissionTypeSection
+  | StrengthsWeaknessesSection;
 
 // ─────────────── Q5 (performance) 답변 스키마 ───────────────
 
@@ -701,6 +706,125 @@ export function isAdmissionTypeComplete(
   return true;
 }
 
+// ─────────────── Q4 (strengthsWeaknesses) 답변 스키마 ───────────────
+
+export const SW_LEVEL_OPTIONS = [
+  { value: "강", label: "강" },
+  { value: "중", label: "중" },
+  { value: "약", label: "약" },
+] as const;
+
+export const SW_WEAK_AREA_OPTIONS = [
+  "개념",
+  "계산",
+  "서술형",
+  "킬러문항",
+  "시간 부족",
+  "기타",
+] as const;
+
+export const SW_HABIT_OPTIONS = [
+  "계획형",
+  "즉흥형",
+  "미루기",
+  "복습 안 함",
+  "오답노트 작성",
+  "벼락치기",
+  "인강 누적 시청",
+] as const;
+
+export type SwLevel = "" | "강" | "중" | "약";
+
+export type SubjectStrength = {
+  subject: string;
+  level: SwLevel;
+  internalGrade: string; // string for input flexibility
+  mockGrade: string;
+  weakAreas: string[];
+  weakAreaOther?: string;
+  reason: string;
+};
+
+export type StrengthsWeaknessesAnswer = {
+  bySubject: SubjectStrength[];
+  studyHabits: string[];
+  focusMinutes: string; // 숫자지만 string for input
+  testAnxiety: number;   // 1-5, 0 = 미선택
+  selfDirection: number; // 1-5, 0 = 미선택
+  legacyText?: string;
+};
+
+export function emptySubjectStrength(): SubjectStrength {
+  return {
+    subject: "",
+    level: "",
+    internalGrade: "",
+    mockGrade: "",
+    weakAreas: [],
+    weakAreaOther: "",
+    reason: "",
+  };
+}
+
+export function emptyStrengthsWeaknessesAnswer(): StrengthsWeaknessesAnswer {
+  return {
+    bySubject: [emptySubjectStrength()],
+    studyHabits: [],
+    focusMinutes: "",
+    testAnxiety: 0,
+    selfDirection: 0,
+  };
+}
+
+export function normalizeStrengthsWeaknessesAnswer(raw: unknown): StrengthsWeaknessesAnswer {
+  if (typeof raw === "string") {
+    return { ...emptyStrengthsWeaknessesAnswer(), legacyText: raw };
+  }
+  if (raw && typeof raw === "object") {
+    const r = raw as Partial<StrengthsWeaknessesAnswer>;
+    return {
+      bySubject:
+        Array.isArray(r.bySubject) && r.bySubject.length > 0
+          ? r.bySubject.map((s) => ({
+              subject: typeof s?.subject === "string" ? s.subject : "",
+              level: (s?.level ?? "") as SwLevel,
+              internalGrade: typeof s?.internalGrade === "string" ? s.internalGrade : "",
+              mockGrade: typeof s?.mockGrade === "string" ? s.mockGrade : "",
+              weakAreas: Array.isArray(s?.weakAreas) ? s.weakAreas : [],
+              weakAreaOther: typeof s?.weakAreaOther === "string" ? s.weakAreaOther : "",
+              reason: typeof s?.reason === "string" ? s.reason : "",
+            }))
+          : [emptySubjectStrength()],
+      studyHabits: Array.isArray(r.studyHabits) ? r.studyHabits : [],
+      focusMinutes: typeof r.focusMinutes === "string" ? r.focusMinutes : "",
+      testAnxiety: typeof r.testAnxiety === "number" ? r.testAnxiety : 0,
+      selfDirection: typeof r.selfDirection === "number" ? r.selfDirection : 0,
+      legacyText: typeof r.legacyText === "string" ? r.legacyText : undefined,
+    };
+  }
+  return emptyStrengthsWeaknessesAnswer();
+}
+
+export function isStrengthsWeaknessesComplete(answer: StrengthsWeaknessesAnswer): boolean {
+  if (answer.bySubject.length === 0) return false;
+  for (const s of answer.bySubject) {
+    if (!s.subject.trim()) return false;
+    if (!s.level) return false;
+    if (!s.internalGrade.trim()) return false;
+    if (!s.mockGrade.trim()) return false;
+    if (s.weakAreas.length === 0) return false;
+    if (s.weakAreas.includes("기타") && !s.weakAreaOther?.trim()) return false;
+    if (!s.reason.trim()) return false;
+  }
+  if (answer.studyHabits.length === 0) return false;
+  if (!answer.focusMinutes.trim()) return false;
+  const n = Number(answer.focusMinutes);
+  if (!Number.isFinite(n) || n <= 0) return false;
+  if (answer.testAnxiety < 1 || answer.testAnxiety > 5) return false;
+  if (answer.selfDirection < 1 || answer.selfDirection > 5) return false;
+  return true;
+}
+
 // ─────────────── 섹션 정의 ───────────────
 
 export const SURVEY_SECTIONS: readonly SurveySection[] = [
@@ -726,13 +850,11 @@ export const SURVEY_SECTIONS: readonly SurveySection[] = [
       "주력 전형, 내신·모의고사 등급, 수능 최저 충족 자신감, 수시 카드 6장 전략, 판단 근거를 항목별로 입력해 주세요.",
   },
   {
-    kind: "text",
+    kind: "strengthsWeaknesses",
     key: "strengthsWeaknesses",
     title: "강점·약점",
     description:
-      "과목별 강점과 약점, 학습 습관이나 집중력 측면에서 스스로 인식하는 특징을 적어 주세요.",
-    placeholder:
-      "예) 수학 강함(모의 1등급). 국어 비문학 약함. 영어는 문법은 자신 있는데 듣기에서 집중 흐트러짐. 저녁 시간대 집중력 하락...",
+      "과목별 강·중·약과 약한 영역, 학습 습관, 집중 가능 시간, 시험 불안도, 자기주도 수준을 항목별로 입력해 주세요.",
   },
   {
     kind: "performance",
@@ -777,6 +899,8 @@ export function emptySurveySections(): Record<string, unknown> {
       result[s.key] = emptyGoalsAnswer();
     } else if (s.kind === "admissionType") {
       result[s.key] = emptyAdmissionTypeAnswer();
+    } else if (s.kind === "strengthsWeaknesses") {
+      result[s.key] = emptyStrengthsWeaknessesAnswer();
     }
   }
   return result;
@@ -807,6 +931,11 @@ export function normalizeSectionValue(section: SurveySection, raw: unknown): unk
   }
   if (section.kind === "admissionType") {
     return normalizeAdmissionTypeAnswer(raw && typeof raw === "object" && "answer" in raw
+      ? (raw as { answer: unknown }).answer
+      : raw);
+  }
+  if (section.kind === "strengthsWeaknesses") {
+    return normalizeStrengthsWeaknessesAnswer(raw && typeof raw === "object" && "answer" in raw
       ? (raw as { answer: unknown }).answer
       : raw);
   }
@@ -842,6 +971,9 @@ export function isSectionComplete(
       ctx?.gradeNumber ?? null,
       ctx?.now,
     );
+  }
+  if (section.kind === "strengthsWeaknesses") {
+    return isStrengthsWeaknessesComplete(normalizeStrengthsWeaknessesAnswer(value));
   }
   return false;
 }
