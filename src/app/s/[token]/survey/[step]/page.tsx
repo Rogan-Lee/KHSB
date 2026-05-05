@@ -7,11 +7,13 @@ import {
   normalizeHistoryAnswer,
   normalizeGoalsAnswer,
   normalizeAdmissionTypeAnswer,
+  normalizeStrengthsWeaknessesAnswer,
   parseGradeNumber,
   type PerformanceAnswer,
   type HistoryAnswer,
   type GoalsAnswer,
   type AdmissionTypeAnswer,
+  type StrengthsWeaknessesAnswer,
 } from "@/lib/online/survey-template";
 import { SurveyWizardStep } from "@/components/online/survey-wizard-step";
 
@@ -48,7 +50,8 @@ export default async function SurveyStepPage({
     | PerformanceAnswer
     | HistoryAnswer
     | GoalsAnswer
-    | AdmissionTypeAnswer;
+    | AdmissionTypeAnswer
+    | StrengthsWeaknessesAnswer;
   if (section.kind === "text") {
     initialValue =
       raw && typeof raw === "object" && "answer" in raw
@@ -74,9 +77,15 @@ export default async function SurveyStepPage({
         ? (raw as { answer: unknown }).answer
         : raw,
     );
-  } else {
-    // admissionType
+  } else if (section.kind === "admissionType") {
     initialValue = normalizeAdmissionTypeAnswer(
+      raw && typeof raw === "object" && "answer" in raw
+        ? (raw as { answer: unknown }).answer
+        : raw,
+    );
+  } else {
+    // strengthsWeaknesses
+    initialValue = normalizeStrengthsWeaknessesAnswer(
       raw && typeof raw === "object" && "answer" in raw
         ? (raw as { answer: unknown }).answer
         : raw,
