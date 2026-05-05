@@ -23,7 +23,11 @@ export type HistorySection = BaseSection & {
   kind: "history";
 };
 
-export type SurveySection = TextSection | PerformanceSection | HistorySection;
+export type GoalsSection = BaseSection & {
+  kind: "goals";
+};
+
+export type SurveySection = TextSection | PerformanceSection | HistorySection | GoalsSection;
 
 // ─────────────── Q5 (performance) 답변 스키마 ───────────────
 
@@ -303,6 +307,110 @@ export function isHistoryComplete(answer: HistoryAnswer): boolean {
   return true;
 }
 
+// ─────────────── Q2 (goals) 답변 스키마 ───────────────
+
+export const GOALS_TRACK_OPTIONS = [
+  { value: "학종", label: "학종" },
+  { value: "교과", label: "교과" },
+  { value: "정시", label: "정시" },
+  { value: "논술", label: "논술" },
+] as const;
+
+export const GOALS_FIT_OPTIONS = [
+  { value: "적정", label: "적정" },
+  { value: "소신", label: "소신" },
+  { value: "안정", label: "안정" },
+] as const;
+
+export const GOALS_PRIORITY_AXIS_OPTIONS = [
+  { value: "department", label: "학과 우선" },
+  { value: "university", label: "대학 우선" },
+  { value: "noCompromise", label: "둘 다 양보 불가" },
+] as const;
+
+export const GOALS_CAREER_ALIGNMENT_OPTIONS = [
+  { value: "match", label: "일치" },
+  { value: "partial", label: "부분 일치" },
+  { value: "undecided", label: "진로 미정" },
+] as const;
+
+export const ASPIRATION_LABELS = ["1지망", "2지망", "3지망"] as const;
+
+export type GoalsTrack = "" | "학종" | "교과" | "정시" | "논술";
+export type GoalsFit = "" | "적정" | "소신" | "안정";
+
+export type Aspiration = {
+  university: string;
+  department: string;
+  track: GoalsTrack;
+  fit: GoalsFit;
+  reason: string;
+};
+
+export type GoalsAnswer = {
+  aspirations: Aspiration[]; // 항상 3개 (1·2·3지망)
+  priorityAxis: "" | "department" | "university" | "noCompromise";
+  careerAlignment: "" | "match" | "partial" | "undecided";
+  legacyText?: string;
+};
+
+export function emptyAspiration(): Aspiration {
+  return { university: "", department: "", track: "", fit: "", reason: "" };
+}
+export function emptyGoalsAnswer(): GoalsAnswer {
+  return {
+    aspirations: [emptyAspiration(), emptyAspiration(), emptyAspiration()],
+    priorityAxis: "",
+    careerAlignment: "",
+  };
+}
+
+export function normalizeGoalsAnswer(raw: unknown): GoalsAnswer {
+  if (typeof raw === "string") {
+    return { ...emptyGoalsAnswer(), legacyText: raw };
+  }
+  if (raw && typeof raw === "object") {
+    const r = raw as Partial<GoalsAnswer>;
+    const aspirations: Aspiration[] = [];
+    for (let i = 0; i < 3; i++) {
+      const a = Array.isArray(r.aspirations) ? r.aspirations[i] : null;
+      aspirations.push({
+        university: typeof a?.university === "string" ? a.university : "",
+        department: typeof a?.department === "string" ? a.department : "",
+        track: (a?.track ?? "") as GoalsTrack,
+        fit: (a?.fit ?? "") as GoalsFit,
+        reason: typeof a?.reason === "string" ? a.reason : "",
+      });
+    }
+    return {
+      aspirations,
+      priorityAxis:
+        r.priorityAxis === "department" || r.priorityAxis === "university" || r.priorityAxis === "noCompromise"
+          ? r.priorityAxis
+          : "",
+      careerAlignment:
+        r.careerAlignment === "match" || r.careerAlignment === "partial" || r.careerAlignment === "undecided"
+          ? r.careerAlignment
+          : "",
+      legacyText: typeof r.legacyText === "string" ? r.legacyText : undefined,
+    };
+  }
+  return emptyGoalsAnswer();
+}
+
+export function isGoalsComplete(answer: GoalsAnswer): boolean {
+  for (const a of answer.aspirations) {
+    if (!a.university.trim()) return false;
+    if (!a.department.trim()) return false;
+    if (!a.track) return false;
+    if (!a.fit) return false;
+    if (!a.reason.trim()) return false;
+  }
+  if (!answer.priorityAxis) return false;
+  if (!answer.careerAlignment) return false;
+  return true;
+}
+
 // ─────────────── 섹션 정의 ───────────────
 
 export const SURVEY_SECTIONS: readonly SurveySection[] = [
@@ -314,13 +422,11 @@ export const SURVEY_SECTIONS: readonly SurveySection[] = [
       "이전에 다녔던 학원·과외·인강과 현재 학습 환경을 항목별로 입력해 주세요. 학습 시간 분배(학교·학원·인강·자기주도)는 합이 100%가 되어야 합니다.",
   },
   {
-    kind: "text",
+    kind: "goals",
     key: "goals",
     title: "목표 대학·학과",
     description:
-      "가장 희망하는 대학·학과와 차선책을 적어 주세요. 구체적일수록 좋습니다.",
-    placeholder:
-      "예) 1지망: 서울대 경영학과 / 2지망: 연세대 경제학부 / 3지망: 고려대 경영대학",
+      "1·2·3지망 대학·학과를 모두 채워 주세요. 우선순위 축(학과/대학/노양보)과 진로 일치 여부도 함께 골라 주세요.",
   },
   {
     kind: "text",
@@ -379,6 +485,8 @@ export function emptySurveySections(): Record<string, unknown> {
       result[s.key] = emptyPerformanceAnswer();
     } else if (s.kind === "history") {
       result[s.key] = emptyHistoryAnswer();
+    } else if (s.kind === "goals") {
+      result[s.key] = emptyGoalsAnswer();
     }
   }
   return result;
@@ -402,6 +510,11 @@ export function normalizeSectionValue(section: SurveySection, raw: unknown): unk
       ? (raw as { answer: unknown }).answer
       : raw);
   }
+  if (section.kind === "goals") {
+    return normalizeGoalsAnswer(raw && typeof raw === "object" && "answer" in raw
+      ? (raw as { answer: unknown }).answer
+      : raw);
+  }
   return raw;
 }
 
@@ -416,6 +529,9 @@ export function isSectionComplete(section: SurveySection, value: unknown): boole
   }
   if (section.kind === "history") {
     return isHistoryComplete(normalizeHistoryAnswer(value));
+  }
+  if (section.kind === "goals") {
+    return isGoalsComplete(normalizeGoalsAnswer(value));
   }
   return false;
 }
