@@ -5,8 +5,10 @@ import {
   SURVEY_SECTIONS,
   normalizePerformanceAnswer,
   normalizeHistoryAnswer,
+  normalizeGoalsAnswer,
   type PerformanceAnswer,
   type HistoryAnswer,
+  type GoalsAnswer,
 } from "@/lib/online/survey-template";
 import { SurveyWizardStep } from "@/components/online/survey-wizard-step";
 
@@ -38,7 +40,7 @@ export default async function SurveyStepPage({
   const section = SURVEY_SECTIONS[stepIndex];
   const raw = sections?.[section.key];
 
-  let initialValue: string | PerformanceAnswer | HistoryAnswer;
+  let initialValue: string | PerformanceAnswer | HistoryAnswer | GoalsAnswer;
   if (section.kind === "text") {
     initialValue =
       raw && typeof raw === "object" && "answer" in raw
@@ -52,9 +54,15 @@ export default async function SurveyStepPage({
         ? (raw as { answer: unknown }).answer
         : raw,
     );
-  } else {
-    // history — string legacy 면 legacyText 로 이관
+  } else if (section.kind === "history") {
     initialValue = normalizeHistoryAnswer(
+      raw && typeof raw === "object" && "answer" in raw
+        ? (raw as { answer: unknown }).answer
+        : raw,
+    );
+  } else {
+    // goals
+    initialValue = normalizeGoalsAnswer(
       raw && typeof raw === "object" && "answer" in raw
         ? (raw as { answer: unknown }).answer
         : raw,
