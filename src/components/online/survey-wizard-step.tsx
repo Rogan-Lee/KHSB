@@ -18,15 +18,18 @@ import {
   type HistoryAnswer,
   type GoalsAnswer,
   type AdmissionTypeAnswer,
+  type StrengthsWeaknessesAnswer,
   normalizePerformanceAnswer,
   normalizeHistoryAnswer,
   normalizeGoalsAnswer,
   normalizeAdmissionTypeAnswer,
+  normalizeStrengthsWeaknessesAnswer,
 } from "@/lib/online/survey-template";
 import { PerformanceSurveyStep } from "./performance-survey-step";
 import { HistorySurveyStep } from "./history-survey-step";
 import { GoalsSurveyStep } from "./goals-survey-step";
 import { AdmissionTypeSurveyStep } from "./admission-type-survey-step";
+import { StrengthsWeaknessesSurveyStep } from "./strengths-weaknesses-survey-step";
 
 const AUTOSAVE_DELAY_MS = 800;
 
@@ -43,7 +46,13 @@ export function SurveyWizardStep({
 }: {
   studentToken: string;
   section: SurveySection;
-  initialValue: string | PerformanceAnswer | HistoryAnswer | GoalsAnswer | AdmissionTypeAnswer;
+  initialValue:
+    | string
+    | PerformanceAnswer
+    | HistoryAnswer
+    | GoalsAnswer
+    | AdmissionTypeAnswer
+    | StrengthsWeaknessesAnswer;
   stepIndex: number;
   totalSteps: number;
   isSubmitted: boolean;
@@ -188,13 +197,20 @@ export function SurveyWizardStep({
           initial={typeof initialValue === "string" ? normalizeGoalsAnswer(initialValue) : (initialValue as GoalsAnswer)}
           isSubmitted={isSubmitted}
         />
-      ) : (
+      ) : section.kind === "admissionType" ? (
         <AdmissionTypeSurveyStep
           studentToken={studentToken}
           sectionKey={section.key}
           initial={typeof initialValue === "string" ? normalizeAdmissionTypeAnswer(initialValue) : (initialValue as AdmissionTypeAnswer)}
           isSubmitted={isSubmitted}
           gradeNumber={gradeNumber}
+        />
+      ) : (
+        <StrengthsWeaknessesSurveyStep
+          studentToken={studentToken}
+          sectionKey={section.key}
+          initial={typeof initialValue === "string" ? normalizeStrengthsWeaknessesAnswer(initialValue) : (initialValue as StrengthsWeaknessesAnswer)}
+          isSubmitted={isSubmitted}
         />
       )}
 
