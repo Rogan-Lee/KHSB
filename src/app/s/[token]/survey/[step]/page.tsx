@@ -4,7 +4,9 @@ import { prisma } from "@/lib/prisma";
 import {
   SURVEY_SECTIONS,
   normalizePerformanceAnswer,
+  normalizeHistoryAnswer,
   type PerformanceAnswer,
+  type HistoryAnswer,
 } from "@/lib/online/survey-template";
 import { SurveyWizardStep } from "@/components/online/survey-wizard-step";
 
@@ -36,7 +38,7 @@ export default async function SurveyStepPage({
   const section = SURVEY_SECTIONS[stepIndex];
   const raw = sections?.[section.key];
 
-  let initialValue: string | PerformanceAnswer;
+  let initialValue: string | PerformanceAnswer | HistoryAnswer;
   if (section.kind === "text") {
     initialValue =
       raw && typeof raw === "object" && "answer" in raw
@@ -44,9 +46,15 @@ export default async function SurveyStepPage({
         : typeof raw === "string"
           ? raw
           : "";
-  } else {
-    // performance — string legacy 면 legacyText 로 이관
+  } else if (section.kind === "performance") {
     initialValue = normalizePerformanceAnswer(
+      raw && typeof raw === "object" && "answer" in raw
+        ? (raw as { answer: unknown }).answer
+        : raw,
+    );
+  } else {
+    // history — string legacy 면 legacyText 로 이관
+    initialValue = normalizeHistoryAnswer(
       raw && typeof raw === "object" && "answer" in raw
         ? (raw as { answer: unknown }).answer
         : raw,
