@@ -15,9 +15,12 @@ import { upsertSurveySection } from "@/actions/online/onboarding-survey";
 import {
   type SurveySection,
   type PerformanceAnswer,
+  type HistoryAnswer,
   normalizePerformanceAnswer,
+  normalizeHistoryAnswer,
 } from "@/lib/online/survey-template";
 import { PerformanceSurveyStep } from "./performance-survey-step";
+import { HistorySurveyStep } from "./history-survey-step";
 
 const AUTOSAVE_DELAY_MS = 800;
 
@@ -33,8 +36,8 @@ export function SurveyWizardStep({
 }: {
   studentToken: string;
   section: SurveySection;
-  // text: 기존 string 호환. performance: PerformanceAnswer 객체.
-  initialValue: string | PerformanceAnswer;
+  // text: 기존 string 호환. performance: PerformanceAnswer. history: HistoryAnswer.
+  initialValue: string | PerformanceAnswer | HistoryAnswer;
   stepIndex: number;
   totalSteps: number;
   isSubmitted: boolean;
@@ -79,7 +82,7 @@ export function SurveyWizardStep({
   const flushAndGo = (nextHref: string) => {
     if (timer.current) clearTimeout(timer.current);
     startNav(async () => {
-      // text 섹션만 명시 flush. performance 는 자체 디바운스 마쳐 있을 가능성 높음.
+      // text 섹션만 명시 flush. performance/history 는 자체 디바운스 마쳐 있을 가능성 높음.
       if (section.kind === "text" && !isSubmitted && textValue !== lastSaved.current) {
         try {
           setTextStatus("saving");
@@ -157,11 +160,18 @@ export function SurveyWizardStep({
             </p>
           )}
         </>
-      ) : (
+      ) : section.kind === "performance" ? (
         <PerformanceSurveyStep
           studentToken={studentToken}
           sectionKey={section.key}
-          initial={typeof initialValue === "string" ? normalizePerformanceAnswer(initialValue) : initialValue}
+          initial={typeof initialValue === "string" ? normalizePerformanceAnswer(initialValue) : (initialValue as PerformanceAnswer)}
+          isSubmitted={isSubmitted}
+        />
+      ) : (
+        <HistorySurveyStep
+          studentToken={studentToken}
+          sectionKey={section.key}
+          initial={typeof initialValue === "string" ? normalizeHistoryAnswer(initialValue) : (initialValue as HistoryAnswer)}
           isSubmitted={isSubmitted}
         />
       )}

@@ -5,8 +5,10 @@ import { getSurveyForReview } from "@/actions/online/onboarding-survey";
 import {
   SURVEY_SECTIONS,
   normalizePerformanceAnswer,
+  normalizeHistoryAnswer,
 } from "@/lib/online/survey-template";
 import { PerformanceSurveyDisplay } from "@/components/online/performance-survey-display";
+import { HistorySurveyDisplay } from "@/components/online/history-survey-display";
 
 export default async function StudentSurveyReviewPage({
   params,
@@ -76,8 +78,14 @@ export default async function StudentSurveyReviewPage({
                 <div className="mt-3">
                   {section.kind === "text" ? (
                     <TextAnswerDisplay raw={raw} />
-                  ) : (
+                  ) : section.kind === "performance" ? (
                     <PerformanceSurveyDisplay value={normalizePerformanceAnswer(
+                      raw && typeof raw === "object" && "answer" in raw
+                        ? (raw as { answer: unknown }).answer
+                        : raw,
+                    )} />
+                  ) : (
+                    <HistorySurveyDisplay value={normalizeHistoryAnswer(
                       raw && typeof raw === "object" && "answer" in raw
                         ? (raw as { answer: unknown }).answer
                         : raw,
