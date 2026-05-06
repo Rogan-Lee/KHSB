@@ -2,8 +2,13 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { requireFullAccess } from "@/lib/roles";
+import { isStaff, isOnlineStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
+
+// 공지 작성/수정/삭제 권한: 학생을 제외한 모든 운영진(스태프 + 온라인 관리진)
+function requireAnnouncementEditor(role?: string | null) {
+  if (!isStaff(role) && !isOnlineStaff(role)) throw new Error("Forbidden");
+}
 
 export async function getAnnouncement(page: string) {
   const session = await auth();
@@ -37,7 +42,7 @@ export async function getAnnouncementHistory(page: string, skip: number, take: n
 export async function createAnnouncement(page: string, title: string, content: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
-  requireFullAccess(session.user.role);
+  requireAnnouncementEditor(session.user.role);
 
   await prisma.announcement.create({
     data: { title, content, page, authorId: session.user.id },
@@ -49,7 +54,7 @@ export async function createAnnouncement(page: string, title: string, content: s
 export async function updateAnnouncement(id: string, title: string, content: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
-  requireFullAccess(session.user.role);
+  requireAnnouncementEditor(session.user.role);
 
   await prisma.announcement.update({
     where: { id },
@@ -62,7 +67,7 @@ export async function updateAnnouncement(id: string, title: string, content: str
 export async function deleteAnnouncement(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
-  requireFullAccess(session.user.role);
+  requireAnnouncementEditor(session.user.role);
 
   await prisma.announcement.delete({ where: { id } });
 
@@ -72,7 +77,7 @@ export async function deleteAnnouncement(id: string) {
 export async function deleteAnnouncementsBulk(ids: string[]) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
-  requireFullAccess(session.user.role);
+  requireAnnouncementEditor(session.user.role);
 
   await prisma.announcement.deleteMany({ where: { id: { in: ids } } });
 

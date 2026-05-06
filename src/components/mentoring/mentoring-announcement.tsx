@@ -22,15 +22,15 @@ interface AnnouncementData {
 
 interface Props {
   announcement: AnnouncementData | null;
-  isDirector: boolean;
+  canEdit: boolean;
 }
 
 interface HistoryTabProps {
-  isDirector: boolean;
+  canEdit: boolean;
   onEdit: (item: AnnouncementData) => void;
 }
 
-function HistoryTab({ isDirector, onEdit }: HistoryTabProps) {
+function HistoryTab({ canEdit, onEdit }: HistoryTabProps) {
   const [items, setItems] = useState<AnnouncementData[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -114,7 +114,7 @@ function HistoryTab({ isDirector, onEdit }: HistoryTabProps) {
   return (
     <div className="space-y-3">
       {/* 선택 삭제 바 */}
-      {isDirector && selected.size > 0 && (
+      {canEdit && selected.size > 0 && (
         <div className="flex items-center justify-between bg-destructive/10 rounded-md px-3 py-2">
           <span className="text-sm font-medium">{selected.size}개 선택됨</span>
           <Button
@@ -140,7 +140,7 @@ function HistoryTab({ isDirector, onEdit }: HistoryTabProps) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
-                {isDirector && (
+                {canEdit && (
                   <th className="w-10 px-3 py-2">
                     <input
                       type="checkbox"
@@ -153,7 +153,7 @@ function HistoryTab({ isDirector, onEdit }: HistoryTabProps) {
                 <th className="text-left px-3 py-2 font-medium">제목</th>
                 <th className="text-left px-3 py-2 font-medium w-20">작성자</th>
                 <th className="text-left px-3 py-2 font-medium w-28">작성일</th>
-                {isDirector && <th className="w-16" />}
+                {canEdit && <th className="w-16" />}
               </tr>
             </thead>
             <tbody>
@@ -167,7 +167,7 @@ function HistoryTab({ isDirector, onEdit }: HistoryTabProps) {
                     )}
                     onClick={() => setExpandedIdx(expandedIdx === i ? null : i)}
                   >
-                    {isDirector && (
+                    {canEdit && (
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
@@ -187,7 +187,7 @@ function HistoryTab({ isDirector, onEdit }: HistoryTabProps) {
                     <td className="px-3 py-2 text-muted-foreground">
                       {new Date(item.createdAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric", weekday: "short" })}
                     </td>
-                    {isDirector && (
+                    {canEdit && (
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                           <button
@@ -202,7 +202,7 @@ function HistoryTab({ isDirector, onEdit }: HistoryTabProps) {
                   </tr>
                   {expandedIdx === i && (
                     <tr key={`detail-${page}-${i}`}>
-                      <td colSpan={isDirector ? 5 : 3} className="px-4 py-3 bg-muted/20">
+                      <td colSpan={canEdit ? 5 : 3} className="px-4 py-3 bg-muted/20">
                         <MarkdownViewer source={item.content} />
                       </td>
                     </tr>
@@ -229,7 +229,7 @@ function HistoryTab({ isDirector, onEdit }: HistoryTabProps) {
   );
 }
 
-export function MentoringAnnouncement({ announcement, isDirector }: Props) {
+export function MentoringAnnouncement({ announcement, canEdit }: Props) {
   const [editing, setEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -336,7 +336,7 @@ export function MentoringAnnouncement({ announcement, isDirector }: Props) {
               </TabsTrigger>
             </TabsList>
           )}
-          {isDirector && !editing && !collapsed && (
+          {canEdit && !editing && !collapsed && (
             <Button variant="ghost" size="sm" onClick={handleNewAnnouncement}>
               <Pencil className="h-3.5 w-3.5 mr-1" />
               새 공지
@@ -380,7 +380,7 @@ export function MentoringAnnouncement({ announcement, isDirector }: Props) {
               <p className="text-xs text-muted-foreground">
                 작성: {announcement.author.name} · {new Date(announcement.createdAt).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
               </p>
-              {isDirector && (
+              {canEdit && (
                 <div className="flex items-center gap-1">
                   <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleEditCurrent}>
                     <Pencil className="h-3 w-3 mr-1" />
@@ -396,7 +396,7 @@ export function MentoringAnnouncement({ announcement, isDirector }: Props) {
           </div>
         ) : (
           <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-            {isDirector ? (
+            {canEdit ? (
               <button onClick={() => setEditing(true)} className="hover:text-foreground transition-colors">
                 공지사항을 작성해주세요
               </button>
@@ -408,7 +408,7 @@ export function MentoringAnnouncement({ announcement, isDirector }: Props) {
       </TabsContent>
 
       <TabsContent value="history" className="mt-3">
-        <HistoryTab isDirector={isDirector} onEdit={handleEditHistory} />
+        <HistoryTab canEdit={canEdit} onEdit={handleEditHistory} />
       </TabsContent>
       </>}
 
