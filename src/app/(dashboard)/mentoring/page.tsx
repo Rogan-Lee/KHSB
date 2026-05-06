@@ -13,7 +13,7 @@ import { getTodayWorkingMentors } from "@/actions/mentoring";
 import { getAnnouncement } from "@/actions/announcements";
 import { getStudentsForReportDispatch } from "@/actions/parent-reports";
 import { Calendar } from "lucide-react";
-import { isFullAccess } from "@/lib/roles";
+import { isFullAccess, isStaff, isOnlineStaff } from "@/lib/roles";
 import { PageIntro } from "@/components/ui/page-intro";
 
 export const revalidate = 10;
@@ -21,6 +21,7 @@ export const revalidate = 10;
 export default async function MentoringPage() {
   const session = await auth();
   const isDirector = isFullAccess(session?.user?.role);
+  const canEditAnnouncement = isStaff(session?.user?.role) || isOnlineStaff(session?.user?.role);
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
@@ -101,7 +102,7 @@ export default async function MentoringPage() {
       {/* 이번 주 공지사항 */}
       <Card>
         <CardContent className="pt-4">
-          <MentoringAnnouncement announcement={announcement} isDirector={isDirector} />
+          <MentoringAnnouncement announcement={announcement} canEdit={canEditAnnouncement} />
         </CardContent>
       </Card>
 
