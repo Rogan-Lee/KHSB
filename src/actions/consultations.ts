@@ -10,7 +10,8 @@ import { notifySlack, formatConsultationAlert } from "@/lib/slack";
 export async function createConsultation(formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
-  requireFullAccess(session.user.role);
+  // 면담 등록은 STAFF_ROLES 전체 허용 — 책임T(HEAD_MENTOR) 도 자기 탭에서 등록 가능해야 함
+  requireStaff(session.user.role);
 
   const raw = Object.fromEntries(formData.entries());
   const studentId = (raw.studentId as string) || null;
