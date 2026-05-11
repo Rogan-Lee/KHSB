@@ -116,6 +116,8 @@ model User {
   staffStudents      Student[]     @relation("StaffStudents")          // STAFF 담당 온라인 학생 (운영조교)
   portalChats        PortalChat[]  @relation("PortalChatStaff")
   portalChatMessages PortalChatMessage[] @relation("PortalChatMessageAuthor")
+  claimedQuestions   StudentQuestion[]   @relation("ClaimedQuestions")
+  questionMessages   QuestionMessage[]   @relation("QuestionMessageAuthor")
   createdPerformanceTasks PerformanceTask[] @relation("PerformanceTaskCreator")
   taskFeedbacks           TaskFeedback[]
   authoredSubjectProgress SubjectProgress[] @relation("SubjectProgressAuthor")
@@ -236,6 +238,7 @@ model Student {
   assignedStaff        User?                  @relation("StaffStudents", fields: [assignedStaffId], references: [id])
   magicLinks           StudentMagicLink[]
   portalChats          PortalChat[]
+  studentQuestions     StudentQuestion[]
   onboardingSurvey     OnboardingSurvey?
   performanceTasks     PerformanceTask[]
   taskResults          TaskResult[]
@@ -1457,4 +1460,59 @@ model VocabAttemptItem {
   answeredAt      DateTime?
 
   @@index([attemptId])
+}
+
+// ─── 학생 질문 게시판 (콴다식: 사진 문제 질문 → 멘토 풀이) ───
+// 오프라인 재원생이 모르는 문제를 사진으로 올리면 당일 근무 멘토가 답변.
+// 질문 1건 = 스레드 1개. 첫 글(제목+내용+문제사진)은 첫 QuestionMessage(STUDENT)로 저장.
+
+enum StudentQuestionStatus {
+  OPEN        // 등록됨, 답변 대기
+  ANSWERED    // 답변 1개 이상 등록됨
+  RESOLVED    // 해결 표시 (선택)
+  ARCHIVED    // 보관
+}
+
+enum QuestionMessageSenderType {
+  STUDENT
+  STAFF
+}
+
+model StudentQuestion {
+  id            String                @id @default(cuid())
+  studentId     String
+  student       Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title         String
+  subject       String?               // 수학/영어/국어/탐구 등
+  status        StudentQuestionStatus @default(OPEN)
+
+  // soft lock — 누가 답변 담당으로 잡았는지 (강제 아님, 표시용)
+  claimedById   String?
+  claimedBy     User?                 @relation("ClaimedQuestions", fields: [claimedById], references: [id])
+  claimedAt     DateTime?
+
+  lastMessageAt DateTime?             // 목록 정렬용
+  studentReadAt DateTime?             // 이 시각 이후 STAFF 메시지 = 학생 미확인
+  staffReadAt   DateTime?             // 이 시각 이후 STUDENT 메시지 = 직원 미확인
+
+  messages      QuestionMessage[]
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([studentId, createdAt(sort: Desc)])
+  @@index([status, lastMessageAt(sort: Desc)])
+}
+
+model QuestionMessage {
+  id           String                    @id @default(cuid())
+  questionId   String
+  question     StudentQuestion           @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  senderType   QuestionMessageSenderType
+  senderUserId String?                   // STAFF 발신 시 User.id (STUDENT 발신은 null)
+  senderUser   User?                     @relation("QuestionMessageAuthor", fields: [senderUserId], references: [id])
+  content      String                    @default("") @db.Text
+  attachments  Json                      @default("[]")  // [{ url, name, sizeBytes, mimeType }] — 문제/풀이 사진
+  createdAt    DateTime                  @default(now())
+
+  @@index([questionId, createdAt])
 }
