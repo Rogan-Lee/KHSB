@@ -71,12 +71,13 @@ export default async function MentoringDetailPage({
     getStudentStudyAnalysis(mentoring.studentId, analysisYear, analysisMonth),
   ]);
 
-  // 해당 학생의 직전 멘토링 (현재 제외, 상태 무관 — 가장 최근 기록)
+  // 해당 학생의 직전 멘토링 (현재 시점보다 이전, 상태 무관 — 가장 최근 기록)
   const previousMentoring: PreviousMentoring | null = await prisma.mentoring.findFirst({
     where: {
       studentId: mentoring.studentId,
       id: { not: id },
       status: { not: "CANCELLED" },
+      scheduledAt: { lt: mentoring.scheduledAt },
     },
     orderBy: { scheduledAt: "desc" },
     select: {
