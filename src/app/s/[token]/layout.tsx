@@ -60,7 +60,7 @@ export default async function StudentPortalLayout({
   const session = await validateMagicLink(token);
   if (!session) redirect("/s/expired");
 
-  const [taskBadge, feedbackBadge, chatBadge] = await Promise.all([
+  const [taskBadge, feedbackBadge, chatBadge, vocabTotal, vocabBadge] = await Promise.all([
     prisma.performanceTask.count({
       where: {
         studentId: session.student.id,
@@ -74,6 +74,10 @@ export default async function StudentPortalLayout({
       },
     }),
     countUnreadChatMessagesForStudent(session.student.id),
+    prisma.vocabAttempt.count({ where: { studentId: session.student.id } }),
+    prisma.vocabAttempt.count({
+      where: { studentId: session.student.id, status: { in: ["ASSIGNED", "IN_PROGRESS"] } },
+    }),
   ]);
 
   const daysLeft = Math.max(
@@ -109,6 +113,8 @@ export default async function StudentPortalLayout({
           taskBadge={taskBadge}
           feedbackBadge={feedbackBadge}
           chatBadge={chatBadge}
+          vocabBadge={vocabBadge}
+          hasVocab={vocabTotal > 0}
         />
       </div>
     </>

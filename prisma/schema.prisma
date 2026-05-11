@@ -268,6 +268,7 @@ model Student {
   monthlyNotes     MonthlyNote[]
   vocabEnrollment  VocabTestEnrollment?
   vocabScores      VocabTestScore[]
+  vocabAttempts    VocabAttempt[]
   examSeatAssignments ExamSeatAssignment[]
   photos           Photo[]
   createdAt        DateTime               @default(now())
@@ -1349,4 +1350,111 @@ model PortalChatMessage {
 
   @@index([chatId, createdAt])
   @@index([flaggedForDailyLogAt])
+}
+
+// ─── 영단어 온라인 시험 (Online Vocabulary Test) ───
+
+enum VocabExamDirection {
+  EN_TO_KO   // 영단어 → 뜻
+  KO_TO_EN   // 뜻 → 영단어
+  MIXED      // 문항별 랜덤
+}
+
+enum VocabAttemptStatus {
+  ASSIGNED      // 출제됨, 학생 미시작
+  IN_PROGRESS   // 응시 중
+  SUBMITTED     // 제출 완료 (채점됨)
+  EXPIRED       // 만료/취소
+}
+
+// 단어장 — 관리자가 CSV 업로드/직접 입력으로 만든 영단어 묶음
+model VocabBook {
+  id          String           @id @default(cuid())
+  name        String
+  description String?
+  isArchived  Boolean          @default(false)
+  createdById String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  entries     VocabBookEntry[]
+  exams       VocabExam[]
+}
+
+// 단어장 항목 (영단어 1개)
+model VocabBookEntry {
+  id           String    @id @default(cuid())
+  bookId       String
+  book         VocabBook  @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  word         String                 // 영단어
+  meanings     String[]               // 한글 뜻 (복수)
+  unit         String?                // "Day 12" 등 묶음 라벨
+  partOfSpeech String?
+  example      String?
+  order        Int        @default(0)
+  createdAt    DateTime   @default(now())
+
+  @@index([bookId, unit])
+}
+
+// 시험 정의 (출제)
+model VocabExam {
+  id                 String             @id @default(cuid())
+  title              String
+  bookId             String
+  book               VocabBook          @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  direction          VocabExamDirection @default(EN_TO_KO)
+  questionCount      Int                                    // 출제 문항 수 (entryIds/units 풀에서 샘플)
+  perQuestionSeconds Int                @default(10)         // 0 = 무제한
+  units              String[]           @default([])        // 선택 unit (entryIds 비어있을 때 풀)
+  entryIds           String[]           @default([])        // 명시적 단어 집합 (재시험/오답시험)
+  shuffle            Boolean            @default(true)
+  retakeOfId         String?                                // 재시험이면 원 시험 id
+  createdById        String
+  createdAt          DateTime           @default(now())
+  attempts           VocabAttempt[]
+
+  @@index([bookId])
+}
+
+// 학생 1명의 시험 응시 1건
+model VocabAttempt {
+  id             String             @id @default(cuid())
+  token          String             @unique @default(cuid())  // /v/[token] 응시 링크
+  examId         String
+  exam           VocabExam          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId      String
+  student        Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignedById   String
+  assignedAt     DateTime           @default(now())
+  status         VocabAttemptStatus @default(ASSIGNED)
+  startedAt      DateTime?
+  submittedAt    DateTime?
+  score          Float?                                      // 백분율
+  totalQuestions Int                @default(0)
+  correctCount   Int                @default(0)
+  durationMs     Int?
+  items          VocabAttemptItem[]
+
+  @@index([studentId])
+  @@index([examId])
+}
+
+// 응시 문항별 답안 (출제 시 prompt/정답 스냅샷)
+model VocabAttemptItem {
+  id              String             @id @default(cuid())
+  attemptId       String
+  attempt         VocabAttempt       @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  entryId         String                                     // soft ref (entry 삭제돼도 유지)
+  order           Int
+  direction       VocabExamDirection
+  prompt          String                                     // 출제 시 스냅샷 (단어 또는 뜻)
+  expectedAnswers String[]                                   // 출제 시 스냅샷 (정답 후보)
+  word            String                                     // 원 영단어 (오답 목록 표시용)
+  meanings        String[]                                   // 원 뜻 목록 (오답 목록 표시용)
+  studentAnswer   String?
+  isCorrect       Boolean?
+  timeMs          Int?
+  answeredAt      DateTime?
+
+  @@index([attemptId])
 }
