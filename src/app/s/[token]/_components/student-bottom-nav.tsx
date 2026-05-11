@@ -8,6 +8,7 @@ import {
   MessageSquare,
   MessageCircle,
   SpellCheck,
+  HelpCircle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -20,6 +21,14 @@ type Tab = {
   badge?: number;
 };
 
+const COLS: Record<number, string> = {
+  2: "grid-cols-2",
+  3: "grid-cols-3",
+  4: "grid-cols-4",
+  5: "grid-cols-5",
+  6: "grid-cols-6",
+};
+
 export function StudentBottomNav({
   token,
   taskBadge,
@@ -27,6 +36,8 @@ export function StudentBottomNav({
   feedbackBadge,
   vocabBadge,
   hasVocab,
+  questionBadge,
+  isOnlineManaged,
 }: {
   token: string;
   taskBadge?: number;
@@ -34,23 +45,30 @@ export function StudentBottomNav({
   feedbackBadge?: number;
   vocabBadge?: number;
   hasVocab?: boolean;
+  questionBadge?: number;
+  isOnlineManaged?: boolean;
 }) {
   const pathname = usePathname() ?? "";
   const root = `/s/${token}`;
 
   const tabs: Tab[] = [
     { key: "home", href: root, match: (p) => p === root, label: "홈", Icon: Home },
-    { key: "tasks", href: `${root}/tasks`, match: (p) => p.startsWith(`${root}/tasks`), label: "수행평가", Icon: ClipboardList, badge: taskBadge },
   ];
+  if (isOnlineManaged) {
+    tabs.push({ key: "tasks", href: `${root}/tasks`, match: (p) => p.startsWith(`${root}/tasks`), label: "수행평가", Icon: ClipboardList, badge: taskBadge });
+  }
   if (hasVocab) {
     tabs.push({ key: "vocab", href: `${root}/vocab`, match: (p) => p.startsWith(`${root}/vocab`), label: "영단어", Icon: SpellCheck, badge: vocabBadge });
   }
-  tabs.push(
-    { key: "chat", href: `${root}/chat`, match: (p) => p.startsWith(`${root}/chat`), label: "메시지", Icon: MessageSquare, badge: chatBadge },
-    { key: "feedback", href: `${root}/feedback`, match: (p) => p.startsWith(`${root}/feedback`), label: "피드백", Icon: MessageCircle, badge: feedbackBadge },
-  );
+  tabs.push({ key: "qna", href: `${root}/qna`, match: (p) => p.startsWith(`${root}/qna`), label: "질문", Icon: HelpCircle, badge: questionBadge });
+  if (isOnlineManaged) {
+    tabs.push(
+      { key: "chat", href: `${root}/chat`, match: (p) => p.startsWith(`${root}/chat`), label: "메시지", Icon: MessageSquare, badge: chatBadge },
+      { key: "feedback", href: `${root}/feedback`, match: (p) => p.startsWith(`${root}/feedback`), label: "피드백", Icon: MessageCircle, badge: feedbackBadge },
+    );
+  }
 
-  const cols = tabs.length === 4 ? "grid-cols-4" : tabs.length === 5 ? "grid-cols-5" : "grid-cols-6";
+  const cols = COLS[Math.min(6, Math.max(2, tabs.length))] ?? "grid-cols-4";
 
   return (
     <nav

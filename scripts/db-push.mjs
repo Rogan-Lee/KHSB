@@ -50,9 +50,12 @@ const masked = urlToUse.replace(/:[^:@/]+@/, ":***@");
 console.log(`🔗 ${source} 로 db:push 실행 중...`);
 console.log(`   대상: ${masked}`);
 
+// DATABASE_URL 뿐 아니라 DIRECT_URL 도 검증된 DEV URL 로 덮어쓴다.
+// (prisma.config.ts 의 datasource 는 `DIRECT_URL ?? DATABASE_URL` 순으로 쓰므로
+//  DIRECT_URL 을 안 덮으면 prisma CLI 가 .env 의 프로덕션 DIRECT_URL 로 붙어버린다 — 가드 우회됨.)
 const result = spawnSync("npx", ["prisma", "db", "push"], {
   stdio: "inherit",
-  env: { ...process.env, DATABASE_URL: urlToUse },
+  env: { ...process.env, DATABASE_URL: urlToUse, DIRECT_URL: urlToUse },
 });
 
 process.exit(result.status ?? 1);
