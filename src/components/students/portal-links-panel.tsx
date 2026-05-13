@@ -9,7 +9,7 @@ import {
   issueStudentPortalLink,
 } from "@/actions/student-portal-links";
 
-type Row = {
+export type PortalLinkRow = {
   id: string;
   name: string;
   grade: string;
@@ -25,11 +25,15 @@ function portalUrl(token: string): string {
   return `${origin}/s/${token}`;
 }
 
-export function PortalLinksClient({
+/**
+ * 학생 포털(`/s/[token]`) 매직링크 일괄 관리 패널.
+ * /students 의 「포털 링크」 탭과 /attendance 의 「포털 링크 관리」 Sheet 양쪽에서 재사용.
+ */
+export function PortalLinksPanel({
   students,
   canManage,
 }: {
-  students: Row[];
+  students: PortalLinkRow[];
   canManage: boolean;
 }) {
   const router = useRouter();

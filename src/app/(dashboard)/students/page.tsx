@@ -15,9 +15,25 @@ import { SheetsImport } from "@/components/students/sheets-import";
 import { getGoogleSheetsConfig } from "@/actions/google-sheets";
 import { isGoogleCalendarConfigured, getGoogleAuthUrl, isOAuthAppConfigured } from "@/lib/google-calendar";
 import { offlineStudentWhere } from "@/lib/student-filters";
+import { listStudentPortalLinks } from "@/actions/student-portal-links";
+import { auth } from "@/lib/auth";
+import { isFullAccess } from "@/lib/roles";
+import { PortalLinksPanel } from "@/components/students/portal-links-panel";
 
-export default async function StudentsPage() {
-  const [students, studentsSheetConfig, scoresSheetConfig, googleConnected] = await Promise.all([
+const VALID_TABS = ["list", "schedule", "import", "scores-import", "sheets", "portal-links"] as const;
+type TabValue = (typeof VALID_TABS)[number];
+
+export default async function StudentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
+  const { tab } = await searchParams;
+  const defaultTab: TabValue = (VALID_TABS as readonly string[]).includes(tab ?? "")
+    ? (tab as TabValue)
+    : "list";
+
+  const [students, studentsSheetConfig, scoresSheetConfig, googleConnected, portalLinkRows, session] = await Promise.all([
     prisma.student.findMany({
       where: offlineStudentWhere(),
       include: {
@@ -30,7 +46,10 @@ export default async function StudentsPage() {
     getGoogleSheetsConfig("students"),
     getGoogleSheetsConfig("scores"),
     isGoogleCalendarConfigured(),
+    listStudentPortalLinks(),
+    auth(),
   ]);
+  const canManagePortalLinks = isFullAccess(session?.user.role);
 
   const googleAuthUrl = isOAuthAppConfigured() ? getGoogleAuthUrl() : "";
 
@@ -54,11 +73,12 @@ export default async function StudentsPage() {
         ]}
       />
 
-      <Tabs defaultValue="list">
+      <Tabs defaultValue={defaultTab}>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <TabsList>
             <TabsTrigger value="list">원생 목록</TabsTrigger>
             <TabsTrigger value="schedule">입퇴실 일정</TabsTrigger>
+            <TabsTrigger value="portal-links">포털 링크</TabsTrigger>
             <TabsTrigger value="import">원생 CSV 가져오기</TabsTrigger>
             <TabsTrigger value="scores-import">성적 CSV 업로드</TabsTrigger>
             <TabsTrigger value="sheets">구글 시트 연동</TabsTrigger>
@@ -77,6 +97,19 @@ export default async function StudentsPage() {
 
         <TabsContent value="schedule" className="mt-3">
           <StudentsScheduleTable students={activeStudents} />
+        </TabsContent>
+
+        <TabsContent value="portal-links" className="mt-3">
+          <Card className="rounded-[12px] border-line shadow-[var(--shadow-xs)]">
+            <CardContent className="pt-5">
+              <div className="mb-3 text-sm text-muted-foreground">
+                재원생에게 보낼 본인 전용 학생 포털 링크({portalLinkRows.filter((s) => s.token).length}/{portalLinkRows.length}명 발급됨).
+                링크는 30일 후 만료되며 재발급할 수 있어요.
+                {!canManagePortalLinks && " (발급·재발급은 원장 권한 필요)"}
+              </div>
+              <PortalLinksPanel students={portalLinkRows} canManage={canManagePortalLinks} />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="import" className="mt-3">

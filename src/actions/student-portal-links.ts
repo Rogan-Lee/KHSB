@@ -86,7 +86,8 @@ export async function issueStudentPortalLink(params: {
     daysValid: params.daysValid ?? DEFAULT_MAGIC_LINK_VALID_DAYS,
   });
 
-  revalidatePath("/questions/links");
+  revalidatePath("/students");
+  revalidatePath("/attendance");
   return { token: link.token, expiresAt: link.expiresAt.toISOString() };
 }
 
@@ -111,7 +112,8 @@ export async function issuePortalLinksForAllActive(params?: { daysValid?: number
     });
   }
 
-  revalidatePath("/questions/links");
+  revalidatePath("/students");
+  revalidatePath("/attendance");
   return { issued: students.length };
 }
 
@@ -121,6 +123,7 @@ export async function revokeStudentPortalLinks(params: { studentId: string }) {
   requireFullAccess(session?.user?.role);
 
   const count = await revokeAllLinksForStudent(params.studentId);
-  revalidatePath("/questions/links");
+  revalidatePath("/students");
+  revalidatePath("/attendance");
   return { revoked: count };
 }
