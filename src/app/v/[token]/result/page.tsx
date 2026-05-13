@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, XCircle, ChevronRight } from "lucide-react";
+import { BackButton } from "./_back-button";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +20,19 @@ export default async function VocabResultPage({
       correctCount: true,
       totalQuestions: true,
       durationMs: true,
-      student: { select: { name: true } },
+      student: {
+        select: {
+          id: true,
+          name: true,
+          // 활성 매직링크가 있으면 결과 페이지에서 학생 포털로 돌아갈 수 있게 노출
+          magicLinks: {
+            where: { revokedAt: null, expiresAt: { gt: new Date() } },
+            orderBy: { issuedAt: "desc" },
+            take: 1,
+            select: { token: true },
+          },
+        },
+      },
       exam: { select: { title: true } },
       items: {
         orderBy: { order: "asc" },
@@ -38,6 +52,7 @@ export default async function VocabResultPage({
   const score = attempt.score ?? 0;
   const pass = score >= 80;
   const mins = attempt.durationMs ? Math.round(attempt.durationMs / 60000) : null;
+  const portalToken = attempt.student.magicLinks[0]?.token ?? null;
 
   return (
     <div className="mx-auto max-w-[560px] px-6 py-8">
@@ -80,6 +95,20 @@ export default async function VocabResultPage({
       )}
 
       <p className="mt-6 text-center text-[12px] text-ink-4">제출이 완료되었습니다. 이 시험은 다시 응시할 수 없어요.</p>
+
+      {/* 종료 후 이동 — 포털 링크가 있으면 학생 포털로, 없으면 단순 뒤로 가기 */}
+      <div className="mt-5 flex flex-col gap-2">
+        {portalToken && (
+          <Link
+            href={`/s/${portalToken}`}
+            className="inline-flex items-center justify-center gap-1.5 rounded-[12px] bg-brand px-4 py-3 text-[14px] font-semibold text-white active:scale-[0.99] transition-transform"
+          >
+            내 포털로 돌아가기
+            <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
+          </Link>
+        )}
+        <BackButton label={portalToken ? "닫기" : "뒤로 가기"} />
+      </div>
     </div>
   );
 }
