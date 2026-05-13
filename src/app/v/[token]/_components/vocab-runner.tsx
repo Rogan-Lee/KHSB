@@ -226,7 +226,8 @@ function VocabRunner({
             spellCheck={false}
             disabled={busy}
             placeholder={current.direction === "EN_TO_KO" ? "뜻을 입력하세요" : "영단어를 입력하세요"}
-            className="w-full rounded-[14px] border-2 border-line bg-panel px-4 py-4 text-center text-[20px] font-medium text-ink outline-none focus:border-brand disabled:opacity-60"
+            // 포커스(커서 깜빡임) 즉시 placeholder 숨김
+            className="w-full rounded-[14px] border-2 border-line bg-panel px-4 py-4 text-center text-[20px] font-medium text-ink outline-none focus:border-brand focus:placeholder:text-transparent disabled:opacity-60"
           />
         </div>
       </div>
