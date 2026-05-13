@@ -59,7 +59,7 @@ export default async function StaffQuestionsPage({
         <HelpCircle className="h-5 w-5 text-brand" />
         <h1 className="text-xl font-bold tracking-tight">학생 질문</h1>
         <Link
-          href="/questions/links"
+          href="/students?tab=portal-links"
           className="ml-auto inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-medium hover:bg-accent"
         >
           <Link2 className="h-3.5 w-3.5" />
