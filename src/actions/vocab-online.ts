@@ -8,6 +8,7 @@ import { parseVocabCsv } from "@/lib/csv";
 import { buildPrompt, expandExpected, isAnswerCorrect } from "@/lib/vocab-grade";
 import { issueMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
+import { vocabExpiresAt } from "@/lib/token-auth";
 import type { VocabExamDirection } from "@/generated/prisma";
 
 const ADMIN_PATH = "/vocab-test";
@@ -258,7 +259,13 @@ export async function createVocabExam(input: CreateVocabExamInput) {
   const attempts: { studentId: string; name: string; token: string; magicLinkToken: string | null }[] = [];
   for (const s of students) {
     const attempt = await prisma.vocabAttempt.create({
-      data: { examId: exam.id, studentId: s.id, assignedById: user.id, totalQuestions: questionCount },
+      data: {
+        examId: exam.id,
+        studentId: s.id,
+        assignedById: user.id,
+        totalQuestions: questionCount,
+        expiresAt: vocabExpiresAt(),
+      },
       select: { token: true },
     });
     let magicLinkToken: string | null = null;
@@ -300,7 +307,13 @@ export async function assignExamToStudents(examId: string, studentIds: string[])
   const targets = studentIds.filter((id) => !skip.has(id));
   for (const studentId of targets) {
     await prisma.vocabAttempt.create({
-      data: { examId, studentId, assignedById: user.id, totalQuestions: exam.questionCount },
+      data: {
+        examId,
+        studentId,
+        assignedById: user.id,
+        totalQuestions: exam.questionCount,
+        expiresAt: vocabExpiresAt(),
+      },
     });
   }
   revalidatePath(ADMIN_PATH);
@@ -320,7 +333,12 @@ export async function reissueAttemptLink(attemptId: string) {
   await requireStaffSession();
   const updated = await prisma.vocabAttempt.update({
     where: { id: attemptId },
-    data: { token: crypto.randomUUID(), status: "ASSIGNED", startedAt: null },
+    data: {
+      token: crypto.randomUUID(),
+      status: "ASSIGNED",
+      startedAt: null,
+      expiresAt: vocabExpiresAt(),
+    },
     select: { token: true },
   });
   // 기존 응시 문항 폐기 (재시작)
@@ -356,7 +374,13 @@ export async function createRetakeFromAttempt(attemptId: string) {
     },
   });
   const retake = await prisma.vocabAttempt.create({
-    data: { examId: exam.id, studentId: attempt.studentId, assignedById: user.id, totalQuestions: wrongEntryIds.length },
+    data: {
+      examId: exam.id,
+      studentId: attempt.studentId,
+      assignedById: user.id,
+      totalQuestions: wrongEntryIds.length,
+      expiresAt: vocabExpiresAt(),
+    },
     select: { token: true },
   });
   revalidatePath(ADMIN_PATH);
@@ -384,6 +408,17 @@ async function getAttemptByToken(token: string) {
   });
   if (!attempt) throw new Error("시험을 찾을 수 없습니다");
   if (attempt.status === "EXPIRED") throw new Error("만료되었거나 취소된 시험입니다");
+  // expiresAt 자동 만료 (제출 전 응시 한정 — 이미 제출된 응시는 결과 조회 가능)
+  if (
+    attempt.expiresAt &&
+    attempt.expiresAt.getTime() < Date.now() &&
+    attempt.status !== "SUBMITTED"
+  ) {
+    await prisma.vocabAttempt
+      .update({ where: { id: attempt.id }, data: { status: "EXPIRED" } })
+      .catch(() => {});
+    throw new Error("만료되었거나 취소된 시험입니다");
+  }
   return attempt;
 }
 

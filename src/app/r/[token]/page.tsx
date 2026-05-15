@@ -1,9 +1,11 @@
-import { notFound } from "next/navigation";
-import { getParentReport } from "@/actions/parent-reports";
+import { getParentReportDetailed } from "@/actions/parent-reports";
 import { getStudentAnalytics } from "@/actions/analytics";
+import { hasGatePass } from "@/lib/token-auth";
 import { BookOpen, GraduationCap, User, Calendar, Clock, CheckCircle2, TrendingUp, TrendingDown, Target, FileText, MessageSquare, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
+import { ParentGate } from "@/components/magic-link-gate/parent-gate";
+import { TokenNotice, reasonToNotice } from "@/components/magic-link-gate/token-notice";
 
 export default async function ParentReportPage({
   params,
@@ -11,9 +13,17 @@ export default async function ParentReportPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const report = await getParentReport(token);
+  const result = await getParentReportDetailed(token);
+  if (!result.ok) {
+    const n = reasonToNotice(result.reason);
+    return <TokenNotice title={n.title} body={n.body} />;
+  }
+  const report = result.report;
 
-  if (!report) notFound();
+  const gated = await hasGatePass("PARENT", token, report.student.id);
+  if (!gated) {
+    return <ParentGate model="parent-report" token={token} />;
+  }
 
   const { student, mentoring, studyPlanNote, studyPlanImages, customNote } = report;
 

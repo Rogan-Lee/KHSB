@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { VocabExperience } from "./_components/vocab-runner";
+import { getRequestMeta } from "@/lib/token-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +14,10 @@ export default async function VocabExamEntryPage({
   const attempt = await prisma.vocabAttempt.findUnique({
     where: { token },
     select: {
+      id: true,
       status: true,
       totalQuestions: true,
+      expiresAt: true,
       student: { select: { name: true } },
       exam: { select: { title: true, questionCount: true, perQuestionSeconds: true } },
     },
@@ -26,9 +29,32 @@ export default async function VocabExamEntryPage({
   if (attempt.status === "EXPIRED") {
     return <Notice title="이미 종료된 시험이에요" body="이 시험 링크는 만료되었거나 취소되었습니다." />;
   }
+  // 응시 전 만료된 시험은 자동 EXPIRED 전이 (제출 완료된 응시는 결과 조회 허용)
+  // force-dynamic server component 라 Date.now() 사용 안전 (React render 룰 false positive)
+  // eslint-disable-next-line react-hooks/purity
+  const nowMs = Date.now();
+  if (
+    attempt.expiresAt &&
+    attempt.expiresAt.getTime() < nowMs &&
+    attempt.status !== "SUBMITTED"
+  ) {
+    await prisma.vocabAttempt
+      .update({ where: { id: attempt.id }, data: { status: "EXPIRED" } })
+      .catch(() => {});
+    return <Notice title="이미 종료된 시험이에요" body="이 시험 링크는 만료되었거나 취소되었습니다." />;
+  }
   if (attempt.status === "SUBMITTED") {
     redirect(`/v/${token}/result`);
   }
+
+  // IP/UA 접근 로그 (fire-and-forget)
+  const { ip, ua } = await getRequestMeta();
+  prisma.vocabAttempt
+    .update({
+      where: { id: attempt.id },
+      data: { lastAccessIp: ip, lastAccessUa: ua },
+    })
+    .catch(() => {});
 
   return (
     <VocabExperience
