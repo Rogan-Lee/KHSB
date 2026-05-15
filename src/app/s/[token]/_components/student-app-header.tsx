@@ -33,6 +33,9 @@ function resolveHeader(pathname: string, token: string): HeaderConfig {
   if (pathname.startsWith(`${root}/feedback`)) {
     return { title: "피드백", showBack: true, backHref: root };
   }
+  if (pathname.startsWith(`${root}/vocab`)) {
+    return { title: "영단어 시험", showBack: true, backHref: root };
+  }
   return { title: "내 포털", showBack: false };
 }
 
