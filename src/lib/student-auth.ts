@@ -35,7 +35,9 @@ export async function issueMagicLink(params: {
 
 /**
  * 토큰 검증. 유효한 경우 학생과 링크 반환 + accessCount 증가.
- * 실패 사유: 존재하지 않음 / 무효화됨 / 만료됨 / 학생 isOnlineManaged=false.
+ * 실패 사유: 존재하지 않음 / 무효화됨 / 만료됨.
+ * (질문 게시판은 전체 재원생 대상이므로 isOnlineManaged 게이트 없음 —
+ *  온라인 모듈 전용 화면은 각 페이지에서 student.isOnlineManaged 로 가드한다.)
  * React cache 로 감싸 동일 request 내 중복 호출 시 한 번만 실행
  * (layout + page 에서 동시 호출 시 accessCount 중복 방지).
  */
@@ -50,7 +52,6 @@ export const validateMagicLink = cache(
     if (!link) return null;
     if (link.revokedAt) return null;
     if (link.expiresAt.getTime() < Date.now()) return null;
-    if (!link.student.isOnlineManaged) return null;
 
     prisma.studentMagicLink
       .update({
