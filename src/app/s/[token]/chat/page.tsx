@@ -43,6 +43,8 @@ export default async function StudentChatListPage({
 
   const chats = await listStudentChats({ studentToken: token });
   const totalUnread = chats.reduce((sum, c) => sum + c.unread, 0);
+  const currentCount = chats.filter((c) => c.isCurrentAssignee).length;
+  const pastCount = chats.length - currentCount;
 
   return (
     <div className="space-y-3">
@@ -56,9 +58,9 @@ export default async function StudentChatListPage({
         <p className="mt-2 text-[12.5px] leading-relaxed opacity-95">
           {chats.length === 0
             ? "아직 배정된 담당자가 없어요. 원장님께 문의해 주세요."
-            : `${chats.length}명의 담당자${
-                totalUnread > 0 ? ` · 새 메시지 ${totalUnread}건` : ""
-              }`}
+            : `현재 담당자 ${currentCount}명${
+                pastCount > 0 ? ` · 이전 담당자 ${pastCount}명` : ""
+              }${totalUnread > 0 ? ` · 새 메시지 ${totalUnread}건` : ""}`}
         </p>
       </section>
 
@@ -89,23 +91,34 @@ export default async function StudentChatListPage({
                 <Link
                   href={`/s/${token}/chat/${c.id}`}
                   className={`flex items-center gap-3 rounded-[14px] border bg-panel p-3.5 transition-colors active:bg-canvas-2 ${
-                    c.unread > 0 ? "border-brand/40 ring-1 ring-brand/15" : "border-line"
+                    c.unread > 0
+                      ? "border-brand/40 ring-1 ring-brand/15"
+                      : c.isCurrentAssignee
+                        ? "border-line"
+                        : "border-line bg-canvas-2/40"
                   }`}
                 >
                   <span
-                    className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[14px] font-bold text-white ${tone}`}
+                    className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[14px] font-bold text-white ${tone} ${
+                      c.isCurrentAssignee ? "" : "opacity-70 grayscale-[40%]"
+                    }`}
                     aria-hidden
                   >
                     {c.staff.name.slice(0, 1)}
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="truncate text-[14px] font-semibold text-ink">
+                      <p className={`truncate text-[14px] font-semibold ${c.isCurrentAssignee ? "text-ink" : "text-ink-3"}`}>
                         {c.staff.name}
                       </p>
                       <span className="rounded-full bg-canvas-2 px-1.5 py-0.5 text-[10px] font-medium text-ink-3">
                         {ROLE_LABEL[c.staff.role] ?? "직원"}
                       </span>
+                      {!c.isCurrentAssignee && (
+                        <span className="rounded-full bg-ink-5/15 px-1.5 py-0.5 text-[10px] font-medium text-ink-3">
+                          이전 담당자
+                        </span>
+                      )}
                       <span className="ml-auto shrink-0 text-[10.5px] text-ink-5 tabular-nums">
                         {timeAgo(c.lastMessageAt)}
                       </span>

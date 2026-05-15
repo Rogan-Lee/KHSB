@@ -68,11 +68,58 @@ export async function ensureStudentPortalChats(studentId: string) {
   });
 }
 
-/** 학생 포털용 채팅 리스트 — 토큰 인증. */
+/**
+ * 학생 포털용 채팅 리스트 — 토큰 인증.
+ * 담당자가 바뀌어도 이전 채팅 기록은 유지: 현재 담당 + 메시지가 1건이라도 오간 과거 담당
+ * 모두 반환. 과거 담당자는 `isCurrentAssignee: false` 로 표시.
+ */
 export async function listStudentChats(params: { studentToken: string }) {
   const session = await validateMagicLink(params.studentToken);
   if (!session) throw new Error("인증이 만료되었습니다");
-  const chats = await ensureStudentPortalChats(session.student.id);
+
+  // 현재 담당자 set 확보 + 현재 담당자 채팅방 보장
+  await ensureStudentPortalChats(session.student.id);
+  const student = await prisma.student.findUnique({
+    where: { id: session.student.id },
+    select: {
+      assignedMentorId: true,
+      assignedConsultantId: true,
+      assignedStaffId: true,
+    },
+  });
+  const currentStaffIds = new Set(
+    [student?.assignedMentorId, student?.assignedConsultantId, student?.assignedStaffId]
+      .filter((id): id is string => !!id)
+  );
+  const currentStaffArr = [...currentStaffIds];
+
+  // 학생 본인의 채팅방 전체 — 단, 메시지 없는 과거 담당자 방은 제외(혼선 방지).
+  const chats = await prisma.portalChat.findMany({
+    where: {
+      studentId: session.student.id,
+      OR: [
+        // 현재 담당자: 항상 노출 (메시지가 없어도)
+        { staffId: { in: currentStaffArr.length ? currentStaffArr : ["__none__"] } },
+        // 과거 담당자: 최소 1건이라도 대화가 있었을 때만
+        { lastMessageAt: { not: null } },
+      ],
+    },
+    orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+    include: {
+      staff: { select: { id: true, name: true, role: true } },
+      messages: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: {
+          id: true,
+          content: true,
+          senderType: true,
+          createdAt: true,
+          attachments: true,
+        },
+      },
+    },
+  });
 
   // 정확한 unread 카운트: 학생이 읽은 시각 이후로 STAFF가 보낸 메시지
   const unreadCounts = await Promise.all(
@@ -92,6 +139,7 @@ export async function listStudentChats(params: { studentToken: string }) {
     return {
       id: c.id,
       staff: c.staff,
+      isCurrentAssignee: currentStaffIds.has(c.staffId),
       lastMessage: last
         ? {
             content: last.content,

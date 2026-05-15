@@ -6,6 +6,10 @@ import { CheckCircle2, XCircle, Clock, Minus, UserX, BookOpen } from "lucide-rea
 import { todayKST } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { offlineStudentWhere } from "@/lib/student-filters";
+import { listStudentPortalLinks } from "@/actions/student-portal-links";
+import { auth } from "@/lib/auth";
+import { isFullAccess } from "@/lib/roles";
+import { PortalLinksSheet } from "@/components/attendance/portal-links-sheet";
 
 export const revalidate = 30; // 30초 캐싱 (force-dynamic 대비 성능 향상)
 
@@ -22,6 +26,9 @@ export default async function AttendancePage({
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const dayOfWeek = kstNow.getUTCDay();
   const nowHHMM = kstNow.toISOString().slice(11, 16); // "HH:MM" KST
+
+  const [portalLinkRows, session] = await Promise.all([listStudentPortalLinks(), auth()]);
+  const canManagePortalLinks = isFullAccess(session?.user.role);
 
   const students = await prisma.student.findMany({
     where: offlineStudentWhere({ status: "ACTIVE" }),
@@ -87,9 +94,12 @@ export default async function AttendancePage({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <h2 className="text-lg font-semibold">{dateLabel} 출결 현황</h2>
-        <span className="text-sm text-muted-foreground">등원 예정 {withSchedule.length}명</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-muted-foreground">등원 예정 {withSchedule.length}명</span>
+          <PortalLinksSheet rows={portalLinkRows} canManage={canManagePortalLinks} />
+        </div>
       </div>
 
       {/* Stats */}

@@ -40,6 +40,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   Video,
+  HelpCircle,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType; feature?: FeatureKey };
@@ -62,6 +63,7 @@ const navSections: NavSection[] = [
       { href: "/seat-map", label: "좌석 배치도", icon: MapPin, feature: "seat-map" },
       { href: "/merit-demerit", label: "상벌점", icon: Star, feature: "merit-demerit" },
       { href: "/vocab-test", label: "영단어 시험", icon: BookOpen, feature: "vocab-test" },
+      { href: "/questions", label: "학생 질문", icon: HelpCircle },
       { href: "/assignments", label: "과제 관리", icon: ClipboardCheck, feature: "assignments" },
       { href: "/exams", label: "시험 관리", icon: GraduationCap, feature: "exam-scores" },
     ],
