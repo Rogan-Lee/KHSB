@@ -52,6 +52,29 @@ async function countUnreadChatMessagesForStudent(
   return counts.reduce((a, b) => a + b, 0);
 }
 
+/** 학생 측 미확인 질문 답변 합계 (모든 질문 합산). */
+async function countUnreadQuestionAnswersForStudent(
+  studentId: string
+): Promise<number> {
+  const questions = await prisma.studentQuestion.findMany({
+    where: { studentId },
+    select: { id: true, studentReadAt: true },
+  });
+  if (questions.length === 0) return 0;
+  const counts = await Promise.all(
+    questions.map((q) =>
+      prisma.questionMessage.count({
+        where: {
+          questionId: q.id,
+          senderType: "STAFF",
+          createdAt: q.studentReadAt ? { gt: q.studentReadAt } : undefined,
+        },
+      })
+    )
+  );
+  return counts.reduce((a, b) => a + b, 0);
+}
+
 export default async function StudentPortalLayout({
   children,
   params,
@@ -60,21 +83,32 @@ export default async function StudentPortalLayout({
   const session = await validateMagicLink(token);
   if (!session) redirect("/s/expired");
 
-  const [taskBadge, feedbackBadge, chatBadge] = await Promise.all([
-    prisma.performanceTask.count({
-      where: {
-        studentId: session.student.id,
-        status: { in: ["OPEN", "IN_PROGRESS", "NEEDS_REVISION"] },
-      },
-    }),
-    prisma.taskFeedback.count({
-      where: {
-        readByStudentAt: null,
-        submission: { task: { studentId: session.student.id } },
-      },
-    }),
-    countUnreadChatMessagesForStudent(session.student.id),
-  ]);
+  const isOnlineManaged = session.student.isOnlineManaged;
+  const [taskBadge, feedbackBadge, chatBadge, vocabTotal, vocabBadge, questionBadge] =
+    await Promise.all([
+      isOnlineManaged
+        ? prisma.performanceTask.count({
+            where: {
+              studentId: session.student.id,
+              status: { in: ["OPEN", "IN_PROGRESS", "NEEDS_REVISION"] },
+            },
+          })
+        : Promise.resolve(0),
+      isOnlineManaged
+        ? prisma.taskFeedback.count({
+            where: {
+              readByStudentAt: null,
+              submission: { task: { studentId: session.student.id } },
+            },
+          })
+        : Promise.resolve(0),
+      isOnlineManaged ? countUnreadChatMessagesForStudent(session.student.id) : Promise.resolve(0),
+      prisma.vocabAttempt.count({ where: { studentId: session.student.id } }),
+      prisma.vocabAttempt.count({
+        where: { studentId: session.student.id, status: { in: ["ASSIGNED", "IN_PROGRESS"] } },
+      }),
+      countUnreadQuestionAnswersForStudent(session.student.id),
+    ]);
 
   const daysLeft = Math.max(
     0,
@@ -109,6 +143,10 @@ export default async function StudentPortalLayout({
           taskBadge={taskBadge}
           feedbackBadge={feedbackBadge}
           chatBadge={chatBadge}
+          vocabBadge={vocabBadge}
+          hasVocab={vocabTotal > 0}
+          questionBadge={questionBadge}
+          isOnlineManaged={isOnlineManaged}
         />
       </div>
     </>

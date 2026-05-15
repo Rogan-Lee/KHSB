@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { auth } from "@/lib/auth";
-import { isOnlineStaff } from "@/lib/roles";
+import { isOnlineStaff, isStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 import { prisma } from "@/lib/prisma";
 
@@ -42,7 +42,7 @@ function safeName(filename: string): string {
     .slice(0, 200);
 }
 
-type UploadContext = "task" | "chat" | "feedback";
+type UploadContext = "task" | "chat" | "feedback" | "question";
 
 export async function POST(request: NextRequest) {
   let formData: FormData;
@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
   const context: UploadContext =
     contextRaw === "chat" ? "chat" :
     contextRaw === "feedback" ? "feedback" :
+    contextRaw === "question" ? "question" :
     "task"; // default = task (BC)
 
   if (!(file instanceof File)) {
@@ -125,8 +126,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
     }
     blobPathPrefix = `online/chats/${chatId}`;
-  } else {
-    // context === "feedback" — 온라인 staff 가 피드백 작성 시 첨부
+  } else if (context === "feedback") {
+    // 온라인 staff 가 피드백 작성 시 첨부
     const submissionId = formData.get("submissionId");
     if (typeof submissionId !== "string" || !submissionId) {
       return NextResponse.json({ error: "submissionId 가 필요합니다" }, { status: 400 });
@@ -143,6 +144,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "제출물을 찾을 수 없습니다" }, { status: 404 });
     }
     blobPathPrefix = `online/feedback/${submissionId}`;
+  } else {
+    // context === "question" — 학생 질문(문제 사진) 또는 멘토 답변(풀이 사진) 첨부.
+    // 작성 직전이라 questionId 가 없을 수 있어 incoming 버킷에 올린다. 학생 토큰 또는 staff 세션 필요.
+    const studentToken = formData.get("studentToken");
+    let authorized = false;
+    if (typeof studentToken === "string" && studentToken) {
+      const session = await validateMagicLink(studentToken);
+      if (session) authorized = true;
+    }
+    if (!authorized) {
+      const session = await auth();
+      if (session?.user && isStaff(session.user.role)) authorized = true;
+    }
+    if (!authorized) {
+      return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
+    }
+    blobPathPrefix = "student-questions/incoming";
   }
 
   // 파일 크기/타입 검증
