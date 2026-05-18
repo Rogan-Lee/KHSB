@@ -393,3 +393,164 @@ export async function setUserStatus(
   revalidatePath("/admin");
   return updated;
 }
+
+// ──────────────────────────────────────────────────────────────────
+// PayrollContract — 월별 활성 계약 (Sprint 3 PR 3.2)
+// 시급 변경 시 새 행 추가 → 직전 계약의 effectiveTo 자동 종료.
+// 모든 급여 산정의 단일 진입점은 getActiveContractFor(userId, ymd).
+// ──────────────────────────────────────────────────────────────────
+
+/**
+ * KST 기준 "월 1일 00:00" 을 표현하는 Date(UTC midnight) 정규화.
+ * 입력 Date 의 KST 연·월을 추출해 `new Date(Date.UTC(year, monthIndex, 1))` 로 반환.
+ * 이미 1일이 아니면 throw — 매월 1일만 허용.
+ */
+function normalizeContractFromDate(d: Date): Date {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) {
+    throw new Error("계약 시작일이 올바르지 않습니다");
+  }
+  // KST 로 환산 (UTC + 9h)
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const year = kst.getUTCFullYear();
+  const monthIndex = kst.getUTCMonth();
+  const day = kst.getUTCDate();
+  if (day !== 1) {
+    throw new Error("계약 시작일은 매월 1일이어야 합니다");
+  }
+  return new Date(Date.UTC(year, monthIndex, 1));
+}
+
+/**
+ * KST 기준 하루(24h) 전 Date — effectiveTo 자동 마감용.
+ * effectiveFrom 이 새 계약의 시작이면, 직전 계약의 effectiveTo = effectiveFrom - 1day.
+ */
+function previousDay(d: Date): Date {
+  return new Date(d.getTime() - 24 * 60 * 60 * 1000);
+}
+
+export async function createContract(
+  userId: string,
+  data: {
+    effectiveFrom: Date;
+    hourlyRate: number;
+    weeklyHolidayPay?: boolean;
+    monthlyBonusKrw?: number;
+    note?: string;
+  },
+) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+
+  if (!userId) throw new Error("대상 사용자가 지정되지 않았습니다");
+
+  const effectiveFrom = normalizeContractFromDate(data.effectiveFrom);
+
+  if (!Number.isFinite(data.hourlyRate) || data.hourlyRate <= 0) {
+    throw new Error("시급은 0보다 커야 합니다");
+  }
+  const hourlyRate = Math.round(data.hourlyRate);
+  const weeklyHolidayPay = data.weeklyHolidayPay ?? true;
+  const monthlyBonusKrw = Math.max(0, Math.round(data.monthlyBonusKrw ?? 0));
+  const note = data.note?.trim() || null;
+
+  // 직전 활성 계약(effectiveTo=null) 조회 후 트랜잭션으로 마감 + 신규 생성
+  const current = await prisma.payrollContract.findFirst({
+    where: { userId, effectiveTo: null },
+    orderBy: { effectiveFrom: "desc" },
+  });
+
+  if (current && current.effectiveFrom >= effectiveFrom) {
+    throw new Error("신규 계약 시작일은 직전 계약 시작일보다 이후여야 합니다");
+  }
+
+  const newEffectiveTo = previousDay(effectiveFrom);
+
+  const ops = [];
+  if (current) {
+    ops.push(
+      prisma.payrollContract.update({
+        where: { id: current.id },
+        data: { effectiveTo: newEffectiveTo },
+      }),
+    );
+  }
+  ops.push(
+    prisma.payrollContract.create({
+      data: {
+        userId,
+        effectiveFrom,
+        hourlyRate,
+        weeklyHolidayPay,
+        monthlyBonusKrw,
+        note,
+        createdById: session!.user!.id,
+      },
+    }),
+  );
+
+  const results = await prisma.$transaction(ops);
+  const created = results[results.length - 1];
+
+  revalidatePath("/payroll");
+  return created;
+}
+
+export async function listContracts(userId: string) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+
+  if (!userId) throw new Error("대상 사용자가 지정되지 않았습니다");
+
+  return prisma.payrollContract.findMany({
+    where: { userId },
+    orderBy: { effectiveFrom: "desc" },
+  });
+}
+
+export async function terminateContract(contractId: string, effectiveTo: Date) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+
+  if (!contractId) throw new Error("계약 ID가 지정되지 않았습니다");
+  if (!(effectiveTo instanceof Date) || Number.isNaN(effectiveTo.getTime())) {
+    throw new Error("계약 종료일이 올바르지 않습니다");
+  }
+
+  const contract = await prisma.payrollContract.findUnique({
+    where: { id: contractId },
+  });
+  if (!contract) throw new Error("계약을 찾을 수 없습니다");
+
+  if (effectiveTo < contract.effectiveFrom) {
+    throw new Error("종료일은 시작일 이후여야 합니다");
+  }
+
+  const updated = await prisma.payrollContract.update({
+    where: { id: contractId },
+    data: { effectiveTo },
+  });
+
+  revalidatePath("/payroll");
+  return updated;
+}
+
+/**
+ * 주어진 일자(ymd) 에 활성인 계약을 반환. effectiveFrom <= ymd <= (effectiveTo ?? ∞).
+ * 순수 read — 권한 체크 없음(서버 액션 내부 헬퍼). 단일 진입점.
+ *
+ * TODO(PR 3.3+): PayrollSetting 직접 조회 코드(`calculateMonthlyPayroll` 등)를
+ * 모두 이 함수로 교체. PayrollSetting 은 빠른 표시용 캐시로만 유지.
+ */
+export async function getActiveContractFor(userId: string, ymd: Date) {
+  if (!userId) return null;
+  if (!(ymd instanceof Date) || Number.isNaN(ymd.getTime())) return null;
+
+  return prisma.payrollContract.findFirst({
+    where: {
+      userId,
+      effectiveFrom: { lte: ymd },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gte: ymd } }],
+    },
+    orderBy: { effectiveFrom: "desc" },
+  });
+}
