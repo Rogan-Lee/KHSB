@@ -15,10 +15,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { formatDate } from "@/lib/utils";
-import { Search, X, Pencil, Trash2 } from "lucide-react";
+import { Search, X, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Checkbox } from "@/components/ui/checkbox";
-import { updateMeritDemerit, deleteMeritDemerit, bulkDeleteMeritDemerits } from "@/actions/merit-demerit";
+import { updateMeritDemerit, deleteMeritDemerit, bulkDeleteMeritDemerits, toggleMeritDemeritVisibility } from "@/actions/merit-demerit";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useSortableTable } from "@/hooks/use-sortable-table";
@@ -31,6 +31,7 @@ type MeritRecord = {
   points: number;
   category: string | null;
   reason: string;
+  visibleInReport: boolean;
   student: { name: string; grade: string };
 };
 
@@ -187,6 +188,18 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
       } catch { toast.error("삭제 실패"); }
     });
   }
+  function handleToggleVisibility(record: MeritRecord) {
+    const nextVisible = !record.visibleInReport;
+    startBulkTransition(async () => {
+      try {
+        await toggleMeritDemeritVisibility(record.id, nextVisible);
+        toast.success(nextVisible ? "리포트에 표시됩니다" : "리포트에서 숨겨졌습니다");
+        router.refresh();
+      } catch {
+        toast.error("변경 실패");
+      }
+    });
+  }
 
   return (
     <div className="space-y-3">
@@ -231,13 +244,14 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
             </SortableHeader>
             <TableHead>카테고리</TableHead>
             <TableHead>사유</TableHead>
+            <TableHead className="w-10 text-center">리포트</TableHead>
             <TableHead className="w-10"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {filtered.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                 {q ? "검색 결과가 없습니다" : "상벌점 내역이 없습니다"}
               </TableCell>
             </TableRow>
@@ -262,6 +276,19 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
                 </TableCell>
                 <TableCell>{m.category || "-"}</TableCell>
                 <TableCell>{m.reason}</TableCell>
+                <TableCell className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleVisibility(m)}
+                    disabled={isBulkPending}
+                    title={m.visibleInReport ? "리포트에 표시됨 — 숨기려면 클릭" : "리포트에서 숨김 — 표시하려면 클릭"}
+                    className={`p-1 rounded hover:bg-muted transition-colors ${
+                      m.visibleInReport ? "text-foreground" : "text-muted-foreground/60"
+                    }`}
+                  >
+                    {m.visibleInReport ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                  </button>
+                </TableCell>
                 <TableCell>
                   <button
                     onClick={() => setEditTarget(m)}
