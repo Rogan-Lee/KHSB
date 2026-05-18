@@ -1448,6 +1448,13 @@ model MentoringSession {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
+  // ─── 서명 (Sprint 5 PR 5.2) ───
+  // 학생/호스트(멘토) 양측 서명 이미지 (Vercel Blob URL).
+  // signedAt 은 양쪽 모두 set 됐을 때만 채워진다. 세션 완료 처리의 gate.
+  studentSignatureUrl String?
+  hostSignatureUrl    String?
+  signedAt            DateTime?
+
   photos MentoringSessionPhoto[]
 
   @@index([studentId, scheduledAt])
