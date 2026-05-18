@@ -23,12 +23,15 @@ import {
   updateSessionNotes,
   completeMentoringSession,
   cancelMentoringSession,
+  setSessionSignature,
+  clearSessionSignature,
 } from "@/actions/online/mentoring-sessions";
 import type {
   MentoringSessionPhoto,
   MentoringSessionStatus,
 } from "@/generated/prisma";
 import { SessionPhotoUploader } from "@/components/mentoring/session-photo-uploader";
+import { SignaturePad } from "@/components/mentoring/signature-pad";
 
 export type MentoringSessionRow = {
   id: string;
@@ -42,6 +45,10 @@ export type MentoringSessionRow = {
   summary: string | null;
   hostName: string;
   photos: MentoringSessionPhoto[];
+  // Sprint 5 PR 5.2 — 양측 서명
+  studentSignatureUrl: string | null;
+  hostSignatureUrl: string | null;
+  signedAt: string | null; // ISO
 };
 
 const STATUS_LABEL: Record<MentoringSessionStatus, string> = {
@@ -400,6 +407,90 @@ function SessionCard({
             />
           </div>
 
+          {/* 양측 서명 (Sprint 5 PR 5.2) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <h6 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide">
+                양측 서명
+              </h6>
+              {session.signedAt && (
+                <span className="text-[10.5px] text-emerald-700">
+                  {new Date(session.signedAt).toLocaleString("ko-KR", {
+                    timeZone: "Asia/Seoul",
+                    month: "2-digit",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                  })}{" "}
+                  서명 완료
+                </span>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <SignaturePad
+                label="학생 서명"
+                initialDataUrl={session.studentSignatureUrl}
+                disabled={!editable}
+                onSave={async (dataUrl) => {
+                  try {
+                    await setSessionSignature(session.id, {
+                      which: "student",
+                      dataUrl,
+                    });
+                    toast.success("학생 서명이 저장되었습니다");
+                    router.refresh();
+                  } catch (err) {
+                    toast.error(
+                      err instanceof Error ? err.message : "서명 저장 실패"
+                    );
+                  }
+                }}
+                onClear={async () => {
+                  try {
+                    await clearSessionSignature(session.id, "student");
+                    toast.success("학생 서명이 삭제되었습니다");
+                    router.refresh();
+                  } catch (err) {
+                    toast.error(
+                      err instanceof Error ? err.message : "삭제 실패"
+                    );
+                  }
+                }}
+              />
+              <SignaturePad
+                label="호스트(멘토) 서명"
+                initialDataUrl={session.hostSignatureUrl}
+                disabled={!editable}
+                onSave={async (dataUrl) => {
+                  try {
+                    await setSessionSignature(session.id, {
+                      which: "host",
+                      dataUrl,
+                    });
+                    toast.success("호스트 서명이 저장되었습니다");
+                    router.refresh();
+                  } catch (err) {
+                    toast.error(
+                      err instanceof Error ? err.message : "서명 저장 실패"
+                    );
+                  }
+                }}
+                onClear={async () => {
+                  try {
+                    await clearSessionSignature(session.id, "host");
+                    toast.success("호스트 서명이 삭제되었습니다");
+                    router.refresh();
+                  } catch (err) {
+                    toast.error(
+                      err instanceof Error ? err.message : "삭제 실패"
+                    );
+                  }
+                }}
+              />
+            </div>
+          </div>
+
           {/* 액션 버튼 */}
           {editable && (
             <div className="flex items-center justify-end gap-2">
@@ -415,7 +506,20 @@ function SessionCard({
               <button
                 type="button"
                 onClick={handleComplete}
-                disabled={isPending || summarizing || !notesDraft.trim()}
+                disabled={
+                  isPending ||
+                  summarizing ||
+                  !notesDraft.trim() ||
+                  !session.studentSignatureUrl ||
+                  !session.hostSignatureUrl
+                }
+                title={
+                  !session.studentSignatureUrl || !session.hostSignatureUrl
+                    ? "양측 서명이 완료되어야 세션을 완료할 수 있습니다"
+                    : !notesDraft.trim()
+                      ? "노트가 비어 있어 요약할 수 없습니다"
+                      : undefined
+                }
                 className="inline-flex items-center gap-1 rounded-[8px] bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-[12px] font-semibold disabled:opacity-50"
               >
                 {summarizing ? (
@@ -427,6 +531,12 @@ function SessionCard({
               </button>
             </div>
           )}
+          {editable &&
+            (!session.studentSignatureUrl || !session.hostSignatureUrl) && (
+              <p className="text-[11px] text-amber-700 text-right">
+                양측 서명이 완료되어야 세션을 완료할 수 있습니다
+              </p>
+            )}
           {session.status === "COMPLETED" && (
             <p className="text-[11px] text-emerald-700 inline-flex items-center gap-1">
               <CheckCircle2 className="h-3 w-3" />
