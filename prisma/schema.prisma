@@ -899,6 +899,21 @@ model Assignment {
   createdByName String
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  files         AssignmentFile[]
+}
+
+model AssignmentFile {
+  id           String     @id @default(cuid())
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  url          String     // Vercel Blob URL
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  uploadedById String
+  uploadedAt   DateTime   @default(now())
+
+  @@index([assignmentId])
 }
 
 model CalendarEvent {
