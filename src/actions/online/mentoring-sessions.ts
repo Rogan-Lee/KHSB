@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import Groq from "groq-sdk";
-import { del } from "@vercel/blob";
+import { del, put } from "@vercel/blob";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireOnlineStaff } from "@/lib/roles";
@@ -174,6 +174,10 @@ export async function completeMentoringSession(sessionId: string) {
   }
   if (!target.notes || !target.notes.trim()) {
     throw new Error("노트가 비어 있어 요약할 수 없습니다");
+  }
+  // Sprint 5 PR 5.2 — 양측 서명 gate
+  if (!target.studentSignatureUrl || !target.hostSignatureUrl) {
+    throw new Error("양측 서명이 완료되어야 세션을 완료할 수 있습니다");
   }
 
   // AI 요약
@@ -433,4 +437,140 @@ export async function listSessionPhotos(sessionId: string) {
     where: { sessionId },
     orderBy: { uploadedAt: "asc" },
   });
+}
+
+// ─────────────────── 9) 세션 서명 저장 (Sprint 5 PR 5.2) ───────────────────
+// 학생/호스트 서명은 PNG dataURL 로 받아 Vercel Blob 에 PNG 로 저장.
+// 양쪽 모두 set 되는 순간 signedAt 도 동기 설정. 완료 처리의 gate.
+export async function setSessionSignature(
+  sessionId: string,
+  params: { which: "student" | "host"; dataUrl: string }
+) {
+  const session = await auth();
+  requireOnlineStaff(session?.user?.role);
+
+  const target = await prisma.mentoringSession.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      studentId: true,
+      status: true,
+      studentSignatureUrl: true,
+      hostSignatureUrl: true,
+    },
+  });
+  if (!target) throw new Error("세션을 찾을 수 없습니다");
+  if (target.status === "CANCELED") {
+    throw new Error("취소된 세션은 수정할 수 없습니다");
+  }
+
+  // dataURL → Buffer
+  const match = params.dataUrl.match(/^data:image\/png;base64,(.+)$/);
+  if (!match) throw new Error("PNG dataURL 형식이 올바르지 않습니다");
+  const buffer = Buffer.from(match[1], "base64");
+  if (buffer.byteLength === 0) {
+    throw new Error("서명 데이터가 비어 있습니다");
+  }
+  if (buffer.byteLength > 2 * 1024 * 1024) {
+    throw new Error("서명 이미지가 너무 큽니다 (최대 2MB)");
+  }
+
+  const blobKey = `mentoring-sessions/${sessionId}/signature-${params.which}-${Date.now()}.png`;
+  const blob = await put(blobKey, buffer, {
+    access: "public",
+    addRandomSuffix: false,
+    token: process.env.BLOB_READ_WRITE_TOKEN,
+    contentType: "image/png",
+  });
+
+  // 기존 서명 URL 있으면 Blob 정리 (best-effort)
+  const previousUrl =
+    params.which === "student"
+      ? target.studentSignatureUrl
+      : target.hostSignatureUrl;
+  if (previousUrl) {
+    try {
+      await del(previousUrl, { token: process.env.BLOB_READ_WRITE_TOKEN });
+    } catch {
+      // silent
+    }
+  }
+
+  const nextStudent =
+    params.which === "student" ? blob.url : target.studentSignatureUrl;
+  const nextHost =
+    params.which === "host" ? blob.url : target.hostSignatureUrl;
+  const bothSigned = !!nextStudent && !!nextHost;
+
+  const updated = await prisma.mentoringSession.update({
+    where: { id: sessionId },
+    data: {
+      studentSignatureUrl: nextStudent,
+      hostSignatureUrl: nextHost,
+      signedAt: bothSigned ? new Date() : null,
+    },
+    select: {
+      studentSignatureUrl: true,
+      hostSignatureUrl: true,
+      signedAt: true,
+    },
+  });
+
+  revalidatePath(`/online/students/${target.studentId}`);
+  revalidatePath("/online/students");
+  return updated;
+}
+
+// ─────────────────── 10) 세션 서명 삭제 ───────────────────
+export async function clearSessionSignature(
+  sessionId: string,
+  which: "student" | "host"
+) {
+  const session = await auth();
+  requireOnlineStaff(session?.user?.role);
+
+  const target = await prisma.mentoringSession.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      studentId: true,
+      status: true,
+      studentSignatureUrl: true,
+      hostSignatureUrl: true,
+    },
+  });
+  if (!target) throw new Error("세션을 찾을 수 없습니다");
+  if (target.status === "CANCELED") {
+    throw new Error("취소된 세션은 수정할 수 없습니다");
+  }
+
+  const previousUrl =
+    which === "student" ? target.studentSignatureUrl : target.hostSignatureUrl;
+
+  if (previousUrl) {
+    try {
+      await del(previousUrl, { token: process.env.BLOB_READ_WRITE_TOKEN });
+    } catch {
+      // silent — Blob 삭제 실패해도 DB 정리는 진행
+    }
+  }
+
+  const updated = await prisma.mentoringSession.update({
+    where: { id: sessionId },
+    data: {
+      ...(which === "student"
+        ? { studentSignatureUrl: null }
+        : { hostSignatureUrl: null }),
+      signedAt: null, // 한쪽이 비면 signedAt 도 무효
+    },
+    select: {
+      studentSignatureUrl: true,
+      hostSignatureUrl: true,
+      signedAt: true,
+    },
+  });
+
+  revalidatePath(`/online/students/${target.studentId}`);
+  revalidatePath("/online/students");
+  return updated;
 }

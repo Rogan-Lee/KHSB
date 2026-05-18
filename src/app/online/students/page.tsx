@@ -128,6 +128,9 @@ export default async function OnlineStudentsPage() {
       summary: ms.summary,
       hostName: ms.host.name,
       photos: ms.photos,
+      studentSignatureUrl: ms.studentSignatureUrl,
+      hostSignatureUrl: ms.hostSignatureUrl,
+      signedAt: ms.signedAt?.toISOString() ?? null,
     })),
   }));
 
