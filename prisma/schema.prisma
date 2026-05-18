@@ -1428,6 +1428,31 @@ model MentoringSession {
   @@index([status, scheduledAt])
 }
 
+// ─── 멘토링 세션 첨부 사진 (Sprint 5 PR 5.1) ───
+// 학습 핵심 자료(KDA) / 추가 자료(EXTRA) / 자유 첨부(FREE) 3종 태그.
+// KDA naming 은 차후 재검토될 수 있음.
+
+enum MentoringPhotoTag {
+  KDA // 학습 핵심·D·A 자료
+  EXTRA // 추가 자료
+  FREE // 자유 첨부
+}
+
+model MentoringSessionPhoto {
+  id           String            @id @default(cuid())
+  sessionId    String
+  session      MentoringSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  url          String
+  thumbnailUrl String?
+  mimeType     String
+  tag          MentoringPhotoTag @default(FREE)
+  caption      String?
+  uploadedById String
+  uploadedAt   DateTime          @default(now())
+
+  @@index([sessionId])
+}
+
 // ─── 학생 포털 1:1 채팅 (PR 2 — 카톡 스타일 Q&A) ───
 // 학생 ↔ 담당 직원(MANAGER_MENTOR / CONSULTANT / STAFF) 간 별도 채팅방.
 // 학생당 담당자별로 1방씩(unique). 첫 메시지 송신 시 자동 생성.
