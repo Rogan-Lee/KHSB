@@ -5,9 +5,13 @@ import { toast } from "sonner";
 import { useDraft } from "@/hooks/use-draft";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, X, Search } from "lucide-react";
+import { Plus, Trash2, X, Search, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createMonthlyNote, deleteMonthlyNote } from "@/actions/monthly-notes";
+import {
+  createMonthlyNote,
+  deleteMonthlyNote,
+  toggleMonthlyNoteReportVisibility,
+} from "@/actions/monthly-notes";
 
 type MonthlyNote = {
   id: string;
@@ -16,6 +20,7 @@ type MonthlyNote = {
   studentId: string | null;
   studentName: string;
   content: string;
+  visibleInReport: boolean;
   authorId: string;
   authorName: string;
   createdAt: Date;
@@ -108,6 +113,26 @@ export function MonthlyNotesPanel({
         toast.success("삭제되었습니다");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "삭제 실패");
+      }
+    });
+  }
+
+  function handleToggleVisibility(note: MonthlyNote) {
+    const next = !note.visibleInReport;
+    // 낙관적 업데이트
+    setNotes((prev) =>
+      prev.map((n) => (n.id === note.id ? { ...n, visibleInReport: next } : n))
+    );
+    startTransition(async () => {
+      try {
+        await toggleMonthlyNoteReportVisibility(note.id, next);
+        toast.success(next ? "리포트에 노출됩니다" : "리포트에서 숨김 처리되었습니다");
+      } catch (err) {
+        // 롤백
+        setNotes((prev) =>
+          prev.map((n) => (n.id === note.id ? { ...n, visibleInReport: !next } : n))
+        );
+        toast.error(err instanceof Error ? err.message : "리포트 노출 변경 실패");
       }
     });
   }
@@ -234,7 +259,13 @@ export function MonthlyNotesPanel({
                 </div>
               </div>
             ) : (
-              <div key={n.id} className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3">
+              <div
+                key={n.id}
+                className={cn(
+                  "flex items-start gap-3 rounded-xl border bg-card px-4 py-3",
+                  !n.visibleInReport && "border-dashed bg-muted/30"
+                )}
+              >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-sm font-semibold">{n.studentName}</span>
@@ -242,17 +273,36 @@ export function MonthlyNotesPanel({
                       {new Date(n.createdAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
                     </span>
                     <span className="text-[10px] text-muted-foreground">{n.authorName}</span>
+                    {!n.visibleInReport && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">
+                        리포트 숨김
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">{n.content}</p>
                 </div>
-                {(n.authorId === currentUserId || isAdmin) && (
+                <div className="flex items-center gap-1 shrink-0 mt-0.5">
                   <button
-                    onClick={() => setDeleteConfirmId(n.id)}
-                    className={cn("p-1 text-muted-foreground hover:text-red-500 transition-colors shrink-0 mt-0.5")}
+                    onClick={() => handleToggleVisibility(n)}
+                    title={n.visibleInReport ? "리포트 노출 중 — 클릭 시 숨김" : "리포트 숨김 — 클릭 시 노출"}
+                    aria-label={n.visibleInReport ? "리포트에서 숨기기" : "리포트에 노출하기"}
+                    className="p-1 text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    {n.visibleInReport ? (
+                      <Eye className="h-3.5 w-3.5" />
+                    ) : (
+                      <EyeOff className="h-3.5 w-3.5 text-orange-500" />
+                    )}
                   </button>
-                )}
+                  {(n.authorId === currentUserId || isAdmin) && (
+                    <button
+                      onClick={() => setDeleteConfirmId(n.id)}
+                      className="p-1 text-muted-foreground hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             )
           )}

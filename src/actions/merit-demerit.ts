@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { MeritType } from "@/generated/prisma";
@@ -71,6 +72,30 @@ export async function deleteMeritDemerit(id: string) {
   if (!record) throw new Error("Not found");
 
   await prisma.meritDemerit.delete({ where: { id } });
+  revalidatePath("/merit-demerit");
+  revalidatePath(`/students/${record.studentId}`);
+}
+
+/**
+ * 학부모 리포트(월간/멘토링)에 해당 상벌점 노출 여부 토글.
+ * 데이터 자체는 유지하면서 리포트 출력에서만 제외.
+ */
+export async function toggleMeritDemeritReportVisibility(
+  id: string,
+  visible: boolean,
+) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  const record = await prisma.meritDemerit.findUnique({ where: { id } });
+  if (!record) throw new Error("상벌점 기록을 찾을 수 없습니다");
+
+  await prisma.meritDemerit.update({
+    where: { id },
+    data: { visibleInReport: visible },
+  });
+
   revalidatePath("/merit-demerit");
   revalidatePath(`/students/${record.studentId}`);
 }

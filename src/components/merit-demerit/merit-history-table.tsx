@@ -15,10 +15,15 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { formatDate } from "@/lib/utils";
-import { Search, X, Pencil, Trash2 } from "lucide-react";
+import { Search, X, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Checkbox } from "@/components/ui/checkbox";
-import { updateMeritDemerit, deleteMeritDemerit, bulkDeleteMeritDemerits } from "@/actions/merit-demerit";
+import {
+  updateMeritDemerit,
+  deleteMeritDemerit,
+  bulkDeleteMeritDemerits,
+  toggleMeritDemeritReportVisibility,
+} from "@/actions/merit-demerit";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useSortableTable } from "@/hooks/use-sortable-table";
@@ -31,6 +36,7 @@ type MeritRecord = {
   points: number;
   category: string | null;
   reason: string;
+  visibleInReport: boolean;
   student: { name: string; grade: string };
 };
 
@@ -139,6 +145,24 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
   const [editTarget, setEditTarget] = useState<MeritRecord | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isBulkPending, startBulkTransition] = useTransition();
+  const [, startVisibilityTransition] = useTransition();
+  const [visibilityOverride, setVisibilityOverride] = useState<Record<string, boolean>>({});
+
+  function handleToggleVisibility(record: MeritRecord) {
+    const current = visibilityOverride[record.id] ?? record.visibleInReport;
+    const next = !current;
+    setVisibilityOverride((prev) => ({ ...prev, [record.id]: next }));
+    startVisibilityTransition(async () => {
+      try {
+        await toggleMeritDemeritReportVisibility(record.id, next);
+        toast.success(next ? "리포트에 노출됩니다" : "리포트에서 숨김 처리되었습니다");
+      } catch {
+        // 실패 시 낙관적 업데이트 롤백
+        setVisibilityOverride((prev) => ({ ...prev, [record.id]: current }));
+        toast.error("리포트 노출 변경 실패");
+      }
+    });
+  }
 
   useEffect(() => {
     try { sessionStorage.setItem(MERIT_FILTER_KEY, JSON.stringify({ q: query })); } catch {}
@@ -231,47 +255,61 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
             </SortableHeader>
             <TableHead>카테고리</TableHead>
             <TableHead>사유</TableHead>
+            <TableHead className="w-10 text-center">리포트</TableHead>
             <TableHead className="w-10"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {filtered.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+              <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                 {q ? "검색 결과가 없습니다" : "상벌점 내역이 없습니다"}
               </TableCell>
             </TableRow>
           ) : (
-            filtered.map((m) => (
-              <TableRow key={m.id} data-state={selected.has(m.id) ? "selected" : undefined}>
-                <TableCell>
-                  <Checkbox checked={selected.has(m.id)} onCheckedChange={() => toggleOne(m.id)} />
-                </TableCell>
-                <TableCell>{formatDate(m.date)}</TableCell>
-                <TableCell>
-                  <span className="font-medium">{m.student.name}</span>
-                  <span className="text-xs text-muted-foreground ml-1">{m.student.grade}</span>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={m.type === "MERIT" ? "default" : "destructive"}>
-                    {m.type === "MERIT" ? "상점" : "벌점"}
-                  </Badge>
-                </TableCell>
-                <TableCell className={`font-medium ${m.type === "MERIT" ? "text-green-600" : "text-red-600"}`}>
-                  {m.type === "MERIT" ? "+" : "-"}{m.points}
-                </TableCell>
-                <TableCell>{m.category || "-"}</TableCell>
-                <TableCell>{m.reason}</TableCell>
-                <TableCell>
-                  <button
-                    onClick={() => setEditTarget(m)}
-                    className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                </TableCell>
-              </TableRow>
-            ))
+            filtered.map((m) => {
+              const visible = visibilityOverride[m.id] ?? m.visibleInReport;
+              return (
+                <TableRow key={m.id} data-state={selected.has(m.id) ? "selected" : undefined}>
+                  <TableCell>
+                    <Checkbox checked={selected.has(m.id)} onCheckedChange={() => toggleOne(m.id)} />
+                  </TableCell>
+                  <TableCell>{formatDate(m.date)}</TableCell>
+                  <TableCell>
+                    <span className="font-medium">{m.student.name}</span>
+                    <span className="text-xs text-muted-foreground ml-1">{m.student.grade}</span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={m.type === "MERIT" ? "default" : "destructive"}>
+                      {m.type === "MERIT" ? "상점" : "벌점"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className={`font-medium ${m.type === "MERIT" ? "text-green-600" : "text-red-600"}`}>
+                    {m.type === "MERIT" ? "+" : "-"}{m.points}
+                  </TableCell>
+                  <TableCell>{m.category || "-"}</TableCell>
+                  <TableCell>{m.reason}</TableCell>
+                  <TableCell className="text-center">
+                    <button
+                      onClick={() => handleToggleVisibility(m)}
+                      title={visible ? "리포트 노출 중 — 클릭 시 숨김" : "리포트 숨김 — 클릭 시 노출"}
+                      aria-label={visible ? "리포트에서 숨기기" : "리포트에 노출하기"}
+                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-orange-500" />}
+                    </button>
+                  </TableCell>
+                  <TableCell>
+                    <button
+                      onClick={() => setEditTarget(m)}
+                      className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  </TableCell>
+                </TableRow>
+              );
+            })
           )}
         </TableBody>
       </Table>
