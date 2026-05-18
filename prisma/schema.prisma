@@ -1357,6 +1357,7 @@ model FeatureRequest {
   requester   String? // 요청자 (카톡으로 보낸 사람)
   authorId    String
   authorName  String
+  seenById    String[]                @default([]) // 헤더 배지 unseen 카운트용 (User.id 배열)
   comments    FeatureRequestComment[]
   createdAt   DateTime                @default(now())
   updatedAt   DateTime                @updatedAt

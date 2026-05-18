@@ -2,12 +2,21 @@ export const revalidate = 30;
 
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { getFeatureRequests } from "@/actions/feature-requests";
+import {
+  getFeatureRequests,
+  markAllOpenFeatureRequestsSeen,
+} from "@/actions/feature-requests";
 import { FeatureRequestBoard } from "@/components/feature-requests/feature-request-board";
 
 export default async function RequestsPage() {
   const session = await auth();
   if (!session?.user) redirect("/sign-in");
+
+  // 페이지 진입 시 본인이 보지 않은 PENDING/IN_PROGRESS 건의를 모두 seen 처리
+  // → 사이드바 unseen 배지가 자동으로 사라짐
+  await markAllOpenFeatureRequestsSeen().catch(() => {
+    /* 본 페이지 렌더링은 막지 않음 */
+  });
 
   const requests = await getFeatureRequests();
 
