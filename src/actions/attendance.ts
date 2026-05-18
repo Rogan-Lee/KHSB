@@ -443,12 +443,17 @@ export async function updateOuting(
       : existing.outEnd;
   const nextReason = patch.reason !== undefined ? patch.reason : existing.reason;
 
+  // placeholder 였던 행을 편집하면 자동으로 actualize (isPlaceholder=false).
+  const becomeActual = existing.isPlaceholder
+    && (patch.outStart !== undefined || patch.outEnd !== undefined);
+
   const updated = await prisma.dailyOuting.update({
     where: { id },
     data: {
       outStart: nextOutStart,
       outEnd: nextOutEnd,
       reason: nextReason,
+      ...(becomeActual ? { isPlaceholder: false } : {}),
     },
   });
 
@@ -496,6 +501,104 @@ export type OutingForDate = {
   reason: string | null;
   isPlaceholder: boolean;
 };
+
+// ── Placeholder materialization (Sprint 2 PR 2.2) ─────────────────────
+// OutingSchedule.dayOfWeek 매칭 → DailyOuting 에 placeholder 자동 채움.
+// 동일 (studentId, date, scheduleId) 중복 방지 — idempotent.
+// 실제 외출(non-placeholder)이 이미 존재하면 skip.
+
+function getKstDayOfWeek(date: Date): number {
+  // date 는 자정 기준 KST (UTC 로 저장된 Date). KST 요일 계산:
+  // ISO 의 날짜 부분만 사용해 KST 자정 시각을 다시 만들고 그 시각의 KST 요일.
+  const iso = date.toISOString().slice(0, 10);
+  const kstMidnight = new Date(`${iso}T00:00:00+09:00`);
+  // UTC 요일을 그대로 사용하면 안 되므로 KST 시각 기준 요일 추출:
+  const kstNow = new Date(kstMidnight.getTime() + 9 * 60 * 60 * 1000);
+  return kstNow.getUTCDay();
+}
+
+export async function materializeWeeklyPlaceholders(
+  date: Date,
+  options?: { skipAuth?: boolean }
+) {
+  if (!options?.skipAuth) {
+    const session = await auth();
+    requireStaff(session?.user?.role);
+  }
+
+  const dayOfWeek = getKstDayOfWeek(date);
+  const dateOnly = new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
+
+  // 해당 요일의 모든 OutingSchedule
+  const schedules = await prisma.outingSchedule.findMany({
+    where: { dayOfWeek },
+    select: {
+      id: true,
+      studentId: true,
+      outStart: true,
+      outEnd: true,
+      reason: true,
+    },
+  });
+
+  let createdCount = 0;
+  let skippedCount = 0;
+
+  for (const sched of schedules) {
+    // 같은 (studentId, date, scheduleId) 존재 → skip
+    const existingBySchedule = await prisma.dailyOuting.findFirst({
+      where: {
+        studentId: sched.studentId,
+        date: dateOnly,
+        scheduleId: sched.id,
+      },
+      select: { id: true },
+    });
+    if (existingBySchedule) {
+      skippedCount++;
+      continue;
+    }
+
+    // 실제 외출(non-placeholder)이 같은 학생/날짜에 이미 있으면 — 그래도 별도 placeholder 는 생성.
+    // (요일 외출 = 예정 슬롯이고, 실제 외출 = 별개 sequence). placeholder 생성 후 사용자가 actualize 함.
+    // 하지만 같은 학생/날짜에 placeholder 가 이미 있으면 (다른 scheduleId 라도) sequence 만 +1 하면 됨.
+
+    const agg = await prisma.dailyOuting.aggregate({
+      where: { studentId: sched.studentId, date: dateOnly },
+      _max: { sequence: true },
+    });
+    const nextSequence = (agg._max.sequence ?? 0) + 1;
+
+    await prisma.dailyOuting.create({
+      data: {
+        studentId: sched.studentId,
+        date: dateOnly,
+        sequence: nextSequence,
+        isPlaceholder: true,
+        scheduleId: sched.id,
+        outStart: combineKST(dateOnly, sched.outStart),
+        outEnd: combineKST(dateOnly, sched.outEnd),
+        reason: sched.reason ?? null,
+      },
+    });
+    createdCount++;
+  }
+
+  return { createdCount, skippedCount, dayOfWeek };
+}
+
+/**
+ * Editor 등 클라이언트에서 호출 — `materializeWeeklyPlaceholders(todayKST())` wrapper.
+ * 저장 직후 오늘자 placeholder 를 즉시 갱신할 때 사용.
+ */
+export async function refreshTodayPlaceholders() {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  const result = await materializeWeeklyPlaceholders(todayKST(), { skipAuth: true });
+  revalidatePath("/attendance");
+  return result;
+}
 
 export async function getOutingsForDate(
   date: Date

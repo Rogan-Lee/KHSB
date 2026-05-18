@@ -149,7 +149,7 @@ export function AttendanceTable({ students, today }: Props) {
 
   // 테이블 인라인 편집용 로컬 상태
   type LocalTime = { checkIn: string; checkOut: string; type: AttendanceType };
-  type LocalOuting = { id: string | null; outStart: Date | null; outEnd: Date | null; sequence?: number; reason?: string | null };
+  type LocalOuting = { id: string | null; outStart: Date | null; outEnd: Date | null; sequence?: number; reason?: string | null; isPlaceholder?: boolean };
 
   const [localTimes, setLocalTimes] = useState<Map<string, LocalTime>>(() => {
     const map = new Map<string, LocalTime>();
@@ -171,7 +171,7 @@ export function AttendanceTable({ students, today }: Props) {
         s.id,
         [...s.dailyOutings]
           .sort((a, b) => (a.sequence ?? 1) - (b.sequence ?? 1))
-          .map((o) => ({ id: o.id, outStart: o.outStart, outEnd: o.outEnd, sequence: o.sequence, reason: o.reason }))
+          .map((o) => ({ id: o.id, outStart: o.outStart, outEnd: o.outEnd, sequence: o.sequence, reason: o.reason, isPlaceholder: o.isPlaceholder }))
       )
     );
     return map;
@@ -309,7 +309,7 @@ export function AttendanceTable({ students, today }: Props) {
         const list = m.get(student.id) ?? [];
         m.set(student.id, [
           ...list,
-          { id: created.id, outStart: created.outStart, outEnd: created.outEnd, sequence: created.sequence, reason: created.reason },
+          { id: created.id, outStart: created.outStart, outEnd: created.outEnd, sequence: created.sequence, reason: created.reason, isPlaceholder: created.isPlaceholder },
         ]);
         return m;
       });
@@ -1044,9 +1044,18 @@ export function AttendanceTable({ students, today }: Props) {
                           {extras.map((o) => (
                             <div
                               key={o.id ?? `seq-${o.sequence}`}
-                              className="flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground"
+                              className={cn(
+                                "flex items-center gap-1.5 text-[11px] font-mono",
+                                o.isPlaceholder ? "text-muted-foreground/70 italic" : "text-muted-foreground"
+                              )}
+                              title={o.isPlaceholder ? "요일 외출 일정에서 자동 생성됨 — 실제 시각 입력 시 확정" : undefined}
                             >
-                              <span className="text-orange-600 font-semibold">{o.sequence}차</span>
+                              <span className={cn("font-semibold", o.isPlaceholder ? "text-orange-400" : "text-orange-600")}>{o.sequence}차</span>
+                              {o.isPlaceholder && (
+                                <span className="inline-flex items-center rounded bg-orange-100 px-1 py-0 text-[9px] font-sans font-semibold text-orange-700 not-italic">
+                                  예정
+                                </span>
+                              )}
                               <span className="tabular-nums">
                                 {toTimeString(o.outStart) || "—"} - {toTimeString(o.outEnd) || "—"}
                               </span>
