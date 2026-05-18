@@ -6,7 +6,7 @@ import { requireFullAccess, isFullAccess, STAFF_ROLES } from "@/lib/roles";
 import { notifySlack } from "@/lib/slack";
 import { revalidatePath } from "next/cache";
 import { calculatePayrollFromTags } from "@/lib/payroll";
-import type { WorkTagType } from "@/generated/prisma";
+import type { WorkTagType, UserStatus } from "@/generated/prisma";
 
 // ──────────────────────────────────────────────────────────────────
 // 직원: 출퇴근 태깅 (현재 시각 고정, 수정 불가)
@@ -335,4 +335,57 @@ export async function getPayrollCandidates() {
 export async function canSeeAllPayroll() {
   const session = await auth();
   return isFullAccess(session?.user?.role);
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 근무자 활성/퇴사 상태 변경 (Sprint 3-1 / 5.4 / 7 공통 진입점)
+// 픽커 필터·매직링크 게이트의 단일 소스. 과거 데이터는 보존.
+// ──────────────────────────────────────────────────────────────────
+
+export async function setUserStatus(
+  userId: string,
+  status: UserStatus,
+  terminationNote?: string,
+) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+
+  if (!userId) throw new Error("대상 사용자가 지정되지 않았습니다");
+  if (session!.user!.id === userId) {
+    throw new Error("본인 상태는 직접 변경할 수 없습니다");
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true, role: true, status: true },
+  });
+  if (!target) throw new Error("사용자를 찾을 수 없습니다");
+
+  // STUDENT 역할에는 status 사용 안 함 (학생은 StudentStatus 사용)
+  if (target.role === "STUDENT") {
+    throw new Error("학생 계정은 학생 상태(StudentStatus)로 관리합니다");
+  }
+
+  const isTerminating = status === "TERMINATED";
+
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      status,
+      terminatedAt: isTerminating ? new Date() : null,
+      terminationNote: isTerminating ? (terminationNote?.trim() || null) : null,
+    },
+    select: { id: true, name: true, status: true, terminatedAt: true },
+  });
+
+  // 슬랙 알림 (fire-and-forget — 실패해도 비즈니스 로직 미차단)
+  void notifySlack(
+    isTerminating
+      ? `🔚 *근무자 퇴사 처리*\n• ${target.name}\n• 처리자: ${session!.user!.name}\n${terminationNote ? `• 사유: ${terminationNote}` : ""}`
+      : `🔁 *근무자 활성 복귀*\n• ${target.name}\n• 처리자: ${session!.user!.name}`,
+  );
+
+  revalidatePath("/payroll");
+  revalidatePath("/admin");
+  return updated;
 }
