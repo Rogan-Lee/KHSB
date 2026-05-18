@@ -8,6 +8,7 @@ import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { ParentGate } from "@/components/magic-link-gate/parent-gate";
 import { TokenNotice, reasonToNotice } from "@/components/magic-link-gate/token-notice";
 import { NotesSection } from "@/components/reports/notes-section";
+import { VocabTrendMiniChart } from "@/components/reports/vocab-trend-mini-chart";
 
 export default async function ParentReportPage({
   params,
@@ -268,6 +269,9 @@ export default async function ParentReportPage({
             </div>
           </div>
         )}
+
+        {/* 영단어 학습 추이 (Sprint 1 PR 1.3) — 스코어 없으면 자동 hide */}
+        <VocabTrendMiniChart studentId={student.id} />
 
         {/* 원생 기록 + 상벌점 (Sprint 1 PR 1.4) */}
         <NotesSection

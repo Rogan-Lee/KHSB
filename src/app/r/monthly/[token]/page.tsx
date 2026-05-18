@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { MonthlyExamTrendChart } from "@/components/reports/monthly-exam-trend-chart";
 import { NotesSection } from "@/components/reports/notes-section";
+import { VocabTrendMiniChart } from "@/components/reports/vocab-trend-mini-chart";
 import { User, TrendingUp, Award, BookOpen, Bell, GraduationCap, Trophy, Image as ImageIcon } from "lucide-react";
 
 export default async function MonthlyParentReportPage({
@@ -166,6 +167,13 @@ export default async function MonthlyParentReportPage({
             <MarkdownViewer source={report.mentoringSummary} />
           </section>
         )}
+
+        {/* 3.1 영단어 학습 추이 (Sprint 1 PR 1.3) — 스코어 없으면 자동 hide */}
+        <VocabTrendMiniChart
+          studentId={student.id}
+          fromDate={start}
+          toDate={end}
+        />
 
         {/* 3.2 원생 기록 + 상벌점 (Sprint 1 PR 1.4) */}
         <NotesSection
