@@ -4,10 +4,10 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TimePickerInput } from "@/components/ui/time-picker";
-import { saveAttendanceSchedule, saveOutingSchedules } from "@/actions/attendance";
+import { saveAttendanceSchedule, saveOutingSchedules, refreshTodayPlaceholders } from "@/actions/attendance";
 import { toast } from "sonner";
 import type { AttendanceSchedule, OutingSchedule, Student } from "@/generated/prisma";
-import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 type StudentWithSchedules = Student & {
   schedules: AttendanceSchedule[];
@@ -134,6 +134,12 @@ export function ScheduleEditor({ students }: Props) {
           saveAttendanceSchedule(studentId, schedules),
           saveOutingSchedules(studentId, outings),
         ]);
+        // 저장 후 오늘 placeholder 즉시 갱신 (요일 매칭 시).
+        try {
+          await refreshTodayPlaceholders();
+        } catch {
+          // placeholder 갱신 실패는 저장 성공을 가리지 않음 — silent.
+        }
         toast.success("저장되었습니다");
       } catch {
         toast.error("저장 실패");
@@ -141,8 +147,34 @@ export function ScheduleEditor({ students }: Props) {
     });
   }
 
+  function refreshPlaceholders() {
+    startTransition(async () => {
+      try {
+        const result = await refreshTodayPlaceholders();
+        toast.success(
+          `오늘 외출 예정 갱신: ${result.createdCount}건 생성 / ${result.skippedCount}건 유지`
+        );
+      } catch {
+        toast.error("새로고침 실패");
+      }
+    });
+  }
+
   return (
     <div className="space-y-2">
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={refreshPlaceholders}
+          disabled={isPending}
+          className="gap-1.5"
+          title="오늘 요일에 해당하는 외출 일정으로 placeholder 를 다시 채웁니다"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          오늘 외출 예정 새로고침
+        </Button>
+      </div>
       {students.map((student) => {
         const isExpanded = expandedId === student.id;
         const rows = rowMap[student.id];
