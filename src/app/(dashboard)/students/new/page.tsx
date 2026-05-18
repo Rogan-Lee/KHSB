@@ -6,7 +6,8 @@ import { parseSchool } from "@/lib/utils";
 export default async function NewStudentPage() {
   const [mentors, schoolRows, seatRows] = await Promise.all([
     prisma.user.findMany({
-      where: { role: { in: ["SUPER_ADMIN", "DIRECTOR", "HEAD_MENTOR", "MENTOR"] } },
+      // 신규 학생 등록 멘토 picker — 퇴사자 제외
+      where: { status: "ACTIVE", role: { in: ["SUPER_ADMIN", "DIRECTOR", "HEAD_MENTOR", "MENTOR"] } },
       select: { id: true, name: true },
     }),
     prisma.student.findMany({ select: { school: true } }),
