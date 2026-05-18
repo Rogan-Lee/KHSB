@@ -230,7 +230,8 @@ export async function notifyMissingClockOuts() {
   since.setHours(since.getHours() - 24);
 
   const users = await prisma.user.findMany({
-    where: { workTags: { some: { taggedAt: { gte: since } } } },
+    // 퇴사자는 OUT 누락 알림 대상에서 제외 (picker 성격)
+    where: { status: "ACTIVE", workTags: { some: { taggedAt: { gte: since } } } },
     select: { id: true, name: true },
   });
 
@@ -289,6 +290,7 @@ export async function getAllPayrollData(year: number, month: number) {
   requireFullAccess(session?.user?.role);
 
   // PayrollSetting 이 설정된 직원만 payroll 대상. 미설정 직원은 추가 버튼으로 편입.
+  // 주의: history 조회이므로 status 필터 미적용 — 퇴사자의 과거 payroll 도 노출되어야 함.
   const staff = await prisma.user.findMany({
     where: {
       role: { in: [...STAFF_ROLES] },
@@ -324,6 +326,8 @@ export async function getPayrollCandidates() {
 
   return prisma.user.findMany({
     where: {
+      // 신규 PayrollSetting 추가 버튼 picker — 퇴사자는 후보에서 제외
+      status: "ACTIVE",
       role: { in: [...STAFF_ROLES] },
       payrollSetting: { is: null },
     },

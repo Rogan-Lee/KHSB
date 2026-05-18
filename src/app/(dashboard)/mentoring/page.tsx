@@ -47,6 +47,8 @@ export default async function MentoringPage() {
     getTodayWorkingMentors(),
     prisma.user.findMany({
       where: {
+        // 멘토링 페이지 멘토 picker — 퇴사자 제외
+        status: "ACTIVE",
         OR: [
           { role: { in: ["MENTOR", "HEAD_MENTOR"] } },
           // 멘토 겸직 관리자/스태프: 어드민으로 승격돼도 isMentor=true 면 드롭다운에 노출

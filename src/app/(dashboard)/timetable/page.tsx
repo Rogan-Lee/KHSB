@@ -11,7 +11,8 @@ export default async function TimetablePage() {
       orderBy: { name: "asc" },
     }),
     prisma.user.findMany({
-      where: { isMentor: true },
+      // 시간표 멘토 picker — 퇴사자 제외
+      where: { status: "ACTIVE", isMentor: true },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

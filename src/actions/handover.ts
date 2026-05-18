@@ -382,7 +382,8 @@ export async function getStaffList() {
   if (!session?.user) throw new Error("Unauthorized");
 
   return prisma.user.findMany({
-    where: { role: { in: [...STAFF_ROLES] } },
+    // 인수인계 담당자 picker — 퇴사자 제외
+    where: { status: "ACTIVE", role: { in: [...STAFF_ROLES] } },
     select: { id: true, name: true, role: true },
     orderBy: { name: "asc" },
   });
