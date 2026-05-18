@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
+import { reportExpiresAt, checkExpiry, getRequestMeta } from "@/lib/token-auth";
 
 export async function createParentReport(
   mentoringId: string,
@@ -28,6 +29,7 @@ export async function createParentReport(
       studyPlanImages: data.studyPlanImages ?? [],
       customNote: data.customNote || mentoring.notes || null,
       createdById: session.user.id,
+      expiresAt: reportExpiresAt(),
     },
     select: { token: true },
   });
@@ -196,6 +198,7 @@ export async function createParentReportsForStudents(
           studyPlanImages: [],
           customNote: m.notes ?? null,
           createdById: session.user.id,
+          expiresAt: reportExpiresAt(),
         },
         select: { id: true, token: true },
       });
@@ -275,6 +278,7 @@ export async function createParentReportsBulk(mentoringIds: string[]): Promise<B
           studyPlanImages: [],
           customNote: mentoring.notes ?? null,
           createdById: session.user.id,
+          expiresAt: reportExpiresAt(),
         },
         select: { token: true },
       });
@@ -313,12 +317,22 @@ export async function updateParentReportNote(reportId: string, customNote: strin
   revalidatePath("/mentoring");
 }
 
+/**
+ * 토큰으로 학부모 리포트 조회 + 만료/취소 검증 + 접근 로그 기록.
+ * 결과: `null` (없음 or 만료 or 취소) 또는 리포트 + 학생/멘토링.
+ * 만료 사유를 구분하려면 `getParentReportDetailed` 사용.
+ */
 export async function getParentReport(token: string) {
-  return prisma.parentReport.findUnique({
+  const detailed = await getParentReportDetailed(token);
+  return detailed.ok ? detailed.report : null;
+}
+
+export async function getParentReportDetailed(token: string) {
+  const report = await prisma.parentReport.findUnique({
     where: { token },
     include: {
       student: {
-        select: { id: true, name: true, grade: true, school: true },
+        select: { id: true, name: true, grade: true, school: true, parentPhone: true },
       },
       mentoring: {
         select: {
@@ -337,4 +351,35 @@ export async function getParentReport(token: string) {
       },
     },
   });
+  if (!report) return { ok: false as const, reason: "not_found" as const };
+  const fail = checkExpiry({ expiresAt: report.expiresAt, revokedAt: report.revokedAt });
+  if (fail) return { ok: false as const, reason: fail };
+
+  const { ip, ua } = await getRequestMeta();
+  prisma.parentReport
+    .update({
+      where: { id: report.id },
+      data: {
+        lastAccessedAt: new Date(),
+        lastAccessIp: ip,
+        lastAccessUa: ua,
+        accessCount: { increment: 1 },
+      },
+    })
+    .catch(() => {});
+
+  return { ok: true as const, report };
+}
+
+/** 학부모 리포트 링크 무효화 (원장/관리자). */
+export async function revokeParentReport(reportId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  await prisma.parentReport.updateMany({
+    where: { id: reportId, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  revalidatePath("/mentoring");
 }

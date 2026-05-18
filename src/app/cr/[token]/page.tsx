@@ -1,6 +1,8 @@
-import { notFound } from "next/navigation";
-import { getConsultationReport } from "@/actions/consultation-reports";
+import { getConsultationReportDetailed } from "@/actions/consultation-reports";
+import { hasGatePass } from "@/lib/token-auth";
 import { BookOpen, Calendar, User } from "lucide-react";
+import { ParentGate } from "@/components/magic-link-gate/parent-gate";
+import { TokenNotice, reasonToNotice } from "@/components/magic-link-gate/token-notice";
 
 export default async function ConsultationReportPage({
   params,
@@ -8,8 +10,20 @@ export default async function ConsultationReportPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const report = await getConsultationReport(token);
-  if (!report) notFound();
+  const result = await getConsultationReportDetailed(token);
+  if (!result.ok) {
+    const n = reasonToNotice(result.reason);
+    return <TokenNotice title={n.title} body={n.body} />;
+  }
+  const report = result.report;
+
+  // 면담 리포트는 가망 고객일 경우 학생 레코드 없음 → 게이트 면제
+  if (report.consultation.student?.id) {
+    const gated = await hasGatePass("PARENT", token, report.consultation.student.id);
+    if (!gated) {
+      return <ParentGate model="consultation" token={token} />;
+    }
+  }
 
   const { consultation, content, recipientName, createdAt } = report;
   const c = consultation as Record<string, unknown>;
