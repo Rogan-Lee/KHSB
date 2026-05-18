@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { MonthlyExamTrendChart } from "@/components/reports/monthly-exam-trend-chart";
+import { NotesSection } from "@/components/reports/notes-section";
 import { User, TrendingUp, Award, BookOpen, Bell, GraduationCap, Trophy, Image as ImageIcon } from "lucide-react";
 
 export default async function MonthlyParentReportPage({
@@ -32,6 +33,32 @@ export default async function MonthlyParentReportPage({
   // 월간 모의고사 성적
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 0, 23, 59, 59);
+
+  // 원생 기록(MonthlyNote) + 상벌점(MeritDemerit) — visibleInReport=true 만
+  const [monthlyNote, merits] = await Promise.all([
+    prisma.monthlyNote.findFirst({
+      where: { studentId: student.id, year, month, visibleInReport: true },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, content: true, visibleInReport: true, authorName: true, createdAt: true },
+    }),
+    prisma.meritDemerit.findMany({
+      where: {
+        studentId: student.id,
+        date: { gte: start, lte: end },
+        visibleInReport: true,
+      },
+      orderBy: { date: "asc" },
+      select: {
+        id: true,
+        date: true,
+        type: true,
+        points: true,
+        reason: true,
+        category: true,
+        visibleInReport: true,
+      },
+    }),
+  ]);
 
   const examScores = await prisma.examScore.findMany({
     where: {
@@ -139,6 +166,15 @@ export default async function MonthlyParentReportPage({
             <MarkdownViewer source={report.mentoringSummary} />
           </section>
         )}
+
+        {/* 3.2 원생 기록 + 상벌점 (Sprint 1 PR 1.4) */}
+        <NotesSection
+          studentId={student.id}
+          year={year}
+          month={month}
+          monthlyNote={monthlyNote}
+          merits={merits}
+        />
 
         {/* 3.5 이달의 사진 (§2.22 자동 첨부) */}
         {orderedPhotos.length > 0 && (

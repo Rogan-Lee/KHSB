@@ -658,7 +658,7 @@ model DailyOuting {
   date          DateTime  @db.Date
   sequence      Int       @default(1) // 1=1차, 2=2차…
   isPlaceholder Boolean   @default(false) // OutingSchedule 에서 자동 채움 (Sprint 2 PR 2.2)
-  scheduleId    String?   // 원본 OutingSchedule id (placeholder 일 때만)
+  scheduleId    String? // 원본 OutingSchedule id (placeholder 일 때만)
   outStart      DateTime?
   outEnd        DateTime?
   reason        String?
@@ -669,16 +669,17 @@ model DailyOuting {
 }
 
 model MeritDemerit {
-  id          String    @id @default(cuid())
-  studentId   String
-  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  date        DateTime  @db.Date
-  type        MeritType
-  points      Int
-  reason      String
-  category    String?
-  createdById String
-  createdAt   DateTime  @default(now())
+  id              String    @id @default(cuid())
+  studentId       String
+  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date            DateTime  @db.Date
+  type            MeritType
+  points          Int
+  reason          String
+  category        String?
+  visibleInReport Boolean   @default(true)
+  createdById     String
+  createdAt       DateTime  @default(now())
 
   @@index([studentId, date])
   @@index([date])
@@ -946,21 +947,21 @@ model ExamSeatAssignment {
 }
 
 model Assignment {
-  id            String    @id @default(cuid())
+  id            String           @id @default(cuid())
   studentId     String
-  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student       Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
   mentoringId   String? // 연결된 멘토링 세션 (optional)
   title         String // 과제 제목
   description   String? // 상세 내용
   subject       String? // 과목 (수학, 영어, 국어 등)
-  dueDate       DateTime? @db.Date // 마감일
-  isCompleted   Boolean   @default(false)
+  dueDate       DateTime?        @db.Date // 마감일
+  isCompleted   Boolean          @default(false)
   completedAt   DateTime?
   completedNote String? // 완료 메모
   createdById   String
   createdByName String
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
   files         AssignmentFile[]
 }
 
@@ -968,7 +969,7 @@ model AssignmentFile {
   id           String     @id @default(cuid())
   assignmentId String
   assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  url          String     // Vercel Blob URL
+  url          String // Vercel Blob URL
   fileName     String
   mimeType     String
   sizeBytes    Int
@@ -1178,17 +1179,18 @@ model HandoverChecklist {
 }
 
 model MonthlyNote {
-  id          String   @id @default(cuid())
-  year        Int
-  month       Int
-  studentId   String?
-  student     Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
-  studentName String
-  content     String
-  authorId    String
-  authorName  String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(cuid())
+  year            Int
+  month           Int
+  studentId       String?
+  student         Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  studentName     String
+  content         String
+  visibleInReport Boolean  @default(true)
+  authorId        String
+  authorName      String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([year, month])
 }
@@ -1558,7 +1560,7 @@ model VocabAttempt {
   expiresAt      DateTime? // 출제 +14일. null=레거시(backfill 대상)
   lastAccessIp   String?
   lastAccessUa   String?
-  shuffleSeed    Int?                                        // 학생별 셔플 시드(per-attempt isolation). null=레거시(unseeded)
+  shuffleSeed    Int? // 학생별 셔플 시드(per-attempt isolation). null=레거시(unseeded)
 
   @@index([studentId])
   @@index([examId])

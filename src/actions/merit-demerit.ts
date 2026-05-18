@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { MeritType } from "@/generated/prisma";
@@ -73,6 +74,24 @@ export async function deleteMeritDemerit(id: string) {
   await prisma.meritDemerit.delete({ where: { id } });
   revalidatePath("/merit-demerit");
   revalidatePath(`/students/${record.studentId}`);
+}
+
+export async function toggleMeritDemeritVisibility(id: string, visible: boolean) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  const record = await prisma.meritDemerit.findUnique({ where: { id } });
+  if (!record) throw new Error("상벌점 기록을 찾을 수 없습니다");
+
+  await prisma.meritDemerit.update({
+    where: { id },
+    data: { visibleInReport: visible },
+  });
+
+  revalidatePath("/merit-demerit");
+  revalidatePath(`/students/${record.studentId}`);
+  revalidatePath("/mentoring");
 }
 
 export async function bulkDeleteMeritDemerits(ids: string[]) {
