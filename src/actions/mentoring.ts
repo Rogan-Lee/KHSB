@@ -78,13 +78,22 @@ export async function updateMentoring(id: string, formData: FormData) {
   revalidatePath(`/mentoring/${id}`);
 }
 
-export async function getMentorings(mentorId?: string) {
+export async function getMentorings(
+  mentorId?: string,
+  options?: { includeCanceled?: boolean },
+) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const where =
+  const baseWhere =
     session.user.role === "MENTOR" ? { mentorId: session.user.id } :
-    mentorId ? { mentorId } : undefined;
+    mentorId ? { mentorId } : {};
+
+  // 기본은 CANCELLED 제외. includeCanceled=true 일 때만 모두 포함.
+  const includeCanceled = options?.includeCanceled === true;
+  const where = includeCanceled
+    ? baseWhere
+    : { ...baseWhere, status: { not: "CANCELLED" as const } };
 
   return prisma.mentoring.findMany({
     where,
