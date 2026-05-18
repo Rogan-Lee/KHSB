@@ -5,8 +5,15 @@ vi.mock("@/lib/auth", () => ({
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    parentReport: { findUnique: vi.fn() },
+    parentReport: {
+      findUnique: vi.fn(),
+      update: vi.fn().mockResolvedValue(undefined),
+    },
   },
+}));
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(),
+  headers: () => ({ get: () => null }),
 }));
 
 import { prisma } from "@/lib/prisma";
@@ -28,13 +35,43 @@ describe("getParentReport", () => {
     );
   });
 
-  it("returns the report for a valid token", async () => {
-    const mockReport = {
+  it("returns null for a revoked token", async () => {
+    vi.mocked(prisma.parentReport.findUnique).mockResolvedValue({
+      id: "r1",
       token: "valid-token-123",
-      student: { id: "s1", name: "홍길동", grade: "고1", school: "테스트고" },
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      revokedAt: new Date(),
+      student: { id: "s1", name: "홍길동", grade: "고1", school: "테스트고", parentPhone: "01012345678" },
       mentoring: null,
-    };
-    vi.mocked(prisma.parentReport.findUnique).mockResolvedValue(mockReport as never);
+    } as never);
+
+    const result = await getParentReport("valid-token-123");
+    expect(result).toBeNull();
+  });
+
+  it("returns null for an expired token", async () => {
+    vi.mocked(prisma.parentReport.findUnique).mockResolvedValue({
+      id: "r1",
+      token: "valid-token-123",
+      expiresAt: new Date(Date.now() - 1000),
+      revokedAt: null,
+      student: { id: "s1", name: "홍길동", grade: "고1", school: "테스트고", parentPhone: "01012345678" },
+      mentoring: null,
+    } as never);
+
+    const result = await getParentReport("valid-token-123");
+    expect(result).toBeNull();
+  });
+
+  it("returns the report for a valid (not expired, not revoked) token", async () => {
+    vi.mocked(prisma.parentReport.findUnique).mockResolvedValue({
+      id: "r1",
+      token: "valid-token-123",
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      revokedAt: null,
+      student: { id: "s1", name: "홍길동", grade: "고1", school: "테스트고", parentPhone: "01012345678" },
+      mentoring: null,
+    } as never);
 
     const result = await getParentReport("valid-token-123");
 

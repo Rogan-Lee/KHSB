@@ -1,6 +1,8 @@
-import { notFound } from "next/navigation";
-import { getStudyPlanReport } from "@/actions/study-plan-reports";
+import { getStudyPlanReportDetailed } from "@/actions/study-plan-reports";
+import { hasGatePass } from "@/lib/token-auth";
 import { BookOpen, GraduationCap, Calendar, ClipboardList } from "lucide-react";
+import { ParentGate } from "@/components/magic-link-gate/parent-gate";
+import { TokenNotice, reasonToNotice } from "@/components/magic-link-gate/token-notice";
 
 export default async function StudyPlanReportPage({
   params,
@@ -8,9 +10,17 @@ export default async function StudyPlanReportPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const report = await getStudyPlanReport(token);
+  const result = await getStudyPlanReportDetailed(token);
+  if (!result.ok) {
+    const n = reasonToNotice(result.reason);
+    return <TokenNotice title={n.title} body={n.body} />;
+  }
+  const report = result.report;
 
-  if (!report) notFound();
+  const gated = await hasGatePass("PARENT", token, report.student.id);
+  if (!gated) {
+    return <ParentGate model="study-plan" token={token} />;
+  }
 
   const { student, images, createdAt } = report;
 
