@@ -5,19 +5,35 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { isStaff, isFullAccess } from "@/lib/roles";
 
-export async function getTodos() {
+export type TodoRoleFilter = "MENTOR" | "STAFF" | "ALL";
+
+export async function getTodos(options?: { roleFilter?: TodoRoleFilter }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
   // STAFF 이상은 전체 투두 조회, 그 외는 본인 것만
-  const where = isStaff(session.user.role)
-    ? undefined
+  const baseWhere = isStaff(session.user.role)
+    ? {}
     : {
         OR: [
           { authorId: session.user.id },
           { assigneeId: session.user.id },
         ],
       };
+
+  // targetRole 필터:
+  //  - ALL/null/undefined → 모든 행 (null=legacy)
+  //  - MENTOR → targetRole IN ("MENTOR", "ALL") 또는 null
+  //  - STAFF  → targetRole IN ("STAFF", "ALL") 또는 null
+  const role = options?.roleFilter;
+  const roleWhere =
+    role === "MENTOR"
+      ? { OR: [{ targetRole: "MENTOR" }, { targetRole: "ALL" }, { targetRole: null }] }
+      : role === "STAFF"
+      ? { OR: [{ targetRole: "STAFF" }, { targetRole: "ALL" }, { targetRole: null }] }
+      : undefined;
+
+  const where = roleWhere ? { AND: [baseWhere, roleWhere] } : baseWhere;
 
   return prisma.todo.findMany({
     where,
@@ -33,6 +49,7 @@ export async function createTodo(data: {
   assigneeId?: string;
   assigneeName?: string;
   category?: string;
+  targetRole?: "MENTOR" | "STAFF" | "ALL" | null;
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
@@ -54,6 +71,7 @@ export async function createTodo(data: {
         assigneeId: data.assigneeId || null,
         assigneeName: data.assigneeName?.trim() || null,
         category: data.category?.trim() || null,
+        targetRole: data.targetRole ?? null,
         lastEditorId: editorId,
         lastEditorName: editorName,
         lastEditedAt: now,
@@ -92,6 +110,7 @@ export async function updateTodo(
     assigneeId?: string | null;
     assigneeName?: string | null;
     category?: string | null;
+    targetRole?: "MENTOR" | "STAFF" | "ALL" | null;
   }
 ) {
   const session = await auth();
@@ -145,6 +164,7 @@ export async function updateTodo(
         ...(data.assigneeId !== undefined && { assigneeId: data.assigneeId || null }),
         ...(data.assigneeName !== undefined && { assigneeName: data.assigneeName?.trim() || null }),
         ...(data.category !== undefined && { category: data.category?.trim() || null }),
+        ...(data.targetRole !== undefined && { targetRole: data.targetRole }),
         lastEditorId: editorId,
         lastEditorName: editorName,
         lastEditedAt: new Date(),
