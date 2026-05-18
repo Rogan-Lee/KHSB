@@ -24,7 +24,17 @@ import {
   completeMentoringSession,
   cancelMentoringSession,
 } from "@/actions/online/mentoring-sessions";
-import type { MentoringSessionStatus } from "@/generated/prisma";
+import type { MentoringSessionStatus, MentoringPhotoTag } from "@/generated/prisma";
+import { MentoringSessionPhotosPanel } from "@/components/mentoring/mentoring-session-photo-uploader";
+
+export type SessionPhotoRowInput = {
+  id: string;
+  url: string;
+  thumbnailUrl: string | null;
+  mimeType: string;
+  tag: MentoringPhotoTag;
+  caption: string | null;
+};
 
 export type MentoringSessionRow = {
   id: string;
@@ -37,6 +47,7 @@ export type MentoringSessionRow = {
   notes: string | null;
   summary: string | null;
   hostName: string;
+  photos: SessionPhotoRowInput[];
 };
 
 const STATUS_LABEL: Record<MentoringSessionStatus, string> = {
@@ -383,6 +394,15 @@ function SessionCard({
               className="w-full rounded-[8px] border border-line bg-canvas px-2.5 py-2 text-[12.5px] leading-relaxed font-mono resize-y focus:outline-none focus:border-line-strong disabled:opacity-60"
             />
           </div>
+
+          {/* 사진/PDF 첨부 — KDA / 참고 자료 / 자유 첨부 */}
+          {session.status !== "CANCELED" && (
+            <MentoringSessionPhotosPanel
+              sessionId={session.id}
+              initialPhotos={session.photos}
+              disabled={session.status === "COMPLETED"}
+            />
+          )}
 
           {/* 액션 버튼 */}
           {editable && (

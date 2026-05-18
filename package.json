@@ -9,6 +9,7 @@
     "lint": "eslint",
     "postinstall": "node scripts/postinstall.mjs",
     "db:push": "node scripts/db-push.mjs",
+    "db:execute-dev": "node scripts/db-execute-dev.mjs",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "test": "vitest run",
