@@ -1481,6 +1481,7 @@ model VocabAttempt {
   expiresAt      DateTime?                                   // 출제 +14일. null=레거시(backfill 대상)
   lastAccessIp   String?
   lastAccessUa   String?
+  shuffleSeed    Int?                                        // 학생별 셔플 시드(per-attempt isolation). null=레거시(unseeded)
 
   @@index([studentId])
   @@index([examId])
