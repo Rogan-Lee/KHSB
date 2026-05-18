@@ -550,6 +550,47 @@ export async function submitVocabAnswer(
   });
 }
 
+// ─────────────────────── 학생 단어 학습 추이 (학부모 리포트용) ───────────────────────
+
+/**
+ * 특정 학생의 영단어 시험 결과(VocabTestScore)를 testDate ASC 로 조회.
+ * 학부모 리포트 미니차트(`vocab-trend-mini-chart`)에서 호출.
+ *
+ * - auth 만 거치며(인증된 staff/원생/관리자 누구든 호출 가능), 행 자체엔 학생만 식별되므로
+ *   호출하는 페이지 측에서 학생 토큰/role 검증을 마친 뒤 사용한다는 가정.
+ * - 변경(mutation) 없음 → `revalidatePath` 호출하지 않음.
+ */
+export async function getStudentVocabHistory(
+  studentId: string,
+  fromDate?: Date,
+  toDate?: Date
+) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const where: {
+    studentId: string;
+    testDate?: { gte?: Date; lte?: Date };
+  } = { studentId };
+  if (fromDate || toDate) {
+    where.testDate = {};
+    if (fromDate) where.testDate.gte = fromDate;
+    if (toDate) where.testDate.lte = toDate;
+  }
+
+  return prisma.vocabTestScore.findMany({
+    where,
+    orderBy: { testDate: "asc" },
+    select: {
+      id: true,
+      testDate: true,
+      totalWords: true,
+      correctWords: true,
+      score: true,
+    },
+  });
+}
+
 export async function finalizeVocabAttempt(token: string) {
   const attempt = await getAttemptByToken(token);
   if (attempt.status === "SUBMITTED") {
