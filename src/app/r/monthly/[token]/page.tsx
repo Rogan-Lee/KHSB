@@ -37,7 +37,8 @@ export default async function MonthlyParentReportPage({
     where: {
       studentId: student.id,
       examDate: { lte: end },
-      examType: { in: ["OFFICIAL_MOCK", "PRIVATE_MOCK"] },
+      // 3-track 차트(공식 모의 / 사설 모의 / 내신) 모두 포함
+      examType: { in: ["OFFICIAL_MOCK", "PRIVATE_MOCK", "SCHOOL_EXAM"] },
     },
     orderBy: { examDate: "asc" },
     take: 50,
@@ -119,6 +120,7 @@ export default async function MonthlyParentReportPage({
                 subject: s.subject,
                 grade: s.grade,
                 percentile: s.percentile,
+                examType: s.examType,
               }))}
             />
           </section>
