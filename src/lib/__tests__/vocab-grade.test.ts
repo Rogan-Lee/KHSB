@@ -6,6 +6,7 @@ import {
   buildPrompt,
   isAnswerCorrect,
 } from "@/lib/vocab-grade";
+import { mulberry32, seededShuffle, newShuffleSeed } from "@/lib/vocab-shuffle";
 import { parseCsv, parseVocabCsv } from "@/lib/csv";
 
 describe("normalizeAnswer", () => {
@@ -122,5 +123,47 @@ describe("parseVocabCsv", () => {
     const res = parseVocabCsv("apple,사과\n,없음\nrun,");
     expect(res.rows).toHaveLength(1);
     expect(res.errors.length).toBe(2);
+  });
+});
+
+describe("vocab-shuffle (per-attempt isolation)", () => {
+  const pool = Array.from({ length: 30 }, (_, i) => `w${i}`);
+
+  it("mulberry32 is deterministic for the same seed", () => {
+    const a = mulberry32(12345);
+    const b = mulberry32(12345);
+    const seqA = Array.from({ length: 8 }, () => a());
+    const seqB = Array.from({ length: 8 }, () => b());
+    expect(seqA).toEqual(seqB);
+  });
+
+  it("seededShuffle is deterministic for the same seed", () => {
+    const a = seededShuffle(pool, 42);
+    const b = seededShuffle(pool, 42);
+    expect(a).toEqual(b);
+    // 셔플은 비파괴: 원본 보존
+    expect(pool).toEqual(Array.from({ length: 30 }, (_, i) => `w${i}`));
+  });
+
+  it("different seeds produce different orders (per-student isolation)", () => {
+    const a = seededShuffle(pool, 1);
+    const b = seededShuffle(pool, 2);
+    expect(a).not.toEqual(b);
+    // 두 결과 모두 같은 단어 집합을 포함해야 함(permutation)
+    expect([...a].sort()).toEqual([...b].sort());
+  });
+
+  it("seededShuffle with null seed returns original order (legacy)", () => {
+    expect(seededShuffle(pool, null)).toEqual(pool);
+    expect(seededShuffle(pool, undefined)).toEqual(pool);
+  });
+
+  it("newShuffleSeed returns a non-negative 31-bit int", () => {
+    for (let i = 0; i < 10; i++) {
+      const s = newShuffleSeed();
+      expect(Number.isInteger(s)).toBe(true);
+      expect(s).toBeGreaterThanOrEqual(0);
+      expect(s).toBeLessThan(0x7fffffff);
+    }
   });
 });
