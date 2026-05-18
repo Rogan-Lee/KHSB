@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState, useTransition, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +67,8 @@ type Props = {
   attendanceNotes?: Record<string, string>;
   /** 이달 기준 학생별 상/벌점 누적 (§2.17) */
   meritPoints?: Record<string, { positive: number; negative: number }>;
+  /** 서버에서 CANCELLED 까지 받아왔는지 여부 (false = 기본, true = ?canceled=1) */
+  includeCanceled?: boolean;
 };
 
 /** 이달 상벌점 임계값을 넘으면 이모지 표시 (§2.17). 임계값: 상점 10↑ / 벌점 15↑ */
@@ -242,7 +245,21 @@ function saveFilters(f: FilterState) {
   try { sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(f)); } catch { /* ignore */ }
 }
 
-export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [], vocabEnrolledStudentIds = [], attendanceNotes = {}, meritPoints = {} }: Props) {
+export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [], vocabEnrolledStudentIds = [], attendanceNotes = {}, meritPoints = {}, includeCanceled = false }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  function toggleIncludeCanceled() {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    if (includeCanceled) {
+      params.delete("canceled");
+    } else {
+      params.set("canceled", "1");
+    }
+    const qs = params.toString();
+    router.push(qs ? `?${qs}` : "?");
+  }
+
   const checkedInSet = new Set(checkedInStudentIds);
   const vocabEnrolledSet = new Set(vocabEnrolledStudentIds);
   const today = getToday();
@@ -480,6 +497,17 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
           <Filter className="h-3 w-3" />
           리포트 있는 것만
         </label>
+        <Button
+          type="button"
+          variant={includeCanceled ? "default" : "outline"}
+          size="sm"
+          onClick={toggleIncludeCanceled}
+          className="h-7 px-2 text-[11px] rounded-full"
+          aria-pressed={includeCanceled}
+          title={includeCanceled ? "취소된 멘토링도 함께 보고 있습니다" : "취소된 멘토링을 숨기는 중"}
+        >
+          취소 포함
+        </Button>
         <div className="ml-auto flex items-center gap-2">
           {someSelected && selectedCount > 0 && (
             <>
