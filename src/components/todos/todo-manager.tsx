@@ -28,6 +28,8 @@ type Todo = {
   assigneeId: string | null;
   assigneeName: string | null;
   category: string | null;
+  /** "MENTOR" | "STAFF" | "ALL" | null (legacy = ALL 취급) */
+  targetRole?: string | null;
   createdAt: Date;
   lastEditorId?: string | null;
   lastEditorName?: string | null;
@@ -93,6 +95,13 @@ type TodoFormDraft = {
   assigneeId: string;
   assigneeName: string;
   category: string;
+  targetRole: "ALL" | "STAFF" | "MENTOR";
+};
+
+const TARGET_ROLE_LABEL: Record<"ALL" | "STAFF" | "MENTOR", string> = {
+  ALL: "전체",
+  STAFF: "운영조교",
+  MENTOR: "멘토",
 };
 
 function TodoForm({
@@ -106,6 +115,10 @@ function TodoForm({
   const [isPending, startTransition] = useTransition();
 
   const draftKey = initial ? `todo-form-edit-${initial.id}` : "todo-form-new";
+  const initialTargetRole: "ALL" | "STAFF" | "MENTOR" =
+    initial?.targetRole === "MENTOR" || initial?.targetRole === "STAFF"
+      ? initial.targetRole
+      : "ALL";
   const [draft, setDraft, clearDraft] = useDraft<TodoFormDraft>(draftKey, {
     title: initial?.title ?? "",
     content: initial?.content ?? "",
@@ -114,9 +127,10 @@ function TodoForm({
     assigneeId: initial?.assigneeId ?? "",
     assigneeName: initial?.assigneeName ?? "",
     category: initial?.category ?? "",
+    targetRole: initialTargetRole,
   });
 
-  const { title, content, dueDate, priority, assigneeId, assigneeName, category } = draft;
+  const { title, content, dueDate, priority, assigneeId, assigneeName, category, targetRole } = draft;
   const setTitle = (v: string) => setDraft((d) => ({ ...d, title: v }));
   const setContent = (v: string) => setDraft((d) => ({ ...d, content: v }));
   const setDueDate = (v: string) => setDraft((d) => ({ ...d, dueDate: v }));
@@ -124,6 +138,7 @@ function TodoForm({
   const setAssigneeId = (v: string) => setDraft((d) => ({ ...d, assigneeId: v }));
   const setAssigneeName = (v: string) => setDraft((d) => ({ ...d, assigneeName: v }));
   const setCategory = (v: string) => setDraft((d) => ({ ...d, category: v }));
+  const setTargetRole = (v: "ALL" | "STAFF" | "MENTOR") => setDraft((d) => ({ ...d, targetRole: v }));
 
   function handleAssignee(id: string) {
     const staff = staffList.find((s) => s.id === id);
@@ -134,7 +149,16 @@ function TodoForm({
     if (!title.trim()) { toast.error("제목을 입력해주세요"); return; }
     startTransition(async () => {
       try {
-        const payload = { title, content, dueDate: dueDate || undefined, priority, assigneeId: assigneeId || undefined, assigneeName: assigneeName || undefined, category: category || undefined };
+        const payload = {
+          title,
+          content,
+          dueDate: dueDate || undefined,
+          priority,
+          assigneeId: assigneeId || undefined,
+          assigneeName: assigneeName || undefined,
+          category: category || undefined,
+          targetRole,
+        };
         let result: Todo;
         if (initial) {
           result = await updateTodo(initial.id, { ...payload, dueDate: dueDate || null }) as unknown as Todo;
@@ -200,6 +224,19 @@ function TodoForm({
           />
         </div>
       </div>
+      {/* 대상 역할 (전체 / 운영조교 / 멘토) */}
+      <div>
+        <label className="text-[11px] text-muted-foreground mb-1 block">대상</label>
+        <select
+          value={targetRole}
+          onChange={(e) => setTargetRole(e.target.value as "ALL" | "STAFF" | "MENTOR")}
+          className="w-full text-sm border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+        >
+          {(Object.entries(TARGET_ROLE_LABEL) as ["ALL" | "STAFF" | "MENTOR", string][]).map(([v, l]) => (
+            <option key={v} value={v}>{l}</option>
+          ))}
+        </select>
+      </div>
       {/* 버튼 */}
       <div className="flex gap-2 pt-1">
         <Button size="sm" onClick={handleSubmit} disabled={isPending || !title.trim()} className="flex-1 h-8 text-xs gap-1">
@@ -254,6 +291,19 @@ function TodoCard({
                   {PRIORITY_LABEL[todo.priority]}
                 </span>
               )}
+              {/* 대상 역할 chip — legacy null 은 "전체" 로 표시 */}
+              {(() => {
+                const tr = todo.targetRole === "MENTOR" || todo.targetRole === "STAFF" ? todo.targetRole : "ALL";
+                const colorClass =
+                  tr === "MENTOR" ? "bg-purple-50 text-purple-700 border-purple-200"
+                  : tr === "STAFF" ? "bg-sky-50 text-sky-700 border-sky-200"
+                  : "bg-muted border-border text-muted-foreground";
+                return (
+                  <span className={cn("text-[10px] border rounded-full px-2 py-0.5", colorClass)}>
+                    {TARGET_ROLE_LABEL[tr]}
+                  </span>
+                );
+              })()}
               {todo.category && <span className="text-[10px] bg-muted border rounded-full px-2 py-0.5 text-muted-foreground">{todo.category}</span>}
             </div>
             <p className={cn("text-sm font-medium", todo.isCompleted && "line-through text-muted-foreground")}>{todo.title}</p>
@@ -320,6 +370,13 @@ function TodoCard({
 }
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
+const ROLE_FILTER_STORAGE_KEY = "todo-role-filter";
+type RoleFilter = "ALL" | "STAFF" | "MENTOR";
+
+function isRoleFilter(v: string | null): v is RoleFilter {
+  return v === "ALL" || v === "STAFF" || v === "MENTOR";
+}
+
 export function TodoManager({ initialTodos, staffList, currentUserId, currentUserName, currentUserRole, initialTemplates }: Props) {
   const [todos, setTodos] = useState<Todo[]>(initialTodos);
   const [isPending, startTransition] = useTransition();
@@ -328,9 +385,30 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(true);
   const [historyTodo, setHistoryTodo] = useState<Todo | null>(null);
+  // 대상 역할 필터 (전체 / 운영 / 멘토). localStorage 영속.
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(ROLE_FILTER_STORAGE_KEY);
+      if (isRoleFilter(saved)) setRoleFilter(saved);
+    } catch { /* ignore */ }
+  }, []);
+  function changeRoleFilter(next: RoleFilter) {
+    setRoleFilter(next);
+    try { localStorage.setItem(ROLE_FILTER_STORAGE_KEY, next); } catch { /* ignore */ }
+  }
 
-  const pending = todos.filter((t) => !t.isCompleted);
-  const completed = todos.filter((t) => t.isCompleted);
+  // 클라이언트 필터: null/legacy 는 항상 매치, ALL 도 항상 매치
+  function matchesRole(t: Todo): boolean {
+    if (roleFilter === "ALL") return true;
+    const tr = t.targetRole;
+    if (!tr || tr === "ALL") return true; // legacy/ALL 행은 항상 표시
+    return tr === roleFilter;
+  }
+  const visibleTodos = todos.filter(matchesRole);
+
+  const pending = visibleTodos.filter((t) => !t.isCompleted);
+  const completed = visibleTodos.filter((t) => t.isCompleted);
   const overdue = pending.filter((t) => isOverdue(t.dueDate, false));
 
   function handleToggle(id: string) {
@@ -393,6 +471,31 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
           <CheckSquare className="h-3.5 w-3.5 shrink-0" />
           <div><p className="text-lg font-bold leading-none">{completed.length}</p><p className="text-[10px] mt-0.5 opacity-70">완료</p></div>
         </div>
+      </div>
+
+      {/* 대상 역할 필터 pill */}
+      <div className="flex items-center gap-1.5" role="tablist" aria-label="대상 역할 필터">
+        {(["ALL", "STAFF", "MENTOR"] as const).map((r) => {
+          const label = r === "ALL" ? "전체" : r === "STAFF" ? "운영" : "멘토";
+          const active = roleFilter === r;
+          return (
+            <button
+              key={r}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => changeRoleFilter(r)}
+              className={cn(
+                "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                active
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-muted-foreground border-border hover:bg-muted"
+              )}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {/* 폼 (추가 or 수정) */}

@@ -1240,6 +1240,8 @@ model Todo {
   assigneeId     String?
   assigneeName   String?
   category       String?
+  // 대상 역할 필터: "MENTOR" | "STAFF" | "ALL" | null (legacy=ALL 취급)
+  targetRole     String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   // 마지막 편집 메타 (목록에서 빠른 표시용 역정규화)
