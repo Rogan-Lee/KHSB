@@ -155,3 +155,45 @@ export async function clearParentGate(token: string) {
 export async function clearStudentGate(token: string) {
   await clearGatePass("STUDENT", token);
 }
+export async function clearStaffGate(token: string) {
+  await clearGatePass("STAFF", token);
+}
+
+// ───────────────────── 근무자 게이트 (/w/[token]) ─────────────────────
+
+/**
+ * 근무자 매직링크 본인 확인: `User.phone` 마지막 4자리.
+ * - 토큰이 무효/만료/취소되었거나 사용자가 퇴사 처리된 경우 거절.
+ * - 5회/10분 실패 시 잠금 (TokenGateAttempt 재사용, scope="STAFF").
+ * - 성공 시 HMAC 게이트 쿠키 발급 — 토큰 만료일까지 유효.
+ */
+export async function verifyStaffGate(
+  token: string,
+  phoneInput: string,
+): Promise<GateResult> {
+  const scope: GateScope = "STAFF";
+  const { ip, ua } = await getRequestMeta();
+  if (await isGateLocked(scope, token, ip)) return { ok: false, reason: "locked" };
+
+  const link = await prisma.staffMagicLink.findUnique({
+    where: { token },
+    include: { user: { select: { id: true, phone: true, status: true } } },
+  });
+  if (!link) return { ok: false, reason: "not_found" };
+  const fail = checkExpiry({ expiresAt: link.expiresAt, revokedAt: link.revokedAt });
+  if (fail) return { ok: false, reason: fail };
+  // 퇴사 처리된 근무자는 게이트 통과 불가
+  if (link.user.status === "TERMINATED") return { ok: false, reason: "revoked" };
+  if (!link.user.phone) return { ok: false, reason: "no_credential" };
+
+  const expected = phoneLast4(link.user.phone);
+  const given = normalizeDigits(phoneInput);
+  if (!expected) return { ok: false, reason: "no_credential" };
+  if (given.length !== 4 || !safeEqual(given, expected)) {
+    await recordGateFailure(scope, token, ip, ua);
+    return { ok: false, reason: "invalid" };
+  }
+
+  await grantGatePass(scope, token, link.user.id, link.expiresAt);
+  return { ok: true };
+}
