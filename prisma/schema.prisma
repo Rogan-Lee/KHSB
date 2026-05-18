@@ -8,22 +8,28 @@ datasource db {
 }
 
 enum Role {
-  SUPER_ADMIN       // 시스템 최상위 관리자 (개발/디버그, 급여·시스템 설정 접근)
-  ADMIN             // (deprecated) 이전 버전 호환, 신규 생성 금지
-  DIRECTOR          // 원장 (시설 운영 오너, 풀 액세스)
-  HEAD_MENTOR       // 총괄 멘토 (직책 표시용. 권한은 MENTOR/STAFF와 동일, 급여·관리자 메뉴 접근 불가)
-  MENTOR            // 오프라인 자습실 멘토
-  STAFF             // 운영조교
+  SUPER_ADMIN // 시스템 최상위 관리자 (개발/디버그, 급여·시스템 설정 접근)
+  ADMIN // (deprecated) 이전 버전 호환, 신규 생성 금지
+  DIRECTOR // 원장 (시설 운영 오너, 풀 액세스)
+  HEAD_MENTOR // 총괄 멘토 (직책 표시용. 권한은 MENTOR/STAFF와 동일, 급여·관리자 메뉴 접근 불가)
+  MENTOR // 오프라인 자습실 멘토
+  STAFF // 운영조교
   STUDENT
-  CONSULTANT        // 온라인 관리 — 컨설턴트 (입시/수행평가 설계)
-  MANAGER_MENTOR    // 온라인 관리 — 관리 멘토 (진도/계획/카톡 로그)
+  CONSULTANT // 온라인 관리 — 컨설턴트 (입시/수행평가 설계)
+  MANAGER_MENTOR // 온라인 관리 — 관리 멘토 (진도/계획/카톡 로그)
 }
 
 enum StudentStatus {
   ACTIVE
   INACTIVE
   GRADUATED
-  WITHDRAWN    // 퇴원
+  WITHDRAWN // 퇴원
+}
+
+// 근무자(User) 활성/퇴사 상태. STUDENT 역할에는 사실상 사용 안 함.
+enum UserStatus {
+  ACTIVE
+  TERMINATED // 퇴사 처리됨. 픽커/매직링크에서 제외, 과거 데이터는 보존.
 }
 
 enum AttendanceType {
@@ -54,19 +60,19 @@ enum ConsultationStatus {
 }
 
 enum ConsultationType {
-  STUDENT       // 학생 상담
-  PARENT        // 학부모 상담
+  STUDENT // 학생 상담
+  PARENT // 학부모 상담
 }
 
 enum ConsultationCategory {
-  ENROLLED      // 재원생
+  ENROLLED // 재원생
   NEW_ADMISSION // 신규 입실
-  CONSIDERING   // 등록 고민
+  CONSIDERING // 등록 고민
 }
 
 enum ConsultationOwner {
-  DIRECTOR      // 원장 면담
-  HEAD_TEACHER  // 책임T 면담
+  DIRECTOR // 원장 면담
+  HEAD_TEACHER // 책임T 면담
 }
 
 enum MessageStatus {
@@ -86,59 +92,68 @@ enum MessageType {
 }
 
 enum CommunicationType {
-  PARENT_REQUEST  // 학부모 요청사항
-  STAFF_NOTE      // 운영진 전달사항
+  PARENT_REQUEST // 학부모 요청사항
+  STAFF_NOTE // 운영진 전달사항
 }
 
 enum ExamType {
-  OFFICIAL_MOCK   // 공식 모의고사 (수능/평가원)
-  PRIVATE_MOCK    // 사설 모의고사
-  SCHOOL_EXAM     // 학교 내신
+  OFFICIAL_MOCK // 공식 모의고사 (수능/평가원)
+  PRIVATE_MOCK // 사설 모의고사
+  SCHOOL_EXAM // 학교 내신
 }
 
 enum CalendarEventType {
-  SCHOOL_EXAM    // 학교 시험
-  SCHOOL_EVENT   // 학교 행사
-  PERSONAL       // 개인 일정
-  PLATFORM       // 플랫폼 일정
+  SCHOOL_EXAM // 학교 시험
+  SCHOOL_EVENT // 학교 행사
+  PERSONAL // 개인 일정
+  PLATFORM // 플랫폼 일정
 }
 
 model User {
-  id         String      @id @default(cuid())
-  email      String      @unique
-  name       String
-  clerkId    String?     @unique
-  role       Role        @default(MENTOR)
-  isMentor   Boolean     @default(false)
-  students        Student[]        @relation("MentorStudents")
-  onlineStudents     Student[]     @relation("OnlineManagerStudents")  // MANAGER_MENTOR 담당 온라인 학생
-  consultingStudents Student[]     @relation("ConsultantStudents")     // CONSULTANT 담당 온라인 학생
-  staffStudents      Student[]     @relation("StaffStudents")          // STAFF 담당 온라인 학생 (운영조교)
-  portalChats        PortalChat[]  @relation("PortalChatStaff")
-  portalChatMessages PortalChatMessage[] @relation("PortalChatMessageAuthor")
-  claimedQuestions   StudentQuestion[]   @relation("ClaimedQuestions")
-  questionMessages   QuestionMessage[]   @relation("QuestionMessageAuthor")
-  createdPerformanceTasks PerformanceTask[] @relation("PerformanceTaskCreator")
+  id                      String               @id @default(cuid())
+  email                   String               @unique
+  name                    String
+  clerkId                 String?              @unique
+  role                    Role                 @default(MENTOR)
+  isMentor                Boolean              @default(false)
+  students                Student[]            @relation("MentorStudents")
+  onlineStudents          Student[]            @relation("OnlineManagerStudents") // MANAGER_MENTOR 담당 온라인 학생
+  consultingStudents      Student[]            @relation("ConsultantStudents") // CONSULTANT 담당 온라인 학생
+  staffStudents           Student[]            @relation("StaffStudents") // STAFF 담당 온라인 학생 (운영조교)
+  portalChats             PortalChat[]         @relation("PortalChatStaff")
+  portalChatMessages      PortalChatMessage[]  @relation("PortalChatMessageAuthor")
+  claimedQuestions        StudentQuestion[]    @relation("ClaimedQuestions")
+  questionMessages        QuestionMessage[]    @relation("QuestionMessageAuthor")
+  createdPerformanceTasks PerformanceTask[]    @relation("PerformanceTaskCreator")
   taskFeedbacks           TaskFeedback[]
-  authoredSubjectProgress SubjectProgress[] @relation("SubjectProgressAuthor")
-  authoredWeeklyPlans     WeeklyPlan[]      @relation("WeeklyPlanAuthor")
-  authoredMonthlyPlans    MonthlyPlan[]     @relation("MonthlyPlanAuthor")
-  authoredDailyKakaoLogs  DailyKakaoLog[]   @relation("DailyKakaoLogAuthor")
+  authoredSubjectProgress SubjectProgress[]    @relation("SubjectProgressAuthor")
+  authoredWeeklyPlans     WeeklyPlan[]         @relation("WeeklyPlanAuthor")
+  authoredMonthlyPlans    MonthlyPlan[]        @relation("MonthlyPlanAuthor")
+  authoredDailyKakaoLogs  DailyKakaoLog[]      @relation("DailyKakaoLogAuthor")
   approvedParentReports   OnlineParentReport[] @relation("OnlineParentReportApprover")
-  hostedMentoringSessions MentoringSession[] @relation("MentoringSessionHost")
-  mentorings      Mentoring[]
-  mentorSchedules MentorSchedule[]
-  parentReports   ParentReport[]
-  timetableEntries TimetableEntry[]
-  announcements    Announcement[]
-  workTags        WorkTag[]
-  payrollSetting  PayrollSetting?
-  payrollRecords  PayrollRecord[]
-  kakaoAccessToken  String?
-  kakaoRefreshToken String?
-  kakaoTokenExpiry  DateTime?
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  hostedMentoringSessions MentoringSession[]   @relation("MentoringSessionHost")
+  mentorings              Mentoring[]
+  mentorSchedules         MentorSchedule[]
+  parentReports           ParentReport[]
+  timetableEntries        TimetableEntry[]
+  announcements           Announcement[]
+  workTags                WorkTag[]
+  payrollSetting          PayrollSetting?
+  payrollRecords          PayrollRecord[]
+  payrollContracts        PayrollContract[]
+  workLogs                WorkLog[]
+  // ── 근무자 상태(퇴사·매직링크 게이트용) ──
+  status                  UserStatus           @default(ACTIVE)
+  terminatedAt            DateTime?
+  terminationNote         String?
+  phone                   String? // 근무자 매직링크 본인 확인용 (마지막 4자리)
+  kakaoAccessToken        String?
+  kakaoRefreshToken       String?
+  kakaoTokenExpiry        DateTime?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+
+  @@index([status])
 }
 
 enum WorkTagType {
@@ -147,17 +162,17 @@ enum WorkTagType {
 }
 
 model WorkTag {
-  id         String      @id @default(cuid())
-  userId     String
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type       WorkTagType
-  taggedAt   DateTime    @default(now())
-  note       String?
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         WorkTagType
+  taggedAt     DateTime    @default(now())
+  note         String?
   // 관리자 편집 흔적
   editedById   String?
   editedByName String?
   editedAt     DateTime?
-  createdAt  DateTime    @default(now())
+  createdAt    DateTime    @default(now())
 
   @@index([userId, taggedAt])
   @@index([taggedAt])
@@ -167,8 +182,8 @@ model PayrollSetting {
   id               String   @id @default(cuid())
   userId           String   @unique
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  hourlyRate       Int                          // 원
-  weeklyHolidayPay Boolean  @default(true)      // 주휴수당 지급 여부
+  hourlyRate       Int // 원
+  weeklyHolidayPay Boolean  @default(true) // 주휴수당 지급 여부
   note             String?
   updatedById      String?
   updatedAt        DateTime @updatedAt
@@ -182,59 +197,102 @@ model PayrollRecord {
   year              Int
   month             Int
   workMinutes       Int
-  baseWage          Int                         // 기본급 (시급×시간)
-  weeklyHolidayWage Int      @default(0)        // 주휴수당 합계
-  totalWage         Int                         // baseWage + weeklyHolidayWage
-  hourlyRateAtCalc  Int                         // 계산 시점 시급 (이력 보존)
+  baseWage          Int // 기본급 (시급×시간)
+  weeklyHolidayWage Int      @default(0) // 주휴수당 합계
+  totalWage         Int // baseWage + weeklyHolidayWage
+  hourlyRateAtCalc  Int // 계산 시점 시급 (이력 보존)
   calculatedAt      DateTime @default(now())
 
   @@unique([userId, year, month])
   @@index([year, month])
 }
 
+// 근무 계약(시급·주휴 옵션·고정수당) 월 단위 버전. 시급 변경 시 새 행 추가 → 직전 계약의 effectiveTo 자동 종료.
+// 급여 산정의 단일 진입점: getActiveContractFor(userId, ymd).
+// PayrollSetting 은 deprecated 캐시(`/payroll/me` 빠른 조회용)로 유지 — 신규 코드에서는 PayrollContract 우선.
+model PayrollContract {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  effectiveFrom    DateTime  @db.Date // 시작월 1일 (KST 기준)
+  effectiveTo      DateTime? @db.Date // 종료월 말일 (null=현재 진행 중)
+  hourlyRate       Int // 원
+  weeklyHolidayPay Boolean   @default(true)
+  monthlyBonusKrw  Int       @default(0) // 고정 수당(식대 등) — 표시용, 4대보험 자동계산 X
+  note             String?
+  createdById      String?
+  createdAt        DateTime  @default(now())
+
+  @@unique([userId, effectiveFrom])
+  @@index([userId, effectiveFrom])
+}
+
+// WorkTag(CLOCK_IN/OUT 쌍) 페어링 후 정산된 shift. 멱등 재계산 가능 — recomputeWorkLogsForMonth 가 user+month 단위로 삭제 후 재생성.
+// 계약 변경이 과거 정산에 영향 주지 않도록 hourlyRateAtCalc 로 시급을 동결.
+model WorkLog {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workDate         DateTime  @db.Date // shiftStart 의 KST 일자
+  shiftStart       DateTime
+  shiftEnd         DateTime
+  minutes          Int
+  sourceTagInId    String? // WorkTag.id 추적
+  sourceTagOutId   String?
+  hourlyRateAtCalc Int // 정산 시점 활성 계약 시급
+  baseWage         Int // hourlyRateAtCalc × minutes / 60
+  weekKey          String // "2026-W21" — 주휴수당 그룹키 (KST 월요일 시작)
+  editedById       String?
+  editedAt         DateTime?
+  createdAt        DateTime  @default(now())
+
+  @@index([userId, workDate])
+  @@index([weekKey])
+}
+
 model Student {
-  id                  String                 @id @default(cuid())
-  name                String
-  phone               String?
-  parentPhone         String
-  parentEmail         String?
-  grade               String
-  school              String?
-  classGroup          String?               // 반 (예: 정규반, 선택반)
-  seat                String?
-  startDate           DateTime
-  endDate             DateTime?
-  birthDate           DateTime?              @db.Date // 생년월일 (핀번호/수험표용)
-  status              StudentStatus          @default(ACTIVE)
-  internalScoreRange  String?               // 내신 성적대 (예: "2~3등급")
-  mockScoreRange      String?               // 모의고사 성적대 (예: "3~4등급")
-  targetUniversity    String?               // 희망 대학
-  mentoringNotes      String?               // 멘토링 주의사항
-  dailyNote           String?               // 당일 변동 사항 (매일 00시 KST 기준 초기화)
-  dailyNoteDate       DateTime? @db.Date    // 당일 변동 기록 날짜 (조회 시 오늘이 아니면 표시 안함)
-  studentInfo         String?               // 학생정보 (추가 메모)
-  selectedSubjects    String?               // 선택과목 (예: "수학, 영어, 사탐")
-  admissionType       String?               // 대학 입시 전형 (예: "수시 학종, 정시")
-  onlineLectures      String?               // 수강중인 인강 (예: "메가스터디 수학")
-  changeNote          String?               // 추후 변동 예정 사항
-  vocabTestDate       DateTime? @db.Date    // 영단어 테스트 일자 (매주 화요일 초기화)
-  pledgeDate          DateTime? @db.Date    // 서약서 제출 일자 (최초 1회 영구 보존)
-  mockAnalysisDate    DateTime? @db.Date    // 모의고사 분석지 일자
-  mockAnalysisExempt  Boolean   @default(false) // 정시 학생 — 모의고사 분석 면제
-  schoolAnalysisDate  DateTime? @db.Date    // 내신 분석지 일자
-  schoolAnalysisExempt Boolean  @default(false) // 정시 학생 — 내신 분석 면제
-  plannerSentDate     DateTime? @db.Date    // 플래너 전송 일자 (매주 화요일 초기화)
-  weeklyPlanDate      DateTime? @db.Date    // 주간 공부계획 일자 (매주 화요일 초기화)
-  mentorId            String?
-  mentor              User?                  @relation("MentorStudents", fields: [mentorId], references: [id])
+  id                   String                 @id @default(cuid())
+  name                 String
+  phone                String?
+  parentPhone          String
+  parentEmail          String?
+  grade                String
+  school               String?
+  classGroup           String? // 반 (예: 정규반, 선택반)
+  seat                 String?
+  startDate            DateTime
+  endDate              DateTime?
+  birthDate            DateTime?              @db.Date // 생년월일 (핀번호/수험표용)
+  status               StudentStatus          @default(ACTIVE)
+  internalScoreRange   String? // 내신 성적대 (예: "2~3등급")
+  mockScoreRange       String? // 모의고사 성적대 (예: "3~4등급")
+  targetUniversity     String? // 희망 대학
+  mentoringNotes       String? // 멘토링 주의사항
+  dailyNote            String? // 당일 변동 사항 (매일 00시 KST 기준 초기화)
+  dailyNoteDate        DateTime?              @db.Date // 당일 변동 기록 날짜 (조회 시 오늘이 아니면 표시 안함)
+  studentInfo          String? // 학생정보 (추가 메모)
+  selectedSubjects     String? // 선택과목 (예: "수학, 영어, 사탐")
+  admissionType        String? // 대학 입시 전형 (예: "수시 학종, 정시")
+  onlineLectures       String? // 수강중인 인강 (예: "메가스터디 수학")
+  changeNote           String? // 추후 변동 예정 사항
+  vocabTestDate        DateTime?              @db.Date // 영단어 테스트 일자 (매주 화요일 초기화)
+  pledgeDate           DateTime?              @db.Date // 서약서 제출 일자 (최초 1회 영구 보존)
+  mockAnalysisDate     DateTime?              @db.Date // 모의고사 분석지 일자
+  mockAnalysisExempt   Boolean                @default(false) // 정시 학생 — 모의고사 분석 면제
+  schoolAnalysisDate   DateTime?              @db.Date // 내신 분석지 일자
+  schoolAnalysisExempt Boolean                @default(false) // 정시 학생 — 내신 분석 면제
+  plannerSentDate      DateTime?              @db.Date // 플래너 전송 일자 (매주 화요일 초기화)
+  weeklyPlanDate       DateTime?              @db.Date // 주간 공부계획 일자 (매주 화요일 초기화)
+  mentorId             String?
+  mentor               User?                  @relation("MentorStudents", fields: [mentorId], references: [id])
   // ─── 온라인 관리 모듈 (Phase 1) ───
   isOnlineManaged      Boolean                @default(false)
   onlineStartedAt      DateTime?
-  assignedMentorId     String?                // MANAGER_MENTOR
+  assignedMentorId     String? // MANAGER_MENTOR
   assignedMentor       User?                  @relation("OnlineManagerStudents", fields: [assignedMentorId], references: [id])
-  assignedConsultantId String?                // CONSULTANT
+  assignedConsultantId String? // CONSULTANT
   assignedConsultant   User?                  @relation("ConsultantStudents", fields: [assignedConsultantId], references: [id])
-  assignedStaffId      String?                // STAFF (운영조교)
+  assignedStaffId      String? // STAFF (운영조교)
   assignedStaff        User?                  @relation("StaffStudents", fields: [assignedStaffId], references: [id])
   magicLinks           StudentMagicLink[]
   portalChats          PortalChat[]
@@ -249,33 +307,33 @@ model Student {
   onlineParentReports  OnlineParentReport[]
   mentoringSessions    MentoringSession[]
   // ─────────────────────────────────
-  schedules      AttendanceSchedule[]
-  attendances    AttendanceRecord[]
-  outings        OutingSchedule[]
-  dailyOutings   DailyOuting[]
-  merits         MeritDemerit[]
-  mentorings     Mentoring[]
-  academicPlans  AcademicPlan[]
-  parentReports  ParentReport[]
-  consultations  DirectorConsultation[]
-  messages       MessageLog[]
-  monthlyReports MonthlyReport[]
-  monthlyAwards  MonthlyAward[]
-  communications Communication[]
-  examScores     ExamScore[]
-  calendarEvents CalendarEvent[]
-  assignments      Assignment[]
-  timetableEntries TimetableEntry[]
-  dailyPlans       DailyPlan[]
-  studyPlanReports StudyPlanReport[]
-  monthlyNotes     MonthlyNote[]
-  vocabEnrollment  VocabTestEnrollment?
-  vocabScores      VocabTestScore[]
-  vocabAttempts    VocabAttempt[]
-  examSeatAssignments ExamSeatAssignment[]
-  photos           Photo[]
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
+  schedules            AttendanceSchedule[]
+  attendances          AttendanceRecord[]
+  outings              OutingSchedule[]
+  dailyOutings         DailyOuting[]
+  merits               MeritDemerit[]
+  mentorings           Mentoring[]
+  academicPlans        AcademicPlan[]
+  parentReports        ParentReport[]
+  consultations        DirectorConsultation[]
+  messages             MessageLog[]
+  monthlyReports       MonthlyReport[]
+  monthlyAwards        MonthlyAward[]
+  communications       Communication[]
+  examScores           ExamScore[]
+  calendarEvents       CalendarEvent[]
+  assignments          Assignment[]
+  timetableEntries     TimetableEntry[]
+  dailyPlans           DailyPlan[]
+  studyPlanReports     StudyPlanReport[]
+  monthlyNotes         MonthlyNote[]
+  vocabEnrollment      VocabTestEnrollment?
+  vocabScores          VocabTestScore[]
+  vocabAttempts        VocabAttempt[]
+  examSeatAssignments  ExamSeatAssignment[]
+  photos               Photo[]
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   @@index([isOnlineManaged, status])
   @@index([assignedMentorId])
@@ -297,7 +355,7 @@ model StudentMagicLink {
   lastAccessIp   String?
   lastAccessUa   String?
   accessCount    Int       @default(0)
-  issuedById     String?   // User.id — 발급자(원장 등)
+  issuedById     String? // User.id — 발급자(원장 등)
 
   @@index([studentId, revokedAt])
   @@index([expiresAt])
@@ -307,8 +365,8 @@ model StudentMagicLink {
 // IP+토큰 기준으로 분당 N회 잠금에 사용. 성공 시 삭제하지 않음(감사용).
 model TokenGateAttempt {
   id        String   @id @default(cuid())
-  scope     String   // "STUDENT" | "PARENT"
-  tokenHash String   // SHA-256(token) — 원본 토큰 저장 금지
+  scope     String // "STUDENT" | "PARENT"
+  tokenHash String // SHA-256(token) — 원본 토큰 저장 금지
   ip        String?
   ua        String?
   failedAt  DateTime @default(now())
@@ -320,42 +378,42 @@ model TokenGateAttempt {
 // A-1 학생 초기 설문 (입시/수행평가/학습 이력).
 // 섹션별 JSON 구조로 저장 → 프론트에서 자동저장. 학생당 1개, 재설문 시 version++.
 model OnboardingSurvey {
-  id          String   @id @default(cuid())
-  studentId   String   @unique
-  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  version     Int      @default(1)
-  sections    Json     @default("{}") // { basicInfo, history, goals, strengths, weaknesses, admissionType, performance, freeform }
+  id          String    @id @default(cuid())
+  studentId   String    @unique
+  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  version     Int       @default(1)
+  sections    Json      @default("{}") // { basicInfo, history, goals, strengths, weaknesses, admissionType, performance, freeform }
   submittedAt DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 // A-2 수행평가 일정.
 enum PerformanceTaskStatus {
-  OPEN            // 등록만 됨
-  IN_PROGRESS     // 학생 준비 중
-  SUBMITTED       // 학생이 제출 완료 (컨설턴트 피드백 대기)
-  NEEDS_REVISION  // 컨설턴트가 수정 요청
-  DONE            // 최종 완료 (TaskResult 확정)
+  OPEN // 등록만 됨
+  IN_PROGRESS // 학생 준비 중
+  SUBMITTED // 학생이 제출 완료 (컨설턴트 피드백 대기)
+  NEEDS_REVISION // 컨설턴트가 수정 요청
+  DONE // 최종 완료 (TaskResult 확정)
 }
 
 model PerformanceTask {
-  id            String                 @id @default(cuid())
-  studentId     String
-  student       Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  subject       String                 // 과목 (국어, 수학, 영어, 통합사회, ...)
-  title         String
-  description   String?
-  dueDate       DateTime               @db.Date
-  scoreWeight   Int?                   // 배점 (퍼센트/점수 자유)
-  format        String?                // "개인과제" | "조별" | "발표" | "보고서" ...
-  status        PerformanceTaskStatus  @default(OPEN)
-  createdById   String
-  createdBy     User                   @relation("PerformanceTaskCreator", fields: [createdById], references: [id])
-  submissions   TaskSubmission[]
-  result        TaskResult?
-  createdAt     DateTime               @default(now())
-  updatedAt     DateTime               @updatedAt
+  id          String                @id @default(cuid())
+  studentId   String
+  student     Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject     String // 과목 (국어, 수학, 영어, 통합사회, ...)
+  title       String
+  description String?
+  dueDate     DateTime              @db.Date
+  scoreWeight Int? // 배점 (퍼센트/점수 자유)
+  format      String? // "개인과제" | "조별" | "발표" | "보고서" ...
+  status      PerformanceTaskStatus @default(OPEN)
+  createdById String
+  createdBy   User                  @relation("PerformanceTaskCreator", fields: [createdById], references: [id])
+  submissions TaskSubmission[]
+  result      TaskResult?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
 
   @@index([studentId, dueDate])
   @@index([status, dueDate])
@@ -366,11 +424,11 @@ model TaskSubmission {
   id          String          @id @default(cuid())
   taskId      String
   task        PerformanceTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  studentId   String           // 조회 편의용 denormalize (task.studentId 와 동일)
-  version     Int              @default(1)
-  files       Json             @default("[]") // [{ url, name, sizeBytes, mimeType }]
+  studentId   String // 조회 편의용 denormalize (task.studentId 와 동일)
+  version     Int             @default(1)
+  files       Json            @default("[]") // [{ url, name, sizeBytes, mimeType }]
   note        String?
-  submittedAt DateTime         @default(now())
+  submittedAt DateTime        @default(now())
   feedbacks   TaskFeedback[]
 
   @@unique([taskId, version])
@@ -379,22 +437,22 @@ model TaskSubmission {
 
 // A-3 컨설턴트 피드백. Phase 1 은 단일 선형 리스트 (쓰레드 X).
 enum TaskFeedbackStatus {
-  COMMENT         // 단순 코멘트
-  NEEDS_REVISION  // 수정 요청 → PerformanceTask.status 도 NEEDS_REVISION 으로
-  APPROVED        // 승인 (TaskResult 확정 전 단계)
+  COMMENT // 단순 코멘트
+  NEEDS_REVISION // 수정 요청 → PerformanceTask.status 도 NEEDS_REVISION 으로
+  APPROVED // 승인 (TaskResult 확정 전 단계)
 }
 
 model TaskFeedback {
-  id                String             @id @default(cuid())
-  submissionId      String
-  submission        TaskSubmission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  authorId          String
-  author            User               @relation(fields: [authorId], references: [id])
-  content           String
-  files             Json               @default("[]") // [{ url, name, sizeBytes, mimeType }]
-  status            TaskFeedbackStatus @default(COMMENT)
-  readByStudentAt   DateTime?                                 // 학생이 읽은 시각 (미확인 카운트용)
-  createdAt         DateTime           @default(now())
+  id              String             @id @default(cuid())
+  submissionId    String
+  submission      TaskSubmission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  authorId        String
+  author          User               @relation(fields: [authorId], references: [id])
+  content         String
+  files           Json               @default("[]") // [{ url, name, sizeBytes, mimeType }]
+  status          TaskFeedbackStatus @default(COMMENT)
+  readByStudentAt DateTime? // 학생이 읽은 시각 (미확인 카운트용)
+  createdAt       DateTime           @default(now())
 
   @@index([submissionId, createdAt])
   @@index([readByStudentAt])
@@ -403,18 +461,18 @@ model TaskFeedback {
 // A-4 결과물 (Phase 2 확장 예정).
 // Phase 1 은 모델만 선반영 — status=DONE 시 컨설턴트가 최종본·점수·총평 기입.
 model TaskResult {
-  id                String   @id @default(cuid())
-  taskId            String   @unique
+  id                String          @id @default(cuid())
+  taskId            String          @unique
   task              PerformanceTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  studentId         String           // 조회 편의용
-  student           Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  finalFiles        Json     @default("[]")
-  score             String?          // 자유 텍스트 (% / 등급 / 점수)
+  studentId         String // 조회 편의용
+  student           Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  finalFiles        Json            @default("[]")
+  score             String? // 자유 텍스트 (% / 등급 / 점수)
   consultantSummary String?
-  includeInReport   Boolean  @default(false)
+  includeInReport   Boolean         @default(false)
   finalizedAt       DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   @@index([studentId, finalizedAt])
 }
@@ -424,11 +482,11 @@ model SubjectProgress {
   id             String   @id @default(cuid())
   studentId      String
   student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  subject        String   // "국어" | "수학" | "영어" | "탐구1" | ...
-  currentTopic   String   // 현재 단원 · 학습 위치
-  textbookPage   String?  // "쎈 수2 p.45~60" 등
-  weeklyProgress Int?     // 0-100 주간 진행률
-  notes          String?  // 이슈 · 특이사항
+  subject        String // "국어" | "수학" | "영어" | "탐구1" | ...
+  currentTopic   String // 현재 단원 · 학습 위치
+  textbookPage   String? // "쎈 수2 p.45~60" 등
+  weeklyProgress Int? // 0-100 주간 진행률
+  notes          String? // 이슈 · 특이사항
   recordedAt     DateTime @default(now())
   authorId       String
   author         User     @relation("SubjectProgressAuthor", fields: [authorId], references: [id])
@@ -442,10 +500,10 @@ model WeeklyPlan {
   id            String   @id @default(cuid())
   studentId     String
   student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  weekStart     DateTime @db.Date      // 해당 주 월요일 (KST 자정)
+  weekStart     DateTime @db.Date // 해당 주 월요일 (KST 자정)
   goals         Json     @default("{}") // { subject: [ { text, done } ] } 자유 JSON
-  studyHours    Int?                   // 주간 예상 학습시간 (시간)
-  retrospective String?                // 주말 회고
+  studyHours    Int? // 주간 예상 학습시간 (시간)
+  retrospective String? // 주말 회고
   authorId      String
   author        User     @relation("WeeklyPlanAuthor", fields: [authorId], references: [id])
   createdAt     DateTime @default(now())
@@ -464,35 +522,35 @@ enum OnlineReportType {
 }
 
 enum OnlineReportStatus {
-  DRAFT         // AI 초안 생성 완료 (원장 검토 대기)
-  DRAFT_FAILED  // Groq 배치 생성 중 실패 (rate limit 등) — 재시도 UI 노출
-  REVIEW        // 원장 편집 중
-  APPROVED      // 원장 승인 (발송 대기)
-  SENT          // 발송 완료
+  DRAFT // AI 초안 생성 완료 (원장 검토 대기)
+  DRAFT_FAILED // Groq 배치 생성 중 실패 (rate limit 등) — 재시도 UI 노출
+  REVIEW // 원장 편집 중
+  APPROVED // 원장 승인 (발송 대기)
+  SENT // 발송 완료
 }
 
 model OnlineParentReport {
-  id            String             @id @default(cuid())
-  studentId     String
-  student       Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  type          OnlineReportType
-  periodStart   DateTime           @db.Date
-  periodEnd     DateTime           @db.Date
-  content       Json               @default("{}") // { markdown, sections? } — Phase 1 은 markdown 단일
-  status        OnlineReportStatus @default(DRAFT)
-  token         String             @unique @default(cuid())
-  sentChannels  String[]           @default([])  // MANUAL_COPY, KAKAO_FRIEND, EMAIL
-  viewCount     Int                @default(0)
-  uniqueViewCount Int              @default(0)   // 일일 쿨다운 적용된 유니크 방문수
-  lastViewedAt  DateTime?
-  approvedById  String?
-  approvedBy    User?              @relation("OnlineParentReportApprover", fields: [approvedById], references: [id])
-  approvedAt    DateTime?
-  sentAt        DateTime?
-  errorMessage  String?                            // DRAFT_FAILED 시 사유
-  feedbacks     OnlineParentFeedback[]
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id              String                 @id @default(cuid())
+  studentId       String
+  student         Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type            OnlineReportType
+  periodStart     DateTime               @db.Date
+  periodEnd       DateTime               @db.Date
+  content         Json                   @default("{}") // { markdown, sections? } — Phase 1 은 markdown 단일
+  status          OnlineReportStatus     @default(DRAFT)
+  token           String                 @unique @default(cuid())
+  sentChannels    String[]               @default([]) // MANUAL_COPY, KAKAO_FRIEND, EMAIL
+  viewCount       Int                    @default(0)
+  uniqueViewCount Int                    @default(0) // 일일 쿨다운 적용된 유니크 방문수
+  lastViewedAt    DateTime?
+  approvedById    String?
+  approvedBy      User?                  @relation("OnlineParentReportApprover", fields: [approvedById], references: [id])
+  approvedAt      DateTime?
+  sentAt          DateTime?
+  errorMessage    String? // DRAFT_FAILED 시 사유
+  feedbacks       OnlineParentFeedback[]
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 
   @@unique([studentId, type, periodStart])
   @@index([status])
@@ -504,10 +562,10 @@ model OnlineParentFeedback {
   id        String             @id @default(cuid())
   reportId  String
   report    OnlineParentReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  name      String?                            // 학부모 이름 (선택)
+  name      String? // 학부모 이름 (선택)
   content   String             @db.Text
   createdAt DateTime           @default(now())
-  readAt    DateTime?                          // 원장 확인 시각
+  readAt    DateTime? // 원장 확인 시각
 
   @@index([reportId, createdAt])
 }
@@ -519,7 +577,7 @@ model MonthlyPlan {
   id            String   @id @default(cuid())
   studentId     String
   student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  yearMonth     String   // "2026-05"
+  yearMonth     String // "2026-05"
   milestones    Json     @default("{}")
   subjectGoals  Json     @default("{}")
   retrospective String?
@@ -534,19 +592,19 @@ model MonthlyPlan {
 
 // B-4 카톡 일일 보고. 학생×날짜 unique. Phase 1 은 summary only (rawContent 는 Phase 2).
 model DailyKakaoLog {
-  id              String    @id @default(cuid())
+  id              String   @id @default(cuid())
   studentId       String
-  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   authorId        String
-  author          User      @relation("DailyKakaoLogAuthor", fields: [authorId], references: [id])
-  logDate         DateTime  @db.Date
-  rawContent      String?   @db.Text  // Phase 2: 원문 붙여넣기
-  summary         String    @db.Text
-  tags            String[]  @default([]) // 진도질문·컨디션·고민상담·수면·식사·기타
-  isParentVisible Boolean   @default(true)
-  aiSummarized    Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  author          User     @relation("DailyKakaoLogAuthor", fields: [authorId], references: [id])
+  logDate         DateTime @db.Date
+  rawContent      String?  @db.Text // Phase 2: 원문 붙여넣기
+  summary         String   @db.Text
+  tags            String[] @default([]) // 진도질문·컨디션·고민상담·수면·식사·기타
+  isParentVisible Boolean  @default(true)
+  aiSummarized    Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@unique([studentId, logDate])
   @@index([authorId, logDate])
@@ -570,8 +628,8 @@ model AttendanceRecord {
   date         DateTime       @db.Date
   checkIn      DateTime?
   checkOut     DateTime?
-  outStart     DateTime?      // 실제 외출 시각
-  outEnd       DateTime?      // 실제 복귀 시각
+  outStart     DateTime? // 실제 외출 시각
+  outEnd       DateTime? // 실제 복귀 시각
   type         AttendanceType @default(NORMAL)
   notes        String?
   isAutoClosed Boolean        @default(false) // 자정 크론에서 자동 퇴실 처리됨
@@ -586,10 +644,10 @@ model OutingSchedule {
   id        String   @id @default(cuid())
   studentId String
   student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  dayOfWeek Int      // 0=일, 1=월, ..., 6=토
-  outStart  String   // "12:00" - 예정 외출 시각
-  outEnd    String   // "14:00" - 예정 복귀 시각
-  reason    String?  // "수학학원"
+  dayOfWeek Int // 0=일, 1=월, ..., 6=토
+  outStart  String // "12:00" - 예정 외출 시각
+  outEnd    String // "14:00" - 예정 복귀 시각
+  reason    String? // "수학학원"
   createdAt DateTime @default(now())
 }
 
@@ -629,19 +687,19 @@ model Mentoring {
   mentorId           String
   mentor             User            @relation(fields: [mentorId], references: [id])
   scheduledAt        DateTime
-  scheduledTimeStart String?         // "14:00"
-  scheduledTimeEnd   String?         // "15:00"
+  scheduledTimeStart String? // "14:00"
+  scheduledTimeEnd   String? // "15:00"
   actualDate         DateTime?
-  actualStartTime    String?         // "14:05"
-  actualEndTime      String?         // "15:10"
+  actualStartTime    String? // "14:05"
+  actualEndTime      String? // "15:10"
   status             MentoringStatus @default(SCHEDULED)
-  content            String?         // 오늘 멘토링 내용
-  previousIssues     String?         // 이전 회차에서 전달한 내용
-  improvements       String?         // 개선된 점
-  weaknesses         String?         // 부족한 점
-  nextGoals          String?         // 다음 멘토링 목표
-  notes              String?         // 기타 메모
-  feedbackSentAt     DateTime?       // 피드백 이메일 발송 시각
+  content            String? // 오늘 멘토링 내용
+  previousIssues     String? // 이전 회차에서 전달한 내용
+  improvements       String? // 개선된 점
+  weaknesses         String? // 부족한 점
+  nextGoals          String? // 다음 멘토링 목표
+  notes              String? // 기타 메모
+  feedbackSentAt     DateTime? // 피드백 이메일 발송 시각
   parentReports      ParentReport[]
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
@@ -655,9 +713,9 @@ model MentorSchedule {
   id        String   @id @default(cuid())
   mentorId  String
   mentor    User     @relation(fields: [mentorId], references: [id])
-  dayOfWeek Int      // 0=일, 1=월, ..., 6=토
-  timeStart String   // "14:00"
-  timeEnd   String   // "18:00"
+  dayOfWeek Int // 0=일, 1=월, ..., 6=토
+  timeStart String // "14:00"
+  timeEnd   String // "18:00"
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -681,25 +739,25 @@ model AcademicPlan {
 }
 
 model DirectorConsultation {
-  id            String             @id @default(cuid())
+  id            String               @id @default(cuid())
   studentId     String?
-  student       Student?           @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  prospectName  String?            // 미등록(신규 상담) 원생 이름
-  prospectGrade String?            // 미등록 원생 학년
-  prospectPhone String?            // 미등록 원생 연락처
-  type          ConsultationType   @default(STUDENT)
+  student       Student?             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  prospectName  String? // 미등록(신규 상담) 원생 이름
+  prospectGrade String? // 미등록 원생 학년
+  prospectPhone String? // 미등록 원생 연락처
+  type          ConsultationType     @default(STUDENT)
   category      ConsultationCategory @default(ENROLLED)
-  owner         ConsultationOwner  @default(DIRECTOR)
+  owner         ConsultationOwner    @default(DIRECTOR)
   scheduledAt   DateTime?
   actualDate    DateTime?
-  status        ConsultationStatus @default(SCHEDULED)
+  status        ConsultationStatus   @default(SCHEDULED)
   agenda        String?
   notes         String?
   outcome       String?
   followUp      String?
   reports       ConsultationReport[]
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
 }
 
 model MessageLog {
@@ -729,17 +787,17 @@ model MonthlyReport {
   totalDemerits         Int       @default(0)
   mentoringCount        Int       @default(0)
   // 월간 학부모 리포트 추가 필드
-  totalStudyMinutes     Int       @default(0)   // 월간 총 순공 시간 (분)
-  prevMonthStudyMinutes Int?                    // 전월 순공 시간 (비교용)
-  studyRankInRoom       Int?                    // 독서실 내 순위
-  studyRankTotal        Int?                    // 전체 인원 수
-  gradeAvgMinutes       Int?                    // 같은 학년 평균 순공 시간
-  outingCount           Int       @default(0)   // 외출 횟수
-  totalOutingMinutes    Int       @default(0)   // 총 외출 시간 (분)
-  mentoringSummary      String?                 // 월간 멘토링 종합 의견
-  overallComment        String?                 // (기존) 전체 코멘트
-  shareToken            String?   @unique       // 학부모 공유 토큰
-  attachedPhotoIds      String[]  @default([])  // 자동 첨부된 Photo ID 목록 (최신 N장)
+  totalStudyMinutes     Int       @default(0) // 월간 총 순공 시간 (분)
+  prevMonthStudyMinutes Int? // 전월 순공 시간 (비교용)
+  studyRankInRoom       Int? // 독서실 내 순위
+  studyRankTotal        Int? // 전체 인원 수
+  gradeAvgMinutes       Int? // 같은 학년 평균 순공 시간
+  outingCount           Int       @default(0) // 외출 횟수
+  totalOutingMinutes    Int       @default(0) // 총 외출 시간 (분)
+  mentoringSummary      String? // 월간 멘토링 종합 의견
+  overallComment        String? // (기존) 전체 코멘트
+  shareToken            String?   @unique // 학부모 공유 토큰
+  attachedPhotoIds      String[]  @default([]) // 자동 첨부된 Photo ID 목록 (최신 N장)
   sentAt                DateTime?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
@@ -752,7 +810,7 @@ model MonthlyAdmissionInfo {
   id        String   @id @default(cuid())
   year      Int
   month     Int
-  grade     String?                  // null = 전체, 특정 학년만 대상
+  grade     String? // null = 전체, 특정 학년만 대상
   content   String   @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -765,7 +823,7 @@ model MonthlyAward {
   id          String   @id @default(cuid())
   year        Int
   month       Int
-  category    String                   // "ATTITUDE" | "MENTOR_PICK" | "IMPROVEMENT"
+  category    String // "ATTITUDE" | "MENTOR_PICK" | "IMPROVEMENT"
   studentId   String
   student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   description String?
@@ -789,32 +847,32 @@ model Communication {
 }
 
 model ExamScore {
-  id          String    @id @default(cuid())
-  studentId   String
-  student     Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  examType    ExamType
-  examName    String
-  examDate    DateTime  @db.Date
-  subject     String
-  rawScore    Int?
-  grade       Int?
-  percentile  Float?
-  notes       String?
-  sessionId   String?
-  session     ExamSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id         String       @id @default(cuid())
+  studentId  String
+  student    Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  examType   ExamType
+  examName   String
+  examDate   DateTime     @db.Date
+  subject    String
+  rawScore   Int?
+  grade      Int?
+  percentile Float?
+  notes      String?
+  sessionId  String?
+  session    ExamSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
 
   @@index([sessionId])
 }
 
 model ExamSession {
   id          String   @id @default(cuid())
-  title       String                        // 예: "2026년 4월 시스모의고사"
+  title       String // 예: "2026년 4월 시스모의고사"
   examDate    DateTime @db.Date
-  room        String   @default("H")        // "H" | "K"
+  room        String   @default("H") // "H" | "K"
   examType    ExamType @default(OFFICIAL_MOCK)
-  subjects    String[]                      // ["국어","수학","영어","탐구1","탐구2"]
+  subjects    String[] // ["국어","수학","영어","탐구1","탐구2"]
   notes       String?
   createdById String?
   createdAt   DateTime @default(now())
@@ -827,40 +885,40 @@ model ExamSession {
 }
 
 model PhotoFolder {
-  id        String        @id @default(cuid())
-  name      String
-  parentId  String?
-  parent    PhotoFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
-  children  PhotoFolder[] @relation("FolderTree")
-  photos    Photo[]
+  id          String        @id @default(cuid())
+  name        String
+  parentId    String?
+  parent      PhotoFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children    PhotoFolder[] @relation("FolderTree")
+  photos      Photo[]
   // 연/월 자동 폴더 여부 — auto=true 면 YYYY/MM 자동, 수동 폴더는 false
-  isAuto    Boolean       @default(false)
-  autoKey   String?       @unique  // "2026/04" 같은 자동 폴더 식별 키 (중복 방지)
+  isAuto      Boolean       @default(false)
+  autoKey     String?       @unique // "2026/04" 같은 자동 폴더 식별 키 (중복 방지)
   createdById String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   @@index([parentId])
 }
 
 model Photo {
-  id            String       @id @default(cuid())
-  folderId      String?
-  folder        PhotoFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  fileName      String       // 원본 파일명 (중복 시 (1), (2) suffix 포함)
-  url           String       // 원본 blob URL
-  thumbnailUrl  String?      // 썸네일 blob URL (sharp 생성)
-  mimeType      String
-  sizeBytes     Int
-  parsedDate    DateTime?    @db.Date  // 파일명 파싱 결과
-  parsedSeatNumber Int?                // 파일명 파싱 결과
-  parsedName    String?                // 파일명 파싱 결과
-  studentId     String?
-  student       Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
-  uploadedById  String
-  uploadedByName String
-  driveFileId   String?      @unique // Google Drive 에서 import 한 경우 원본 파일 ID — 중복 import 방지
-  uploadedAt    DateTime     @default(now())
+  id               String       @id @default(cuid())
+  folderId         String?
+  folder           PhotoFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  fileName         String // 원본 파일명 (중복 시 (1), (2) suffix 포함)
+  url              String // 원본 blob URL
+  thumbnailUrl     String? // 썸네일 blob URL (sharp 생성)
+  mimeType         String
+  sizeBytes        Int
+  parsedDate       DateTime?    @db.Date // 파일명 파싱 결과
+  parsedSeatNumber Int? // 파일명 파싱 결과
+  parsedName       String? // 파일명 파싱 결과
+  studentId        String?
+  student          Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  uploadedById     String
+  uploadedByName   String
+  driveFileId      String?      @unique // Google Drive 에서 import 한 경우 원본 파일 ID — 중복 import 방지
+  uploadedAt       DateTime     @default(now())
 
   @@index([folderId])
   @@index([parsedDate])
@@ -887,14 +945,14 @@ model Assignment {
   id            String    @id @default(cuid())
   studentId     String
   student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  mentoringId   String?   // 연결된 멘토링 세션 (optional)
-  title         String    // 과제 제목
-  description   String?   // 상세 내용
-  subject       String?   // 과목 (수학, 영어, 국어 등)
-  dueDate       DateTime? @db.Date  // 마감일
+  mentoringId   String? // 연결된 멘토링 세션 (optional)
+  title         String // 과제 제목
+  description   String? // 상세 내용
+  subject       String? // 과목 (수학, 영어, 국어 등)
+  dueDate       DateTime? @db.Date // 마감일
   isCompleted   Boolean   @default(false)
   completedAt   DateTime?
-  completedNote String?   // 완료 메모
+  completedNote String? // 완료 메모
   createdById   String
   createdByName String
   createdAt     DateTime  @default(now())
@@ -920,25 +978,25 @@ model CalendarEvent {
 }
 
 model ParentReport {
-  id              String    @id @default(cuid())
-  token           String    @unique @default(cuid())
+  id              String     @id @default(cuid())
+  token           String     @unique @default(cuid())
   studentId       String
-  student         Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student         Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
   mentoringId     String?
   mentoring       Mentoring? @relation(fields: [mentoringId], references: [id], onDelete: SetNull)
-  studyPlanNote   String?     // 학습 계획 메모 (텍스트)
-  studyPlanImages String[]    // 학습 계획 이미지 URL 목록
-  customNote      String?     // 학부모께 전달할 메시지
+  studyPlanNote   String? // 학습 계획 메모 (텍스트)
+  studyPlanImages String[] // 학습 계획 이미지 URL 목록
+  customNote      String? // 학부모께 전달할 메시지
   createdById     String
-  createdBy       User      @relation(fields: [createdById], references: [id])
-  createdAt       DateTime  @default(now())
+  createdBy       User       @relation(fields: [createdById], references: [id])
+  createdAt       DateTime   @default(now())
   // 보안: 만료/취소/접근 로그 (null 인 레거시 행은 backfill 스크립트로 채움)
   expiresAt       DateTime?
   revokedAt       DateTime?
   lastAccessedAt  DateTime?
   lastAccessIp    String?
   lastAccessUa    String?
-  accessCount     Int       @default(0)
+  accessCount     Int        @default(0)
 
   @@index([expiresAt])
 }
@@ -947,9 +1005,9 @@ model TimetableEntry {
   id          String   @id @default(cuid())
   studentId   String
   student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  dayOfWeek   Int      // 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 0=Sun
-  startTime   String   // "HH:MM"
-  endTime     String   // "HH:MM"
+  dayOfWeek   Int // 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 0=Sun
+  startTime   String // "HH:MM"
+  endTime     String // "HH:MM"
   subject     String
   details     String?
   colorCode   String   @default("blue")
@@ -1000,29 +1058,29 @@ model StudyPlanReport {
 }
 
 model ConsultationReport {
-  id               String              @id @default(cuid())
-  token            String              @unique @default(cuid())
-  consultationId   String
-  consultation     DirectorConsultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
-  content          String              // AI 생성 팔로업 메시지 본문
-  recipientName    String?
-  createdById      String
-  createdAt        DateTime            @default(now())
-  expiresAt        DateTime?
-  revokedAt        DateTime?
-  lastAccessedAt   DateTime?
-  lastAccessIp     String?
-  lastAccessUa     String?
-  accessCount      Int                 @default(0)
+  id             String               @id @default(cuid())
+  token          String               @unique @default(cuid())
+  consultationId String
+  consultation   DirectorConsultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  content        String // AI 생성 팔로업 메시지 본문
+  recipientName  String?
+  createdById    String
+  createdAt      DateTime             @default(now())
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  lastAccessedAt DateTime?
+  lastAccessIp   String?
+  lastAccessUa   String?
+  accessCount    Int                  @default(0)
 
   @@index([expiresAt])
 }
 
 enum VocabEnrollReason {
-  AUTO_GRADE3       // 고3 영어 3등급 이하 자동
-  PARENT_REQUEST    // 학부모 신청
-  MENTOR_ASSIGNED   // 멘토 지정
-  CUSTOM            // 기타
+  AUTO_GRADE3 // 고3 영어 3등급 이하 자동
+  PARENT_REQUEST // 학부모 신청
+  MENTOR_ASSIGNED // 멘토 지정
+  CUSTOM // 기타
 }
 
 model VocabTestEnrollment {
@@ -1045,21 +1103,21 @@ model VocabTestScore {
   testDate     DateTime @db.Date
   totalWords   Int
   correctWords Int
-  score        Float    // 백분율 (correctWords / totalWords * 100)
+  score        Float // 백분율 (correctWords / totalWords * 100)
   notes        String?
   createdById  String
   createdAt    DateTime @default(now())
 }
 
 enum HandoverPriority {
-  URGENT  // 긴급
-  NORMAL  // 일반
+  URGENT // 긴급
+  NORMAL // 일반
 }
 
 enum ShiftType {
-  OPEN   // 오픈 전용
-  CLOSE  // 마감 전용
-  ALL    // 공통
+  OPEN // 오픈 전용
+  CLOSE // 마감 전용
+  ALL // 공통
 }
 
 model ChecklistTemplate {
@@ -1125,8 +1183,8 @@ model Handover {
   isPinned             Boolean             @default(false)
   authorId             String
   authorName           String
-  recipientId          String?             // 수신 담당자 ID
-  recipientName        String?             // 수신 담당자 이름
+  recipientId          String? // 수신 담당자 ID
+  recipientName        String? // 수신 담당자 이름
   tasks                HandoverTask[]
   checklist            HandoverChecklist[]
   monthlyNotesSnapshot Json?
@@ -1178,7 +1236,7 @@ model TodoVersion {
   id           String    @id @default(cuid())
   todoId       String
   todo         Todo      @relation(fields: [todoId], references: [id], onDelete: Cascade)
-  version      Int       // 1부터 증분
+  version      Int // 1부터 증분
   title        String
   content      String?
   dueDate      DateTime? @db.Date
@@ -1199,8 +1257,8 @@ model MeetingMinutes {
   title      String
   date       DateTime             @db.Date
   content    String               @default("")
-  attendees  String[]             // 참석자 이름 목록
-  team       String               @default("운영팀")  // "멘토링팀" | "운영팀" | "면담"
+  attendees  String[] // 참석자 이름 목록
+  team       String               @default("운영팀") // "멘토링팀" | "운영팀" | "면담"
   // 열람 제한. 빈 배열 = 공개(기존 동작).
   // 값이 있으면 해당 user.id + 작성자 + DIRECTOR/SUPER_ADMIN 만 열람 가능.
   visibleTo  String[]             @default([])
@@ -1226,15 +1284,15 @@ model MeetingMinutesRead {
 }
 
 enum RequestStatus {
-  PENDING     // 대기
+  PENDING // 대기
   IN_PROGRESS // 진행중
-  DONE        // 완료
-  ON_HOLD     // 보류
+  DONE // 완료
+  ON_HOLD // 보류
 }
 
 enum RequestCategory {
-  BUG         // 버그
-  FEATURE     // 기능요청
+  BUG // 버그
+  FEATURE // 기능요청
   IMPROVEMENT // 개선
 }
 
@@ -1244,19 +1302,19 @@ enum RequestPriority {
 }
 
 model FeatureRequest {
-  id          String          @id @default(cuid())
+  id          String                  @id @default(cuid())
   title       String
-  description String?         // 마크다운
-  status      RequestStatus   @default(PENDING)
-  category    RequestCategory @default(FEATURE)
-  priority    RequestPriority @default(NORMAL)
-  relatedPage String?         // 관련 페이지 slug
-  requester   String?         // 요청자 (카톡으로 보낸 사람)
+  description String? // 마크다운
+  status      RequestStatus           @default(PENDING)
+  category    RequestCategory         @default(FEATURE)
+  priority    RequestPriority         @default(NORMAL)
+  relatedPage String? // 관련 페이지 slug
+  requester   String? // 요청자 (카톡으로 보낸 사람)
   authorId    String
   authorName  String
   comments    FeatureRequestComment[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
 
   @@index([status])
 }
@@ -1268,7 +1326,7 @@ model FeatureRequestComment {
   featureRequest   FeatureRequest @relation(fields: [featureRequestId], references: [id], onDelete: Cascade)
   authorId         String
   authorName       String
-  authorRole       String         // 역할 배지 표시용
+  authorRole       String // 역할 배지 표시용
   createdAt        DateTime       @default(now())
 
   @@index([featureRequestId])
@@ -1277,8 +1335,8 @@ model FeatureRequestComment {
 // Google Sheets 연동 설정 (싱글톤, id="singleton")
 model GoogleSheetsConfig {
   id        String   @id @default("singleton")
-  sheetUrl  String   // Google Sheets 전체 URL
-  sheetName String?  // 시트(탭) 이름 — null이면 첫 번째 시트
+  sheetUrl  String // Google Sheets 전체 URL
+  sheetName String? // 시트(탭) 이름 — null이면 첫 번째 시트
   updatedAt DateTime @updatedAt
 }
 
@@ -1289,7 +1347,7 @@ model GoogleCalendarToken {
   refreshToken String
   expiresAt    DateTime
   calendarId   String   @default("primary")
-  connectedBy  String   // 연동한 사용자 이름
+  connectedBy  String // 연동한 사용자 이름
   updatedAt    DateTime @updatedAt
 }
 
@@ -1310,39 +1368,39 @@ model Announcement {
 // 통화 중·후 노트 작성 → AI 요약 → DailyKakaoLog 에 적재
 
 enum MentoringSessionStatus {
-  SCHEDULED      // 예약됨 (Calendar 이벤트 생성 완료)
-  IN_PROGRESS    // 진행 중 (수동 전환)
-  COMPLETED      // 종료 + 요약 적재 완료
-  CANCELED       // 취소됨 (Calendar 이벤트도 삭제)
+  SCHEDULED // 예약됨 (Calendar 이벤트 생성 완료)
+  IN_PROGRESS // 진행 중 (수동 전환)
+  COMPLETED // 종료 + 요약 적재 완료
+  CANCELED // 취소됨 (Calendar 이벤트도 삭제)
 }
 
 model MentoringSession {
-  id                String                 @id @default(cuid())
-  studentId         String
-  student           Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  hostId            String
-  host              User                   @relation("MentoringSessionHost", fields: [hostId], references: [id])
-  title             String                 // 자동 생성 — [날짜 | 호스트 - 학생] (시간) 일일 관리 세션
-  scheduledAt       DateTime
-  durationMinutes   Int                    @default(30)
-  status            MentoringSessionStatus @default(SCHEDULED)
+  id              String                 @id @default(cuid())
+  studentId       String
+  student         Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  hostId          String
+  host            User                   @relation("MentoringSessionHost", fields: [hostId], references: [id])
+  title           String // 자동 생성 — [날짜 | 호스트 - 학생] (시간) 일일 관리 세션
+  scheduledAt     DateTime
+  durationMinutes Int                    @default(30)
+  status          MentoringSessionStatus @default(SCHEDULED)
 
   // Google Calendar 연동
-  calendarEventId   String?                // Calendar 이벤트 id (취소·수정 시 사용)
-  meetUrl           String?                // Google Meet 입장 URL
-  calendarHtmlLink  String?                // 호스트가 Calendar 에서 직접 보기
+  calendarEventId  String? // Calendar 이벤트 id (취소·수정 시 사용)
+  meetUrl          String? // Google Meet 입장 URL
+  calendarHtmlLink String? // 호스트가 Calendar 에서 직접 보기
 
   // 노트 + AI 요약
-  notes             String?                @db.Text  // 통화 중/후 markdown 노트
-  summary           String?                @db.Text  // AI 생성 요약
-  summarizedAt      DateTime?
+  notes        String?   @db.Text // 통화 중/후 markdown 노트
+  summary      String?   @db.Text // AI 생성 요약
+  summarizedAt DateTime?
 
   // DailyKakaoLog 적재 흔적 (요약 반영된 일일 보고)
-  syncedToLogId     String?
+  syncedToLogId String?
 
-  canceledAt        DateTime?
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
+  canceledAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([studentId, scheduledAt])
   @@index([hostId, scheduledAt])
@@ -1359,17 +1417,17 @@ enum PortalChatSenderType {
 }
 
 model PortalChat {
-  id            String   @id @default(cuid())
+  id            String              @id @default(cuid())
   studentId     String
   staffId       String
-  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  staff         User     @relation("PortalChatStaff", fields: [staffId], references: [id])
+  student       Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  staff         User                @relation("PortalChatStaff", fields: [staffId], references: [id])
   lastMessageAt DateTime?
   studentReadAt DateTime?
   staffReadAt   DateTime?
   messages      PortalChatMessage[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   @@unique([studentId, staffId])
   @@index([staffId, lastMessageAt(sort: Desc)])
@@ -1377,20 +1435,20 @@ model PortalChat {
 }
 
 model PortalChatMessage {
-  id           String              @id @default(cuid())
+  id           String               @id @default(cuid())
   chatId       String
-  chat         PortalChat          @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  chat         PortalChat           @relation(fields: [chatId], references: [id], onDelete: Cascade)
   senderType   PortalChatSenderType
-  senderUserId String?             // STAFF 발신 시 User.id (STUDENT 발신은 null)
-  senderUser   User?               @relation("PortalChatMessageAuthor", fields: [senderUserId], references: [id])
-  content      String              @db.Text
-  attachments  Json                @default("[]")  // [{ url, name, sizeBytes, mimeType }]
+  senderUserId String? // STAFF 발신 시 User.id (STUDENT 발신은 null)
+  senderUser   User?                @relation("PortalChatMessageAuthor", fields: [senderUserId], references: [id])
+  content      String               @db.Text
+  attachments  Json                 @default("[]") // [{ url, name, sizeBytes, mimeType }]
 
   // 일일 보고 통합 (PR 3)
-  flaggedForDailyLogAt DateTime?   // 직원이 "일일 보고에 포함" 토글한 시각
-  dailyLogId           String?     // 보고서 작성 후 연결된 DailyKakaoLog.id
+  flaggedForDailyLogAt DateTime? // 직원이 "일일 보고에 포함" 토글한 시각
+  dailyLogId           String? // 보고서 작성 후 연결된 DailyKakaoLog.id
 
-  createdAt    DateTime            @default(now())
+  createdAt DateTime @default(now())
 
   @@index([chatId, createdAt])
   @@index([flaggedForDailyLogAt])
@@ -1399,16 +1457,16 @@ model PortalChatMessage {
 // ─── 영단어 온라인 시험 (Online Vocabulary Test) ───
 
 enum VocabExamDirection {
-  EN_TO_KO   // 영단어 → 뜻
-  KO_TO_EN   // 뜻 → 영단어
-  MIXED      // 문항별 랜덤
+  EN_TO_KO // 영단어 → 뜻
+  KO_TO_EN // 뜻 → 영단어
+  MIXED // 문항별 랜덤
 }
 
 enum VocabAttemptStatus {
-  ASSIGNED      // 출제됨, 학생 미시작
-  IN_PROGRESS   // 응시 중
-  SUBMITTED     // 제출 완료 (채점됨)
-  EXPIRED       // 만료/취소
+  ASSIGNED // 출제됨, 학생 미시작
+  IN_PROGRESS // 응시 중
+  SUBMITTED // 제출 완료 (채점됨)
+  EXPIRED // 만료/취소
 }
 
 // 단어장 — 관리자가 CSV 업로드/직접 입력으로 만든 영단어 묶음
@@ -1428,14 +1486,14 @@ model VocabBook {
 model VocabBookEntry {
   id           String    @id @default(cuid())
   bookId       String
-  book         VocabBook  @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  word         String                 // 영단어
-  meanings     String[]               // 한글 뜻 (복수)
-  unit         String?                // "Day 12" 등 묶음 라벨
+  book         VocabBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  word         String // 영단어
+  meanings     String[] // 한글 뜻 (복수)
+  unit         String? // "Day 12" 등 묶음 라벨
   partOfSpeech String?
   example      String?
-  order        Int        @default(0)
-  createdAt    DateTime   @default(now())
+  order        Int       @default(0)
+  createdAt    DateTime  @default(now())
 
   @@index([bookId, unit])
 }
@@ -1447,12 +1505,12 @@ model VocabExam {
   bookId             String
   book               VocabBook          @relation(fields: [bookId], references: [id], onDelete: Restrict)
   direction          VocabExamDirection @default(EN_TO_KO)
-  questionCount      Int                                    // 출제 문항 수 (entryIds/units 풀에서 샘플)
-  perQuestionSeconds Int                @default(10)         // 0 = 무제한
-  units              String[]           @default([])        // 선택 unit (entryIds 비어있을 때 풀)
-  entryIds           String[]           @default([])        // 명시적 단어 집합 (재시험/오답시험)
+  questionCount      Int // 출제 문항 수 (entryIds/units 풀에서 샘플)
+  perQuestionSeconds Int                @default(10) // 0 = 무제한
+  units              String[]           @default([]) // 선택 unit (entryIds 비어있을 때 풀)
+  entryIds           String[]           @default([]) // 명시적 단어 집합 (재시험/오답시험)
   shuffle            Boolean            @default(true)
-  retakeOfId         String?                                // 재시험이면 원 시험 id
+  retakeOfId         String? // 재시험이면 원 시험 id
   createdById        String
   createdAt          DateTime           @default(now())
   attempts           VocabAttempt[]
@@ -1463,7 +1521,7 @@ model VocabExam {
 // 학생 1명의 시험 응시 1건
 model VocabAttempt {
   id             String             @id @default(cuid())
-  token          String             @unique @default(cuid())  // /v/[token] 응시 링크
+  token          String             @unique @default(cuid()) // /v/[token] 응시 링크
   examId         String
   exam           VocabExam          @relation(fields: [examId], references: [id], onDelete: Cascade)
   studentId      String
@@ -1473,12 +1531,12 @@ model VocabAttempt {
   status         VocabAttemptStatus @default(ASSIGNED)
   startedAt      DateTime?
   submittedAt    DateTime?
-  score          Float?                                      // 백분율
+  score          Float? // 백분율
   totalQuestions Int                @default(0)
   correctCount   Int                @default(0)
   durationMs     Int?
   items          VocabAttemptItem[]
-  expiresAt      DateTime?                                   // 출제 +14일. null=레거시(backfill 대상)
+  expiresAt      DateTime? // 출제 +14일. null=레거시(backfill 대상)
   lastAccessIp   String?
   lastAccessUa   String?
 
@@ -1492,13 +1550,13 @@ model VocabAttemptItem {
   id              String             @id @default(cuid())
   attemptId       String
   attempt         VocabAttempt       @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  entryId         String                                     // soft ref (entry 삭제돼도 유지)
+  entryId         String // soft ref (entry 삭제돼도 유지)
   order           Int
   direction       VocabExamDirection
-  prompt          String                                     // 출제 시 스냅샷 (단어 또는 뜻)
-  expectedAnswers String[]                                   // 출제 시 스냅샷 (정답 후보)
-  word            String                                     // 원 영단어 (오답 목록 표시용)
-  meanings        String[]                                   // 원 뜻 목록 (오답 목록 표시용)
+  prompt          String // 출제 시 스냅샷 (단어 또는 뜻)
+  expectedAnswers String[] // 출제 시 스냅샷 (정답 후보)
+  word            String // 원 영단어 (오답 목록 표시용)
+  meanings        String[] // 원 뜻 목록 (오답 목록 표시용)
   studentAnswer   String?
   isCorrect       Boolean?
   timeMs          Int?
@@ -1512,10 +1570,10 @@ model VocabAttemptItem {
 // 질문 1건 = 스레드 1개. 첫 글(제목+내용+문제사진)은 첫 QuestionMessage(STUDENT)로 저장.
 
 enum StudentQuestionStatus {
-  OPEN        // 등록됨, 답변 대기
-  ANSWERED    // 답변 1개 이상 등록됨
-  RESOLVED    // 해결 표시 (선택)
-  ARCHIVED    // 보관
+  OPEN // 등록됨, 답변 대기
+  ANSWERED // 답변 1개 이상 등록됨
+  RESOLVED // 해결 표시 (선택)
+  ARCHIVED // 보관
 }
 
 enum QuestionMessageSenderType {
@@ -1524,25 +1582,25 @@ enum QuestionMessageSenderType {
 }
 
 model StudentQuestion {
-  id            String                @id @default(cuid())
-  studentId     String
-  student       Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  title         String
-  subject       String?               // 수학/영어/국어/탐구 등
-  status        StudentQuestionStatus @default(OPEN)
+  id        String                @id @default(cuid())
+  studentId String
+  student   Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  title     String
+  subject   String? // 수학/영어/국어/탐구 등
+  status    StudentQuestionStatus @default(OPEN)
 
   // soft lock — 누가 답변 담당으로 잡았는지 (강제 아님, 표시용)
-  claimedById   String?
-  claimedBy     User?                 @relation("ClaimedQuestions", fields: [claimedById], references: [id])
-  claimedAt     DateTime?
+  claimedById String?
+  claimedBy   User?     @relation("ClaimedQuestions", fields: [claimedById], references: [id])
+  claimedAt   DateTime?
 
-  lastMessageAt DateTime?             // 목록 정렬용
-  studentReadAt DateTime?             // 이 시각 이후 STAFF 메시지 = 학생 미확인
-  staffReadAt   DateTime?             // 이 시각 이후 STUDENT 메시지 = 직원 미확인
+  lastMessageAt DateTime? // 목록 정렬용
+  studentReadAt DateTime? // 이 시각 이후 STAFF 메시지 = 학생 미확인
+  staffReadAt   DateTime? // 이 시각 이후 STUDENT 메시지 = 직원 미확인
 
-  messages      QuestionMessage[]
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
+  messages  QuestionMessage[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
 
   @@index([studentId, createdAt(sort: Desc)])
   @@index([status, lastMessageAt(sort: Desc)])
@@ -1553,10 +1611,10 @@ model QuestionMessage {
   questionId   String
   question     StudentQuestion           @relation(fields: [questionId], references: [id], onDelete: Cascade)
   senderType   QuestionMessageSenderType
-  senderUserId String?                   // STAFF 발신 시 User.id (STUDENT 발신은 null)
+  senderUserId String? // STAFF 발신 시 User.id (STUDENT 발신은 null)
   senderUser   User?                     @relation("QuestionMessageAuthor", fields: [senderUserId], references: [id])
   content      String                    @default("") @db.Text
-  attachments  Json                      @default("[]")  // [{ url, name, sizeBytes, mimeType }] — 문제/풀이 사진
+  attachments  Json                      @default("[]") // [{ url, name, sizeBytes, mimeType }] — 문제/풀이 사진
   createdAt    DateTime                  @default(now())
 
   @@index([questionId, createdAt])
