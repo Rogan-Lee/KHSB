@@ -62,7 +62,7 @@ export async function getRequestMeta(): Promise<{ ip: string | null; ua: string 
 
 // ───────────────────── 본인 확인 게이트 ─────────────────────
 
-export type GateScope = "STUDENT" | "PARENT";
+export type GateScope = "STUDENT" | "PARENT" | "STAFF";
 
 const GATE_COOKIE_PREFIX = "mlgate";
 const GATE_MAX_FAILURES = 5;
