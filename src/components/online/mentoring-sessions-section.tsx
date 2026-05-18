@@ -24,7 +24,11 @@ import {
   completeMentoringSession,
   cancelMentoringSession,
 } from "@/actions/online/mentoring-sessions";
-import type { MentoringSessionStatus } from "@/generated/prisma";
+import type {
+  MentoringSessionPhoto,
+  MentoringSessionStatus,
+} from "@/generated/prisma";
+import { SessionPhotoUploader } from "@/components/mentoring/session-photo-uploader";
 
 export type MentoringSessionRow = {
   id: string;
@@ -37,6 +41,7 @@ export type MentoringSessionRow = {
   notes: string | null;
   summary: string | null;
   hostName: string;
+  photos: MentoringSessionPhoto[];
 };
 
 const STATUS_LABEL: Record<MentoringSessionStatus, string> = {
@@ -381,6 +386,17 @@ function SessionCard({
               rows={isPast || session.status === "IN_PROGRESS" ? 8 : 5}
               placeholder="통화 중 실시간으로 작성하거나 통화 후 정리하세요. 종료 시 AI 요약이 일일 보고에 자동 적재됩니다."
               className="w-full rounded-[8px] border border-line bg-canvas px-2.5 py-2 text-[12.5px] leading-relaxed font-mono resize-y focus:outline-none focus:border-line-strong disabled:opacity-60"
+            />
+          </div>
+
+          {/* 첨부 사진 (KDA / EXTRA / FREE) */}
+          <div>
+            <h6 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide mb-1.5">
+              첨부 사진
+            </h6>
+            <SessionPhotoUploader
+              sessionId={session.id}
+              existing={session.photos}
             />
           </div>
 
