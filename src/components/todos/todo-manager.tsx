@@ -371,6 +371,8 @@ function TodoCard({
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 const ROLE_FILTER_STORAGE_KEY = "todo-role-filter";
+const ROUTINE_EXPANDED_STORAGE_KEY = "todos-routine-expanded";
+const ROUTINE_CATEGORY = "루틴";
 type RoleFilter = "ALL" | "STAFF" | "MENTOR";
 
 function isRoleFilter(v: string | null): v is RoleFilter {
@@ -387,15 +389,27 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
   const [historyTodo, setHistoryTodo] = useState<Todo | null>(null);
   // 대상 역할 필터 (전체 / 운영 / 멘토). localStorage 영속.
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
+  // 루틴 섹션 접기/펴기 상태 — localStorage 영속 (기본 펴짐).
+  const [routineExpanded, setRoutineExpanded] = useState<boolean>(true);
   useEffect(() => {
     try {
       const saved = localStorage.getItem(ROLE_FILTER_STORAGE_KEY);
       if (isRoleFilter(saved)) setRoleFilter(saved);
+      const savedRoutine = localStorage.getItem(ROUTINE_EXPANDED_STORAGE_KEY);
+      if (savedRoutine === "0") setRoutineExpanded(false);
+      else if (savedRoutine === "1") setRoutineExpanded(true);
     } catch { /* ignore */ }
   }, []);
   function changeRoleFilter(next: RoleFilter) {
     setRoleFilter(next);
     try { localStorage.setItem(ROLE_FILTER_STORAGE_KEY, next); } catch { /* ignore */ }
+  }
+  function toggleRoutineExpanded() {
+    setRoutineExpanded((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(ROUTINE_EXPANDED_STORAGE_KEY, next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
   }
 
   // 클라이언트 필터: null/legacy 는 항상 매치, ALL 도 항상 매치
@@ -407,9 +421,14 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
   }
   const visibleTodos = todos.filter(matchesRole);
 
-  const pending = visibleTodos.filter((t) => !t.isCompleted);
-  const completed = visibleTodos.filter((t) => t.isCompleted);
-  const overdue = pending.filter((t) => isOverdue(t.dueDate, false));
+  // 루틴 섹션 분리 — category === "루틴" 정확 매칭 (운영 컨벤션)
+  const routineTodos = visibleTodos.filter((t) => t.category === ROUTINE_CATEGORY);
+  const regularTodos = visibleTodos.filter((t) => t.category !== ROUTINE_CATEGORY);
+
+  const pending = regularTodos.filter((t) => !t.isCompleted);
+  const completed = regularTodos.filter((t) => t.isCompleted);
+  // KPI 는 루틴 포함 전체 가시 todos 기준 (운영자 시야).
+  const overdue = visibleTodos.filter((t) => !t.isCompleted && isOverdue(t.dueDate, false));
 
   function handleToggle(id: string) {
     startTransition(async () => {
@@ -448,7 +467,7 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
         <div>
           <h1 className="text-xl font-bold">투두리스트</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            미완료 {pending.length}개 · 완료 {completed.length}개
+            루틴 {routineTodos.length}개 · 미완료 {pending.length}개 · 완료 {completed.length}개
             {overdue.length > 0 && <span className="text-red-600 font-semibold ml-2">· 기한 초과 {overdue.length}개</span>}
           </p>
         </div>
@@ -506,6 +525,52 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
           onDone={handleFormDone}
           onCancel={() => { setShowForm(false); setEditingTodo(null); }}
         />
+      )}
+
+      {/* 루틴 섹션 — 최상단 핀 (Sprint 6 PR 6.2). 접기/펴기 LocalStorage 영속. */}
+      {routineTodos.length > 0 && (
+        <section
+          aria-label="루틴 할 일"
+          className="rounded-xl border bg-amber-50/40 border-amber-200/70"
+        >
+          <button
+            type="button"
+            onClick={toggleRoutineExpanded}
+            aria-expanded={routineExpanded}
+            className="w-full flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-50 rounded-t-xl transition-colors"
+          >
+            {routineExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            루틴
+            <span className="text-[11px] font-normal text-amber-700/80">{routineTodos.length}개</span>
+          </button>
+          {routineExpanded && (
+            <div className="space-y-2 p-2 pt-0">
+              {routineTodos.map((todo) =>
+                deleteConfirmId === todo.id ? (
+                  <div key={todo.id} className="rounded-xl border border-red-200 bg-red-50/60 p-3 flex items-center justify-between gap-2">
+                    <p className="text-sm text-red-700">삭제하시겠습니까?</p>
+                    <div className="flex gap-2">
+                      <Button variant="destructive" size="sm" onClick={() => handleDelete(todo.id)} disabled={isPending} className="h-7 text-xs">삭제</Button>
+                      <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)} className="h-7 text-xs">취소</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <TodoCard
+                    key={todo.id}
+                    todo={todo}
+                    currentUserId={currentUserId}
+                    currentUserRole={currentUserRole}
+                    isPending={isPending}
+                    onToggle={handleToggle}
+                    onEdit={(t) => { setEditingTodo(t); setShowForm(false); }}
+                    onDelete={setDeleteConfirmId}
+                    onShowHistory={setHistoryTodo}
+                  />
+                )
+              )}
+            </div>
+          )}
+        </section>
       )}
 
       {/* 미완료 목록 */}
