@@ -35,9 +35,42 @@ export async function getTodos(options?: { roleFilter?: TodoRoleFilter }) {
 
   const where = roleWhere ? { AND: [baseWhere, roleWhere] } : baseWhere;
 
-  return prisma.todo.findMany({
+  // 정렬 순서:
+  //   1) category === "루틴" 인 행을 최상단으로 핀 (Sprint 6 PR 6.2)
+  //   2) 미완료 → 완료
+  //   3) 우선순위: URGENT > HIGH > NORMAL > LOW
+  //   4) 기한 빠른 순 (null 은 뒤로)
+  //   5) 최근 등록 순
+  // Prisma 의 orderBy 만으로 (a) 문자열 필드 정확 매칭 (b) priority enum 순서를
+  // 동시에 표현할 수 없어, 안정 정렬 가능한 컬럼들로만 DB 정렬을 받은 뒤
+  // 메모리에서 (1)·(3) 키로 stable re-sort 한다. 운영 규모(수백 행) 내 OK.
+  const rows = await prisma.todo.findMany({
     where,
-    orderBy: [{ isCompleted: "asc" }, { dueDate: "asc" }, { createdAt: "desc" }],
+    orderBy: [
+      { isCompleted: "asc" },
+      { dueDate: { sort: "asc", nulls: "last" } },
+      { createdAt: "desc" },
+    ],
+  });
+
+  const PRIORITY_RANK: Record<string, number> = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
+  return rows.sort((a, b) => {
+    // 1) 루틴 핀
+    const ar = a.category === "루틴" ? 0 : 1;
+    const br = b.category === "루틴" ? 0 : 1;
+    if (ar !== br) return ar - br;
+    // 2) 미완료 우선
+    if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
+    // 3) 우선순위
+    const ap = PRIORITY_RANK[a.priority] ?? 99;
+    const bp = PRIORITY_RANK[b.priority] ?? 99;
+    if (ap !== bp) return ap - bp;
+    // 4) 기한 (null = 뒤)
+    const ad = a.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY;
+    const bd = b.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY;
+    if (ad !== bd) return ad - bd;
+    // 5) tie-break: 최근 등록 우선
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 }
 
