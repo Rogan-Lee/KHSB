@@ -5,8 +5,10 @@ import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { MentoringStatus } from "@/generated/prisma";
+import type { MentoringPhotoTag } from "@/generated/prisma";
 import { todayKST, nowKSTTimeString } from "@/lib/utils";
 import { requireOwnerOrFullAccess, requireStaff } from "@/lib/roles";
+import { del } from "@vercel/blob";
 
 const mentoringSchema = z.object({
   studentId: z.string(),
@@ -494,4 +496,86 @@ export async function quickStartMentoring(studentId: string, mentorId: string): 
 
   revalidatePath("/mentoring");
   return mentoring.id;
+}
+
+// ─────────────────── Sprint 5 PR 5.1 ───────────────────
+// MentoringSession (온라인 화상 세션) 에 KDA / EXTRA / FREE 사진 첨부.
+// 업로드는 /api/upload/mentoring-session 에서 Vercel Blob 으로 PUT 후
+// 반환된 URL 을 `attachSessionPhoto` 가 DB row 로 기록한다.
+
+export type SessionPhotoInput = {
+  url: string;
+  mimeType: string;
+  tag: MentoringPhotoTag;
+  thumbnailUrl?: string;
+  caption?: string;
+};
+
+export async function attachSessionPhoto(sessionId: string, input: SessionPhotoInput) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const target = await prisma.mentoringSession.findUnique({
+    where: { id: sessionId },
+    select: { id: true, studentId: true },
+  });
+  if (!target) throw new Error("세션을 찾을 수 없습니다");
+
+  if (!input.url || !input.mimeType) {
+    throw new Error("url 과 mimeType 은 필수입니다");
+  }
+
+  const photo = await prisma.mentoringSessionPhoto.create({
+    data: {
+      sessionId: target.id,
+      url: input.url,
+      thumbnailUrl: input.thumbnailUrl ?? null,
+      mimeType: input.mimeType,
+      tag: input.tag,
+      caption: input.caption?.trim() || null,
+      uploadedById: session.user.id,
+    },
+  });
+
+  revalidatePath(`/online/students/${target.studentId}`);
+  revalidatePath("/online/students");
+  return photo;
+}
+
+export async function deleteSessionPhoto(id: string) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const photo = await prisma.mentoringSessionPhoto.findUnique({
+    where: { id },
+    include: {
+      session: { select: { studentId: true } },
+    },
+  });
+  if (!photo) throw new Error("사진을 찾을 수 없습니다");
+
+  // Blob 삭제 시도 — 실패해도 DB 삭제는 진행 (orphan blob 은 추후 sweeper).
+  try {
+    const urls = [photo.url, photo.thumbnailUrl].filter(Boolean) as string[];
+    await del(urls, { token: process.env.BLOB_READ_WRITE_TOKEN });
+  } catch (err) {
+    console.warn("[mentoring] Blob 삭제 실패 — DB row 만 제거합니다:", err);
+  }
+
+  await prisma.mentoringSessionPhoto.delete({ where: { id } });
+
+  revalidatePath(`/online/students/${photo.session.studentId}`);
+  revalidatePath("/online/students");
+}
+
+export async function listSessionPhotos(sessionId: string) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  return prisma.mentoringSessionPhoto.findMany({
+    where: { sessionId },
+    orderBy: { uploadedAt: "asc" },
+  });
 }

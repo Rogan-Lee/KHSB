@@ -28,7 +28,10 @@ export default async function OnlineStudentsPage() {
         mentoringSessions: {
           orderBy: { scheduledAt: "desc" },
           take: 20,
-          include: { host: { select: { name: true } } },
+          include: {
+            host: { select: { name: true } },
+            photos: { orderBy: { uploadedAt: "asc" } },
+          },
         },
         _count: {
           select: {
@@ -123,6 +126,14 @@ export default async function OnlineStudentsPage() {
       notes: ms.notes,
       summary: ms.summary,
       hostName: ms.host.name,
+      photos: ms.photos.map((p) => ({
+        id: p.id,
+        url: p.url,
+        thumbnailUrl: p.thumbnailUrl,
+        mimeType: p.mimeType,
+        tag: p.tag,
+        caption: p.caption,
+      })),
     })),
   }));
 
