@@ -2,11 +2,9 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus } from "lucide-react";
 import { PageIntro } from "@/components/ui/page-intro";
-import { ExamSessionRowActions } from "@/components/exams/exam-session-row-actions";
-import { EXAM_TYPE_LABELS } from "@/components/exams/exam-type-label";
+import { ExamSessionsTabs } from "@/components/exams/exam-sessions-tabs";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +13,29 @@ export default async function ExamsPage() {
     orderBy: [{ examDate: "desc" }, { createdAt: "desc" }],
     include: {
       _count: { select: { assignments: true } },
+      scores: { select: { percentile: true } },
     },
+  });
+
+  // 직렬화 가능한 형태로 변환 + 평균 백분위 계산
+  const rows = sessions.map((s) => {
+    const percentiles = s.scores
+      .map((sc) => sc.percentile)
+      .filter((p): p is number => typeof p === "number");
+    const averagePercentile =
+      percentiles.length > 0
+        ? percentiles.reduce((a, b) => a + b, 0) / percentiles.length
+        : null;
+    return {
+      id: s.id,
+      title: s.title,
+      examDate: s.examDate.toISOString(),
+      examType: s.examType,
+      room: s.room,
+      subjects: s.subjects,
+      assignmentsCount: s._count.assignments,
+      averagePercentile,
+    };
   });
 
   return (
@@ -49,42 +69,7 @@ export default async function ExamsPage() {
               아직 생성된 시험 세션이 없습니다.
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>시험일</TableHead>
-                  <TableHead>시험명</TableHead>
-                  <TableHead>종류</TableHead>
-                  <TableHead>룸</TableHead>
-                  <TableHead>응시자</TableHead>
-                  <TableHead>과목</TableHead>
-                  <TableHead className="w-20 text-right">액션</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sessions.map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell className="text-xs">
-                      {s.examDate.toISOString().slice(0, 10)}
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/exams/${s.id}`} className="font-medium hover:underline">
-                        {s.title}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-xs">{EXAM_TYPE_LABELS[s.examType]}</TableCell>
-                    <TableCell className="text-xs">{s.room}룸</TableCell>
-                    <TableCell className="text-xs">{s._count.assignments}명</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {s.subjects.join(", ")}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <ExamSessionRowActions sessionId={s.id} title={s.title} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <ExamSessionsTabs sessions={rows} />
           )}
         </CardContent>
       </Card>
