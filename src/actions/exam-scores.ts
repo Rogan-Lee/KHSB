@@ -12,6 +12,29 @@ export async function getExamScores(studentId: string) {
   });
 }
 
+/**
+ * 시험명 typeahead 소스. 주어진 시험 종류에서 최근에 입력된 examName 을
+ * 중복 제거 + 최신순으로 최대 10개 반환.
+ */
+export async function getExamNameSuggestions(examType: ExamType): Promise<string[]> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  // distinct + orderBy examDate desc — examDate 기준 최신 입력부터 노출.
+  // examName 기준 distinct 라 동일 examName 의 가장 최근 행이 대표로 선택됨.
+  const rows = await prisma.examScore.findMany({
+    where: { examType },
+    distinct: ["examName"],
+    orderBy: { examDate: "desc" },
+    select: { examName: true },
+    take: 10,
+  });
+
+  return rows
+    .map((r) => r.examName)
+    .filter((n): n is string => typeof n === "string" && n.trim().length > 0);
+}
+
 export async function createExamScore(data: {
   studentId: string;
   examType: ExamType;
