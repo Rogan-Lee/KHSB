@@ -142,6 +142,7 @@ model User {
   payrollRecords          PayrollRecord[]
   payrollContracts        PayrollContract[]
   workLogs                WorkLog[]
+  staffMagicLinks         StaffMagicLink[]     @relation("StaffMagicLinks")
   // ── 근무자 상태(퇴사·매직링크 게이트용) ──
   status                  UserStatus           @default(ACTIVE)
   terminatedAt            DateTime?
@@ -365,7 +366,7 @@ model StudentMagicLink {
 // IP+토큰 기준으로 분당 N회 잠금에 사용. 성공 시 삭제하지 않음(감사용).
 model TokenGateAttempt {
   id        String   @id @default(cuid())
-  scope     String // "STUDENT" | "PARENT"
+  scope     String // "STUDENT" | "PARENT" | "STAFF"
   tokenHash String // SHA-256(token) — 원본 토큰 저장 금지
   ip        String?
   ua        String?
@@ -373,6 +374,27 @@ model TokenGateAttempt {
 
   @@index([scope, tokenHash, failedAt])
   @@index([ip, failedAt])
+}
+
+// 근무자 포털(`/w/[token]`) 접근용 매직링크. Clerk 없이 카톡 등으로 전달된 링크로
+// 본인이 근무 일지를 수기 입력할 때 사용. `StudentMagicLink` 와 동일 패턴.
+// 기본 90일 만료(학생 30일보다 길게 — 상시 사용). 퇴사 처리 시 일괄 무효화.
+model StaffMagicLink {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation("StaffMagicLinks", fields: [userId], references: [id], onDelete: Cascade)
+  token          String    @unique @default(cuid())
+  issuedAt       DateTime  @default(now())
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  lastAccessedAt DateTime?
+  lastAccessIp   String?
+  lastAccessUa   String?
+  accessCount    Int       @default(0)
+  issuedById     String? // User.id — 발급자(원장 등)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
 }
 
 // A-1 학생 초기 설문 (입시/수행평가/학습 이력).
