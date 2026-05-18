@@ -11,7 +11,8 @@ export default async function MentorSchedulePage() {
 
   const mentors = canManageAll
     ? await prisma.user.findMany({
-        where: { isMentor: true },
+        // 멘토 스케줄 편집 picker — 퇴사자 제외
+        where: { status: "ACTIVE", isMentor: true },
         select: { id: true, name: true },
         orderBy: { name: "asc" },
       })
