@@ -652,16 +652,20 @@ model OutingSchedule {
 }
 
 model DailyOuting {
-  id        String    @id @default(cuid())
-  studentId String
-  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  date      DateTime  @db.Date
-  outStart  DateTime?
-  outEnd    DateTime?
-  reason    String?
-  createdAt DateTime  @default(now())
+  id            String    @id @default(cuid())
+  studentId     String
+  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date          DateTime  @db.Date
+  sequence      Int       @default(1) // 1=1차, 2=2차…
+  isPlaceholder Boolean   @default(false) // OutingSchedule 에서 자동 채움 (Sprint 2 PR 2.2)
+  scheduleId    String?   // 원본 OutingSchedule id (placeholder 일 때만)
+  outStart      DateTime?
+  outEnd        DateTime?
+  reason        String?
+  createdAt     DateTime  @default(now())
 
   @@index([studentId, date])
+  @@index([studentId, date, sequence])
 }
 
 model MeritDemerit {

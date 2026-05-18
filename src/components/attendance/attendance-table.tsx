@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { saveAttendanceRecord, createDailyOuting, updateDailyOuting, deleteDailyOuting } from "@/actions/attendance";
+import { saveAttendanceRecord, createDailyOuting, updateDailyOuting, deleteDailyOuting, addOuting, deleteOuting } from "@/actions/attendance";
 import { patchStudentTextFields, patchStudentCheckDate, patchStudentAnalysisExempt, resetWeeklyCheckDates, resetCheckDateForAll } from "@/actions/students";
 import { createMeritDemerit } from "@/actions/merit-demerit";
 import { createStudyPlanReport } from "@/actions/study-plan-reports";
@@ -149,7 +149,7 @@ export function AttendanceTable({ students, today }: Props) {
 
   // 테이블 인라인 편집용 로컬 상태
   type LocalTime = { checkIn: string; checkOut: string; type: AttendanceType };
-  type LocalOuting = { id: string | null; outStart: Date | null; outEnd: Date | null };
+  type LocalOuting = { id: string | null; outStart: Date | null; outEnd: Date | null; sequence?: number; reason?: string | null };
 
   const [localTimes, setLocalTimes] = useState<Map<string, LocalTime>>(() => {
     const map = new Map<string, LocalTime>();
@@ -167,7 +167,12 @@ export function AttendanceTable({ students, today }: Props) {
   const [localOutings, setLocalOutings] = useState<Map<string, LocalOuting[]>>(() => {
     const map = new Map<string, LocalOuting[]>();
     students.forEach((s) =>
-      map.set(s.id, s.dailyOutings.map((o) => ({ id: o.id, outStart: o.outStart, outEnd: o.outEnd })))
+      map.set(
+        s.id,
+        [...s.dailyOutings]
+          .sort((a, b) => (a.sequence ?? 1) - (b.sequence ?? 1))
+          .map((o) => ({ id: o.id, outStart: o.outStart, outEnd: o.outEnd, sequence: o.sequence, reason: o.reason }))
+      )
     );
     return map;
   });
@@ -282,6 +287,51 @@ export function AttendanceTable({ students, today }: Props) {
 
   type InlineOutingEdit = { studentId: string; field: "outStart" | "outEnd"; value: string };
   const [inlineOutingEdit, setInlineOutingEdit] = useState<InlineOutingEdit | null>(null);
+
+  // 추가 외출(2차+) 인라인 폼 상태
+  type AddOutingDraft = { studentId: string; outStart: string; outEnd: string; reason: string };
+  const [addOutingDraft, setAddOutingDraft] = useState<AddOutingDraft | null>(null);
+  const [addOutingPending, setAddOutingPending] = useState<string | null>(null);
+
+  async function submitAddOuting(student: StudentWithAttendance) {
+    if (!addOutingDraft || addOutingDraft.studentId !== student.id) return;
+    const { outStart, outEnd, reason } = addOutingDraft;
+    if (!outStart || !/^\d{2}:\d{2}$/.test(outStart)) { toast.error("외출 시작 시간을 입력하세요"); return; }
+    setAddOutingPending(student.id);
+    try {
+      const created = await addOuting(student.id, new Date(todayDate), {
+        outStart,
+        outEnd: outEnd && /^\d{2}:\d{2}$/.test(outEnd) ? outEnd : null,
+        reason: reason || undefined,
+      });
+      setLocalOutings((prev) => {
+        const m = new Map(prev);
+        const list = m.get(student.id) ?? [];
+        m.set(student.id, [
+          ...list,
+          { id: created.id, outStart: created.outStart, outEnd: created.outEnd, sequence: created.sequence, reason: created.reason },
+        ]);
+        return m;
+      });
+      toast.success(`${created.sequence}차 외출 추가됨`);
+      setAddOutingDraft(null);
+    } catch { toast.error("저장 실패"); }
+    setAddOutingPending(null);
+  }
+
+  async function removeOuting(student: StudentWithAttendance, outingId: string) {
+    setAddOutingPending(student.id);
+    try {
+      await deleteOuting(outingId);
+      setLocalOutings((prev) => {
+        const m = new Map(prev);
+        m.set(student.id, (m.get(student.id) ?? []).filter((o) => o.id !== outingId));
+        return m;
+      });
+      toast.success("외출 기록 삭제됨");
+    } catch { toast.error("삭제 실패"); }
+    setAddOutingPending(null);
+  }
 
   // 하단 액션바용: 현재 포커스된 시간 입력
   type ActiveTimeInput = { studentId: string; field: "checkIn" | "checkOut" | "outing" | "return"; studentName: string };
@@ -980,6 +1030,94 @@ export function AttendanceTable({ students, today }: Props) {
                         />
                       </div>
                     </div>
+
+                    {/* 추가 외출 (2차, 3차…) — sequence > 1 */}
+                    {(() => {
+                      const extras = localOut
+                        .filter((o) => (o.sequence ?? 1) > 1 && o.id)
+                        .sort((a, b) => (a.sequence ?? 1) - (b.sequence ?? 1));
+                      const isAdding = addOutingDraft?.studentId === student.id;
+                      const isAddPending = addOutingPending === student.id;
+                      const hasCheckIn = !!checkInTime;
+                      return (
+                        <div className="mt-1.5 space-y-0.5">
+                          {extras.map((o) => (
+                            <div
+                              key={o.id ?? `seq-${o.sequence}`}
+                              className="flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground"
+                            >
+                              <span className="text-orange-600 font-semibold">{o.sequence}차</span>
+                              <span className="tabular-nums">
+                                {toTimeString(o.outStart) || "—"} - {toTimeString(o.outEnd) || "—"}
+                              </span>
+                              {o.reason && (
+                                <span className="text-foreground/70 font-sans">({o.reason})</span>
+                              )}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); if (o.id) removeOuting(student, o.id); }}
+                                disabled={isAddPending}
+                                title="외출 삭제"
+                                className="ml-auto p-0.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+
+                          {isAdding ? (
+                            <div className="flex items-center gap-1 pt-1" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="time"
+                                value={addOutingDraft!.outStart}
+                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, outStart: e.target.value })}
+                                className="w-20 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                placeholder="시작"
+                              />
+                              <span className="text-muted-foreground text-[11px]">-</span>
+                              <input
+                                type="time"
+                                value={addOutingDraft!.outEnd}
+                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, outEnd: e.target.value })}
+                                className="w-20 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                placeholder="복귀"
+                              />
+                              <input
+                                type="text"
+                                value={addOutingDraft!.reason}
+                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, reason: e.target.value })}
+                                placeholder="사유"
+                                className="flex-1 min-w-0 max-w-[140px] border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                              />
+                              <button
+                                onClick={() => submitAddOuting(student)}
+                                disabled={isAddPending}
+                                className="px-1.5 py-0.5 text-[10px] rounded bg-orange-500 text-white hover:bg-orange-600 font-medium disabled:opacity-50"
+                              >
+                                {isAddPending ? "..." : "저장"}
+                              </button>
+                              <button
+                                onClick={() => setAddOutingDraft(null)}
+                                className="px-1.5 py-0.5 text-[10px] rounded bg-muted text-muted-foreground hover:bg-accent"
+                              >
+                                취소
+                              </button>
+                            </div>
+                          ) : (
+                            (localOut.length > 0 || hasCheckIn) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAddOutingDraft({ studentId: student.id, outStart: nowHHMM(), outEnd: "", reason: "" });
+                                }}
+                                className="flex items-center gap-0.5 text-[11px] text-orange-600 hover:text-orange-700 hover:underline"
+                              >
+                                <Plus className="h-3 w-3" /> 외출 추가
+                              </button>
+                            )
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
 
                   {/* 입퇴실 메모 */}

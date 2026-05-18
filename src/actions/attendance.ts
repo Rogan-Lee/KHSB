@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AttendanceType } from "@/generated/prisma";
@@ -344,4 +345,186 @@ export async function deleteDailyOuting(id: string) {
 
   await prisma.dailyOuting.delete({ where: { id } });
   revalidatePath("/attendance");
+}
+
+// ── N차 외출 (Sprint 2 PR 2.1) ──────────────────────────────────────────
+// sequence 기반 다중 외출. sequence=1 인 경우 AttendanceRecord.outStart/outEnd
+// 에도 동일 값을 미러링 — 레거시 캐시 호환 유지.
+//
+// 시간 입력은 "HH:mm" 문자열, date 는 Date 객체. 모두 KST 기준으로 저장.
+
+function combineKST(date: Date, hhmm: string | null | undefined): Date | null {
+  if (!hhmm) return null;
+  // date 는 자정 기준 Date. ISO 의 날짜 부분만 사용.
+  const dateStr = date.toISOString().split("T")[0];
+  return new Date(`${dateStr}T${hhmm}:00+09:00`);
+}
+
+async function mirrorSequenceOneToAttendance(
+  studentId: string,
+  date: Date,
+  outStart: Date | null,
+  outEnd: Date | null
+) {
+  await prisma.attendanceRecord.upsert({
+    where: { studentId_date: { studentId, date } },
+    create: {
+      studentId,
+      date,
+      type: "NORMAL",
+      outStart,
+      outEnd,
+    },
+    update: {
+      outStart,
+      outEnd,
+    },
+  });
+}
+
+export async function addOuting(
+  studentId: string,
+  date: Date,
+  data: { outStart: string; outEnd: string | null; reason?: string }
+) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+  if (!session?.user) throw new Error("Unauthorized");
+
+  // 같은 (studentId, date) 의 최대 sequence + 1
+  const agg = await prisma.dailyOuting.aggregate({
+    where: { studentId, date },
+    _max: { sequence: true },
+  });
+  const nextSequence = (agg._max.sequence ?? 0) + 1;
+
+  const outStartDt = combineKST(date, data.outStart);
+  const outEndDt = combineKST(date, data.outEnd);
+
+  const created = await prisma.dailyOuting.create({
+    data: {
+      studentId,
+      date,
+      sequence: nextSequence,
+      isPlaceholder: false,
+      outStart: outStartDt,
+      outEnd: outEndDt,
+      reason: data.reason ?? null,
+    },
+  });
+
+  if (nextSequence === 1) {
+    await mirrorSequenceOneToAttendance(studentId, date, outStartDt, outEndDt);
+  }
+
+  revalidatePath("/attendance");
+  revalidatePath(`/students/${studentId}`);
+  return created;
+}
+
+export async function updateOuting(
+  id: string,
+  patch: { outStart?: string; outEnd?: string | null; reason?: string }
+) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const existing = await prisma.dailyOuting.findUnique({ where: { id } });
+  if (!existing) throw new Error("외출 기록을 찾을 수 없습니다");
+
+  const nextOutStart =
+    patch.outStart !== undefined
+      ? combineKST(existing.date, patch.outStart)
+      : existing.outStart;
+  const nextOutEnd =
+    patch.outEnd !== undefined
+      ? combineKST(existing.date, patch.outEnd)
+      : existing.outEnd;
+  const nextReason = patch.reason !== undefined ? patch.reason : existing.reason;
+
+  const updated = await prisma.dailyOuting.update({
+    where: { id },
+    data: {
+      outStart: nextOutStart,
+      outEnd: nextOutEnd,
+      reason: nextReason,
+    },
+  });
+
+  if (existing.sequence === 1) {
+    await mirrorSequenceOneToAttendance(
+      existing.studentId,
+      existing.date,
+      nextOutStart,
+      nextOutEnd
+    );
+  }
+
+  revalidatePath("/attendance");
+  revalidatePath(`/students/${existing.studentId}`);
+  return updated;
+}
+
+export async function deleteOuting(id: string) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const existing = await prisma.dailyOuting.findUnique({ where: { id } });
+  if (!existing) return; // already gone, idempotent
+
+  await prisma.dailyOuting.delete({ where: { id } });
+
+  // sequence==1 삭제 시 레거시 캐시도 비움 (sequence 2 → 1 승격은 명시적 X)
+  if (existing.sequence === 1) {
+    await prisma.attendanceRecord.updateMany({
+      where: { studentId: existing.studentId, date: existing.date },
+      data: { outStart: null, outEnd: null },
+    });
+  }
+
+  revalidatePath("/attendance");
+  revalidatePath(`/students/${existing.studentId}`);
+}
+
+export type OutingForDate = {
+  id: string;
+  sequence: number;
+  outStart: Date | null;
+  outEnd: Date | null;
+  reason: string | null;
+  isPlaceholder: boolean;
+};
+
+export async function getOutingsForDate(
+  date: Date
+): Promise<Record<string, OutingForDate[]>> {
+  const rows = await prisma.dailyOuting.findMany({
+    where: { date },
+    orderBy: [{ studentId: "asc" }, { sequence: "asc" }],
+    select: {
+      id: true,
+      studentId: true,
+      sequence: true,
+      outStart: true,
+      outEnd: true,
+      reason: true,
+      isPlaceholder: true,
+    },
+  });
+
+  const byStudent: Record<string, OutingForDate[]> = {};
+  for (const r of rows) {
+    if (!byStudent[r.studentId]) byStudent[r.studentId] = [];
+    byStudent[r.studentId].push({
+      id: r.id,
+      sequence: r.sequence,
+      outStart: r.outStart,
+      outEnd: r.outEnd,
+      reason: r.reason,
+      isPlaceholder: r.isPlaceholder,
+    });
+  }
+  return byStudent;
 }
