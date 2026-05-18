@@ -1447,6 +1447,8 @@ model MentoringSession {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
+  photos MentoringSessionPhoto[]
+
   @@index([studentId, scheduledAt])
   @@index([hostId, scheduledAt])
   @@index([status, scheduledAt])
