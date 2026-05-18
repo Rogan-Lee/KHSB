@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getUser } from "@/lib/auth";
 import { isOnlineStaff, isStaff } from "@/lib/roles";
+import { getUnseenFeatureRequestCount } from "@/actions/feature-requests";
 
 export default async function DashboardLayout({
   children,
@@ -17,8 +18,20 @@ export default async function DashboardLayout({
     redirect("/sign-in");
   }
 
+  // 사이드바 미확인 배지 — 건의사항 unseen 카운트 (전 직원)
+  const sidebarBadges: Record<string, number> = {};
+  try {
+    const unseenRequests = await getUnseenFeatureRequestCount();
+    if (unseenRequests > 0) sidebarBadges["/requests"] = unseenRequests;
+  } catch {
+    // 카운트 실패해도 레이아웃은 그대로 렌더링
+  }
+
   return (
-    <DashboardShell user={{ name: user.name, email: user.email, role: user.role }}>
+    <DashboardShell
+      user={{ name: user.name, email: user.email, role: user.role }}
+      sidebarBadges={sidebarBadges}
+    >
       {children}
     </DashboardShell>
   );

@@ -61,9 +61,69 @@ export async function createFeatureRequest(data: {
     category,
     priority,
     requester: data.requester,
+    authorName: user.name ?? "알 수 없음",
+    url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/requests`,
   }));
 
   revalidatePath("/requests");
+}
+
+/**
+ * 현재 user 의 id 를 FeatureRequest.seenById 배열에 추가 (이미 있으면 noop).
+ * 헤더 배지 unseen 카운트용. PENDING/IN_PROGRESS 만 대상으로 처리한다.
+ */
+export async function markFeatureRequestSeen(id: string) {
+  const user = await getSession();
+  const fr = await prisma.featureRequest.findUnique({
+    where: { id },
+    select: { seenById: true },
+  });
+  if (!fr) return;
+  if (fr.seenById.includes(user.id)) return;
+  await prisma.featureRequest.update({
+    where: { id },
+    data: { seenById: { set: [...fr.seenById, user.id] } },
+  });
+}
+
+/**
+ * 현재 user 가 아직 보지 못한 PENDING/IN_PROGRESS FeatureRequest 들의 ID 를
+ * 모두 seen 처리한다. 페이지 진입 시 호출.
+ */
+export async function markAllOpenFeatureRequestsSeen() {
+  const user = await getSession();
+  const open = await prisma.featureRequest.findMany({
+    where: {
+      status: { in: ["PENDING", "IN_PROGRESS"] },
+      NOT: { seenById: { has: user.id } },
+    },
+    select: { id: true, seenById: true },
+  });
+  if (open.length === 0) return 0;
+  await Promise.all(
+    open.map((fr) =>
+      prisma.featureRequest.update({
+        where: { id: fr.id },
+        data: { seenById: { set: [...fr.seenById, user.id] } },
+      }),
+    ),
+  );
+  revalidatePath("/requests");
+  return open.length;
+}
+
+/**
+ * 현재 user 가 아직 보지 않은 open(PENDING/IN_PROGRESS) FeatureRequest 개수.
+ * 헤더 배지에 사용.
+ */
+export async function getUnseenFeatureRequestCount(): Promise<number> {
+  const user = await getSession();
+  return prisma.featureRequest.count({
+    where: {
+      status: { in: ["PENDING", "IN_PROGRESS"] },
+      NOT: { seenById: { has: user.id } },
+    },
+  });
 }
 
 export async function updateRequestStatus(id: string, status: RequestStatus) {
