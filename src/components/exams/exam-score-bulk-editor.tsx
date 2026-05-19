@@ -12,7 +12,8 @@ type Participant = {
   studentId: string;
   name: string;
   grade: string;
-  seatNumber: number;
+  // 좌석은 PRIVATE_MOCK(자습실 시험) 일 때만 의미가 있음. 외부 시험(공식 모의·내신)은 null.
+  seatNumber: number | null;
 };
 
 type ExistingScore = {
@@ -76,6 +77,33 @@ export function ExamScoreBulkEditor({
   );
   const [activeSubject, setActiveSubject] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+
+  // 좌석 정보가 한 명이라도 없으면 외부 시험 모드로 간주 → 학년 그룹 + 검색 UI 표시.
+  const isExternalMode = useMemo(
+    () => participants.some((p) => p.seatNumber == null),
+    [participants]
+  );
+
+  const filteredParticipants = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return participants;
+    return participants.filter(
+      (p) => p.name.toLowerCase().includes(q) || p.grade.toLowerCase().includes(q)
+    );
+  }, [participants, query]);
+
+  // 학년별 그룹 (외부 시험 모드에서만 헤더 노출). 학년 등장 순서 유지.
+  const groupedByGrade = useMemo(() => {
+    const groups = new Map<string, Participant[]>();
+    for (const p of filteredParticipants) {
+      const key = p.grade || "기타";
+      const arr = groups.get(key);
+      if (arr) arr.push(p);
+      else groups.set(key, [p]);
+    }
+    return Array.from(groups.entries());
+  }, [filteredParticipants]);
 
   const rawRef = useRef<HTMLInputElement>(null);
   const gradeRef = useRef<HTMLInputElement>(null);
@@ -146,6 +174,49 @@ export function ExamScoreBulkEditor({
 
   const activeParticipant = participants.find((p) => p.studentId === activeStudentId);
 
+  function renderParticipantRow(p: Participant) {
+    const done = studentProgress(values, p.studentId, subjects);
+    const isActive = activeStudentId === p.studentId;
+    const complete = done === subjects.length && subjects.length > 0;
+    return (
+      <button
+        key={p.studentId}
+        type="button"
+        onClick={() => {
+          setActiveStudentId(p.studentId);
+          setActiveSubject(null);
+        }}
+        className={cn(
+          "w-full text-left px-3 py-2.5 transition-colors border-l-2",
+          isActive
+            ? "bg-blue-50 border-blue-500"
+            : "hover:bg-muted/40 border-transparent"
+        )}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium text-sm truncate">{p.name}</span>
+          {p.seatNumber != null && (
+            <span className="text-[10px] text-muted-foreground shrink-0">
+              좌석 {p.seatNumber}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[11px] text-muted-foreground">{p.grade}</span>
+          <span
+            className={cn(
+              "text-[10px] font-medium ml-auto inline-flex items-center gap-0.5",
+              complete ? "text-emerald-600" : "text-muted-foreground"
+            )}
+          >
+            {done}/{subjects.length}
+            {complete && <CheckCircle2 className="h-3 w-3" />}
+          </span>
+        </div>
+      </button>
+    );
+  }
+
   return (
     <div className="space-y-3">
       {/* 상단 액션바 */}
@@ -168,50 +239,35 @@ export function ExamScoreBulkEditor({
       <div className="grid grid-cols-[280px_1fr] gap-3 min-h-[500px]">
         {/* 좌: 응시자 리스트 */}
         <div className="border rounded-md overflow-hidden flex flex-col">
-          <div className="px-3 py-2 border-b bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            응시자
+          <div className="px-3 py-2 border-b bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between gap-2">
+            <span>응시자</span>
+            <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground">
+              {filteredParticipants.length}/{participants.length}명
+            </span>
           </div>
+          {isExternalMode && (
+            <div className="px-2 py-2 border-b bg-background">
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="이름 또는 학년 검색"
+                className="h-8 text-sm"
+              />
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto divide-y max-h-[600px]">
-            {participants.map((p) => {
-              const done = studentProgress(values, p.studentId, subjects);
-              const isActive = activeStudentId === p.studentId;
-              const complete = done === subjects.length && subjects.length > 0;
-              return (
-                <button
-                  key={p.studentId}
-                  type="button"
-                  onClick={() => {
-                    setActiveStudentId(p.studentId);
-                    setActiveSubject(null);
-                  }}
-                  className={cn(
-                    "w-full text-left px-3 py-2.5 transition-colors border-l-2",
-                    isActive
-                      ? "bg-blue-50 border-blue-500"
-                      : "hover:bg-muted/40 border-transparent"
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium text-sm truncate">{p.name}</span>
-                    <span className="text-[10px] text-muted-foreground shrink-0">
-                      좌석 {p.seatNumber}
-                    </span>
+            {isExternalMode
+              ? groupedByGrade.map(([gradeLabel, members]) => (
+                  <div key={gradeLabel}>
+                    <div className="px-3 py-1.5 bg-muted/30 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0">
+                      {gradeLabel} <span className="font-normal normal-case">({members.length}명)</span>
+                    </div>
+                    <div className="divide-y">
+                      {members.map((p) => renderParticipantRow(p))}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[11px] text-muted-foreground">{p.grade}</span>
-                    <span
-                      className={cn(
-                        "text-[10px] font-medium ml-auto inline-flex items-center gap-0.5",
-                        complete ? "text-emerald-600" : "text-muted-foreground"
-                      )}
-                    >
-                      {done}/{subjects.length}
-                      {complete && <CheckCircle2 className="h-3 w-3" />}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
+                ))
+              : filteredParticipants.map((p) => renderParticipantRow(p))}
           </div>
         </div>
 
@@ -228,7 +284,10 @@ export function ExamScoreBulkEditor({
                   <h3 className="text-lg font-bold">
                     {activeParticipant.name}
                     <span className="text-sm font-normal text-muted-foreground ml-2">
-                      {activeParticipant.grade} · 좌석 {activeParticipant.seatNumber}
+                      {activeParticipant.grade}
+                      {activeParticipant.seatNumber != null && (
+                        <> · 좌석 {activeParticipant.seatNumber}</>
+                      )}
                     </span>
                   </h3>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
