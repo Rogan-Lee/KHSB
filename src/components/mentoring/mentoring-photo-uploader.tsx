@@ -8,7 +8,7 @@ import {
   attachMentoringPhoto,
   deleteMentoringPhoto,
 } from "@/actions/mentoring";
-import type { MentoringPhotoTag, MentoringPhoto } from "@/generated/prisma";
+import type { MentoringPhotoTag, Photo } from "@/generated/prisma";
 
 const ALLOWED_EXT = /\.(png|jpe?g|webp|gif)$/i;
 
@@ -28,7 +28,7 @@ export function MentoringPhotoUploader({
   existing,
 }: {
   mentoringId: string;
-  existing: MentoringPhoto[];
+  existing: Photo[];
 }) {
   return (
     <div className="space-y-4">
@@ -39,7 +39,7 @@ export function MentoringPhotoUploader({
           tag={zone.tag}
           label={zone.label}
           hint={zone.hint}
-          photos={existing.filter((p) => p.tag === zone.tag)}
+          photos={existing.filter((p) => (p.mentoringTag ?? "FREE") === zone.tag)}
         />
       ))}
     </div>
@@ -57,7 +57,7 @@ function ZoneBlock({
   tag: MentoringPhotoTag;
   label: string;
   hint: string;
-  photos: MentoringPhoto[];
+  photos: Photo[];
 }) {
   const router = useRouter();
   const inputId = useId();
@@ -87,6 +87,8 @@ function ZoneBlock({
         url: data.url,
         mimeType: data.mimeType,
         tag,
+        fileName: data.fileName ?? null,
+        sizeBytes: data.sizeBytes ?? null,
       });
       toast.success(`${label} 추가됨`);
       startTransition(() => router.refresh());
@@ -151,7 +153,7 @@ function ZoneBlock({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={p.thumbnailUrl ?? p.url}
-                alt={p.caption ?? "첨부"}
+                alt={p.fileName ?? "첨부"}
                 className="h-full w-full object-cover"
               />
               <button
