@@ -576,6 +576,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                 상태
               </SortableHeader>
               <TableHead>메모</TableHead>
+              <TableHead className="whitespace-nowrap text-center">KDA 사진</TableHead>
               <TableHead className="whitespace-nowrap">학부모 리포트</TableHead>
               <TableHead></TableHead>
             </TableRow>
@@ -583,7 +584,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={mentors.length > 0 ? 9 : 8} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={mentors.length > 0 ? 11 : 10} className="text-center text-muted-foreground py-8">
                   멘토링 기록이 없습니다
                 </TableCell>
               </TableRow>
@@ -628,26 +629,6 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                           {(() => {
                             const p = meritPoints[m.student.id];
                             return p ? <MeritBadge positive={p.positive} negative={p.negative} /> : null;
-                          })()}
-                          {/* 사진 업로드 여부 표시 (KDA 등) */}
-                          {(() => {
-                            const photoCount = m._count?.photos ?? 0;
-                            return photoCount > 0 ? (
-                              <span
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-200 shrink-0"
-                                title={`사진 ${photoCount}장 업로드됨`}
-                              >
-                                <Camera className="h-2.5 w-2.5" />
-                                {photoCount}
-                              </span>
-                            ) : (
-                              <span
-                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] text-muted-foreground/50 border border-dashed border-border shrink-0"
-                                title="사진 없음"
-                              >
-                                <Camera className="h-2.5 w-2.5" />
-                              </span>
-                            );
                           })()}
                           {/* 입퇴실 시간 */}
                           {(() => {
@@ -726,6 +707,22 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                       );
                     })()}
                   </TableCell>
+                  <TableCell className="text-center">
+                    {(() => {
+                      const photoCount = m._count?.photos ?? 0;
+                      return photoCount > 0 ? (
+                        <Badge variant="outline" className="text-[10px] border-emerald-300 bg-emerald-50 text-emerald-700 gap-1">
+                          <Camera className="h-3 w-3" />
+                          제출 완료 {photoCount}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] border-gray-300 text-muted-foreground gap-1">
+                          <Camera className="h-3 w-3" />
+                          미제출
+                        </Badge>
+                      );
+                    })()}
+                  </TableCell>
                   <TableCell>
                     {(() => {
                       const pr = m.parentReports?.[0];
@@ -796,7 +793,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                 </TableRow>
                 {parentReportOpenId === m.id && (
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableCell colSpan={mentors.length > 0 ? 10 : 9} className="p-3">
+                    <TableCell colSpan={mentors.length > 0 ? 11 : 10} className="p-3">
                       <ParentReportInlinePanel
                         mentoringId={m.id}
                         studentName={m.student.name}
