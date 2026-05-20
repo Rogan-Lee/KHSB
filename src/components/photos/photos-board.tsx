@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   FolderTree, FolderPlus, Upload, Search, X, Trash2,
   ImageOff, CheckCircle2, AlertCircle, Calendar, User, MapPin,
-  ChevronRight, ChevronDown, Folder, HardDrive, Loader2,
+  ChevronRight, ChevronDown, Folder, HardDrive, Loader2, GraduationCap,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -18,6 +18,10 @@ import {
   linkPhotoStudent,
   importPhotosFromDrive,
 } from "@/actions/photos";
+import {
+  linkPhotoToMentoring,
+  getRecentMentoringsForStudent,
+} from "@/actions/mentoring";
 
 type FolderNode = {
   id: string;
@@ -42,9 +46,14 @@ type PhotoRow = {
   uploadedAt: Date;
   uploadedByName: string;
   sizeBytes: number;
+  mentoringId: string | null;
+  mentoringTag: string | null;
+  mentoring: { id: string; date: string } | null; // date = ISO
 };
 
 type StudentOpt = { id: string; name: string; grade: string; seat: string | null };
+
+type MentoringOpt = { id: string; scheduledAt: Date; actualDate: Date | null; status: string };
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
@@ -236,6 +245,48 @@ export function PhotosBoard({
         toast.error(e instanceof Error ? e.message : "매칭 실패");
       }
     });
+  }
+
+  // ─── 멘토링 역방향 연결 ───
+  const [mentoringPicker, setMentoringPicker] = useState<{
+    photoId: string;
+    options: MentoringOpt[];
+  } | null>(null);
+  const [loadingMentorings, setLoadingMentorings] = useState(false);
+
+  async function openMentoringPicker(photoId: string, studentId: string) {
+    setLoadingMentorings(true);
+    try {
+      const options = await getRecentMentoringsForStudent(studentId);
+      if (options.length === 0) {
+        toast.info("이 학생의 멘토링 기록이 없습니다");
+        setMentoringPicker(null);
+        return;
+      }
+      setMentoringPicker({ photoId, options });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "멘토링 목록 조회 실패");
+    } finally {
+      setLoadingMentorings(false);
+    }
+  }
+
+  function handleLinkMentoring(photoId: string, mentoringId: string | null) {
+    startTransition(async () => {
+      try {
+        await linkPhotoToMentoring(photoId, mentoringId, "FREE");
+        toast.success(mentoringId ? "멘토링에 연결되었습니다" : "멘토링 연결이 해제되었습니다");
+        setMentoringPicker(null);
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "연결 실패");
+      }
+    });
+  }
+
+  function fmtMentoringOpt(m: MentoringOpt): string {
+    const d = new Date(m.actualDate ?? m.scheduledAt);
+    return d.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
   }
 
   const selectedPhoto = photos.find((p) => p.id === selectedId);
@@ -454,6 +505,14 @@ export function PhotosBoard({
                       </span>
                     </div>
                   )}
+                  {p.mentoringId && (
+                    <div className="absolute top-1 left-1" title="멘토링 연결됨">
+                      <span className="inline-flex items-center gap-0.5 bg-violet-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                        <GraduationCap className="h-2.5 w-2.5" />
+                        멘토링
+                      </span>
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
@@ -539,6 +598,69 @@ export function PhotosBoard({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="pt-2 border-t">
+                <p className="text-xs font-semibold mb-1 flex items-center gap-1">
+                  <GraduationCap className="h-3 w-3 text-violet-600" />
+                  멘토링 연결
+                </p>
+                {selectedPhoto.mentoring ? (
+                  <div className="flex items-center justify-between gap-2 p-2 bg-violet-50 border border-violet-200 rounded text-xs">
+                    <span className="text-violet-800">
+                      {selectedPhoto.student?.name ?? "학생"} ·{" "}
+                      {new Date(selectedPhoto.mentoring.date).toLocaleDateString("ko-KR", {
+                        year: "numeric", month: "2-digit", day: "2-digit",
+                      })}{" "}
+                      멘토링
+                    </span>
+                    <button
+                      onClick={() => handleLinkMentoring(selectedPhoto.id, null)}
+                      disabled={isPending}
+                      className="text-[10px] text-muted-foreground hover:text-destructive shrink-0"
+                    >
+                      해제
+                    </button>
+                  </div>
+                ) : !selectedPhoto.studentId ? (
+                  <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                    먼저 학생을 연결하면 그 학생의 멘토링에 태깅할 수 있습니다
+                  </p>
+                ) : mentoringPicker?.photoId === selectedPhoto.id ? (
+                  <div className="space-y-1">
+                    {mentoringPicker.options.map((m) => (
+                      <button
+                        key={m.id}
+                        onClick={() => handleLinkMentoring(selectedPhoto.id, m.id)}
+                        disabled={isPending}
+                        className="w-full text-left text-[11px] border rounded px-2 py-1 hover:bg-muted disabled:opacity-50"
+                      >
+                        {fmtMentoringOpt(m)}
+                        {m.status === "COMPLETED" && (
+                          <span className="ml-1 text-emerald-600">· 완료</span>
+                        )}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setMentoringPicker(null)}
+                      className="w-full text-[10px] text-muted-foreground hover:text-foreground py-0.5"
+                    >
+                      닫기
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => openMentoringPicker(selectedPhoto.id, selectedPhoto.studentId!)}
+                    disabled={loadingMentorings || isPending}
+                    className="w-full text-xs border rounded py-1.5 hover:bg-muted disabled:opacity-50 inline-flex items-center justify-center gap-1"
+                  >
+                    {loadingMentorings ? (
+                      <><Loader2 className="h-3 w-3 animate-spin" /> 불러오는 중…</>
+                    ) : (
+                      "멘토링에 연결"
+                    )}
+                  </button>
+                )}
               </div>
 
               <div className="pt-2 border-t flex gap-2">

@@ -708,32 +708,29 @@ model MeritDemerit {
 }
 
 model Mentoring {
-  id                  String           @id @default(cuid())
-  studentId           String
-  student             Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  mentorId            String
-  mentor              User             @relation(fields: [mentorId], references: [id])
-  scheduledAt         DateTime
-  scheduledTimeStart  String? // "14:00"
-  scheduledTimeEnd    String? // "15:00"
-  actualDate          DateTime?
-  actualStartTime     String? // "14:05"
-  actualEndTime       String? // "15:10"
-  status              MentoringStatus  @default(SCHEDULED)
-  content             String? // 오늘 멘토링 내용
-  previousIssues      String? // 이전 회차에서 전달한 내용
-  improvements        String? // 개선된 점
-  weaknesses          String? // 부족한 점
-  nextGoals           String? // 다음 멘토링 목표
-  notes               String? // 기타 메모
-  feedbackSentAt      DateTime? // 피드백 이메일 발송 시각
-  parentReports       ParentReport[]
-  photos              MentoringPhoto[] // KDA/EXTRA/FREE 첨부 사진 (Sprint 5 PR 5.1 오프라인 이식)
-  studentSignatureUrl String? // 학생 서명 PNG (Sprint 5 PR 5.2 오프라인 이식)
-  mentorSignatureUrl  String? // 멘토 서명 PNG
-  signedAt            DateTime? // 양측 서명 완료 시각
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+  id                 String          @id @default(cuid())
+  studentId          String
+  student            Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  mentorId           String
+  mentor             User            @relation(fields: [mentorId], references: [id])
+  scheduledAt        DateTime
+  scheduledTimeStart String? // "14:00"
+  scheduledTimeEnd   String? // "15:00"
+  actualDate         DateTime?
+  actualStartTime    String? // "14:05"
+  actualEndTime      String? // "15:10"
+  status             MentoringStatus @default(SCHEDULED)
+  content            String? // 오늘 멘토링 내용
+  previousIssues     String? // 이전 회차에서 전달한 내용
+  improvements       String? // 개선된 점
+  weaknesses         String? // 부족한 점
+  nextGoals          String? // 다음 멘토링 목표
+  notes              String? // 기타 메모
+  feedbackSentAt     DateTime? // 피드백 이메일 발송 시각
+  parentReports      ParentReport[]
+  photos             Photo[] // KDA/EXTRA/FREE 첨부 사진 (사진관리와 통합)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   @@index([studentId, scheduledAt])
   @@index([mentorId, scheduledAt])
@@ -949,12 +946,17 @@ model Photo {
   uploadedById     String
   uploadedByName   String
   driveFileId      String?      @unique // Google Drive 에서 import 한 경우 원본 파일 ID — 중복 import 방지
+  // 오프라인 멘토링 기록 연동 (사진관리 ↔ 멘토링 양방향). null 이면 사진관리 전용.
+  mentoringId      String?
+  mentoring        Mentoring?   @relation(fields: [mentoringId], references: [id], onDelete: SetNull)
+  mentoringTag     String? // "KDA" | "EXTRA" | "FREE" — 멘토링 사진 분류 (외부 시험과 무관)
   uploadedAt       DateTime     @default(now())
 
   @@index([folderId])
   @@index([parsedDate])
   @@index([parsedSeatNumber])
   @@index([studentId])
+  @@index([mentoringId])
 }
 
 model ExamSeatAssignment {
@@ -1452,13 +1454,6 @@ model MentoringSession {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  // ─── 서명 (Sprint 5 PR 5.2) ───
-  // 학생/호스트(멘토) 양측 서명 이미지 (Vercel Blob URL).
-  // signedAt 은 양쪽 모두 set 됐을 때만 채워진다. 세션 완료 처리의 gate.
-  studentSignatureUrl String?
-  hostSignatureUrl    String?
-  signedAt            DateTime?
-
   photos MentoringSessionPhoto[]
 
   @@index([studentId, scheduledAt])
@@ -1491,22 +1486,8 @@ model MentoringSessionPhoto {
   @@index([sessionId])
 }
 
-// ─── 오프라인 멘토링 기록 첨부 사진 (Sprint 5 PR 5.1 이식) ───
-// 온라인 MentoringSessionPhoto 의 오프라인(Mentoring) 대응. MentoringPhotoTag enum 재사용.
-model MentoringPhoto {
-  id           String            @id @default(cuid())
-  mentoringId  String
-  mentoring    Mentoring         @relation(fields: [mentoringId], references: [id], onDelete: Cascade)
-  url          String
-  thumbnailUrl String?
-  mimeType     String
-  tag          MentoringPhotoTag @default(FREE)
-  caption      String?
-  uploadedById String
-  uploadedAt   DateTime          @default(now())
-
-  @@index([mentoringId])
-}
+// 오프라인 멘토링 첨부 사진은 Photo 모델로 통합되었습니다 (사진관리와 양방향 연동).
+// 온라인 MentoringSessionPhoto 는 그대로 유지.
 
 // ─── 학생 포털 1:1 채팅 (PR 2 — 카톡 스타일 Q&A) ───
 // 학생 ↔ 담당 직원(MANAGER_MENTOR / CONSULTANT / STAFF) 간 별도 채팅방.
