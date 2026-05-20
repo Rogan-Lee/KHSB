@@ -708,28 +708,32 @@ model MeritDemerit {
 }
 
 model Mentoring {
-  id                 String          @id @default(cuid())
-  studentId          String
-  student            Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  mentorId           String
-  mentor             User            @relation(fields: [mentorId], references: [id])
-  scheduledAt        DateTime
-  scheduledTimeStart String? // "14:00"
-  scheduledTimeEnd   String? // "15:00"
-  actualDate         DateTime?
-  actualStartTime    String? // "14:05"
-  actualEndTime      String? // "15:10"
-  status             MentoringStatus @default(SCHEDULED)
-  content            String? // 오늘 멘토링 내용
-  previousIssues     String? // 이전 회차에서 전달한 내용
-  improvements       String? // 개선된 점
-  weaknesses         String? // 부족한 점
-  nextGoals          String? // 다음 멘토링 목표
-  notes              String? // 기타 메모
-  feedbackSentAt     DateTime? // 피드백 이메일 발송 시각
-  parentReports      ParentReport[]
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  id                  String           @id @default(cuid())
+  studentId           String
+  student             Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  mentorId            String
+  mentor              User             @relation(fields: [mentorId], references: [id])
+  scheduledAt         DateTime
+  scheduledTimeStart  String? // "14:00"
+  scheduledTimeEnd    String? // "15:00"
+  actualDate          DateTime?
+  actualStartTime     String? // "14:05"
+  actualEndTime       String? // "15:10"
+  status              MentoringStatus  @default(SCHEDULED)
+  content             String? // 오늘 멘토링 내용
+  previousIssues      String? // 이전 회차에서 전달한 내용
+  improvements        String? // 개선된 점
+  weaknesses          String? // 부족한 점
+  nextGoals           String? // 다음 멘토링 목표
+  notes               String? // 기타 메모
+  feedbackSentAt      DateTime? // 피드백 이메일 발송 시각
+  parentReports       ParentReport[]
+  photos              MentoringPhoto[] // KDA/EXTRA/FREE 첨부 사진 (Sprint 5 PR 5.1 오프라인 이식)
+  studentSignatureUrl String? // 학생 서명 PNG (Sprint 5 PR 5.2 오프라인 이식)
+  mentorSignatureUrl  String? // 멘토 서명 PNG
+  signedAt            DateTime? // 양측 서명 완료 시각
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 
   @@index([studentId, scheduledAt])
   @@index([mentorId, scheduledAt])
@@ -1485,6 +1489,23 @@ model MentoringSessionPhoto {
   uploadedAt   DateTime          @default(now())
 
   @@index([sessionId])
+}
+
+// ─── 오프라인 멘토링 기록 첨부 사진 (Sprint 5 PR 5.1 이식) ───
+// 온라인 MentoringSessionPhoto 의 오프라인(Mentoring) 대응. MentoringPhotoTag enum 재사용.
+model MentoringPhoto {
+  id           String            @id @default(cuid())
+  mentoringId  String
+  mentoring    Mentoring         @relation(fields: [mentoringId], references: [id], onDelete: Cascade)
+  url          String
+  thumbnailUrl String?
+  mimeType     String
+  tag          MentoringPhotoTag @default(FREE)
+  caption      String?
+  uploadedById String
+  uploadedAt   DateTime          @default(now())
+
+  @@index([mentoringId])
 }
 
 // ─── 학생 포털 1:1 채팅 (PR 2 — 카톡 스타일 Q&A) ───
