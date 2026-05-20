@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useState, useTransition, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,8 +68,6 @@ type Props = {
   attendanceNotes?: Record<string, string>;
   /** 이달 기준 학생별 상/벌점 누적 (§2.17) */
   meritPoints?: Record<string, { positive: number; negative: number }>;
-  /** 취소 필터 상태: exclude(취소 제외, 기본) | only(취소만) | all(전체) */
-  cancelFilter?: "exclude" | "only" | "all";
 };
 
 /** 이달 상벌점 임계값을 넘으면 이모지 표시 (§2.17). 임계값: 상점 10↑ / 벌점 15↑ */
@@ -232,11 +229,14 @@ function KebabMenu({ mentoring, onDelete }: { mentoring: Mentoring; onDelete: ()
 
 const FILTER_STORAGE_KEY = "mentoring-list-filters";
 
+type CancelFilter = "exclude" | "only" | "all";
+
 type FilterState = {
   mentor: string;
   from: string;
   to: string;
   q: string;
+  cancel?: CancelFilter;
 };
 
 function loadFilters(): Partial<FilterState> {
@@ -247,19 +247,7 @@ function saveFilters(f: FilterState) {
   try { sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(f)); } catch { /* ignore */ }
 }
 
-export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [], vocabEnrolledStudentIds = [], attendanceNotes = {}, meritPoints = {}, cancelFilter = "exclude" }: Props) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  function setCancelFilter(next: "exclude" | "only" | "all") {
-    const params = new URLSearchParams(searchParams?.toString() ?? "");
-    params.delete("canceled"); // 구버전 파라미터 정리
-    if (next === "exclude") params.delete("cancel");
-    else params.set("cancel", next);
-    const qs = params.toString();
-    router.push(qs ? `?${qs}` : "?");
-  }
-
+export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [], vocabEnrolledStudentIds = [], attendanceNotes = {}, meritPoints = {} }: Props) {
   const checkedInSet = new Set(checkedInStudentIds);
   const vocabEnrolledSet = new Set(vocabEnrolledStudentIds);
   const today = getToday();
@@ -273,6 +261,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
   const [dateFrom, setDateFrom] = useState<string>(saved.from ?? "");
   const [dateTo, setDateTo] = useState<string>(saved.to ?? "");
   const [query, setQuery] = useState(saved.q ?? "");
+  const [cancelFilter, setCancelFilter] = useState<CancelFilter>(saved.cancel ?? "exclude");
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<Mentoring | null>(null);
@@ -315,11 +304,14 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
 
   // 필터 변경 시 sessionStorage에 저장
   useEffect(() => {
-    saveFilters({ mentor: selectedMentorId, from: dateFrom, to: dateTo, q: query });
-  }, [selectedMentorId, dateFrom, dateTo, query]);
+    saveFilters({ mentor: selectedMentorId, from: dateFrom, to: dateTo, q: query, cancel: cancelFilter });
+  }, [selectedMentorId, dateFrom, dateTo, query, cancelFilter]);
 
   const q = query.trim().toLowerCase();
   const baseFiltered = mentorings.filter((m) => {
+    // 취소 필터 (클라이언트 — URL 이동 없이 즉시 적용)
+    if (cancelFilter === "exclude" && m.status === "CANCELLED") return false;
+    if (cancelFilter === "only" && m.status !== "CANCELLED") return false;
     if (selectedMentorId !== "all" && m.mentor.id !== selectedMentorId) return false;
     const dateStr = toLocalDateString(m.scheduledAt);
     if (dateFrom && dateStr < dateFrom) return false;
