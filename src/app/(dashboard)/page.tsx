@@ -2,6 +2,7 @@ export const revalidate = 30;
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { isFullAccess } from "@/lib/roles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate, formatTime, todayKST } from "@/lib/utils";
 import { IntroBand } from "@/components/ui/intro-band";
@@ -320,7 +321,7 @@ export default async function DashboardPage() {
       {/* §2.12 위젯: 과제 현황 + 원생 증감 */}
       <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-4">
         <AllAssignmentsWidget rows={allAssignments} />
-        <EnrollmentDeltaWidget data={enrollmentDelta} year={year} month={month} />
+        <EnrollmentDeltaWidget data={enrollmentDelta} year={year} month={month} canEdit={isFullAccess(session?.user?.role)} />
       </div>
 
       {/* 오늘 입실 (유지, 하단 전체폭) */}
