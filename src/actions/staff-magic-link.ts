@@ -34,6 +34,7 @@ export async function issueLinkForStaff(userId: string) {
   ).catch(() => {});
 
   revalidatePath("/payroll");
+  revalidatePath("/mentors");
   return {
     id: link.id,
     token: link.token,
@@ -48,6 +49,7 @@ export async function revokeLink(linkId: string) {
 
   await revokeStaffMagicLink(linkId);
   revalidatePath("/payroll");
+  revalidatePath("/mentors");
   return { ok: true };
 }
 
