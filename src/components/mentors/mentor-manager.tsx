@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, ChevronDown, ChevronUp, Pencil } from "lucide-react";
+import { Trash2, Plus, ChevronDown, ChevronUp, Pencil, UserMinus, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TimePickerInput } from "@/components/ui/time-picker";
 import {
@@ -17,9 +17,11 @@ import {
   saveMentorScheduleForMentor,
   deleteMentorScheduleById,
 } from "@/actions/mentors";
+import { StaffStatusDialog } from "@/components/admin/staff-status-dialog";
+import { StaffMagicLinkPanel, type StaffMagicLinkRow } from "@/components/admin/staff-magic-link-panel";
 import type { MentorSchedule, User } from "@/generated/prisma";
 
-type MentorUser = Pick<User, "id" | "name" | "email" | "role">;
+type MentorUser = Pick<User, "id" | "name" | "email" | "role" | "phone" | "status" | "terminationNote" | "terminatedAt">;
 
 const DAYS = [
   { value: 0, label: "일", weekend: true },
@@ -34,15 +36,25 @@ const DAYS = [
 interface Props {
   mentors: MentorUser[];
   schedules: MentorSchedule[];
+  linksByUser: Record<string, StaffMagicLinkRow[]>;
+  currentUserId: string;
 }
 
-export function MentorManager({ mentors: initialMentors, schedules: initialSchedules }: Props) {
+export function MentorManager({ mentors: initialMentors, schedules: initialSchedules, linksByUser, currentUserId }: Props) {
   const [mentors, setMentors] = useState(initialMentors);
   const [schedules, setSchedules] = useState(initialSchedules);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"active" | "terminated">("active");
+  const [statusDialogUser, setStatusDialogUser] = useState<MentorUser | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  const activeCount = mentors.filter((m) => m.status !== "TERMINATED").length;
+  const terminatedCount = mentors.filter((m) => m.status === "TERMINATED").length;
+  const visibleMentors = mentors.filter((m) =>
+    statusFilter === "terminated" ? m.status === "TERMINATED" : m.status !== "TERMINATED",
+  );
 
   // Schedule edit state
   const [editDay, setEditDay] = useState<{ mentorId: string; day: number } | null>(null);
@@ -132,9 +144,34 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
 
   return (
     <div className="space-y-4">
+      {/* 재직 / 퇴사 필터 */}
+      <div className="flex items-center gap-1 rounded-lg border bg-muted/30 p-1 w-fit">
+        {([
+          { key: "active", label: "재직", count: activeCount },
+          { key: "terminated", label: "퇴사", count: terminatedCount },
+        ] as const).map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => { setStatusFilter(tab.key); setEditingId(null); setExpandedId(null); }}
+            className={cn(
+              "px-3 py-1 text-sm rounded-md transition-colors",
+              statusFilter === tab.key ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {tab.label}
+            <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{tab.count}</span>
+          </button>
+        ))}
+      </div>
+
       {/* 멘토 목록 */}
       <div className="space-y-2">
-        {mentors.map((mentor) => {
+        {visibleMentors.length === 0 && (
+          <p className="text-sm text-muted-foreground py-6 text-center">
+            {statusFilter === "terminated" ? "퇴사 처리된 직원이 없습니다" : "재직 중인 직원이 없습니다"}
+          </p>
+        )}
+        {visibleMentors.map((mentor) => {
           const mySchedules = schedules.filter((s) => s.mentorId === mentor.id);
           const scheduleMap = new Map(mySchedules.map((s) => [s.dayOfWeek, s]));
           const isExpanded = expandedId === mentor.id;
@@ -154,8 +191,14 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
                         >
                           {mentor.role === "SUPER_ADMIN" ? "시스템 관리자" : mentor.role === "DIRECTOR" ? "원장" : mentor.role === "HEAD_MENTOR" ? "총괄 멘토" : mentor.role === "STAFF" ? "운영조교" : mentor.role === "CONSULTANT" ? "컨설턴트" : mentor.role === "MANAGER_MENTOR" ? "관리 멘토" : "멘토"}
                         </Badge>
+                        {mentor.status === "TERMINATED" && (
+                          <Badge variant="destructive" className="text-xs">퇴사</Badge>
+                        )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">{mentor.email}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {mentor.email}
+                        {mentor.phone ? ` · ${mentor.phone}` : ""}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -165,6 +208,20 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
+                    {mentor.id !== currentUserId && (
+                      <button
+                        onClick={() => setStatusDialogUser(mentor)}
+                        title={mentor.status === "TERMINATED" ? "활성 복귀" : "퇴사 처리"}
+                        className={cn(
+                          "p-1.5 rounded hover:bg-accent transition-colors",
+                          mentor.status === "TERMINATED"
+                            ? "text-muted-foreground hover:text-ok"
+                            : "text-muted-foreground hover:text-destructive",
+                        )}
+                      >
+                        {mentor.status === "TERMINATED" ? <UserCheck className="h-3.5 w-3.5" /> : <UserMinus className="h-3.5 w-3.5" />}
+                      </button>
+                    )}
                     <button
                       onClick={() => handleDeleteMentor(mentor.id, mentor.name)}
                       disabled={isPending || mentor.role === "DIRECTOR" || mentor.role === "SUPER_ADMIN"}
@@ -208,6 +265,10 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
                           <option value="DIRECTOR">원장</option>
                           <option value="SUPER_ADMIN">시스템 관리자</option>
                         </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">전화번호 <span className="text-muted-foreground">(매직링크 본인확인용)</span></Label>
+                        <Input name="phone" type="tel" defaultValue={mentor.phone ?? ""} placeholder="010-1234-5678" className="h-8 text-sm" />
                       </div>
                     </div>
                     <div className="flex gap-2">
@@ -272,6 +333,23 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
                       </tbody>
                     </table>
                   </div>
+
+                  {/* 순찰 매직링크 (퇴사자 제외) */}
+                  {mentor.status !== "TERMINATED" && (
+                    <div className="mt-4 border-t pt-4">
+                      {mentor.phone ? (
+                        <StaffMagicLinkPanel
+                          userId={mentor.id}
+                          userName={mentor.name}
+                          links={linksByUser[mentor.id] ?? []}
+                        />
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          순찰 매직링크를 발급하려면 먼저 전화번호를 등록하세요 (본인 확인용).
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               )}
             </Card>
@@ -279,8 +357,8 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
         })}
       </div>
 
-      {/* 직원 추가 */}
-      {showAddForm ? (
+      {/* 직원 추가 (재직 탭에서만) */}
+      {statusFilter === "active" && (showAddForm ? (
         <Card>
           <CardHeader className="py-3 px-4">
             <CardTitle className="text-sm">직원 추가</CardTitle>
@@ -303,9 +381,15 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
                   </select>
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">이메일 *</Label>
-                <Input name="email" type="email" required className="h-8 text-sm" placeholder="staff@example.com" />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">이메일 *</Label>
+                  <Input name="email" type="email" required className="h-8 text-sm" placeholder="staff@example.com" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">전화번호</Label>
+                  <Input name="phone" type="tel" className="h-8 text-sm" placeholder="010-1234-5678" />
+                </div>
               </div>
               <div className="flex gap-2">
                 <Button type="submit" size="sm" disabled={isPending}>등록</Button>
@@ -319,6 +403,20 @@ export function MentorManager({ mentors: initialMentors, schedules: initialSched
           <Plus className="h-4 w-4 mr-1" />
           직원 추가
         </Button>
+      ))}
+
+      {statusDialogUser && (
+        <StaffStatusDialog
+          open={!!statusDialogUser}
+          onOpenChange={(open) => { if (!open) setStatusDialogUser(null); }}
+          user={{
+            id: statusDialogUser.id,
+            name: statusDialogUser.name,
+            status: statusDialogUser.status,
+            terminationNote: statusDialogUser.terminationNote,
+          }}
+          onSuccess={() => { setStatusDialogUser(null); window.location.reload(); }}
+        />
       )}
     </div>
   );
