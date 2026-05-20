@@ -54,6 +54,7 @@ export default async function MentoringDetailPage({
         },
       },
       mentor: { select: { id: true, name: true } },
+      photos: { orderBy: { uploadedAt: "asc" } },
     },
   });
 
@@ -185,6 +186,7 @@ export default async function MentoringDetailPage({
                 studentName={s.name}
                 parentEmail={s.parentEmail}
                 previousMentoring={previousMentoring}
+                photos={mentoring.photos}
                 backUrl={backUrl}
               />
             </CardContent>
