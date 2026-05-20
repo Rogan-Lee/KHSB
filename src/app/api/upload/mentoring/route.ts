@@ -34,7 +34,7 @@ function safeName(filename: string): string {
  * - mentoringId: Mentoring.id
  * - tag: "KDA" | "EXTRA" | "FREE"
  *
- * 응답: { url, mimeType, fileName }
+ * 응답: { url, mimeType, fileName, sizeBytes }
  *
  * 인증: 스태프 (SUPER_ADMIN/DIRECTOR/HEAD_MENTOR/MENTOR/STAFF)
  */
@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
       url: blob.url,
       mimeType: file.type,
       fileName: file.name,
+      sizeBytes: file.size,
     });
   } catch (err) {
     console.error("[upload/mentoring] blob put failed", err);
