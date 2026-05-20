@@ -23,7 +23,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { MoreHorizontal, Search, Trash2, X, Link2, ExternalLink, CheckCircle2, ChevronDown, ChevronRight, Send, Loader2, Filter } from "lucide-react";
+import { MoreHorizontal, Search, Trash2, X, Link2, ExternalLink, CheckCircle2, ChevronDown, ChevronRight, Send, Loader2, Filter, Camera } from "lucide-react";
 import { ParentReportInlinePanel } from "./parent-report-inline-panel";
 import { DatePicker } from "@/components/ui/date-picker";
 import { updateMentoringStatus, updateMentoringNotes, deleteMentoring, bulkDeleteMentorings } from "@/actions/mentoring";
@@ -53,6 +53,8 @@ type Mentoring = {
   mentor: { id: string; name: string };
   /** 이 멘토링에 연결된 학부모 리포트 (최신 1건) */
   parentReports?: { id: string; token: string; createdAt: Date }[];
+  /** 연결된 사진(KDA 등) 개수 — 리스트에서 업로드 여부 표시용 */
+  _count?: { photos: number } | null;
 };
 
 type Mentor = { id: string; name: string };
@@ -626,6 +628,26 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                           {(() => {
                             const p = meritPoints[m.student.id];
                             return p ? <MeritBadge positive={p.positive} negative={p.negative} /> : null;
+                          })()}
+                          {/* 사진 업로드 여부 표시 (KDA 등) */}
+                          {(() => {
+                            const photoCount = m._count?.photos ?? 0;
+                            return photoCount > 0 ? (
+                              <span
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-200 shrink-0"
+                                title={`사진 ${photoCount}장 업로드됨`}
+                              >
+                                <Camera className="h-2.5 w-2.5" />
+                                {photoCount}
+                              </span>
+                            ) : (
+                              <span
+                                className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] text-muted-foreground/50 border border-dashed border-border shrink-0"
+                                title="사진 없음"
+                              >
+                                <Camera className="h-2.5 w-2.5" />
+                              </span>
+                            );
                           })()}
                           {/* 입퇴실 시간 */}
                           {(() => {
