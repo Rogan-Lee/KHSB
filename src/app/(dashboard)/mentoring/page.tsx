@@ -49,6 +49,7 @@ export default async function MentoringPage({
           take: 1,
           select: { id: true, token: true, createdAt: true },
         },
+        _count: { select: { photos: true } },
       },
       orderBy: { scheduledAt: "desc" },
       take: 200,
