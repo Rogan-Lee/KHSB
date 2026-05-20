@@ -3,8 +3,10 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { del, put } from "@vercel/blob";
 import { z } from "zod";
 import { MentoringStatus } from "@/generated/prisma";
+import type { MentoringPhotoTag } from "@/generated/prisma";
 import { todayKST, nowKSTTimeString } from "@/lib/utils";
 import { requireOwnerOrFullAccess, requireStaff } from "@/lib/roles";
 
@@ -503,4 +505,205 @@ export async function quickStartMentoring(studentId: string, mentorId: string): 
 
   revalidatePath("/mentoring");
   return mentoring.id;
+}
+
+// ──────────────────────────────────────────────────────
+// 멘토링 첨부 사진 (Sprint 5 PR 5.1 오프라인 이식)
+// KDA(핵심 자료) / EXTRA(추가 자료) / FREE(자유) 3종 태그.
+// 실제 파일 업로드는 /api/upload/mentoring 라우트에서 처리 후
+// 반환된 url/mimeType 을 이 액션으로 DB 에 기록한다.
+// ──────────────────────────────────────────────────────
+
+export async function attachMentoringPhoto(
+  mentoringId: string,
+  data: {
+    url: string;
+    mimeType: string;
+    tag: MentoringPhotoTag;
+    caption?: string | null;
+    thumbnailUrl?: string | null;
+  },
+) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  const target = await prisma.mentoring.findUnique({
+    where: { id: mentoringId },
+    select: { id: true },
+  });
+  if (!target) throw new Error("멘토링 기록을 찾을 수 없습니다");
+
+  const created = await prisma.mentoringPhoto.create({
+    data: {
+      mentoringId,
+      url: data.url,
+      thumbnailUrl: data.thumbnailUrl ?? null,
+      mimeType: data.mimeType,
+      tag: data.tag,
+      caption: data.caption?.trim() ? data.caption.trim() : null,
+      uploadedById: session!.user.id,
+    },
+  });
+
+  revalidatePath(`/mentoring/${mentoringId}`);
+  return created;
+}
+
+export async function deleteMentoringPhoto(id: string) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  const photo = await prisma.mentoringPhoto.findUnique({ where: { id } });
+  if (!photo) throw new Error("사진을 찾을 수 없습니다");
+
+  // Blob 삭제 시도 (실패해도 DB 는 삭제)
+  try {
+    const urls = [photo.url, photo.thumbnailUrl].filter(Boolean) as string[];
+    if (urls.length > 0) {
+      await del(urls, { token: process.env.BLOB_READ_WRITE_TOKEN });
+    }
+  } catch {
+    // Blob 삭제 실패는 silent — DB 정리 우선
+  }
+
+  await prisma.mentoringPhoto.delete({ where: { id } });
+
+  revalidatePath(`/mentoring/${photo.mentoringId}`);
+  return { ok: true };
+}
+
+export async function listMentoringPhotos(mentoringId: string) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  return prisma.mentoringPhoto.findMany({
+    where: { mentoringId },
+    orderBy: { uploadedAt: "asc" },
+  });
+}
+
+// ──────────────────────────────────────────────────────
+// 멘토링 양측 서명 (Sprint 5 PR 5.2 오프라인 이식)
+// 학생/멘토 서명은 PNG dataURL 로 받아 Vercel Blob 에 PNG 로 저장.
+// 양쪽 모두 set 되는 순간 signedAt 도 동기 설정.
+// ──────────────────────────────────────────────────────
+
+export async function setMentoringSignature(
+  mentoringId: string,
+  params: { which: "student" | "mentor"; dataUrl: string },
+) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  const target = await prisma.mentoring.findUnique({
+    where: { id: mentoringId },
+    select: {
+      id: true,
+      studentSignatureUrl: true,
+      mentorSignatureUrl: true,
+    },
+  });
+  if (!target) throw new Error("멘토링 기록을 찾을 수 없습니다");
+
+  // dataURL → Buffer
+  const match = params.dataUrl.match(/^data:image\/png;base64,(.+)$/);
+  if (!match) throw new Error("PNG dataURL 형식이 올바르지 않습니다");
+  const buffer = Buffer.from(match[1], "base64");
+  if (buffer.byteLength === 0) {
+    throw new Error("서명 데이터가 비어 있습니다");
+  }
+  if (buffer.byteLength > 2 * 1024 * 1024) {
+    throw new Error("서명 이미지가 너무 큽니다 (최대 2MB)");
+  }
+
+  const blobKey = `mentoring/${mentoringId}/signature-${params.which}-${Date.now()}.png`;
+  const blob = await put(blobKey, buffer, {
+    access: "public",
+    addRandomSuffix: false,
+    token: process.env.BLOB_READ_WRITE_TOKEN,
+    contentType: "image/png",
+  });
+
+  // 기존 서명 URL 있으면 Blob 정리 (best-effort)
+  const previousUrl =
+    params.which === "student"
+      ? target.studentSignatureUrl
+      : target.mentorSignatureUrl;
+  if (previousUrl) {
+    try {
+      await del(previousUrl, { token: process.env.BLOB_READ_WRITE_TOKEN });
+    } catch {
+      // silent
+    }
+  }
+
+  const nextStudent =
+    params.which === "student" ? blob.url : target.studentSignatureUrl;
+  const nextMentor =
+    params.which === "mentor" ? blob.url : target.mentorSignatureUrl;
+  const bothSigned = !!nextStudent && !!nextMentor;
+
+  const updated = await prisma.mentoring.update({
+    where: { id: mentoringId },
+    data: {
+      studentSignatureUrl: nextStudent,
+      mentorSignatureUrl: nextMentor,
+      signedAt: bothSigned ? new Date() : null,
+    },
+    select: {
+      studentSignatureUrl: true,
+      mentorSignatureUrl: true,
+      signedAt: true,
+    },
+  });
+
+  revalidatePath(`/mentoring/${mentoringId}`);
+  return updated;
+}
+
+export async function clearMentoringSignature(
+  mentoringId: string,
+  which: "student" | "mentor",
+) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  const target = await prisma.mentoring.findUnique({
+    where: { id: mentoringId },
+    select: {
+      id: true,
+      studentSignatureUrl: true,
+      mentorSignatureUrl: true,
+    },
+  });
+  if (!target) throw new Error("멘토링 기록을 찾을 수 없습니다");
+
+  const previousUrl =
+    which === "student" ? target.studentSignatureUrl : target.mentorSignatureUrl;
+
+  if (previousUrl) {
+    try {
+      await del(previousUrl, { token: process.env.BLOB_READ_WRITE_TOKEN });
+    } catch {
+      // silent — Blob 삭제 실패해도 DB 정리는 진행
+    }
+  }
+
+  const updated = await prisma.mentoring.update({
+    where: { id: mentoringId },
+    data: {
+      ...(which === "student"
+        ? { studentSignatureUrl: null }
+        : { mentorSignatureUrl: null }),
+      signedAt: null, // 한쪽이 비면 signedAt 도 무효
+    },
+    select: {
+      studentSignatureUrl: true,
+      mentorSignatureUrl: true,
+      signedAt: true,
+    },
+  });
+
+  revalidatePath(`/mentoring/${mentoringId}`);
+  return updated;
 }
