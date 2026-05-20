@@ -10,6 +10,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
+} from "@/components/ui/sheet";
 import { createTodo, updateTodo, deleteTodo, toggleTodo, getTodoVersions } from "@/actions/todos";
 import { ChecklistManager } from "@/components/handover/checklist-manager";
 
@@ -105,16 +108,23 @@ const TARGET_ROLE_LABEL: Record<"ALL" | "STAFF" | "MENTOR", string> = {
 };
 
 function TodoForm({
-  initial, staffList, onDone, onCancel,
+  initial, initialCategory, staffList, onDone, onCancel,
 }: {
   initial?: Todo;
+  /** 새 할 일 폼에서 카테고리 prefill (예: "루틴 추가" → "루틴") */
+  initialCategory?: string;
   staffList: Staff[];
   onDone: (todo: Todo) => void;
   onCancel: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
 
-  const draftKey = initial ? `todo-form-edit-${initial.id}` : "todo-form-new";
+  // category prefill 이 있는 새 폼은 별도 draft 키로 일반 새 폼과 분리.
+  const draftKey = initial
+    ? `todo-form-edit-${initial.id}`
+    : initialCategory
+      ? `todo-form-new-${initialCategory}`
+      : "todo-form-new";
   const initialTargetRole: "ALL" | "STAFF" | "MENTOR" =
     initial?.targetRole === "MENTOR" || initial?.targetRole === "STAFF"
       ? initial.targetRole
@@ -126,7 +136,7 @@ function TodoForm({
     priority: initial?.priority ?? "NORMAL",
     assigneeId: initial?.assigneeId ?? "",
     assigneeName: initial?.assigneeName ?? "",
-    category: initial?.category ?? "",
+    category: initial?.category ?? initialCategory ?? "",
     targetRole: initialTargetRole,
   });
 
@@ -371,7 +381,6 @@ function TodoCard({
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 const ROLE_FILTER_STORAGE_KEY = "todo-role-filter";
-const ROUTINE_EXPANDED_STORAGE_KEY = "todos-routine-expanded";
 const ROUTINE_CATEGORY = "루틴";
 type RoleFilter = "ALL" | "STAFF" | "MENTOR";
 
@@ -383,33 +392,23 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
   const [todos, setTodos] = useState<Todo[]>(initialTodos);
   const [isPending, startTransition] = useTransition();
   const [showForm, setShowForm] = useState(false);
+  // 새 폼의 카테고리 prefill ("루틴 추가" → "루틴", 일반 "새 할 일" → undefined)
+  const [formCategory, setFormCategory] = useState<string | undefined>(undefined);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(true);
   const [historyTodo, setHistoryTodo] = useState<Todo | null>(null);
   // 대상 역할 필터 (전체 / 운영 / 멘토). localStorage 영속.
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
-  // 루틴 섹션 접기/펴기 상태 — localStorage 영속 (기본 펴짐).
-  const [routineExpanded, setRoutineExpanded] = useState<boolean>(true);
   useEffect(() => {
     try {
       const saved = localStorage.getItem(ROLE_FILTER_STORAGE_KEY);
       if (isRoleFilter(saved)) setRoleFilter(saved);
-      const savedRoutine = localStorage.getItem(ROUTINE_EXPANDED_STORAGE_KEY);
-      if (savedRoutine === "0") setRoutineExpanded(false);
-      else if (savedRoutine === "1") setRoutineExpanded(true);
     } catch { /* ignore */ }
   }, []);
   function changeRoleFilter(next: RoleFilter) {
     setRoleFilter(next);
     try { localStorage.setItem(ROLE_FILTER_STORAGE_KEY, next); } catch { /* ignore */ }
-  }
-  function toggleRoutineExpanded() {
-    setRoutineExpanded((prev) => {
-      const next = !prev;
-      try { localStorage.setItem(ROUTINE_EXPANDED_STORAGE_KEY, next ? "1" : "0"); } catch { /* ignore */ }
-      return next;
-    });
   }
 
   // 클라이언트 필터: null/legacy 는 항상 매치, ALL 도 항상 매치
@@ -457,204 +456,231 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
     } else {
       setTodos((prev) => [todo, ...prev]);
       setShowForm(false);
+      setFormCategory(undefined);
     }
   }
 
+  // 일반 새 할 일 (카테고리 prefill 없음)
+  function openNewForm() {
+    setEditingTodo(null);
+    setFormCategory(undefined);
+    setShowForm(true);
+  }
+  // 루틴 추가 (category="루틴" prefill)
+  function openRoutineForm() {
+    setEditingTodo(null);
+    setFormCategory(ROUTINE_CATEGORY);
+    setShowForm(true);
+  }
+  function closeForm() {
+    setShowForm(false);
+    setEditingTodo(null);
+    setFormCategory(undefined);
+  }
+  function startEdit(t: Todo) {
+    setEditingTodo(t);
+    setShowForm(false);
+    setFormCategory(undefined);
+  }
+
+  const isAdmin = currentUserRole === "DIRECTOR" || currentUserRole === "SUPER_ADMIN";
+
+  // 삭제 확인 카드 또는 일반 TodoCard 렌더 (루틴/미완료/완료 공통)
+  function renderTodoRow(todo: Todo) {
+    if (deleteConfirmId === todo.id) {
+      return (
+        <div key={todo.id} className="rounded-xl border border-red-200 bg-red-50/60 p-3 flex items-center justify-between gap-2">
+          <p className="text-sm text-red-700">삭제하시겠습니까?</p>
+          <div className="flex gap-2">
+            <Button variant="destructive" size="sm" onClick={() => handleDelete(todo.id)} disabled={isPending} className="h-7 text-xs">삭제</Button>
+            <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)} className="h-7 text-xs">취소</Button>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <TodoCard
+        key={todo.id}
+        todo={todo}
+        currentUserId={currentUserId}
+        currentUserRole={currentUserRole}
+        isPending={isPending}
+        onToggle={handleToggle}
+        onEdit={startEdit}
+        onDelete={setDeleteConfirmId}
+        onShowHistory={setHistoryTodo}
+      />
+    );
+  }
+
   return (
-    <div className="space-y-4">
-      {/* 헤더 + KPI */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">투두리스트</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            루틴 {routineTodos.length}개 · 미완료 {pending.length}개 · 완료 {completed.length}개
-            {overdue.length > 0 && <span className="text-red-600 font-semibold ml-2">· 기한 초과 {overdue.length}개</span>}
-          </p>
-        </div>
-        <Button size="sm" onClick={() => { setShowForm(true); setEditingTodo(null); }} className="gap-1.5 h-8">
-          <Plus className="h-3.5 w-3.5" />새 할 일
-        </Button>
-      </div>
-
-      {/* KPI chips */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className={cn("rounded-xl border px-3 py-2.5 flex items-center gap-2", overdue.length > 0 ? "bg-red-50 border-red-200 text-red-700" : "bg-muted border-border text-muted-foreground")}>
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          <div><p className="text-lg font-bold leading-none">{overdue.length}</p><p className="text-[10px] mt-0.5 opacity-70">기한 초과</p></div>
-        </div>
-        <div className="rounded-xl border bg-blue-50 border-blue-200 text-blue-700 px-3 py-2.5 flex items-center gap-2">
-          <Square className="h-3.5 w-3.5 shrink-0" />
-          <div><p className="text-lg font-bold leading-none">{pending.length}</p><p className="text-[10px] mt-0.5 opacity-70">진행 중</p></div>
-        </div>
-        <div className="rounded-xl border bg-green-50 border-green-200 text-green-700 px-3 py-2.5 flex items-center gap-2">
-          <CheckSquare className="h-3.5 w-3.5 shrink-0" />
-          <div><p className="text-lg font-bold leading-none">{completed.length}</p><p className="text-[10px] mt-0.5 opacity-70">완료</p></div>
-        </div>
-      </div>
-
-      {/* 대상 역할 필터 pill */}
-      <div className="flex items-center gap-1.5" role="tablist" aria-label="대상 역할 필터">
-        {(["ALL", "STAFF", "MENTOR"] as const).map((r) => {
-          const label = r === "ALL" ? "전체" : r === "STAFF" ? "운영" : "멘토";
-          const active = roleFilter === r;
-          return (
-            <button
-              key={r}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => changeRoleFilter(r)}
-              className={cn(
-                "text-xs px-2.5 py-1 rounded-full border transition-colors",
-                active
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background text-muted-foreground border-border hover:bg-muted"
-              )}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 폼 (추가 or 수정) */}
-      {(showForm || editingTodo) && (
-        <TodoForm
-          initial={editingTodo ?? undefined}
-          staffList={staffList}
-          onDone={handleFormDone}
-          onCancel={() => { setShowForm(false); setEditingTodo(null); }}
-        />
-      )}
-
-      {/* 루틴 섹션 — 최상단 핀 (Sprint 6 PR 6.2). 접기/펴기 LocalStorage 영속. */}
-      {routineTodos.length > 0 && (
+    <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4 items-start">
+      {/* ── 좌: 루틴 사이드바 ─────────────────────────────────────────── */}
+      <aside className="lg:sticky lg:top-4 space-y-3">
         <section
           aria-label="루틴 할 일"
-          className="rounded-xl border bg-amber-50/40 border-amber-200/70"
+          className="rounded-xl border bg-amber-50/40 border-amber-200/70 overflow-hidden"
         >
-          <button
-            type="button"
-            onClick={toggleRoutineExpanded}
-            aria-expanded={routineExpanded}
-            className="w-full flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-50 rounded-t-xl transition-colors"
-          >
-            {routineExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-            루틴
+          {/* 헤더 "루틴 (N)" */}
+          <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-amber-200/60">
+            <span className="text-sm font-semibold text-amber-900">루틴</span>
             <span className="text-[11px] font-normal text-amber-700/80">{routineTodos.length}개</span>
-          </button>
-          {routineExpanded && (
-            <div className="space-y-2 p-2 pt-0">
-              {routineTodos.map((todo) =>
-                deleteConfirmId === todo.id ? (
-                  <div key={todo.id} className="rounded-xl border border-red-200 bg-red-50/60 p-3 flex items-center justify-between gap-2">
-                    <p className="text-sm text-red-700">삭제하시겠습니까?</p>
-                    <div className="flex gap-2">
-                      <Button variant="destructive" size="sm" onClick={() => handleDelete(todo.id)} disabled={isPending} className="h-7 text-xs">삭제</Button>
-                      <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)} className="h-7 text-xs">취소</Button>
+          </div>
+
+          {/* 루틴 리스트 / 빈 상태 */}
+          <div className="p-2 space-y-2">
+            {routineTodos.length === 0 ? (
+              <div className="text-center py-6 px-2 text-amber-800/70">
+                <p className="text-xs">등록된 루틴이 없습니다</p>
+              </div>
+            ) : (
+              routineTodos.map(renderTodoRow)
+            )}
+
+            {/* + 루틴 추가 */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openRoutineForm}
+              className="w-full h-8 text-xs gap-1 border-amber-300/70 bg-amber-50/60 text-amber-900 hover:bg-amber-100/60"
+            >
+              <Plus className="h-3.5 w-3.5" />루틴 추가
+            </Button>
+          </div>
+
+          {/* 루틴 관리 (관리자 전용 — Sheet) */}
+          {initialTemplates !== undefined && (
+            <div className="border-t border-amber-200/60 p-2">
+              {isAdmin ? (
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium text-amber-900/80 hover:bg-amber-100/60 transition-colors"
+                    >
+                      <Settings2 className="h-3.5 w-3.5" />루틴 관리
+                    </button>
+                  </SheetTrigger>
+                  <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+                    <SheetHeader>
+                      <SheetTitle>루틴 관리</SheetTitle>
+                    </SheetHeader>
+                    <div className="mt-4">
+                      <ChecklistManager initialTemplates={initialTemplates} />
                     </div>
-                  </div>
-                ) : (
-                  <TodoCard
-                    key={todo.id}
-                    todo={todo}
-                    currentUserId={currentUserId}
-                    currentUserRole={currentUserRole}
-                    isPending={isPending}
-                    onToggle={handleToggle}
-                    onEdit={(t) => { setEditingTodo(t); setShowForm(false); }}
-                    onDelete={setDeleteConfirmId}
-                    onShowHistory={setHistoryTodo}
-                  />
-                )
+                  </SheetContent>
+                </Sheet>
+              ) : (
+                <p className="text-[11px] text-amber-800/60 text-center py-1">
+                  루틴 관리는 관리자만 가능합니다.
+                </p>
               )}
             </div>
           )}
         </section>
-      )}
+      </aside>
 
-      {/* 미완료 목록 */}
-      <div className="space-y-2">
-        {pending.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground rounded-xl border bg-card">
-            <CheckSquare className="h-10 w-10 mx-auto mb-2 opacity-20" />
-            <p className="text-sm">모든 할 일을 완료했습니다</p>
+      {/* ── 우: 할 일 메인 ────────────────────────────────────────────── */}
+      <div className="space-y-4 min-w-0">
+        {/* 헤더 + 새 할 일 */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold">투두리스트</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              미완료 {pending.length}개 · 완료 {completed.length}개
+              {overdue.length > 0 && <span className="text-red-600 font-semibold ml-2">· 기한 초과 {overdue.length}개</span>}
+            </p>
           </div>
-        ) : (
-          pending.map((todo) =>
-            deleteConfirmId === todo.id ? (
-              <div key={todo.id} className="rounded-xl border border-red-200 bg-red-50/60 p-3 flex items-center justify-between gap-2">
-                <p className="text-sm text-red-700">삭제하시겠습니까?</p>
-                <div className="flex gap-2">
-                  <Button variant="destructive" size="sm" onClick={() => handleDelete(todo.id)} disabled={isPending} className="h-7 text-xs">삭제</Button>
-                  <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)} className="h-7 text-xs">취소</Button>
-                </div>
+          <Button size="sm" onClick={openNewForm} className="gap-1.5 h-8">
+            <Plus className="h-3.5 w-3.5" />새 할 일
+          </Button>
+        </div>
+
+        {/* KPI chips */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className={cn("rounded-xl border px-3 py-2.5 flex items-center gap-2", overdue.length > 0 ? "bg-red-50 border-red-200 text-red-700" : "bg-muted border-border text-muted-foreground")}>
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <div><p className="text-lg font-bold leading-none">{overdue.length}</p><p className="text-[10px] mt-0.5 opacity-70">기한 초과</p></div>
+          </div>
+          <div className="rounded-xl border bg-blue-50 border-blue-200 text-blue-700 px-3 py-2.5 flex items-center gap-2">
+            <Square className="h-3.5 w-3.5 shrink-0" />
+            <div><p className="text-lg font-bold leading-none">{pending.length}</p><p className="text-[10px] mt-0.5 opacity-70">진행 중</p></div>
+          </div>
+          <div className="rounded-xl border bg-green-50 border-green-200 text-green-700 px-3 py-2.5 flex items-center gap-2">
+            <CheckSquare className="h-3.5 w-3.5 shrink-0" />
+            <div><p className="text-lg font-bold leading-none">{completed.length}</p><p className="text-[10px] mt-0.5 opacity-70">완료</p></div>
+          </div>
+        </div>
+
+        {/* 대상 역할 필터 pill */}
+        <div className="flex items-center gap-1.5" role="tablist" aria-label="대상 역할 필터">
+          {(["ALL", "STAFF", "MENTOR"] as const).map((r) => {
+            const label = r === "ALL" ? "전체" : r === "STAFF" ? "운영" : "멘토";
+            const active = roleFilter === r;
+            return (
+              <button
+                key={r}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => changeRoleFilter(r)}
+                className={cn(
+                  "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                  active
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-muted-foreground border-border hover:bg-muted"
+                )}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 폼 (추가 or 수정) — 우측 메인 상단에 통일 */}
+        {(showForm || editingTodo) && (
+          <TodoForm
+            initial={editingTodo ?? undefined}
+            initialCategory={editingTodo ? undefined : formCategory}
+            staffList={staffList}
+            onDone={handleFormDone}
+            onCancel={closeForm}
+          />
+        )}
+
+        {/* 진행 중 (미완료) 목록 */}
+        <div className="space-y-2">
+          {pending.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground rounded-xl border bg-card">
+              <CheckSquare className="h-10 w-10 mx-auto mb-2 opacity-20" />
+              <p className="text-sm">모든 할 일을 완료했습니다</p>
+            </div>
+          ) : (
+            pending.map(renderTodoRow)
+          )}
+        </div>
+
+        {/* 완료 목록 (접을 수 있음) */}
+        {completed.length > 0 && (
+          <div className="space-y-2">
+            <button
+              onClick={() => setShowCompleted((p) => !p)}
+              className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
+            >
+              {showCompleted ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              완료됨 {completed.length}개
+            </button>
+            {showCompleted && (
+              <div className="space-y-2">
+                {completed.map(renderTodoRow)}
               </div>
-            ) : (
-              <TodoCard
-                key={todo.id}
-                todo={todo}
-                currentUserId={currentUserId}
-                currentUserRole={currentUserRole}
-                isPending={isPending}
-                onToggle={handleToggle}
-                onEdit={(t) => { setEditingTodo(t); setShowForm(false); }}
-                onDelete={setDeleteConfirmId}
-                onShowHistory={setHistoryTodo}
-              />
-            )
-          )
+            )}
+          </div>
         )}
       </div>
 
-      {/* 완료 목록 (접을 수 있음) */}
-      {completed.length > 0 && (
-        <div className="space-y-2">
-          <button
-            onClick={() => setShowCompleted((p) => !p)}
-            className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
-          >
-            {showCompleted ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            완료됨 {completed.length}개
-          </button>
-          {showCompleted && (
-            <div className="space-y-2">
-              {completed.map((todo) => (
-                <TodoCard
-                  key={todo.id}
-                  todo={todo}
-                  currentUserId={currentUserId}
-                  currentUserRole={currentUserRole}
-                  isPending={isPending}
-                  onToggle={handleToggle}
-                  onEdit={(t) => { setEditingTodo(t); setShowForm(false); }}
-                  onDelete={setDeleteConfirmId}
-                  onShowHistory={setHistoryTodo}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
       {historyTodo && (
         <VersionsDialog todo={historyTodo} onClose={() => setHistoryTodo(null)} />
-      )}
-
-      {/* 루틴 관리 (관리자 전용) */}
-      {initialTemplates !== undefined && (
-        <div className="rounded-xl border bg-card overflow-hidden mt-6">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
-            <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-sm font-semibold">루틴 관리</span>
-          </div>
-          <div className="p-4">
-            {currentUserRole === "DIRECTOR" || currentUserRole === "SUPER_ADMIN" ? (
-              <ChecklistManager initialTemplates={initialTemplates} />
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">루틴 관리는 관리자만 가능합니다.</p>
-            )}
-          </div>
-        </div>
       )}
     </div>
   );
