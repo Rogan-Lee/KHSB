@@ -21,7 +21,7 @@ export const revalidate = 10;
 export default async function MentoringPage({
   searchParams,
 }: {
-  searchParams: Promise<{ canceled?: string }>;
+  searchParams: Promise<{ canceled?: string; cancel?: string }>;
 }) {
   const session = await auth();
   const isDirector = isFullAccess(session?.user?.role);
@@ -29,9 +29,17 @@ export default async function MentoringPage({
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
-  // ?canceled=1 일 때만 CANCELLED 세션 포함, 기본은 숨김 (Sprint 5 PR 5.3)
+  // 취소 필터 3-상태: exclude(기본, 취소 제외) | only(취소만) | all(전체)
+  // 구버전 ?canceled=1 호환 → all 로 매핑
   const sp = await searchParams;
-  const includeCanceled = sp?.canceled === "1";
+  const cancelFilter: "exclude" | "only" | "all" =
+    sp?.cancel === "only" ? "only" : sp?.cancel === "all" || sp?.canceled === "1" ? "all" : "exclude";
+  const cancelWhere =
+    cancelFilter === "only"
+      ? { status: "CANCELLED" as const }
+      : cancelFilter === "all"
+        ? undefined
+        : { status: { not: "CANCELLED" as const } };
 
   // 이달 상벌점 집계 기간 (KST 월 시작/종료)
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -40,7 +48,7 @@ export default async function MentoringPage({
   // 모든 쿼리를 병렬 실행
   const [mentorings, todaySlots, mentors, vocabEnrolled, announcement, todayAttendance, meritAgg, reportRows] = await Promise.all([
     prisma.mentoring.findMany({
-      where: includeCanceled ? undefined : { status: { not: "CANCELLED" } },
+      where: cancelWhere,
       include: {
         student: { select: { id: true, name: true, grade: true, seat: true, vocabTestDate: true, schedules: { select: { dayOfWeek: true, startTime: true, endTime: true } } } },
         mentor: { select: { id: true, name: true } },
@@ -153,7 +161,7 @@ export default async function MentoringPage({
               </Link>
             </CardHeader>
             <CardContent>
-              <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} vocabEnrolledStudentIds={vocabEnrolledIds} attendanceNotes={attendanceNotesMap} meritPoints={meritPointsByStudent} includeCanceled={includeCanceled} />
+              <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} vocabEnrolledStudentIds={vocabEnrolledIds} attendanceNotes={attendanceNotesMap} meritPoints={meritPointsByStudent} cancelFilter={cancelFilter} />
             </CardContent>
           </Card>
         </TabsContent>
