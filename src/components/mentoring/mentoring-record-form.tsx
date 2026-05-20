@@ -14,17 +14,13 @@ import {
   updateMentoring,
   sendFeedbackEmail,
   updateMentoringStatus,
-  setMentoringSignature,
-  clearMentoringSignature,
 } from "@/actions/mentoring";
 import { toast } from "sonner";
-import type { Mentoring, MentoringPhoto } from "@/generated/prisma";
+import type { Mentoring, Photo } from "@/generated/prisma";
 import { useRouter } from "next/navigation";
-import { Mail, CheckCircle2, ChevronDown, ChevronUp, History, Link2, Camera, PenLine } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Mail, CheckCircle2, ChevronDown, ChevronUp, History, Link2, Camera } from "lucide-react";
 import { ParentReportDialog } from "./parent-report-dialog";
 import { MentoringPhotoUploader } from "./mentoring-photo-uploader";
-import { SignaturePad } from "./signature-pad";
 import { useDraft } from "@/hooks/use-draft";
 
 export type PreviousMentoring = {
@@ -45,7 +41,7 @@ interface Props {
   studentName: string;
   parentEmail?: string | null;
   previousMentoring?: PreviousMentoring | null;
-  photos?: MentoringPhoto[];
+  photos?: Photo[];
   backUrl?: string;
 }
 
@@ -149,26 +145,6 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
   const [isPending, startTransition] = useTransition();
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-
-  async function handleSignatureSave(which: "student" | "mentor", dataUrl: string) {
-    try {
-      await setMentoringSignature(mentoring.id, { which, dataUrl });
-      toast.success(which === "student" ? "학생 서명 저장됨" : "멘토 서명 저장됨");
-      router.refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "서명 저장 실패");
-    }
-  }
-
-  async function handleSignatureClear(which: "student" | "mentor") {
-    try {
-      await clearMentoringSignature(mentoring.id, which);
-      toast.success("서명이 삭제되었습니다");
-      router.refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "서명 삭제 실패");
-    }
-  }
 
   const [draft, setDraft, clearDraft] = useDraft<MentoringDraft>(
     `mentoring-record-${mentoring.id}`,
@@ -365,36 +341,6 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
             <Label className="mb-0">첨부 사진</Label>
           </div>
           <MentoringPhotoUploader mentoringId={mentoring.id} existing={photos} />
-        </div>
-
-        {/* 양측 서명 (학생 / 멘토) — Sprint 5 PR 5.2 이식 */}
-        <div className="border-t pt-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <PenLine className="h-4 w-4 text-muted-foreground" />
-            <Label className="mb-0">양측 서명</Label>
-            {mentoring.signedAt && (
-              <span className="flex items-center gap-1 text-xs text-green-600">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                {new Date(mentoring.signedAt).toLocaleDateString("ko-KR")} 서명 완료
-              </span>
-            )}
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <SignaturePad
-              label="학생 서명"
-              initialDataUrl={mentoring.studentSignatureUrl}
-              onSave={(d) => handleSignatureSave("student", d)}
-              onClear={() => handleSignatureClear("student")}
-              disabled={isPending}
-            />
-            <SignaturePad
-              label="멘토 서명"
-              initialDataUrl={mentoring.mentorSignatureUrl}
-              onSave={(d) => handleSignatureSave("mentor", d)}
-              onClear={() => handleSignatureClear("mentor")}
-              disabled={isPending}
-            />
-          </div>
         </div>
 
         <div className="flex items-center gap-3 pt-1 flex-wrap">

@@ -20,6 +20,41 @@ import {
 } from "@/lib/photo-filename";
 import crypto from "node:crypto";
 
+/**
+ * YYYY/MM 자동 폴더를 찾거나 생성한다. 연도 폴더가 없으면 함께 만든다.
+ * 사진 업로드/import/멘토링 첨부에서 공통으로 재사용.
+ * "use server" 파일이므로 export 된 async 함수여야 한다.
+ */
+export async function ensureAutoFolder(
+  refDate: Date,
+  createdById: string,
+): Promise<string> {
+  const year = refDate.getFullYear();
+  const month = refDate.getMonth() + 1;
+  const autoKey = `${year}/${String(month).padStart(2, "0")}`;
+
+  let folder = await prisma.photoFolder.findFirst({ where: { autoKey } });
+  if (folder) return folder.id;
+
+  const yearKey = String(year);
+  let yearFolder = await prisma.photoFolder.findFirst({ where: { autoKey: yearKey } });
+  if (!yearFolder) {
+    yearFolder = await prisma.photoFolder.create({
+      data: { name: yearKey, isAuto: true, autoKey: yearKey, createdById },
+    });
+  }
+  folder = await prisma.photoFolder.create({
+    data: {
+      name: String(month).padStart(2, "0"),
+      parentId: yearFolder.id,
+      isAuto: true,
+      autoKey,
+      createdById,
+    },
+  });
+  return folder.id;
+}
+
 export async function createPhotoFolder(data: { name: string; parentId?: string | null }) {
   const session = await auth();
   requireStaff(session?.user?.role);
@@ -182,25 +217,8 @@ export async function importPhotosFromDrive(driveUrl: string) {
       const autoKey = `${year}/${String(month).padStart(2, "0")}`;
 
       // 자동 폴더
-      let folder = await prisma.photoFolder.findFirst({ where: { autoKey } });
-      if (!folder) {
-        const yearKey = String(year);
-        let yearFolder = await prisma.photoFolder.findFirst({ where: { autoKey: yearKey } });
-        if (!yearFolder) {
-          yearFolder = await prisma.photoFolder.create({
-            data: { name: yearKey, isAuto: true, autoKey: yearKey, createdById: session.user.id },
-          });
-        }
-        folder = await prisma.photoFolder.create({
-          data: {
-            name: String(month).padStart(2, "0"),
-            parentId: yearFolder.id,
-            isAuto: true,
-            autoKey,
-            createdById: session.user.id,
-          },
-        });
-      }
+      const folderId = await ensureAutoFolder(refDate, session.user.id);
+      const folder = { id: folderId };
 
       // 학생 자동 매칭 (파일명에 좌석+이름 있을 때만)
       let studentId: string | null = null;
