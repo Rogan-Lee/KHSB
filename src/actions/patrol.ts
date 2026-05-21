@@ -41,8 +41,22 @@ export type PatrolRecordView = {
 export type PatrolPortalData = {
   patrollerName: string;
   roster: PatrolRosterStudent[];
+  // 잘못 스캔 시 검색·교체용 전체 재원 학생(좌석 QR 누락/오부착 대비)
+  allStudents: PatrolRosterStudent[];
   activeRound: { id: string; label: string | null; startedAt: string } | null;
   records: PatrolRecordView[];
+};
+
+// QR 스캔 시 보여줄 학생 상세 (순찰에 유용한 메모 포함)
+export type PatrolStudentInfo = {
+  id: string;
+  name: string;
+  grade: string;
+  school: string | null;
+  seat: string | null;
+  mentoringNotes: string | null;
+  studentInfo: string | null;
+  dailyNote: string | null; // 당일(오늘 KST)인 경우만
 };
 
 /** 오늘 재실(체크인) 학생 명단. 순찰 대상 roster. */
@@ -78,12 +92,17 @@ function toRecordView(r: {
   };
 }
 
-/** 포털 초기 데이터: roster + 진행 중 회차 + 그 회차 점검 기록. */
+/** 포털 초기 데이터: roster + 전체 재원 + 진행 중 회차 + 그 회차 점검 기록. */
 export async function getPatrolPortalData(token: string): Promise<PatrolPortalData> {
   const patroller = await requirePatroller(token);
 
-  const [roster, activeRound] = await Promise.all([
+  const [roster, allStudentRows, activeRound] = await Promise.all([
     getTodayRoster(),
+    prisma.student.findMany({
+      where: { status: "ACTIVE" },
+      select: { id: true, name: true, grade: true, seat: true },
+      orderBy: [{ seat: "asc" }, { name: "asc" }],
+    }),
     prisma.patrolRound.findFirst({
       where: { endedAt: null },
       orderBy: { startedAt: "desc" },
@@ -106,10 +125,42 @@ export async function getPatrolPortalData(token: string): Promise<PatrolPortalDa
   return {
     patrollerName: patroller.name,
     roster,
+    allStudents: allStudentRows.map((s) => ({ id: s.id, name: s.name, grade: s.grade, seat: s.seat })),
     activeRound: activeRound
       ? { id: activeRound.id, label: activeRound.label, startedAt: activeRound.startedAt.toISOString() }
       : null,
     records,
+  };
+}
+
+/** QR 스캔/검색한 학생의 상세 정보 (포털 — 토큰+게이트 인증). */
+export async function getPatrolStudentInfo(token: string, studentId: string): Promise<PatrolStudentInfo> {
+  await requirePatroller(token);
+
+  const s = await prisma.student.findUnique({
+    where: { id: studentId },
+    select: {
+      id: true, name: true, grade: true, school: true, seat: true,
+      mentoringNotes: true, studentInfo: true, dailyNote: true, dailyNoteDate: true,
+    },
+  });
+  if (!s) throw new Error("학생을 찾을 수 없습니다");
+
+  // 당일 변동 메모는 오늘(KST) 기록만 노출
+  const today = todayKST();
+  const isToday = s.dailyNoteDate
+    ? new Date(s.dailyNoteDate).toISOString().slice(0, 10) === today.toISOString().slice(0, 10)
+    : false;
+
+  return {
+    id: s.id,
+    name: s.name,
+    grade: s.grade,
+    school: s.school,
+    seat: s.seat,
+    mentoringNotes: s.mentoringNotes,
+    studentInfo: s.studentInfo,
+    dailyNote: isToday ? s.dailyNote : null,
   };
 }
 
@@ -226,6 +277,52 @@ export async function getPatrolRounds(dateStr?: string): Promise<PatrolRoundSumm
     checkedCount: r.records.length,
     noteCount: r.records.filter((x) => x.status === "NOTE").length,
     absentCount: r.records.filter((x) => x.status === "ABSENT").length,
+  }));
+}
+
+export type PatrolRoundWithRecords = PatrolRoundSummary & {
+  patrollerId: string | null;
+  records: PatrolRecordView[];
+};
+
+/**
+ * 특정 날짜(KST)의 회차 + 각 회차 점검 기록을 한 번에 조회.
+ * 근무자(순찰자)별 마스터-디테일 화면용. 기본 오늘.
+ */
+export async function getPatrolDayRoundsWithRecords(dateStr?: string): Promise<PatrolRoundWithRecords[]> {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  const base = dateStr ? new Date(`${dateStr}T00:00:00+09:00`) : new Date(todayKST());
+  const dayStart = new Date(base.getTime());
+  const dayEnd = new Date(base.getTime() + 24 * 60 * 60 * 1000);
+
+  const rounds = await prisma.patrolRound.findMany({
+    where: { startedAt: { gte: dayStart, lt: dayEnd } },
+    orderBy: { startedAt: "desc" },
+    select: {
+      id: true, label: true, patrollerId: true, patrollerName: true, startedAt: true, endedAt: true,
+      records: {
+        orderBy: [{ status: "desc" }, { checkedAt: "asc" }],
+        select: {
+          id: true, studentId: true, status: true, note: true, checkedAt: true,
+          student: { select: { name: true, seat: true } },
+        },
+      },
+    },
+  });
+
+  return rounds.map((r) => ({
+    id: r.id,
+    label: r.label,
+    patrollerId: r.patrollerId,
+    patrollerName: r.patrollerName,
+    startedAt: r.startedAt.toISOString(),
+    endedAt: r.endedAt?.toISOString() ?? null,
+    checkedCount: r.records.length,
+    noteCount: r.records.filter((x) => x.status === "NOTE").length,
+    absentCount: r.records.filter((x) => x.status === "ABSENT").length,
+    records: r.records.map(toRecordView),
   }));
 }
 

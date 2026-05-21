@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { QrCode } from "lucide-react";
 import { isStaff } from "@/lib/roles";
 import { todayKST } from "@/lib/utils";
-import { getPatrolRounds } from "@/actions/patrol";
+import { getPatrolDayRoundsWithRecords } from "@/actions/patrol";
 import { PageIntro } from "@/components/ui/page-intro";
 import { PatrolReview } from "./_components/patrol-review";
 
@@ -18,7 +18,7 @@ export default async function PatrolPage() {
   // 오늘(KST) 날짜 문자열 (todayKST 는 KST 날짜의 UTC 자정 Date)
   const today = todayKST().toISOString().slice(0, 10);
 
-  const rounds = await getPatrolRounds(today);
+  const rounds = await getPatrolDayRoundsWithRecords(today);
 
   return (
     <div className="space-y-6">
@@ -26,7 +26,7 @@ export default async function PatrolPage() {
         <PageIntro
           tag="PATROL"
           title="순찰 관리"
-          description="회차별 순찰 점검 결과와 특이사항을 일괄 확인합니다."
+          description="순찰자(근무자)별 점검 결과와 특이사항을 확인합니다."
           accent="text-info"
         />
         <Link href="/patrol/qr">

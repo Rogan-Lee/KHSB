@@ -11,6 +11,8 @@ import {
   UserX,
   X,
   ShieldCheck,
+  Search,
+  Loader2,
 } from "lucide-react";
 import { QrScanner } from "./qr-scanner";
 import { decodeStudentQr } from "@/lib/patrol";
@@ -18,8 +20,11 @@ import {
   startPatrolRound,
   endPatrolRound,
   recordPatrol,
+  getPatrolStudentInfo,
   type PatrolPortalData,
   type PatrolRecordView,
+  type PatrolRosterStudent,
+  type PatrolStudentInfo,
 } from "@/actions/patrol";
 import type { PatrolStatus } from "@/generated/prisma";
 
@@ -38,6 +43,12 @@ export function PatrolPortal({ token, initial }: { token: string; initial: Patro
   const [draftStatus, setDraftStatus] = useState<PatrolStatus>("OK");
   const [draftNote, setDraftNote] = useState("");
   const [pending, startTransition] = useTransition();
+  // 스캔/선택한 학생 상세
+  const [info, setInfo] = useState<PatrolStudentInfo | null>(null);
+  const [infoLoading, setInfoLoading] = useState(false);
+  // 잘못 스캔 시 학생 검색·교체
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
   const round = data.activeRound;
   const checkedById = useMemo(() => {
@@ -49,13 +60,34 @@ export function PatrolPortal({ token, initial }: { token: string; initial: Patro
   const checkedCount = data.records.length;
   const rosterCount = data.roster.length;
   const pct = rosterCount > 0 ? Math.min(100, Math.round((checkedCount / rosterCount) * 100)) : 0;
+  const noteRecords = useMemo(() => data.records.filter((r) => r.status === "NOTE"), [data.records]);
 
-  function openTarget(student: { id: string; name: string; seat: string | null }) {
+  const searchResults = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return data.allStudents.slice(0, 30);
+    return data.allStudents
+      .filter((s) => `${s.name} ${s.grade} ${s.seat ?? ""}`.toLowerCase().includes(q))
+      .slice(0, 30);
+  }, [query, data.allStudents]);
+
+  function loadInfo(studentId: string) {
+    setInfo(null);
+    setInfoLoading(true);
+    getPatrolStudentInfo(token, studentId)
+      .then((d) => setInfo(d))
+      .catch(() => setInfo(null))
+      .finally(() => setInfoLoading(false));
+  }
+
+  function selectStudent(student: { id: string; name: string; seat: string | null }) {
     const existing = checkedById.get(student.id);
     setDraftStatus(existing?.status ?? "OK");
     setDraftNote(existing?.note ?? "");
     setTarget({ ...student, existing });
     setScanning(false);
+    setSearchOpen(false);
+    setQuery("");
+    loadInfo(student.id);
   }
 
   function handleScan(raw: string) {
@@ -64,10 +96,8 @@ export function PatrolPortal({ token, initial }: { token: string; initial: Patro
       toast.error("순찰용 QR이 아니에요");
       return;
     }
-    const inRoster = data.roster.find((s) => s.id === studentId);
-    openTarget(
-      inRoster ?? { id: studentId, name: "스캔된 학생", seat: null },
-    );
+    const found = data.roster.find((s) => s.id === studentId) ?? data.allStudents.find((s) => s.id === studentId);
+    selectStudent(found ?? { id: studentId, name: "스캔된 학생", seat: null });
   }
 
   function handleStart() {
@@ -97,6 +127,13 @@ export function PatrolPortal({ token, initial }: { token: string; initial: Patro
     });
   }
 
+  function closeSheet() {
+    setTarget(null);
+    setInfo(null);
+    setSearchOpen(false);
+    setQuery("");
+  }
+
   function handleSave() {
     if (!round || !target) return;
     startTransition(async () => {
@@ -107,7 +144,7 @@ export function PatrolPortal({ token, initial }: { token: string; initial: Patro
           return { ...prev, records: [rec, ...others] };
         });
         toast.success(`${rec.studentName} · ${STATUS_META[rec.status].label} 기록`);
-        setTarget(null);
+        closeSheet();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "저장 실패");
       }
@@ -179,6 +216,26 @@ export function PatrolPortal({ token, initial }: { token: string; initial: Patro
               )}
             </div>
 
+            {/* 이번 회차 특이사항 */}
+            {noteRecords.length > 0 && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/60 shadow-sm">
+                <p className="flex items-center gap-1.5 border-b border-amber-200/70 px-4 py-2.5 text-[12px] font-semibold text-amber-800">
+                  <AlertTriangle className="h-3.5 w-3.5" /> 이번 회차 특이사항 ({noteRecords.length})
+                </p>
+                <ul className="divide-y divide-amber-100">
+                  {noteRecords.map((r) => (
+                    <li key={r.id} className="px-4 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="w-12 shrink-0 font-mono text-[12px] text-amber-700/70">{r.seat ?? "—"}</span>
+                        <span className="text-[14px] font-semibold text-gray-900">{r.studentName}</span>
+                      </div>
+                      {r.note && <p className="mt-0.5 pl-12 text-[13px] text-gray-700">{r.note}</p>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* 재실 명단 (수동 점검 / 진행 현황) */}
             <div className="rounded-2xl border border-gray-100 bg-white shadow-sm">
               <p className="border-b border-gray-100 px-4 py-2.5 text-[12px] font-semibold text-gray-500">
@@ -194,7 +251,7 @@ export function PatrolPortal({ token, initial }: { token: string; initial: Patro
                       <li key={s.id}>
                         <button
                           type="button"
-                          onClick={() => openTarget(s)}
+                          onClick={() => selectStudent(s)}
                           className="flex w-full items-center gap-2 px-4 py-2.5 text-left active:bg-gray-50"
                         >
                           <span className="w-12 shrink-0 font-mono text-[12px] text-gray-400">{s.seat ?? "—"}</span>
@@ -217,10 +274,16 @@ export function PatrolPortal({ token, initial }: { token: string; initial: Patro
                   {data.records
                     .filter((r) => !data.roster.find((s) => s.id === r.studentId))
                     .map((r) => (
-                      <li key={r.id} className="flex items-center gap-2 px-4 py-2.5">
-                        <span className="w-12 shrink-0 font-mono text-[12px] text-gray-400">{r.seat ?? "—"}</span>
-                        <span className="flex-1 text-[14px] font-medium text-gray-900">{r.studentName}</span>
-                        <StatusPill status={r.status} />
+                      <li key={r.id}>
+                        <button
+                          type="button"
+                          onClick={() => selectStudent({ id: r.studentId, name: r.studentName, seat: r.seat })}
+                          className="flex w-full items-center gap-2 px-4 py-2.5 text-left active:bg-gray-50"
+                        >
+                          <span className="w-12 shrink-0 font-mono text-[12px] text-gray-400">{r.seat ?? "—"}</span>
+                          <span className="flex-1 text-[14px] font-medium text-gray-900">{r.studentName}</span>
+                          <StatusPill status={r.status} />
+                        </button>
                       </li>
                     ))}
                 </ul>
@@ -232,20 +295,78 @@ export function PatrolPortal({ token, initial }: { token: string; initial: Patro
 
       {/* 점검 입력 시트 */}
       {target && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setTarget(null)}>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={closeSheet}>
           <div
-            className="w-full max-w-[480px] rounded-t-3xl bg-white p-5 pb-8"
+            className="max-h-[92svh] w-full max-w-[480px] overflow-y-auto rounded-t-3xl bg-white p-5 pb-8"
             style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <p className="text-[16px] font-bold text-gray-900">{target.name}</p>
-                {target.seat && <p className="text-[12px] text-gray-400">좌석 {target.seat}</p>}
+            <div className="mb-3 flex items-start justify-between">
+              <div className="min-w-0">
+                <p className="text-[17px] font-bold text-gray-900">{info?.name ?? target.name}</p>
+                <p className="text-[12px] text-gray-500">
+                  {[info?.school, info?.grade, (info?.seat ?? target.seat) ? `좌석 ${info?.seat ?? target.seat}` : null]
+                    .filter(Boolean)
+                    .join(" · ") || "정보 불러오는 중…"}
+                </p>
               </div>
-              <button type="button" onClick={() => setTarget(null)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
+              <button type="button" onClick={closeSheet} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100">
                 <X className="h-5 w-5" />
               </button>
+            </div>
+
+            {/* 학생 개인정보 (순찰 메모) */}
+            {infoLoading ? (
+              <div className="mb-3 flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2.5 text-[13px] text-gray-400">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> 학생 정보 불러오는 중…
+              </div>
+            ) : info && (info.mentoringNotes || info.studentInfo || info.dailyNote) ? (
+              <div className="mb-3 space-y-1.5 rounded-xl bg-gray-50 px-3 py-2.5">
+                {info.dailyNote && <InfoRow label="당일 변동" value={info.dailyNote} tone="warn" />}
+                {info.mentoringNotes && <InfoRow label="멘토링 주의" value={info.mentoringNotes} />}
+                {info.studentInfo && <InfoRow label="학생 정보" value={info.studentInfo} />}
+              </div>
+            ) : null}
+
+            {/* 다른 학생으로 교체 (QR 오스캔 대비) */}
+            <div className="mb-3">
+              {!searchOpen ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchOpen(true)}
+                  className="inline-flex items-center gap-1.5 text-[13px] font-medium text-slate-600 underline underline-offset-2"
+                >
+                  <Search className="h-3.5 w-3.5" /> 다른 학생이에요 (검색)
+                </button>
+              ) : (
+                <div className="rounded-xl border border-gray-200 p-2">
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    autoFocus
+                    placeholder="이름 / 학년 / 좌석 검색"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-[16px] focus:border-slate-400 focus:outline-none"
+                  />
+                  <ul className="mt-2 max-h-52 divide-y divide-gray-50 overflow-y-auto">
+                    {searchResults.map((s: PatrolRosterStudent) => (
+                      <li key={s.id}>
+                        <button
+                          type="button"
+                          onClick={() => selectStudent(s)}
+                          className="flex w-full items-center gap-2 px-1 py-2 text-left active:bg-gray-50"
+                        >
+                          <span className="w-12 shrink-0 font-mono text-[12px] text-gray-400">{s.seat ?? "—"}</span>
+                          <span className="flex-1 text-[15px] font-medium text-gray-900">{s.name}</span>
+                          <span className="text-[12px] text-gray-400">{s.grade}</span>
+                        </button>
+                      </li>
+                    ))}
+                    {searchResults.length === 0 && (
+                      <li className="px-1 py-3 text-center text-[13px] text-gray-400">검색 결과 없음</li>
+                    )}
+                  </ul>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-3 gap-2">
@@ -274,7 +395,7 @@ export function PatrolPortal({ token, initial }: { token: string; initial: Patro
                 rows={3}
                 autoFocus
                 placeholder="특이사항 내용 (예: 졸고 있음, 자리 이탈, 휴대폰 사용)"
-                className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-[14px] focus:border-slate-400 focus:outline-none"
+                className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-[16px] focus:border-slate-400 focus:outline-none"
               />
             )}
 
@@ -289,6 +410,15 @@ export function PatrolPortal({ token, initial }: { token: string; initial: Patro
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function InfoRow({ label, value, tone }: { label: string; value: string; tone?: "warn" }) {
+  return (
+    <div className="flex gap-2 text-[13px]">
+      <span className={`shrink-0 font-semibold ${tone === "warn" ? "text-amber-700" : "text-gray-500"}`}>{label}</span>
+      <span className="text-gray-800 whitespace-pre-wrap">{value}</span>
     </div>
   );
 }
