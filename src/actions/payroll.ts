@@ -566,6 +566,38 @@ export async function terminateContract(contractId: string, effectiveTo: Date) {
 }
 
 /**
+ * 계약 삭제. 잘못 등록한 계약 정리용.
+ * 삭제 대상이 현재 활성(effectiveTo=null) 계약이면 직전 계약을 다시 활성화(effectiveTo=null)해
+ * 계약 체인이 끊기지 않게 한다. (근무 일정 MentorSchedule 은 건드리지 않음 — 별도 관리)
+ */
+export async function deleteContract(contractId: string) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+  if (!contractId) throw new Error("계약 ID가 지정되지 않았습니다");
+
+  const contract = await prisma.payrollContract.findUnique({ where: { id: contractId } });
+  if (!contract) throw new Error("계약을 찾을 수 없습니다");
+
+  const ops = [];
+  // 활성 계약을 삭제하면 직전 계약을 다시 활성으로 되돌린다.
+  if (contract.effectiveTo === null) {
+    const prev = await prisma.payrollContract.findFirst({
+      where: { userId: contract.userId, effectiveFrom: { lt: contract.effectiveFrom } },
+      orderBy: { effectiveFrom: "desc" },
+    });
+    if (prev) {
+      ops.push(prisma.payrollContract.update({ where: { id: prev.id }, data: { effectiveTo: null } }));
+    }
+  }
+  ops.push(prisma.payrollContract.delete({ where: { id: contractId } }));
+  await prisma.$transaction(ops);
+
+  revalidatePath("/payroll");
+  revalidatePath("/mentors");
+  return { ok: true };
+}
+
+/**
  * 주어진 일자(ymd) 에 활성인 계약을 반환. effectiveFrom <= ymd <= (effectiveTo ?? ∞).
  * 순수 read — 권한 체크 없음(서버 액션 내부 헬퍼). 단일 진입점.
  *
