@@ -72,6 +72,23 @@ export default async function MonthlyParentReportPage({
     take: 50,
   });
 
+  // 최근 모의고사 그룹 (어떤 시험인지 명시: 직전 → 당월) — examDate+examName 기준 최신 2개
+  const examTypeLabel: Record<string, string> = { OFFICIAL_MOCK: "공식 모의", PRIVATE_MOCK: "사설 모의", SCHOOL_EXAM: "내신" };
+  const examGroupMap = new Map<string, { examName: string; examType: string; examDate: Date; isThisMonth: boolean; subjects: { subject: string; grade: number | null; percentile: number | null; rawScore: number | null }[] }>();
+  for (const s of examScores) {
+    const key = `${s.examDate.toISOString().slice(0, 10)}__${s.examName}`;
+    let g = examGroupMap.get(key);
+    if (!g) {
+      g = { examName: s.examName, examType: s.examType, examDate: s.examDate, isThisMonth: s.examDate >= start && s.examDate <= end, subjects: [] };
+      examGroupMap.set(key, g);
+    }
+    g.subjects.push({ subject: s.subject, grade: s.grade, percentile: s.percentile, rawScore: s.rawScore });
+  }
+  const recentExamGroups = Array.from(examGroupMap.values())
+    .sort((a, b) => b.examDate.getTime() - a.examDate.getTime())
+    .slice(0, 2)
+    .reverse(); // 직전 → 당월 순
+
   // 입시 정보 (학년별 > 전체)
   const admissionInfo =
     (await prisma.monthlyAdmissionInfo.findFirst({
@@ -151,6 +168,38 @@ export default async function MonthlyParentReportPage({
                 examType: s.examType,
               }))}
             />
+
+            {/* 최근 응시 시험 명시 (직전 → 당월) */}
+            {recentExamGroups.length > 0 && (
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {recentExamGroups.map((g, i) => (
+                  <div key={`${g.examName}-${i}`} className={`rounded-lg border p-3 ${g.isThisMonth ? "border-purple-200 bg-purple-50/50" : "bg-gray-50"}`}>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="rounded bg-white border px-1.5 py-0.5 text-[10px] text-gray-500">{examTypeLabel[g.examType] ?? g.examType}</span>
+                      <span className="text-sm font-semibold">{g.examName}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {g.examDate.toLocaleDateString("ko-KR", { year: "2-digit", month: "numeric" })}
+                      </span>
+                      {recentExamGroups.length === 2 && (
+                        <span className={`ml-auto text-[10px] font-medium ${g.isThisMonth ? "text-purple-600" : "text-gray-400"}`}>
+                          {i === 0 ? "직전" : "당월"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {g.subjects.map((s, si) => (
+                        <span key={si} className="inline-flex items-center gap-1 rounded bg-white border px-1.5 py-0.5 text-[11px]">
+                          <span className="text-gray-500">{s.subject}</span>
+                          <span className="font-semibold">
+                            {s.grade != null ? `${s.grade}등급` : s.rawScore != null ? `${s.rawScore}점` : "—"}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         )}
 

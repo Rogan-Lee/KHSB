@@ -7,6 +7,7 @@ const isPublicRoute = createRouteMatcher([
   "/sp/(.*)",  // 공부계획 리포트 공개 페이지
   "/s/(.*)",   // 온라인 학생 포털 (매직링크 토큰 기반)
   "/v/(.*)",   // 영단어 시험 응시 (per-attempt 토큰 기반)
+  "/w/(.*)",   // 근무자 순찰 포털 (매직링크 토큰 + 전화번호 게이트)
   "/api/webhooks(.*)",
   "/api/cron(.*)",  // 자동화 에이전트 Cron API (CRON_SECRET으로 자체 인증)
 ]);
