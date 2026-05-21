@@ -16,7 +16,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { createContract } from "@/actions/payroll";
+import { Trash2 } from "lucide-react";
+import { createContract, deleteContract } from "@/actions/payroll";
 import { MIN_HOURLY_WAGE_2026 } from "@/lib/payroll";
 import type { PayrollContract } from "@/generated/prisma";
 
@@ -65,6 +66,28 @@ export function ContractHistoryDialog({
   onChanged,
 }: Props) {
   const [showForm, setShowForm] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [, startDelete] = useTransition();
+
+  function handleDelete(c: PayrollContract) {
+    const isActive = c.effectiveTo === null;
+    const msg = isActive
+      ? "현재 활성 계약을 삭제할까요? 직전 계약이 있으면 다시 활성화됩니다."
+      : "이 계약을 삭제할까요?";
+    if (!confirm(msg)) return;
+    setDeletingId(c.id);
+    startDelete(async () => {
+      try {
+        await deleteContract(c.id);
+        toast.success("계약이 삭제되었습니다");
+        onChanged?.();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "계약 삭제에 실패했습니다");
+      } finally {
+        setDeletingId(null);
+      }
+    });
+  }
 
   // 정렬: effectiveTo=null(활성) 최상단, 그 후 effectiveFrom desc
   const sorted = useMemo(() => {
@@ -113,11 +136,22 @@ export function ContractHistoryDialog({
                         {formatYmd(c.effectiveFrom)} ~{" "}
                         {formatYmd(c.effectiveTo)}
                       </div>
-                      {isActive && (
-                        <Badge variant="default" className="bg-green-600">
-                          활성
-                        </Badge>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {isActive && (
+                          <Badge variant="default" className="bg-green-600">
+                            활성
+                          </Badge>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(c)}
+                          disabled={deletingId === c.id}
+                          title="계약 삭제"
+                          className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                       {c.monthlySalary != null && c.monthlySalary > 0 ? (
