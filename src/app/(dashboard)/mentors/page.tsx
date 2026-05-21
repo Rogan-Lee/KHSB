@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { MentorManager } from "@/components/mentors/mentor-manager";
 import type { StaffMagicLinkRow } from "@/components/admin/staff-magic-link-panel";
+import type { PayrollContract } from "@/generated/prisma";
 import { isFullAccess, STAFF_ROLES } from "@/lib/roles";
 
 export default async function MentorsPage() {
@@ -31,6 +32,12 @@ export default async function MentorsPage() {
     }),
   ]);
 
+  // 계약 조회 (직원 한정) — 마스터-디테일 우측 '계약 내용'용
+  const contracts = await prisma.payrollContract.findMany({
+    where: { userId: { in: mentors.map((m) => m.id) } },
+    orderBy: { effectiveFrom: "desc" },
+  });
+
   // 직원별 매직링크 그룹핑 (ISO 직렬화 → 클라이언트 컴포넌트 전달)
   const linksByUser: Record<string, StaffMagicLinkRow[]> = {};
   for (const l of links) {
@@ -46,10 +53,16 @@ export default async function MentorsPage() {
     });
   }
 
+  // 직원별 계약 그룹핑
+  const contractsByUser: Record<string, PayrollContract[]> = {};
+  for (const c of contracts) {
+    (contractsByUser[c.userId] ??= []).push(c);
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-bold">직원 관리</h1>
-      <MentorManager mentors={mentors} schedules={schedules} linksByUser={linksByUser} currentUserId={session?.user?.id ?? ""} />
+      <MentorManager mentors={mentors} schedules={schedules} linksByUser={linksByUser} contractsByUser={contractsByUser} currentUserId={session?.user?.id ?? ""} />
     </div>
   );
 }
