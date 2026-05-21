@@ -846,6 +846,22 @@ model MonthlyAdmissionInfo {
   @@unique([year, month, grade])
 }
 
+// 원생 증감 수동 조정값 — 대시보드 위젯에서 자동 집계(startDate/endDate 기준)를 덮어쓰는 override.
+// newCount/leftCount 가 null 이면 해당 항목은 자동 집계 사용.
+model EnrollmentAdjustment {
+  id          String   @id @default(cuid())
+  year        Int
+  month       Int
+  newCount    Int? // 신규 등록 override (null = 자동 집계)
+  leftCount   Int? // 이탈 override (null = 자동 집계)
+  note        String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([year, month])
+}
+
 // 이달의 시상 (태도 우수자/멘토 선정 우수자 등)
 model MonthlyAward {
   id          String   @id @default(cuid())
