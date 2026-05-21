@@ -142,6 +142,8 @@ model User {
   payrollRecords          PayrollRecord[]
   payrollContracts        PayrollContract[]
   workLogs                WorkLog[]
+  workHourEntries         WorkHourEntry[]
+  workMonths              WorkMonth[]
   staffMagicLinks         StaffMagicLink[]     @relation("StaffMagicLinks")
   // ── 근무자 상태(퇴사·매직링크 게이트용) ──
   status                  UserStatus           @default(ACTIVE)
@@ -218,6 +220,7 @@ model PayrollContract {
   effectiveFrom    DateTime  @db.Date // 시작월 1일 (KST 기준)
   effectiveTo      DateTime? @db.Date // 종료월 말일 (null=현재 진행 중)
   hourlyRate       Int // 원
+  monthlySalary    Int? // 월 기본급(고정). 설정 시 시급 대신 적용 — null이면 시급제
   weeklyHolidayPay Boolean   @default(true)
   monthlyBonusKrw  Int       @default(0) // 고정 수당(식대 등) — 표시용, 4대보험 자동계산 X
   // 계약상 근무 조건 — 계약 등록 시 MentorSchedule(주간 일정)도 동기화
@@ -253,6 +256,42 @@ model WorkLog {
 
   @@index([userId, workDate])
   @@index([weekKey])
+}
+
+// 근무자 수기 입력 — 일자별 근무시간. WorkTag(태깅) 대체.
+// 분 단위 저장(시간×60)으로 소수 시간(7.5h=450) 무손실. (userId, workDate) 유일.
+model WorkHourEntry {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workDate    DateTime @db.Date // KST 일자
+  minutes     Int      @default(0) // 시간×60
+  note        String?
+  enteredById String? // 입력자(본인 또는 원장)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, workDate])
+  @@index([userId, workDate])
+}
+
+// 월 단위 컨테이너 — 비고(회의 등 추가근무) + 본인/사업자 확인.
+model WorkMonth {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  year             Int
+  month            Int
+  extraMinutes     Int       @default(0) // 비고: 회의 등 추가근무 (분)
+  extraNote        String?
+  staffConfirmedAt DateTime? // 근무자 본인 확인(✔)
+  ownerConfirmedAt DateTime? // 사업자(원장) 확인(✔)
+  updatedById      String?
+  updatedAt        DateTime  @updatedAt
+  createdAt        DateTime  @default(now())
+
+  @@unique([userId, year, month])
+  @@index([year, month])
 }
 
 model Student {

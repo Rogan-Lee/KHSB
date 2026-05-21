@@ -23,11 +23,11 @@ import { getChecklistTemplates } from "@/actions/checklist-templates";
 import { getMonthlyNotes } from "@/actions/monthly-notes";
 import { getTodos } from "@/actions/todos";
 import { getAllAssignmentStatus, getEnrollmentDelta } from "@/actions/dashboard-widgets";
-import { getMyClockStatus } from "@/actions/payroll";
+import { getActivePatrolRoundBrief } from "@/actions/patrol";
 import { DashboardWrapper } from "@/components/dashboard/dashboard-wrapper";
 import { AllAssignmentsWidget } from "@/components/dashboard/all-assignments-widget";
 import { EnrollmentDeltaWidget } from "@/components/dashboard/enrollment-delta-widget";
-import { ClockWidget } from "@/components/dashboard/clock-widget";
+import { PatrolStartWidget } from "@/components/dashboard/patrol-start-widget";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -50,7 +50,7 @@ export default async function DashboardPage() {
     todos,
     allAssignments,
     enrollmentDelta,
-    clockStatus,
+    activePatrolRound,
   ] = await Promise.all([
     prisma.student.count({ where: { status: "ACTIVE" } }),
     prisma.attendanceRecord.findMany({
@@ -93,7 +93,7 @@ export default async function DashboardPage() {
     getTodos(),
     getAllAssignmentStatus(),
     getEnrollmentDelta(year, month),
-    getMyClockStatus(),
+    getActivePatrolRoundBrief(),
   ]);
 
   const normalCount = todayAttendances.filter((a) => a.type === "NORMAL").length;
@@ -149,8 +149,8 @@ export default async function DashboardPage() {
         ]}
       />
 
-      {/* 내 출퇴근 (Payroll §2.21 후속) */}
-      <ClockWidget initial={clockStatus} />
+      {/* 순찰 시작 — 클릭 시 앱 내 순찰 모드 진입 (출퇴근 태깅 대체) */}
+      <PatrolStartWidget active={activePatrolRound} />
 
       {/* KPI strip — 5 tiles */}
       <KpiStrip className="grid-cols-2 md:grid-cols-5">

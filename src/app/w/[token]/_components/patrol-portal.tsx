@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import {
   Play,
@@ -36,7 +36,15 @@ const STATUS_META: Record<PatrolStatus, { label: string; cls: string; icon: type
 
 type Target = { id: string; name: string; seat: string | null; existing?: PatrolRecordView };
 
-export function PatrolPortal({ token, initial }: { token: string; initial: PatrolPortalData }) {
+export function PatrolPortal({
+  token,
+  initial,
+  autoStart = false,
+}: {
+  token?: string;
+  initial: PatrolPortalData;
+  autoStart?: boolean;
+}) {
   const [data, setData] = useState(initial);
   const [scanning, setScanning] = useState(false);
   const [target, setTarget] = useState<Target | null>(null);
@@ -111,6 +119,16 @@ export function PatrolPortal({ token, initial }: { token: string; initial: Patro
       }
     });
   }
+
+  // 앱 내 순찰 모드: 진행 중 회차가 없으면 진입 즉시 1회 자동 시작 → "바로 순찰중 모드"
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (autoStart && !round && !autoStarted.current) {
+      autoStarted.current = true;
+      handleStart();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, round]);
 
   function handleEnd() {
     if (!round) return;
