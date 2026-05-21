@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireFullAccess, isFullAccess, STAFF_ROLES } from "@/lib/roles";
 import { notifySlack } from "@/lib/slack";
 import { revalidatePath } from "next/cache";
-import { calculatePayrollFromTags } from "@/lib/payroll";
+import { calculatePayrollFromTags, calculatePayrollFromEntries, type EntryPayrollResult } from "@/lib/payroll";
 import type { WorkTagType, UserStatus } from "@/generated/prisma";
 
 // ──────────────────────────────────────────────────────────────────
@@ -433,6 +433,7 @@ export async function createContract(
   data: {
     effectiveFrom: Date;
     hourlyRate: number;
+    monthlySalary?: number | null; // 월 기본급(고정). 설정 시 시급 대신 적용
     weeklyHolidayPay?: boolean;
     monthlyBonusKrw?: number;
     note?: string;
@@ -452,6 +453,8 @@ export async function createContract(
     throw new Error("시급은 0보다 커야 합니다");
   }
   const hourlyRate = Math.round(data.hourlyRate);
+  const monthlySalary =
+    data.monthlySalary != null && data.monthlySalary > 0 ? Math.round(data.monthlySalary) : null;
   const weeklyHolidayPay = data.weeklyHolidayPay ?? true;
   const monthlyBonusKrw = Math.max(0, Math.round(data.monthlyBonusKrw ?? 0));
   const note = data.note?.trim() || null;
@@ -490,6 +493,7 @@ export async function createContract(
         userId,
         effectiveFrom,
         hourlyRate,
+        monthlySalary,
         weeklyHolidayPay,
         monthlyBonusKrw,
         workDays,
@@ -580,4 +584,277 @@ export async function getActiveContractFor(userId: string, ymd: Date) {
     },
     orderBy: { effectiveFrom: "desc" },
   });
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 근무시간 수기 입력 (WorkTag 태깅 대체) — 본인/원장
+// 일자별 WorkHourEntry + 월 단위 WorkMonth(비고·확인). 분 단위 저장.
+// ──────────────────────────────────────────────────────────────────
+
+export type WorkSheetDay = { date: string; minutes: number; note: string | null };
+export type WorkSheetUser = {
+  userId: string;
+  name: string;
+  role: string;
+  status: UserStatus;
+  hourlyRate: number;
+  monthlySalary: number | null;
+  weeklyHolidayPay: boolean;
+  days: WorkSheetDay[]; // 입력된 일자만 (sparse) — 클라이언트가 그리드 채움
+  extraMinutes: number;
+  extraNote: string | null;
+  staffConfirmedAt: string | null;
+  ownerConfirmedAt: string | null;
+  pay: EntryPayrollResult;
+};
+export type MonthlyWorkSheet = {
+  year: number;
+  month: number;
+  daysInMonth: number;
+  users: WorkSheetUser[];
+};
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** YYYY-MM-DD → @db.Date 용 UTC 자정 Date. 형식 검증. */
+function parseWorkDate(dateStr: string): Date {
+  if (!DATE_RE.test(dateStr)) throw new Error("날짜 형식이 올바르지 않습니다 (YYYY-MM-DD)");
+  const d = new Date(`${dateStr}T00:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) throw new Error("날짜가 올바르지 않습니다");
+  return d;
+}
+
+/** 시간(소수, 예 7.5) → 분. 0~24h 검증. */
+function hoursToMinutes(hours: number): number {
+  if (!Number.isFinite(hours) || hours < 0 || hours > 24) {
+    throw new Error("근무시간은 0~24시간 사이여야 합니다");
+  }
+  return Math.round(hours * 60);
+}
+
+/** 해당 월 @db.Date 범위 [gte, lt) — UTC 기준. */
+function monthRange(year: number, month: number) {
+  return {
+    gte: new Date(Date.UTC(year, month - 1, 1)),
+    lt: new Date(Date.UTC(year, month, 1)),
+  };
+}
+
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** 한 사용자·한 달의 수기입력·비고·계약·급여를 묶어서 반환. */
+async function loadUserMonth(
+  userId: string,
+  year: number,
+  month: number,
+): Promise<Omit<WorkSheetUser, "name" | "role" | "status">> {
+  const range = monthRange(year, month);
+  const ymd = new Date(Date.UTC(year, month - 1, 1));
+  const [entries, workMonth, contract] = await Promise.all([
+    prisma.workHourEntry.findMany({
+      where: { userId, workDate: range },
+      orderBy: { workDate: "asc" },
+      select: { workDate: true, minutes: true, note: true },
+    }),
+    prisma.workMonth.findUnique({ where: { userId_year_month: { userId, year, month } } }),
+    getActiveContractFor(userId, ymd),
+  ]);
+
+  const days: WorkSheetDay[] = entries.map((e) => ({
+    date: isoDate(e.workDate),
+    minutes: e.minutes,
+    note: e.note,
+  }));
+  const extraMinutes = workMonth?.extraMinutes ?? 0;
+  const hourlyRate = contract?.hourlyRate ?? 0;
+  const monthlySalary = contract?.monthlySalary ?? null;
+  const weeklyHolidayPay = contract?.weeklyHolidayPay ?? false;
+
+  const pay = calculatePayrollFromEntries(
+    entries.map((e) => ({ date: e.workDate, minutes: e.minutes })),
+    extraMinutes,
+    hourlyRate,
+    weeklyHolidayPay,
+    monthlySalary,
+  );
+
+  return {
+    userId,
+    hourlyRate,
+    monthlySalary,
+    weeklyHolidayPay,
+    days,
+    extraMinutes,
+    extraNote: workMonth?.extraNote ?? null,
+    staffConfirmedAt: workMonth?.staffConfirmedAt?.toISOString() ?? null,
+    ownerConfirmedAt: workMonth?.ownerConfirmedAt?.toISOString() ?? null,
+    pay,
+  };
+}
+
+// ── 근무자 본인 ──────────────────────────────────────────────────
+
+/** 본인 한 달 근무시트(입력·비고·확인·급여). */
+export async function getMyWorkSheet(year: number, month: number): Promise<WorkSheetUser> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  const base = await loadUserMonth(session.user.id, year, month);
+  return { ...base, name: session.user.name ?? "", role: session.user.role ?? "", status: "ACTIVE" };
+}
+
+/** 본인 일자별 근무시간 입력/수정. 원장 확인(잠금) 후엔 차단. */
+export async function setMyWorkHour(dateStr: string, hours: number, note?: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  const userId = session.user.id;
+  const workDate = parseWorkDate(dateStr);
+  const minutes = hoursToMinutes(hours);
+
+  // 해당 월이 사업자 확인(잠금)됐는지 검사
+  const kst = new Date(workDate.getTime());
+  const year = kst.getUTCFullYear();
+  const month = kst.getUTCMonth() + 1;
+  const wm = await prisma.workMonth.findUnique({ where: { userId_year_month: { userId, year, month } } });
+  if (wm?.ownerConfirmedAt) throw new Error("원장 확인이 완료된 달은 수정할 수 없습니다");
+
+  await prisma.workHourEntry.upsert({
+    where: { userId_workDate: { userId, workDate } },
+    update: { minutes, note: note?.trim() || null, enteredById: userId },
+    create: { userId, workDate, minutes, note: note?.trim() || null, enteredById: userId },
+  });
+  revalidatePath("/payroll/me");
+  revalidatePath("/payroll");
+  return { ok: true };
+}
+
+/** 본인 비고(추가근무) 입력/수정. */
+export async function setMyMonthExtra(year: number, month: number, hours: number, note?: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  const userId = session.user.id;
+  const minutes = hoursToMinutes(hours);
+
+  const wm = await prisma.workMonth.findUnique({ where: { userId_year_month: { userId, year, month } } });
+  if (wm?.ownerConfirmedAt) throw new Error("원장 확인이 완료된 달은 수정할 수 없습니다");
+
+  await prisma.workMonth.upsert({
+    where: { userId_year_month: { userId, year, month } },
+    update: { extraMinutes: minutes, extraNote: note?.trim() || null, updatedById: userId },
+    create: { userId, year, month, extraMinutes: minutes, extraNote: note?.trim() || null, updatedById: userId },
+  });
+  revalidatePath("/payroll/me");
+  revalidatePath("/payroll");
+  return { ok: true };
+}
+
+/** 본인 확인(✔) 토글. */
+export async function confirmMyWorkMonth(year: number, month: number, confirmed: boolean) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  const userId = session.user.id;
+  const at = confirmed ? new Date() : null;
+  await prisma.workMonth.upsert({
+    where: { userId_year_month: { userId, year, month } },
+    update: { staffConfirmedAt: at, updatedById: userId },
+    create: { userId, year, month, staffConfirmedAt: at, updatedById: userId },
+  });
+  revalidatePath("/payroll/me");
+  revalidatePath("/payroll");
+  return { ok: true };
+}
+
+// ── 원장(FULL_ACCESS) ────────────────────────────────────────────
+
+/** 전 직원 한 달 근무시트 — 사진의 표 1개에 필요한 모든 데이터. */
+export async function getMonthlyWorkSheet(year: number, month: number): Promise<MonthlyWorkSheet> {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+
+  const range = monthRange(year, month);
+  // 재직 직원 + 그 달에 데이터가 있는 직원(퇴사자 포함)
+  const staff = await prisma.user.findMany({
+    where: {
+      role: { in: [...STAFF_ROLES] },
+      OR: [
+        { status: "ACTIVE" },
+        { workHourEntries: { some: { workDate: range } } },
+        { workMonths: { some: { year, month } } },
+      ],
+    },
+    select: { id: true, name: true, role: true, status: true },
+    orderBy: [{ status: "asc" }, { name: "asc" }],
+  });
+
+  const users = await Promise.all(
+    staff.map(async (u) => {
+      const base = await loadUserMonth(u.id, year, month);
+      return { ...base, name: u.name, role: u.role, status: u.status };
+    }),
+  );
+
+  return { year, month, daysInMonth: new Date(year, month, 0).getDate(), users };
+}
+
+/** 원장: 임의 직원 일자별 근무시간 입력/수정. */
+export async function setStaffWorkHour(userId: string, dateStr: string, hours: number, note?: string) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+  if (!userId) throw new Error("대상 사용자가 지정되지 않았습니다");
+  const workDate = parseWorkDate(dateStr);
+  const minutes = hoursToMinutes(hours);
+
+  await prisma.workHourEntry.upsert({
+    where: { userId_workDate: { userId, workDate } },
+    update: { minutes, note: note?.trim() || null, enteredById: session!.user!.id },
+    create: { userId, workDate, minutes, note: note?.trim() || null, enteredById: session!.user!.id },
+  });
+  revalidatePath("/payroll");
+  revalidatePath("/payroll/me");
+  return { ok: true };
+}
+
+/** 원장: 임의 직원 비고(추가근무) 입력/수정. */
+export async function setStaffMonthExtra(
+  userId: string,
+  year: number,
+  month: number,
+  hours: number,
+  note?: string,
+) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+  if (!userId) throw new Error("대상 사용자가 지정되지 않았습니다");
+  const minutes = hoursToMinutes(hours);
+
+  await prisma.workMonth.upsert({
+    where: { userId_year_month: { userId, year, month } },
+    update: { extraMinutes: minutes, extraNote: note?.trim() || null, updatedById: session!.user!.id },
+    create: { userId, year, month, extraMinutes: minutes, extraNote: note?.trim() || null, updatedById: session!.user!.id },
+  });
+  revalidatePath("/payroll");
+  revalidatePath("/payroll/me");
+  return { ok: true };
+}
+
+/** 원장: 사업자 확인(✔) 토글. */
+export async function ownerConfirmWorkMonth(
+  userId: string,
+  year: number,
+  month: number,
+  confirmed: boolean,
+) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+  if (!userId) throw new Error("대상 사용자가 지정되지 않았습니다");
+  const at = confirmed ? new Date() : null;
+  await prisma.workMonth.upsert({
+    where: { userId_year_month: { userId, year, month } },
+    update: { ownerConfirmedAt: at, updatedById: session!.user!.id },
+    create: { userId, year, month, ownerConfirmedAt: at, updatedById: session!.user!.id },
+  });
+  revalidatePath("/payroll");
+  revalidatePath("/payroll/me");
+  return { ok: true };
 }

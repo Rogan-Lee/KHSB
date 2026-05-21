@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
-import { getAllPayrollData, getPayrollCandidates } from "@/actions/payroll";
+import { getAllPayrollData, getPayrollCandidates, getMonthlyWorkSheet } from "@/actions/payroll";
 import { PageIntro } from "@/components/ui/page-intro";
 import { Card, CardContent } from "@/components/ui/card";
 import { PayrollAdminBoard } from "@/components/payroll/payroll-admin-board";
+import { MonthlyWorkSheet } from "@/components/payroll/monthly-work-sheet";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { User } from "lucide-react";
@@ -24,12 +25,13 @@ export default async function PayrollPage({
     redirect("/payroll/me");
   }
 
-  const now = new Date();
+  const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const sp = await searchParams;
-  const year = sp.year ? Number(sp.year) : now.getFullYear();
-  const month = sp.month ? Number(sp.month) : now.getMonth() + 1;
+  const year = sp.year ? Number(sp.year) : kstNow.getUTCFullYear();
+  const month = sp.month ? Number(sp.month) : kstNow.getUTCMonth() + 1;
 
-  const [{ staff, tags }, candidates] = await Promise.all([
+  const [workSheet, { staff, tags }, candidates] = await Promise.all([
+    getMonthlyWorkSheet(year, month),
     getAllPayrollData(year, month),
     getPayrollCandidates(),
   ]);
@@ -39,7 +41,7 @@ export default async function PayrollPage({
       <PageIntro
         tag="PAYROLL · ADMIN"
         title="급여 정산"
-        description="직원별 시급 설정 · 출퇴근 태그 수정 · 월 급여 계산"
+        description="근무자가 입력한 근무시간을 한 표에서 확인 · 수정하고, 월 급여를 산정합니다. 급여 기준(시급/월급)은 근무자별로 설정하세요."
         accent="text-info"
       />
 
@@ -51,8 +53,19 @@ export default async function PayrollPage({
         </Link>
       </div>
 
+      {/* 메인: 월간 근무표 + 급여 산정 */}
       <Card>
         <CardContent className="pt-4">
+          <MonthlyWorkSheet initial={workSheet} />
+        </CardContent>
+      </Card>
+
+      {/* 레거시: 출퇴근 태그 기록 (참고용) */}
+      <details className="rounded-xl border border-line bg-panel">
+        <summary className="cursor-pointer px-4 py-3 text-[13px] font-semibold text-ink-3">
+          출퇴근 태그 기록 (레거시 · 참고용)
+        </summary>
+        <div className="border-t border-line-2 p-4">
           <PayrollAdminBoard
             year={year}
             month={month}
@@ -67,8 +80,8 @@ export default async function PayrollPage({
             tags={tags}
             candidates={candidates}
           />
-        </CardContent>
-      </Card>
+        </div>
+      </details>
     </div>
   );
 }
