@@ -8,15 +8,25 @@ import { hasGatePass } from "@/lib/token-auth";
 import { todayKST } from "@/lib/utils";
 import type { PatrolStatus } from "@/generated/prisma";
 
-// ───────────────────── 포털(매직링크) 인증 ─────────────────────
+// ───────────────────── 순찰자 인증 (매직링크 토큰 OR 로그인 세션) ─────────────────────
 
-/** 매직링크 토큰 + 게이트 통과 검증 → 순찰자(User) 반환. 실패 시 throw. */
-async function requirePatroller(token: string): Promise<{ id: string; name: string }> {
-  const validated = await validateStaffMagicLink(token);
-  if (!validated) throw new Error("유효하지 않거나 만료된 링크입니다");
-  const passed = await hasGatePass("STAFF", token, validated.user.id);
-  if (!passed) throw new Error("본인 확인이 필요합니다");
-  return { id: validated.user.id, name: validated.user.name };
+/**
+ * 순찰자(User) 인증. 두 진입점 지원:
+ *  - token 있음: 매직링크 토큰 + 게이트 통과(외부 근무자 — 비로그인 모바일 포털)
+ *  - token 없음: 로그인 세션 + requireStaff (앱 내 순찰 모드)
+ * 실패 시 throw.
+ */
+async function resolvePatroller(token?: string): Promise<{ id: string; name: string }> {
+  if (token) {
+    const validated = await validateStaffMagicLink(token);
+    if (!validated) throw new Error("유효하지 않거나 만료된 링크입니다");
+    const passed = await hasGatePass("STAFF", token, validated.user.id);
+    if (!passed) throw new Error("본인 확인이 필요합니다");
+    return { id: validated.user.id, name: validated.user.name };
+  }
+  const session = await auth();
+  requireStaff(session?.user?.role);
+  return { id: session!.user!.id, name: session!.user!.name ?? "" };
 }
 
 // ───────────────────── 포털 데이터 ─────────────────────
@@ -93,8 +103,8 @@ function toRecordView(r: {
 }
 
 /** 포털 초기 데이터: roster + 전체 재원 + 진행 중 회차 + 그 회차 점검 기록. */
-export async function getPatrolPortalData(token: string): Promise<PatrolPortalData> {
-  const patroller = await requirePatroller(token);
+export async function getPatrolPortalData(token?: string): Promise<PatrolPortalData> {
+  const patroller = await resolvePatroller(token);
 
   const [roster, allStudentRows, activeRound] = await Promise.all([
     getTodayRoster(),
@@ -133,9 +143,9 @@ export async function getPatrolPortalData(token: string): Promise<PatrolPortalDa
   };
 }
 
-/** QR 스캔/검색한 학생의 상세 정보 (포털 — 토큰+게이트 인증). */
-export async function getPatrolStudentInfo(token: string, studentId: string): Promise<PatrolStudentInfo> {
-  await requirePatroller(token);
+/** QR 스캔/검색한 학생의 상세 정보 (토큰+게이트 또는 로그인 세션 인증). */
+export async function getPatrolStudentInfo(token: string | undefined, studentId: string): Promise<PatrolStudentInfo> {
+  await resolvePatroller(token);
 
   const s = await prisma.student.findUnique({
     where: { id: studentId },
@@ -167,8 +177,8 @@ export async function getPatrolStudentInfo(token: string, studentId: string): Pr
 // ───────────────────── 포털 mutation ─────────────────────
 
 /** 새 순찰 회차 시작. 이미 진행 중 회차가 있으면 그 회차를 반환(중복 방지). */
-export async function startPatrolRound(token: string, label?: string) {
-  const patroller = await requirePatroller(token);
+export async function startPatrolRound(token?: string, label?: string) {
+  const patroller = await resolvePatroller(token);
 
   const existing = await prisma.patrolRound.findFirst({
     where: { endedAt: null },
@@ -189,8 +199,8 @@ export async function startPatrolRound(token: string, label?: string) {
 }
 
 /** 순찰 회차 종료. */
-export async function endPatrolRound(token: string, roundId: string) {
-  await requirePatroller(token);
+export async function endPatrolRound(token: string | undefined, roundId: string) {
+  await resolvePatroller(token);
   await prisma.patrolRound.updateMany({
     where: { id: roundId, endedAt: null },
     data: { endedAt: new Date() },
@@ -203,13 +213,13 @@ export async function endPatrolRound(token: string, roundId: string) {
  * studentId 는 좌석 QR 스캔 또는 명단 선택에서 옴 → ACTIVE 학생인지 검증.
  */
 export async function recordPatrol(
-  token: string,
+  token: string | undefined,
   roundId: string,
   studentId: string,
   status: PatrolStatus,
   note?: string,
 ): Promise<PatrolRecordView> {
-  await requirePatroller(token);
+  await resolvePatroller(token);
 
   const round = await prisma.patrolRound.findUnique({ where: { id: roundId }, select: { endedAt: true } });
   if (!round) throw new Error("순찰 회차를 찾을 수 없습니다");
@@ -324,6 +334,20 @@ export async function getPatrolDayRoundsWithRecords(dateStr?: string): Promise<P
     absentCount: r.records.filter((x) => x.status === "ABSENT").length,
     records: r.records.map(toRecordView),
   }));
+}
+
+/** 진행 중 순찰 회차 요약 (대시보드 위젯용). 없으면 null. */
+export async function getActivePatrolRoundBrief(): Promise<{ id: string; checkedCount: number } | null> {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  const round = await prisma.patrolRound.findFirst({
+    where: { endedAt: null },
+    orderBy: { startedAt: "desc" },
+    select: { id: true, _count: { select: { records: true } } },
+  });
+  if (!round) return null;
+  return { id: round.id, checkedCount: round._count.records };
 }
 
 /** 한 회차의 점검 기록 상세 (학생별). */

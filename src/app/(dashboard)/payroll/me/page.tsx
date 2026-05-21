@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { getMyClockStatus, getMyPayrollSummary } from "@/actions/payroll";
+import { getMyWorkSheet } from "@/actions/payroll";
 import { PageIntro } from "@/components/ui/page-intro";
 import { Card, CardContent } from "@/components/ui/card";
-import { MyPayrollPanel } from "@/components/payroll/my-payroll-panel";
+import { MyWorkHoursPanel } from "@/components/payroll/my-work-hours-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -11,27 +11,24 @@ export default async function MyPayrollPage() {
   const session = await auth();
   if (!session?.user) redirect("/sign-in");
 
-  const [status, summary] = await Promise.all([
-    getMyClockStatus(),
-    getMyPayrollSummary(3),
-  ]);
+  const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+  const year = kstNow.getUTCFullYear();
+  const month = kstNow.getUTCMonth() + 1;
+
+  const sheet = await getMyWorkSheet(year, month);
 
   return (
     <div className="space-y-4">
       <PageIntro
         tag="PAYROLL · ME"
-        title="내 출퇴근 기록"
-        description="출근/퇴근 버튼으로 기록을 남기세요. 기록은 수정할 수 없으며, 오류가 있으면 원장님께 문의하세요."
+        title="내 근무시간"
+        description="매일 근무한 시간을 직접 입력하세요. 입력한 시간으로 급여가 자동 산정됩니다. 마지막에 본인 확인을 눌러주세요."
         accent="text-info"
       />
 
       <Card>
         <CardContent className="pt-4">
-          <MyPayrollPanel
-            initialStatus={status}
-            initialTags={summary.tags}
-            records={summary.records}
-          />
+          <MyWorkHoursPanel initial={sheet} year={year} month={month} />
         </CardContent>
       </Card>
     </div>

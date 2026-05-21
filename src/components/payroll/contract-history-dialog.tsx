@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { createContract } from "@/actions/payroll";
+import { MIN_HOURLY_WAGE_2026 } from "@/lib/payroll";
 import type { PayrollContract } from "@/generated/prisma";
 
 interface Props {
@@ -119,7 +120,11 @@ export function ContractHistoryDialog({
                       )}
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      <span>시급 {formatWon(c.hourlyRate)}</span>
+                      {c.monthlySalary != null && c.monthlySalary > 0 ? (
+                        <span className="font-medium text-foreground">월급 {formatWon(c.monthlySalary)}</span>
+                      ) : (
+                        <span>시급 {formatWon(c.hourlyRate)}</span>
+                      )}
                       <span>
                         주휴 {c.weeklyHolidayPay ? "ON" : "OFF"}
                       </span>
@@ -207,6 +212,7 @@ function NewContractForm({
 }) {
   const [yearMonth, setYearMonth] = useState<string>(defaultEffectiveFromYm());
   const [hourlyRate, setHourlyRate] = useState<string>("");
+  const [monthlySalary, setMonthlySalary] = useState<string>("");
   const [weeklyHolidayPay, setWeeklyHolidayPay] = useState(true);
   const [monthlyBonus, setMonthlyBonus] = useState<string>("");
   const [note, setNote] = useState("");
@@ -238,6 +244,12 @@ function NewContractForm({
       return;
     }
 
+    const salary = monthlySalary.trim() === "" ? null : Number(monthlySalary);
+    if (salary != null && (!Number.isFinite(salary) || salary < 0)) {
+      toast.error("월 기본급은 0 이상이어야 합니다");
+      return;
+    }
+
     const bonus = monthlyBonus.trim() === "" ? 0 : Number(monthlyBonus);
     if (!Number.isFinite(bonus) || bonus < 0) {
       toast.error("보너스는 0 이상이어야 합니다");
@@ -256,6 +268,7 @@ function NewContractForm({
         await createContract(userId, {
           effectiveFrom,
           hourlyRate: hr,
+          monthlySalary: salary,
           weeklyHolidayPay,
           monthlyBonusKrw: bonus,
           note: note.trim() || undefined,
@@ -302,7 +315,32 @@ function NewContractForm({
             placeholder="예: 12000"
             disabled={isPending}
           />
+          {hourlyRate.trim() !== "" &&
+            Number(hourlyRate) > 0 &&
+            Number(hourlyRate) < MIN_HOURLY_WAGE_2026 && (
+              <p className="text-xs text-amber-600">
+                ⚠️ 2026년 최저임금({MIN_HOURLY_WAGE_2026.toLocaleString("ko-KR")}원) 미만입니다.
+              </p>
+            )}
         </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="contract-salary">월 기본급 (원, 선택)</Label>
+        <Input
+          id="contract-salary"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          step={10000}
+          value={monthlySalary}
+          onChange={(e) => setMonthlySalary(e.target.value)}
+          placeholder="입력 시 시급 대신 고정 월급으로 정산"
+          disabled={isPending}
+        />
+        <p className="text-xs text-muted-foreground">
+          비워두면 시급제(시간×시급+주휴). 입력하면 근무시간과 무관하게 고정 월급으로 정산됩니다.
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
