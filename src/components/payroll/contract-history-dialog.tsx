@@ -43,6 +43,14 @@ function formatWon(n: number): string {
   return `₩${n.toLocaleString("ko-KR")}`;
 }
 
+const DOW = ["일", "월", "화", "수", "목", "금", "토"];
+
+function formatWorkSchedule(days: number[], start: string | null, end: string | null): string | null {
+  if (!days || days.length === 0 || !start || !end) return null;
+  const labels = [...days].sort((a, b) => a - b).map((d) => DOW[d]).join("·");
+  return `${labels} ${start}~${end}`;
+}
+
 /**
  * 근무자별 PayrollContract 이력 + 신규 계약 입력 다이얼로그.
  * Sprint 3 PR 3.2 — 아직 어떤 페이지에도 wire-up 되지 않음. PR 3.3 에서 admin board sheet 가 사용 예정.
@@ -117,6 +125,11 @@ export function ContractHistoryDialog({
                       </span>
                       {c.monthlyBonusKrw > 0 && (
                         <span>보너스 {formatWon(c.monthlyBonusKrw)}</span>
+                      )}
+                      {formatWorkSchedule(c.workDays, c.workStartTime, c.workEndTime) && (
+                        <span className="text-foreground/70">
+                          근무 {formatWorkSchedule(c.workDays, c.workStartTime, c.workEndTime)}
+                        </span>
                       )}
                     </div>
                     {c.note && (
@@ -197,7 +210,14 @@ function NewContractForm({
   const [weeklyHolidayPay, setWeeklyHolidayPay] = useState(true);
   const [monthlyBonus, setMonthlyBonus] = useState<string>("");
   const [note, setNote] = useState("");
+  const [workDays, setWorkDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [workStart, setWorkStart] = useState<string>("14:00");
+  const [workEnd, setWorkEnd] = useState<string>("22:00");
   const [isPending, startTransition] = useTransition();
+
+  function toggleDay(d: number) {
+    setWorkDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort((a, b) => a - b)));
+  }
 
   function handleSubmit() {
     // yearMonth = "YYYY-MM" → "YYYY-MM-01T00:00:00+09:00" 으로 KST 1일을 표현.
@@ -224,6 +244,13 @@ function NewContractForm({
       return;
     }
 
+    // 근무 조건: 요일 선택 시 시작·종료 시간 필수
+    const hasDays = workDays.length > 0;
+    if (hasDays && (!/^\d{2}:\d{2}$/.test(workStart) || !/^\d{2}:\d{2}$/.test(workEnd))) {
+      toast.error("근무 시작·종료 시간을 입력하세요");
+      return;
+    }
+
     startTransition(async () => {
       try {
         await createContract(userId, {
@@ -232,6 +259,9 @@ function NewContractForm({
           weeklyHolidayPay,
           monthlyBonusKrw: bonus,
           note: note.trim() || undefined,
+          workDays: hasDays ? workDays : [],
+          workStartTime: hasDays ? workStart : undefined,
+          workEndTime: hasDays ? workEnd : undefined,
         });
         toast.success("신규 계약이 등록되었습니다");
         onCreated();
@@ -301,6 +331,43 @@ function NewContractForm({
             disabled={isPending}
           />
         </div>
+      </div>
+
+      {/* 근무 조건 — 계약 등록 시 주간 일정(MentorSchedule)도 함께 설정됨 */}
+      <div className="space-y-2 rounded-md border bg-background p-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm">근무 요일 · 시간</Label>
+          <span className="text-[11px] text-muted-foreground">주간 일정에도 반영됩니다</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {DOW.map((label, d) => {
+            const on = workDays.includes(d);
+            const weekend = d === 0 || d === 6;
+            return (
+              <button
+                key={d}
+                type="button"
+                onClick={() => toggleDay(d)}
+                disabled={isPending}
+                className={
+                  on
+                    ? "h-8 w-8 rounded-md bg-slate-900 text-sm font-medium text-white"
+                    : `h-8 w-8 rounded-md border text-sm ${weekend ? "text-red-500" : "text-muted-foreground"} hover:bg-accent`
+                }
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-2">
+          <Input type="time" value={workStart} onChange={(e) => setWorkStart(e.target.value)} disabled={isPending} className="w-32" />
+          <span className="text-muted-foreground text-sm">~</span>
+          <Input type="time" value={workEnd} onChange={(e) => setWorkEnd(e.target.value)} disabled={isPending} className="w-32" />
+        </div>
+        {workDays.length === 0 && (
+          <p className="text-[11px] text-muted-foreground">요일을 선택하지 않으면 근무 일정은 변경되지 않습니다.</p>
+        )}
       </div>
 
       <div className="space-y-1">
