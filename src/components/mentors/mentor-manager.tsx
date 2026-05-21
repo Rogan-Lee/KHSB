@@ -42,7 +42,12 @@ const ROLE_LABEL: Record<string, string> = {
   STAFF: "운영조교", CONSULTANT: "컨설턴트", MANAGER_MENTOR: "관리 멘토", MENTOR: "멘토",
 };
 
+const DOW = ["일", "월", "화", "수", "목", "금", "토"];
 function won(n: number) { return `₩${n.toLocaleString("ko-KR")}`; }
+function fmtWorkSchedule(days: number[], start: string | null, end: string | null): string | null {
+  if (!days || days.length === 0 || !start || !end) return null;
+  return `${[...days].sort((a, b) => a - b).map((d) => DOW[d]).join("·")} ${start}~${end}`;
+}
 function ymKst(d: Date) {
   const k = new Date(new Date(d).getTime() + 9 * 60 * 60 * 1000);
   return `${k.getUTCFullYear()}.${String(k.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -382,6 +387,9 @@ export function MentorManager({ mentors: initialMentors, schedules, linksByUser,
                       <span className="text-xs text-muted-foreground">{ymKst(activeContract.effectiveFrom)}~</span>
                       <span className="text-xs text-muted-foreground">주휴 {activeContract.weeklyHolidayPay ? "지급" : "미지급"}</span>
                       {activeContract.monthlyBonusKrw > 0 && <span className="text-xs text-muted-foreground">고정수당 {won(activeContract.monthlyBonusKrw)}</span>}
+                      {fmtWorkSchedule(activeContract.workDays, activeContract.workStartTime, activeContract.workEndTime) && (
+                        <span className="text-xs text-muted-foreground">근무 {fmtWorkSchedule(activeContract.workDays, activeContract.workStartTime, activeContract.workEndTime)}</span>
+                      )}
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground">등록된 계약이 없습니다. 계약 관리 버튼으로 시급 계약을 등록하세요.</p>
