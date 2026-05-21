@@ -125,10 +125,10 @@ export function StaffMagicLinkPanel({
       <div className="flex items-center justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold">
-            근무자 매직링크 — {userName}
+            순찰 매직링크 — {userName}
           </h3>
           <p className="text-xs text-muted-foreground">
-            카톡 등으로 전달. 본인 확인은 전화번호 뒷 4자리. 기본 90일 만료.
+            카톡 등으로 전달 → 폰에서 QR 순찰. 본인 확인은 전화번호 뒷 4자리. 기본 90일 만료.
           </p>
         </div>
         <Button

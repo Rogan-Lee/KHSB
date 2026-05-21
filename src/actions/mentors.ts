@@ -25,6 +25,7 @@ export async function createMentor(formData: FormData) {
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
   const role = (formData.get("role") as string) || "MENTOR";
+  const phone = ((formData.get("phone") as string) || "").trim() || null;
 
   if (!name || !email) throw new Error("필수 항목을 입력하세요");
   const createValidRoles = ["MENTOR", "STAFF", "HEAD_MENTOR", "CONSULTANT", "MANAGER_MENTOR"] as const;
@@ -34,7 +35,7 @@ export async function createMentor(formData: FormData) {
   }
 
   await prisma.user.create({
-    data: { name, email, role: role as CreateRole },
+    data: { name, email, role: role as CreateRole, phone },
   });
 
   revalidatePath("/mentors");
@@ -46,13 +47,17 @@ export async function updateMentor(id: string, formData: FormData) {
   const name = formData.get("name") as string;
   const email = formData.get("email") as string;
   const role = formData.get("role") as string | null;
+  // phone 필드가 폼에 있을 때만 갱신 (빈 문자열이면 null 로 비움)
+  const hasPhone = formData.has("phone");
+  const phone = ((formData.get("phone") as string) || "").trim() || null;
 
   if (!name || !email) throw new Error("필수 항목을 입력하세요");
 
   const validRoles = ["MENTOR", "STAFF", "HEAD_MENTOR", "CONSULTANT", "MANAGER_MENTOR", "DIRECTOR", "SUPER_ADMIN"] as const;
   type ValidRole = typeof validRoles[number];
-  const data: { name: string; email: string; role?: ValidRole } = { name, email };
+  const data: { name: string; email: string; role?: ValidRole; phone?: string | null } = { name, email };
   if (role && (validRoles as readonly string[]).includes(role)) data.role = role as ValidRole;
+  if (hasPhone) data.phone = phone;
 
   await prisma.user.update({ where: { id }, data });
   revalidatePath("/mentors");

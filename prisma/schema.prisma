@@ -333,6 +333,7 @@ model Student {
   vocabAttempts        VocabAttempt[]
   examSeatAssignments  ExamSeatAssignment[]
   photos               Photo[]
+  patrolRecords        PatrolRecord[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 
@@ -395,6 +396,44 @@ model StaffMagicLink {
 
   @@index([userId, revokedAt])
   @@index([expiresAt])
+}
+
+// 순찰 점검 결과 상태.
+enum PatrolStatus {
+  OK // 양호
+  NOTE // 특이사항 있음
+  ABSENT // 자리 비움
+}
+
+// 관리자 순찰 회차(라운드). 시작~종료 한 번의 순찰 단위.
+// 회차마다 재실 학생 전원 점검을 목표로 하며, 점검 수/재실 수로 완료율 산정.
+model PatrolRound {
+  id            String         @id @default(cuid())
+  startedAt     DateTime       @default(now())
+  endedAt       DateTime?
+  label         String? // "19시 순찰" 등 (선택)
+  patrollerId   String? // 순찰자 User.id (매직링크 소유자 or 로그인 관리자)
+  patrollerName String? // 표시용 스냅샷
+  records       PatrolRecord[]
+  createdAt     DateTime       @default(now())
+
+  @@index([startedAt])
+}
+
+// 회차 내 학생 1명 점검 결과. 한 회차당 학생 1건(@@unique).
+model PatrolRecord {
+  id        String       @id @default(cuid())
+  roundId   String
+  round     PatrolRound  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  studentId String
+  student   Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status    PatrolStatus @default(OK)
+  note      String? // 특이사항 내용
+  checkedAt DateTime     @default(now())
+
+  @@unique([roundId, studentId])
+  @@index([roundId])
+  @@index([studentId])
 }
 
 // A-1 학생 초기 설문 (입시/수행평가/학습 이력).
