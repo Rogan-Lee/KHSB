@@ -41,6 +41,7 @@ import {
   ChevronsLeft,
   Video,
   HelpCircle,
+  ScanLine,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType; feature?: FeatureKey };
@@ -81,6 +82,7 @@ const navSections: NavSection[] = [
   {
     label: "운영",
     items: [
+      { href: "/patrol", label: "순찰 관리", icon: ScanLine },
       { href: "/calendar", label: "캘린더", icon: CalendarDays, feature: "calendar" },
       { href: "/meeting-minutes", label: "회의록", icon: NotebookText, feature: "meeting-minutes" },
       { href: "/photos", label: "사진 관리", icon: Images, feature: "photos" },

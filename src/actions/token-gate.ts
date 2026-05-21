@@ -148,10 +148,49 @@ export async function verifyParentGate(
   return { ok: true };
 }
 
+// ───────────────────── 근무자/관리자 게이트 (/w/[token]) ─────────────────────
+
+/**
+ * 순찰 매직링크 본인 확인: 근무자(User) 전화번호 뒷 4자리.
+ * phone 미설정 사용자는 발급 단계에서 차단되므로 정상 흐름엔 없음.
+ */
+export async function verifyStaffGate(
+  token: string,
+  phoneInput: string
+): Promise<GateResult> {
+  const scope: GateScope = "STAFF";
+  const { ip, ua } = await getRequestMeta();
+  if (await isGateLocked(scope, token, ip)) return { ok: false, reason: "locked" };
+
+  const link = await prisma.staffMagicLink.findUnique({
+    where: { token },
+    include: { user: { select: { id: true, phone: true, status: true } } },
+  });
+  if (!link) return { ok: false, reason: "not_found" };
+  const fail = checkExpiry({ expiresAt: link.expiresAt, revokedAt: link.revokedAt });
+  if (fail) return { ok: false, reason: fail };
+  if (link.user.status === "TERMINATED") return { ok: false, reason: "revoked" };
+
+  const expected = phoneLast4(link.user.phone);
+  if (!expected) return { ok: false, reason: "no_credential" };
+
+  const given = normalizeDigits(phoneInput);
+  if (given.length !== 4 || !safeEqual(given, expected)) {
+    await recordGateFailure(scope, token, ip, ua);
+    return { ok: false, reason: "invalid" };
+  }
+
+  await grantGatePass(scope, token, link.user.id, link.expiresAt);
+  return { ok: true };
+}
+
 // 디버그/로그아웃 용도
 export async function clearParentGate(token: string) {
   await clearGatePass("PARENT", token);
 }
 export async function clearStudentGate(token: string) {
   await clearGatePass("STUDENT", token);
+}
+export async function clearStaffGate(token: string) {
+  await clearGatePass("STAFF", token);
 }
