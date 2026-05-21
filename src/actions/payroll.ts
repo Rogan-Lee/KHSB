@@ -436,6 +436,9 @@ export async function createContract(
     weeklyHolidayPay?: boolean;
     monthlyBonusKrw?: number;
     note?: string;
+    workDays?: number[]; // 0=일 .. 6=토
+    workStartTime?: string; // "14:00"
+    workEndTime?: string; // "22:00"
   },
 ) {
   const session = await auth();
@@ -452,6 +455,13 @@ export async function createContract(
   const weeklyHolidayPay = data.weeklyHolidayPay ?? true;
   const monthlyBonusKrw = Math.max(0, Math.round(data.monthlyBonusKrw ?? 0));
   const note = data.note?.trim() || null;
+
+  // 계약상 근무 조건 (요일 + 시작/종료) — 유효 요일만, HH:MM 형식 검증
+  const timeRe = /^\d{2}:\d{2}$/;
+  const workDays = Array.from(new Set((data.workDays ?? []).filter((d) => d >= 0 && d <= 6))).sort((a, b) => a - b);
+  const workStartTime = data.workStartTime && timeRe.test(data.workStartTime) ? data.workStartTime : null;
+  const workEndTime = data.workEndTime && timeRe.test(data.workEndTime) ? data.workEndTime : null;
+  const hasSchedule = workDays.length > 0 && workStartTime != null && workEndTime != null;
 
   // 직전 활성 계약(effectiveTo=null) 조회 후 트랜잭션으로 마감 + 신규 생성
   const current = await prisma.payrollContract.findFirst({
@@ -482,16 +492,33 @@ export async function createContract(
         hourlyRate,
         weeklyHolidayPay,
         monthlyBonusKrw,
+        workDays,
+        workStartTime,
+        workEndTime,
         note,
         createdById: session!.user!.id,
       },
     }),
   );
 
+  // 계약 입력이 주간 일정(MentorSchedule)도 함께 설정 — 선택 요일만 남기고 동기화
+  if (hasSchedule) {
+    ops.push(prisma.mentorSchedule.deleteMany({ where: { mentorId: userId } }));
+    for (const day of workDays) {
+      ops.push(
+        prisma.mentorSchedule.create({
+          data: { mentorId: userId, dayOfWeek: day, timeStart: workStartTime!, timeEnd: workEndTime! },
+        }),
+      );
+    }
+  }
+
   const results = await prisma.$transaction(ops);
-  const created = results[results.length - 1];
+  // 신규 계약은 update(있으면) 다음, schedule ops 이전 위치 → 인덱스로 특정
+  const created = results[current ? 1 : 0];
 
   revalidatePath("/payroll");
+  revalidatePath("/mentors");
   return created;
 }
 

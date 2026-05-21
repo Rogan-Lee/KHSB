@@ -220,6 +220,10 @@ model PayrollContract {
   hourlyRate       Int // 원
   weeklyHolidayPay Boolean   @default(true)
   monthlyBonusKrw  Int       @default(0) // 고정 수당(식대 등) — 표시용, 4대보험 자동계산 X
+  // 계약상 근무 조건 — 계약 등록 시 MentorSchedule(주간 일정)도 동기화
+  workDays         Int[]     @default([]) // 0=일 .. 6=토
+  workStartTime    String? // "14:00"
+  workEndTime      String? // "22:00"
   note             String?
   createdById      String?
   createdAt        DateTime  @default(now())
