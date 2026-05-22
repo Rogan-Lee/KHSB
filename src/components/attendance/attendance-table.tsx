@@ -1055,10 +1055,11 @@ export function AttendanceTable({ students, today }: Props) {
                       </div>
                     </div>
 
-                    {/* 추가 외출 (2차, 3차…) — sequence > 1 */}
+                    {/* 외출 목록 — 상단 외출/복귀 칸에 표시된 건(활성 또는 마지막) 제외, 나머지 전부 노출 */}
                     {(() => {
+                      const topBound = activeOuting ?? (localOut.length > 0 ? localOut[localOut.length - 1] : null);
                       const extras = localOut
-                        .filter((o) => (o.sequence ?? 1) > 1 && o.id)
+                        .filter((o) => o.id && o.id !== topBound?.id)
                         .sort((a, b) => (a.sequence ?? 1) - (b.sequence ?? 1));
                       const isAdding = addOutingDraft?.studentId === student.id;
                       const isAddPending = addOutingPending === student.id;
