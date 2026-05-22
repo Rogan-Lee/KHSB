@@ -12,6 +12,7 @@ import {
   Wallet, CalendarClock, FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Combobox } from "@/components/ui/combobox";
 import { TimePickerInput } from "@/components/ui/time-picker";
 import {
   createMentor,
@@ -255,6 +256,23 @@ export function MentorManager({ mentors: initialMentors, schedules, linksByUser,
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-3 items-start">
         {/* 좌: 직원 목록 */}
         <aside className={cn("space-y-1.5", selected ? "hidden lg:block" : "block")}>
+          {visibleMentors.length > 0 && (
+            <Combobox
+              items={visibleMentors.map((m) => ({
+                value: m.id,
+                label: m.name,
+                subLabel: ROLE_LABEL[m.role] ?? m.role,
+                searchKey: `${m.name} ${m.email} ${ROLE_LABEL[m.role] ?? m.role}`,
+              }))}
+              value={selectedId ?? ""}
+              onChange={(id) => id && selectStaff(id)}
+              placeholder="직원 검색 (이름·이메일·역할)"
+              searchPlaceholder="이름·이메일·역할 검색..."
+              emptyMessage="일치하는 직원이 없습니다"
+              triggerClassName="h-9"
+              popoverClassName="w-[280px]"
+            />
+          )}
           {visibleMentors.length === 0 ? (
             <p className="text-sm text-muted-foreground py-6 text-center">
               {statusFilter === "terminated" ? "퇴사 처리된 직원이 없습니다" : "재직 중인 직원이 없습니다"}

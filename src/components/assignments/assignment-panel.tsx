@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 import type { Assignment } from "@/generated/prisma";
-import { AssignmentFiles } from "./assignment-files";
+import { AssignmentFiles, PendingFilePicker, uploadAssignmentFile } from "./assignment-files";
 
 interface Props {
   studentId: string;
@@ -67,6 +67,8 @@ export function AssignmentPanel({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
   const [isPending, startTransition] = useTransition();
+  // 신규 과제 작성 시 등록 전 미리 선택해 둔 파일들 (등록 직후 업로드)
+  const [stagedFiles, setStagedFiles] = useState<File[]>([]);
 
   const [form, setForm] = useState(EMPTY_FORM);
 
@@ -76,6 +78,7 @@ export function AssignmentPanel({
   function openAdd() {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setStagedFiles([]);
     setShowForm(true);
   }
 
@@ -94,6 +97,7 @@ export function AssignmentPanel({
     setShowForm(false);
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setStagedFiles([]);
   }
 
   function handleSave() {
@@ -137,7 +141,18 @@ export function AssignmentPanel({
             mentoringId,
           });
           setItems((prev) => [created, ...prev]);
-          // 신규 과제 생성 직후엔 폼을 편집 모드로 전환해 파일 첨부 가능하게
+          // 등록 전 선택해 둔 파일들을 새 과제에 업로드
+          const toUpload = stagedFiles;
+          let uploadFailed = 0;
+          for (const file of toUpload) {
+            try {
+              await uploadAssignmentFile(created.id, file);
+            } catch {
+              uploadFailed += 1;
+            }
+          }
+          setStagedFiles([]);
+          // 신규 과제 생성 직후엔 폼을 편집 모드로 전환해 파일 추가/확인 가능하게
           setEditingId(created.id);
           setForm({
             title: created.title,
@@ -145,7 +160,13 @@ export function AssignmentPanel({
             description: created.description ?? "",
             dueDate: toDateInputValue(created.dueDate),
           });
-          toast.success("과제가 등록되었습니다. 파일을 첨부할 수 있어요");
+          if (uploadFailed > 0) {
+            toast.warning(`과제는 등록됐지만 파일 ${uploadFailed}개 업로드에 실패했어요`);
+          } else if (toUpload.length > 0) {
+            toast.success(`과제가 등록되고 파일 ${toUpload.length}개가 첨부되었습니다`);
+          } else {
+            toast.success("과제가 등록되었습니다. 파일을 첨부할 수 있어요");
+          }
         } catch {
           toast.error("등록 실패");
         }
@@ -340,16 +361,18 @@ export function AssignmentPanel({
             className="w-full border rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background resize-none min-h-[50px]"
           />
 
-          {/* 파일 첨부 — 과제 저장(=assignmentId 발급) 후에만 노출 */}
-          {editingId ? (
-            <div className="pt-1 border-t border-border/40">
+          {/* 파일 첨부 — 신규 작성 시엔 임시 보관, 저장 직후 업로드 */}
+          <div className="pt-1 border-t border-border/40">
+            {editingId ? (
               <AssignmentFiles assignmentId={editingId} />
-            </div>
-          ) : (
-            <p className="text-[11px] text-muted-foreground">
-              파일은 과제 등록 후 첨부할 수 있어요
-            </p>
-          )}
+            ) : (
+              <PendingFilePicker
+                files={stagedFiles}
+                onChange={setStagedFiles}
+                disabled={isPending}
+              />
+            )}
+          </div>
 
           <div className="flex justify-end">
             <Button

@@ -16,9 +16,10 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Trash2, ChevronDown } from "lucide-react";
 import { createContract, deleteContract } from "@/actions/payroll";
 import { MIN_HOURLY_WAGE_2026 } from "@/lib/payroll";
+import { cn } from "@/lib/utils";
 import type { PayrollContract } from "@/generated/prisma";
 
 interface Props {
@@ -53,6 +54,15 @@ function formatWorkSchedule(days: number[], start: string | null, end: string | 
   return `${labels} ${start}~${end}`;
 }
 
+function DetailRow({ label, value, full }: { label: string; value: string; full?: boolean }) {
+  return (
+    <div className={cn("flex flex-col gap-0.5", full && "col-span-2")}>
+      <dt className="text-[11px] text-muted-foreground">{label}</dt>
+      <dd className="font-medium text-foreground break-words">{value}</dd>
+    </div>
+  );
+}
+
 /**
  * 근무자별 PayrollContract 이력 + 신규 계약 입력 다이얼로그.
  * Sprint 3 PR 3.2 — 아직 어떤 페이지에도 wire-up 되지 않음. PR 3.3 에서 admin board sheet 가 사용 예정.
@@ -67,6 +77,7 @@ export function ContractHistoryDialog({
 }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [, startDelete] = useTransition();
 
   function handleDelete(c: PayrollContract) {
@@ -122,6 +133,8 @@ export function ContractHistoryDialog({
             <ul className="space-y-2">
               {sorted.map((c) => {
                 const isActive = c.effectiveTo === null;
+                const isExpanded = expandedId === c.id;
+                const schedule = formatWorkSchedule(c.workDays, c.workStartTime, c.workEndTime);
                 return (
                   <li
                     key={c.id}
@@ -132,10 +145,22 @@ export function ContractHistoryDialog({
                     }
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-sm font-medium">
-                        {formatYmd(c.effectiveFrom)} ~{" "}
-                        {formatYmd(c.effectiveTo)}
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId((cur) => (cur === c.id ? null : c.id))}
+                        aria-expanded={isExpanded}
+                        className="flex min-w-0 items-center gap-1.5 text-sm font-medium"
+                      >
+                        <ChevronDown
+                          className={cn(
+                            "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+                            isExpanded && "rotate-180",
+                          )}
+                        />
+                        <span className="truncate">
+                          {formatYmd(c.effectiveFrom)} ~ {formatYmd(c.effectiveTo)}
+                        </span>
+                      </button>
                       <div className="flex items-center gap-1.5">
                         {isActive && (
                           <Badge variant="default" className="bg-green-600">
@@ -153,28 +178,33 @@ export function ContractHistoryDialog({
                         </button>
                       </div>
                     </div>
+
+                    {/* 요약 (한 줄 미리보기) */}
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                       {c.monthlySalary != null && c.monthlySalary > 0 ? (
                         <span className="font-medium text-foreground">월급 {formatWon(c.monthlySalary)}</span>
                       ) : (
                         <span>시급 {formatWon(c.hourlyRate)}</span>
                       )}
-                      <span>
-                        주휴 {c.weeklyHolidayPay ? "ON" : "OFF"}
-                      </span>
-                      {c.monthlyBonusKrw > 0 && (
-                        <span>보너스 {formatWon(c.monthlyBonusKrw)}</span>
-                      )}
-                      {formatWorkSchedule(c.workDays, c.workStartTime, c.workEndTime) && (
-                        <span className="text-foreground/70">
-                          근무 {formatWorkSchedule(c.workDays, c.workStartTime, c.workEndTime)}
-                        </span>
-                      )}
+                      <span>주휴 {c.weeklyHolidayPay ? "ON" : "OFF"}</span>
+                      {c.monthlyBonusKrw > 0 && <span>보너스 {formatWon(c.monthlyBonusKrw)}</span>}
+                      {schedule && <span className="text-foreground/70">근무 {schedule}</span>}
                     </div>
-                    {c.note && (
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {c.note}
-                      </div>
+
+                    {/* 전체 상세 (펼침) */}
+                    {isExpanded && (
+                      <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t pt-2 text-xs">
+                        <DetailRow label="적용 기간" value={`${formatYmd(c.effectiveFrom)} ~ ${formatYmd(c.effectiveTo)}`} />
+                        <DetailRow label="시급" value={formatWon(c.hourlyRate)} />
+                        {c.monthlySalary != null && c.monthlySalary > 0 && (
+                          <DetailRow label="월 기본급" value={formatWon(c.monthlySalary)} />
+                        )}
+                        <DetailRow label="주휴수당" value={c.weeklyHolidayPay ? "지급" : "미지급"} />
+                        <DetailRow label="고정 보너스" value={c.monthlyBonusKrw > 0 ? formatWon(c.monthlyBonusKrw) : "없음"} />
+                        <DetailRow label="근무 요일·시간" value={schedule ?? "미설정"} />
+                        <DetailRow label="등록일" value={formatYmd(c.createdAt)} />
+                        {c.note && <DetailRow label="비고" value={c.note} full />}
+                      </dl>
                     )}
                   </li>
                 );
