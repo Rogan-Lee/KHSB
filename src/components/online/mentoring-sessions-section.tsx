@@ -24,7 +24,11 @@ import {
   completeMentoringSession,
   cancelMentoringSession,
 } from "@/actions/online/mentoring-sessions";
-import type { MentoringSessionStatus } from "@/generated/prisma";
+import type {
+  MentoringSessionPhoto,
+  MentoringSessionStatus,
+} from "@/generated/prisma";
+import { SessionPhotoUploader } from "@/components/mentoring/session-photo-uploader";
 
 export type MentoringSessionRow = {
   id: string;
@@ -37,6 +41,7 @@ export type MentoringSessionRow = {
   notes: string | null;
   summary: string | null;
   hostName: string;
+  photos: MentoringSessionPhoto[];
 };
 
 const STATUS_LABEL: Record<MentoringSessionStatus, string> = {
@@ -384,6 +389,17 @@ function SessionCard({
             />
           </div>
 
+          {/* 첨부 사진 (KDA / EXTRA / FREE) */}
+          <div>
+            <h6 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide mb-1.5">
+              첨부 사진
+            </h6>
+            <SessionPhotoUploader
+              sessionId={session.id}
+              existing={session.photos}
+            />
+          </div>
+
           {/* 액션 버튼 */}
           {editable && (
             <div className="flex items-center justify-end gap-2">
@@ -400,6 +416,11 @@ function SessionCard({
                 type="button"
                 onClick={handleComplete}
                 disabled={isPending || summarizing || !notesDraft.trim()}
+                title={
+                  !notesDraft.trim()
+                    ? "노트가 비어 있어 요약할 수 없습니다"
+                    : undefined
+                }
                 className="inline-flex items-center gap-1 rounded-[8px] bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-[12px] font-semibold disabled:opacity-50"
               >
                 {summarizing ? (

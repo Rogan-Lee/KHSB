@@ -249,6 +249,29 @@ export async function getStudentStudyAnalysis(
 
 // ─── 월간 리포트 생성 ─────────────────────────────────────────────────
 
+/**
+ * 월간 순찰 이상 집계. 순찰에서 기록을 남기지 않으면 이상 없음(OK),
+ * 특이사항(NOTE)·자리비움(ABSENT)만 "이상 기록"으로 집계.
+ */
+export async function getMonthlyPatrolIssues(studentId: string, year: number, month: number) {
+  const start = startOfMonth(new Date(year, month - 1));
+  const end = endOfMonth(new Date(year, month - 1));
+  const records = await prisma.patrolRecord.findMany({
+    where: {
+      studentId,
+      status: { in: ["NOTE", "ABSENT"] },
+      round: { startedAt: { gte: start, lte: end } },
+    },
+    select: { status: true, note: true, checkedAt: true },
+    orderBy: { checkedAt: "asc" },
+  });
+  return {
+    noteCount: records.filter((r) => r.status === "NOTE").length,
+    absentCount: records.filter((r) => r.status === "ABSENT").length,
+    records,
+  };
+}
+
 export async function generateMonthlyReport(
   studentId: string,
   year: number,
@@ -287,10 +310,11 @@ export async function generateMonthlyReport(
   // 전월 순공 시간
   const prevYear = month === 1 ? year - 1 : year;
   const prevMonth = month === 1 ? 12 : month - 1;
-  const [prevMonthStudyMinutes, gradeAvg, outing] = await Promise.all([
+  const [prevMonthStudyMinutes, gradeAvg, outing, patrol] = await Promise.all([
     getMonthlyStudyMinutes(studentId, prevYear, prevMonth),
     getGradeAverageStudyMinutes(student.grade, year, month, rankMap),
     getMonthlyOutingStats(studentId, year, month),
+    getMonthlyPatrolIssues(studentId, year, month),
   ]);
 
   const myRank = rankMap[studentId];
@@ -310,6 +334,8 @@ export async function generateMonthlyReport(
     gradeAvgMinutes: gradeAvg,
     outingCount: outing.count,
     totalOutingMinutes: outing.totalMinutes,
+    patrolNoteCount: patrol.noteCount,
+    patrolAbsentCount: patrol.absentCount,
   };
 
   const report = await prisma.monthlyReport.upsert({
@@ -693,4 +719,135 @@ export async function deleteMonthlyAward(id: string) {
   requireFullAccess(session.user.role);
   await prisma.monthlyAward.delete({ where: { id } });
   revalidatePath("/reports");
+}
+
+// ─── 월간 리포트 보충 데이터 (생성 미리보기용) ──────────────────────────
+// 생성 패널(ReportDetailPane)에서 학부모에게 나갈 모의고사·영단어·특이사항/상벌점을
+// 미리 확인하고 가시성을 조절할 수 있도록 한 번에 조회한다.
+
+export type ReportExamGroup = {
+  examName: string;
+  examType: "OFFICIAL_MOCK" | "PRIVATE_MOCK" | "SCHOOL_EXAM";
+  examDate: string;
+  isThisMonth: boolean;
+  subjects: { subject: string; grade: number | null; percentile: number | null; rawScore: number | null }[];
+};
+
+export type ReportVocabRow = {
+  id: string;
+  testDate: string;
+  totalWords: number;
+  correctWords: number;
+  score: number;
+};
+
+export type ReportNoteMerit = {
+  monthlyNote: { id: string; content: string; visibleInReport: boolean } | null;
+  merits: {
+    id: string;
+    date: string;
+    type: "MERIT" | "DEMERIT";
+    points: number;
+    reason: string | null;
+    category: string | null;
+    visibleInReport: boolean;
+  }[];
+};
+
+export type ReportSupplementaryData = {
+  exams: ReportExamGroup[];
+  vocab: { rows: ReportVocabRow[]; avgScore: number | null };
+  notes: ReportNoteMerit;
+};
+
+export async function getReportSupplementaryData(
+  studentId: string,
+  year: number,
+  month: number,
+): Promise<ReportSupplementaryData> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  const start = new Date(year, month - 1, 1);
+  const end = new Date(year, month, 0, 23, 59, 59);
+
+  const [examRows, vocabRows, monthlyNote, merits] = await Promise.all([
+    prisma.examScore.findMany({
+      where: {
+        studentId,
+        examDate: { lte: end },
+        examType: { in: ["OFFICIAL_MOCK", "PRIVATE_MOCK", "SCHOOL_EXAM"] },
+      },
+      orderBy: { examDate: "desc" },
+      take: 60,
+      select: { examName: true, examType: true, examDate: true, subject: true, grade: true, percentile: true, rawScore: true },
+    }),
+    prisma.vocabTestScore.findMany({
+      where: { studentId, testDate: { gte: start, lte: end } },
+      orderBy: { testDate: "asc" },
+      select: { id: true, testDate: true, totalWords: true, correctWords: true, score: true },
+    }),
+    prisma.monthlyNote.findFirst({
+      where: { studentId, year, month },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, content: true, visibleInReport: true },
+    }),
+    prisma.meritDemerit.findMany({
+      where: { studentId, date: { gte: start, lte: end } },
+      orderBy: { date: "asc" },
+      select: { id: true, date: true, type: true, points: true, reason: true, category: true, visibleInReport: true },
+    }),
+  ]);
+
+  // 모의고사: (examDate + examName) 그룹화, 최신 6개 그룹만
+  const groupMap = new Map<string, ReportExamGroup>();
+  for (const r of examRows) {
+    const iso = r.examDate.toISOString().slice(0, 10);
+    const key = `${iso}__${r.examName}`;
+    let g = groupMap.get(key);
+    if (!g) {
+      g = {
+        examName: r.examName,
+        examType: r.examType as ReportExamGroup["examType"],
+        examDate: iso,
+        isThisMonth: r.examDate >= start && r.examDate <= end,
+        subjects: [],
+      };
+      groupMap.set(key, g);
+    }
+    g.subjects.push({ subject: r.subject, grade: r.grade, percentile: r.percentile, rawScore: r.rawScore });
+  }
+  const exams = Array.from(groupMap.values()).slice(0, 6);
+
+  const avgScore =
+    vocabRows.length > 0
+      ? Math.round((vocabRows.reduce((s, r) => s + r.score, 0) / vocabRows.length) * 10) / 10
+      : null;
+
+  return {
+    exams,
+    vocab: {
+      rows: vocabRows.map((v) => ({
+        id: v.id,
+        testDate: v.testDate.toISOString().slice(0, 10),
+        totalWords: v.totalWords,
+        correctWords: v.correctWords,
+        score: Math.round(v.score * 10) / 10,
+      })),
+      avgScore,
+    },
+    notes: {
+      monthlyNote,
+      merits: merits.map((m) => ({
+        id: m.id,
+        date: m.date.toISOString().slice(0, 10),
+        type: m.type as "MERIT" | "DEMERIT",
+        points: m.points,
+        reason: m.reason,
+        category: m.category,
+        visibleInReport: m.visibleInReport,
+      })),
+    },
+  };
 }

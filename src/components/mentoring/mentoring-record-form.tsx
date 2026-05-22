@@ -10,13 +10,17 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { TimePickerInput } from "@/components/ui/time-picker";
-import { updateMentoring, sendFeedbackEmail, updateMentoringStatus } from "@/actions/mentoring";
+import {
+  updateMentoring,
+  sendFeedbackEmail,
+  updateMentoringStatus,
+} from "@/actions/mentoring";
 import { toast } from "sonner";
-import type { Mentoring } from "@/generated/prisma";
+import type { Mentoring, Photo } from "@/generated/prisma";
 import { useRouter } from "next/navigation";
-import { Mail, CheckCircle2, ChevronDown, ChevronUp, History, Link2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Mail, CheckCircle2, ChevronDown, ChevronUp, History, Link2, Camera } from "lucide-react";
 import { ParentReportDialog } from "./parent-report-dialog";
+import { MentoringPhotoUploader } from "./mentoring-photo-uploader";
 import { useDraft } from "@/hooks/use-draft";
 
 export type PreviousMentoring = {
@@ -37,6 +41,7 @@ interface Props {
   studentName: string;
   parentEmail?: string | null;
   previousMentoring?: PreviousMentoring | null;
+  photos?: Photo[];
   backUrl?: string;
 }
 
@@ -135,7 +140,7 @@ function PreviousMentoringCard({ prev }: { prev: PreviousMentoring }) {
   );
 }
 
-export function MentoringRecordForm({ mentoring, studentName, parentEmail, previousMentoring, backUrl }: Props) {
+export function MentoringRecordForm({ mentoring, studentName, parentEmail, previousMentoring, photos = [], backUrl }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
@@ -327,6 +332,15 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
               />
             </div>
           </div>
+        </div>
+
+        {/* 첨부 사진 (KDA / 추가 / 자유) — Sprint 5 PR 5.1 이식 */}
+        <div className="border-t pt-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Camera className="h-4 w-4 text-muted-foreground" />
+            <Label className="mb-0">첨부 사진</Label>
+          </div>
+          <MentoringPhotoUploader mentoringId={mentoring.id} existing={photos} />
         </div>
 
         <div className="flex items-center gap-3 pt-1 flex-wrap">

@@ -2,7 +2,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { MonthlyExamTrendChart } from "@/components/reports/monthly-exam-trend-chart";
-import { User, TrendingUp, Award, BookOpen, Bell, GraduationCap, Trophy, Image as ImageIcon } from "lucide-react";
+import { NotesSection } from "@/components/reports/notes-section";
+import { VocabTrendMiniChart } from "@/components/reports/vocab-trend-mini-chart";
+import { User, TrendingUp, Award, BookOpen, Bell, GraduationCap, Trophy, Image as ImageIcon, ShieldCheck } from "lucide-react";
 
 export default async function MonthlyParentReportPage({
   params,
@@ -33,15 +35,80 @@ export default async function MonthlyParentReportPage({
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 0, 23, 59, 59);
 
+  // 원생 기록(MonthlyNote) + 상벌점(MeritDemerit) — visibleInReport=true 만
+  // + 순찰 특이사항(사유 텍스트) — 학부모가 무엇이 문제였는지 확인할 수 있도록
+  const [monthlyNote, merits, patrolNoteRecords] = await Promise.all([
+    prisma.monthlyNote.findFirst({
+      where: { studentId: student.id, year, month, visibleInReport: true },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, content: true, visibleInReport: true, authorName: true, createdAt: true },
+    }),
+    prisma.meritDemerit.findMany({
+      where: {
+        studentId: student.id,
+        date: { gte: start, lte: end },
+        visibleInReport: true,
+      },
+      orderBy: { date: "asc" },
+      select: {
+        id: true,
+        date: true,
+        type: true,
+        points: true,
+        reason: true,
+        category: true,
+        visibleInReport: true,
+      },
+    }),
+    prisma.patrolRecord.findMany({
+      where: {
+        studentId: student.id,
+        status: "NOTE",
+        note: { not: null },
+        round: { startedAt: { gte: start, lte: end } },
+      },
+      orderBy: { checkedAt: "asc" },
+      select: { id: true, note: true, checkedAt: true },
+    }),
+  ]);
+
+  // 순찰 특이사항 사유 목록 (빈 내용 제외, MM/DD 표기)
+  const patrolNotes = patrolNoteRecords
+    .filter((r) => r.note && r.note.trim())
+    .map((r) => {
+      const [, mm, dd] = new Date(r.checkedAt)
+        .toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" })
+        .split("-");
+      return { id: r.id, date: `${Number(mm)}/${Number(dd)}`, note: r.note!.trim() };
+    });
+
   const examScores = await prisma.examScore.findMany({
     where: {
       studentId: student.id,
       examDate: { lte: end },
-      examType: { in: ["OFFICIAL_MOCK", "PRIVATE_MOCK"] },
+      // 3-track 차트(공식 모의 / 사설 모의 / 내신) 모두 포함
+      examType: { in: ["OFFICIAL_MOCK", "PRIVATE_MOCK", "SCHOOL_EXAM"] },
     },
     orderBy: { examDate: "asc" },
     take: 50,
   });
+
+  // 최근 모의고사 그룹 (어떤 시험인지 명시: 직전 → 당월) — examDate+examName 기준 최신 2개
+  const examTypeLabel: Record<string, string> = { OFFICIAL_MOCK: "공식 모의", PRIVATE_MOCK: "사설 모의", SCHOOL_EXAM: "내신" };
+  const examGroupMap = new Map<string, { examName: string; examType: string; examDate: Date; isThisMonth: boolean; subjects: { subject: string; grade: number | null; percentile: number | null; rawScore: number | null }[] }>();
+  for (const s of examScores) {
+    const key = `${s.examDate.toISOString().slice(0, 10)}__${s.examName}`;
+    let g = examGroupMap.get(key);
+    if (!g) {
+      g = { examName: s.examName, examType: s.examType, examDate: s.examDate, isThisMonth: s.examDate >= start && s.examDate <= end, subjects: [] };
+      examGroupMap.set(key, g);
+    }
+    g.subjects.push({ subject: s.subject, grade: s.grade, percentile: s.percentile, rawScore: s.rawScore });
+  }
+  const recentExamGroups = Array.from(examGroupMap.values())
+    .sort((a, b) => b.examDate.getTime() - a.examDate.getTime())
+    .slice(0, 2)
+    .reverse(); // 직전 → 당월 순
 
   // 입시 정보 (학년별 > 전체)
   const admissionInfo =
@@ -119,8 +186,41 @@ export default async function MonthlyParentReportPage({
                 subject: s.subject,
                 grade: s.grade,
                 percentile: s.percentile,
+                examType: s.examType,
               }))}
             />
+
+            {/* 최근 응시 시험 명시 (직전 → 당월) */}
+            {recentExamGroups.length > 0 && (
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {recentExamGroups.map((g, i) => (
+                  <div key={`${g.examName}-${i}`} className={`rounded-lg border p-3 ${g.isThisMonth ? "border-purple-200 bg-purple-50/50" : "bg-gray-50"}`}>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="rounded bg-white border px-1.5 py-0.5 text-[10px] text-gray-500">{examTypeLabel[g.examType] ?? g.examType}</span>
+                      <span className="text-sm font-semibold">{g.examName}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {g.examDate.toLocaleDateString("ko-KR", { year: "2-digit", month: "numeric" })}
+                      </span>
+                      {recentExamGroups.length === 2 && (
+                        <span className={`ml-auto text-[10px] font-medium ${g.isThisMonth ? "text-purple-600" : "text-gray-400"}`}>
+                          {i === 0 ? "직전" : "당월"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {g.subjects.map((s, si) => (
+                        <span key={si} className="inline-flex items-center gap-1 rounded bg-white border px-1.5 py-0.5 text-[11px]">
+                          <span className="text-gray-500">{s.subject}</span>
+                          <span className="font-semibold">
+                            {s.grade != null ? `${s.grade}등급` : s.rawScore != null ? `${s.rawScore}점` : "—"}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         )}
 
@@ -137,6 +237,54 @@ export default async function MonthlyParentReportPage({
             <MarkdownViewer source={report.mentoringSummary} />
           </section>
         )}
+
+        {/* 3.1 영단어 학습 추이 (Sprint 1 PR 1.3) — 스코어 없으면 자동 hide */}
+        <VocabTrendMiniChart
+          studentId={student.id}
+          fromDate={start}
+          toDate={end}
+        />
+
+        {/* 3.2 원생 기록 + 상벌점 (Sprint 1 PR 1.4) */}
+        <NotesSection
+          studentId={student.id}
+          year={year}
+          month={month}
+          monthlyNote={monthlyNote}
+          merits={merits}
+        />
+
+        {/* 3.3 순찰 점검 — 이상 기록(특이사항·자리비움) 요약 */}
+        <section className="bg-white rounded-xl border p-5">
+          <h2 className="flex items-center gap-2 text-base font-semibold mb-3">
+            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            순찰 점검
+          </h2>
+          {report.patrolNoteCount + report.patrolAbsentCount === 0 ? (
+            <p className="text-sm text-emerald-700">이달 순찰 중 특이사항이 없었습니다. 👍</p>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2 text-sm">
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 font-medium text-amber-800 border border-amber-200">
+                  특이사항 {report.patrolNoteCount}회
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-700 border border-gray-200">
+                  자리비움 {report.patrolAbsentCount}회
+                </span>
+              </div>
+              {patrolNotes.length > 0 && (
+                <ul className="space-y-1.5 rounded-lg bg-amber-50/60 border border-amber-100 px-3 py-2.5">
+                  {patrolNotes.map((n) => (
+                    <li key={n.id} className="flex gap-2 text-sm text-gray-700">
+                      <span className="shrink-0 pt-0.5 font-mono text-xs tabular-nums text-amber-700">{n.date}</span>
+                      <span className="flex-1 whitespace-pre-wrap">{n.note}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </section>
 
         {/* 3.5 이달의 사진 (§2.22 자동 첨부) */}
         {orderedPhotos.length > 0 && (

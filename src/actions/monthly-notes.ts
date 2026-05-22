@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 
 export async function getMonthlyNotes(year: number, month: number) {
@@ -56,6 +57,24 @@ export async function updateMonthlyNote(id: string, content: string) {
   });
 
   revalidatePath("/handover");
+  return note;
+}
+
+export async function toggleMonthlyNoteVisibility(id: string, visible: boolean) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  const existing = await prisma.monthlyNote.findUnique({ where: { id } });
+  if (!existing) throw new Error("메모를 찾을 수 없습니다");
+
+  const note = await prisma.monthlyNote.update({
+    where: { id },
+    data: { visibleInReport: visible },
+  });
+
+  revalidatePath("/handover");
+  if (existing.studentId) revalidatePath(`/students/${existing.studentId}`);
   return note;
 }
 

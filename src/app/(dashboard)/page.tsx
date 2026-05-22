@@ -2,6 +2,7 @@ export const revalidate = 30;
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { isFullAccess } from "@/lib/roles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate, formatTime, todayKST } from "@/lib/utils";
 import { IntroBand } from "@/components/ui/intro-band";
@@ -22,11 +23,13 @@ import { getChecklistTemplates } from "@/actions/checklist-templates";
 import { getMonthlyNotes } from "@/actions/monthly-notes";
 import { getTodos } from "@/actions/todos";
 import { getAllAssignmentStatus, getEnrollmentDelta } from "@/actions/dashboard-widgets";
-import { getMyClockStatus } from "@/actions/payroll";
+import { getActivePatrolRoundBrief } from "@/actions/patrol";
+import { getAttentionStudents } from "@/lib/attention";
 import { DashboardWrapper } from "@/components/dashboard/dashboard-wrapper";
 import { AllAssignmentsWidget } from "@/components/dashboard/all-assignments-widget";
 import { EnrollmentDeltaWidget } from "@/components/dashboard/enrollment-delta-widget";
-import { ClockWidget } from "@/components/dashboard/clock-widget";
+import { PatrolStartWidget } from "@/components/dashboard/patrol-start-widget";
+import { AttentionWidget } from "@/components/dashboard/attention-widget";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -49,7 +52,8 @@ export default async function DashboardPage() {
     todos,
     allAssignments,
     enrollmentDelta,
-    clockStatus,
+    activePatrolRound,
+    attentionStudents,
   ] = await Promise.all([
     prisma.student.count({ where: { status: "ACTIVE" } }),
     prisma.attendanceRecord.findMany({
@@ -92,7 +96,8 @@ export default async function DashboardPage() {
     getTodos(),
     getAllAssignmentStatus(),
     getEnrollmentDelta(year, month),
-    getMyClockStatus(),
+    getActivePatrolRoundBrief(),
+    getAttentionStudents(),
   ]);
 
   const normalCount = todayAttendances.filter((a) => a.type === "NORMAL").length;
@@ -148,8 +153,8 @@ export default async function DashboardPage() {
         ]}
       />
 
-      {/* 내 출퇴근 (Payroll §2.21 후속) */}
-      <ClockWidget initial={clockStatus} />
+      {/* 순찰 시작 — 클릭 시 앱 내 순찰 모드 진입 (출퇴근 태깅 대체) */}
+      <PatrolStartWidget active={activePatrolRound} />
 
       {/* KPI strip — 5 tiles */}
       <KpiStrip className="grid-cols-2 md:grid-cols-5">
@@ -214,6 +219,9 @@ export default async function DashboardPage() {
         if (alerts.length === 0) return null;
         return <AlertStrip cols={alerts.length} className="mb-0">{alerts}</AlertStrip>;
       })()}
+
+      {/* 유의 관찰 학생 — 수동 플래그 + 자동 판별 */}
+      <AttentionWidget students={attentionStudents} />
 
       {/* 1.5fr / 1fr layout — activity left, today stack right */}
       <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr] gap-4">
@@ -320,7 +328,7 @@ export default async function DashboardPage() {
       {/* §2.12 위젯: 과제 현황 + 원생 증감 */}
       <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-4">
         <AllAssignmentsWidget rows={allAssignments} />
-        <EnrollmentDeltaWidget data={enrollmentDelta} year={year} month={month} />
+        <EnrollmentDeltaWidget data={enrollmentDelta} year={year} month={month} canEdit={isFullAccess(session?.user?.role)} />
       </div>
 
       {/* 오늘 입실 (유지, 하단 전체폭) */}

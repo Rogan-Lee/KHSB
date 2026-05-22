@@ -3,10 +3,13 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { del } from "@vercel/blob";
 import { z } from "zod";
 import { MentoringStatus } from "@/generated/prisma";
+import type { MentoringPhotoTag } from "@/generated/prisma";
 import { todayKST, nowKSTTimeString } from "@/lib/utils";
-import { requireOwnerOrFullAccess, requireStaff } from "@/lib/roles";
+import { requireStaff } from "@/lib/roles";
+import { ensureAutoFolder } from "@/actions/photos";
 
 const mentoringSchema = z.object({
   studentId: z.string(),
@@ -78,13 +81,22 @@ export async function updateMentoring(id: string, formData: FormData) {
   revalidatePath(`/mentoring/${id}`);
 }
 
-export async function getMentorings(mentorId?: string) {
+export async function getMentorings(
+  mentorId?: string,
+  options?: { includeCanceled?: boolean },
+) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const where =
+  const baseWhere =
     session.user.role === "MENTOR" ? { mentorId: session.user.id } :
-    mentorId ? { mentorId } : undefined;
+    mentorId ? { mentorId } : {};
+
+  // 기본은 CANCELLED 제외. includeCanceled=true 일 때만 모두 포함.
+  const includeCanceled = options?.includeCanceled === true;
+  const where = includeCanceled
+    ? baseWhere
+    : { ...baseWhere, status: { not: "CANCELLED" as const } };
 
   return prisma.mentoring.findMany({
     where,
@@ -494,4 +506,157 @@ export async function quickStartMentoring(studentId: string, mentorId: string): 
 
   revalidatePath("/mentoring");
   return mentoring.id;
+}
+
+// ──────────────────────────────────────────────────────
+// 멘토링 첨부 사진 — 사진관리(Photo)와 통합.
+// KDA(핵심 자료) / EXTRA(추가 자료) / FREE(자유) 3종 태그.
+// 실제 파일 업로드는 /api/upload/mentoring 라우트에서 처리 후
+// 반환된 url/mimeType/fileName/sizeBytes 를 이 액션으로 Photo 에 기록한다.
+// Photo 로 만들기 때문에 사진관리 화면에 자동 노출되고, YYYY/MM 자동 폴더로 분류된다.
+// ──────────────────────────────────────────────────────
+
+export async function attachMentoringPhoto(
+  mentoringId: string,
+  data: {
+    url: string;
+    mimeType: string;
+    tag: MentoringPhotoTag;
+    caption?: string | null;
+    thumbnailUrl?: string | null;
+    fileName?: string | null;
+    sizeBytes?: number | null;
+  },
+) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  const target = await prisma.mentoring.findUnique({
+    where: { id: mentoringId },
+    select: { id: true, studentId: true },
+  });
+  if (!target) throw new Error("멘토링 기록을 찾을 수 없습니다");
+
+  // 사진관리 YYYY/MM 자동 폴더 배정 (best-effort — 실패해도 folderId=null 로 저장)
+  let folderId: string | null = null;
+  try {
+    folderId = await ensureAutoFolder(new Date(), session!.user.id);
+  } catch {
+    folderId = null;
+  }
+
+  const created = await prisma.photo.create({
+    data: {
+      folderId,
+      fileName: data.fileName?.trim() || `mentoring-${Date.now()}`,
+      url: data.url,
+      thumbnailUrl: data.thumbnailUrl ?? null,
+      mimeType: data.mimeType,
+      sizeBytes: data.sizeBytes ?? 0,
+      studentId: target.studentId,
+      mentoringId,
+      mentoringTag: data.tag,
+      uploadedById: session!.user.id,
+      uploadedByName: session!.user.name ?? "알 수 없음",
+    },
+  });
+
+  revalidatePath(`/mentoring/${mentoringId}`);
+  revalidatePath("/photos");
+  return created;
+}
+
+export async function deleteMentoringPhoto(photoId: string) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  const photo = await prisma.photo.findUnique({ where: { id: photoId } });
+  if (!photo) throw new Error("사진을 찾을 수 없습니다");
+
+  // Blob 삭제 시도 (실패해도 DB 는 삭제)
+  try {
+    const urls = [photo.url, photo.thumbnailUrl].filter(Boolean) as string[];
+    if (urls.length > 0) {
+      await del(urls, { token: process.env.BLOB_READ_WRITE_TOKEN });
+    }
+  } catch {
+    // Blob 삭제 실패는 silent — DB 정리 우선
+  }
+
+  await prisma.photo.delete({ where: { id: photoId } });
+
+  if (photo.mentoringId) revalidatePath(`/mentoring/${photo.mentoringId}`);
+  revalidatePath("/photos");
+  return { ok: true };
+}
+
+export async function listMentoringPhotos(mentoringId: string) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  return prisma.photo.findMany({
+    where: { mentoringId },
+    orderBy: { uploadedAt: "asc" },
+  });
+}
+
+// ──────────────────────────────────────────────────────
+// 사진관리 → 멘토링 역방향 태깅.
+// 사진관리에서 기존 Photo 를 특정 멘토링에 연결하거나 해제한다.
+// mentoringId=null 이면 연결 해제. tag 미지정 시 FREE.
+// ──────────────────────────────────────────────────────
+
+export async function linkPhotoToMentoring(
+  photoId: string,
+  mentoringId: string | null,
+  tag: MentoringPhotoTag = "FREE",
+) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  const photo = await prisma.photo.findUnique({
+    where: { id: photoId },
+    select: { id: true, mentoringId: true },
+  });
+  if (!photo) throw new Error("사진을 찾을 수 없습니다");
+
+  if (mentoringId) {
+    const target = await prisma.mentoring.findUnique({
+      where: { id: mentoringId },
+      select: { id: true },
+    });
+    if (!target) throw new Error("멘토링 기록을 찾을 수 없습니다");
+  }
+
+  await prisma.photo.update({
+    where: { id: photoId },
+    data: {
+      mentoringId,
+      mentoringTag: mentoringId ? tag : null,
+    },
+  });
+
+  // 이전/이후 멘토링 양쪽 모두 revalidate
+  if (photo.mentoringId) revalidatePath(`/mentoring/${photo.mentoringId}`);
+  if (mentoringId) revalidatePath(`/mentoring/${mentoringId}`);
+  revalidatePath("/photos");
+  return { ok: true };
+}
+
+// 사진관리에서 특정 학생의 최근 멘토링 목록을 lazy fetch (역방향 연결 선택용).
+export async function getRecentMentoringsForStudent(studentId: string) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  return prisma.mentoring.findMany({
+    where: { studentId, status: { not: "CANCELLED" } },
+    orderBy: { scheduledAt: "desc" },
+    take: 10,
+    select: {
+      id: true,
+      scheduledAt: true,
+      actualDate: true,
+      status: true,
+    },
+  });
 }

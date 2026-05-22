@@ -22,7 +22,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { MoreHorizontal, Search, Trash2, X, Link2, ExternalLink, CheckCircle2, ChevronDown, ChevronRight, Send, Loader2, Filter } from "lucide-react";
+import { MoreHorizontal, Search, Trash2, X, Link2, ExternalLink, CheckCircle2, ChevronDown, ChevronRight, Send, Loader2, Filter, Camera } from "lucide-react";
 import { ParentReportInlinePanel } from "./parent-report-inline-panel";
 import { DatePicker } from "@/components/ui/date-picker";
 import { updateMentoringStatus, updateMentoringNotes, deleteMentoring, bulkDeleteMentorings } from "@/actions/mentoring";
@@ -52,6 +52,8 @@ type Mentoring = {
   mentor: { id: string; name: string };
   /** 이 멘토링에 연결된 학부모 리포트 (최신 1건) */
   parentReports?: { id: string; token: string; createdAt: Date }[];
+  /** 연결된 사진(KDA 등) 개수 — 리스트에서 업로드 여부 표시용 */
+  _count?: { photos: number } | null;
 };
 
 type Mentor = { id: string; name: string };
@@ -227,11 +229,14 @@ function KebabMenu({ mentoring, onDelete }: { mentoring: Mentoring; onDelete: ()
 
 const FILTER_STORAGE_KEY = "mentoring-list-filters";
 
+type CancelFilter = "exclude" | "only" | "all";
+
 type FilterState = {
   mentor: string;
   from: string;
   to: string;
   q: string;
+  cancel?: CancelFilter;
 };
 
 function loadFilters(): Partial<FilterState> {
@@ -256,6 +261,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
   const [dateFrom, setDateFrom] = useState<string>(saved.from ?? "");
   const [dateTo, setDateTo] = useState<string>(saved.to ?? "");
   const [query, setQuery] = useState(saved.q ?? "");
+  const [cancelFilter, setCancelFilter] = useState<CancelFilter>(saved.cancel ?? "exclude");
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<Mentoring | null>(null);
@@ -298,11 +304,14 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
 
   // 필터 변경 시 sessionStorage에 저장
   useEffect(() => {
-    saveFilters({ mentor: selectedMentorId, from: dateFrom, to: dateTo, q: query });
-  }, [selectedMentorId, dateFrom, dateTo, query]);
+    saveFilters({ mentor: selectedMentorId, from: dateFrom, to: dateTo, q: query, cancel: cancelFilter });
+  }, [selectedMentorId, dateFrom, dateTo, query, cancelFilter]);
 
   const q = query.trim().toLowerCase();
   const baseFiltered = mentorings.filter((m) => {
+    // 취소 필터 (클라이언트 — URL 이동 없이 즉시 적용)
+    if (cancelFilter === "exclude" && m.status === "CANCELLED") return false;
+    if (cancelFilter === "only" && m.status !== "CANCELLED") return false;
     if (selectedMentorId !== "all" && m.mentor.id !== selectedMentorId) return false;
     const dateStr = toLocalDateString(m.scheduledAt);
     if (dateFrom && dateStr < dateFrom) return false;
@@ -480,6 +489,28 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
           <Filter className="h-3 w-3" />
           리포트 있는 것만
         </label>
+        <div className="inline-flex items-center rounded-full border bg-background p-0.5" role="group" aria-label="취소 필터">
+          {([
+            { key: "exclude", label: "취소 제외" },
+            { key: "only", label: "취소만" },
+            { key: "all", label: "전체" },
+          ] as const).map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setCancelFilter(opt.key)}
+              aria-pressed={cancelFilter === opt.key}
+              className={
+                "h-6 px-2.5 text-[11px] rounded-full transition-colors " +
+                (cancelFilter === opt.key
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted")
+              }
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
         <div className="ml-auto flex items-center gap-2">
           {someSelected && selectedCount > 0 && (
             <>
@@ -546,6 +577,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                 상태
               </SortableHeader>
               <TableHead>메모</TableHead>
+              <TableHead className="whitespace-nowrap text-center">KDA 사진</TableHead>
               <TableHead className="whitespace-nowrap">학부모 리포트</TableHead>
               <TableHead></TableHead>
             </TableRow>
@@ -553,7 +585,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={mentors.length > 0 ? 9 : 8} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={mentors.length > 0 ? 11 : 10} className="text-center text-muted-foreground py-8">
                   멘토링 기록이 없습니다
                 </TableCell>
               </TableRow>
@@ -676,6 +708,22 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                       );
                     })()}
                   </TableCell>
+                  <TableCell className="text-center">
+                    {(() => {
+                      const photoCount = m._count?.photos ?? 0;
+                      return photoCount > 0 ? (
+                        <Badge variant="outline" className="text-[10px] border-emerald-300 bg-emerald-50 text-emerald-700 gap-1">
+                          <Camera className="h-3 w-3" />
+                          제출 완료 {photoCount}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] border-gray-300 text-muted-foreground gap-1">
+                          <Camera className="h-3 w-3" />
+                          미제출
+                        </Badge>
+                      );
+                    })()}
+                  </TableCell>
                   <TableCell>
                     {(() => {
                       const pr = m.parentReports?.[0];
@@ -746,7 +794,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                 </TableRow>
                 {parentReportOpenId === m.id && (
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableCell colSpan={mentors.length > 0 ? 10 : 9} className="p-3">
+                    <TableCell colSpan={mentors.length > 0 ? 11 : 10} className="p-3">
                       <ParentReportInlinePanel
                         mentoringId={m.id}
                         studentName={m.student.name}

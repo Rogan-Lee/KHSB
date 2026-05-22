@@ -49,6 +49,8 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
 
   const mentors = await prisma.user.findMany({
     where: {
+      // 주간 플랜 picker — 퇴사자 제외
+      status: "ACTIVE",
       role: { in: [...STAFF_ROLES] },
       mentorSchedules: { some: {} },
     },
