@@ -73,7 +73,9 @@ export function StudentBottomNav({
     );
   }
 
-  const cols = COLS[Math.min(6, Math.max(2, tabs.length))] ?? "grid-cols-4";
+  // 항목 수만큼 열을 만들어 항상 1행 유지(최대 7). 7개여도 wrap 없이 한 줄.
+  const cols = COLS[Math.min(7, Math.max(2, tabs.length))] ?? "grid-cols-4";
+  const dense = tabs.length >= 6; // 6~7개면 아이콘/글자 살짝 축소
 
   return (
     <nav
@@ -90,19 +92,19 @@ export function StudentBottomNav({
               <Link
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[10.5px] font-medium transition-colors ${
+                className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 ${dense ? "py-2 text-[9.5px]" : "py-2.5 text-[10.5px]"} font-medium transition-colors ${
                   active ? "text-brand" : "text-ink-4 hover:text-ink-2"
                 }`}
               >
                 <span className="relative">
-                  <Icon className="h-[22px] w-[22px]" strokeWidth={active ? 2.4 : 2} />
+                  <Icon className={dense ? "h-5 w-5" : "h-[22px] w-[22px]"} strokeWidth={active ? 2.4 : 2} />
                   {showBadge && (
                     <span className="absolute -right-1.5 -top-1 inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-brand px-1 text-[9.5px] font-semibold leading-none text-white">
                       {badge! > 9 ? "9+" : badge}
                     </span>
                   )}
                 </span>
-                <span className="tracking-[-0.01em]">{label}</span>
+                <span className="tracking-[-0.02em] whitespace-nowrap">{label}</span>
               </Link>
             </li>
           );

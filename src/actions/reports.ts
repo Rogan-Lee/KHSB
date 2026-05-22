@@ -249,6 +249,29 @@ export async function getStudentStudyAnalysis(
 
 // ─── 월간 리포트 생성 ─────────────────────────────────────────────────
 
+/**
+ * 월간 순찰 이상 집계. 순찰에서 기록을 남기지 않으면 이상 없음(OK),
+ * 특이사항(NOTE)·자리비움(ABSENT)만 "이상 기록"으로 집계.
+ */
+export async function getMonthlyPatrolIssues(studentId: string, year: number, month: number) {
+  const start = startOfMonth(new Date(year, month - 1));
+  const end = endOfMonth(new Date(year, month - 1));
+  const records = await prisma.patrolRecord.findMany({
+    where: {
+      studentId,
+      status: { in: ["NOTE", "ABSENT"] },
+      round: { startedAt: { gte: start, lte: end } },
+    },
+    select: { status: true, note: true, checkedAt: true },
+    orderBy: { checkedAt: "asc" },
+  });
+  return {
+    noteCount: records.filter((r) => r.status === "NOTE").length,
+    absentCount: records.filter((r) => r.status === "ABSENT").length,
+    records,
+  };
+}
+
 export async function generateMonthlyReport(
   studentId: string,
   year: number,
@@ -287,10 +310,11 @@ export async function generateMonthlyReport(
   // 전월 순공 시간
   const prevYear = month === 1 ? year - 1 : year;
   const prevMonth = month === 1 ? 12 : month - 1;
-  const [prevMonthStudyMinutes, gradeAvg, outing] = await Promise.all([
+  const [prevMonthStudyMinutes, gradeAvg, outing, patrol] = await Promise.all([
     getMonthlyStudyMinutes(studentId, prevYear, prevMonth),
     getGradeAverageStudyMinutes(student.grade, year, month, rankMap),
     getMonthlyOutingStats(studentId, year, month),
+    getMonthlyPatrolIssues(studentId, year, month),
   ]);
 
   const myRank = rankMap[studentId];
@@ -310,6 +334,8 @@ export async function generateMonthlyReport(
     gradeAvgMinutes: gradeAvg,
     outingCount: outing.count,
     totalOutingMinutes: outing.totalMinutes,
+    patrolNoteCount: patrol.noteCount,
+    patrolAbsentCount: patrol.absentCount,
   };
 
   const report = await prisma.monthlyReport.upsert({

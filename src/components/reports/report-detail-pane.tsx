@@ -52,6 +52,8 @@ export type ReportLite = {
   studyRankTotal: number | null;
   gradeAvgMinutes: number | null;
   outingCount: number;
+  patrolNoteCount: number;
+  patrolAbsentCount: number;
   mentoringSummary: string | null;
   overallComment: string | null;
   shareToken: string | null;
@@ -324,6 +326,11 @@ export function ReportDetailPane({
               <Stat label="순위" value={report.studyRankInRoom ? `${report.studyRankInRoom}위` : "—"} sub={report.studyRankTotal ? `/ ${report.studyRankTotal}명` : ""} />
               <Stat label="출석" value={`${report.attendanceDays}일`} sub={`지각 ${report.tardyCount} · 결석 ${report.absentDays}`} />
               <Stat label="멘토링" value={`${report.mentoringCount}회`} />
+              <Stat
+                label="순찰 이상"
+                value={`${report.patrolNoteCount + report.patrolAbsentCount}회`}
+                sub={`특이 ${report.patrolNoteCount} · 자리비움 ${report.patrolAbsentCount}`}
+              />
             </div>
           </section>
 
