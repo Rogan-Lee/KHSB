@@ -118,6 +118,72 @@ export type PayrollCalcResult = {
   totalWage: number;
 };
 
+// 2026년 법정 최저임금(원/시). 미만 시 UI 경고용(차단 X) — 매년 갱신 필요.
+export const MIN_HOURLY_WAGE_2026 = 10320;
+
+export type EntryPayrollResult = {
+  /** 일자별 수기 입력 합계(분) — 소정근로 */
+  dailyMinutes: number;
+  /** 비고(회의 등 추가근무) 분 */
+  extraMinutes: number;
+  /** dailyMinutes + extraMinutes */
+  totalMinutes: number;
+  /** 시급 × 총시간 (월급제면 0) */
+  baseWage: number;
+  /** 주휴수당 합계 (월급제면 0) */
+  weeklyHolidayWage: number;
+  /** 최종 지급액(세전): 시급제 = base + 주휴, 월급제 = monthlySalary */
+  totalWage: number;
+  /** 월급제(고정급) 여부 */
+  isMonthly: boolean;
+};
+
+/**
+ * 수기 입력(일자별 분 + 비고 분)으로 한 달 급여 집계.
+ * - 주휴수당: 소정근로(일자별 entries)만 주 단위 그룹핑 → calcWeeklyHolidayPay 재사용. 비고는 제외.
+ * - monthlySalary 가 있으면 고정 월급(시간은 참고용) — totalWage = monthlySalary.
+ * 모두 세전(gross) 기준. 4대보험/세금 자동공제 없음.
+ */
+export function calculatePayrollFromEntries(
+  entries: { date: Date; minutes: number }[],
+  extraMinutes: number,
+  hourlyRate: number,
+  weeklyHolidayPay: boolean,
+  monthlySalary?: number | null
+): EntryPayrollResult {
+  const dailyMinutes = entries.reduce((s, e) => s + Math.max(0, e.minutes), 0);
+  const safeExtra = Math.max(0, extraMinutes);
+  const totalMinutes = dailyMinutes + safeExtra;
+
+  if (monthlySalary && monthlySalary > 0) {
+    return {
+      dailyMinutes,
+      extraMinutes: safeExtra,
+      totalMinutes,
+      baseWage: 0,
+      weeklyHolidayWage: 0,
+      totalWage: monthlySalary,
+      isMonthly: true,
+    };
+  }
+
+  const shifts: WorkShift[] = entries
+    .filter((e) => e.minutes > 0)
+    .map((e) => ({ start: e.date, end: e.date, minutes: e.minutes }));
+  const baseWage = Math.round((totalMinutes / 60) * hourlyRate);
+  const weeklyHolidayWage = calcWeeklyHolidayPay(shifts, hourlyRate, weeklyHolidayPay);
+
+  return {
+    dailyMinutes,
+    extraMinutes: safeExtra,
+    totalMinutes,
+    baseWage,
+    weeklyHolidayWage,
+    totalWage: baseWage + weeklyHolidayWage,
+    isMonthly: false,
+  };
+}
+
 /**
  * 기간(from ~ to) 내 태그로 급여 집계.
  */

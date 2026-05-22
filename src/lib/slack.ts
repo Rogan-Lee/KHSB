@@ -86,6 +86,10 @@ export function formatFeatureRequestAlert(data: {
   category: string;
   priority: string;
   requester?: string | null;
+  /** 작성자(직원) 이름 — Slack 본문에 노출 */
+  authorName?: string;
+  /** 건의사항 보기 URL (NEXT_PUBLIC_APP_URL 기반) */
+  url?: string;
 }) {
   const categoryEmoji: Record<string, string> = {
     BUG: "🐛",
@@ -93,15 +97,21 @@ export function formatFeatureRequestAlert(data: {
     IMPROVEMENT: "🔧",
   };
   const emoji = categoryEmoji[data.category] || "📝";
+  const linkLine = data.url ? `\n[보기](${data.url})` : "";
+  const text =
+    `📮 *새 건의사항* — ${data.title}\n` +
+    `• 작성자: ${data.authorName ?? "알 수 없음"}\n` +
+    `• 카테고리: ${data.category}` +
+    linkLine;
 
   return {
-    text: `${emoji} ${data.category}: ${data.title}`,
+    text,
     blocks: [
       {
         type: "header",
         text: {
           type: "plain_text",
-          text: `${emoji} 새 ${data.category === "BUG" ? "버그 리포트" : "기능 요청"}`,
+          text: `${emoji} 새 ${data.category === "BUG" ? "버그 리포트" : "건의사항"}`,
           emoji: true,
         },
       },
@@ -112,10 +122,22 @@ export function formatFeatureRequestAlert(data: {
           { type: "mrkdwn", text: `*우선순위:*\n${data.priority}` },
           {
             type: "mrkdwn",
+            text: `*작성자:*\n${data.authorName ?? "알 수 없음"}`,
+          },
+          {
+            type: "mrkdwn",
             text: `*요청자:*\n${data.requester || "익명"}`,
           },
         ],
       },
+      ...(data.url
+        ? [
+            {
+              type: "section",
+              text: { type: "mrkdwn", text: `<${data.url}|보기 →>` },
+            },
+          ]
+        : []),
     ],
   } as { text: string; blocks: SlackBlock[] };
 }

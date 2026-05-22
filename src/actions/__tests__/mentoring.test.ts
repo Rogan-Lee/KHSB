@@ -28,12 +28,13 @@ describe("getMentorings — role-based filtering", () => {
 
     expect(prisma.mentoring.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { mentorId: "mentor-1" },
+        // 기본 호출은 CANCELLED 자동 제외 + 본인 mentorId
+        where: { mentorId: "mentor-1", status: { not: "CANCELLED" } },
       })
     );
   });
 
-  it("DIRECTOR role sees all mentorings (no mentorId filter)", async () => {
+  it("DIRECTOR role sees all mentorings (no mentorId filter, CANCELLED 기본 숨김)", async () => {
     vi.mocked(auth).mockResolvedValue({
       user: { id: "director-1", role: "DIRECTOR", name: "원장" },
     });
@@ -42,8 +43,20 @@ describe("getMentorings — role-based filtering", () => {
     await getMentorings();
 
     const call = vi.mocked(prisma.mentoring.findMany).mock.calls[0][0];
-    // where should be undefined (no filter), not restricted to a specific mentor
-    expect(call.where).toBeUndefined();
+    // mentorId 필터는 없지만 status CANCELLED 제외는 기본 적용
+    expect(call.where).toEqual({ status: { not: "CANCELLED" } });
+  });
+
+  it("includeCanceled=true 면 CANCELLED 까지 포함하고 where 가 빈 객체", async () => {
+    vi.mocked(auth).mockResolvedValue({
+      user: { id: "director-1", role: "DIRECTOR", name: "원장" },
+    });
+    vi.mocked(prisma.mentoring.findMany).mockResolvedValue([]);
+
+    await getMentorings(undefined, { includeCanceled: true });
+
+    const call = vi.mocked(prisma.mentoring.findMany).mock.calls[0][0];
+    expect(call.where).toEqual({});
   });
 
   it("throws Unauthorized when not logged in", async () => {

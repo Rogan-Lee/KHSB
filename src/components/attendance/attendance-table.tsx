@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { saveAttendanceRecord, createDailyOuting, updateDailyOuting, deleteDailyOuting } from "@/actions/attendance";
+import { saveAttendanceRecord, createDailyOuting, updateDailyOuting, deleteDailyOuting, addOuting, deleteOuting } from "@/actions/attendance";
 import { patchStudentTextFields, patchStudentCheckDate, patchStudentAnalysisExempt, resetWeeklyCheckDates, resetCheckDateForAll } from "@/actions/students";
 import { createMeritDemerit } from "@/actions/merit-demerit";
 import { createStudyPlanReport } from "@/actions/study-plan-reports";
@@ -135,6 +135,24 @@ export function AttendanceTable({ students, today }: Props) {
   function scrollBy(delta: number) {
     scrollRef.current?.scrollBy({ left: delta, behavior: "smooth" });
   }
+
+  // 펼침 패널·외출 서브행을 "보이는 영역 폭"에 고정하기 위한 측정값.
+  // 14열 테이블의 가로 스크롤 폭과 무관하게, 사이드바 접힘까지 ResizeObserver로 추적.
+  const [viewportW, setViewportW] = useState<number>(0);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => setViewportW(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener("resize", update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+  const stickyWidth = viewportW ? `${viewportW}px` : "100%";
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<PanelTab>("attendance");
   const [infoModalId, setInfoModalId] = useState<string | null>(null);
@@ -149,7 +167,7 @@ export function AttendanceTable({ students, today }: Props) {
 
   // 테이블 인라인 편집용 로컬 상태
   type LocalTime = { checkIn: string; checkOut: string; type: AttendanceType };
-  type LocalOuting = { id: string | null; outStart: Date | null; outEnd: Date | null };
+  type LocalOuting = { id: string | null; outStart: Date | null; outEnd: Date | null; sequence?: number; reason?: string | null };
 
   const [localTimes, setLocalTimes] = useState<Map<string, LocalTime>>(() => {
     const map = new Map<string, LocalTime>();
@@ -167,7 +185,12 @@ export function AttendanceTable({ students, today }: Props) {
   const [localOutings, setLocalOutings] = useState<Map<string, LocalOuting[]>>(() => {
     const map = new Map<string, LocalOuting[]>();
     students.forEach((s) =>
-      map.set(s.id, s.dailyOutings.map((o) => ({ id: o.id, outStart: o.outStart, outEnd: o.outEnd })))
+      map.set(
+        s.id,
+        [...s.dailyOutings]
+          .sort((a, b) => (a.sequence ?? 1) - (b.sequence ?? 1))
+          .map((o) => ({ id: o.id, outStart: o.outStart, outEnd: o.outEnd, sequence: o.sequence, reason: o.reason }))
+      )
     );
     return map;
   });
@@ -282,6 +305,51 @@ export function AttendanceTable({ students, today }: Props) {
 
   type InlineOutingEdit = { studentId: string; field: "outStart" | "outEnd"; value: string };
   const [inlineOutingEdit, setInlineOutingEdit] = useState<InlineOutingEdit | null>(null);
+
+  // 추가 외출(2차+) 인라인 폼 상태
+  type AddOutingDraft = { studentId: string; outStart: string; outEnd: string; reason: string };
+  const [addOutingDraft, setAddOutingDraft] = useState<AddOutingDraft | null>(null);
+  const [addOutingPending, setAddOutingPending] = useState<string | null>(null);
+
+  async function submitAddOuting(student: StudentWithAttendance) {
+    if (!addOutingDraft || addOutingDraft.studentId !== student.id) return;
+    const { outStart, outEnd, reason } = addOutingDraft;
+    if (!outStart || !/^\d{2}:\d{2}$/.test(outStart)) { toast.error("외출 시작 시간을 입력하세요"); return; }
+    setAddOutingPending(student.id);
+    try {
+      const created = await addOuting(student.id, new Date(todayDate), {
+        outStart,
+        outEnd: outEnd && /^\d{2}:\d{2}$/.test(outEnd) ? outEnd : null,
+        reason: reason || undefined,
+      });
+      setLocalOutings((prev) => {
+        const m = new Map(prev);
+        const list = m.get(student.id) ?? [];
+        m.set(student.id, [
+          ...list,
+          { id: created.id, outStart: created.outStart, outEnd: created.outEnd, sequence: created.sequence, reason: created.reason },
+        ]);
+        return m;
+      });
+      toast.success(`${created.sequence}차 외출 추가됨`);
+      setAddOutingDraft(null);
+    } catch { toast.error("저장 실패"); }
+    setAddOutingPending(null);
+  }
+
+  async function removeOuting(student: StudentWithAttendance, outingId: string) {
+    setAddOutingPending(student.id);
+    try {
+      await deleteOuting(outingId);
+      setLocalOutings((prev) => {
+        const m = new Map(prev);
+        m.set(student.id, (m.get(student.id) ?? []).filter((o) => o.id !== outingId));
+        return m;
+      });
+      toast.success("외출 기록 삭제됨");
+    } catch { toast.error("삭제 실패"); }
+    setAddOutingPending(null);
+  }
 
   // 하단 액션바용: 현재 포커스된 시간 입력
   type ActiveTimeInput = { studentId: string; field: "checkIn" | "checkOut" | "outing" | "return"; studentName: string };
@@ -629,7 +697,8 @@ export function AttendanceTable({ students, today }: Props) {
               <th className="px-3 py-2.5 text-left w-32 hidden lg:table-cell">특이사항</th>
               <th className="px-3 py-2.5 text-left w-24 hidden md:table-cell">학교·학년</th>
               <th className="px-3 py-2.5 text-left w-16 hidden lg:table-cell">반</th>
-              <th className="px-3 py-2.5 text-left" style={{ minWidth: "380px" }}>입퇴실</th>
+              <th className="px-3 py-2.5 text-left" style={{ minWidth: "190px" }}>입퇴실</th>
+              <th className="px-3 py-2.5 text-left" style={{ minWidth: "210px" }}>외출</th>
               <th className="px-3 py-2.5 text-left w-32 hidden lg:table-cell">메모</th>
               <th className="px-3 py-2.5 text-left w-32 hidden lg:table-cell">당일변동</th>
               <th className="px-3 py-2.5 text-left w-32 hidden xl:table-cell">변동예정</th>
@@ -700,14 +769,15 @@ export function AttendanceTable({ students, today }: Props) {
             {displayStudents.map((student) => {
               const state = getState(student);
               const isSelected = selectedId === student.id;
-              const isQuickLoading = quickPending === student.id;
               const lt = localTimes.get(student.id);
               const checkInTime = lt?.checkIn ?? "";
               const checkOutTime = lt?.checkOut ?? "";
               const schedIn = student.schedules[0]?.startTime;
               const schedOut = student.schedules[0]?.endTime;
               const localOut = localOutings.get(student.id) ?? [];
+              // 진행 중인 외출(시작만 있고 복귀 없음) + 예정 외출(회색 힌트용)
               const activeOuting = localOut.find((o) => o.outStart && !o.outEnd);
+              const outSch = student.outings[0];
               const commCount = student.communications.filter((c) => !c.isChecked).length;
               const assignCount = student.assignments.filter((a) => !a.isCompleted).length;
               const schoolGrade = [student.school, student.grade].filter(Boolean).join(" ");
@@ -826,9 +896,9 @@ export function AttendanceTable({ students, today }: Props) {
                     {student.classGroup || "—"}
                   </td>
 
-                  {/* 입퇴실 2x2 그리드 */}
-                  <td className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
-                    <div className="grid grid-cols-[1fr_1fr] gap-x-4 gap-y-1 text-xs">
+                  {/* 입퇴실 — 입실/퇴실 세로 배치 */}
+                  <td className="px-2 py-1.5 align-top" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex flex-col gap-1 text-xs">
                       {/* 입실 */}
                       <div className="flex items-center gap-1.5">
                         <span className="text-muted-foreground w-6 shrink-0 text-[11px]">입실</span>
@@ -857,10 +927,51 @@ export function AttendanceTable({ students, today }: Props) {
                         />
                       </div>
 
+                      {/* 퇴실 */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">퇴실</span>
+                        <span className={cn("text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
+                          !schedOut ? "text-transparent" :
+                          schedOut === "FLEXIBLE" ? "text-violet-600" : "text-muted-foreground"
+                        )}>{schedOut === "FLEXIBLE" ? "자율" : schedOut ?? "00:00"}</span>
+                        <input
+                          type="time"
+                          value={checkOutTime}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(student.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(student.id, { ...c, checkOut: v }); return m; });
+                          }}
+                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "checkOut", studentName: student.name })}
+                          onBlur={() => {
+                            setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "checkOut" ? null : prev), 200);
+                            if (checkOutTime && /^\d{2}:\d{2}$/.test(checkOutTime)) quickSaveField(student, "checkOut", checkOutTime);
+                          }}
+                          className={cn(
+                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400",
+                            checkOutTime ? "text-foreground font-semibold" : "text-gray-400"
+                          )}
+                        />
+                        {student.attendances[0]?.isAutoClosed && (
+                          <span
+                            className="text-[10px] text-gray-400 border border-gray-200 rounded px-1 py-0.5 shrink-0"
+                            title="자정 크론에 의해 자동 퇴실 처리됨"
+                          >
+                            자동
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* 외출 — 전용 열. 시작/복귀 + 다회(2차+) 관리. 예정 외출은 회색 힌트 */}
+                  <td className="px-2 py-1.5 align-top" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex flex-col gap-1 text-xs">
                       {/* 외출 */}
                       <div className="flex items-center gap-1.5">
                         <span className="text-muted-foreground w-6 shrink-0 text-[11px]">외출</span>
-                        <span className="text-transparent text-[10px] font-mono w-11 text-right shrink-0 tabular-nums">00:00</span>
+                        <span className={cn("text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
+                          outSch?.outStart ? "text-muted-foreground" : "text-transparent"
+                        )}>{outSch?.outStart ?? "00:00"}</span>
                         <input
                           type="time"
                           value={activeOuting ? toTimeString(activeOuting.outStart) ?? "" :
@@ -901,7 +1012,7 @@ export function AttendanceTable({ students, today }: Props) {
                             }
                           }}
                           className={cn(
-                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
+                            "w-24 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
                             activeOuting ? "text-orange-600 font-semibold" :
                             localOut.length > 0 && localOut[localOut.length - 1]?.outStart ? "text-muted-foreground" : "text-gray-400"
                           )}
@@ -909,44 +1020,12 @@ export function AttendanceTable({ students, today }: Props) {
                         />
                       </div>
 
-                      {/* 퇴실 */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">퇴실</span>
-                        <span className={cn("text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
-                          !schedOut ? "text-transparent" :
-                          schedOut === "FLEXIBLE" ? "text-violet-600" : "text-muted-foreground"
-                        )}>{schedOut === "FLEXIBLE" ? "자율" : schedOut ?? "00:00"}</span>
-                        <input
-                          type="time"
-                          value={checkOutTime}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(student.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(student.id, { ...c, checkOut: v }); return m; });
-                          }}
-                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "checkOut", studentName: student.name })}
-                          onBlur={() => {
-                            setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "checkOut" ? null : prev), 200);
-                            if (checkOutTime && /^\d{2}:\d{2}$/.test(checkOutTime)) quickSaveField(student, "checkOut", checkOutTime);
-                          }}
-                          className={cn(
-                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400",
-                            checkOutTime ? "text-foreground font-semibold" : "text-gray-400"
-                          )}
-                        />
-                        {student.attendances[0]?.isAutoClosed && (
-                          <span
-                            className="text-[10px] text-gray-400 border border-gray-200 rounded px-1 py-0.5 shrink-0"
-                            title="자정 크론에 의해 자동 퇴실 처리됨"
-                          >
-                            자동
-                          </span>
-                        )}
-                      </div>
-
                       {/* 복귀 */}
                       <div className="flex items-center gap-1.5">
                         <span className="text-muted-foreground w-6 shrink-0 text-[11px]">복귀</span>
-                        <span className="text-transparent text-[10px] font-mono w-11 text-right shrink-0 tabular-nums">00:00</span>
+                        <span className={cn("text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
+                          outSch?.outEnd ? "text-muted-foreground" : "text-transparent"
+                        )}>{outSch?.outEnd ?? "00:00"}</span>
                         <input
                           type="time"
                           value={localOut.length > 0 && localOut[localOut.length - 1]?.outEnd ? toTimeString(localOut[localOut.length - 1].outEnd) ?? "" : ""}
@@ -973,13 +1052,101 @@ export function AttendanceTable({ students, today }: Props) {
                             }
                           }}
                           className={cn(
-                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
+                            "w-24 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
                             localOut.length > 0 && localOut[localOut.length - 1]?.outEnd ? "text-foreground font-semibold" : "text-gray-400"
                           )}
                           placeholder="—"
                         />
                       </div>
                     </div>
+
+                    {/* 추가 외출 (2차, 3차…) — sequence > 1 */}
+                    {(() => {
+                      const extras = localOut
+                        .filter((o) => (o.sequence ?? 1) > 1 && o.id)
+                        .sort((a, b) => (a.sequence ?? 1) - (b.sequence ?? 1));
+                      const isAdding = addOutingDraft?.studentId === student.id;
+                      const isAddPending = addOutingPending === student.id;
+                      const hasCheckIn = !!checkInTime;
+                      return (
+                        <div className="mt-1.5 space-y-0.5">
+                          {extras.map((o) => (
+                            <div
+                              key={o.id ?? `seq-${o.sequence}`}
+                              className="flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground"
+                            >
+                              <span className="text-orange-600 font-semibold">{o.sequence}차</span>
+                              <span className="tabular-nums">
+                                {toTimeString(o.outStart) || "—"} - {toTimeString(o.outEnd) || "—"}
+                              </span>
+                              {o.reason && (
+                                <span className="text-foreground/70 font-sans">({o.reason})</span>
+                              )}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); if (o.id) removeOuting(student, o.id); }}
+                                disabled={isAddPending}
+                                title="외출 삭제"
+                                className="ml-auto p-0.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
+
+                          {isAdding ? (
+                            <div className="flex flex-wrap items-center gap-1 pt-1" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="time"
+                                value={addOutingDraft!.outStart}
+                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, outStart: e.target.value })}
+                                className="w-20 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                placeholder="시작"
+                              />
+                              <span className="text-muted-foreground text-[11px]">-</span>
+                              <input
+                                type="time"
+                                value={addOutingDraft!.outEnd}
+                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, outEnd: e.target.value })}
+                                className="w-20 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                placeholder="복귀"
+                              />
+                              <input
+                                type="text"
+                                value={addOutingDraft!.reason}
+                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, reason: e.target.value })}
+                                placeholder="사유"
+                                className="flex-1 min-w-0 max-w-[140px] border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                              />
+                              <button
+                                onClick={() => submitAddOuting(student)}
+                                disabled={isAddPending}
+                                className="px-1.5 py-0.5 text-[10px] rounded bg-orange-500 text-white hover:bg-orange-600 font-medium disabled:opacity-50"
+                              >
+                                {isAddPending ? "..." : "저장"}
+                              </button>
+                              <button
+                                onClick={() => setAddOutingDraft(null)}
+                                className="px-1.5 py-0.5 text-[10px] rounded bg-muted text-muted-foreground hover:bg-accent"
+                              >
+                                취소
+                              </button>
+                            </div>
+                          ) : (
+                            (localOut.length > 0 || hasCheckIn) && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAddOutingDraft({ studentId: student.id, outStart: nowHHMM(), outEnd: "", reason: "" });
+                                }}
+                                className="flex items-center gap-0.5 text-[11px] text-orange-600 hover:text-orange-700 hover:underline"
+                              >
+                                <Plus className="h-3 w-3" /> 외출 추가
+                              </button>
+                            )
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
 
                   {/* 입퇴실 메모 */}
@@ -1162,7 +1329,9 @@ export function AttendanceTable({ students, today }: Props) {
                 {/* 타임라인 + 인라인 편집 확장 행 */}
                 {isExpanded && (
                   <tr className={cn("border-b", isSelected ? "bg-blue-50/60" : "bg-muted/20")}>
-                    <td colSpan={14} className="px-4 py-4">
+                    <td colSpan={15} className="p-0">
+                      {/* 보이는 영역 폭에 고정 → 14열 가로 스크롤과 무관하게 패널은 좌우 스크롤 불요 */}
+                      <div className="sticky left-0 px-4 py-4" style={{ width: stickyWidth }}>
                       {(() => {
                         const focus = expandFocus.get(student.id);
                         const focusLabel: Record<EditFocus, string> = {
@@ -1176,9 +1345,9 @@ export function AttendanceTable({ students, today }: Props) {
                                 <span className="opacity-60">편집 중:</span> {focusLabel[focus]}
                               </span>
                             )}
-                            <div className="flex items-stretch gap-3 w-full">
+                            <div className="flex flex-wrap items-stretch gap-3 w-full">
                               {/* 왼쪽: 체크 항목 (주간 공부계획/플래너 전송 제외) */}
-                              <div className="flex flex-col justify-center gap-2 shrink-0 rounded-md border border-border bg-muted/30 px-4 py-3">
+                              <div className="flex flex-col justify-center gap-2 rounded-md border border-border bg-muted/30 px-4 py-3">
                                 {CHECK_ITEMS.filter(({ key }) => key !== "weeklyPlanDate" && key !== "plannerSentDate" && key !== "mockAnalysisDate" && key !== "schoolAnalysisDate").map(({ key, label, permanent }) => {
                                   const dateVal = localCheckDates.get(student.id)?.[key] ?? null;
                                   const isPending = checkDatePending === `${student.id}:${key}`;
@@ -1233,7 +1402,7 @@ export function AttendanceTable({ students, today }: Props) {
                               </div>
 
                               {/* 요청/전달 */}
-                              <div className="w-72 shrink-0 rounded-md border border-border bg-muted/30 px-3 py-3 overflow-y-auto max-h-56">
+                              <div className="w-full sm:w-72 shrink-0 rounded-md border border-border bg-muted/30 px-3 py-3 overflow-y-auto max-h-56">
                                 <CommunicationPanel
                                   studentId={student.id}
                                   initialItems={student.communications}
@@ -1242,7 +1411,7 @@ export function AttendanceTable({ students, today }: Props) {
                               </div>
 
                               {/* 오른쪽: 당일 변동 + 추후 변동 예정 */}
-                              <div className="flex-1 min-w-[320px] flex flex-col gap-2">
+                              <div className="flex-1 basis-[320px] min-w-0 flex flex-col gap-2">
                                 {(
                                   [
                                     { key: "dailyNote", label: "당일 변동 (00시 자동 초기화)", ph: "오늘 학원 때문에 늦어요 등 당일 변동사항", af: focus === "dailyNote" },
@@ -1275,6 +1444,7 @@ export function AttendanceTable({ students, today }: Props) {
                           </div>
                         );
                       })()}
+                      </div>
                     </td>
                   </tr>
                 )}

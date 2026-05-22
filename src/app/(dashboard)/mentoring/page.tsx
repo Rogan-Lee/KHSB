@@ -25,6 +25,9 @@ export default async function MentoringPage() {
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
+  // 취소 포함 전체 멘토링을 받아오고, 취소 제외/취소만/전체 필터는 클라이언트에서 적용
+  // (URL 이동 없이 즉시 필터 → 스크롤 위치 유지)
+
   // 이달 상벌점 집계 기간 (KST 월 시작/종료)
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -32,6 +35,7 @@ export default async function MentoringPage() {
   // 모든 쿼리를 병렬 실행
   const [mentorings, todaySlots, mentors, vocabEnrolled, announcement, todayAttendance, meritAgg, reportRows] = await Promise.all([
     prisma.mentoring.findMany({
+      // 취소 포함 전체 — 필터는 클라이언트에서
       include: {
         student: { select: { id: true, name: true, grade: true, seat: true, vocabTestDate: true, schedules: { select: { dayOfWeek: true, startTime: true, endTime: true } } } },
         mentor: { select: { id: true, name: true } },
@@ -40,6 +44,7 @@ export default async function MentoringPage() {
           take: 1,
           select: { id: true, token: true, createdAt: true },
         },
+        _count: { select: { photos: true } },
       },
       orderBy: { scheduledAt: "desc" },
       take: 200,
@@ -47,6 +52,8 @@ export default async function MentoringPage() {
     getTodayWorkingMentors(),
     prisma.user.findMany({
       where: {
+        // 멘토링 페이지 멘토 picker — 퇴사자 제외
+        status: "ACTIVE",
         OR: [
           { role: { in: ["MENTOR", "HEAD_MENTOR"] } },
           // 멘토 겸직 관리자/스태프: 어드민으로 승격돼도 isMentor=true 면 드롭다운에 노출

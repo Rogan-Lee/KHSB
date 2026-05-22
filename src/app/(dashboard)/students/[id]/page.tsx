@@ -79,7 +79,8 @@ export default async function StudentDetailPage({
 
   const [mentors, schoolRows, seatRows] = await Promise.all([
     prisma.user.findMany({
-      where: { role: { in: ["SUPER_ADMIN", "DIRECTOR", "HEAD_MENTOR", "MENTOR"] } },
+      // 학생 상세 페이지 멘토 재배정 picker — 퇴사자 제외
+      where: { status: "ACTIVE", role: { in: ["SUPER_ADMIN", "DIRECTOR", "HEAD_MENTOR", "MENTOR"] } },
       select: { id: true, name: true },
     }),
     prisma.student.findMany({ select: { school: true } }),

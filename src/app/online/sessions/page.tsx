@@ -35,7 +35,10 @@ export default async function MentoringSessionsPage() {
       mentoringSessions: {
         orderBy: { scheduledAt: "desc" },
         take: 30,
-        include: { host: { select: { name: true } } },
+        include: {
+          host: { select: { name: true } },
+          photos: { orderBy: { uploadedAt: "asc" } },
+        },
       },
     },
   });
@@ -57,6 +60,7 @@ export default async function MentoringSessionsPage() {
       notes: ms.notes,
       summary: ms.summary,
       hostName: ms.host.name,
+      photos: ms.photos,
     })),
   }));
 

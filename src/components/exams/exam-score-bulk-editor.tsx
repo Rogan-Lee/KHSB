@@ -4,15 +4,31 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, Circle, Save, ChevronRight } from "lucide-react";
-import { saveExamSessionScores, BulkScoreRow } from "@/actions/exam-sessions";
+import { CheckCircle2, Circle, Save, ChevronRight, Plus, Check } from "lucide-react";
+import { toast } from "sonner";
+import {
+  saveExamSessionScores,
+  addSubjectToExamSession,
+  BulkScoreRow,
+} from "@/actions/exam-sessions";
+import { SUBJECT_CATALOG } from "@/lib/exam-seats";
 
 type Participant = {
   studentId: string;
   name: string;
   grade: string;
-  seatNumber: number;
+  // 좌석은 PRIVATE_MOCK(자습실 시험) 일 때만 의미가 있음. 외부 시험(공식 모의·내신)은 null.
+  seatNumber: number | null;
 };
 
 type ExistingScore = {
@@ -49,7 +65,7 @@ function studentProgress(values: Record<CellKey, string>, sid: string, subjects:
 
 export function ExamScoreBulkEditor({
   sessionId,
-  subjects,
+  subjects: initialSubjects,
   participants,
   existing,
 }: {
@@ -59,6 +75,16 @@ export function ExamScoreBulkEditor({
   existing: ExistingScore[];
 }) {
   const [pending, startTransition] = useTransition();
+  const [subjects, setSubjects] = useState<string[]>(initialSubjects);
+  const [addSubjectOpen, setAddSubjectOpen] = useState(false);
+  const [addSubjectPending, startAddSubjectTransition] = useTransition();
+  const [customSubject, setCustomSubject] = useState("");
+
+  // 서버에서 subjects 가 갱신되면 (예: 다른 화면에서 추가) 로컬 state 도 sync.
+  // 기존 입력값 (values) 은 그대로 유지됨 — cellKey 가 subject 를 포함하기 때문.
+  useEffect(() => {
+    setSubjects(initialSubjects);
+  }, [initialSubjects]);
 
   const initialMap = useMemo(() => {
     const m: Record<CellKey, string> = {};
@@ -76,6 +102,33 @@ export function ExamScoreBulkEditor({
   );
   const [activeSubject, setActiveSubject] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+
+  // 좌석 정보가 한 명이라도 없으면 외부 시험 모드로 간주 → 학년 그룹 + 검색 UI 표시.
+  const isExternalMode = useMemo(
+    () => participants.some((p) => p.seatNumber == null),
+    [participants]
+  );
+
+  const filteredParticipants = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return participants;
+    return participants.filter(
+      (p) => p.name.toLowerCase().includes(q) || p.grade.toLowerCase().includes(q)
+    );
+  }, [participants, query]);
+
+  // 학년별 그룹 (외부 시험 모드에서만 헤더 노출). 학년 등장 순서 유지.
+  const groupedByGrade = useMemo(() => {
+    const groups = new Map<string, Participant[]>();
+    for (const p of filteredParticipants) {
+      const key = p.grade || "기타";
+      const arr = groups.get(key);
+      if (arr) arr.push(p);
+      else groups.set(key, [p]);
+    }
+    return Array.from(groups.entries());
+  }, [filteredParticipants]);
 
   const rawRef = useRef<HTMLInputElement>(null);
   const gradeRef = useRef<HTMLInputElement>(null);
@@ -144,7 +197,71 @@ export function ExamScoreBulkEditor({
     }
   }
 
+  function handleAddSubject(rawSubject: string) {
+    const trimmed = rawSubject.trim();
+    if (!trimmed) return;
+    if (subjects.includes(trimmed)) {
+      toast.info(`"${trimmed}" 는 이미 추가된 과목입니다`);
+      setAddSubjectOpen(false);
+      return;
+    }
+    startAddSubjectTransition(async () => {
+      try {
+        const res = await addSubjectToExamSession(sessionId, trimmed);
+        setSubjects(res.subjects);
+        setCustomSubject("");
+        setAddSubjectOpen(false);
+        toast.success(`"${trimmed}" 과목이 추가되었습니다`);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "과목 추가에 실패했습니다");
+      }
+    });
+  }
+
   const activeParticipant = participants.find((p) => p.studentId === activeStudentId);
+
+  function renderParticipantRow(p: Participant) {
+    const done = studentProgress(values, p.studentId, subjects);
+    const isActive = activeStudentId === p.studentId;
+    const complete = done === subjects.length && subjects.length > 0;
+    return (
+      <button
+        key={p.studentId}
+        type="button"
+        onClick={() => {
+          setActiveStudentId(p.studentId);
+          setActiveSubject(null);
+        }}
+        className={cn(
+          "w-full text-left px-3 py-2.5 transition-colors border-l-2",
+          isActive
+            ? "bg-blue-50 border-blue-500"
+            : "hover:bg-muted/40 border-transparent"
+        )}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium text-sm truncate">{p.name}</span>
+          {p.seatNumber != null && (
+            <span className="text-[10px] text-muted-foreground shrink-0">
+              좌석 {p.seatNumber}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[11px] text-muted-foreground">{p.grade}</span>
+          <span
+            className={cn(
+              "text-[10px] font-medium ml-auto inline-flex items-center gap-0.5",
+              complete ? "text-emerald-600" : "text-muted-foreground"
+            )}
+          >
+            {done}/{subjects.length}
+            {complete && <CheckCircle2 className="h-3 w-3" />}
+          </span>
+        </div>
+      </button>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -159,59 +276,113 @@ export function ExamScoreBulkEditor({
             {savedAt} 저장됨
           </span>
         )}
-        <Button size="sm" onClick={() => persist()} disabled={pending} className="ml-auto">
-          <Save className="h-4 w-4 mr-1" />
-          {pending ? "저장 중…" : "전체 저장"}
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <Popover open={addSubjectOpen} onOpenChange={setAddSubjectOpen}>
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="outline" disabled={addSubjectPending}>
+                <Plus className="h-4 w-4 mr-1" />
+                {addSubjectPending ? "추가 중…" : "과목 추가"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[340px] p-0" align="end">
+              <Command>
+                <CommandInput placeholder="과목 이름으로 검색…" />
+                <CommandList>
+                  <CommandEmpty>일치하는 과목이 없습니다.</CommandEmpty>
+                  {SUBJECT_CATALOG.map((group) => (
+                    <CommandGroup key={group.group} heading={group.group}>
+                      {group.items.map((s) => {
+                        const added = subjects.includes(s);
+                        return (
+                          <CommandItem
+                            key={s}
+                            value={s}
+                            onSelect={() => {
+                              if (added) {
+                                setAddSubjectOpen(false);
+                                return;
+                              }
+                              handleAddSubject(s);
+                            }}
+                            disabled={addSubjectPending}
+                          >
+                            <Check className={"mr-2 h-4 w-4 " + (added ? "opacity-100" : "opacity-0")} />
+                            {s}
+                            {added && (
+                              <span className="ml-auto text-[10px] text-muted-foreground">추가됨</span>
+                            )}
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  ))}
+                </CommandList>
+              </Command>
+              <div className="border-t p-2 flex gap-1">
+                <Input
+                  value={customSubject}
+                  onChange={(e) => setCustomSubject(e.target.value)}
+                  placeholder="직접 입력 (카탈로그에 없는 과목)"
+                  className="h-8 text-sm"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddSubject(customSubject);
+                    }
+                  }}
+                  disabled={addSubjectPending}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleAddSubject(customSubject)}
+                  disabled={addSubjectPending || !customSubject.trim()}
+                >
+                  추가
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+          <Button size="sm" onClick={() => persist()} disabled={pending}>
+            <Save className="h-4 w-4 mr-1" />
+            {pending ? "저장 중…" : "전체 저장"}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-[280px_1fr] gap-3 min-h-[500px]">
         {/* 좌: 응시자 리스트 */}
         <div className="border rounded-md overflow-hidden flex flex-col">
-          <div className="px-3 py-2 border-b bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            응시자
+          <div className="px-3 py-2 border-b bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between gap-2">
+            <span>응시자</span>
+            <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground">
+              {filteredParticipants.length}/{participants.length}명
+            </span>
           </div>
+          {isExternalMode && (
+            <div className="px-2 py-2 border-b bg-background">
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="이름 또는 학년 검색"
+                className="h-8 text-sm"
+              />
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto divide-y max-h-[600px]">
-            {participants.map((p) => {
-              const done = studentProgress(values, p.studentId, subjects);
-              const isActive = activeStudentId === p.studentId;
-              const complete = done === subjects.length && subjects.length > 0;
-              return (
-                <button
-                  key={p.studentId}
-                  type="button"
-                  onClick={() => {
-                    setActiveStudentId(p.studentId);
-                    setActiveSubject(null);
-                  }}
-                  className={cn(
-                    "w-full text-left px-3 py-2.5 transition-colors border-l-2",
-                    isActive
-                      ? "bg-blue-50 border-blue-500"
-                      : "hover:bg-muted/40 border-transparent"
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium text-sm truncate">{p.name}</span>
-                    <span className="text-[10px] text-muted-foreground shrink-0">
-                      좌석 {p.seatNumber}
-                    </span>
+            {isExternalMode
+              ? groupedByGrade.map(([gradeLabel, members]) => (
+                  <div key={gradeLabel}>
+                    <div className="px-3 py-1.5 bg-muted/30 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider sticky top-0">
+                      {gradeLabel} <span className="font-normal normal-case">({members.length}명)</span>
+                    </div>
+                    <div className="divide-y">
+                      {members.map((p) => renderParticipantRow(p))}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[11px] text-muted-foreground">{p.grade}</span>
-                    <span
-                      className={cn(
-                        "text-[10px] font-medium ml-auto inline-flex items-center gap-0.5",
-                        complete ? "text-emerald-600" : "text-muted-foreground"
-                      )}
-                    >
-                      {done}/{subjects.length}
-                      {complete && <CheckCircle2 className="h-3 w-3" />}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
+                ))
+              : filteredParticipants.map((p) => renderParticipantRow(p))}
           </div>
         </div>
 
@@ -228,7 +399,10 @@ export function ExamScoreBulkEditor({
                   <h3 className="text-lg font-bold">
                     {activeParticipant.name}
                     <span className="text-sm font-normal text-muted-foreground ml-2">
-                      {activeParticipant.grade} · 좌석 {activeParticipant.seatNumber}
+                      {activeParticipant.grade}
+                      {activeParticipant.seatNumber != null && (
+                        <> · 좌석 {activeParticipant.seatNumber}</>
+                      )}
                     </span>
                   </h3>
                   <p className="text-[11px] text-muted-foreground mt-0.5">

@@ -6,6 +6,7 @@ import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { parseVocabCsv } from "@/lib/csv";
 import { buildPrompt, expandExpected, isAnswerCorrect } from "@/lib/vocab-grade";
+import { mulberry32, newShuffleSeed, seededShuffle } from "@/lib/vocab-shuffle";
 import { issueMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
 import { vocabExpiresAt } from "@/lib/token-auth";
@@ -20,14 +21,6 @@ async function requireStaffSession() {
   return session.user;
 }
 
-function shuffleInPlace<T>(arr: T[]): T[] {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
 /** 한 셀에 적힌 복수 뜻/철자를 배열로 (`;` `/` `,` 줄바꿈 구분). */
 function splitMeaningInput(raw: string): string[] {
   return raw
@@ -37,9 +30,10 @@ function splitMeaningInput(raw: string): string[] {
 }
 
 function pickItemDirection(
-  examDir: VocabExamDirection
+  examDir: VocabExamDirection,
+  rand: () => number = Math.random
 ): "EN_TO_KO" | "KO_TO_EN" {
-  if (examDir === "MIXED") return Math.random() < 0.5 ? "EN_TO_KO" : "KO_TO_EN";
+  if (examDir === "MIXED") return rand() < 0.5 ? "EN_TO_KO" : "KO_TO_EN";
   return examDir;
 }
 
@@ -265,6 +259,7 @@ export async function createVocabExam(input: CreateVocabExamInput) {
         assignedById: user.id,
         totalQuestions: questionCount,
         expiresAt: vocabExpiresAt(),
+        shuffleSeed: newShuffleSeed(),
       },
       select: { token: true },
     });
@@ -313,6 +308,7 @@ export async function assignExamToStudents(examId: string, studentIds: string[])
         assignedById: user.id,
         totalQuestions: exam.questionCount,
         expiresAt: vocabExpiresAt(),
+        shuffleSeed: newShuffleSeed(),
       },
     });
   }
@@ -338,6 +334,8 @@ export async function reissueAttemptLink(attemptId: string) {
       status: "ASSIGNED",
       startedAt: null,
       expiresAt: vocabExpiresAt(),
+      // 재발급은 새 시도이므로 새 시드 발급 → 순서도 새로
+      shuffleSeed: newShuffleSeed(),
     },
     select: { token: true },
   });
@@ -380,6 +378,7 @@ export async function createRetakeFromAttempt(attemptId: string) {
       assignedById: user.id,
       totalQuestions: wrongEntryIds.length,
       expiresAt: vocabExpiresAt(),
+      shuffleSeed: newShuffleSeed(),
     },
     select: { token: true },
   });
@@ -465,14 +464,28 @@ export async function startVocabAttempt(token: string): Promise<RunnerState> {
     if (poolEntries.length === 0) throw new Error("출제할 단어가 없습니다");
 
     const n = Math.min(exam.questionCount, poolEntries.length);
-    const ordered = exam.shuffle ? shuffleInPlace([...poolEntries]) : poolEntries;
+    // 셔플 규칙:
+    //   exam.shuffle=false → 셔플 안 함 (시드 무시)
+    //   exam.shuffle=true, shuffleSeed!=null → 시드 기반 결정론적 셔플 (학생별 isolation)
+    //   exam.shuffle=true, shuffleSeed=null  → 레거시 attempt → 원본 순서(셔플 생략, 안전 fallback)
+    const ordered =
+      exam.shuffle && attempt.shuffleSeed != null
+        ? seededShuffle(poolEntries, attempt.shuffleSeed)
+        : poolEntries;
     const selected = ordered.slice(0, n);
+
+    // MIXED 방향 픽도 같은 시드로 결정론적이게 (재시도 시 같은 순서/방향 재현 가능).
+    // shuffleSeed=null 이면 기존처럼 Math.random.
+    const dirRng =
+      attempt.shuffleSeed != null
+        ? mulberry32(attempt.shuffleSeed ^ 0x9e3779b1) // 셔플과 다른 스트림
+        : Math.random;
 
     await prisma.$transaction(async (tx) => {
       await tx.vocabAttemptItem.deleteMany({ where: { attemptId: attempt.id } });
       await tx.vocabAttemptItem.createMany({
         data: selected.map((e, i) => {
-          const dir = pickItemDirection(exam.direction);
+          const dir = pickItemDirection(exam.direction, dirRng);
           return {
             attemptId: attempt.id,
             entryId: e.id,
@@ -533,6 +546,47 @@ export async function submitVocabAnswer(
       isCorrect: isAnswerCorrect(trimmed, item.expectedAnswers),
       timeMs: Math.max(0, Math.floor(timeMs) || 0),
       answeredAt: new Date(),
+    },
+  });
+}
+
+// ─────────────────────── 학생 단어 학습 추이 (학부모 리포트용) ───────────────────────
+
+/**
+ * 특정 학생의 영단어 시험 결과(VocabTestScore)를 testDate ASC 로 조회.
+ * 학부모 리포트 미니차트(`vocab-trend-mini-chart`)에서 호출.
+ *
+ * - auth 만 거치며(인증된 staff/원생/관리자 누구든 호출 가능), 행 자체엔 학생만 식별되므로
+ *   호출하는 페이지 측에서 학생 토큰/role 검증을 마친 뒤 사용한다는 가정.
+ * - 변경(mutation) 없음 → `revalidatePath` 호출하지 않음.
+ */
+export async function getStudentVocabHistory(
+  studentId: string,
+  fromDate?: Date,
+  toDate?: Date
+) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const where: {
+    studentId: string;
+    testDate?: { gte?: Date; lte?: Date };
+  } = { studentId };
+  if (fromDate || toDate) {
+    where.testDate = {};
+    if (fromDate) where.testDate.gte = fromDate;
+    if (toDate) where.testDate.lte = toDate;
+  }
+
+  return prisma.vocabTestScore.findMany({
+    where,
+    orderBy: { testDate: "asc" },
+    select: {
+      id: true,
+      testDate: true,
+      totalWords: true,
+      correctWords: true,
+      score: true,
     },
   });
 }

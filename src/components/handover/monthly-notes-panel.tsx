@@ -5,9 +5,9 @@ import { toast } from "sonner";
 import { useDraft } from "@/hooks/use-draft";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, X, Search } from "lucide-react";
+import { Plus, Trash2, X, Search, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createMonthlyNote, deleteMonthlyNote } from "@/actions/monthly-notes";
+import { createMonthlyNote, deleteMonthlyNote, toggleMonthlyNoteVisibility } from "@/actions/monthly-notes";
 
 type MonthlyNote = {
   id: string;
@@ -16,6 +16,7 @@ type MonthlyNote = {
   studentId: string | null;
   studentName: string;
   content: string;
+  visibleInReport: boolean;
   authorId: string;
   authorName: string;
   createdAt: Date;
@@ -108,6 +109,19 @@ export function MonthlyNotesPanel({
         toast.success("삭제되었습니다");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "삭제 실패");
+      }
+    });
+  }
+
+  function handleToggleVisibility(note: MonthlyNote) {
+    const nextVisible = !note.visibleInReport;
+    startTransition(async () => {
+      try {
+        await toggleMonthlyNoteVisibility(note.id, nextVisible);
+        setNotes((prev) => prev.map((n) => (n.id === note.id ? { ...n, visibleInReport: nextVisible } : n)));
+        toast.success(nextVisible ? "리포트에 표시됩니다" : "리포트에서 숨겨졌습니다");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "변경 실패");
       }
     });
   }
@@ -242,17 +256,37 @@ export function MonthlyNotesPanel({
                       {new Date(n.createdAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
                     </span>
                     <span className="text-[10px] text-muted-foreground">{n.authorName}</span>
+                    {!n.visibleInReport && (
+                      <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                        리포트 비표시
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">{n.content}</p>
                 </div>
-                {(n.authorId === currentUserId || isAdmin) && (
+                <div className="flex items-center gap-1 shrink-0">
                   <button
-                    onClick={() => setDeleteConfirmId(n.id)}
-                    className={cn("p-1 text-muted-foreground hover:text-red-500 transition-colors shrink-0 mt-0.5")}
+                    onClick={() => handleToggleVisibility(n)}
+                    disabled={isPending}
+                    title={n.visibleInReport ? "리포트에 표시됨 — 숨기려면 클릭" : "리포트에서 숨김 — 표시하려면 클릭"}
+                    className={cn(
+                      "p-1 transition-colors mt-0.5",
+                      n.visibleInReport
+                        ? "text-muted-foreground hover:text-foreground"
+                        : "text-muted-foreground/60 hover:text-muted-foreground"
+                    )}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    {n.visibleInReport ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
                   </button>
-                )}
+                  {(n.authorId === currentUserId || isAdmin) && (
+                    <button
+                      onClick={() => setDeleteConfirmId(n.id)}
+                      className={cn("p-1 text-muted-foreground hover:text-red-500 transition-colors mt-0.5")}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             )
           )}

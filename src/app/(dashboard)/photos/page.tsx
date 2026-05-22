@@ -21,13 +21,19 @@ export default async function PhotosPage({
     activeFolderId
       ? prisma.photo.findMany({
           where: { folderId: activeFolderId },
-          include: { student: { select: { id: true, name: true, grade: true, seat: true } } },
+          include: {
+            student: { select: { id: true, name: true, grade: true, seat: true } },
+            mentoring: { select: { id: true, scheduledAt: true, actualDate: true } },
+          },
           orderBy: { parsedDate: "desc" },
           take: 500,
         })
       : prisma.photo.findMany({
           // 폴더 미선택 시 "전체" = 최근 100장
-          include: { student: { select: { id: true, name: true, grade: true, seat: true } } },
+          include: {
+            student: { select: { id: true, name: true, grade: true, seat: true } },
+            mentoring: { select: { id: true, scheduledAt: true, actualDate: true } },
+          },
           orderBy: { uploadedAt: "desc" },
           take: 100,
         }),
@@ -70,6 +76,14 @@ export default async function PhotosPage({
           uploadedAt: p.uploadedAt,
           uploadedByName: p.uploadedByName,
           sizeBytes: p.sizeBytes,
+          mentoringId: p.mentoringId,
+          mentoringTag: p.mentoringTag,
+          mentoring: p.mentoring
+            ? {
+                id: p.mentoring.id,
+                date: (p.mentoring.actualDate ?? p.mentoring.scheduledAt).toISOString(),
+              }
+            : null,
         }))}
         students={students}
         activeFolderId={activeFolderId}

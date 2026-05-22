@@ -14,6 +14,7 @@ import { DEFAULT_SUBJECTS, SUBJECT_PRESETS, SUBJECT_CATALOG } from "@/lib/exam-s
 import { X, Plus, ChevronsUpDown, Check } from "lucide-react";
 import { ExamType } from "@/generated/prisma";
 import { EXAM_TYPE_LABELS } from "./exam-type-label";
+import { ExamNameAutocomplete } from "./exam-name-autocomplete";
 
 type Initial = {
   id?: string;
@@ -100,9 +101,10 @@ export function ExamSessionForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>시험명</Label>
-          <Input
+          <ExamNameAutocomplete
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={setTitle}
+            examType={examType}
             placeholder="예: 2026년 4월 시스모의고사"
             required
           />

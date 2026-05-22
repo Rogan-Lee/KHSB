@@ -281,3 +281,77 @@ export async function saveExamSessionScores(sessionId: string, rows: BulkScoreRo
   revalidatePath(`/exams/${sessionId}`);
   return { saved: toCreate.length };
 }
+
+/**
+ * 점수 입력 화면에서 인라인으로 과목을 추가.
+ * - subject trim, 길이 1~32
+ * - 이미 존재하면 no-op (현재 subjects 그대로 반환)
+ * - Postgres String[] push 사용
+ */
+export async function addSubjectToExamSession(sessionId: string, subject: string) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  const trimmed = subject.trim();
+  if (trimmed.length === 0) throw new Error("과목명을 입력하세요");
+  if (trimmed.length > 32) throw new Error("과목명은 최대 32자까지 가능합니다");
+
+  const current = await prisma.examSession.findUnique({
+    where: { id: sessionId },
+    select: { subjects: true },
+  });
+  if (!current) throw new Error("세션을 찾을 수 없습니다");
+
+  if (current.subjects.includes(trimmed)) {
+    return { subjects: current.subjects };
+  }
+
+  const updated = await prisma.examSession.update({
+    where: { id: sessionId },
+    data: { subjects: { push: trimmed } },
+    select: { subjects: true },
+  });
+
+  revalidatePath(`/exams/${sessionId}`);
+  return { subjects: updated.subjects };
+}
+
+/**
+ * 점수 입력 화면에서 인라인으로 과목을 제거.
+ * - 해당 과목에 점수가 1건이라도 존재하면 차단
+ * - 그 외엔 subjects 배열에서 제거
+ */
+export async function removeSubjectFromExamSession(sessionId: string, subject: string) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  const trimmed = subject.trim();
+  if (trimmed.length === 0) throw new Error("과목명을 입력하세요");
+
+  const current = await prisma.examSession.findUnique({
+    where: { id: sessionId },
+    select: { subjects: true },
+  });
+  if (!current) throw new Error("세션을 찾을 수 없습니다");
+
+  if (!current.subjects.includes(trimmed)) {
+    return { subjects: current.subjects };
+  }
+
+  const scoreCount = await prisma.examScore.count({
+    where: { sessionId, subject: trimmed },
+  });
+  if (scoreCount > 0) {
+    throw new Error(`해당 과목 점수가 ${scoreCount}개 존재합니다. 먼저 점수를 비우세요`);
+  }
+
+  const nextSubjects = current.subjects.filter((s) => s !== trimmed);
+  const updated = await prisma.examSession.update({
+    where: { id: sessionId },
+    data: { subjects: { set: nextSubjects } },
+    select: { subjects: true },
+  });
+
+  revalidatePath(`/exams/${sessionId}`);
+  return { subjects: updated.subjects };
+}

@@ -9,19 +9,29 @@ import {
   updateReportComment,
   markReportSent,
   extractMonthlyMentoringDigest,
+  getReportSupplementaryData,
+  type ReportSupplementaryData,
 } from "@/actions/reports";
+import { toggleMeritDemeritVisibility } from "@/actions/merit-demerit";
+import { toggleMonthlyNoteVisibility } from "@/actions/monthly-notes";
 import { generateMonthlyMentoringSummary } from "@/actions/ai-enhance";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import {
-  Loader2, Link as LinkIcon, Sparkles, Send, Check, Eye,
+  Loader2, Link as LinkIcon, Sparkles, Send, Check, Eye, EyeOff,
   Image as ImageIcon, RefreshCw, User as UserIcon, Clock, ClipboardList,
-  TrendingUp, TrendingDown, Minus, AlertCircle,
+  TrendingUp, TrendingDown, Minus, AlertCircle, GraduationCap, BookOpen, Star,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { PhotoPickerDialog } from "./photo-picker-dialog";
+
+const EXAM_TYPE_LABEL: Record<string, string> = {
+  OFFICIAL_MOCK: "공식 모의",
+  PRIVATE_MOCK: "사설 모의",
+  SCHOOL_EXAM: "내신",
+};
 
 export type ReportLite = {
   id: string;
@@ -42,6 +52,9 @@ export type ReportLite = {
   studyRankTotal: number | null;
   gradeAvgMinutes: number | null;
   outingCount: number;
+  patrolNoteCount: number;
+  patrolAbsentCount: number;
+  patrolNotes?: { date: string; note: string }[];
   mentoringSummary: string | null;
   overallComment: string | null;
   shareToken: string | null;
@@ -74,12 +87,56 @@ export function ReportDetailPane({
   const [summary, setSummary] = useState(report?.mentoringSummary ?? "");
   const [comment, setComment] = useState(report?.overallComment ?? "");
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
+  const [supp, setSupp] = useState<ReportSupplementaryData | null>(null);
+  const [suppLoading, setSuppLoading] = useState(false);
 
   // 선택된 학생 바뀔 때 로컬 편집 상태 초기화
   useEffect(() => {
     setSummary(report?.mentoringSummary ?? "");
     setComment(report?.overallComment ?? "");
   }, [report?.id, report?.mentoringSummary, report?.overallComment]);
+
+  // 보충 데이터(모의고사·영단어·특이사항/상벌점) 로드 — 학생/리포트 바뀔 때
+  useEffect(() => {
+    if (!student || !report) { setSupp(null); return; }
+    let cancelled = false;
+    setSuppLoading(true);
+    getReportSupplementaryData(student.id, year, month)
+      .then((d) => { if (!cancelled) setSupp(d); })
+      .catch(() => { if (!cancelled) setSupp(null); })
+      .finally(() => { if (!cancelled) setSuppLoading(false); });
+    return () => { cancelled = true; };
+  }, [student, report, report?.id, year, month]);
+
+  async function toggleMeritVisible(id: string, visible: boolean) {
+    setSupp((prev) => prev && {
+      ...prev,
+      notes: { ...prev.notes, merits: prev.notes.merits.map((m) => m.id === id ? { ...m, visibleInReport: visible } : m) },
+    });
+    try {
+      await toggleMeritDemeritVisibility(id, visible);
+    } catch {
+      toast.error("저장 실패");
+      setSupp((prev) => prev && {
+        ...prev,
+        notes: { ...prev.notes, merits: prev.notes.merits.map((m) => m.id === id ? { ...m, visibleInReport: !visible } : m) },
+      });
+    }
+  }
+
+  async function toggleNoteVisible(id: string, visible: boolean) {
+    setSupp((prev) => prev && prev.notes.monthlyNote
+      ? { ...prev, notes: { ...prev.notes, monthlyNote: { ...prev.notes.monthlyNote, visibleInReport: visible } } }
+      : prev);
+    try {
+      await toggleMonthlyNoteVisibility(id, visible);
+    } catch {
+      toast.error("저장 실패");
+      setSupp((prev) => prev && prev.notes.monthlyNote
+        ? { ...prev, notes: { ...prev.notes, monthlyNote: { ...prev.notes.monthlyNote, visibleInReport: !visible } } }
+        : prev);
+    }
+  }
 
   if (!student) {
     return (
@@ -270,7 +327,134 @@ export function ReportDetailPane({
               <Stat label="순위" value={report.studyRankInRoom ? `${report.studyRankInRoom}위` : "—"} sub={report.studyRankTotal ? `/ ${report.studyRankTotal}명` : ""} />
               <Stat label="출석" value={`${report.attendanceDays}일`} sub={`지각 ${report.tardyCount} · 결석 ${report.absentDays}`} />
               <Stat label="멘토링" value={`${report.mentoringCount}회`} />
+              <Stat
+                label="순찰 이상"
+                value={`${report.patrolNoteCount + report.patrolAbsentCount}회`}
+                sub={`특이 ${report.patrolNoteCount} · 자리비움 ${report.patrolAbsentCount}`}
+              />
             </div>
+            {report.patrolNotes && report.patrolNotes.length > 0 && (
+              <ul className="mt-2 space-y-1 rounded-md border border-amber-100 bg-amber-50/60 px-2.5 py-2">
+                {report.patrolNotes.map((n, i) => (
+                  <li key={`${n.date}-${i}`} className="flex gap-2 text-xs text-foreground/80">
+                    <span className="shrink-0 pt-px font-mono tabular-nums text-amber-700">{n.date}</span>
+                    <span className="flex-1 whitespace-pre-wrap">{n.note}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* 모의고사 결과 (직전 → 당월, 어떤 시험인지 명시) */}
+          <section>
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <GraduationCap className="h-3.5 w-3.5" /> 모의고사 결과
+            </h4>
+            {suppLoading && !supp ? (
+              <p className="text-xs text-muted-foreground">불러오는 중…</p>
+            ) : !supp || supp.exams.length === 0 ? (
+              <p className="text-xs text-muted-foreground rounded-md border border-dashed p-3">기록된 모의고사/내신 성적이 없습니다.</p>
+            ) : (
+              <div className="space-y-2">
+                {supp.exams.map((ex, i) => (
+                  <div key={`${ex.examDate}-${ex.examName}-${i}`} className={cn("rounded-md border p-2.5", ex.isThisMonth && "border-primary/40 bg-primary/5")}>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge variant="outline" className="text-[9px] h-4 px-1">{EXAM_TYPE_LABEL[ex.examType] ?? ex.examType}</Badge>
+                      <span className="text-sm font-medium">{ex.examName}</span>
+                      <span className="text-[10px] text-muted-foreground">{ex.examDate}</span>
+                      {ex.isThisMonth ? (
+                        <Badge className="text-[9px] h-4 px-1 ml-auto">당월</Badge>
+                      ) : i === supp.exams.findIndex((e) => !e.isThisMonth) ? (
+                        <Badge variant="secondary" className="text-[9px] h-4 px-1 ml-auto">직전</Badge>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {ex.subjects.map((s, si) => (
+                        <span key={si} className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px]">
+                          <span className="text-muted-foreground">{s.subject}</span>
+                          <span className="font-semibold">
+                            {s.grade != null ? `${s.grade}등급` : s.rawScore != null ? `${s.rawScore}점` : "—"}
+                          </span>
+                          {s.percentile != null && <span className="text-muted-foreground">{s.percentile}%</span>}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* 영단어 시험 결과 */}
+          <section>
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <BookOpen className="h-3.5 w-3.5" /> 영단어 시험 결과
+            </h4>
+            {suppLoading && !supp ? (
+              <p className="text-xs text-muted-foreground">불러오는 중…</p>
+            ) : !supp || supp.vocab.rows.length === 0 ? (
+              <p className="text-xs text-muted-foreground rounded-md border border-dashed p-3">이 달 영단어 시험 결과가 없습니다.</p>
+            ) : (
+              <div className="rounded-md border divide-y">
+                <div className="flex items-center justify-between px-3 py-1.5 bg-muted/40 text-[11px] text-muted-foreground">
+                  <span>총 {supp.vocab.rows.length}회</span>
+                  <span>평균 {supp.vocab.avgScore}점</span>
+                </div>
+                {supp.vocab.rows.map((v) => (
+                  <div key={v.id} className="flex items-center justify-between px-3 py-1.5 text-xs">
+                    <span className="text-muted-foreground">{v.testDate}</span>
+                    <span>{v.correctWords}/{v.totalWords}</span>
+                    <span className="font-semibold tabular-nums">{v.score}점</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* 특이사항 · 상벌점 (체크된 항목만 학부모 리포트 노출) */}
+          <section>
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Star className="h-3.5 w-3.5" /> 특이사항 · 상벌점
+              <span className="ml-auto text-[10px] font-normal normal-case tracking-normal text-muted-foreground">눈 아이콘 = 학부모 노출</span>
+            </h4>
+            {suppLoading && !supp ? (
+              <p className="text-xs text-muted-foreground">불러오는 중…</p>
+            ) : (
+              <div className="space-y-2">
+                {/* 원생 기록 (MonthlyNote) */}
+                {supp?.notes.monthlyNote ? (
+                  <div className={cn("rounded-md border p-2.5", !supp.notes.monthlyNote.visibleInReport && "opacity-50")}>
+                    <div className="flex items-start gap-2">
+                      <p className="flex-1 text-xs whitespace-pre-wrap">{supp.notes.monthlyNote.content}</p>
+                      <VisibilityToggle
+                        visible={supp.notes.monthlyNote.visibleInReport}
+                        onToggle={(v) => toggleNoteVisible(supp.notes.monthlyNote!.id, v)}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">이 달 원생 기록(특이사항) 없음</p>
+                )}
+
+                {/* 상벌점 (MeritDemerit) */}
+                {supp && supp.notes.merits.length > 0 ? (
+                  <div className="rounded-md border divide-y">
+                    {supp.notes.merits.map((m) => (
+                      <div key={m.id} className={cn("flex items-center gap-2 px-2.5 py-1.5", !m.visibleInReport && "opacity-50")}>
+                        <Badge variant={m.type === "MERIT" ? "default" : "destructive"} className="text-[9px] h-4 px-1">
+                          {m.type === "MERIT" ? `상점 +${m.points}` : `벌점 -${m.points}`}
+                        </Badge>
+                        <span className="flex-1 text-xs truncate">{m.reason ?? m.category ?? "—"}</span>
+                        <span className="text-[10px] text-muted-foreground">{m.date}</span>
+                        <VisibilityToggle visible={m.visibleInReport} onToggle={(v) => toggleMeritVisible(m.id, v)} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">이 달 상벌점 없음</p>
+                )}
+              </div>
+            )}
           </section>
 
           {/* 멘토링 종합 의견 — 항상 편집 가능 */}
@@ -356,6 +540,22 @@ export function ReportDetailPane({
         />
       )}
     </div>
+  );
+}
+
+function VisibilityToggle({ visible, onToggle }: { visible: boolean; onToggle: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(!visible)}
+      title={visible ? "학부모 리포트에 노출 중 (클릭하면 숨김)" : "숨김 (클릭하면 노출)"}
+      className={cn(
+        "shrink-0 rounded p-1 transition-colors",
+        visible ? "text-emerald-600 hover:bg-emerald-50" : "text-muted-foreground/50 hover:bg-muted",
+      )}
+    >
+      {visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+    </button>
   );
 }
 

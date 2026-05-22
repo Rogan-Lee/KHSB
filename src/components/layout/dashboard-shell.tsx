@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { AppSidebar } from "./app-sidebar";
 import { AppHeader } from "./app-header";
+import { QuickAccessBar } from "./quick-access-bar";
 import { CommandPalette } from "@/components/ui/command-palette";
 import { getCurrentPlan } from "@/lib/features";
 import type { Role } from "@/generated/prisma";
@@ -70,6 +71,7 @@ export function DashboardShell({ user, children, sidebarBadges }: DashboardShell
                 onMenuClick={() => setOpen(true)}
               />
             </div>
+            <QuickAccessBar />
             <div className="flex-1 p-4 md:px-[22px] md:py-[20px]">
               {children}
             </div>

@@ -1,11 +1,14 @@
 import { getParentReportDetailed } from "@/actions/parent-reports";
 import { getStudentAnalytics } from "@/actions/analytics";
 import { hasGatePass } from "@/lib/token-auth";
+import { prisma } from "@/lib/prisma";
 import { BookOpen, GraduationCap, User, Calendar, Clock, CheckCircle2, TrendingUp, TrendingDown, Target, FileText, MessageSquare, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { ParentGate } from "@/components/magic-link-gate/parent-gate";
 import { TokenNotice, reasonToNotice } from "@/components/magic-link-gate/token-notice";
+import { NotesSection } from "@/components/reports/notes-section";
+import { VocabTrendMiniChart } from "@/components/reports/vocab-trend-mini-chart";
 
 export default async function ParentReportPage({
   params,
@@ -28,6 +31,40 @@ export default async function ParentReportPage({
   const { student, mentoring, studyPlanNote, studyPlanImages, customNote } = report;
 
   const analytics = await getStudentAnalytics(student.id);
+
+  // 노트·상벌점: 멘토링이 속한 달 기준으로 조회 (없으면 리포트 작성일 기준)
+  const noteAnchor = new Date(
+    mentoring ? (mentoring.actualDate ?? mentoring.scheduledAt) : report.createdAt
+  );
+  const noteYear = noteAnchor.getFullYear();
+  const noteMonth = noteAnchor.getMonth() + 1;
+  const noteMonthStart = new Date(noteYear, noteMonth - 1, 1);
+  const noteMonthEnd = new Date(noteYear, noteMonth, 0, 23, 59, 59, 999);
+
+  const [monthlyNote, merits] = await Promise.all([
+    prisma.monthlyNote.findFirst({
+      where: { studentId: student.id, year: noteYear, month: noteMonth, visibleInReport: true },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true, content: true, visibleInReport: true, authorName: true, createdAt: true },
+    }),
+    prisma.meritDemerit.findMany({
+      where: {
+        studentId: student.id,
+        date: { gte: noteMonthStart, lte: noteMonthEnd },
+        visibleInReport: true,
+      },
+      orderBy: { date: "asc" },
+      select: {
+        id: true,
+        date: true,
+        type: true,
+        points: true,
+        reason: true,
+        category: true,
+        visibleInReport: true,
+      },
+    }),
+  ]);
 
   const dateStr = mentoring
     ? new Date(mentoring.actualDate ?? mentoring.scheduledAt).toLocaleDateString("ko-KR", {
@@ -232,6 +269,18 @@ export default async function ParentReportPage({
             </div>
           </div>
         )}
+
+        {/* 영단어 학습 추이 (Sprint 1 PR 1.3) — 스코어 없으면 자동 hide */}
+        <VocabTrendMiniChart studentId={student.id} />
+
+        {/* 원생 기록 + 상벌점 (Sprint 1 PR 1.4) */}
+        <NotesSection
+          studentId={student.id}
+          year={noteYear}
+          month={noteMonth}
+          monthlyNote={monthlyNote}
+          merits={merits}
+        />
 
         {/* 성적 현황 */}
         {analytics && analytics.subjects.length > 0 && (
