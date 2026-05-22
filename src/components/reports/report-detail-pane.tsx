@@ -54,6 +54,7 @@ export type ReportLite = {
   outingCount: number;
   patrolNoteCount: number;
   patrolAbsentCount: number;
+  patrolNotes?: { date: string; note: string }[];
   mentoringSummary: string | null;
   overallComment: string | null;
   shareToken: string | null;
@@ -332,6 +333,16 @@ export function ReportDetailPane({
                 sub={`특이 ${report.patrolNoteCount} · 자리비움 ${report.patrolAbsentCount}`}
               />
             </div>
+            {report.patrolNotes && report.patrolNotes.length > 0 && (
+              <ul className="mt-2 space-y-1 rounded-md border border-amber-100 bg-amber-50/60 px-2.5 py-2">
+                {report.patrolNotes.map((n, i) => (
+                  <li key={`${n.date}-${i}`} className="flex gap-2 text-xs text-foreground/80">
+                    <span className="shrink-0 pt-px font-mono tabular-nums text-amber-700">{n.date}</span>
+                    <span className="flex-1 whitespace-pre-wrap">{n.note}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
           {/* 모의고사 결과 (직전 → 당월, 어떤 시험인지 명시) */}

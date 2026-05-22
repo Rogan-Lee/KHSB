@@ -36,7 +36,8 @@ export default async function MonthlyParentReportPage({
   const end = new Date(year, month, 0, 23, 59, 59);
 
   // 원생 기록(MonthlyNote) + 상벌점(MeritDemerit) — visibleInReport=true 만
-  const [monthlyNote, merits] = await Promise.all([
+  // + 순찰 특이사항(사유 텍스트) — 학부모가 무엇이 문제였는지 확인할 수 있도록
+  const [monthlyNote, merits, patrolNoteRecords] = await Promise.all([
     prisma.monthlyNote.findFirst({
       where: { studentId: student.id, year, month, visibleInReport: true },
       orderBy: { updatedAt: "desc" },
@@ -59,7 +60,27 @@ export default async function MonthlyParentReportPage({
         visibleInReport: true,
       },
     }),
+    prisma.patrolRecord.findMany({
+      where: {
+        studentId: student.id,
+        status: "NOTE",
+        note: { not: null },
+        round: { startedAt: { gte: start, lte: end } },
+      },
+      orderBy: { checkedAt: "asc" },
+      select: { id: true, note: true, checkedAt: true },
+    }),
   ]);
+
+  // 순찰 특이사항 사유 목록 (빈 내용 제외, MM/DD 표기)
+  const patrolNotes = patrolNoteRecords
+    .filter((r) => r.note && r.note.trim())
+    .map((r) => {
+      const [, mm, dd] = new Date(r.checkedAt)
+        .toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" })
+        .split("-");
+      return { id: r.id, date: `${Number(mm)}/${Number(dd)}`, note: r.note!.trim() };
+    });
 
   const examScores = await prisma.examScore.findMany({
     where: {
@@ -242,13 +263,25 @@ export default async function MonthlyParentReportPage({
           {report.patrolNoteCount + report.patrolAbsentCount === 0 ? (
             <p className="text-sm text-emerald-700">이달 순찰 중 특이사항이 없었습니다. 👍</p>
           ) : (
-            <div className="flex flex-wrap gap-2 text-sm">
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 font-medium text-amber-800 border border-amber-200">
-                특이사항 {report.patrolNoteCount}회
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-700 border border-gray-200">
-                자리비움 {report.patrolAbsentCount}회
-              </span>
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2 text-sm">
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 font-medium text-amber-800 border border-amber-200">
+                  특이사항 {report.patrolNoteCount}회
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-700 border border-gray-200">
+                  자리비움 {report.patrolAbsentCount}회
+                </span>
+              </div>
+              {patrolNotes.length > 0 && (
+                <ul className="space-y-1.5 rounded-lg bg-amber-50/60 border border-amber-100 px-3 py-2.5">
+                  {patrolNotes.map((n) => (
+                    <li key={n.id} className="flex gap-2 text-sm text-gray-700">
+                      <span className="shrink-0 pt-0.5 font-mono text-xs tabular-nums text-amber-700">{n.date}</span>
+                      <span className="flex-1 whitespace-pre-wrap">{n.note}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </section>
