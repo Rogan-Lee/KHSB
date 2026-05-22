@@ -4,7 +4,7 @@ import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { MonthlyExamTrendChart } from "@/components/reports/monthly-exam-trend-chart";
 import { NotesSection } from "@/components/reports/notes-section";
 import { VocabTrendMiniChart } from "@/components/reports/vocab-trend-mini-chart";
-import { User, TrendingUp, Award, BookOpen, Bell, GraduationCap, Trophy, Image as ImageIcon } from "lucide-react";
+import { User, TrendingUp, Award, BookOpen, Bell, GraduationCap, Trophy, Image as ImageIcon, ShieldCheck } from "lucide-react";
 
 export default async function MonthlyParentReportPage({
   params,
@@ -232,6 +232,26 @@ export default async function MonthlyParentReportPage({
           monthlyNote={monthlyNote}
           merits={merits}
         />
+
+        {/* 3.3 순찰 점검 — 이상 기록(특이사항·자리비움) 요약 */}
+        <section className="bg-white rounded-xl border p-5">
+          <h2 className="flex items-center gap-2 text-base font-semibold mb-3">
+            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            순찰 점검
+          </h2>
+          {report.patrolNoteCount + report.patrolAbsentCount === 0 ? (
+            <p className="text-sm text-emerald-700">이달 순찰 중 특이사항이 없었습니다. 👍</p>
+          ) : (
+            <div className="flex flex-wrap gap-2 text-sm">
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 font-medium text-amber-800 border border-amber-200">
+                특이사항 {report.patrolNoteCount}회
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-700 border border-gray-200">
+                자리비움 {report.patrolAbsentCount}회
+              </span>
+            </div>
+          )}
+        </section>
 
         {/* 3.5 이달의 사진 (§2.22 자동 첨부) */}
         {orderedPhotos.length > 0 && (

@@ -310,6 +310,8 @@ export function AttendanceTable({ students, today }: Props) {
   type AddOutingDraft = { studentId: string; outStart: string; outEnd: string; reason: string };
   const [addOutingDraft, setAddOutingDraft] = useState<AddOutingDraft | null>(null);
   const [addOutingPending, setAddOutingPending] = useState<string | null>(null);
+  // 외출 없는 학생 행에서 "+외출" 눌렀을 때 회차 미니표를 펼칠 학생 집합
+  const [outingExpanded, setOutingExpanded] = useState<Set<string>>(new Set());
 
   async function submitAddOuting(student: StudentWithAttendance) {
     if (!addOutingDraft || addOutingDraft.studentId !== student.id) return;
@@ -774,8 +776,6 @@ export function AttendanceTable({ students, today }: Props) {
               const schedIn = student.schedules[0]?.startTime;
               const schedOut = student.schedules[0]?.endTime;
               const localOut = localOutings.get(student.id) ?? [];
-              const activeOuting = localOut.find((o) => o.outStart && !o.outEnd);
-              const outSch = student.outings[0]; // 예정 외출(있으면 첫 번째) — 외출/복귀 회색 힌트용
               const commCount = student.communications.filter((c) => !c.isChecked).length;
               const assignCount = student.assignments.filter((a) => !a.isCompleted).length;
               const schoolGrade = [student.school, student.grade].filter(Boolean).join(" ");
@@ -925,61 +925,6 @@ export function AttendanceTable({ students, today }: Props) {
                         />
                       </div>
 
-                      {/* 외출 */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">외출</span>
-                        <span className={cn(
-                          "text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
-                          outSch?.outStart ? "text-muted-foreground" : "text-transparent"
-                        )}>{outSch?.outStart ?? "00:00"}</span>
-                        <input
-                          type="time"
-                          value={activeOuting ? toTimeString(activeOuting.outStart) ?? "" :
-                                 localOut.length > 0 && localOut[localOut.length - 1]?.outStart ? toTimeString(localOut[localOut.length - 1].outStart) ?? "" : ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            const target = activeOuting ?? (localOut.length > 0 ? localOut[localOut.length - 1] : null);
-                            setLocalOutings((prev) => {
-                              const m = new Map(prev);
-                              const list = m.get(student.id) ?? [];
-                              if (target?.id) {
-                                m.set(student.id, list.map((o) =>
-                                  o.id === target.id ? { ...o, outStart: v ? new Date(`${todayDate}T${v}:00`) : o.outStart } : o
-                                ));
-                              } else if (v) {
-                                const draftIdx = list.findIndex((o) => o.id === null);
-                                const newDraft = { id: null, outStart: new Date(`${todayDate}T${v}:00`), outEnd: null };
-                                if (draftIdx >= 0) {
-                                  const updated = [...list]; updated[draftIdx] = newDraft;
-                                  m.set(student.id, updated);
-                                } else {
-                                  m.set(student.id, [...list, newDraft]);
-                                }
-                              }
-                              return m;
-                            });
-                          }}
-                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "outing", studentName: student.name })}
-                          onBlur={() => {
-                            setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "outing" ? null : prev), 200);
-                            const target = activeOuting ?? (localOut.length > 0 ? localOut[localOut.length - 1] : null);
-                            const val = target?.outStart ? toTimeString(target.outStart) : "";
-                            if (!val || !/^\d{2}:\d{2}$/.test(val)) return;
-                            if (target?.id) {
-                              updateDailyOuting(target.id, { date: todayDate, outStart: val });
-                            } else {
-                              quickStartOuting(student, val);
-                            }
-                          }}
-                          className={cn(
-                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
-                            activeOuting ? "text-orange-600 font-semibold" :
-                            localOut.length > 0 && localOut[localOut.length - 1]?.outStart ? "text-muted-foreground" : "text-gray-400"
-                          )}
-                          placeholder="—"
-                        />
-                      </div>
-
                       {/* 퇴실 */}
                       <div className="flex items-center gap-1.5">
                         <span className="text-muted-foreground w-6 shrink-0 text-[11px]">퇴실</span>
@@ -1014,148 +959,65 @@ export function AttendanceTable({ students, today }: Props) {
                         )}
                       </div>
 
-                      {/* 복귀 */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">복귀</span>
-                        <span className={cn(
-                          "text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
-                          outSch?.outEnd ? "text-muted-foreground" : "text-transparent"
-                        )}>{outSch?.outEnd ?? "00:00"}</span>
-                        <input
-                          type="time"
-                          value={localOut.length > 0 && localOut[localOut.length - 1]?.outEnd ? toTimeString(localOut[localOut.length - 1].outEnd) ?? "" : ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            const last = localOut.length > 0 ? localOut[localOut.length - 1] : null;
-                            if (last?.id) {
-                              setLocalOutings((prev) => {
-                                const m = new Map(prev);
-                                m.set(student.id, (m.get(student.id) ?? []).map((o) =>
-                                  o.id === last.id ? { ...o, outEnd: v ? new Date(`${todayDate}T${v}:00`) : o.outEnd } : o
-                                ));
-                                return m;
-                              });
-                            }
-                          }}
-                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "return", studentName: student.name })}
-                          onBlur={() => {
-                            setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "return" ? null : prev), 200);
-                            const last = localOut.length > 0 ? localOut[localOut.length - 1] : null;
-                            const val = last?.outEnd ? toTimeString(last.outEnd) : "";
-                            if (last?.id && val && /^\d{2}:\d{2}$/.test(val)) {
-                              updateDailyOuting(last.id, { date: todayDate, outEnd: val });
-                            }
-                          }}
-                          className={cn(
-                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
-                            localOut.length > 0 && localOut[localOut.length - 1]?.outEnd ? "text-foreground font-semibold" : "text-gray-400"
-                          )}
-                          placeholder="—"
-                        />
-                      </div>
                     </div>
 
-                    {/* 외출 목록 — 상단 외출/복귀 칸에 표시된 건(활성 또는 마지막) 제외, 나머지 전부 노출 */}
+                    {/* 외출 — 회차 미니표 (예정·실제). 외출 있는 학생(또는 +외출 클릭) 행만 노출 */}
                     {(() => {
-                      const topBound = activeOuting ?? (localOut.length > 0 ? localOut[localOut.length - 1] : null);
-                      const extras = localOut
-                        .filter((o) => o.id && o.id !== topBound?.id)
-                        .sort((a, b) => (a.sequence ?? 1) - (b.sequence ?? 1));
-                      // 예정 외출이 여러 개면 첫 번째는 입력 옆 회색 힌트, 나머지는 목록에 회색으로
-                      const extraScheduled = student.outings.slice(1);
-                      const isAdding = addOutingDraft?.studentId === student.id;
-                      const isAddPending = addOutingPending === student.id;
-                      const hasCheckIn = !!checkInTime;
+                      const hasAnyOuting = student.outings.length > 0 || localOut.length > 0;
+                      if (!hasAnyOuting && !outingExpanded.has(student.id)) {
+                        return (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOutingExpanded((s) => {
+                                const n = new Set(s);
+                                n.add(student.id);
+                                return n;
+                              });
+                            }}
+                            className="mt-1.5 flex items-center gap-0.5 text-[11px] text-orange-600 hover:text-orange-700 hover:underline"
+                          >
+                            <Plus className="h-3 w-3" /> 외출
+                          </button>
+                        );
+                      }
+                      const merged = localOut
+                        .filter((lo) => lo.id !== null)
+                        .map((lo) => ({
+                          id: lo.id as string,
+                          outStart: lo.outStart,
+                          outEnd: lo.outEnd,
+                          reason: lo.reason ?? null,
+                        }));
                       return (
-                        <div className="mt-1.5 space-y-0.5">
-                          {extraScheduled.map((sch) => (
-                            <div
-                              key={`sch-${sch.id}`}
-                              className="flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground"
-                            >
-                              <span className="font-sans text-muted-foreground/80">예정</span>
-                              <span className="tabular-nums">
-                                {sch.outStart} - {sch.outEnd}
-                              </span>
-                              {sch.reason && (
-                                <span className="font-sans text-foreground/60">({sch.reason})</span>
-                              )}
-                            </div>
-                          ))}
-                          {extras.map((o) => (
-                            <div
-                              key={o.id ?? `seq-${o.sequence}`}
-                              className="flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground"
-                            >
-                              <span className="text-orange-600 font-semibold">{o.sequence}차</span>
-                              <span className="tabular-nums">
-                                {toTimeString(o.outStart) || "—"} - {toTimeString(o.outEnd) || "—"}
-                              </span>
-                              {o.reason && (
-                                <span className="text-foreground/70 font-sans">({o.reason})</span>
-                              )}
-                              <button
-                                onClick={(e) => { e.stopPropagation(); if (o.id) removeOuting(student, o.id); }}
-                                disabled={isAddPending}
-                                title="외출 삭제"
-                                className="ml-auto p-0.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            </div>
-                          ))}
-
-                          {isAdding ? (
-                            <div className="flex items-center gap-1 pt-1" onClick={(e) => e.stopPropagation()}>
-                              <input
-                                type="time"
-                                value={addOutingDraft!.outStart}
-                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, outStart: e.target.value })}
-                                className="w-20 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
-                                placeholder="시작"
-                              />
-                              <span className="text-muted-foreground text-[11px]">-</span>
-                              <input
-                                type="time"
-                                value={addOutingDraft!.outEnd}
-                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, outEnd: e.target.value })}
-                                className="w-20 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
-                                placeholder="복귀"
-                              />
-                              <input
-                                type="text"
-                                value={addOutingDraft!.reason}
-                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, reason: e.target.value })}
-                                placeholder="사유"
-                                className="flex-1 min-w-0 max-w-[140px] border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
-                              />
-                              <button
-                                onClick={() => submitAddOuting(student)}
-                                disabled={isAddPending}
-                                className="px-1.5 py-0.5 text-[10px] rounded bg-orange-500 text-white hover:bg-orange-600 font-medium disabled:opacity-50"
-                              >
-                                {isAddPending ? "..." : "저장"}
-                              </button>
-                              <button
-                                onClick={() => setAddOutingDraft(null)}
-                                className="px-1.5 py-0.5 text-[10px] rounded bg-muted text-muted-foreground hover:bg-accent"
-                              >
-                                취소
-                              </button>
-                            </div>
-                          ) : (
-                            (localOut.length > 0 || hasCheckIn) && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAddOutingDraft({ studentId: student.id, outStart: nowHHMM(), outEnd: "", reason: "" });
-                                }}
-                                className="flex items-center gap-0.5 text-[11px] text-orange-600 hover:text-orange-700 hover:underline"
-                              >
-                                <Plus className="h-3 w-3" /> 외출 추가
-                              </button>
-                            )
-                          )}
+                        <div className="mt-2 max-w-[420px]">
+                          <OutingTablePanel
+                            key={localOut.map((o) => o.id).join(",")}
+                            studentId={student.id}
+                            todayDate={todayDate}
+                            scheduledOutings={student.outings}
+                            dailyOutings={merged}
+                            onDelete={(id) =>
+                              setLocalOutings((prev) => {
+                                const m = new Map(prev);
+                                m.set(student.id, (m.get(student.id) ?? []).filter((o) => o.id !== id));
+                                return m;
+                              })
+                            }
+                            onUpsert={(outing) =>
+                              setLocalOutings((prev) => {
+                                const m = new Map(prev);
+                                const cur = m.get(student.id) ?? [];
+                                if (cur.find((o) => o.id === outing.id)) {
+                                  m.set(student.id, cur.map((o) => (o.id === outing.id ? { ...o, ...outing } : o)));
+                                } else {
+                                  m.set(student.id, [...cur, outing]);
+                                }
+                                return m;
+                              })
+                            }
+                          />
                         </div>
                       );
                     })()}

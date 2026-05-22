@@ -948,6 +948,8 @@ model MonthlyReport {
   gradeAvgMinutes       Int? // 같은 학년 평균 순공 시간
   outingCount           Int       @default(0) // 외출 횟수
   totalOutingMinutes    Int       @default(0) // 총 외출 시간 (분)
+  patrolNoteCount       Int       @default(0) // 순찰 특이사항 횟수 (이상 기록)
+  patrolAbsentCount     Int       @default(0) // 순찰 자리비움 횟수 (이상 기록)
   mentoringSummary      String? // 월간 멘토링 종합 의견
   overallComment        String? // (기존) 전체 코멘트
   shareToken            String?   @unique // 학부모 공유 토큰
