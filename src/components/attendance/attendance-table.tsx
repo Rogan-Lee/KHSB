@@ -135,6 +135,24 @@ export function AttendanceTable({ students, today }: Props) {
   function scrollBy(delta: number) {
     scrollRef.current?.scrollBy({ left: delta, behavior: "smooth" });
   }
+
+  // 펼침 패널·외출 서브행을 "보이는 영역 폭"에 고정하기 위한 측정값.
+  // 14열 테이블의 가로 스크롤 폭과 무관하게, 사이드바 접힘까지 ResizeObserver로 추적.
+  const [viewportW, setViewportW] = useState<number>(0);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => setViewportW(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener("resize", update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+  const stickyWidth = viewportW ? `${viewportW}px` : "100%";
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<PanelTab>("attendance");
   const [infoModalId, setInfoModalId] = useState<string | null>(null);
@@ -750,14 +768,12 @@ export function AttendanceTable({ students, today }: Props) {
             {displayStudents.map((student) => {
               const state = getState(student);
               const isSelected = selectedId === student.id;
-              const isQuickLoading = quickPending === student.id;
               const lt = localTimes.get(student.id);
               const checkInTime = lt?.checkIn ?? "";
               const checkOutTime = lt?.checkOut ?? "";
               const schedIn = student.schedules[0]?.startTime;
               const schedOut = student.schedules[0]?.endTime;
               const localOut = localOutings.get(student.id) ?? [];
-              const activeOuting = localOut.find((o) => o.outStart && !o.outEnd);
               const commCount = student.communications.filter((c) => !c.isChecked).length;
               const assignCount = student.assignments.filter((a) => !a.isCompleted).length;
               const schoolGrade = [student.school, student.grade].filter(Boolean).join(" ");
@@ -907,58 +923,6 @@ export function AttendanceTable({ students, today }: Props) {
                         />
                       </div>
 
-                      {/* 외출 */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">외출</span>
-                        <span className="text-transparent text-[10px] font-mono w-11 text-right shrink-0 tabular-nums">00:00</span>
-                        <input
-                          type="time"
-                          value={activeOuting ? toTimeString(activeOuting.outStart) ?? "" :
-                                 localOut.length > 0 && localOut[localOut.length - 1]?.outStart ? toTimeString(localOut[localOut.length - 1].outStart) ?? "" : ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            const target = activeOuting ?? (localOut.length > 0 ? localOut[localOut.length - 1] : null);
-                            setLocalOutings((prev) => {
-                              const m = new Map(prev);
-                              const list = m.get(student.id) ?? [];
-                              if (target?.id) {
-                                m.set(student.id, list.map((o) =>
-                                  o.id === target.id ? { ...o, outStart: v ? new Date(`${todayDate}T${v}:00`) : o.outStart } : o
-                                ));
-                              } else if (v) {
-                                const draftIdx = list.findIndex((o) => o.id === null);
-                                const newDraft = { id: null, outStart: new Date(`${todayDate}T${v}:00`), outEnd: null };
-                                if (draftIdx >= 0) {
-                                  const updated = [...list]; updated[draftIdx] = newDraft;
-                                  m.set(student.id, updated);
-                                } else {
-                                  m.set(student.id, [...list, newDraft]);
-                                }
-                              }
-                              return m;
-                            });
-                          }}
-                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "outing", studentName: student.name })}
-                          onBlur={() => {
-                            setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "outing" ? null : prev), 200);
-                            const target = activeOuting ?? (localOut.length > 0 ? localOut[localOut.length - 1] : null);
-                            const val = target?.outStart ? toTimeString(target.outStart) : "";
-                            if (!val || !/^\d{2}:\d{2}$/.test(val)) return;
-                            if (target?.id) {
-                              updateDailyOuting(target.id, { date: todayDate, outStart: val });
-                            } else {
-                              quickStartOuting(student, val);
-                            }
-                          }}
-                          className={cn(
-                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
-                            activeOuting ? "text-orange-600 font-semibold" :
-                            localOut.length > 0 && localOut[localOut.length - 1]?.outStart ? "text-muted-foreground" : "text-gray-400"
-                          )}
-                          placeholder="—"
-                        />
-                      </div>
-
                       {/* 퇴실 */}
                       <div className="flex items-center gap-1.5">
                         <span className="text-muted-foreground w-6 shrink-0 text-[11px]">퇴실</span>
@@ -993,131 +957,8 @@ export function AttendanceTable({ students, today }: Props) {
                         )}
                       </div>
 
-                      {/* 복귀 */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">복귀</span>
-                        <span className="text-transparent text-[10px] font-mono w-11 text-right shrink-0 tabular-nums">00:00</span>
-                        <input
-                          type="time"
-                          value={localOut.length > 0 && localOut[localOut.length - 1]?.outEnd ? toTimeString(localOut[localOut.length - 1].outEnd) ?? "" : ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            const last = localOut.length > 0 ? localOut[localOut.length - 1] : null;
-                            if (last?.id) {
-                              setLocalOutings((prev) => {
-                                const m = new Map(prev);
-                                m.set(student.id, (m.get(student.id) ?? []).map((o) =>
-                                  o.id === last.id ? { ...o, outEnd: v ? new Date(`${todayDate}T${v}:00`) : o.outEnd } : o
-                                ));
-                                return m;
-                              });
-                            }
-                          }}
-                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "return", studentName: student.name })}
-                          onBlur={() => {
-                            setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "return" ? null : prev), 200);
-                            const last = localOut.length > 0 ? localOut[localOut.length - 1] : null;
-                            const val = last?.outEnd ? toTimeString(last.outEnd) : "";
-                            if (last?.id && val && /^\d{2}:\d{2}$/.test(val)) {
-                              updateDailyOuting(last.id, { date: todayDate, outEnd: val });
-                            }
-                          }}
-                          className={cn(
-                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
-                            localOut.length > 0 && localOut[localOut.length - 1]?.outEnd ? "text-foreground font-semibold" : "text-gray-400"
-                          )}
-                          placeholder="—"
-                        />
-                      </div>
                     </div>
 
-                    {/* 추가 외출 (2차, 3차…) — sequence > 1 */}
-                    {(() => {
-                      const extras = localOut
-                        .filter((o) => (o.sequence ?? 1) > 1 && o.id)
-                        .sort((a, b) => (a.sequence ?? 1) - (b.sequence ?? 1));
-                      const isAdding = addOutingDraft?.studentId === student.id;
-                      const isAddPending = addOutingPending === student.id;
-                      const hasCheckIn = !!checkInTime;
-                      return (
-                        <div className="mt-1.5 space-y-0.5">
-                          {extras.map((o) => (
-                            <div
-                              key={o.id ?? `seq-${o.sequence}`}
-                              className="flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground"
-                            >
-                              <span className="text-orange-600 font-semibold">{o.sequence}차</span>
-                              <span className="tabular-nums">
-                                {toTimeString(o.outStart) || "—"} - {toTimeString(o.outEnd) || "—"}
-                              </span>
-                              {o.reason && (
-                                <span className="text-foreground/70 font-sans">({o.reason})</span>
-                              )}
-                              <button
-                                onClick={(e) => { e.stopPropagation(); if (o.id) removeOuting(student, o.id); }}
-                                disabled={isAddPending}
-                                title="외출 삭제"
-                                className="ml-auto p-0.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            </div>
-                          ))}
-
-                          {isAdding ? (
-                            <div className="flex items-center gap-1 pt-1" onClick={(e) => e.stopPropagation()}>
-                              <input
-                                type="time"
-                                value={addOutingDraft!.outStart}
-                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, outStart: e.target.value })}
-                                className="w-20 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
-                                placeholder="시작"
-                              />
-                              <span className="text-muted-foreground text-[11px]">-</span>
-                              <input
-                                type="time"
-                                value={addOutingDraft!.outEnd}
-                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, outEnd: e.target.value })}
-                                className="w-20 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
-                                placeholder="복귀"
-                              />
-                              <input
-                                type="text"
-                                value={addOutingDraft!.reason}
-                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, reason: e.target.value })}
-                                placeholder="사유"
-                                className="flex-1 min-w-0 max-w-[140px] border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
-                              />
-                              <button
-                                onClick={() => submitAddOuting(student)}
-                                disabled={isAddPending}
-                                className="px-1.5 py-0.5 text-[10px] rounded bg-orange-500 text-white hover:bg-orange-600 font-medium disabled:opacity-50"
-                              >
-                                {isAddPending ? "..." : "저장"}
-                              </button>
-                              <button
-                                onClick={() => setAddOutingDraft(null)}
-                                className="px-1.5 py-0.5 text-[10px] rounded bg-muted text-muted-foreground hover:bg-accent"
-                              >
-                                취소
-                              </button>
-                            </div>
-                          ) : (
-                            (localOut.length > 0 || hasCheckIn) && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAddOutingDraft({ studentId: student.id, outStart: nowHHMM(), outEnd: "", reason: "" });
-                                }}
-                                className="flex items-center gap-0.5 text-[11px] text-orange-600 hover:text-orange-700 hover:underline"
-                              >
-                                <Plus className="h-3 w-3" /> 외출 추가
-                              </button>
-                            )
-                          )}
-                        </div>
-                      );
-                    })()}
                   </td>
 
                   {/* 입퇴실 메모 */}
@@ -1297,10 +1138,130 @@ export function AttendanceTable({ students, today }: Props) {
 
                 </tr>
 
+                {/* 외출 풀폭 서브행 — 예정 + 다회 외출을 클릭 없이 항상 노출 (외출 있는 학생만) */}
+                {(student.outings.length > 0 || localOut.length > 0) && (
+                  <tr className={cn("border-b", isSelected ? "bg-blue-50/40" : "bg-orange-50/30")}>
+                    <td colSpan={14} className="p-0">
+                      <div
+                        className="sticky left-0 px-4 py-2"
+                        style={{ width: stickyWidth }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
+                          <span className="flex items-center gap-1 shrink-0 font-medium text-orange-600">
+                            <ArrowRightLeft className="h-3.5 w-3.5" /> 외출
+                          </span>
+
+                          {/* 예정 외출 (OutingSchedule) */}
+                          {student.outings.map((sch) => (
+                            <span
+                              key={sch.id}
+                              className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-0.5 font-mono tabular-nums text-muted-foreground"
+                            >
+                              예정 {sch.outStart}–{sch.outEnd}
+                              {sch.reason && <span className="font-sans">({sch.reason})</span>}
+                            </span>
+                          ))}
+
+                          {/* 실제 외출 (DailyOuting) — 회차별 */}
+                          {[...localOut]
+                            .filter((o) => o.id)
+                            .sort((a, b) => (a.sequence ?? 1) - (b.sequence ?? 1))
+                            .map((o) => {
+                              const started = toTimeString(o.outStart);
+                              const ended = toTimeString(o.outEnd);
+                              const isActive = !!o.outStart && !o.outEnd; // 미복귀
+                              return (
+                                <span
+                                  key={o.id}
+                                  className={cn(
+                                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono tabular-nums",
+                                    isActive
+                                      ? "border-orange-300 bg-orange-100 text-orange-700"
+                                      : "border-border bg-background text-foreground"
+                                  )}
+                                >
+                                  <span className="font-sans font-semibold text-orange-600">{o.sequence ?? 1}차</span>
+                                  {started || "—"}–{ended || (isActive ? "미복귀" : "—")}
+                                  {o.reason && <span className="font-sans text-foreground/70">({o.reason})</span>}
+                                  {isActive && (
+                                    <button
+                                      onClick={() => quickEndOuting(student)}
+                                      disabled={quickPending === student.id}
+                                      className="ml-0.5 rounded bg-orange-500 px-1.5 py-0.5 text-[10px] font-sans text-white hover:bg-orange-600 disabled:opacity-50"
+                                    >
+                                      복귀
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => o.id && removeOuting(student, o.id)}
+                                    disabled={addOutingPending === student.id}
+                                    title="외출 삭제"
+                                    className="ml-0.5 text-muted-foreground hover:text-destructive disabled:opacity-40"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </span>
+                              );
+                            })}
+
+                          {/* 외출 추가 (sequence 자동) */}
+                          {addOutingDraft?.studentId === student.id ? (
+                            <span className="inline-flex items-center gap-1">
+                              <input
+                                type="time"
+                                value={addOutingDraft.outStart}
+                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, outStart: e.target.value })}
+                                className="w-24 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                              />
+                              <span className="text-muted-foreground">–</span>
+                              <input
+                                type="time"
+                                value={addOutingDraft.outEnd}
+                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, outEnd: e.target.value })}
+                                className="w-24 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                              />
+                              <input
+                                type="text"
+                                value={addOutingDraft.reason}
+                                placeholder="사유"
+                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, reason: e.target.value })}
+                                className="w-28 border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                              />
+                              <button
+                                onClick={() => submitAddOuting(student)}
+                                disabled={addOutingPending === student.id}
+                                className="px-1.5 py-0.5 text-[10px] rounded bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50"
+                              >
+                                {addOutingPending === student.id ? "..." : "저장"}
+                              </button>
+                              <button
+                                onClick={() => setAddOutingDraft(null)}
+                                className="px-1.5 py-0.5 text-[10px] rounded bg-muted text-muted-foreground hover:bg-accent"
+                              >
+                                취소
+                              </button>
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => setAddOutingDraft({ studentId: student.id, outStart: nowHHMM(), outEnd: "", reason: "" })}
+                              className="inline-flex items-center gap-0.5 shrink-0 text-orange-600 hover:text-orange-700 hover:underline"
+                            >
+                              <Plus className="h-3 w-3" /> 외출
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+
                 {/* 타임라인 + 인라인 편집 확장 행 */}
                 {isExpanded && (
                   <tr className={cn("border-b", isSelected ? "bg-blue-50/60" : "bg-muted/20")}>
-                    <td colSpan={14} className="px-4 py-4">
+                    <td colSpan={14} className="p-0">
+                      {/* 보이는 영역 폭에 고정 → 14열 가로 스크롤과 무관하게 패널은 좌우 스크롤 불요 */}
+                      <div className="sticky left-0 px-4 py-4" style={{ width: stickyWidth }}>
                       {(() => {
                         const focus = expandFocus.get(student.id);
                         const focusLabel: Record<EditFocus, string> = {
@@ -1314,9 +1275,9 @@ export function AttendanceTable({ students, today }: Props) {
                                 <span className="opacity-60">편집 중:</span> {focusLabel[focus]}
                               </span>
                             )}
-                            <div className="flex items-stretch gap-3 w-full">
+                            <div className="flex flex-wrap items-stretch gap-3 w-full">
                               {/* 왼쪽: 체크 항목 (주간 공부계획/플래너 전송 제외) */}
-                              <div className="flex flex-col justify-center gap-2 shrink-0 rounded-md border border-border bg-muted/30 px-4 py-3">
+                              <div className="flex flex-col justify-center gap-2 rounded-md border border-border bg-muted/30 px-4 py-3">
                                 {CHECK_ITEMS.filter(({ key }) => key !== "weeklyPlanDate" && key !== "plannerSentDate" && key !== "mockAnalysisDate" && key !== "schoolAnalysisDate").map(({ key, label, permanent }) => {
                                   const dateVal = localCheckDates.get(student.id)?.[key] ?? null;
                                   const isPending = checkDatePending === `${student.id}:${key}`;
@@ -1371,7 +1332,7 @@ export function AttendanceTable({ students, today }: Props) {
                               </div>
 
                               {/* 요청/전달 */}
-                              <div className="w-72 shrink-0 rounded-md border border-border bg-muted/30 px-3 py-3 overflow-y-auto max-h-56">
+                              <div className="w-full sm:w-72 shrink-0 rounded-md border border-border bg-muted/30 px-3 py-3 overflow-y-auto max-h-56">
                                 <CommunicationPanel
                                   studentId={student.id}
                                   initialItems={student.communications}
@@ -1380,7 +1341,7 @@ export function AttendanceTable({ students, today }: Props) {
                               </div>
 
                               {/* 오른쪽: 당일 변동 + 추후 변동 예정 */}
-                              <div className="flex-1 min-w-[320px] flex flex-col gap-2">
+                              <div className="flex-1 basis-[320px] min-w-0 flex flex-col gap-2">
                                 {(
                                   [
                                     { key: "dailyNote", label: "당일 변동 (00시 자동 초기화)", ph: "오늘 학원 때문에 늦어요 등 당일 변동사항", af: focus === "dailyNote" },
@@ -1413,6 +1374,7 @@ export function AttendanceTable({ students, today }: Props) {
                           </div>
                         );
                       })()}
+                      </div>
                     </td>
                   </tr>
                 )}

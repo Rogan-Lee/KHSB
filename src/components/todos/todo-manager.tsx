@@ -483,7 +483,10 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
     setFormCategory(undefined);
   }
 
-  const isAdmin = currentUserRole === "DIRECTOR" || currentUserRole === "SUPER_ADMIN";
+  const isAdmin =
+    currentUserRole === "DIRECTOR" ||
+    currentUserRole === "SUPER_ADMIN" ||
+    currentUserRole === "HEAD_MENTOR";
 
   // 삭제 확인 카드 또는 일반 TodoCard 렌더 (루틴/미완료/완료 공통)
   function renderTodoRow(todo: Todo) {
@@ -572,7 +575,7 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
                 </Sheet>
               ) : (
                 <p className="text-[11px] text-amber-800/60 text-center py-1">
-                  루틴 관리는 관리자만 가능합니다.
+                  루틴 관리는 관리자·총괄멘토만 가능합니다.
                 </p>
               )}
             </div>
