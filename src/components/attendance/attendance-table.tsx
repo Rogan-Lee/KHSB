@@ -1061,11 +1061,27 @@ export function AttendanceTable({ students, today }: Props) {
                       const extras = localOut
                         .filter((o) => o.id && o.id !== topBound?.id)
                         .sort((a, b) => (a.sequence ?? 1) - (b.sequence ?? 1));
+                      // 예정 외출이 여러 개면 첫 번째는 입력 옆 회색 힌트, 나머지는 목록에 회색으로
+                      const extraScheduled = student.outings.slice(1);
                       const isAdding = addOutingDraft?.studentId === student.id;
                       const isAddPending = addOutingPending === student.id;
                       const hasCheckIn = !!checkInTime;
                       return (
                         <div className="mt-1.5 space-y-0.5">
+                          {extraScheduled.map((sch) => (
+                            <div
+                              key={`sch-${sch.id}`}
+                              className="flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground"
+                            >
+                              <span className="font-sans text-muted-foreground/80">예정</span>
+                              <span className="tabular-nums">
+                                {sch.outStart} - {sch.outEnd}
+                              </span>
+                              {sch.reason && (
+                                <span className="font-sans text-foreground/60">({sch.reason})</span>
+                              )}
+                            </div>
+                          ))}
                           {extras.map((o) => (
                             <div
                               key={o.id ?? `seq-${o.sequence}`}
