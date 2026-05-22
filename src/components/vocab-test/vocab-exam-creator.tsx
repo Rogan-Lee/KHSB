@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Copy, Send, ClipboardCheck } from "lucide-react";
+import { Copy, Send, ClipboardCheck, Check } from "lucide-react";
 import { createVocabExam } from "@/actions/vocab-online";
 import type { VocabBookSummary } from "./vocab-book-manager";
 import type { VocabExamDirection } from "@/generated/prisma";
@@ -62,6 +62,23 @@ export function VocabExamCreator({ books, students }: { books: VocabBookSummary[
 
   const toggleUnit = (u: string) =>
     setSelectedUnits((prev) => (prev.includes(u) ? prev.filter((x) => x !== u) : [...prev, u]));
+
+  // 단원 일괄/범위 선택 — book.units 는 숫자 인식 정렬됨(인덱스 기반 범위가 안전)
+  const [rangeStart, setRangeStart] = useState<string>("");
+  const [rangeEnd, setRangeEnd] = useState<string>("");
+  const selectAllUnits = () => setSelectedUnits((book?.units ?? []).map((u) => u.unit));
+  const clearUnits = () => setSelectedUnits([]);
+  const applyRange = () => {
+    if (!book) return;
+    const list = book.units;
+    let i = list.findIndex((u) => u.unit === rangeStart);
+    let j = list.findIndex((u) => u.unit === rangeEnd);
+    if (i === -1 || j === -1) return toast.error("시작·끝 단원을 선택하세요");
+    if (i > j) [i, j] = [j, i];
+    const inRange = list.slice(i, j + 1).map((u) => u.unit);
+    setSelectedUnits((prev) => Array.from(new Set([...prev, ...inRange])));
+  };
+
   const toggleStudent = (id: string) =>
     setSelectedStudentIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
@@ -116,20 +133,71 @@ export function VocabExamCreator({ books, students }: { books: VocabBookSummary[
               </div>
 
               {book && book.units.length > 0 && (
-                <div>
-                  <Label>출제 범위 (단원)</Label>
-                  <p className="text-xs text-muted-foreground mb-1">선택 안 하면 단어장 전체</p>
-                  <div className="flex flex-wrap gap-1.5 max-h-32 overflow-auto">
-                    {book.units.map((u) => (
-                      <button
-                        key={u.unit}
-                        type="button"
-                        onClick={() => toggleUnit(u.unit)}
-                        className={`rounded-full border px-2.5 py-1 text-xs ${selectedUnits.includes(u.unit) ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted"}`}
-                      >
-                        {u.unit} <span className="opacity-70">{u.count}</span>
-                      </button>
-                    ))}
+                <div className="space-y-2">
+                  {/* 헤더 — 라벨 + 선택 요약 + 전체 선택/해제 */}
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="shrink-0">출제 범위 (단원)</Label>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedUnits.length > 0
+                        ? `${selectedUnits.length}단원 · 단어 ${poolCount}개`
+                        : "선택 안 하면 단어장 전체"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={selectAllUnits}>
+                      전체 선택
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={clearUnits}>
+                      전체 해제
+                    </Button>
+                  </div>
+
+                  {/* 범위 빠른 선택 (연속 Day) */}
+                  <div className="flex flex-wrap items-center gap-1.5 rounded-md border bg-muted/20 p-2">
+                    <span className="text-xs text-muted-foreground">범위</span>
+                    <Select value={rangeStart} onValueChange={setRangeStart}>
+                      <SelectTrigger className="h-8 w-[112px] text-xs"><SelectValue placeholder="시작" /></SelectTrigger>
+                      <SelectContent>
+                        {book.units.map((u) => <SelectItem key={u.unit} value={u.unit}>{u.unit}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-xs text-muted-foreground">~</span>
+                    <Select value={rangeEnd} onValueChange={setRangeEnd}>
+                      <SelectTrigger className="h-8 w-[112px] text-xs"><SelectValue placeholder="끝" /></SelectTrigger>
+                      <SelectContent>
+                        {book.units.map((u) => <SelectItem key={u.unit} value={u.unit}>{u.unit}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Button type="button" variant="outline" size="sm" className="h-8 px-3 text-xs" onClick={applyRange}>
+                      범위 선택
+                    </Button>
+                  </div>
+
+                  {/* 큰 칩 그리드 */}
+                  <div className="grid max-h-56 grid-cols-2 gap-1.5 overflow-auto rounded-md border bg-muted/30 p-2 sm:grid-cols-3 md:grid-cols-4">
+                    {book.units.map((u) => {
+                      const on = selectedUnits.includes(u.unit);
+                      return (
+                        <button
+                          key={u.unit}
+                          type="button"
+                          onClick={() => toggleUnit(u.unit)}
+                          aria-pressed={on}
+                          className={`flex min-h-9 w-full items-center justify-between gap-1 rounded-md border px-3 py-1.5 text-[13px] transition-colors ${
+                            on
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-input bg-background hover:border-primary/50 hover:bg-muted"
+                          }`}
+                        >
+                          <span className="flex items-center gap-1 truncate">
+                            {on && <Check className="h-3.5 w-3.5 shrink-0" />}
+                            <span className="truncate">{u.unit}</span>
+                          </span>
+                          <span className={on ? "text-primary-foreground/70" : "text-muted-foreground"}>{u.count}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
