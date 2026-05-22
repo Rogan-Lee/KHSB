@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   Play,
@@ -15,6 +16,7 @@ import {
   Search,
   Flag,
   X,
+  ArrowLeft,
 } from "lucide-react";
 import { QrScanner } from "@/app/w/[token]/_components/qr-scanner";
 import { decodeStudentQr } from "@/lib/patrol";
@@ -134,14 +136,16 @@ export function PatrolDesktop({
     });
   }
 
-  // 진입 즉시 진행 중 회차가 없으면 1회 자동 시작
+  // 진입 직후 단 한 번만 자동 시작 판단. 마운트 시 진행 중 회차가 없을 때만 시작하고,
+  // 이후 사용자가 "순찰 종료"로 회차를 닫아도 (round=null) 다시 시작하지 않도록 마운트 1회로 고정.
   const autoStarted = useRef(false);
   useEffect(() => {
-    if (autoStart && !round && !autoStarted.current) {
-      autoStarted.current = true;
-      handleStart();
-    }
-  }, [autoStart, round]);
+    if (autoStarted.current) return;
+    autoStarted.current = true;
+    if (autoStart && !round) handleStart();
+    // 마운트 시 1회만 실행 — round/handleStart 변경에 재실행 금지
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleEnd() {
     if (!round) return;
@@ -221,6 +225,13 @@ export function PatrolDesktop({
 
       {/* 헤더 */}
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3 shadow-[var(--shadow-xs)]">
+        <Link
+          href="/"
+          className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-[13px] font-medium text-ink-3 hover:bg-panel-2"
+          aria-label="대시보드로 돌아가기"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" /> 뒤로
+        </Link>
         <ShieldCheck className="h-5 w-5 text-brand" />
         <h1 className="text-[15px] font-bold tracking-[-0.01em] text-ink">순찰 — {data.patrollerName}</h1>
         {round && (

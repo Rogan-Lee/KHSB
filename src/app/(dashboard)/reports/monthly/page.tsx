@@ -47,6 +47,37 @@ export default async function MonthlyReportsPage({
     }),
   ]);
 
+  // 순찰 특이사항 사유 — 생성된 리포트 학생들 대상으로 한 번에 조회 후 학생별 그룹핑
+  const reportStudentIds = reports.map((r) => r.studentId);
+  const patrolStart = new Date(year, month - 1, 1);
+  const patrolEnd = new Date(year, month, 0, 23, 59, 59);
+  const patrolNoteRecords = reportStudentIds.length
+    ? await prisma.patrolRecord.findMany({
+        where: {
+          studentId: { in: reportStudentIds },
+          status: "NOTE",
+          note: { not: null },
+          round: { startedAt: { gte: patrolStart, lte: patrolEnd } },
+        },
+        orderBy: { checkedAt: "asc" },
+        select: { studentId: true, note: true, checkedAt: true },
+      })
+    : [];
+  const patrolNotesByStudent = new Map<string, { date: string; note: string }[]>();
+  for (const r of patrolNoteRecords) {
+    if (!r.note || !r.note.trim()) continue;
+    const [, mm, dd] = new Date(r.checkedAt)
+      .toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" })
+      .split("-");
+    const list = patrolNotesByStudent.get(r.studentId) ?? [];
+    list.push({ date: `${Number(mm)}/${Number(dd)}`, note: r.note.trim() });
+    patrolNotesByStudent.set(r.studentId, list);
+  }
+  const reportsWithNotes = reports.map((r) => ({
+    ...r,
+    patrolNotes: patrolNotesByStudent.get(r.studentId) ?? [],
+  }));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -128,7 +159,7 @@ export default async function MonthlyReportsPage({
           </div>
         </div>
         <div className="p-5">
-          <MonthlyReportPanel year={year} month={month} students={students} reports={reports} />
+          <MonthlyReportPanel year={year} month={month} students={students} reports={reportsWithNotes} />
         </div>
       </div>
     </div>
