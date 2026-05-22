@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { useModKey } from "@/lib/nav-shortcuts";
 import {
   hasFeature, getMinimumPlan, PLAN_LABELS,
   type PlanTier, type FeatureKey,
@@ -146,6 +147,7 @@ export function AppSidebar({
   badges?: Record<string, number>;
 }) {
   const pathname = usePathname();
+  const mod = useModKey();
 
   // Sidebar nav 스크롤 위치 유지 — (dashboard) ↔ /online 이동 시 layout 리마운트로 인한 리셋 방지
   const navRef = useRef<HTMLElement>(null);
@@ -326,8 +328,8 @@ export function AppSidebar({
       <div className="pt-2.5">
         {isCollapsed ? (
           <button
-            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
-            title="빠른 이동 · 원생 검색 (⌘K)"
+            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}
+            title={`빠른 이동 · 원생 검색 (${mod}K)`}
             aria-label="검색"
             className="w-8 h-8 mx-auto grid place-items-center rounded-[8px] text-ink-3 hover:bg-canvas-2 hover:text-ink transition-colors cursor-pointer"
           >
@@ -337,14 +339,14 @@ export function AppSidebar({
           </button>
         ) : (
           <button
-            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}
             className="flex items-center gap-2 w-full rounded-[10px] bg-panel border border-line shadow-[var(--shadow-xs)] hover:border-line-strong transition-colors cursor-text px-3 py-2"
           >
             <svg className="h-3.5 w-3.5 text-ink-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" strokeLinecap="round" />
             </svg>
             <span className="flex-1 text-left text-[12.5px] text-ink-4">빠른 이동 · 원생 검색</span>
-            <kbd className="font-mono text-[10px] text-ink-4 bg-canvas-2 px-1.5 py-px rounded-[4px]">⌘K</kbd>
+            <kbd className="font-mono text-[10px] text-ink-4 bg-canvas-2 px-1.5 py-px rounded-[4px]">{mod}K</kbd>
           </button>
         )}
       </div>

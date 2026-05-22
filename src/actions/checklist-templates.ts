@@ -6,7 +6,10 @@ import { revalidatePath } from "next/cache";
 import { ShiftType } from "@/generated/prisma";
 
 function requireAdmin(role?: string) {
-  if (role !== "DIRECTOR" && role !== "SUPER_ADMIN") throw new Error("권한이 없습니다");
+  // 루틴 관리는 원장·시스템관리자 + 총괄멘토(HEAD_MENTOR)까지 허용
+  if (role !== "DIRECTOR" && role !== "SUPER_ADMIN" && role !== "HEAD_MENTOR") {
+    throw new Error("권한이 없습니다");
+  }
 }
 
 export async function getChecklistTemplates() {
