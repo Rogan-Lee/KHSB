@@ -341,6 +341,7 @@ model Student {
   magicLinks           StudentMagicLink[]
   portalChats          PortalChat[]
   studentQuestions     StudentQuestion[]
+  studentSuggestions   StudentSuggestion[]
   onboardingSurvey     OnboardingSurvey?
   performanceTasks     PerformanceTask[]
   taskResults          TaskResult[]
@@ -404,6 +405,42 @@ model StudentMagicLink {
 
   @@index([studentId, revokedAt])
   @@index([expiresAt])
+}
+
+// 학생 건의사항. 학생이 포털(`/s/[token]`)에서 제출, 직원(전 직원)이 상태 관리, 학생은 포털에서 반영 안내 확인.
+enum SuggestionCategory {
+  FACILITY // 시설
+  CLASS // 수업
+  OPERATION // 운영
+  ETC // 기타
+}
+
+enum SuggestionStatus {
+  RECEIVED // 접수
+  REVIEWING // 검토중
+  REFLECTED // 반영완료
+  DECLINED // 보류
+}
+
+model StudentSuggestion {
+  id              String             @id @default(cuid())
+  studentId       String
+  student         Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  category        SuggestionCategory @default(ETC)
+  title           String
+  content         String             @db.Text
+  status          SuggestionStatus   @default(RECEIVED)
+  staffReply      String?            @db.Text // 직원 답변(반영 안내) — 학생에게 노출
+  handledById     String? // 처리 직원 User.id
+  handledByName   String?
+  handledAt       DateTime?
+  statusUpdatedAt DateTime? // 직원이 상태/답변 갱신한 시각 (학생 미확인 배지 기준)
+  studentReadAt   DateTime? // 학생이 마지막 확인한 시각
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([studentId])
+  @@index([status])
 }
 
 // 매직링크 본인 확인 게이트(birthDate / 학부모 폰 뒷 4자리) 실패 시도 로그.

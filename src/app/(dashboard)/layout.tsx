@@ -3,6 +3,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getUser } from "@/lib/auth";
 import { isOnlineStaff, isStaff } from "@/lib/roles";
 import { getUnseenFeatureRequestCount } from "@/actions/feature-requests";
+import { getNewSuggestionCount } from "@/actions/student-suggestions";
 
 export default async function DashboardLayout({
   children,
@@ -23,6 +24,12 @@ export default async function DashboardLayout({
   try {
     const unseenRequests = await getUnseenFeatureRequestCount();
     if (unseenRequests > 0) sidebarBadges["/requests"] = unseenRequests;
+  } catch {
+    // 카운트 실패해도 레이아웃은 그대로 렌더링
+  }
+  try {
+    const newSuggestions = await getNewSuggestionCount();
+    if (newSuggestions > 0) sidebarBadges["/suggestions"] = newSuggestions;
   } catch {
     // 카운트 실패해도 레이아웃은 그대로 렌더링
   }

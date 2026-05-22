@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { redirect } from "next/navigation";
 import { validateMagicLink } from "@/lib/student-auth";
 import { prisma } from "@/lib/prisma";
+import { countUnseenSuggestionUpdates } from "@/actions/student-suggestions";
 import { StudentAppHeader } from "./_components/student-app-header";
 import { StudentBottomNav } from "./_components/student-bottom-nav";
 
@@ -84,7 +85,7 @@ export default async function StudentPortalLayout({
   if (!session) redirect("/s/expired");
 
   const isOnlineManaged = session.student.isOnlineManaged;
-  const [taskBadge, feedbackBadge, chatBadge, vocabTotal, vocabBadge, questionBadge] =
+  const [taskBadge, feedbackBadge, chatBadge, vocabTotal, vocabBadge, questionBadge, suggestionBadge] =
     await Promise.all([
       isOnlineManaged
         ? prisma.performanceTask.count({
@@ -108,6 +109,7 @@ export default async function StudentPortalLayout({
         where: { studentId: session.student.id, status: { in: ["ASSIGNED", "IN_PROGRESS"] } },
       }),
       countUnreadQuestionAnswersForStudent(session.student.id),
+      countUnseenSuggestionUpdates(session.student.id),
     ]);
 
   const daysLeft = Math.max(
@@ -146,6 +148,7 @@ export default async function StudentPortalLayout({
           vocabBadge={vocabBadge}
           hasVocab={vocabTotal > 0}
           questionBadge={questionBadge}
+          suggestionBadge={suggestionBadge}
           isOnlineManaged={isOnlineManaged}
         />
       </div>
