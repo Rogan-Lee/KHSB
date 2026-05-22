@@ -9,6 +9,7 @@ import {
   MessageCircle,
   SpellCheck,
   HelpCircle,
+  Megaphone,
   type LucideIcon,
 } from "lucide-react";
 
@@ -27,6 +28,7 @@ const COLS: Record<number, string> = {
   4: "grid-cols-4",
   5: "grid-cols-5",
   6: "grid-cols-6",
+  7: "grid-cols-7",
 };
 
 export function StudentBottomNav({
@@ -37,6 +39,7 @@ export function StudentBottomNav({
   vocabBadge,
   hasVocab,
   questionBadge,
+  suggestionBadge,
   isOnlineManaged,
 }: {
   token: string;
@@ -46,6 +49,7 @@ export function StudentBottomNav({
   vocabBadge?: number;
   hasVocab?: boolean;
   questionBadge?: number;
+  suggestionBadge?: number;
   isOnlineManaged?: boolean;
 }) {
   const pathname = usePathname() ?? "";
@@ -61,6 +65,7 @@ export function StudentBottomNav({
     tabs.push({ key: "vocab", href: `${root}/vocab`, match: (p) => p.startsWith(`${root}/vocab`), label: "영단어", Icon: SpellCheck, badge: vocabBadge });
   }
   tabs.push({ key: "qna", href: `${root}/qna`, match: (p) => p.startsWith(`${root}/qna`), label: "질문", Icon: HelpCircle, badge: questionBadge });
+  tabs.push({ key: "suggestions", href: `${root}/suggestions`, match: (p) => p.startsWith(`${root}/suggestions`), label: "건의", Icon: Megaphone, badge: suggestionBadge });
   if (isOnlineManaged) {
     tabs.push(
       { key: "chat", href: `${root}/chat`, match: (p) => p.startsWith(`${root}/chat`), label: "메시지", Icon: MessageSquare, badge: chatBadge },
