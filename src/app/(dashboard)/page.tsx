@@ -24,10 +24,12 @@ import { getMonthlyNotes } from "@/actions/monthly-notes";
 import { getTodos } from "@/actions/todos";
 import { getAllAssignmentStatus, getEnrollmentDelta } from "@/actions/dashboard-widgets";
 import { getActivePatrolRoundBrief } from "@/actions/patrol";
+import { getAttentionStudents } from "@/lib/attention";
 import { DashboardWrapper } from "@/components/dashboard/dashboard-wrapper";
 import { AllAssignmentsWidget } from "@/components/dashboard/all-assignments-widget";
 import { EnrollmentDeltaWidget } from "@/components/dashboard/enrollment-delta-widget";
 import { PatrolStartWidget } from "@/components/dashboard/patrol-start-widget";
+import { AttentionWidget } from "@/components/dashboard/attention-widget";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -51,6 +53,7 @@ export default async function DashboardPage() {
     allAssignments,
     enrollmentDelta,
     activePatrolRound,
+    attentionStudents,
   ] = await Promise.all([
     prisma.student.count({ where: { status: "ACTIVE" } }),
     prisma.attendanceRecord.findMany({
@@ -94,6 +97,7 @@ export default async function DashboardPage() {
     getAllAssignmentStatus(),
     getEnrollmentDelta(year, month),
     getActivePatrolRoundBrief(),
+    getAttentionStudents(),
   ]);
 
   const normalCount = todayAttendances.filter((a) => a.type === "NORMAL").length;
@@ -215,6 +219,9 @@ export default async function DashboardPage() {
         if (alerts.length === 0) return null;
         return <AlertStrip cols={alerts.length} className="mb-0">{alerts}</AlertStrip>;
       })()}
+
+      {/* 유의 관찰 학생 — 수동 플래그 + 자동 판별 */}
+      <AttentionWidget students={attentionStudents} />
 
       {/* 1.5fr / 1fr layout — activity left, today stack right */}
       <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr] gap-4">

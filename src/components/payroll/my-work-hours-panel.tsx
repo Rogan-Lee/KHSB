@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Lock, Check, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   getMyWorkSheet,
   setMyWorkHour,
@@ -49,6 +50,8 @@ export function MyWorkHoursPanel({
 
   const locked = sheet.ownerConfirmedAt != null;
   const daysInMonth = useMemo(() => new Date(year, month, 0).getDate(), [year, month]);
+  // 1일의 요일(0=일 ~ 6=토) — 캘린더 선행 빈 칸 계산용
+  const firstDow = useMemo(() => new Date(year, month - 1, 1).getDay(), [year, month]);
 
   function buildInputsFor(s: WorkSheetUser) {
     return buildInputs(s);
@@ -209,23 +212,48 @@ export function MyWorkHoursPanel({
         </button>
       )}
 
-      {/* 일자별 입력 */}
-      <div className="rounded-xl border border-line overflow-hidden">
-        <div className="grid grid-cols-[64px_1fr_auto] items-center border-b border-line-2 bg-panel-2 px-3 py-2 text-[11px] font-semibold text-ink-4">
-          <span>날짜</span>
-          <span>근무시간 (시간 단위, 예 7.5)</span>
-          <span></span>
+      {/* 일자별 입력 — 월간 캘린더 그리드 */}
+      <div className="rounded-xl border border-line p-2 sm:p-3">
+        {/* 요일 헤더 */}
+        <div className="mb-1 grid grid-cols-7 gap-1">
+          {WEEKDAYS.map((w, i) => (
+            <div
+              key={w}
+              className={cn(
+                "py-1 text-center text-[11px] font-semibold",
+                i === 0 || i === 6 ? "text-bad" : "text-ink-4",
+              )}
+            >
+              {w}
+            </div>
+          ))}
         </div>
-        <div className="max-h-[420px] overflow-y-auto divide-y divide-line-2">
+        {/* 날짜 칸 */}
+        <div className="grid grid-cols-7 gap-1">
+          {/* 1일 앞 빈 칸 */}
+          {Array.from({ length: firstDow }, (_, i) => (
+            <div key={`pad-${i}`} aria-hidden className="min-h-[60px] rounded-md" />
+          ))}
           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
             const dateStr = `${year}-${pad(month)}-${pad(day)}`;
             const dow = new Date(year, month - 1, day).getDay();
             const isWeekend = dow === 0 || dow === 6;
+            const hasValue = (inputs[dateStr] ?? "").trim() !== "";
             return (
-              <div key={dateStr} className="grid grid-cols-[64px_1fr_auto] items-center px-3 py-1.5">
-                <span className={`text-[13px] tabular-nums ${isWeekend ? "text-bad" : "text-ink-3"}`}>
-                  {pad(day)} {WEEKDAYS[dow]}
-                </span>
+              <div
+                key={dateStr}
+                className={cn(
+                  "flex min-h-[60px] flex-col gap-1 rounded-md border border-line-2 p-1.5",
+                  isWeekend && "bg-panel-2/60",
+                  hasValue && "border-brand/40 bg-brand/5",
+                )}
+              >
+                <div className="flex items-center justify-between leading-none">
+                  <span className={cn("text-[11px] tabular-nums", isWeekend ? "text-bad" : "text-ink-4")}>
+                    {day}
+                  </span>
+                  {savingKey === dateStr && <Loader2 className="h-3 w-3 animate-spin text-ink-4" />}
+                </div>
                 <input
                   type="number"
                   inputMode="decimal"
@@ -237,14 +265,19 @@ export function MyWorkHoursPanel({
                   onChange={(e) => setInputs((p) => ({ ...p, [dateStr]: e.target.value }))}
                   onBlur={() => saveDay(day)}
                   placeholder="-"
-                  className="w-full rounded-md border border-line bg-panel px-2 py-1.5 text-[16px] tabular-nums focus:border-brand focus:outline-none disabled:bg-canvas-2 disabled:text-ink-4"
+                  aria-label={`${month}월 ${day}일 근무시간`}
+                  className="w-full rounded border border-line bg-panel px-1 py-1 text-center text-[15px] tabular-nums focus:border-brand focus:outline-none disabled:bg-canvas-2 disabled:text-ink-4"
                 />
-                <span className="w-5 pl-1">
-                  {savingKey === dateStr && <Loader2 className="h-3.5 w-3.5 animate-spin text-ink-4" />}
-                </span>
               </div>
             );
           })}
+        </div>
+        {/* 월 합계 */}
+        <div className="mt-2 flex items-center justify-between border-t border-line-2 px-1 pt-2 text-[12px]">
+          <span className="text-ink-4">단위: 시간 (예 7.5) · 입력 후 칸 밖 클릭 시 저장</span>
+          <span className="font-semibold tabular-nums text-ink-2">
+            합계 {minutesToHoursLabel(pay.totalMinutes)}
+          </span>
         </div>
       </div>
 

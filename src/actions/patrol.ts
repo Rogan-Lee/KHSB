@@ -67,6 +67,8 @@ export type PatrolStudentInfo = {
   mentoringNotes: string | null;
   studentInfo: string | null;
   dailyNote: string | null; // 당일(오늘 KST)인 경우만
+  attentionFlag: boolean; // 유의 관찰 수동 플래그
+  attentionReason: string | null;
 };
 
 /** 오늘 재실(체크인) 학생 명단. 순찰 대상 roster. */
@@ -152,6 +154,7 @@ export async function getPatrolStudentInfo(token: string | undefined, studentId:
     select: {
       id: true, name: true, grade: true, school: true, seat: true,
       mentoringNotes: true, studentInfo: true, dailyNote: true, dailyNoteDate: true,
+      attentionFlag: true, attentionReason: true,
     },
   });
   if (!s) throw new Error("학생을 찾을 수 없습니다");
@@ -171,6 +174,8 @@ export async function getPatrolStudentInfo(token: string | undefined, studentId:
     mentoringNotes: s.mentoringNotes,
     studentInfo: s.studentInfo,
     dailyNote: isToday ? s.dailyNote : null,
+    attentionFlag: s.attentionFlag,
+    attentionReason: s.attentionReason,
   };
 }
 

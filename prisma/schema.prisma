@@ -315,6 +315,12 @@ model Student {
   dailyNote            String? // 당일 변동 사항 (매일 00시 KST 기준 초기화)
   dailyNoteDate        DateTime?              @db.Date // 당일 변동 기록 날짜 (조회 시 오늘이 아니면 표시 안함)
   studentInfo          String? // 학생정보 (추가 메모)
+  // ─── 유의 관찰 (수동 플래그) ───
+  attentionFlag        Boolean                @default(false) // 운영진이 수동 지정한 유의 관찰 대상
+  attentionReason      String? // 수동 플래그 사유 메모
+  attentionFlaggedAt   DateTime?
+  attentionFlaggedById String? // 플래그한 운영진 User.id 스냅샷 (FK 미설정 — createdById 패턴 동일)
+  // ─────────────────────────────────
   selectedSubjects     String? // 선택과목 (예: "수학, 영어, 사탐")
   admissionType        String? // 대학 입시 전형 (예: "수시 학종, 정시")
   onlineLectures       String? // 수강중인 인강 (예: "메가스터디 수학")
@@ -385,6 +391,7 @@ model Student {
   @@index([assignedMentorId])
   @@index([assignedConsultantId])
   @@index([assignedStaffId])
+  @@index([attentionFlag])
 }
 
 // 온라인 학생 포털(`/s/[token]`) 접근용 매직링크.
