@@ -1025,14 +1025,21 @@ export function AttendanceTable({ students, today }: Props) {
                               quickStartOuting(student, v);
                             }
                           }}
-                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "outing", studentName: student.name })}
-                          onBlur={() => setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "outing" ? null : prev), 200)}
                           className={cn(
                             "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
                             activeOuting ? "text-orange-600 font-semibold" : "text-gray-400"
                           )}
                           placeholder="—"
                         />
+                        {!activeOuting && checkInTime && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); quickStartOuting(student); }}
+                            disabled={!!quickPending}
+                            className="px-1.5 py-1 text-[10px] rounded bg-orange-500 text-white hover:bg-orange-600 font-medium disabled:opacity-50 shrink-0"
+                            title="현재 시각으로 외출 시작"
+                          >지금</button>
+                        )}
                       </div>
 
                       {/* 복귀 */}
@@ -1051,14 +1058,21 @@ export function AttendanceTable({ students, today }: Props) {
                               quickEndOuting(student, v); // 진행 중 외출 복귀 처리(지각 자동판정 포함)
                             }
                           }}
-                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "return", studentName: student.name })}
-                          onBlur={() => setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "return" ? null : prev), 200)}
                           className={cn(
                             "w-28 font-mono border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
                             activeOuting ? "bg-background text-gray-600" : "bg-muted/40 text-gray-300 cursor-not-allowed"
                           )}
                           placeholder={activeOuting ? "복귀 시각" : "—"}
                         />
+                        {activeOuting && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); quickEndOuting(student); }}
+                            disabled={!!quickPending}
+                            className="px-1.5 py-1 text-[10px] rounded bg-orange-500 text-white hover:bg-orange-600 font-medium disabled:opacity-50 shrink-0"
+                            title="현재 시각으로 복귀"
+                          >지금</button>
+                        )}
                       </div>
                     </div>
 
