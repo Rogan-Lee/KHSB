@@ -51,6 +51,21 @@ const TYPE_BADGE: Record<string, string> = {
   OUTING: "bg-orange-100 text-orange-700 border-orange-200",
 };
 
+// 출결 상태별 행 배경색 (TYPE_BADGE 색상과 톤 통일). 좌측 고정 셀도 같은 rowBg를
+// 쓰므로 불투명(alpha 없는) 색만 사용. hover는 한 단계 진한 변형.
+function stateRowBg(state: string): string {
+  switch (state) {
+    case "NORMAL":          return "bg-green-50 group-hover:bg-green-100";   // 정상 입실
+    case "TARDY":           return "bg-orange-50 group-hover:bg-orange-100"; // 지각
+    case "OUTING":          return "bg-sky-50 group-hover:bg-sky-100";       // 외출 중
+    case "NOTIFIED_ABSENT": return "bg-purple-50 group-hover:bg-purple-100"; // 미입실
+    case "ABSENT":          return "bg-red-50 group-hover:bg-red-100";       // 결석
+    case "APPROVED_ABSENT": return "bg-slate-100 group-hover:bg-slate-200";  // 공결
+    case "FLEXIBLE":        return "bg-violet-50 group-hover:bg-violet-100"; // 자율(미정)
+    default:                return "bg-background group-hover:bg-accent";    // 비등원일 등
+  }
+}
+
 function toTimeString(dt: Date | null | undefined): string {
   if (!dt) return "";
   return new Date(dt).toTimeString().slice(0, 5);
@@ -808,24 +823,28 @@ export function AttendanceTable({ students, today }: Props) {
               // 좌측 고정 컬럼(chevron/좌석/이름)에도 동일한 행 배경을 적용해
               // 가로 스크롤 시 하이라이트 일관성 유지. hover는 group-hover 로.
               // sticky 셀은 불투명(alpha 없음)이어야 뒤에 스크롤되는 내용이 비치지 않음.
+              // 행 배경 = 출결 상태색. 선택/펼침(상호작용 피드백)이 최상위.
+              // 영단어 대상·입실임박은 배경 대신 좌측 보더로 분리(아래 tr className).
               const rowBg = isSelected
                 ? "bg-blue-50"
                 : isExpanded
                 ? "bg-muted"
-                : isCheckInImminent
-                ? "bg-red-50 group-hover:bg-red-100"
-                : isVocabTarget && !vocabDone
-                ? "bg-orange-50"
-                : "bg-background group-hover:bg-accent";
+                : stateRowBg(state);
 
               return (
                 <Fragment key={student.id}>
                 <tr
                   onClick={(e) => toggleTimeline(student.id, e)}
                   className={cn(
-                    "group border-b transition-colors cursor-pointer",
+                    "group border-b border-l-2 border-l-transparent transition-colors cursor-pointer",
                     rowBg,
-                    isSelected && "border-l-2 border-l-blue-500",
+                    isSelected
+                      ? "border-l-blue-500"
+                      : isCheckInImminent
+                      ? "border-l-red-500"     // 입실 임박
+                      : isVocabTarget && !vocabDone
+                      ? "border-l-amber-400"   // 영단어 시험 대상
+                      : null,
                     state === "NO_SCHEDULE" && "opacity-50"
                   )}
                 >
