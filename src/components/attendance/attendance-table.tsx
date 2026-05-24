@@ -713,7 +713,7 @@ export function AttendanceTable({ students, today }: Props) {
               <th className="px-3 py-2.5 text-left w-24 hidden md:table-cell">학교·학년</th>
               <th className="px-3 py-2.5 text-left w-16 hidden lg:table-cell">반</th>
               <th className="px-3 py-2.5 text-left" style={{ minWidth: "190px" }}>입퇴실</th>
-              <th className="px-3 py-2.5 text-left" style={{ minWidth: "320px" }}>외출</th>
+              <th className="px-3 py-2.5 text-left" style={{ minWidth: "380px" }}>외출</th>
               <th className="px-3 py-2.5 text-left w-32 hidden lg:table-cell">메모</th>
               <th className="px-3 py-2.5 text-left w-32 hidden lg:table-cell">당일변동</th>
               <th className="px-3 py-2.5 text-left w-32 hidden xl:table-cell">변동예정</th>
@@ -982,10 +982,11 @@ export function AttendanceTable({ students, today }: Props) {
                     </div>
                   </td>
 
-                  {/* 외출 — 전용 열. 시작/복귀 + 다회(2차+) 관리. 예정 외출은 회색 힌트 */}
+                  {/* 외출 — 전용 열: 좌(시작/복귀 입력 + 추가) · 우(기록된 외출 목록) */}
                   <td className="px-2 py-1.5 align-top" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex flex-col gap-1 text-xs">
-                      {/* 외출 */}
+                    <div className="flex items-start gap-3">
+                      <div className="flex flex-col gap-1 text-xs shrink-0">
+                      {/* 외출 (진행 중 / 새 외출 시작) */}
                       <div className="flex items-center gap-1.5">
                         <span className="text-muted-foreground w-6 shrink-0 text-[11px]">외출</span>
                         <span className={cn("text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
@@ -996,37 +997,20 @@ export function AttendanceTable({ students, today }: Props) {
                           value={activeOuting ? toTimeString(activeOuting.outStart) ?? "" : ""}
                           onChange={(e) => {
                             const v = e.target.value;
-                            const target = activeOuting; // 진행 중 외출만 대상 (없으면 새 외출 시작)
-                            setLocalOutings((prev) => {
-                              const m = new Map(prev);
-                              const list = m.get(student.id) ?? [];
-                              if (target?.id) {
-                                m.set(student.id, list.map((o) =>
-                                  o.id === target.id ? { ...o, outStart: v ? new Date(`${todayDate}T${v}:00`) : o.outStart } : o
+                            if (!v || !/^\d{2}:\d{2}$/.test(v)) return;
+                            if (activeOuting?.id) {
+                              // 진행 중 외출의 시작 시간 수정
+                              setLocalOutings((prev) => {
+                                const m = new Map(prev);
+                                m.set(student.id, (m.get(student.id) ?? []).map((o) =>
+                                  o.id === activeOuting.id ? { ...o, outStart: new Date(`${todayDate}T${v}:00`) } : o
                                 ));
-                              } else if (v) {
-                                const draftIdx = list.findIndex((o) => o.id === null);
-                                const newDraft = { id: null, outStart: new Date(`${todayDate}T${v}:00`), outEnd: null };
-                                if (draftIdx >= 0) {
-                                  const updated = [...list]; updated[draftIdx] = newDraft;
-                                  m.set(student.id, updated);
-                                } else {
-                                  m.set(student.id, [...list, newDraft]);
-                                }
-                              }
-                              return m;
-                            });
-                          }}
-                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "outing", studentName: student.name })}
-                          onBlur={() => {
-                            setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "outing" ? null : prev), 200);
-                            const target = activeOuting; // 진행 중 외출만 대상 (없으면 새 외출 시작)
-                            const val = target?.outStart ? toTimeString(target.outStart) : "";
-                            if (!val || !/^\d{2}:\d{2}$/.test(val)) return;
-                            if (target?.id) {
-                              updateDailyOuting(target.id, { date: todayDate, outStart: val });
+                                return m;
+                              });
+                              updateDailyOuting(activeOuting.id, { date: todayDate, outStart: v });
                             } else {
-                              quickStartOuting(student, val);
+                              // 진행 중 외출이 없으면 새 외출 시작 (1차/2차/…)
+                              quickStartOuting(student, v);
                             }
                           }}
                           className={cn(
@@ -1035,6 +1019,15 @@ export function AttendanceTable({ students, today }: Props) {
                           )}
                           placeholder="—"
                         />
+                        {!activeOuting && checkInTime && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); quickStartOuting(student); }}
+                            disabled={!!quickPending}
+                            className="px-1.5 py-1 text-[10px] rounded bg-orange-500 text-white hover:bg-orange-600 font-medium disabled:opacity-50 shrink-0"
+                            title="현재 시각으로 외출 시작"
+                          >지금</button>
+                        )}
                       </div>
 
                       {/* 복귀 */}
@@ -1045,131 +1038,113 @@ export function AttendanceTable({ students, today }: Props) {
                         )}>{outSch?.outEnd ?? "00:00"}</span>
                         <input
                           type="time"
-                          value={localOut.length > 0 && localOut[localOut.length - 1]?.outEnd ? toTimeString(localOut[localOut.length - 1].outEnd) ?? "" : ""}
+                          value=""
+                          disabled={!activeOuting}
                           onChange={(e) => {
                             const v = e.target.value;
-                            const last = localOut.length > 0 ? localOut[localOut.length - 1] : null;
-                            if (last?.id) {
-                              setLocalOutings((prev) => {
-                                const m = new Map(prev);
-                                m.set(student.id, (m.get(student.id) ?? []).map((o) =>
-                                  o.id === last.id ? { ...o, outEnd: v ? new Date(`${todayDate}T${v}:00`) : o.outEnd } : o
-                                ));
-                                return m;
-                              });
-                            }
-                          }}
-                          onFocus={() => setActiveTimeInput({ studentId: student.id, field: "return", studentName: student.name })}
-                          onBlur={() => {
-                            setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "return" ? null : prev), 200);
-                            const last = localOut.length > 0 ? localOut[localOut.length - 1] : null;
-                            const val = last?.outEnd ? toTimeString(last.outEnd) : "";
-                            if (last?.id && val && /^\d{2}:\d{2}$/.test(val)) {
-                              updateDailyOuting(last.id, { date: todayDate, outEnd: val });
+                            if (activeOuting?.id && v && /^\d{2}:\d{2}$/.test(v)) {
+                              quickEndOuting(student, v); // 진행 중 외출 복귀 처리(지각 자동판정 포함)
                             }
                           }}
                           className={cn(
-                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
-                            localOut.length > 0 && localOut[localOut.length - 1]?.outEnd ? "text-foreground font-semibold" : "text-gray-400"
+                            "w-28 font-mono border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
+                            activeOuting ? "bg-background text-gray-600" : "bg-muted/40 text-gray-300 cursor-not-allowed"
                           )}
-                          placeholder="—"
+                          placeholder={activeOuting ? "복귀 시각" : "—"}
                         />
+                        {activeOuting && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); quickEndOuting(student); }}
+                            disabled={!!quickPending}
+                            className="px-1.5 py-1 text-[10px] rounded bg-orange-500 text-white hover:bg-orange-600 font-medium disabled:opacity-50 shrink-0"
+                            title="현재 시각으로 복귀"
+                          >지금</button>
+                        )}
                       </div>
+                      {/* 외출 추가 — 시작·복귀·사유 한 번에 */}
+                      {(() => {
+                        const isAdding = addOutingDraft?.studentId === student.id;
+                        const isAddPending = addOutingPending === student.id;
+                        const hasCheckIn = !!checkInTime;
+                        return (
+                          <div className="mt-0.5">
+                            {isAdding ? (
+                              <div className="flex flex-wrap items-center gap-1 pt-1" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="time"
+                                  value={addOutingDraft!.outStart}
+                                  onChange={(e) => setAddOutingDraft((d) => d && { ...d, outStart: e.target.value })}
+                                  className="w-24 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                  placeholder="시작"
+                                />
+                                <span className="text-muted-foreground text-[11px]">-</span>
+                                <input
+                                  type="time"
+                                  value={addOutingDraft!.outEnd}
+                                  onChange={(e) => setAddOutingDraft((d) => d && { ...d, outEnd: e.target.value })}
+                                  className="w-24 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                  placeholder="복귀"
+                                />
+                                <input
+                                  type="text"
+                                  value={addOutingDraft!.reason}
+                                  onChange={(e) => setAddOutingDraft((d) => d && { ...d, reason: e.target.value })}
+                                  placeholder="사유"
+                                  className="flex-1 min-w-0 max-w-[140px] border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                />
+                                <button
+                                  onClick={() => submitAddOuting(student)}
+                                  disabled={isAddPending}
+                                  className="px-1.5 py-0.5 text-[10px] rounded bg-orange-500 text-white hover:bg-orange-600 font-medium disabled:opacity-50"
+                                >
+                                  {isAddPending ? "..." : "저장"}
+                                </button>
+                                <button
+                                  onClick={() => setAddOutingDraft(null)}
+                                  className="px-1.5 py-0.5 text-[10px] rounded bg-muted text-muted-foreground hover:bg-accent"
+                                >
+                                  취소
+                                </button>
+                              </div>
+                            ) : (
+                              (localOut.length > 0 || hasCheckIn) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAddOutingDraft({ studentId: student.id, outStart: nowHHMM(), outEnd: "", reason: "" });
+                                  }}
+                                  className="flex items-center gap-0.5 text-[11px] text-orange-600 hover:text-orange-700 hover:underline"
+                                >
+                                  <Plus className="h-3 w-3" /> 외출 추가
+                                </button>
+                              )
+                            )}
+                          </div>
+                        );
+                      })()}
+                      </div>
+                      {/* 우: 기록된 외출 목록(완료 건) */}
+                      {(() => {
+                        const recorded = localOut
+                          .filter((o) => o.id && o.outEnd)
+                          .slice()
+                          .sort((a, b) => (a.outStart ? toMinutes(toTimeString(a.outStart)) : 0) - (b.outStart ? toMinutes(toTimeString(b.outStart)) : 0));
+                        if (recorded.length === 0) return null;
+                        return (
+                          <div className="flex flex-col gap-0.5 min-w-0 border-l border-border/60 pl-2 pt-0.5">
+                            {recorded.map((o, i) => (
+                              <div key={o.id} className="flex items-center gap-1 text-[11px] font-mono text-muted-foreground">
+                                <span className="text-orange-600 font-semibold shrink-0">{i + 1}차</span>
+                                <span className="tabular-nums">{toTimeString(o.outStart) || "—"}-{toTimeString(o.outEnd) || "—"}</span>
+                                {o.reason && <span className="text-foreground/70 font-sans truncate max-w-[72px]">({o.reason})</span>}
+                                <button onClick={(e) => { e.stopPropagation(); if (o.id) removeOuting(student, o.id); }} title="외출 삭제" className="ml-auto p-0.5 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-3 w-3" /></button>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
-
-                    {/* 추가 외출 (2차, 3차…) — sequence > 1 */}
-                    {(() => {
-                      // 기록된 모든 외출(1차…N차)을 시각순으로 — 전체가 한눈에 보이도록
-                      const extras = localOut
-                        .filter((o) => o.id)
-                        .slice()
-                        .sort((a, b) => {
-                          const am = a.outStart ? toMinutes(toTimeString(a.outStart)) : 0;
-                          const bm = b.outStart ? toMinutes(toTimeString(b.outStart)) : 0;
-                          return am - bm;
-                        });
-                      const isAdding = addOutingDraft?.studentId === student.id;
-                      const isAddPending = addOutingPending === student.id;
-                      const hasCheckIn = !!checkInTime;
-                      return (
-                        <div className="mt-1.5 space-y-0.5">
-                          {extras.map((o, i) => (
-                            <div
-                              key={o.id ?? `seq-${i}`}
-                              className="flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground"
-                            >
-                              <span className="text-orange-600 font-semibold shrink-0">{i + 1}차</span>
-                              <span className="tabular-nums">
-                                {toTimeString(o.outStart) || "—"} - {toTimeString(o.outEnd) || <span className="text-orange-500">진행중</span>}
-                              </span>
-                              {o.reason && (
-                                <span className="text-foreground/70 font-sans">({o.reason})</span>
-                              )}
-                              <button
-                                onClick={(e) => { e.stopPropagation(); if (o.id) removeOuting(student, o.id); }}
-                                disabled={isAddPending}
-                                title="외출 삭제"
-                                className="ml-auto p-0.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            </div>
-                          ))}
-
-                          {isAdding ? (
-                            <div className="flex flex-wrap items-center gap-1 pt-1" onClick={(e) => e.stopPropagation()}>
-                              <input
-                                type="time"
-                                value={addOutingDraft!.outStart}
-                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, outStart: e.target.value })}
-                                className="w-24 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
-                                placeholder="시작"
-                              />
-                              <span className="text-muted-foreground text-[11px]">-</span>
-                              <input
-                                type="time"
-                                value={addOutingDraft!.outEnd}
-                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, outEnd: e.target.value })}
-                                className="w-24 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
-                                placeholder="복귀"
-                              />
-                              <input
-                                type="text"
-                                value={addOutingDraft!.reason}
-                                onChange={(e) => setAddOutingDraft((d) => d && { ...d, reason: e.target.value })}
-                                placeholder="사유"
-                                className="flex-1 min-w-0 max-w-[140px] border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
-                              />
-                              <button
-                                onClick={() => submitAddOuting(student)}
-                                disabled={isAddPending}
-                                className="px-1.5 py-0.5 text-[10px] rounded bg-orange-500 text-white hover:bg-orange-600 font-medium disabled:opacity-50"
-                              >
-                                {isAddPending ? "..." : "저장"}
-                              </button>
-                              <button
-                                onClick={() => setAddOutingDraft(null)}
-                                className="px-1.5 py-0.5 text-[10px] rounded bg-muted text-muted-foreground hover:bg-accent"
-                              >
-                                취소
-                              </button>
-                            </div>
-                          ) : (
-                            (localOut.length > 0 || hasCheckIn) && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setAddOutingDraft({ studentId: student.id, outStart: nowHHMM(), outEnd: "", reason: "" });
-                                }}
-                                className="flex items-center gap-0.5 text-[11px] text-orange-600 hover:text-orange-700 hover:underline"
-                              >
-                                <Plus className="h-3 w-3" /> 외출 추가
-                              </button>
-                            )
-                          )}
-                        </div>
-                      );
-                    })()}
                   </td>
 
                   {/* 입퇴실 메모 */}
