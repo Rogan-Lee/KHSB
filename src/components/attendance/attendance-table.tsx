@@ -51,6 +51,21 @@ const TYPE_BADGE: Record<string, string> = {
   OUTING: "bg-orange-100 text-orange-700 border-orange-200",
 };
 
+// 출결 상태별 행 배경색 (TYPE_BADGE 색상과 톤 통일). 좌측 고정 셀도 같은 rowBg를
+// 쓰므로 불투명(alpha 없는) 색만 사용. hover는 한 단계 진한 변형.
+function stateRowBg(state: string): string {
+  switch (state) {
+    case "NORMAL":          return "bg-green-50 group-hover:bg-green-100";   // 정상 입실
+    case "TARDY":           return "bg-orange-50 group-hover:bg-orange-100"; // 지각
+    case "OUTING":          return "bg-sky-50 group-hover:bg-sky-100";       // 외출 중
+    case "NOTIFIED_ABSENT": return "bg-purple-50 group-hover:bg-purple-100"; // 미입실
+    case "ABSENT":          return "bg-red-50 group-hover:bg-red-100";       // 결석
+    case "APPROVED_ABSENT": return "bg-slate-100 group-hover:bg-slate-200";  // 공결
+    case "FLEXIBLE":        return "bg-violet-50 group-hover:bg-violet-100"; // 자율(미정)
+    default:                return "bg-background group-hover:bg-accent";    // 비등원일 등
+  }
+}
+
 function toTimeString(dt: Date | null | undefined): string {
   if (!dt) return "";
   return new Date(dt).toTimeString().slice(0, 5);
@@ -698,7 +713,7 @@ export function AttendanceTable({ students, today }: Props) {
               <th className="px-3 py-2.5 text-left w-24 hidden md:table-cell">학교·학년</th>
               <th className="px-3 py-2.5 text-left w-16 hidden lg:table-cell">반</th>
               <th className="px-3 py-2.5 text-left" style={{ minWidth: "190px" }}>입퇴실</th>
-              <th className="px-3 py-2.5 text-left" style={{ minWidth: "210px" }}>외출</th>
+              <th className="px-3 py-2.5 text-left" style={{ minWidth: "320px" }}>외출</th>
               <th className="px-3 py-2.5 text-left w-32 hidden lg:table-cell">메모</th>
               <th className="px-3 py-2.5 text-left w-32 hidden lg:table-cell">당일변동</th>
               <th className="px-3 py-2.5 text-left w-32 hidden xl:table-cell">변동예정</th>
@@ -808,24 +823,28 @@ export function AttendanceTable({ students, today }: Props) {
               // 좌측 고정 컬럼(chevron/좌석/이름)에도 동일한 행 배경을 적용해
               // 가로 스크롤 시 하이라이트 일관성 유지. hover는 group-hover 로.
               // sticky 셀은 불투명(alpha 없음)이어야 뒤에 스크롤되는 내용이 비치지 않음.
+              // 행 배경 = 출결 상태색. 선택/펼침(상호작용 피드백)이 최상위.
+              // 영단어 대상·입실임박은 배경 대신 좌측 보더로 분리(아래 tr className).
               const rowBg = isSelected
                 ? "bg-blue-50"
                 : isExpanded
                 ? "bg-muted"
-                : isCheckInImminent
-                ? "bg-red-50 group-hover:bg-red-100"
-                : isVocabTarget && !vocabDone
-                ? "bg-orange-50"
-                : "bg-background group-hover:bg-accent";
+                : stateRowBg(state);
 
               return (
                 <Fragment key={student.id}>
                 <tr
                   onClick={(e) => toggleTimeline(student.id, e)}
                   className={cn(
-                    "group border-b transition-colors cursor-pointer",
+                    "group border-b border-l-2 border-l-transparent transition-colors cursor-pointer",
                     rowBg,
-                    isSelected && "border-l-2 border-l-blue-500",
+                    isSelected
+                      ? "border-l-blue-500"
+                      : isCheckInImminent
+                      ? "border-l-red-500"     // 입실 임박
+                      : isVocabTarget && !vocabDone
+                      ? "border-l-amber-400"   // 영단어 시험 대상
+                      : null,
                     state === "NO_SCHEDULE" && "opacity-50"
                   )}
                 >
@@ -974,11 +993,10 @@ export function AttendanceTable({ students, today }: Props) {
                         )}>{outSch?.outStart ?? "00:00"}</span>
                         <input
                           type="time"
-                          value={activeOuting ? toTimeString(activeOuting.outStart) ?? "" :
-                                 localOut.length > 0 && localOut[localOut.length - 1]?.outStart ? toTimeString(localOut[localOut.length - 1].outStart) ?? "" : ""}
+                          value={activeOuting ? toTimeString(activeOuting.outStart) ?? "" : ""}
                           onChange={(e) => {
                             const v = e.target.value;
-                            const target = activeOuting ?? (localOut.length > 0 ? localOut[localOut.length - 1] : null);
+                            const target = activeOuting; // 진행 중 외출만 대상 (없으면 새 외출 시작)
                             setLocalOutings((prev) => {
                               const m = new Map(prev);
                               const list = m.get(student.id) ?? [];
@@ -1002,7 +1020,7 @@ export function AttendanceTable({ students, today }: Props) {
                           onFocus={() => setActiveTimeInput({ studentId: student.id, field: "outing", studentName: student.name })}
                           onBlur={() => {
                             setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "outing" ? null : prev), 200);
-                            const target = activeOuting ?? (localOut.length > 0 ? localOut[localOut.length - 1] : null);
+                            const target = activeOuting; // 진행 중 외출만 대상 (없으면 새 외출 시작)
                             const val = target?.outStart ? toTimeString(target.outStart) : "";
                             if (!val || !/^\d{2}:\d{2}$/.test(val)) return;
                             if (target?.id) {
@@ -1012,9 +1030,8 @@ export function AttendanceTable({ students, today }: Props) {
                             }
                           }}
                           className={cn(
-                            "w-24 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
-                            activeOuting ? "text-orange-600 font-semibold" :
-                            localOut.length > 0 && localOut[localOut.length - 1]?.outStart ? "text-muted-foreground" : "text-gray-400"
+                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
+                            activeOuting ? "text-orange-600 font-semibold" : "text-gray-400"
                           )}
                           placeholder="—"
                         />
@@ -1052,7 +1069,7 @@ export function AttendanceTable({ students, today }: Props) {
                             }
                           }}
                           className={cn(
-                            "w-24 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
+                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
                             localOut.length > 0 && localOut[localOut.length - 1]?.outEnd ? "text-foreground font-semibold" : "text-gray-400"
                           )}
                           placeholder="—"
@@ -1062,22 +1079,28 @@ export function AttendanceTable({ students, today }: Props) {
 
                     {/* 추가 외출 (2차, 3차…) — sequence > 1 */}
                     {(() => {
+                      // 기록된 모든 외출(1차…N차)을 시각순으로 — 전체가 한눈에 보이도록
                       const extras = localOut
-                        .filter((o) => (o.sequence ?? 1) > 1 && o.id)
-                        .sort((a, b) => (a.sequence ?? 1) - (b.sequence ?? 1));
+                        .filter((o) => o.id)
+                        .slice()
+                        .sort((a, b) => {
+                          const am = a.outStart ? toMinutes(toTimeString(a.outStart)) : 0;
+                          const bm = b.outStart ? toMinutes(toTimeString(b.outStart)) : 0;
+                          return am - bm;
+                        });
                       const isAdding = addOutingDraft?.studentId === student.id;
                       const isAddPending = addOutingPending === student.id;
                       const hasCheckIn = !!checkInTime;
                       return (
                         <div className="mt-1.5 space-y-0.5">
-                          {extras.map((o) => (
+                          {extras.map((o, i) => (
                             <div
-                              key={o.id ?? `seq-${o.sequence}`}
+                              key={o.id ?? `seq-${i}`}
                               className="flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground"
                             >
-                              <span className="text-orange-600 font-semibold">{o.sequence}차</span>
+                              <span className="text-orange-600 font-semibold shrink-0">{i + 1}차</span>
                               <span className="tabular-nums">
-                                {toTimeString(o.outStart) || "—"} - {toTimeString(o.outEnd) || "—"}
+                                {toTimeString(o.outStart) || "—"} - {toTimeString(o.outEnd) || <span className="text-orange-500">진행중</span>}
                               </span>
                               {o.reason && (
                                 <span className="text-foreground/70 font-sans">({o.reason})</span>
@@ -1099,7 +1122,7 @@ export function AttendanceTable({ students, today }: Props) {
                                 type="time"
                                 value={addOutingDraft!.outStart}
                                 onChange={(e) => setAddOutingDraft((d) => d && { ...d, outStart: e.target.value })}
-                                className="w-20 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                className="w-24 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
                                 placeholder="시작"
                               />
                               <span className="text-muted-foreground text-[11px]">-</span>
@@ -1107,7 +1130,7 @@ export function AttendanceTable({ students, today }: Props) {
                                 type="time"
                                 value={addOutingDraft!.outEnd}
                                 onChange={(e) => setAddOutingDraft((d) => d && { ...d, outEnd: e.target.value })}
-                                className="w-20 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                className="w-24 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
                                 placeholder="복귀"
                               />
                               <input
