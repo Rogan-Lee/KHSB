@@ -40,37 +40,98 @@ export function ImprovementBarChart({ students }: { students: StudentAnalytics[]
 }
 
 // ─── 멘토링 횟수 vs 성적 상관관계 산점도 ───────────────────
+// 데이터분석 관점 개선:
+//  · X/Y 축을 type="number"로 → 카테고리 정렬이 아닌 실제 수치 위치에 플롯
+//    (직전 버전은 type 미지정 → 배열 순서대로 그려져 상관관계가 안 보였음)
+//  · 최소제곱 선형 회귀선 + 피어슨 상관계수 r 표시 → 관계 방향·강도 정량화
+//  · 표본 크기 N 표시, 정수 눈금, 도메인 [0, max]
 export function CorrelationScatter({ data }: { data: OverallAnalytics["correlationPoints"] }) {
   if (data.length === 0) return <EmptyState text="데이터가 없습니다" />;
 
+  // 회귀선 + 피어슨 r 계산 (소량 데이터에서도 안전한 가드 포함)
+  const n = data.length;
+  const xs = data.map((p) => p.mentoringCount);
+  const ys = data.map((p) => p.avgImprovement);
+  const xMin = Math.min(...xs);
+  const xMax = Math.max(...xs);
+  const sumX = xs.reduce((a, x) => a + x, 0);
+  const sumY = ys.reduce((a, y) => a + y, 0);
+  const sumXY = xs.reduce((a, x, i) => a + x * ys[i], 0);
+  const sumXX = xs.reduce((a, x) => a + x * x, 0);
+  const sumYY = ys.reduce((a, y) => a + y * y, 0);
+  const slopeDenom = n * sumXX - sumX * sumX;
+  const slope = slopeDenom !== 0 ? (n * sumXY - sumX * sumY) / slopeDenom : 0;
+  const intercept = (sumY - slope * sumX) / n;
+  const rDenom = Math.sqrt((n * sumXX - sumX * sumX) * (n * sumYY - sumY * sumY));
+  const r = rDenom > 0 ? (n * sumXY - sumX * sumY) / rDenom : null;
+  const canShowTrend = n >= 2 && xMin !== xMax && slopeDenom !== 0;
+  const xDomainMax = Math.max(xMax, 1);
+
+  // r 해석 (Cohen 기준 — |r|≥.5 강 / ≥.3 중 / ≥.1 약 / 그 외 거의 없음)
+  const corrLabel =
+    r === null ? "상관 산정 불가"
+    : Math.abs(r) >= 0.5 ? `강한 ${r > 0 ? "양" : "음"}의 상관 (r = ${r.toFixed(2)})`
+    : Math.abs(r) >= 0.3 ? `중간 ${r > 0 ? "양" : "음"}의 상관 (r = ${r.toFixed(2)})`
+    : Math.abs(r) >= 0.1 ? `약한 ${r > 0 ? "양" : "음"}의 상관 (r = ${r.toFixed(2)})`
+    : `상관 거의 없음 (r = ${r.toFixed(2)})`;
+
   return (
-    <ResponsiveContainer width="100%" height={260}>
-      <ScatterChart margin={{ top: 4, right: 12, left: -20, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#EFEFEC" />
-        <XAxis dataKey="mentoringCount" name="멘토링 횟수" tick={{ fontSize: 11 }} label={{ value: "멘토링 횟수", position: "insideBottom", offset: -2, fontSize: 11 }} />
-        <YAxis dataKey="avgImprovement" name="등급 상승" tick={{ fontSize: 11 }} />
-        <ReferenceLine y={0} stroke="#D8D9DC" />
-        <Tooltip
-          cursor={{ strokeDasharray: "3 3" }}
-          content={({ payload }) => {
-            if (!payload?.length) return null;
-            const d = payload[0]?.payload;
-            return (
-              <div className="bg-white border border-border rounded-lg px-3 py-2 shadow text-xs">
-                <p className="font-medium">{d.studentName}</p>
-                <p>멘토링 {d.mentoringCount}회</p>
-                <p>성적 {d.avgImprovement > 0 ? "+" : ""}{d.avgImprovement} 등급</p>
-              </div>
-            );
-          }}
-        />
-        <Scatter
-          data={data}
-          fill="#E9541C"
-          opacity={0.8}
-        />
-      </ScatterChart>
-    </ResponsiveContainer>
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+        <span>표본 N = {n}명</span>
+        <span>{corrLabel}</span>
+      </div>
+      <ResponsiveContainer width="100%" height={260}>
+        <ScatterChart margin={{ top: 4, right: 12, left: 0, bottom: 12 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#EFEFEC" />
+          <XAxis
+            type="number"
+            dataKey="mentoringCount"
+            name="멘토링 횟수"
+            domain={[0, xDomainMax]}
+            allowDecimals={false}
+            tick={{ fontSize: 11 }}
+            label={{ value: "멘토링 횟수 (회)", position: "insideBottom", offset: -4, fontSize: 11 }}
+          />
+          <YAxis
+            type="number"
+            dataKey="avgImprovement"
+            name="등급 상승"
+            tick={{ fontSize: 11 }}
+            label={{ value: "등급 상승", angle: -90, position: "insideLeft", offset: 12, fontSize: 11 }}
+          />
+          {/* y=0 (변화 없음) 기준선 */}
+          <ReferenceLine y={0} stroke="#D8D9DC" strokeDasharray="3 3" />
+          {/* 최소제곱 회귀선 */}
+          {canShowTrend && (
+            <ReferenceLine
+              segment={[
+                { x: 0, y: intercept },
+                { x: xDomainMax, y: slope * xDomainMax + intercept },
+              ]}
+              stroke="#2E9D6B"
+              strokeWidth={1.5}
+              ifOverflow="hidden"
+            />
+          )}
+          <Tooltip
+            cursor={{ strokeDasharray: "3 3" }}
+            content={({ payload }) => {
+              if (!payload?.length) return null;
+              const d = payload[0]?.payload;
+              return (
+                <div className="bg-white border border-border rounded-lg px-3 py-2 shadow text-xs">
+                  <p className="font-medium">{d.studentName}</p>
+                  <p>멘토링 {d.mentoringCount}회</p>
+                  <p>성적 {d.avgImprovement > 0 ? "+" : ""}{d.avgImprovement} 등급</p>
+                </div>
+              );
+            }}
+          />
+          <Scatter data={data} fill="#E9541C" opacity={0.7} />
+        </ScatterChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
