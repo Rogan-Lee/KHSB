@@ -69,6 +69,27 @@ export async function getHandoversSince(sinceYMD: string) {
   });
 }
 
+/** from ~ to (YYYY-MM-DD) 범위 조회. to 는 해당일 23:59:59 까지 포함. */
+export async function getHandoversBetween(fromYMD: string, toYMD: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  const from = new Date(fromYMD);
+  const to = new Date(toYMD);
+  if (isNaN(from.getTime()) || isNaN(to.getTime())) throw new Error("잘못된 날짜");
+  const toEnd = new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59);
+
+  return prisma.handover.findMany({
+    where: { date: { gte: from, lte: toEnd } },
+    include: {
+      reads: { select: { userId: true, userName: true, readAt: true } },
+      tasks: { orderBy: { order: "asc" } },
+      checklist: { orderBy: { order: "asc" } },
+    },
+    orderBy: [{ date: "desc" }, { isPinned: "desc" }, { createdAt: "desc" }],
+  });
+}
+
 export async function getHandoverById(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");

@@ -8,20 +8,30 @@ import { ConsultationOwnerTabs } from "@/components/consultations/consultation-o
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
+import { resolveDateRange } from "@/lib/date-range";
 
 export default async function ConsultationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ owner?: string }>;
+  searchParams: Promise<{ owner?: string; from?: string; to?: string }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/sign-in");
 
-  const { owner: ownerParam } = await searchParams;
+  const { owner: ownerParam, from: fromParam, to: toParam } = await searchParams;
   const owner = ownerParam === "HEAD_TEACHER" ? "HEAD_TEACHER" : "DIRECTOR";
 
+  // 조회 범위(서버 필터). 예정일(scheduledAt) 또는 실제 면담일(actualDate)이 범위에 걸치면 포함.
+  const { rangeFrom, rangeTo, initialFrom, initialTo } = resolveDateRange(fromParam, toParam);
+
   const consultations = await prisma.directorConsultation.findMany({
-    where: { owner },
+    where: {
+      owner,
+      OR: [
+        { scheduledAt: { gte: rangeFrom, lte: rangeTo } },
+        { actualDate: { gte: rangeFrom, lte: rangeTo } },
+      ],
+    },
     include: { student: { select: { id: true, name: true, grade: true } } },
     orderBy: { scheduledAt: "desc" },
   }) as Array<{
@@ -88,6 +98,8 @@ export default async function ConsultationsPage({
       <ConsultationsList
         consultations={consultations}
         owner={owner}
+        initialDateFrom={initialFrom}
+        initialDateTo={initialTo}
       />
     </div>
   );
