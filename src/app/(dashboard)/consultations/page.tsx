@@ -22,7 +22,8 @@ export default async function ConsultationsPage({
   const owner = ownerParam === "HEAD_TEACHER" ? "HEAD_TEACHER" : "DIRECTOR";
 
   // 조회 범위(서버 필터). 예정일(scheduledAt) 또는 실제 면담일(actualDate)이 범위에 걸치면 포함.
-  const { rangeFrom, rangeTo, initialFrom, initialTo } = resolveDateRange(fromParam, toParam);
+  // 상한을 +60일로 길게 — 한 달 이상 앞서 예정된 면담도 기본 화면/카운트에 포함.
+  const { rangeFrom, rangeTo, initialFrom, initialTo } = resolveDateRange(fromParam, toParam, { daysAhead: 60 });
 
   const consultations = await prisma.directorConsultation.findMany({
     where: {
