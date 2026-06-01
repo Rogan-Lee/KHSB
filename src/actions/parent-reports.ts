@@ -34,6 +34,7 @@ export async function createParentReport(
     select: { token: true },
   });
 
+  revalidatePath("/mentoring");
   return { token: report.token };
 }
 
