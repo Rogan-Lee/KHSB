@@ -1,31 +1,30 @@
 export const revalidate = 30;
 
-import { getRecentHandovers, getHandoversSince, getStaffList } from "@/actions/handover";
+import { getHandoversBetween, getStaffList } from "@/actions/handover";
 import { getMonthlyNotes } from "@/actions/monthly-notes";
 import { prisma } from "@/lib/prisma";
 import { HandoverBoard } from "@/components/handover/handover-board";
 import { MonthlyNotesPanel } from "@/components/handover/monthly-notes-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { auth } from "@/lib/auth";
+import { resolveDateRange } from "@/lib/date-range";
 
 export default async function HandoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ since?: string }>;
+  searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const session = await auth();
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
   const sp = await searchParams;
-  const since = sp.since;
 
-  const handoversPromise = since
-    ? getHandoversSince(since)
-    : getRecentHandovers(14);
+  // 조회 범위(서버 필터). 기본 최근 60일 ~ 오늘+14일 (다른 리스트와 동일).
+  const { initialFrom, initialTo } = resolveDateRange(sp.from, sp.to);
 
   const [handovers, staffList, monthlyNotes, students] = await Promise.all([
-    handoversPromise,
+    getHandoversBetween(initialFrom, initialTo),
     getStaffList(),
     getMonthlyNotes(year, month),
     prisma.student.findMany({
@@ -54,7 +53,8 @@ export default async function HandoverPage({
           currentUserId={session?.user?.id ?? ""}
           currentUserName={session?.user?.name ?? ""}
           currentUserRole={session?.user?.role ?? ""}
-          activeSince={since}
+          initialDateFrom={initialFrom}
+          initialDateTo={initialTo}
         />
       </TabsContent>
 

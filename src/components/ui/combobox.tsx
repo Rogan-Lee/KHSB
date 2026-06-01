@@ -110,7 +110,9 @@ export function Combobox({
               <CommandGroup>
                 {allowEmpty && (
                   <CommandItem
-                    value=" "
+                    // 고유 value — 공백/빈 문자열은 cmdk 가 무시해 선택·호버가 안 됨. 검색어는 keywords 로.
+                    value="__empty_option__"
+                    keywords={[emptyLabel]}
                     onSelect={() => {
                       onChange("");
                       setOpen(false);
@@ -124,7 +126,10 @@ export function Combobox({
                 {items.map((item) => (
                   <CommandItem
                     key={item.value}
-                    value={item.searchKey ?? `${item.label} ${item.subLabel ?? ""}`}
+                    // value 는 고유 식별자(=item.value) — 동명이인이어도 cmdk 가 개별 항목으로 인식.
+                    // 검색은 keywords(라벨/보조라벨/검색키)로 처리.
+                    value={item.value}
+                    keywords={[item.label, item.subLabel, item.searchKey].filter((k): k is string => !!k)}
                     onSelect={() => {
                       onChange(item.value);
                       setOpen(false);

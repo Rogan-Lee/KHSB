@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +76,15 @@ function getPresets() {
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
   return [
+    {
+      label: "최근 60일",
+      from: (() => {
+        const d = new Date(now);
+        d.setDate(now.getDate() - 60);
+        return fmt(d);
+      })(),
+      to: fmt(now),
+    },
     {
       label: "이번 달",
       from: fmt(new Date(y, m, 1)),
@@ -165,16 +174,29 @@ function StudentRow({ group }: { group: StudentGroup }) {
 
 export function MeritRangeReport() {
   const today = new Date().toISOString().slice(0, 10);
-  const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    .toISOString()
-    .slice(0, 10);
+  // 기본 조회 기간: 최근 60일 (멘토링 등 다른 리스트와 동일하게 길게)
+  const sixtyDaysAgo = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 60);
+    return d.toISOString().slice(0, 10);
+  })();
 
-  const [from, setFrom] = useState(firstOfMonth);
+  const [from, setFrom] = useState(sixtyDaysAgo);
   const [to, setTo] = useState(today);
   const [results, setResults] = useState<MeritRecord[] | null>(null);
   const [isPending, startTransition] = useTransition();
   const [sortKey, setSortKey] = useState<SortKey>("net");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  // 진입 시 기본 기간(최근 60일)으로 자동 1회 조회 — 빈 화면 대신 바로 결과 표시.
+  useEffect(() => {
+    startTransition(async () => {
+      const data = await getMeritsByRange(sixtyDaysAgo, today);
+      setResults(data as MeritRecord[]);
+    });
+    // 최초 마운트 1회만
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
