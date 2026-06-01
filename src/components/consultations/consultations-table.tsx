@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
+import { DateRangeToolbar } from "@/components/ui/date-range-toolbar";
 
 // ─── 카카오 친구 선택 + 전송 다이얼로그 ─────────────────────────────────
 type Status = "SCHEDULED" | "COMPLETED" | "CANCELLED";
@@ -333,7 +334,7 @@ function loadConsultFilters(key: string) {
 type CategoryFilter = "ALL" | "ENROLLED" | "NEW_ADMISSION" | "CONSIDERING";
 type TypeFilter = "ALL" | "STUDENT" | "PARENT";
 
-export function ConsultationsList({ consultations, owner = "DIRECTOR" }: { consultations: Consultation[]; owner?: string }) {
+export function ConsultationsList({ consultations, owner = "DIRECTOR", initialDateFrom, initialDateTo }: { consultations: Consultation[]; owner?: string; initialDateFrom: string; initialDateTo: string }) {
   const router = useRouter();
   // owner별 독립 필터 저장 (DIRECTOR/HEAD_TEACHER 카테고리 탭 구성이 달라 키 분리 필수)
   const filterKey = `consultations-list-filters:${owner}`;
@@ -428,6 +429,15 @@ export function ConsultationsList({ consultations, owner = "DIRECTOR" }: { consu
           <span className="text-xs text-amber-600">보기 →</span>
         </button>
       )}
+
+      {/* 조회 기간 (서버측 범위) */}
+      <DateRangeToolbar
+        initialFrom={initialDateFrom}
+        initialTo={initialDateTo}
+        basePath="/consultations"
+        extraParams={{ owner }}
+        className="flex-wrap"
+      />
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
