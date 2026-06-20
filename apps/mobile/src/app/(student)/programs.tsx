@@ -5,6 +5,7 @@ import {
   NotebookTabs,
   Speech,
 } from 'lucide-react-native';
+import { Href, router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
@@ -17,6 +18,8 @@ import {
 } from '@/components/mobile-ui';
 import { colors } from '@/constants/theme';
 import { StudentOverviewResponse, useMobileQuery } from '@/lib/mobile-api';
+
+const STUDENT_TASKS_ROUTE = '/student-tasks' as Href;
 
 export default function StudentProgramsScreen() {
   const { data, error, isLoading, isRefreshing, refresh, retry } =
@@ -37,6 +40,7 @@ export default function StudentProgramsScreen() {
             <ActionRow
               caption={`${data.stats.openTasks}건 진행 중 · ${data.stats.doneTasks}건 완료`}
               icon={ClipboardCheck}
+              onPress={() => router.push(STUDENT_TASKS_ROUTE)}
               title="수행평가"
             />
             <Divider />
@@ -47,6 +51,7 @@ export default function StudentProgramsScreen() {
                   : '미확인 피드백 없음'
               }
               icon={NotebookTabs}
+              onPress={() => router.push(STUDENT_TASKS_ROUTE)}
               title="과제 피드백"
               tone="violet"
             />

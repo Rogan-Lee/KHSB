@@ -1,5 +1,6 @@
 import { BookOpenCheck, CalendarClock, MessageSquareText } from 'lucide-react-native';
-import { Linking, StyleSheet, Text, View } from 'react-native';
+import { Href, router } from 'expo-router';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import {
@@ -21,6 +22,8 @@ import {
 } from '@/lib/format';
 import { StudentOverviewResponse, useMobileQuery } from '@/lib/mobile-api';
 import { useSession } from '@/lib/session';
+
+const STUDENT_TASKS_ROUTE = '/student-tasks' as Href;
 
 export default function StudentHomeScreen() {
   const { session } = useSession();
@@ -64,8 +67,12 @@ function StudentHomeContent({ data }: { data: StudentOverviewResponse }) {
 
       <SectionTitle>가장 급한 학습</SectionTitle>
       {data.nextTask ? (
-        <Card>
-          <View style={styles.task}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push(STUDENT_TASKS_ROUTE)}
+          style={({ pressed }) => pressed && styles.pressed}>
+          <Card>
+            <View style={styles.task}>
             <View style={styles.taskTop}>
               <Badge tone={data.nextTask.status === 'NEEDS_REVISION' ? 'red' : 'amber'}>
                 {formatDueDate(data.nextTask.dueDate)}
@@ -77,8 +84,9 @@ function StudentHomeContent({ data }: { data: StudentOverviewResponse }) {
             <View style={styles.progressTrack}>
               <View style={[styles.progressValue, { width: `${taskProgress}%` }]} />
             </View>
-          </View>
-        </Card>
+            </View>
+          </Card>
+        </Pressable>
       ) : (
         <EmptyState
           message={
@@ -142,6 +150,7 @@ function StudentHomeContent({ data }: { data: StudentOverviewResponse }) {
               : '새로 도착한 피드백이 없습니다.'
           }
           icon={BookOpenCheck}
+          onPress={() => router.push(STUDENT_TASKS_ROUTE)}
           title="학습 피드백"
           tone="primary"
         />
@@ -196,5 +205,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.line,
     height: StyleSheet.hairlineWidth,
     marginLeft: 64,
+  },
+  pressed: {
+    opacity: 0.72,
   },
 });

@@ -16,6 +16,9 @@
     },
     "android": {
       "package": "com.studyroommanager.mobile",
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#176B52",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -49,6 +52,7 @@
         {
           "barcodeScannerEnabled": true,
           "cameraPermission": "좌석 QR 코드를 스캔하려면 카메라 접근 권한이 필요합니다.",
+          "microphonePermission": false,
           "recordAudioAndroid": false
         }
       ],

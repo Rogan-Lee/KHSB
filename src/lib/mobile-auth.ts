@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { getAuthIdentity } from "@/lib/auth";
-import { isStaff } from "@/lib/roles";
+import { isOnlineStaff, isStaff } from "@/lib/roles";
 
 export class MobileApiError extends Error {
   constructor(
@@ -31,6 +31,18 @@ export async function requireMobileStaff(request: NextRequest) {
   const user = current.identity.appUser;
   if (!user || user.status !== "ACTIVE" || !isStaff(user.role)) {
     throw new MobileApiError("운영진 계정으로 이용할 수 없습니다", 403);
+  }
+
+  return user;
+}
+
+export async function requireMobileOnlineStaff(request: NextRequest) {
+  const current = await getAuthIdentity(request.headers);
+  if (!current) throw new MobileApiError("로그인이 필요합니다", 401);
+
+  const user = current.identity.appUser;
+  if (!user || user.status !== "ACTIVE" || !isOnlineStaff(user.role)) {
+    throw new MobileApiError("온라인 관리 권한이 필요합니다", 403);
   }
 
   return user;

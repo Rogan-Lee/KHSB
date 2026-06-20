@@ -29,6 +29,7 @@ export default function StudentLayout() {
         name="more"
         options={{ tabBarIcon: tabIcon(UserRound), tabBarLabel: '내 정보', title: '내 정보' }}
       />
+      <Tabs.Screen name="student-tasks" options={{ href: null, title: '수행평가' }} />
     </RoleTabs>
   );
 }

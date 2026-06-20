@@ -33,6 +33,7 @@ export default function StaffLayout() {
         name="more"
         options={{ tabBarIcon: tabIcon(MoreHorizontal), tabBarLabel: '더보기', title: '더보기' }}
       />
+      <Tabs.Screen name="staff-tasks" options={{ href: null, title: '수행평가 관리' }} />
     </RoleTabs>
   );
 }
