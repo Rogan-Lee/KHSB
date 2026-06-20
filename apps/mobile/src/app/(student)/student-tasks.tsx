@@ -1,6 +1,6 @@
 import type { DocumentPickerAsset } from 'expo-document-picker';
 import { FileText, RotateCcw } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
@@ -29,6 +29,7 @@ import type {
   MobileTaskSummary,
   StudentTasksResponse,
 } from '@/lib/mobile-api';
+import { syncTaskDeadlineNotifications } from '@/lib/notifications';
 
 export default function StudentTasksScreen() {
   const [tab, setTab] = useState<'OPEN' | 'DONE'>('OPEN');
@@ -39,6 +40,12 @@ export default function StudentTasksScreen() {
     data?.items.filter((item) =>
       tab === 'DONE' ? item.status === 'DONE' : item.status !== 'DONE',
     ) ?? [];
+
+  useEffect(() => {
+    if (data) {
+      void syncTaskDeadlineNotifications(data.items).catch(() => undefined);
+    }
+  }, [data]);
 
   return (
     <AppScreen

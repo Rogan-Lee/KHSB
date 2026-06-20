@@ -62,6 +62,14 @@
           "cameraPermission": "질문과 멘토링에 사진을 첨부하려면 카메라 접근 권한이 필요합니다.",
           "photosPermission": "질문과 멘토링에 사진을 첨부하려면 사진 보관함 접근 권한이 필요합니다."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#176B52",
+          "defaultChannel": "reminders",
+          "enableBackgroundRemoteNotifications": false
+        }
       ]
     ],
     "experiments": {
