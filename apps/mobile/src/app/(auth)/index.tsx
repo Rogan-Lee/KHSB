@@ -1,6 +1,6 @@
 import { Redirect, router } from 'expo-router';
-import { BriefcaseBusiness, GraduationCap, LockKeyhole, LucideIcon } from 'lucide-react-native';
-import { useState } from 'react';
+import { KeyRound, LockKeyhole, LogIn } from 'lucide-react-native';
+import { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -14,27 +14,150 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '@/components/mobile-ui';
 import { colors, spacing } from '@/constants/theme';
-import { AppRole, useSession } from '@/lib/session';
+import { API_BASE_URL, authClient } from '@/lib/auth-client';
+import { useSession } from '@/lib/session';
 
-export default function SignInScreen() {
-  const { session, startDemoSession, status } = useSession();
-  const [role, setRole] = useState<AppRole>('student');
-  const [name, setName] = useState('');
+type AuthMode = 'sign-in' | 'activate';
+type Invitation = {
+  email: string | null;
+  expiresAt: string;
+  name: string;
+  type: 'STAFF' | 'STUDENT';
+};
+
+function extractToken(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed.includes('://')) return trimmed;
+
+  try {
+    return new URL(trimmed).searchParams.get('token') ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export default function AuthScreen() {
+  const { refreshProfile, session, status } = useSession();
+  const [mode, setMode] = useState<AuthMode>('sign-in');
+  const [identifier, setIdentifier] = useState('');
+  const [inviteValue, setInviteValue] = useState('');
+  const [invitation, setInvitation] = useState<Invitation | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const inviteToken = useMemo(() => extractToken(inviteValue), [inviteValue]);
 
   if (status === 'authenticated' && session) {
     return <Redirect href={session.role === 'student' ? '/(student)' : '/(staff)'} />;
   }
 
-  const submit = async () => {
+  async function finishAuthentication() {
+    const profile = await refreshProfile();
+    if (!profile) {
+      throw new Error('연결된 학생 또는 직원 정보를 찾을 수 없습니다');
+    }
+    router.replace(profile.role === 'student' ? '/(student)' : '/(staff)');
+  }
+
+  async function signIn() {
+    setError('');
     setSubmitting(true);
     try {
-      await startDemoSession(role, name);
-      router.replace(role === 'student' ? '/(student)' : '/(staff)');
+      const normalized = identifier.trim();
+      const result = normalized.includes('@')
+        ? await authClient.signIn.email({
+            email: normalized.toLowerCase(),
+            password,
+            rememberMe: true,
+          })
+        : await authClient.signIn.username({
+            username: normalized,
+            password,
+            rememberMe: true,
+          });
+
+      if (result.error) {
+        setError('아이디 또는 비밀번호를 확인하세요.');
+        return;
+      }
+      await finishAuthentication();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '로그인하지 못했습니다.');
     } finally {
       setSubmitting(false);
     }
-  };
+  }
+
+  async function verifyInvitation() {
+    setError('');
+    if (!inviteToken) {
+      setError('초대 링크 또는 초대 코드를 입력하세요.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/mobile/v1/auth/invitation?token=${encodeURIComponent(inviteToken)}`,
+      );
+      if (!response.ok) {
+        setInvitation(null);
+        setError('유효하지 않거나 만료된 초대입니다.');
+        return;
+      }
+
+      const nextInvitation = (await response.json()) as Invitation;
+      setInvitation(nextInvitation);
+      setEmail(nextInvitation.email ?? '');
+    } catch {
+      setError('초대 정보를 확인하지 못했습니다.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function activate() {
+    if (!invitation) {
+      await verifyInvitation();
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('비밀번호가 일치하지 않습니다.');
+      return;
+    }
+
+    setError('');
+    setSubmitting(true);
+    try {
+      const result = await authClient.signUp.email(
+        {
+          email: email.trim().toLowerCase(),
+          name: invitation.name,
+          password,
+          username: identifier.trim(),
+          displayUsername: identifier.trim(),
+        },
+        {
+          headers: {
+            'x-studyroom-invite': inviteToken,
+          },
+        },
+      );
+
+      if (result.error) {
+        setError(result.error.message || '계정을 만들지 못했습니다.');
+        return;
+      }
+      await finishAuthentication();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '계정을 만들지 못했습니다.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -50,54 +173,139 @@ export default function SignInScreen() {
         </View>
 
         <View style={styles.panel}>
-          <Text style={styles.panelTitle}>로그인 유형</Text>
-          <View style={styles.roleSelector}>
-            <RoleButton
-              active={role === 'student'}
-              icon={GraduationCap}
-              label="학생"
-              onPress={() => setRole('student')}
+          <View style={styles.segmented}>
+            <ModeButton
+              active={mode === 'sign-in'}
+              icon={LogIn}
+              label="로그인"
+              onPress={() => {
+                setMode('sign-in');
+                setError('');
+              }}
             />
-            <RoleButton
-              active={role === 'staff'}
-              icon={BriefcaseBusiness}
-              label="관리자"
-              onPress={() => setRole('staff')}
+            <ModeButton
+              active={mode === 'activate'}
+              icon={KeyRound}
+              label="초대 가입"
+              onPress={() => {
+                setMode('activate');
+                setError('');
+              }}
             />
           </View>
 
-          <View style={styles.form}>
-            <Text style={styles.label}>이름</Text>
-            <TextInput
-              autoCapitalize="none"
-              onChangeText={setName}
-              placeholder={role === 'student' ? '학생 이름' : '관리자 이름'}
-              placeholderTextColor="#9AA49F"
-              style={styles.input}
-              value={name}
-            />
-            <PrimaryButton disabled={submitting} onPress={submit}>
-              {submitting ? '로그인 중...' : role === 'student' ? '학생으로 시작' : '관리자로 시작'}
-            </PrimaryButton>
-          </View>
-
-          <Text style={styles.devNotice}>
-            개발 브랜치에서는 데모 세션으로 실행됩니다. 운영 인증은 모바일 API 단계에서 연결합니다.
-          </Text>
+          {mode === 'activate' ? (
+            <View style={styles.form}>
+              <Field
+                label="초대 링크 또는 코드"
+                onChangeText={(value) => {
+                  setInviteValue(value);
+                  setInvitation(null);
+                }}
+                placeholder="관리자에게 받은 링크"
+                value={inviteValue}
+              />
+              {invitation ? (
+                <>
+                  <View style={styles.inviteInfo}>
+                    <Text style={styles.inviteName}>{invitation.name}</Text>
+                    <Text style={styles.inviteType}>
+                      {invitation.type === 'STAFF' ? '직원 계정' : '학생 계정'}
+                    </Text>
+                  </View>
+                  <Field
+                    autoCapitalize="none"
+                    label="로그인 아이디"
+                    onChangeText={setIdentifier}
+                    placeholder="영문·숫자 4~30자"
+                    value={identifier}
+                  />
+                  <Field
+                    autoCapitalize="none"
+                    editable={invitation.type === 'STUDENT'}
+                    keyboardType="email-address"
+                    label="복구 이메일"
+                    onChangeText={setEmail}
+                    placeholder="name@example.com"
+                    value={email}
+                  />
+                  <Field
+                    label="비밀번호"
+                    onChangeText={setPassword}
+                    placeholder="10자 이상"
+                    secureTextEntry
+                    value={password}
+                  />
+                  <Field
+                    label="비밀번호 확인"
+                    onChangeText={setConfirmPassword}
+                    placeholder="비밀번호 다시 입력"
+                    secureTextEntry
+                    value={confirmPassword}
+                  />
+                </>
+              ) : null}
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+              <PrimaryButton disabled={submitting} onPress={activate}>
+                {submitting
+                  ? '처리 중...'
+                  : invitation
+                    ? '가입 완료'
+                    : '초대 확인'}
+              </PrimaryButton>
+            </View>
+          ) : (
+            <View style={styles.form}>
+              <Field
+                autoCapitalize="none"
+                label="아이디 또는 이메일"
+                onChangeText={setIdentifier}
+                placeholder="로그인 아이디"
+                value={identifier}
+              />
+              <Field
+                label="비밀번호"
+                onChangeText={setPassword}
+                placeholder="비밀번호"
+                secureTextEntry
+                value={password}
+              />
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+              <PrimaryButton disabled={submitting} onPress={signIn}>
+                {submitting ? '로그인 중...' : '로그인'}
+              </PrimaryButton>
+            </View>
+          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-function RoleButton({
+function Field({
+  label,
+  ...inputProps
+}: React.ComponentProps<typeof TextInput> & { label: string }) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        placeholderTextColor="#9AA49F"
+        style={styles.input}
+        {...inputProps}
+      />
+    </View>
+  );
+}
+
+function ModeButton({
   active,
   icon: Icon,
   label,
   onPress,
 }: {
   active: boolean;
-  icon: LucideIcon;
+  icon: typeof LogIn;
   label: string;
   onPress: () => void;
 }) {
@@ -105,9 +313,9 @@ function RoleButton({
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={[styles.roleButton, active && styles.roleButtonActive]}>
-      <Icon color={active ? colors.primary : colors.muted} size={22} />
-      <Text style={[styles.roleLabel, active && styles.roleLabelActive]}>{label}</Text>
+      style={[styles.modeButton, active && styles.modeButtonActive]}>
+      <Icon color={active ? colors.primary : colors.muted} size={18} />
+      <Text style={[styles.modeLabel, active && styles.modeLabelActive]}>{label}</Text>
     </Pressable>
   );
 }
@@ -125,7 +333,7 @@ const styles = StyleSheet.create({
   brand: {
     alignItems: 'center',
     gap: spacing.sm,
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.xl,
   },
   brandIcon: {
     alignItems: 'center',
@@ -152,39 +360,37 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
     padding: spacing.lg,
   },
-  panelTitle: {
-    color: colors.ink,
-    fontSize: 17,
-    fontWeight: '800',
+  segmented: {
+    backgroundColor: colors.canvas,
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    padding: spacing.xs,
   },
-  roleSelector: {
+  modeButton: {
+    alignItems: 'center',
+    borderRadius: 6,
+    flex: 1,
     flexDirection: 'row',
     gap: spacing.sm,
-  },
-  roleButton: {
-    alignItems: 'center',
-    backgroundColor: colors.canvas,
-    borderColor: colors.line,
-    borderRadius: 8,
-    borderWidth: 1,
-    flex: 1,
-    gap: spacing.sm,
-    minHeight: 78,
     justifyContent: 'center',
+    minHeight: 42,
   },
-  roleButtonActive: {
-    backgroundColor: colors.primarySoft,
-    borderColor: colors.primary,
+  modeButtonActive: {
+    backgroundColor: colors.surface,
   },
-  roleLabel: {
+  modeLabel: {
     color: colors.muted,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
-  roleLabelActive: {
+  modeLabelActive: {
     color: colors.primary,
   },
   form: {
+    gap: spacing.md,
+  },
+  field: {
     gap: spacing.sm,
   },
   label: {
@@ -202,10 +408,25 @@ const styles = StyleSheet.create({
     minHeight: 50,
     paddingHorizontal: spacing.md,
   },
-  devNotice: {
-    color: colors.muted,
-    fontSize: 11,
-    lineHeight: 17,
-    textAlign: 'center',
+  inviteInfo: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: 8,
+    gap: 3,
+    padding: spacing.md,
+  },
+  inviteName: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  inviteType: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  error: {
+    color: colors.red,
+    fontSize: 12,
+    lineHeight: 18,
   },
 });

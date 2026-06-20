@@ -79,7 +79,10 @@ async function countUnreadQuestionAnswersForStudent(
 export default async function StudentPortalLayout({
   children,
   params,
-}: LayoutProps<"/s/[token]">) {
+}: {
+  children: React.ReactNode;
+  params: Promise<{ token: string }>;
+}) {
   const { token } = await params;
   const session = await validateMagicLink(token);
   if (!session) redirect("/s/expired");

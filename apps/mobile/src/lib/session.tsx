@@ -1,4 +1,3 @@
-import * as SecureStore from 'expo-secure-store';
 import {
   PropsWithChildren,
   createContext,
@@ -10,94 +9,133 @@ import {
 } from 'react';
 import { Platform } from 'react-native';
 
+import { API_BASE_URL, authClient } from '@/lib/auth-client';
+
 export type AppRole = 'student' | 'staff';
 
 export type MobileSession = {
   displayName: string;
+  domainId: string;
+  isOnlineManaged?: boolean;
   role: AppRole;
-  userId: string;
+  staffRole?: string;
 };
 
 type SessionContextValue = {
+  refreshProfile: () => Promise<MobileSession | null>;
   session: MobileSession | null;
   status: 'loading' | 'anonymous' | 'authenticated';
-  startDemoSession: (role: AppRole, displayName?: string) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
-const SESSION_KEY = 'studyroom.mobile.session.v1';
+type ProfileResponse =
+  | {
+      accountType: 'STAFF';
+      id: string;
+      name: string;
+      role: string;
+    }
+  | {
+      accountType: 'STUDENT';
+      id: string;
+      isOnlineManaged: boolean;
+      name: string;
+      role: 'STUDENT';
+    };
+
 const SessionContext = createContext<SessionContextValue | null>(null);
 
-async function readSession() {
-  const raw =
-    Platform.OS === 'web'
-      ? globalThis.localStorage?.getItem(SESSION_KEY)
-      : await SecureStore.getItemAsync(SESSION_KEY);
-
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(raw) as MobileSession;
-  } catch {
-    return null;
-  }
+function authHeaders() {
+  if (Platform.OS === 'web') return undefined;
+  const cookie = authClient.getCookie();
+  return cookie ? { Cookie: cookie } : undefined;
 }
 
-async function writeSession(session: MobileSession | null) {
-  if (Platform.OS === 'web') {
-    if (session) {
-      globalThis.localStorage?.setItem(SESSION_KEY, JSON.stringify(session));
-    } else {
-      globalThis.localStorage?.removeItem(SESSION_KEY);
-    }
-    return;
-  }
+export async function authenticatedFetch(path: string, init?: RequestInit) {
+  return fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    credentials: Platform.OS === 'web' ? 'include' : 'omit',
+    headers: {
+      ...authHeaders(),
+      ...init?.headers,
+    },
+  });
+}
 
-  if (session) {
-    await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session), {
-      keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-    });
-  } else {
-    await SecureStore.deleteItemAsync(SESSION_KEY);
-  }
+async function fetchProfile(): Promise<MobileSession | null> {
+  const response = await authenticatedFetch('/api/mobile/v1/auth/me', {
+    cache: 'no-store',
+  });
+  if (!response.ok) return null;
+
+  const profile = (await response.json()) as ProfileResponse;
+  return profile.accountType === 'STAFF'
+    ? {
+        displayName: profile.name,
+        domainId: profile.id,
+        role: 'staff',
+        staffRole: profile.role,
+      }
+    : {
+        displayName: profile.name,
+        domainId: profile.id,
+        isOnlineManaged: profile.isOnlineManaged,
+        role: 'student',
+      };
 }
 
 export function SessionProvider({ children }: PropsWithChildren) {
-  const [session, setSession] = useState<MobileSession | null>(null);
-  const [status, setStatus] = useState<SessionContextValue['status']>('loading');
+  const authSession = authClient.useSession();
+  const [profile, setProfile] = useState<{
+    authUserId: string;
+    session: MobileSession | null;
+  } | null>(null);
+
+  const refreshProfile = useCallback(async () => {
+    const authUserId = authSession.data?.user.id;
+    if (!authUserId) return null;
+
+    try {
+      const nextSession = await fetchProfile();
+      setProfile({ authUserId, session: nextSession });
+      return nextSession;
+    } catch {
+      setProfile({ authUserId, session: null });
+      return null;
+    }
+  }, [authSession.data?.user.id]);
 
   useEffect(() => {
-    readSession()
-      .then((storedSession) => {
-        setSession(storedSession);
-        setStatus(storedSession ? 'authenticated' : 'anonymous');
-      })
-      .catch(() => setStatus('anonymous'));
-  }, []);
+    const authUserId = authSession.data?.user.id;
+    if (!authUserId) return;
 
-  const startDemoSession = useCallback(async (role: AppRole, displayName?: string) => {
-    const nextSession: MobileSession = {
-      displayName: displayName?.trim() || (role === 'student' ? '김학생' : '이관리자'),
-      role,
-      userId: `demo-${role}`,
+    let active = true;
+    void fetchProfile().then((nextSession) => {
+      if (active) setProfile({ authUserId, session: nextSession });
+    });
+    return () => {
+      active = false;
     };
-
-    await writeSession(nextSession);
-    setSession(nextSession);
-    setStatus('authenticated');
-  }, []);
+  }, [authSession.data?.user.id]);
 
   const signOut = useCallback(async () => {
-    await writeSession(null);
-    setSession(null);
-    setStatus('anonymous');
+    await authClient.signOut();
+    setProfile(null);
   }, []);
 
+  const authUserId = authSession.data?.user.id;
+  const profileIsCurrent = !!authUserId && profile?.authUserId === authUserId;
+  const session = profileIsCurrent ? profile.session : null;
+  const status: SessionContextValue['status'] =
+    authSession.isPending || (!!authUserId && !profileIsCurrent)
+      ? 'loading'
+      : session
+        ? 'authenticated'
+        : 'anonymous';
+
   const value = useMemo(
-    () => ({ session, signOut, startDemoSession, status }),
-    [session, signOut, startDemoSession, status],
+    () => ({ refreshProfile, session, signOut, status }),
+    [refreshProfile, session, signOut, status],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

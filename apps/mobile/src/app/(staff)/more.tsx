@@ -11,6 +11,7 @@ import {
 import { StyleSheet, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
+import { AccountSecurity } from '@/components/account-security';
 import { ActionRow, Card, SectionTitle } from '@/components/mobile-ui';
 import { colors } from '@/constants/theme';
 import { useSession } from '@/lib/session';
@@ -44,6 +45,7 @@ export default function StaffMoreScreen() {
         <Divider />
         <ActionRow icon={LogOut} onPress={logout} title="로그아웃" tone="red" />
       </Card>
+      <AccountSecurity />
     </AppScreen>
   );
 }
