@@ -1,51 +1,81 @@
-import { CalendarCheck, Video } from 'lucide-react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { CalendarCheck, UserRound } from 'lucide-react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
-import { Badge, Card, PrimaryButton, SectionTitle } from '@/components/mobile-ui';
+import {
+  Badge,
+  Card,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  PrimaryButton,
+  SectionTitle,
+} from '@/components/mobile-ui';
 import { colors, spacing } from '@/constants/theme';
-
-const sessions = [
-  { mode: '온라인', name: '김학생', status: '예정', time: '19:30' },
-  { mode: '대면', name: '박서준', status: '예정', time: '20:10' },
-  { mode: '온라인', name: '이수빈', status: '기록 필요', time: '어제 21:00' },
-];
+import { formatKoreanDateTime } from '@/lib/format';
+import { StaffMentoringResponse, useMobileQuery } from '@/lib/mobile-api';
 
 export default function MentoringScreen() {
+  const { data, error, isLoading, isRefreshing, refresh, retry } =
+    useMobileQuery<StaffMentoringResponse>('/api/mobile/v1/staff/mentoring');
+
   return (
-    <AppScreen subtitle="일정 확인과 상담 기록 작성을 처리합니다." title="멘토링">
-      <View style={styles.summary}>
-        <View>
-          <Text style={styles.summaryLabel}>오늘 일정</Text>
-          <Text style={styles.summaryValue}>5건</Text>
+    <AppScreen
+      onRefresh={() => void refresh()}
+      refreshing={isRefreshing}
+      subtitle="일정 확인과 상담 기록 작성을 처리합니다."
+      title="멘토링">
+      {data ? (
+        <View style={styles.summary}>
+          <View>
+            <Text style={styles.summaryLabel}>오늘 일정</Text>
+            <Text style={styles.summaryValue}>{data.summary.today}건</Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryText}>
+            <Text style={styles.summaryLabel}>기록 미작성</Text>
+            <Text style={[styles.summaryValue, styles.warning]}>
+              {data.summary.needsRecord}건
+            </Text>
+          </View>
+          <CalendarCheck color={colors.violet} size={28} />
         </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryText}>
-          <Text style={styles.summaryLabel}>기록 미작성</Text>
-          <Text style={[styles.summaryValue, styles.warning]}>2건</Text>
-        </View>
-        <CalendarCheck color={colors.violet} size={28} />
-      </View>
+      ) : null}
 
       <SectionTitle>예정 및 미완료</SectionTitle>
+      {isLoading && !data ? <LoadingState /> : null}
+      {error && !data ? <ErrorState message={error} onRetry={() => void retry()} /> : null}
+      {data?.items.length === 0 ? (
+        <EmptyState message="예정되었거나 기록이 필요한 멘토링이 없습니다." />
+      ) : null}
       <View style={styles.list}>
-        {sessions.map((session) => (
-          <Card key={`${session.name}-${session.time}`} style={styles.session}>
+        {data?.items.map((session) => (
+          <Card key={session.id} style={styles.session}>
             <View style={styles.sessionTop}>
               <View style={styles.icon}>
-                <Video color={colors.violet} size={21} />
+                <UserRound color={colors.violet} size={21} />
               </View>
               <View style={styles.sessionText}>
-                <Text style={styles.name}>{session.name}</Text>
+                <Text style={styles.name}>{session.studentName}</Text>
                 <Text style={styles.meta}>
-                  {session.time} · {session.mode}
+                  {formatKoreanDateTime(session.scheduledAt)} · {session.mode}
+                </Text>
+                <Text style={styles.mentor}>
+                  {session.grade} · 담당 {session.mentorName}
                 </Text>
               </View>
               <Badge tone={session.status === '기록 필요' ? 'red' : 'violet'}>
                 {session.status}
               </Badge>
             </View>
-            <PrimaryButton variant="secondary">
+            <PrimaryButton
+              onPress={() =>
+                Alert.alert(
+                  session.status === '기록 필요' ? '상담 기록 작성' : '학생 정보',
+                  '상세 조회와 기록 저장은 다음 업데이트에서 연결됩니다.',
+                )
+              }
+              variant="secondary">
               {session.status === '기록 필요' ? '상담 기록 작성' : '학생 정보 보기'}
             </PrimaryButton>
           </Card>
@@ -117,5 +147,9 @@ const styles = StyleSheet.create({
   meta: {
     color: colors.muted,
     fontSize: 12,
+  },
+  mentor: {
+    color: colors.muted,
+    fontSize: 11,
   },
 });
