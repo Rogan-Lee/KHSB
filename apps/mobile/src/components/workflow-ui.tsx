@@ -1,4 +1,7 @@
+import { Image } from 'expo-image';
 import {
+  Linking,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -54,9 +57,22 @@ export function MessageThread({
               <Text style={styles.sender}>{message.senderName}</Text>
               <Text style={styles.messageText}>{message.content}</Text>
               {message.attachments.length > 0 ? (
-                <Text style={styles.attachmentText}>
-                  첨부 파일 {message.attachments.length}개
-                </Text>
+                <View style={styles.attachments}>
+                  {message.attachments.map((attachment) => (
+                    <Pressable
+                      accessibilityLabel={`${attachment.name} 사진 열기`}
+                      accessibilityRole="link"
+                      key={attachment.url}
+                      onPress={() => void Linking.openURL(attachment.url)}
+                      style={({ pressed }) => pressed && styles.pressed}>
+                      <Image
+                        contentFit="cover"
+                        source={{ uri: attachment.url }}
+                        style={styles.attachmentImage}
+                      />
+                    </Pressable>
+                  ))}
+                </View>
               ) : null}
               <Text style={styles.messageTime}>{formatShortDateTime(message.createdAt)}</Text>
             </View>
@@ -135,9 +151,17 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 10,
   },
-  attachmentText: {
-    color: colors.blue,
-    fontSize: 11,
-    fontWeight: '700',
+  attachments: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  attachmentImage: {
+    borderRadius: 8,
+    height: 112,
+    width: 112,
+  },
+  pressed: {
+    opacity: 0.72,
   },
 });

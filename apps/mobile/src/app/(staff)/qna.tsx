@@ -1,8 +1,10 @@
+import type { ImagePickerAsset } from 'expo-image-picker';
 import { Image, MessageSquareReply } from 'lucide-react-native';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
+import { AttachmentPicker } from '@/components/attachment-picker';
 import {
   Badge,
   Card,
@@ -20,6 +22,7 @@ import {
   mutateMobileApi,
   QuestionThreadResponse,
   StaffQuestionsResponse,
+  uploadMobileMedia,
   useMobileQuery,
 } from '@/lib/mobile-api';
 
@@ -113,6 +116,7 @@ function StaffQuestionSheet({
   questionId: string;
 }) {
   const [answer, setAnswer] = useState('');
+  const [assets, setAssets] = useState<ImagePickerAsset[]>([]);
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { data, error, isLoading, retry } = useMobileQuery<QuestionThreadResponse>(
@@ -123,12 +127,16 @@ function StaffQuestionSheet({
     setSubmitError('');
     setSubmitting(true);
     try {
+      const attachments = await Promise.all(
+        assets.map((asset) => uploadMobileMedia(asset, { context: 'question' })),
+      );
       await mutateMobileApi(
         `/api/mobile/v1/staff/questions/${questionId}/answer`,
         'POST',
-        { content: answer },
+        { attachments, content: answer },
       );
       setAnswer('');
+      setAssets([]);
       await onAnswered();
     } catch (caught) {
       setSubmitError(caught instanceof Error ? caught.message : '답변을 저장하지 못했습니다.');
@@ -159,6 +167,7 @@ function StaffQuestionSheet({
         placeholder="풀이 과정과 설명을 입력하세요"
         value={answer}
       />
+      <AttachmentPicker assets={assets} onChange={setAssets} />
       <FormError message={submitError} />
       <PrimaryButton disabled={submitting} onPress={() => void submit()}>
         {submitting ? '저장 중' : '답변 등록'}

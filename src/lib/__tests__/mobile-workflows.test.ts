@@ -53,6 +53,14 @@ describe("mobile question workflows", () => {
       createMobileStudentQuestion(
         { grade: "고2", id: "student-1", name: "홍길동" },
         {
+          attachments: [
+            {
+              mimeType: "image/jpeg",
+              name: "question.jpg",
+              sizeBytes: 1024,
+              url: "https://example.public.blob.vercel-storage.com/question.jpg",
+            },
+          ],
           content: " 풀이가 이해되지 않아요 ",
           subject: " 수학 ",
           title: " 미분 문제 ",
@@ -68,6 +76,14 @@ describe("mobile question workflows", () => {
           title: "미분 문제",
           messages: {
             create: expect.objectContaining({
+              attachments: [
+                {
+                  mimeType: "image/jpeg",
+                  name: "question.jpg",
+                  sizeBytes: 1024,
+                  url: "https://example.public.blob.vercel-storage.com/question.jpg",
+                },
+              ],
               content: "풀이가 이해되지 않아요",
               senderType: "STUDENT",
             }),

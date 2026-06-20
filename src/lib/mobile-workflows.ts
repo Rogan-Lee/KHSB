@@ -9,13 +9,22 @@ import {
 import { prisma } from "@/lib/prisma";
 import { notifySlack } from "@/lib/slack";
 
+const attachmentSchema = z.object({
+  mimeType: z.string().trim().min(1).max(120),
+  name: z.string().trim().min(1).max(200),
+  sizeBytes: z.number().int().min(0).max(10 * 1024 * 1024),
+  url: z.string().url().max(2000),
+});
+
 const questionSchema = z.object({
+  attachments: z.array(attachmentSchema).max(5).optional().default([]),
   content: z.string().trim().min(1, "질문 내용을 입력하세요").max(4000),
   subject: z.string().trim().max(40).optional().nullable(),
   title: z.string().trim().min(1, "질문 제목을 입력하세요").max(120),
 });
 
 const messageSchema = z.object({
+  attachments: z.array(attachmentSchema).max(5).optional().default([]),
   content: z.string().trim().min(1, "내용을 입력하세요").max(4000),
 });
 
@@ -68,7 +77,7 @@ export async function createMobileStudentQuestion(
       title: data.title,
       messages: {
         create: {
-          attachments: [],
+          attachments: data.attachments,
           content: data.content,
           senderType: "STUDENT",
         },
@@ -155,7 +164,7 @@ export async function addMobileStudentQuestionMessage(
   await prisma.$transaction([
     prisma.questionMessage.create({
       data: {
-        attachments: [],
+        attachments: data.attachments,
         content: data.content,
         questionId: question.id,
         senderType: "STUDENT",
@@ -248,7 +257,7 @@ export async function answerMobileStudentQuestion(
   await prisma.$transaction([
     prisma.questionMessage.create({
       data: {
-        attachments: [],
+        attachments: data.attachments,
         content: data.content,
         questionId: question.id,
         senderType: "STAFF",
