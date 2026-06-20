@@ -9,8 +9,9 @@ import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_MIME_TYPES = new Set([
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+const MAX_DOCUMENT_SIZE = 50 * 1024 * 1024;
+const ALLOWED_IMAGE_MIME_TYPES = new Set([
   "image/gif",
   "image/heic",
   "image/heif",
@@ -19,6 +20,32 @@ const ALLOWED_MIME_TYPES = new Set([
   "image/png",
   "image/webp",
 ]);
+const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
+  ...ALLOWED_IMAGE_MIME_TYPES,
+  "application/msword",
+  "application/octet-stream",
+  "application/pdf",
+  "application/vnd.hancom.hwp",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/x-hwp",
+  "application/zip",
+  "application/x-zip-compressed",
+]);
+const ALLOWED_DOCUMENT_EXTENSIONS = new Set([
+  "doc",
+  "docx",
+  "gif",
+  "heic",
+  "heif",
+  "hwp",
+  "hwpx",
+  "jpeg",
+  "jpg",
+  "pdf",
+  "png",
+  "webp",
+  "zip",
+]);
 const MENTORING_TAGS = new Set(["KDA", "EXTRA", "FREE"]);
 
 function safeName(filename: string) {
@@ -26,6 +53,10 @@ function safeName(filename: string) {
     .replace(/[\\/]/g, "_")
     .replace(/\.\./g, "_")
     .slice(0, 160);
+}
+
+function extension(filename: string) {
+  return filename.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? "";
 }
 
 export async function POST(request: NextRequest) {
@@ -44,20 +75,39 @@ export async function POST(request: NextRequest) {
   const file = formData.get("file");
   const context = formData.get("context");
   if (!(file instanceof File)) {
-    return Response.json({ error: "사진을 선택하세요" }, { status: 400 });
+    return Response.json({ error: "파일을 선택하세요" }, { status: 400 });
   }
-  if (context !== "question" && context !== "mentoring") {
+  if (
+    context !== "question" &&
+    context !== "mentoring" &&
+    context !== "task" &&
+    context !== "feedback"
+  ) {
     return Response.json({ error: "업로드 용도를 확인하세요" }, { status: 400 });
   }
-  if (file.size > MAX_FILE_SIZE) {
+  const isDocumentContext = context === "task" || context === "feedback";
+  const maxFileSize = isDocumentContext ? MAX_DOCUMENT_SIZE : MAX_IMAGE_SIZE;
+  if (file.size > maxFileSize) {
     return Response.json(
-      { error: "사진은 장당 10MB 이하여야 합니다" },
+      {
+        error: isDocumentContext
+          ? "파일은 개당 50MB 이하여야 합니다"
+          : "사진은 장당 10MB 이하여야 합니다",
+      },
       { status: 413 },
     );
   }
-  if (!ALLOWED_MIME_TYPES.has(file.type)) {
+  const allowedType = isDocumentContext
+    ? ALLOWED_DOCUMENT_MIME_TYPES.has(file.type) ||
+      ALLOWED_DOCUMENT_EXTENSIONS.has(extension(file.name))
+    : ALLOWED_IMAGE_MIME_TYPES.has(file.type);
+  if (!allowedType) {
     return Response.json(
-      { error: "JPG, PNG, WEBP, GIF, HEIC 사진만 업로드할 수 있습니다" },
+      {
+        error: isDocumentContext
+          ? "PDF, 이미지, DOCX, HWP, ZIP 파일만 업로드할 수 있습니다"
+          : "JPG, PNG, WEBP, GIF, HEIC 사진만 업로드할 수 있습니다",
+      },
       { status: 415 },
     );
   }
@@ -71,6 +121,57 @@ export async function POST(request: NextRequest) {
     if (!validStudent && !validStaff) {
       return Response.json({ error: "권한이 없습니다" }, { status: 403 });
     }
+  }
+
+  let taskId: string | null = null;
+  if (context === "task") {
+    if (!student || student.status !== "ACTIVE") {
+      return Response.json({ error: "학생 권한이 필요합니다" }, { status: 403 });
+    }
+    const rawTaskId = formData.get("taskId");
+    if (typeof rawTaskId !== "string" || !rawTaskId) {
+      return Response.json({ error: "수행평가를 확인하세요" }, { status: 400 });
+    }
+    const task = await prisma.performanceTask.findFirst({
+      where: { id: rawTaskId, studentId: student.id },
+      select: { id: true },
+    });
+    if (!task) {
+      return Response.json(
+        { error: "수행평가를 찾을 수 없습니다" },
+        { status: 404 },
+      );
+    }
+    taskId = task.id;
+  }
+
+  let submissionId: string | null = null;
+  if (context === "feedback") {
+    if (
+      !appUser ||
+      appUser.status !== "ACTIVE" ||
+      !["SUPER_ADMIN", "DIRECTOR", "CONSULTANT"].includes(appUser.role)
+    ) {
+      return Response.json(
+        { error: "수행평가 피드백 권한이 필요합니다" },
+        { status: 403 },
+      );
+    }
+    const rawSubmissionId = formData.get("submissionId");
+    if (typeof rawSubmissionId !== "string" || !rawSubmissionId) {
+      return Response.json({ error: "제출물을 확인하세요" }, { status: 400 });
+    }
+    const submission = await prisma.taskSubmission.findUnique({
+      where: { id: rawSubmissionId },
+      select: { id: true },
+    });
+    if (!submission) {
+      return Response.json(
+        { error: "제출물을 찾을 수 없습니다" },
+        { status: 404 },
+      );
+    }
+    submissionId = submission.id;
   }
 
   let mentoring:
@@ -117,7 +218,11 @@ export async function POST(request: NextRequest) {
   const prefix =
     context === "mentoring" && mentoring
       ? `mentoring/${mentoring.id}`
-      : "student-questions/incoming";
+      : context === "task" && taskId
+        ? `online/tasks/${taskId}`
+        : context === "feedback" && submissionId
+          ? `online/feedback/${submissionId}`
+          : "student-questions/incoming";
   const blobKey = `${prefix}/${crypto.randomUUID()}-${safeName(file.name)}`;
 
   try {

@@ -1,6 +1,8 @@
 import { router } from 'expo-router';
+import type { Href } from 'expo-router';
 import {
   Banknote,
+  BookOpenCheck,
   ClipboardList,
   LogOut,
   MessageSquareText,
@@ -22,8 +24,19 @@ import { formatMinutes } from '@/lib/format';
 import { StaffOperationsResponse, useMobileQuery } from '@/lib/mobile-api';
 import { useSession } from '@/lib/session';
 
+const STAFF_TASKS_ROUTE = '/staff-tasks' as Href;
+
 export default function StaffMoreScreen() {
   const { session, signOut } = useSession();
+  const canManageOnlineTasks = [
+    'SUPER_ADMIN',
+    'DIRECTOR',
+    'CONSULTANT',
+    'MANAGER_MENTOR',
+  ].includes(session?.staffRole ?? '');
+  const canWriteTaskFeedback = ['SUPER_ADMIN', 'DIRECTOR', 'CONSULTANT'].includes(
+    session?.staffRole ?? '',
+  );
   const [sheet, setSheet] = useState<'work' | 'handover' | 'patrol' | null>(null);
   const { data, error, isRefreshing, refresh, retry } =
     useMobileQuery<StaffOperationsResponse>('/api/mobile/v1/staff/operations');
@@ -102,6 +115,22 @@ export default function StaffMoreScreen() {
           tone="amber"
         />
         <Divider />
+        {canManageOnlineTasks ? (
+          <>
+            <ActionRow
+              caption={
+                canWriteTaskFeedback
+                  ? '제출물 확인·수정 요청·승인'
+                  : '학생 제출물 확인'
+              }
+              icon={BookOpenCheck}
+              onPress={() => router.push(STAFF_TASKS_ROUTE)}
+              title="수행평가 관리"
+              tone="violet"
+            />
+            <Divider />
+          </>
+        ) : null}
         <ActionRow icon={MessageSquareText} title="건의사항 관리" tone="blue" />
         <Divider />
         <ActionRow icon={Settings} title="앱 설정" />

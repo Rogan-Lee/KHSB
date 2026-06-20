@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ImagePickerAsset } from 'expo-image-picker';
+import type { DocumentPickerAsset } from 'expo-document-picker';
 
 import { authenticatedFetch } from '@/lib/session';
 
@@ -9,6 +10,83 @@ export type MobileAttachment = {
   name: string;
   sizeBytes: number;
   url: string;
+};
+
+export type MobileTaskFile = MobileAttachment;
+
+export type StudentTasksResponse = {
+  items: MobileTaskSummary[];
+  summary: {
+    done: number;
+    needsRevision: number;
+    open: number;
+  };
+};
+
+export type MobileTaskSummary = {
+  description: string | null;
+  dueDate: string;
+  format: string | null;
+  id: string;
+  scoreWeight: number | null;
+  status: 'OPEN' | 'IN_PROGRESS' | 'SUBMITTED' | 'NEEDS_REVISION' | 'DONE';
+  statusLabel: string;
+  subject: string;
+  submissionCount: number;
+  title: string;
+};
+
+export type MobileTaskDetail = Omit<MobileTaskSummary, 'submissionCount'> & {
+  student?: {
+    grade: string;
+    id: string;
+    name: string;
+    school: string | null;
+  };
+  submissions: MobileTaskSubmission[];
+};
+
+export type MobileTaskSubmission = {
+  feedbacks: {
+    authorName: string;
+    content: string;
+    createdAt: string;
+    files: MobileTaskFile[];
+    id: string;
+    status: 'COMMENT' | 'NEEDS_REVISION' | 'APPROVED';
+  }[];
+  files: MobileTaskFile[];
+  id: string;
+  note: string | null;
+  submittedAt: string;
+  version: number;
+};
+
+export type StaffTasksResponse = {
+  items: {
+    dueDate: string;
+    id: string;
+    latestSubmission: {
+      feedbackCount: number;
+      id: string;
+      submittedAt: string;
+      version: number;
+    } | null;
+    status: MobileTaskSummary['status'];
+    statusLabel: string;
+    student: {
+      grade: string;
+      id: string;
+      name: string;
+    };
+    subject: string;
+    title: string;
+  }[];
+  summary: {
+    done: number;
+    needsFeedback: number;
+    needsRevision: number;
+  };
 };
 
 export type StudentOverviewResponse = {
@@ -330,6 +408,47 @@ export async function uploadMobileMedia(
     | null;
   if (!response.ok || !body || 'error' in body) {
     throw new MobileApiError(body?.error ?? '사진을 업로드하지 못했습니다.');
+  }
+  return body;
+}
+
+export async function uploadMobileTaskFile(
+  asset: DocumentPickerAsset,
+  options:
+    | { context: 'task'; taskId: string }
+    | { context: 'feedback'; submissionId: string },
+) {
+  const formData = new FormData();
+  const type = asset.mimeType || 'application/octet-stream';
+  if (asset.file) {
+    formData.append('file', asset.file);
+  } else {
+    formData.append(
+      'file',
+      {
+        name: asset.name,
+        type,
+        uri: asset.uri,
+      } as unknown as Blob,
+    );
+  }
+  formData.append('context', options.context);
+  if (options.context === 'task') {
+    formData.append('taskId', options.taskId);
+  } else {
+    formData.append('submissionId', options.submissionId);
+  }
+
+  const response = await authenticatedFetch('/api/mobile/v1/media', {
+    body: formData,
+    method: 'POST',
+  });
+  const body = (await response.json().catch(() => null)) as
+    | (MobileTaskFile & { error?: never })
+    | { error?: string }
+    | null;
+  if (!response.ok || !body || 'error' in body) {
+    throw new MobileApiError(body?.error ?? '파일을 업로드하지 못했습니다.');
   }
   return body;
 }
