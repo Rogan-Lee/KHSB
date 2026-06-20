@@ -103,7 +103,7 @@ export function PrimaryButton({
 }: PropsWithChildren<{
   disabled?: boolean;
   onPress?: PressableProps['onPress'];
-  variant?: 'primary' | 'secondary';
+  variant?: 'primary' | 'secondary' | 'danger';
 }>) {
   return (
     <Pressable
@@ -113,6 +113,7 @@ export function PrimaryButton({
       style={({ pressed }) => [
         styles.button,
         variant === 'secondary' && styles.secondaryButton,
+        variant === 'danger' && styles.dangerButton,
         disabled && styles.disabled,
         pressed && styles.pressed,
       ]}>
@@ -205,6 +206,9 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     backgroundColor: colors.primarySoft,
+  },
+  dangerButton: {
+    backgroundColor: colors.red,
   },
   buttonText: {
     color: colors.surface,
