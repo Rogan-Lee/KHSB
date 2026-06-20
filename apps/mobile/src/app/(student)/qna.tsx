@@ -1,51 +1,91 @@
-import { Alert, StyleSheet, Text, View } from 'react-native';
 import { Camera, CircleCheckBig, Clock3, Plus } from 'lucide-react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
-import { Badge, Card, PrimaryButton, SectionTitle } from '@/components/mobile-ui';
+import {
+  Badge,
+  Card,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  PrimaryButton,
+  SectionTitle,
+} from '@/components/mobile-ui';
 import { colors, spacing } from '@/constants/theme';
+import { formatRelativeTime } from '@/lib/format';
+import { StudentQuestionsResponse, useMobileQuery } from '@/lib/mobile-api';
 
-const questions = [
-  { status: '답변 완료', subject: '수학', time: '오늘 14:12', title: '미분 문제 풀이가 이해되지 않아요.' },
-  { status: '답변 대기', subject: '영어', time: '어제 21:40', title: '관계대명사 which와 that 구분' },
-];
+const STATUS_LABELS = {
+  OPEN: '답변 대기',
+  ANSWERED: '답변 완료',
+  RESOLVED: '해결됨',
+  ARCHIVED: '보관됨',
+} as const;
 
 export default function StudentQnaScreen() {
+  const { data, error, isLoading, isRefreshing, refresh, retry } =
+    useMobileQuery<StudentQuestionsResponse>('/api/mobile/v1/student/questions');
+
   return (
-    <AppScreen subtitle="사진을 첨부해 담당 멘토에게 질문할 수 있습니다." title="질의응답">
-      <PrimaryButton onPress={() => Alert.alert('질문 등록', '모바일 API 연결 후 사용할 수 있습니다.')}>
+    <AppScreen
+      onRefresh={() => void refresh()}
+      refreshing={isRefreshing}
+      subtitle="담당 멘토와 주고받은 질문을 확인하세요."
+      title="질의응답">
+      <PrimaryButton
+        onPress={() =>
+          Alert.alert('새 질문 작성', '질문 작성과 사진 첨부는 다음 업데이트에서 연결됩니다.')
+        }>
         새 질문 작성
       </PrimaryButton>
 
       <SectionTitle>내 질문</SectionTitle>
+      {isLoading && !data ? <LoadingState /> : null}
+      {error && !data ? <ErrorState message={error} onRetry={() => void retry()} /> : null}
+      {data?.questions.length === 0 ? (
+        <EmptyState message="등록한 질문이 없습니다." title="질문 내역이 없습니다" />
+      ) : null}
       <View style={styles.list}>
-        {questions.map((question) => (
-          <Card key={question.title} style={styles.question}>
-            <View style={styles.questionTop}>
-              <Badge tone={question.status === '답변 완료' ? 'primary' : 'amber'}>
-                {question.status}
-              </Badge>
-              <Text style={styles.time}>{question.time}</Text>
-            </View>
-            <Text style={styles.subject}>{question.subject}</Text>
-            <Text style={styles.title}>{question.title}</Text>
-            <View style={styles.meta}>
-              {question.status === '답변 완료' ? (
-                <CircleCheckBig color={colors.primary} size={15} />
-              ) : (
-                <Clock3 color={colors.amber} size={15} />
-              )}
-              <Text style={styles.metaText}>
-                {question.status === '답변 완료' ? '멘토 답변을 확인하세요.' : '답변을 준비하고 있습니다.'}
-              </Text>
-            </View>
-          </Card>
-        ))}
+        {data?.questions.map((question) => {
+          const answered = question.status !== 'OPEN';
+          return (
+            <Card key={question.id} style={styles.question}>
+              <View style={styles.questionTop}>
+                <Badge tone={answered ? 'primary' : 'amber'}>
+                  {question.hasUnreadAnswer ? '새 답변' : STATUS_LABELS[question.status]}
+                </Badge>
+                <Text style={styles.time}>{formatRelativeTime(question.lastMessageAt)}</Text>
+              </View>
+              <Text style={styles.subject}>{question.subject ?? '과목 미지정'}</Text>
+              <Text style={styles.title}>{question.title}</Text>
+              {question.lastMessage ? (
+                <Text numberOfLines={2} style={styles.preview}>
+                  {question.lastMessage}
+                </Text>
+              ) : null}
+              <View style={styles.meta}>
+                {answered ? (
+                  <CircleCheckBig color={colors.primary} size={15} />
+                ) : (
+                  <Clock3 color={colors.amber} size={15} />
+                )}
+                <Text style={styles.metaText}>
+                  {question.hasAttachments
+                    ? '사진 첨부 · '
+                    : ''}
+                  {question.lastSenderType === 'STAFF'
+                    ? '멘토가 답변했습니다.'
+                    : '답변을 기다리고 있습니다.'}
+                </Text>
+              </View>
+            </Card>
+          );
+        })}
       </View>
 
       <Card style={styles.photoHint}>
         <Camera color={colors.blue} size={22} />
-        <Text style={styles.photoText}>문제 사진은 최대 5장까지 첨부할 수 있습니다.</Text>
+        <Text style={styles.photoText}>문제 사진과 질문 내용을 함께 등록할 수 있습니다.</Text>
         <Plus color={colors.muted} size={18} />
       </Card>
     </AppScreen>
@@ -79,6 +119,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  preview: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 18,
+  },
   meta: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -86,6 +131,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     color: colors.muted,
+    flex: 1,
     fontSize: 12,
   },
   photoHint: {

@@ -1,42 +1,63 @@
 import { Search } from 'lucide-react-native';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
-import { Badge, Card, SectionTitle } from '@/components/mobile-ui';
+import {
+  Badge,
+  Card,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  SectionTitle,
+} from '@/components/mobile-ui';
 import { colors, spacing } from '@/constants/theme';
+import { StaffAttendanceResponse, useMobileQuery } from '@/lib/mobile-api';
 
-const students = [
-  { grade: '고3', name: '김학생', status: '입실', time: '08:12' },
-  { grade: '고2', name: '박서준', status: '외출', time: '12:40' },
-  { grade: '고1', name: '이수빈', status: '미입실', time: '-' },
-  { grade: '재수', name: '최민호', status: '입실', time: '09:03' },
-];
+const FILTERS = ['전체', '입실', '외출', '퇴실', '미입실', '결석'] as const;
+type AttendanceFilter = (typeof FILTERS)[number];
 
 export default function AttendanceScreen() {
-  const [filter, setFilter] = useState('전체');
+  const [filter, setFilter] = useState<AttendanceFilter>('전체');
   const [query, setQuery] = useState('');
+  const { data, error, isLoading, isRefreshing, refresh, retry } =
+    useMobileQuery<StaffAttendanceResponse>('/api/mobile/v1/staff/attendance');
 
-  const visible = students.filter(
-    (student) =>
-      (filter === '전체' || student.status === filter) && student.name.includes(query.trim()),
-  );
+  const visible = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return (
+      data?.items.filter(
+        (student) =>
+          (filter === '전체' || student.status === filter) &&
+          (!normalized ||
+            student.name.toLowerCase().includes(normalized) ||
+            student.seat?.toLowerCase().includes(normalized)),
+      ) ?? []
+    );
+  }, [data?.items, filter, query]);
 
   return (
-    <AppScreen subtitle="오늘 학생 상태를 빠르게 변경합니다." title="입퇴실 관리">
+    <AppScreen
+      onRefresh={() => void refresh()}
+      refreshing={isRefreshing}
+      subtitle="오늘 학생 상태를 실시간으로 확인합니다."
+      title="입퇴실 관리">
       <View style={styles.search}>
         <Search color={colors.muted} size={18} />
         <TextInput
           onChangeText={setQuery}
-          placeholder="학생 이름 검색"
+          placeholder="학생 이름 또는 좌석 검색"
           placeholderTextColor="#9AA49F"
           style={styles.searchInput}
           value={query}
         />
       </View>
 
-      <View style={styles.filters}>
-        {['전체', '입실', '외출', '미입실'].map((item) => (
+      <ScrollView
+        contentContainerStyle={styles.filters}
+        horizontal
+        showsHorizontalScrollIndicator={false}>
+        {FILTERS.map((item) => (
           <Pressable
             key={item}
             onPress={() => setFilter(item)}
@@ -46,39 +67,52 @@ export default function AttendanceScreen() {
             </Text>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
 
-      <SectionTitle action={<Text style={styles.count}>{visible.length}명</Text>}>학생 현황</SectionTitle>
-      <Card>
-        {visible.map((student, index) => (
-          <View key={student.name}>
-            <View style={styles.student}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{student.name.slice(0, 1)}</Text>
+      <SectionTitle action={<Text style={styles.count}>{visible.length}명</Text>}>
+        학생 현황
+      </SectionTitle>
+      {isLoading && !data ? <LoadingState /> : null}
+      {error && !data ? <ErrorState message={error} onRetry={() => void retry()} /> : null}
+      {data && visible.length === 0 ? (
+        <EmptyState message="검색어나 상태 필터를 변경해 보세요." />
+      ) : null}
+      {visible.length > 0 ? (
+        <Card>
+          {visible.map((student, index) => (
+            <View key={student.id}>
+              <View style={styles.student}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{student.name.slice(0, 1)}</Text>
+                </View>
+                <View style={styles.studentText}>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.studentName}>{student.name}</Text>
+                    {student.isLate ? <Badge tone="red">확인 필요</Badge> : null}
+                  </View>
+                  <Text style={styles.studentMeta}>
+                    {student.grade}
+                    {student.seat ? ` · ${student.seat}번` : ''}
+                    {' · '}
+                    {student.time ?? student.scheduleStart ?? '-'}
+                  </Text>
+                </View>
+                <Badge tone={statusTone(student.status)}>{student.status}</Badge>
               </View>
-              <View style={styles.studentText}>
-                <Text style={styles.studentName}>{student.name}</Text>
-                <Text style={styles.studentMeta}>
-                  {student.grade} · {student.time}
-                </Text>
-              </View>
-              <Badge
-                tone={
-                  student.status === '입실'
-                    ? 'primary'
-                    : student.status === '외출'
-                      ? 'amber'
-                      : 'red'
-                }>
-                {student.status}
-              </Badge>
+              {index < visible.length - 1 ? <View style={styles.divider} /> : null}
             </View>
-            {index < visible.length - 1 ? <View style={styles.divider} /> : null}
-          </View>
-        ))}
-      </Card>
+          ))}
+        </Card>
+      ) : null}
     </AppScreen>
   );
+}
+
+function statusTone(status: StaffAttendanceResponse['items'][number]['status']) {
+  if (status === '입실') return 'primary';
+  if (status === '외출') return 'amber';
+  if (status === '퇴실') return 'blue';
+  return 'red';
 }
 
 const styles = StyleSheet.create({
@@ -99,8 +133,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   filters: {
-    flexDirection: 'row',
     gap: spacing.sm,
+    paddingRight: spacing.lg,
   },
   filter: {
     alignItems: 'center',
@@ -108,9 +142,10 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     borderRadius: 8,
     borderWidth: 1,
-    flex: 1,
-    minHeight: 40,
     justifyContent: 'center',
+    minHeight: 40,
+    minWidth: 68,
+    paddingHorizontal: spacing.md,
   },
   filterActive: {
     backgroundColor: colors.primary,
@@ -133,7 +168,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.md,
-    minHeight: 72,
+    minHeight: 76,
     paddingHorizontal: spacing.md,
   },
   avatar: {
@@ -152,6 +187,11 @@ const styles = StyleSheet.create({
   studentText: {
     flex: 1,
     gap: 3,
+  },
+  nameRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
   },
   studentName: {
     color: colors.ink,

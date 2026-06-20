@@ -1,48 +1,83 @@
 import { Image, MessageSquareReply } from 'lucide-react-native';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
-import { Badge, Card, PrimaryButton, SectionTitle } from '@/components/mobile-ui';
+import {
+  Badge,
+  Card,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  PrimaryButton,
+  SectionTitle,
+} from '@/components/mobile-ui';
 import { colors, spacing } from '@/constants/theme';
-
-const questions = [
-  { age: '12분 전', name: '김학생', subject: '수학', title: '미분 문제 풀이 질문입니다.' },
-  { age: '1시간 전', name: '이수빈', subject: '영어', title: '관계대명사 문법을 모르겠어요.' },
-  { age: '어제', name: '최민호', subject: '국어', title: '비문학 지문 4번 선지 질문' },
-];
+import { formatRelativeTime } from '@/lib/format';
+import { StaffQuestionsResponse, useMobileQuery } from '@/lib/mobile-api';
 
 export default function StaffQnaScreen() {
+  const { data, error, isLoading, isRefreshing, refresh, retry } =
+    useMobileQuery<StaffQuestionsResponse>('/api/mobile/v1/staff/questions');
+
   return (
-    <AppScreen subtitle="미답변 질문부터 우선 처리합니다." title="질의응답">
-      <View style={styles.summary}>
-        <Text style={styles.summaryValue}>7</Text>
-        <View style={styles.summaryText}>
-          <Text style={styles.summaryTitle}>답변 대기</Text>
-          <Text style={styles.summaryCaption}>24시간 경과 2건</Text>
+    <AppScreen
+      onRefresh={() => void refresh()}
+      refreshing={isRefreshing}
+      subtitle="미답변 질문부터 우선 처리합니다."
+      title="질의응답">
+      {data ? (
+        <View style={styles.summary}>
+          <Text style={styles.summaryValue}>{data.summary.open}</Text>
+          <View style={styles.summaryText}>
+            <Text style={styles.summaryTitle}>답변 대기</Text>
+            <Text style={styles.summaryCaption}>24시간 경과 {data.summary.overdue}건</Text>
+          </View>
+          <MessageSquareReply color={colors.blue} size={28} />
         </View>
-        <MessageSquareReply color={colors.blue} size={28} />
-      </View>
+      ) : null}
 
       <SectionTitle>답변 대기</SectionTitle>
+      {isLoading && !data ? <LoadingState /> : null}
+      {error && !data ? <ErrorState message={error} onRetry={() => void retry()} /> : null}
+      {data?.items.length === 0 ? (
+        <EmptyState message="현재 답변을 기다리는 질문이 없습니다." />
+      ) : null}
       <View style={styles.list}>
-        {questions.map((question) => (
-          <Card key={question.title} style={styles.question}>
+        {data?.items.map((question) => (
+          <Card key={question.id} style={styles.question}>
             <View style={styles.questionTop}>
               <View style={styles.badges}>
-                <Badge tone="blue">{question.subject}</Badge>
+                <Badge tone="blue">{question.subject ?? '과목 미지정'}</Badge>
                 <Badge tone="red">미답변</Badge>
               </View>
-              <Text style={styles.age}>{question.age}</Text>
+              <Text style={styles.age}>{formatRelativeTime(question.lastMessageAt)}</Text>
             </View>
             <Text style={styles.title}>{question.title}</Text>
+            {question.lastMessage ? (
+              <Text numberOfLines={2} style={styles.preview}>
+                {question.lastMessage}
+              </Text>
+            ) : null}
             <View style={styles.meta}>
-              <Text style={styles.name}>{question.name}</Text>
-              <View style={styles.attachment}>
-                <Image color={colors.muted} size={14} />
-                <Text style={styles.attachmentText}>사진 1장</Text>
-              </View>
+              <Text style={styles.name}>
+                {question.studentName} · {question.grade}
+              </Text>
+              {question.attachmentCount > 0 ? (
+                <View style={styles.attachment}>
+                  <Image color={colors.muted} size={14} />
+                  <Text style={styles.attachmentText}>
+                    사진 {question.attachmentCount}장
+                  </Text>
+                </View>
+              ) : null}
             </View>
-            <PrimaryButton variant="secondary">답변 작성</PrimaryButton>
+            <PrimaryButton
+              onPress={() =>
+                Alert.alert('답변 작성', '질문 상세와 답변 저장은 다음 업데이트에서 연결됩니다.')
+              }
+              variant="secondary">
+              답변 작성
+            </PrimaryButton>
           </Card>
         ))}
       </View>
@@ -101,6 +136,11 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 16,
     fontWeight: '700',
+  },
+  preview: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 18,
   },
   meta: {
     alignItems: 'center',

@@ -1,6 +1,7 @@
-import { ChevronRight, LucideIcon } from 'lucide-react-native';
+import { CircleAlert, ChevronRight, Inbox, LucideIcon } from 'lucide-react-native';
 import { PropsWithChildren, ReactNode } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   PressableProps,
   StyleProp,
@@ -78,11 +79,8 @@ export function ActionRow({
   title: string;
   tone?: Tone;
 }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.actionRow, pressed && styles.pressed]}>
+  const content = (
+    <>
       <View style={[styles.iconBox, { backgroundColor: tones[tone].background }]}>
         <Icon color={tones[tone].foreground} size={20} strokeWidth={2.2} />
       </View>
@@ -90,7 +88,20 @@ export function ActionRow({
         <Text style={styles.actionTitle}>{title}</Text>
         {caption ? <Text style={styles.actionCaption}>{caption}</Text> : null}
       </View>
-      {right ?? <ChevronRight color={colors.muted} size={18} />}
+      {right ?? (onPress ? <ChevronRight color={colors.muted} size={18} /> : null)}
+    </>
+  );
+
+  if (!onPress) {
+    return <View style={styles.actionRow}>{content}</View>;
+  }
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.actionRow, pressed && styles.pressed]}>
+      {content}
     </Pressable>
   );
 }
@@ -121,6 +132,50 @@ export function PrimaryButton({
         {children}
       </Text>
     </Pressable>
+  );
+}
+
+export function LoadingState({ label = '불러오는 중' }: { label?: string }) {
+  return (
+    <View style={styles.state}>
+      <ActivityIndicator color={colors.primary} />
+      <Text style={styles.stateText}>{label}</Text>
+    </View>
+  );
+}
+
+export function ErrorState({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <View style={styles.state}>
+      <CircleAlert color={colors.red} size={24} />
+      <Text style={styles.stateTitle}>데이터를 불러오지 못했습니다</Text>
+      <Text style={styles.stateText}>{message}</Text>
+      <PrimaryButton onPress={onRetry} variant="secondary">
+        다시 시도
+      </PrimaryButton>
+    </View>
+  );
+}
+
+export function EmptyState({
+  message,
+  title = '표시할 내용이 없습니다',
+}: {
+  message?: string;
+  title?: string;
+}) {
+  return (
+    <View style={styles.state}>
+      <Inbox color={colors.muted} size={24} />
+      <Text style={styles.stateTitle}>{title}</Text>
+      {message ? <Text style={styles.stateText}>{message}</Text> : null}
+    </View>
   );
 }
 
@@ -223,5 +278,28 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.72,
+  },
+  state: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.line,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: spacing.sm,
+    justifyContent: 'center',
+    minHeight: 180,
+    padding: spacing.xl,
+  },
+  stateTitle: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  stateText: {
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
   },
 });
