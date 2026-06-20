@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import type { Href } from 'expo-router';
 import {
   Banknote,
+  Bell,
   BookOpenCheck,
   ClipboardList,
   LogOut,
@@ -25,6 +26,7 @@ import { StaffOperationsResponse, useMobileQuery } from '@/lib/mobile-api';
 import { useSession } from '@/lib/session';
 
 const STAFF_TASKS_ROUTE = '/staff-tasks' as Href;
+const NOTIFICATIONS_ROUTE = '/notifications' as Href;
 
 export default function StaffMoreScreen() {
   const { session, signOut } = useSession();
@@ -132,6 +134,14 @@ export default function StaffMoreScreen() {
           </>
         ) : null}
         <ActionRow icon={MessageSquareText} title="건의사항 관리" tone="blue" />
+        <Divider />
+        <ActionRow
+          caption="질의응답·수행평가 알림"
+          icon={Bell}
+          onPress={() => router.push(NOTIFICATIONS_ROUTE)}
+          title="알림 설정"
+          tone="blue"
+        />
         <Divider />
         <ActionRow icon={Settings} title="앱 설정" />
         <Divider />

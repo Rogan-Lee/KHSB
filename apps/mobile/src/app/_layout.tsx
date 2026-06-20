@@ -2,6 +2,7 @@ import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
 import { colors } from '@/constants/theme';
+import { useNotificationRouting } from '@/lib/notifications';
 import { SessionProvider } from '@/lib/session';
 
 const navigationTheme = {
@@ -17,6 +18,8 @@ const navigationTheme = {
 };
 
 export default function RootLayout() {
+  useNotificationRouting();
+
   return (
     <SessionProvider>
       <ThemeProvider value={navigationTheme}>
@@ -26,6 +29,7 @@ export default function RootLayout() {
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(student)" />
           <Stack.Screen name="(staff)" />
+          <Stack.Screen name="notifications" />
         </Stack>
       </ThemeProvider>
     </SessionProvider>
