@@ -1,5 +1,6 @@
 import { Image, MessageSquareReply } from 'lucide-react-native';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import {
@@ -11,11 +12,19 @@ import {
   PrimaryButton,
   SectionTitle,
 } from '@/components/mobile-ui';
+import { FormSheet } from '@/components/form-sheet';
+import { FormError, FormInput, MessageThread } from '@/components/workflow-ui';
 import { colors, spacing } from '@/constants/theme';
 import { formatRelativeTime } from '@/lib/format';
-import { StaffQuestionsResponse, useMobileQuery } from '@/lib/mobile-api';
+import {
+  mutateMobileApi,
+  QuestionThreadResponse,
+  StaffQuestionsResponse,
+  useMobileQuery,
+} from '@/lib/mobile-api';
 
 export default function StaffQnaScreen() {
+  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const { data, error, isLoading, isRefreshing, refresh, retry } =
     useMobileQuery<StaffQuestionsResponse>('/api/mobile/v1/staff/questions');
 
@@ -72,16 +81,89 @@ export default function StaffQnaScreen() {
               ) : null}
             </View>
             <PrimaryButton
-              onPress={() =>
-                Alert.alert('답변 작성', '질문 상세와 답변 저장은 다음 업데이트에서 연결됩니다.')
-              }
+              onPress={() => setSelectedQuestionId(question.id)}
               variant="secondary">
               답변 작성
             </PrimaryButton>
           </Card>
         ))}
       </View>
+
+      {selectedQuestionId ? (
+        <StaffQuestionSheet
+          onAnswered={async () => {
+            setSelectedQuestionId(null);
+            await refresh();
+          }}
+          onClose={() => setSelectedQuestionId(null)}
+          questionId={selectedQuestionId}
+        />
+      ) : null}
     </AppScreen>
+  );
+}
+
+function StaffQuestionSheet({
+  onAnswered,
+  onClose,
+  questionId,
+}: {
+  onAnswered: () => Promise<void>;
+  onClose: () => void;
+  questionId: string;
+}) {
+  const [answer, setAnswer] = useState('');
+  const [submitError, setSubmitError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const { data, error, isLoading, retry } = useMobileQuery<QuestionThreadResponse>(
+    `/api/mobile/v1/staff/questions/${questionId}`,
+  );
+
+  async function submit() {
+    setSubmitError('');
+    setSubmitting(true);
+    try {
+      await mutateMobileApi(
+        `/api/mobile/v1/staff/questions/${questionId}/answer`,
+        'POST',
+        { content: answer },
+      );
+      setAnswer('');
+      await onAnswered();
+    } catch (caught) {
+      setSubmitError(caught instanceof Error ? caught.message : '답변을 저장하지 못했습니다.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const student = data?.question.student;
+  return (
+    <FormSheet
+      onClose={onClose}
+      subtitle={
+        student
+          ? `${student.name} · ${student.grade}${student.school ? ` · ${student.school}` : ''}`
+          : undefined
+      }
+      title={data?.question.title ?? '질문 답변'}
+      visible>
+      {isLoading && !data ? <LoadingState /> : null}
+      {error && !data ? <ErrorState message={error} onRetry={() => void retry()} /> : null}
+      {data ? <MessageThread messages={data.messages} viewer="STAFF" /> : null}
+      <FormInput
+        label="답변"
+        maxLength={4000}
+        multiline
+        onChangeText={setAnswer}
+        placeholder="풀이 과정과 설명을 입력하세요"
+        value={answer}
+      />
+      <FormError message={submitError} />
+      <PrimaryButton disabled={submitting} onPress={() => void submit()}>
+        {submitting ? '저장 중' : '답변 등록'}
+      </PrimaryButton>
+    </FormSheet>
   );
 }
 

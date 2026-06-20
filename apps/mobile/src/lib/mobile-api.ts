@@ -44,6 +44,31 @@ export type StudentQuestionsResponse = {
   }[];
 };
 
+export type QuestionThreadResponse = {
+  messages: {
+    attachments: unknown[];
+    content: string;
+    createdAt: string;
+    id: string;
+    senderName: string;
+    senderType: 'STUDENT' | 'STAFF';
+  }[];
+  question: {
+    claimedBy?: { id: string; name: string } | null;
+    createdAt: string;
+    id: string;
+    status: 'OPEN' | 'ANSWERED' | 'RESOLVED' | 'ARCHIVED';
+    student?: {
+      grade: string;
+      id: string;
+      name: string;
+      school: string | null;
+    };
+    subject: string | null;
+    title: string;
+  };
+};
+
 export type StaffOverviewResponse = {
   date: string;
   priorities: {
@@ -96,6 +121,25 @@ export type StaffMentoringResponse = {
   };
 };
 
+export type MentoringRecordResponse = {
+  content: string | null;
+  id: string;
+  improvements: string | null;
+  nextGoals: string | null;
+  notes: string | null;
+  scheduledAt: string;
+  scheduledTimeStart: string | null;
+  status: string;
+  student: {
+    grade: string;
+    id: string;
+    mentoringNotes: string | null;
+    name: string;
+    school: string | null;
+  };
+  weaknesses: string | null;
+};
+
 export type StaffQuestionsResponse = {
   items: {
     attachmentCount: number;
@@ -115,10 +159,16 @@ export type StaffQuestionsResponse = {
   };
 };
 
-class MobileApiError extends Error {}
+export class MobileApiError extends Error {}
 
-async function requestMobileApi<T>(path: string): Promise<T> {
-  const response = await authenticatedFetch(path, { cache: 'no-store' });
+export async function requestMobileApi<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const response = await authenticatedFetch(path, {
+    cache: 'no-store',
+    ...init,
+  });
   const body = (await response.json().catch(() => null)) as { error?: string } | null;
 
   if (!response.ok) {
@@ -126,6 +176,18 @@ async function requestMobileApi<T>(path: string): Promise<T> {
   }
 
   return body as T;
+}
+
+export function mutateMobileApi<T>(
+  path: string,
+  method: 'PATCH' | 'POST',
+  body: unknown,
+) {
+  return requestMobileApi<T>(path, {
+    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json' },
+    method,
+  });
 }
 
 export function useMobileQuery<T>(path: string) {
