@@ -56,3 +56,16 @@ export function formatDueDate(value: string) {
     day: 'numeric',
   });
 }
+
+export function formatMinutes(minutes: number) {
+  const safeMinutes = Math.max(0, minutes);
+  const hours = Math.floor(safeMinutes / 60);
+  const remainder = safeMinutes % 60;
+  if (hours === 0) return `${remainder}분`;
+  if (remainder === 0) return `${hours}시간`;
+  return `${hours}시간 ${remainder}분`;
+}
+
+export function formatCurrency(value: number) {
+  return `${Math.max(0, value).toLocaleString('ko-KR')}원`;
+}

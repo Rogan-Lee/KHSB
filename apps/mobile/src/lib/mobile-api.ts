@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { ImagePickerAsset } from 'expo-image-picker';
 
 import { authenticatedFetch } from '@/lib/session';
+
+export type MobileAttachment = {
+  id?: string;
+  mimeType: string;
+  name: string;
+  sizeBytes: number;
+  url: string;
+};
 
 export type StudentOverviewResponse = {
   isOnlineManaged: boolean;
@@ -46,7 +55,7 @@ export type StudentQuestionsResponse = {
 
 export type QuestionThreadResponse = {
   messages: {
-    attachments: unknown[];
+    attachments: MobileAttachment[];
     content: string;
     createdAt: string;
     id: string;
@@ -67,6 +76,95 @@ export type QuestionThreadResponse = {
     subject: string | null;
     title: string;
   };
+};
+
+export type StaffOperationsResponse = {
+  clock: {
+    isWorking: boolean;
+    lastTag: WorkTagView | null;
+    recentTags: WorkTagView[];
+  };
+  handovers: {
+    today: number;
+    unread: number;
+  };
+  month: {
+    month: number;
+    ownerConfirmedAt: string | null;
+    staffConfirmedAt: string | null;
+    totalMinutes: number;
+    totalWage: number;
+    year: number;
+  };
+  patrol: {
+    checkedCount: number;
+    id: string;
+    label: string | null;
+    rosterCount: number;
+    startedAt: string;
+  } | null;
+};
+
+export type WorkTagView = {
+  id: string;
+  note: string | null;
+  taggedAt: string;
+  type: 'CLOCK_IN' | 'CLOCK_OUT';
+};
+
+export type StaffHandoversResponse = {
+  items: {
+    authorId: string;
+    authorName: string;
+    category: string | null;
+    checklist: {
+      id: string;
+      isChecked: boolean;
+      title: string;
+    }[];
+    content: string;
+    createdAt: string;
+    date: string;
+    id: string;
+    isPinned: boolean;
+    isRead: boolean;
+    priority: 'URGENT' | 'NORMAL';
+    readCount: number;
+    recipientName: string | null;
+    tasks: {
+      assigneeName: string | null;
+      id: string;
+      isCompleted: boolean;
+      title: string;
+    }[];
+  }[];
+};
+
+export type StaffPatrolResponse = {
+  activeRound: {
+    id: string;
+    label: string | null;
+    startedAt: string;
+  } | null;
+  allStudents: PatrolStudent[];
+  patrollerName: string;
+  records: {
+    checkedAt: string;
+    id: string;
+    note: string | null;
+    seat: string | null;
+    status: 'OK' | 'NOTE' | 'ABSENT';
+    studentId: string;
+    studentName: string;
+  }[];
+  roster: PatrolStudent[];
+};
+
+export type PatrolStudent = {
+  grade: string;
+  id: string;
+  name: string;
+  seat: string | null;
 };
 
 export type StaffOverviewResponse = {
@@ -188,6 +286,52 @@ export function mutateMobileApi<T>(
     headers: { 'Content-Type': 'application/json' },
     method,
   });
+}
+
+export async function uploadMobileMedia(
+  asset: ImagePickerAsset,
+  options:
+    | { context: 'question' }
+    | {
+        context: 'mentoring';
+        mentoringId: string;
+        tag?: 'KDA' | 'EXTRA' | 'FREE';
+      },
+) {
+  const formData = new FormData();
+  const name = asset.fileName || `photo-${Date.now()}.jpg`;
+  const type = asset.mimeType || 'image/jpeg';
+
+  if (asset.file) {
+    formData.append('file', asset.file);
+  } else {
+    formData.append(
+      'file',
+      {
+        name,
+        type,
+        uri: asset.uri,
+      } as unknown as Blob,
+    );
+  }
+  formData.append('context', options.context);
+  if (options.context === 'mentoring') {
+    formData.append('mentoringId', options.mentoringId);
+    formData.append('tag', options.tag ?? 'FREE');
+  }
+
+  const response = await authenticatedFetch('/api/mobile/v1/media', {
+    body: formData,
+    method: 'POST',
+  });
+  const body = (await response.json().catch(() => null)) as
+    | (MobileAttachment & { error?: never })
+    | { error?: string }
+    | null;
+  if (!response.ok || !body || 'error' in body) {
+    throw new MobileApiError(body?.error ?? '사진을 업로드하지 못했습니다.');
+  }
+  return body;
 }
 
 export function useMobileQuery<T>(path: string) {

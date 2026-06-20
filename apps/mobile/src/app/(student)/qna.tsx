@@ -1,8 +1,10 @@
-import { Camera, CircleCheckBig, Clock3, Plus } from 'lucide-react-native';
+import type { ImagePickerAsset } from 'expo-image-picker';
+import { CircleCheckBig, Clock3 } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
+import { AttachmentPicker } from '@/components/attachment-picker';
 import {
   Badge,
   Card,
@@ -20,6 +22,7 @@ import {
   mutateMobileApi,
   QuestionThreadResponse,
   StudentQuestionsResponse,
+  uploadMobileMedia,
   useMobileQuery,
 } from '@/lib/mobile-api';
 
@@ -92,12 +95,6 @@ export default function StudentQnaScreen() {
         })}
       </View>
 
-      <Card style={styles.photoHint}>
-        <Camera color={colors.blue} size={22} />
-        <Text style={styles.photoText}>사진 첨부는 다음 업데이트에서 지원됩니다.</Text>
-        <Plus color={colors.muted} size={18} />
-      </Card>
-
       {createVisible ? (
         <CreateQuestionSheet
           onClose={() => setCreateVisible(false)}
@@ -131,6 +128,7 @@ function CreateQuestionSheet({
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('');
   const [content, setContent] = useState('');
+  const [assets, setAssets] = useState<ImagePickerAsset[]>([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -138,7 +136,11 @@ function CreateQuestionSheet({
     setError('');
     setSubmitting(true);
     try {
+      const attachments = await Promise.all(
+        assets.map((asset) => uploadMobileMedia(asset, { context: 'question' })),
+      );
       await mutateMobileApi<{ id: string }>('/api/mobile/v1/student/questions', 'POST', {
+        attachments,
         content,
         subject,
         title,
@@ -146,6 +148,7 @@ function CreateQuestionSheet({
       setTitle('');
       setSubject('');
       setContent('');
+      setAssets([]);
       await onCreated();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '질문을 등록하지 못했습니다.');
@@ -182,6 +185,7 @@ function CreateQuestionSheet({
         placeholder="어디에서 막혔는지 자세히 적어주세요"
         value={content}
       />
+      <AttachmentPicker assets={assets} onChange={setAssets} />
       <FormError message={error} />
       <PrimaryButton disabled={submitting} onPress={() => void submit()}>
         {submitting ? '등록 중' : '질문 등록'}
@@ -200,6 +204,7 @@ function StudentQuestionSheet({
   questionId: string;
 }) {
   const [message, setMessage] = useState('');
+  const [assets, setAssets] = useState<ImagePickerAsset[]>([]);
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { data, error, isLoading, refresh, retry } = useMobileQuery<QuestionThreadResponse>(
@@ -210,12 +215,16 @@ function StudentQuestionSheet({
     setSubmitError('');
     setSubmitting(true);
     try {
+      const attachments = await Promise.all(
+        assets.map((asset) => uploadMobileMedia(asset, { context: 'question' })),
+      );
       await mutateMobileApi(
         `/api/mobile/v1/student/questions/${questionId}/messages`,
         'POST',
-        { content: message },
+        { attachments, content: message },
       );
       setMessage('');
+      setAssets([]);
       await Promise.all([refresh(), onChanged()]);
     } catch (caught) {
       setSubmitError(
@@ -245,6 +254,7 @@ function StudentQuestionSheet({
             placeholder="추가로 궁금한 내용을 입력하세요"
             value={message}
           />
+          <AttachmentPicker assets={assets} onChange={setAssets} />
           <FormError message={submitError} />
           <PrimaryButton disabled={submitting} onPress={() => void sendMessage()}>
             {submitting ? '전송 중' : '추가 질문 전송'}
@@ -296,17 +306,6 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   metaText: {
-    color: colors.muted,
-    flex: 1,
-    fontSize: 12,
-  },
-  photoHint: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.sm,
-    padding: spacing.md,
-  },
-  photoText: {
     color: colors.muted,
     flex: 1,
     fontSize: 12,

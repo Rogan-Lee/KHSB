@@ -1,8 +1,10 @@
+import type { ImagePickerAsset } from 'expo-image-picker';
 import { CalendarCheck, UserRound } from 'lucide-react-native';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
+import { AttachmentPicker } from '@/components/attachment-picker';
 import {
   Badge,
   Card,
@@ -20,6 +22,7 @@ import {
   MentoringRecordResponse,
   mutateMobileApi,
   StaffMentoringResponse,
+  uploadMobileMedia,
   useMobileQuery,
 } from '@/lib/mobile-api';
 
@@ -162,6 +165,7 @@ function MentoringRecordForm({
   const [weaknesses, setWeaknesses] = useState(initial.weaknesses ?? '');
   const [nextGoals, setNextGoals] = useState(initial.nextGoals ?? '');
   const [notes, setNotes] = useState(initial.notes ?? '');
+  const [assets, setAssets] = useState<ImagePickerAsset[]>([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -169,6 +173,15 @@ function MentoringRecordForm({
     setError('');
     setSubmitting(true);
     try {
+      await Promise.all(
+        assets.map((asset) =>
+          uploadMobileMedia(asset, {
+            context: 'mentoring',
+            mentoringId: initial.id,
+            tag: 'FREE',
+          }),
+        ),
+      );
       await mutateMobileApi(
         `/api/mobile/v1/staff/mentoring/${initial.id}`,
         'PATCH',
@@ -224,6 +237,7 @@ function MentoringRecordForm({
         placeholder="운영진에게 공유할 메모"
         value={notes}
       />
+      <AttachmentPicker assets={assets} onChange={setAssets} />
       <FormError message={error} />
       <PrimaryButton disabled={submitting} onPress={() => void submit()}>
         {submitting ? '저장 중' : '상담 완료 및 기록 저장'}
