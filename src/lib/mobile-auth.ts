@@ -43,6 +43,12 @@ export function mobileApiErrorResponse(error: unknown) {
       { status: error.status, headers: { "Cache-Control": "no-store" } },
     );
   }
+  if (error instanceof SyntaxError) {
+    return Response.json(
+      { error: "요청 형식을 확인하세요" },
+      { status: 400, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 
   console.error("[mobile-api]", error);
   return Response.json(

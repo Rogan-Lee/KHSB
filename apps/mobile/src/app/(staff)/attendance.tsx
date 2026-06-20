@@ -9,10 +9,17 @@ import {
   EmptyState,
   ErrorState,
   LoadingState,
+  PrimaryButton,
   SectionTitle,
 } from '@/components/mobile-ui';
+import { FormSheet } from '@/components/form-sheet';
+import { FormError } from '@/components/workflow-ui';
 import { colors, spacing } from '@/constants/theme';
-import { StaffAttendanceResponse, useMobileQuery } from '@/lib/mobile-api';
+import {
+  mutateMobileApi,
+  StaffAttendanceResponse,
+  useMobileQuery,
+} from '@/lib/mobile-api';
 
 const FILTERS = ['전체', '입실', '외출', '퇴실', '미입실', '결석'] as const;
 type AttendanceFilter = (typeof FILTERS)[number];
@@ -20,6 +27,9 @@ type AttendanceFilter = (typeof FILTERS)[number];
 export default function AttendanceScreen() {
   const [filter, setFilter] = useState<AttendanceFilter>('전체');
   const [query, setQuery] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState<
+    StaffAttendanceResponse['items'][number] | null
+  >(null);
   const { data, error, isLoading, isRefreshing, refresh, retry } =
     useMobileQuery<StaffAttendanceResponse>('/api/mobile/v1/staff/attendance');
 
@@ -81,7 +91,10 @@ export default function AttendanceScreen() {
         <Card>
           {visible.map((student, index) => (
             <View key={student.id}>
-              <View style={styles.student}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setSelectedStudent(student)}
+                style={({ pressed }) => [styles.student, pressed && styles.pressed]}>
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>{student.name.slice(0, 1)}</Text>
                 </View>
@@ -98,13 +111,115 @@ export default function AttendanceScreen() {
                   </Text>
                 </View>
                 <Badge tone={statusTone(student.status)}>{student.status}</Badge>
-              </View>
+              </Pressable>
               {index < visible.length - 1 ? <View style={styles.divider} /> : null}
             </View>
           ))}
         </Card>
       ) : null}
+      {selectedStudent ? (
+        <AttendanceActionSheet
+          onClose={() => setSelectedStudent(null)}
+          onUpdated={async () => {
+            setSelectedStudent(null);
+            await refresh();
+          }}
+          student={selectedStudent}
+        />
+      ) : null}
     </AppScreen>
+  );
+}
+
+type AttendanceAction =
+  | 'CHECK_IN'
+  | 'CHECK_OUT'
+  | 'START_OUTING'
+  | 'RETURN'
+  | 'MARK_ABSENT';
+
+function AttendanceActionSheet({
+  onClose,
+  onUpdated,
+  student,
+}: {
+  onClose: () => void;
+  onUpdated: () => Promise<void>;
+  student: StaffAttendanceResponse['items'][number];
+}) {
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState<AttendanceAction | null>(null);
+
+  async function update(action: AttendanceAction) {
+    setError('');
+    setSubmitting(action);
+    try {
+      await mutateMobileApi(
+        `/api/mobile/v1/staff/attendance/${student.id}`,
+        'PATCH',
+        { action },
+      );
+      await onUpdated();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '출석 상태를 변경하지 못했습니다.');
+    } finally {
+      setSubmitting(null);
+    }
+  }
+
+  return (
+    <FormSheet
+      onClose={onClose}
+      subtitle={`${student.grade}${student.seat ? ` · ${student.seat}번` : ''}`}
+      title={student.name}
+      visible>
+      <View style={styles.statusSummary}>
+        <Text style={styles.statusLabel}>현재 상태</Text>
+        <Badge tone={statusTone(student.status)}>{student.status}</Badge>
+      </View>
+      <FormError message={error} />
+      {student.status === '미입실' || student.status === '결석' ? (
+        <PrimaryButton
+          disabled={submitting !== null}
+          onPress={() => void update('CHECK_IN')}>
+          {submitting === 'CHECK_IN' ? '처리 중' : '입실 처리'}
+        </PrimaryButton>
+      ) : null}
+      {student.status === '미입실' ? (
+        <PrimaryButton
+          disabled={submitting !== null}
+          onPress={() => void update('MARK_ABSENT')}
+          variant="danger">
+          {submitting === 'MARK_ABSENT' ? '처리 중' : '결석 처리'}
+        </PrimaryButton>
+      ) : null}
+      {student.status === '입실' ? (
+        <PrimaryButton
+          disabled={submitting !== null}
+          onPress={() => void update('START_OUTING')}
+          variant="secondary">
+          {submitting === 'START_OUTING' ? '처리 중' : '외출 처리'}
+        </PrimaryButton>
+      ) : null}
+      {student.status === '외출' ? (
+        <PrimaryButton
+          disabled={submitting !== null}
+          onPress={() => void update('RETURN')}>
+          {submitting === 'RETURN' ? '처리 중' : '복귀 처리'}
+        </PrimaryButton>
+      ) : null}
+      {student.status === '입실' || student.status === '외출' ? (
+        <PrimaryButton
+          disabled={submitting !== null}
+          onPress={() => void update('CHECK_OUT')}
+          variant="danger">
+          {submitting === 'CHECK_OUT' ? '처리 중' : '퇴실 처리'}
+        </PrimaryButton>
+      ) : null}
+      {student.status === '퇴실' ? (
+        <Text style={styles.completedText}>오늘 퇴실 처리가 완료되었습니다.</Text>
+      ) : null}
+    </FormSheet>
   );
 }
 
@@ -206,5 +321,28 @@ const styles = StyleSheet.create({
     backgroundColor: colors.line,
     height: StyleSheet.hairlineWidth,
     marginLeft: 64,
+  },
+  pressed: {
+    opacity: 0.72,
+  },
+  statusSummary: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.line,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: spacing.lg,
+  },
+  statusLabel: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  completedText: {
+    color: colors.muted,
+    fontSize: 14,
+    textAlign: 'center',
   },
 });
