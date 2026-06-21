@@ -322,6 +322,10 @@ model Student {
   attentionFlaggedById String? // 플래그한 운영진 User.id 스냅샷 (FK 미설정 — createdById 패턴 동일)
   // ─────────────────────────────────
   selectedSubjects     String? // 선택과목 (예: "수학, 영어, 사탐")
+  koreanElective       String? // 국어 선택과목: "화법과작문" | "언어와매체"
+  mathElective         String? // 수학 선택과목: "확률과통계" | "미적분" | "기하"
+  inquiry1Subject      String? // 탐구1 과목명 (예: "생활과윤리")
+  inquiry2Subject      String? // 탐구2 과목명 (예: "사회·문화")
   admissionType        String? // 대학 입시 전형 (예: "수시 학종, 정시")
   onlineLectures       String? // 수강중인 인강 (예: "메가스터디 수학")
   changeNote           String? // 추후 변동 예정 사항
@@ -443,6 +447,9 @@ model StudentSuggestion {
   handledAt       DateTime?
   statusUpdatedAt DateTime? // 직원이 상태/답변 갱신한 시각 (학생 미확인 배지 기준)
   studentReadAt   DateTime? // 학생이 마지막 확인한 시각
+  hiddenAt        DateTime? // 숨김 처리(원장) — 직원 목록에서 숨김
+  deletedAt       DateTime? // 삭제 처리(원장) — 학생 포털에 '삭제됨' 안내
+  deletedById     String? // 삭제 처리한 원장 User.id
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
@@ -697,6 +704,9 @@ model OnlineParentReport {
   sentAt          DateTime?
   errorMessage    String? // DRAFT_FAILED 시 사유
   feedbacks       OnlineParentFeedback[]
+  selectedExamSessionId String? // 월간 리포트에 포함할 모의고사(ExamSession)
+  selectedExamSession   ExamSession?     @relation("MonthlyReportExam", fields: [selectedExamSessionId], references: [id], onDelete: SetNull)
+  profileSnapshot Json? // 생성 시점 학생 프로필 최신값 동결
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 
@@ -1052,6 +1062,7 @@ model ExamSession {
 
   assignments ExamSeatAssignment[]
   scores      ExamScore[]
+  monthlyReportSelections OnlineParentReport[] @relation("MonthlyReportExam")
 
   @@index([examDate])
 }
@@ -1382,10 +1393,30 @@ model Handover {
   checklist            HandoverChecklist[]
   monthlyNotesSnapshot Json?
   reads                HandoverRead[]
+  comments             HandoverComment[]
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
   @@index([date])
+}
+
+model HandoverComment {
+  id         String   @id @default(cuid())
+  handoverId String
+  handover   Handover @relation(fields: [handoverId], references: [id], onDelete: Cascade)
+  authorId   String? // 작성자 User.id 스냅샷
+  authorName String? // 표시용 이름 스냅샷
+  content    String   @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([handoverId, createdAt])
+}
+
+// 앱 전역 설정 key-value (예: 링크 공유 안내 문구 템플릿)
+model AppSetting {
+  key       String   @id // 예: "share_wording.parent_report"
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
 }
 
 model HandoverRead {

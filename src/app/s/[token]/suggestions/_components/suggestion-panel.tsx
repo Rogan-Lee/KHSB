@@ -143,20 +143,31 @@ export function SuggestionPanel({ token, initial }: { token: string; initial: Su
       ) : (
         <ul className="space-y-2.5">
           {initial.map((s) => (
-            <li key={s.id} className="rounded-[14px] border border-line bg-panel p-4">
+            <li key={s.id} className={`rounded-[14px] border border-line bg-panel p-4 ${s.deletedAt ? "opacity-70" : ""}`}>
               <div className="flex items-center gap-1.5">
                 <span className="rounded-full bg-canvas-2 px-2 py-0.5 text-[10.5px] font-medium text-ink-3">
                   {CATEGORY_LABELS[s.category]}
                 </span>
-                <span className={`rounded-full border px-2 py-0.5 text-[10.5px] font-medium ${STATUS_BADGE[s.status]}`}>
-                  {STATUS_LABELS[s.status]}
-                </span>
+                {s.deletedAt ? (
+                  <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10.5px] font-medium text-rose-600">
+                    삭제됨
+                  </span>
+                ) : (
+                  <span className={`rounded-full border px-2 py-0.5 text-[10.5px] font-medium ${STATUS_BADGE[s.status]}`}>
+                    {STATUS_LABELS[s.status]}
+                  </span>
+                )}
                 {s.hasUnseenUpdate && (
                   <span className="ml-auto inline-flex items-center rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold text-white">
                     업데이트
                   </span>
                 )}
               </div>
+              {s.deletedAt && (
+                <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-[12px] text-rose-600">
+                  이 건의사항은 관리자에 의해 삭제되었습니다.
+                </p>
+              )}
               <p className="mt-2 text-[15px] font-semibold leading-snug text-ink">{s.title}</p>
               <p className="mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-ink-3">{s.content}</p>
 
