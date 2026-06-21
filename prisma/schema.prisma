@@ -37,6 +37,24 @@ enum AuthInviteType {
   STUDENT
 }
 
+enum DevicePlatform {
+  IOS
+  ANDROID
+}
+
+enum PushNotificationCategory {
+  TASK
+  QUESTION
+  MENTORING
+  SYSTEM
+}
+
+enum PushNotificationStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
 enum AttendanceType {
   NORMAL
   ABSENT
@@ -407,24 +425,64 @@ model Student {
 // Better Auth의 로그인 계정. 기존 운영 User/Student 레코드와 분리해
 // Clerk 제거 시에도 도메인 PK와 모든 기존 FK를 그대로 유지한다.
 model AuthUser {
-  id              String        @id @default(cuid())
+  id              String            @id @default(cuid())
   name            String
-  email           String        @unique
-  emailVerified   Boolean       @default(false)
+  email           String            @unique
+  emailVerified   Boolean           @default(false)
   image           String?
-  username        String?       @unique
+  username        String?           @unique
   displayUsername String?
-  appUserId       String?       @unique
-  appUser         User?         @relation("AuthUserAppUser", fields: [appUserId], references: [id], onDelete: Cascade)
-  studentId       String?       @unique
-  student         Student?      @relation("AuthUserStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  appUserId       String?           @unique
+  appUser         User?             @relation("AuthUserAppUser", fields: [appUserId], references: [id], onDelete: Cascade)
+  studentId       String?           @unique
+  student         Student?          @relation("AuthUserStudent", fields: [studentId], references: [id], onDelete: Cascade)
   sessions        AuthSession[]
   accounts        AuthAccount[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  pushTokens      DevicePushToken[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   @@index([appUserId])
   @@index([studentId])
+}
+
+model DevicePushToken {
+  id               String                    @id @default(cuid())
+  authUserId       String
+  authUser         AuthUser                  @relation(fields: [authUserId], references: [id], onDelete: Cascade)
+  token            String                    @unique
+  projectId        String
+  platform         DevicePlatform
+  deviceName       String?
+  appVersion       String?
+  enabled          Boolean                   @default(true)
+  tasksEnabled     Boolean                   @default(true)
+  questionsEnabled Boolean                   @default(true)
+  mentoringEnabled Boolean                   @default(true)
+  lastSeenAt       DateTime                  @default(now())
+  receipts         PushNotificationReceipt[]
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  @@index([authUserId, enabled])
+  @@index([enabled, lastSeenAt])
+}
+
+model PushNotificationReceipt {
+  id                String                   @id @default(cuid())
+  expoReceiptId     String                   @unique
+  devicePushTokenId String
+  devicePushToken   DevicePushToken          @relation(fields: [devicePushTokenId], references: [id], onDelete: Cascade)
+  category          PushNotificationCategory
+  status            PushNotificationStatus   @default(PENDING)
+  errorCode         String?
+  errorMessage      String?
+  checkedAt         DateTime?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@index([status, createdAt])
+  @@index([devicePushTokenId, createdAt])
 }
 
 model AuthSession {

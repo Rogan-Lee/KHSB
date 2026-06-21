@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 
 import {
@@ -6,6 +6,7 @@ import {
   mobileJson,
   requireMobileOnlineStaff,
 } from "@/lib/mobile-auth";
+import { notifyStudentOfTaskFeedback } from "@/lib/mobile-push";
 import { createMobileTaskFeedback } from "@/lib/mobile-tasks";
 
 export async function POST(
@@ -24,6 +25,12 @@ export async function POST(
       body,
     );
     revalidatePath("/online/performance");
+    after(() =>
+      notifyStudentOfTaskFeedback({
+        status: result.status,
+        submissionId,
+      }),
+    );
     return mobileJson(result);
   } catch (error) {
     return mobileApiErrorResponse(error);

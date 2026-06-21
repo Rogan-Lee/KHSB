@@ -7,6 +7,7 @@ vi.mock("@/lib/auth", () => ({
 import { getAuthIdentity } from "@/lib/auth";
 import {
   MobileApiError,
+  requireMobileAccount,
   requireMobileStaff,
   requireMobileStudent,
 } from "@/lib/mobile-auth";
@@ -28,6 +29,21 @@ describe("mobile auth guards", () => {
 
     await expect(requireMobileStudent(request)).resolves.toMatchObject({
       id: "student-1",
+    });
+  });
+
+  it("returns the auth user ID for any active mobile account", async () => {
+    vi.mocked(getAuthIdentity).mockResolvedValue({
+      identity: {
+        appUser: null,
+        id: "auth-1",
+        student: { id: "student-1", status: "ACTIVE" },
+      },
+    } as never);
+
+    await expect(requireMobileAccount(request)).resolves.toMatchObject({
+      authUserId: "auth-1",
+      student: { id: "student-1" },
     });
   });
 

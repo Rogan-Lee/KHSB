@@ -24,6 +24,25 @@ export async function requireMobileStudent(request: NextRequest) {
   return student;
 }
 
+export async function requireMobileAccount(request: NextRequest) {
+  const current = await getAuthIdentity(request.headers);
+  if (!current) throw new MobileApiError("로그인이 필요합니다", 401);
+
+  const appUser = current.identity.appUser;
+  const student = current.identity.student;
+  const activeAppUser = appUser?.status === "ACTIVE" ? appUser : null;
+  const activeStudent = student?.status === "ACTIVE" ? student : null;
+  if (!activeAppUser && !activeStudent) {
+    throw new MobileApiError("사용할 수 없는 계정입니다", 403);
+  }
+
+  return {
+    appUser: activeAppUser,
+    authUserId: current.identity.id,
+    student: activeStudent,
+  };
+}
+
 export async function requireMobileStaff(request: NextRequest) {
   const current = await getAuthIdentity(request.headers);
   if (!current) throw new MobileApiError("로그인이 필요합니다", 401);

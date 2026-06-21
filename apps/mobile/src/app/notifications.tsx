@@ -29,6 +29,11 @@ import type {
   NotificationPermissionState,
   NotificationPreferences,
 } from '@/lib/notifications';
+import {
+  getRemotePushRegistrationState,
+  syncRemotePushRegistration,
+} from '@/lib/push-registration';
+import type { RemotePushRegistrationState } from '@/lib/push-registration';
 import { useSession } from '@/lib/session';
 
 const DEFAULT_PREFERENCES: NotificationPreferences = {
@@ -45,18 +50,23 @@ export default function NotificationSettingsScreen() {
   const [permission, setPermission] =
     useState<NotificationPermissionState>('undetermined');
   const [scheduledCount, setScheduledCount] = useState(0);
+  const [remoteStatus, setRemoteStatus] =
+    useState<RemotePushRegistrationState>('disabled');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
   const load = useCallback(async () => {
-    const [nextPreferences, nextPermission, nextCount] = await Promise.all([
-      getNotificationPreferences(),
-      getNotificationPermissionState(),
-      getScheduledTaskReminderCount(),
-    ]);
+    const [nextPreferences, nextPermission, nextCount, nextRemoteStatus] =
+      await Promise.all([
+        getNotificationPreferences(),
+        getNotificationPermissionState(),
+        getScheduledTaskReminderCount(),
+        getRemotePushRegistrationState(),
+      ]);
     setPreferences(nextPreferences);
     setPermission(nextPermission);
     setScheduledCount(nextCount);
+    setRemoteStatus(nextRemoteStatus);
   }, []);
 
   useFocusEffect(
@@ -74,6 +84,14 @@ export default function NotificationSettingsScreen() {
   async function persist(next: NotificationPreferences) {
     setPreferences(next);
     await saveNotificationPreferences(next);
+    if (session) {
+      try {
+        setRemoteStatus(await syncRemotePushRegistration(next));
+      } catch {
+        setRemoteStatus('error');
+        setMessage('설정은 저장했지만 원격 알림을 연결하지 못했습니다.');
+      }
+    }
     if (session?.role === 'student' && next.enabled && next.tasks) {
       try {
         const tasks = await requestMobileApi<StudentTasksResponse>(
@@ -148,6 +166,13 @@ export default function NotificationSettingsScreen() {
     undetermined: '허용 필요',
     unsupported: '앱에서 확인',
   }[permission];
+  const remoteStatusLabel = {
+    disabled: '원격 알림 꺼짐',
+    error: '원격 알림 연결 실패',
+    registered: '원격 알림 연결됨',
+    unconfigured: 'EAS 프로젝트 연결 필요',
+    unsupported: '실기기에서 연결',
+  }[remoteStatus];
 
   return (
     <AppScreen
@@ -190,7 +215,7 @@ export default function NotificationSettingsScreen() {
         />
         <Divider />
         <SettingRow
-          caption="원격 알림 연결 후 제공"
+          caption={remoteStatusLabel}
           disabled={busy || !preferences.enabled}
           icon={BellRing}
           onValueChange={(value) => void toggleCategory('answers', value)}
@@ -199,7 +224,7 @@ export default function NotificationSettingsScreen() {
         />
         <Divider />
         <SettingRow
-          caption="원격 알림 연결 후 제공"
+          caption="멘토링 일정 알림은 다음 단계에서 연결"
           disabled={busy || !preferences.enabled}
           icon={Settings2}
           onValueChange={(value) => void toggleCategory('mentoring', value)}
