@@ -19,6 +19,8 @@ import {
   type BulkCreateByStudentResult,
 } from "@/actions/parent-reports";
 import { enhanceMentoringWithAI, type EnhancedMentoringContent } from "@/actions/ai-enhance";
+import { getShareWording, setAppSetting } from "@/actions/app-settings";
+import { SHARE_WORDING_KEYS, renderShareWording } from "@/lib/share-wording";
 
 interface Props {
   rows: StudentReportRow[];
@@ -39,6 +41,31 @@ export function MentoringReportTab({ rows }: Props) {
   const [noteDraft, setNoteDraft] = useState<string>("");
   const [noteSaving, setNoteSaving] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  // 공유 문구 커스텀 (AppSetting)
+  const [wordingOpen, setWordingOpen] = useState(false);
+  const [wordingDraft, setWordingDraft] = useState<string | null>(null);
+  const [wordingSaving, setWordingSaving] = useState(false);
+
+  async function openWordingEditor() {
+    setWordingOpen(true);
+    if (wordingDraft === null) {
+      try { setWordingDraft(await getShareWording(SHARE_WORDING_KEYS.PARENT_REPORT)); }
+      catch { setWordingDraft(""); }
+    }
+  }
+  async function saveWording() {
+    if (wordingDraft === null) return;
+    setWordingSaving(true);
+    try {
+      await setAppSetting(SHARE_WORDING_KEYS.PARENT_REPORT, wordingDraft);
+      toast.success("공유 문구를 저장했어요");
+      setWordingOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "저장 실패 (원장만 가능)");
+    } finally {
+      setWordingSaving(false);
+    }
+  }
   const [copied, setCopied] = useState(false);
 
   // 활성 학생 바뀌면 편집 draft 리셋
@@ -177,7 +204,9 @@ export function MentoringReportTab({ rows }: Props) {
     }
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const lines = targets.map((r) => `${r.studentName} ${r.grade} — ${origin}/r/${r.parentReport!.token}`);
-    const text = `${targets.length}건의 학부모 리포트 링크\n\n${lines.join("\n")}`;
+    // 운영진이 커스텀한 공유 문구 템플릿 적용 ({count}, {links} 치환)
+    const template = await getShareWording(SHARE_WORDING_KEYS.PARENT_REPORT);
+    const text = renderShareWording(template, { count: targets.length, links: lines.join("\n") });
     await navigator.clipboard.writeText(text);
     toast.success(`${targets.length}건 링크 복사됨`);
   }
@@ -189,6 +218,29 @@ export function MentoringReportTab({ rows }: Props) {
         <span className="text-xs text-muted-foreground">
           총 {rows.length}명 · 생성 <b className="text-foreground">{createdCount}</b>건
         </span>
+        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={openWordingEditor}>
+          공유 문구 설정
+        </Button>
+        {wordingOpen && (
+          <div className="w-full mt-2 rounded-md border bg-background p-3 space-y-2">
+            <p className="text-xs text-muted-foreground">
+              링크 복사 시 문구. 사용 가능한 치환: <code className="bg-muted px-1 rounded">{"{count}"}</code> 링크 수, <code className="bg-muted px-1 rounded">{"{links}"}</code> 링크 목록
+            </p>
+            <Textarea
+              value={wordingDraft ?? ""}
+              onChange={(e) => setWordingDraft(e.target.value)}
+              rows={5}
+              className="text-sm"
+              placeholder="문구를 불러오는 중…"
+            />
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setWordingOpen(false)}>닫기</Button>
+              <Button size="sm" onClick={saveWording} disabled={wordingSaving || wordingDraft === null}>
+                {wordingSaving ? "저장 중…" : "저장 (원장)"}
+              </Button>
+            </div>
+          </div>
+        )}
         <div className="ml-auto flex items-center gap-2">
           {bulkBusy && (
             <span className="text-xs text-muted-foreground">

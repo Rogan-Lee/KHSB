@@ -22,7 +22,7 @@ export default async function VocabTestPage() {
       }),
       prisma.vocabTestEnrollment.findMany({
         where: { isActive: true },
-        include: { student: { select: { id: true, name: true, grade: true, school: true } } },
+        include: { student: { select: { id: true, name: true, grade: true, school: true, seat: true, vocabTestDate: true } } },
       }),
       prisma.vocabTestScore.findMany({
         include: { student: { select: { id: true, name: true, grade: true } } },
@@ -72,6 +72,25 @@ export default async function VocabTestPage() {
     unitsByBook[k].sort((a, b) => a.unit.localeCompare(b.unit, "ko", { numeric: true }));
   }
 
+  // 이번 주(직전 화요일 기준) 영단어 시험 미응시자 — 등록 학생 중 vocabTestDate 가 이번 주가 아닌 학생
+  const lastTuesday = (() => {
+    const now = new Date();
+    const day = now.getDay();
+    const daysBack = day === 0 ? 5 : day === 1 ? 6 : day - 2;
+    const t = new Date(now);
+    t.setDate(now.getDate() - daysBack);
+    t.setHours(0, 0, 0, 0);
+    return t;
+  })();
+  const noShows = enrollments
+    .filter((e) => !(e.student.vocabTestDate && new Date(e.student.vocabTestDate) >= lastTuesday))
+    .map((e) => e.student)
+    .sort((a, b) => {
+      const na = a.seat && /^\d+$/.test(a.seat) ? parseInt(a.seat, 10) : Number.MAX_SAFE_INTEGER;
+      const nb = b.seat && /^\d+$/.test(b.seat) ? parseInt(b.seat, 10) : Number.MAX_SAFE_INTEGER;
+      return na !== nb ? na - nb : a.name.localeCompare(b.name, "ko");
+    });
+
   const booksForClient = books.map((b) => ({
     id: b.id,
     name: b.name,
@@ -114,6 +133,12 @@ export default async function VocabTestPage() {
         <TabsList>
           <TabsTrigger value="online">온라인 시험</TabsTrigger>
           <TabsTrigger value="offline">오프라인 성적 입력</TabsTrigger>
+          <TabsTrigger value="noshow">
+            미응시 현황
+            {noShows.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">{noShows.length}</span>
+            )}
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="online" className="mt-4">
           <VocabOnlinePanel
@@ -124,6 +149,29 @@ export default async function VocabTestPage() {
         </TabsContent>
         <TabsContent value="offline" className="mt-4">
           <VocabTestBoard students={students} enrollments={enrollments} scores={scores} />
+        </TabsContent>
+        <TabsContent value="noshow" className="mt-4">
+          <div className="rounded-lg border">
+            <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-2.5 text-sm">
+              <span className="font-medium">이번 주 영단어 시험 미응시</span>
+              <span className="text-muted-foreground">{noShows.length}명 / 등록 {enrollments.length}명</span>
+            </div>
+            {noShows.length === 0 ? (
+              <p className="px-4 py-8 text-center text-sm text-muted-foreground">이번 주 미응시자가 없습니다 🎉</p>
+            ) : (
+              <ul className="divide-y">
+                {noShows.map((s) => (
+                  <li key={s.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                    <span className="w-10 font-mono text-xs text-muted-foreground">{s.seat ?? "—"}</span>
+                    <span className="font-medium">{s.name}</span>
+                    <span className="text-xs text-muted-foreground">{s.grade}</span>
+                    <span className="text-xs text-muted-foreground">{s.school ?? ""}</span>
+                    <span className="ml-auto rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">미응시</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
     </div>
