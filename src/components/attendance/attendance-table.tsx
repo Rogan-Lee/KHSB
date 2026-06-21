@@ -26,7 +26,7 @@ import { ColResizeHandle } from "@/components/ui/col-resize-handle";
 const ATTENDANCE_COL_DEFAULTS: Record<string, number> = {
   notes: 128, schoolGrade: 96, classGroup: 64, inout: 190, outing: 380,
   memo: 128, dailyChange: 128, plannedChange: 128, planner: 112,
-  studyPlan: 80, mockAnalysis: 80, schoolAnalysis: 80,
+  studyPlan: 80, mockAnalysis: 80, schoolAnalysis: 80, vocab: 92,
 };
 
 type StudentWithAttendance = Student & {
@@ -745,6 +745,7 @@ export function AttendanceTable({ students, today }: Props) {
             <col style={{ width: colW.studyPlan }} />
             <col style={{ width: colW.mockAnalysis }} />
             <col style={{ width: colW.schoolAnalysis }} />
+            <col style={{ width: colW.vocab }} />
           </colgroup>
           <thead>
             <tr className="border-b bg-muted text-muted-foreground text-xs font-medium">
@@ -822,6 +823,10 @@ export function AttendanceTable({ students, today }: Props) {
                     초기화
                   </button>
                 </div>
+              </th>
+              <th className="relative px-2 py-2.5 text-center">
+                <ColResizeHandle current={colW.vocab} onResize={(w) => setColW("vocab", w)} />
+                영단어
               </th>
             </tr>
           </thead>
@@ -1367,12 +1372,33 @@ export function AttendanceTable({ students, today }: Props) {
                     );
                   })}
 
+                  {/* 영단어 시험 상태 (이번 주) — 미대상/미응시/완료. 클릭 시 완료 토글(vocabTestDate). 추후 온라인 시험 상태와 연동. */}
+                  <td className="px-2 py-3 text-center align-middle">
+                    {!isVocabTarget ? (
+                      <span className="text-[11px] text-muted-foreground">—</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); saveCheckDate(student.id, "vocabTestDate", vocabDone ? null : new Date().toISOString().split("T")[0]); }}
+                        disabled={checkDatePending === `${student.id}:vocabTestDate`}
+                        title={vocabDone ? "완료 해제" : "완료로 표시"}
+                        className={cn(
+                          "px-2 py-0.5 text-[11px] rounded-full border font-medium transition-colors disabled:opacity-40",
+                          vocabDone
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                            : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                        )}
+                      >
+                        {checkDatePending === `${student.id}:vocabTestDate` ? "..." : vocabDone ? "완료" : "미응시"}
+                      </button>
+                    )}
+                  </td>
                 </tr>
 
                 {/* 타임라인 + 인라인 편집 확장 행 */}
                 {isExpanded && (
                   <tr className={cn("border-b", isSelected ? "bg-blue-50/60" : "bg-muted/20")}>
-                    <td colSpan={15} className="p-0">
+                    <td colSpan={16} className="p-0">
                       {/* 보이는 영역 폭에 고정 → 14열 가로 스크롤과 무관하게 패널은 좌우 스크롤 불요 */}
                       <div className="sticky left-0 px-4 py-4" style={{ width: stickyWidth }}>
                       {(() => {
