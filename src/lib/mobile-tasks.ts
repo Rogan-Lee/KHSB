@@ -454,5 +454,5 @@ export async function createMobileTaskFeedback(
     });
   }
 
-  return { ok: true };
+  return { ok: true, status: data.status };
 }

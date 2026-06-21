@@ -1,6 +1,7 @@
 import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
+import { RemotePushRegistration } from '@/components/remote-push-registration';
 import { colors } from '@/constants/theme';
 import { useNotificationRouting } from '@/lib/notifications';
 import { SessionProvider } from '@/lib/session';
@@ -22,6 +23,7 @@ export default function RootLayout() {
 
   return (
     <SessionProvider>
+      <RemotePushRegistration />
       <ThemeProvider value={navigationTheme}>
         <StatusBar style="dark" />
         <Stack screenOptions={{ headerShown: false }}>

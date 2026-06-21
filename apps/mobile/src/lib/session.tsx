@@ -119,6 +119,14 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }, [authSession.data?.user.id]);
 
   const signOut = useCallback(async () => {
+    try {
+      const { unregisterRemotePushToken } = await import(
+        '@/lib/push-registration'
+      );
+      await unregisterRemotePushToken();
+    } catch (error) {
+      console.warn('[remote-push-unregister]', error);
+    }
     await authClient.signOut();
     setProfile(null);
   }, []);

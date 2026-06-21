@@ -42,6 +42,7 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
 const ALLOWED_NOTIFICATION_ROUTES = new Set([
   '/(staff)/qna',
   '/(student)/qna',
+  '/notifications',
   '/staff-tasks',
   '/student-tasks',
 ]);
