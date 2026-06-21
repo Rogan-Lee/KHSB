@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Menu, User, Bell } from "lucide-react";
+import { LogOut, Menu, User, Bell, Monitor, Smartphone } from "lucide-react";
 import type { Role } from "@/generated/prisma";
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -33,9 +33,11 @@ interface AppHeaderProps {
   };
   title?: string;
   onMenuClick?: () => void;
+  viewMode?: "web" | "mobile";
+  onToggleViewMode?: () => void;
 }
 
-export function AppHeader({ user, title, onMenuClick }: AppHeaderProps) {
+export function AppHeader({ user, title, onMenuClick, viewMode, onToggleViewMode }: AppHeaderProps) {
   const { signOut } = useClerk();
 
   return (
@@ -48,6 +50,10 @@ export function AppHeader({ user, title, onMenuClick }: AppHeaderProps) {
         >
           <Menu className="h-5 w-5" />
         </button>
+        {/* 관리자 계정 식별용 컬러 칩 */}
+        <span className="inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[10.5px] font-semibold text-info-ink">
+          관리자 · {ROLE_LABELS[user.role]}
+        </span>
         {title && (
           <span className="text-[12.5px] font-medium text-ink-3 tracking-[-0.01em] md:hidden">
             {title}
@@ -55,6 +61,18 @@ export function AppHeader({ user, title, onMenuClick }: AppHeaderProps) {
         )}
       </div>
       <div className="flex items-center gap-1">
+        {/* 모바일/웹 뷰 전환 (데스크탑에서 모바일 레이아웃 미리보기) */}
+        {onToggleViewMode && (
+          <button
+            type="button"
+            onClick={onToggleViewMode}
+            className="hidden md:grid place-items-center w-[32px] h-[32px] rounded-[8px] text-ink-3 hover:text-ink hover:bg-canvas-2 transition-colors"
+            aria-label="뷰 전환"
+            title={viewMode === "mobile" ? "웹 뷰로 전환" : "모바일 뷰로 전환"}
+          >
+            {viewMode === "mobile" ? <Monitor className="h-4 w-4" /> : <Smartphone className="h-4 w-4" />}
+          </button>
+        )}
         <button
           type="button"
           className="grid place-items-center w-[32px] h-[32px] rounded-[8px] text-ink-3 hover:text-ink hover:bg-canvas-2 transition-colors"
