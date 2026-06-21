@@ -5,8 +5,9 @@
 // 서버 컴포넌트에서 사용 — searchParams 의 from/to 를 넘기면
 // Prisma where 절에 쓸 rangeFrom/rangeTo 와 클라이언트에 내려줄 initialFrom/initialTo 를 반환.
 
-export const DATE_RANGE_DEFAULT_BACK = 60;
-export const DATE_RANGE_DEFAULT_AHEAD = 14;
+// 기본값: 오늘(0일). 넓은 범위가 필요한 페이지는 호출부에서 opts 로 override.
+export const DATE_RANGE_DEFAULT_BACK = 0;
+export const DATE_RANGE_DEFAULT_AHEAD = 0;
 
 export function toIsoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

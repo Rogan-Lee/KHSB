@@ -18,10 +18,7 @@ import { PageIntro } from "@/components/ui/page-intro";
 
 export const revalidate = 10;
 
-// 기본 조회 범위: 최근 60일(이전) ~ 오늘+14일(이후 예정 포함). URL ?from=YYYY-MM-DD&to=YYYY-MM-DD 로 재조회.
-const DEFAULT_FROM_DAYS_BACK = 60;
-const DEFAULT_TO_DAYS_AHEAD = 14;
-
+// 기본 조회 범위: 전체(날짜 필터 없음). URL ?from=YYYY-MM-DD&to=YYYY-MM-DD 가 있을 때만 서버측 범위 적용.
 function parseDate(s: string | undefined, fallback: Date) {
   if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return fallback;
   const [y, m, d] = s.split("-").map(Number);
@@ -40,18 +37,20 @@ export default async function MentoringPage({
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
-  // 조회 범위(서버 필터). 멘토/취소/원생명/리포트유무 등은 클라이언트에서 즉시 필터.
+  // 조회 범위(서버 필터). 기본값은 전체(필터 없음) — from/to 가 있을 때만 범위 적용.
+  // 멘토/취소/원생명/리포트유무 등은 클라이언트에서 즉시 필터.
   const { from: fromParam, to: toParam } = await searchParams;
-  const defaultFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate() - DEFAULT_FROM_DAYS_BACK);
-  const defaultTo = new Date(now.getFullYear(), now.getMonth(), now.getDate() + DEFAULT_TO_DAYS_AHEAD, 23, 59, 59);
-  const rangeFrom = parseDate(fromParam, defaultFrom);
-  const rangeToStart = parseDate(toParam, defaultTo);
-  // 종료일은 KST 23:59:59 까지 포함
-  const rangeTo = new Date(rangeToStart.getFullYear(), rangeToStart.getMonth(), rangeToStart.getDate(), 23, 59, 59);
+  const hasRange = Boolean(fromParam || toParam);
   const toIsoDate = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const initialFrom = toIsoDate(rangeFrom);
-  const initialTo = toIsoDate(rangeTo);
+  const rangeFrom = hasRange ? parseDate(fromParam, new Date(2000, 0, 1)) : null;
+  const rangeToInput = hasRange ? parseDate(toParam, now) : null;
+  // 종료일은 KST 23:59:59 까지 포함
+  const rangeTo = rangeToInput
+    ? new Date(rangeToInput.getFullYear(), rangeToInput.getMonth(), rangeToInput.getDate(), 23, 59, 59)
+    : null;
+  const initialFrom = rangeFrom ? toIsoDate(rangeFrom) : "";
+  const initialTo = rangeTo ? toIsoDate(rangeTo) : "";
 
   // 이달 상벌점 집계 기간 (KST 월 시작/종료)
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -60,8 +59,8 @@ export default async function MentoringPage({
   // 모든 쿼리를 병렬 실행
   const [mentorings, todaySlots, mentors, vocabEnrolled, announcement, todayAttendance, meritAgg, reportRows] = await Promise.all([
     prisma.mentoring.findMany({
-      // 서버 측 날짜 필터 — cap 없이 범위 내 전체 조회 (취소 포함, 멘토/원생/취소 필터는 클라이언트)
-      where: { scheduledAt: { gte: rangeFrom, lte: rangeTo } },
+      // 서버 측 날짜 필터 — 기본 전체, from/to 가 있을 때만 범위 적용 (멘토/원생/취소 필터는 클라이언트)
+      where: hasRange ? { scheduledAt: { gte: rangeFrom!, lte: rangeTo! } } : undefined,
       include: {
         student: { select: { id: true, name: true, grade: true, seat: true, vocabTestDate: true, schedules: { select: { dayOfWeek: true, startTime: true, endTime: true } } } },
         mentor: { select: { id: true, name: true } },
