@@ -99,7 +99,6 @@ export const ROUTE_FEATURE_MAP: Record<string, FeatureKey> = {
   "/card-news": "card-news",
   "/messages": "kakao-messages",
   "/mentors": "mentors",
-  "/photos": "photos",
   "/payroll": "payroll",
   "/payroll/me": "payroll",
   "/admin/school-stats": "school-stats",

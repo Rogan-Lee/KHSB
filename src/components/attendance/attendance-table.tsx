@@ -19,6 +19,15 @@ import { TimePickerInput } from "@/components/ui/time-picker";
 import { CommunicationPanel } from "@/components/communications/communication-panel";
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
 import { StudentCalendarPanel } from "@/components/calendar/student-calendar-panel";
+import { useColumnWidths } from "@/hooks/use-column-widths";
+import { ColResizeHandle } from "@/components/ui/col-resize-handle";
+
+// 입퇴실 표 열 너비 기본값(px). 고정(좌측 sticky) 열은 sticky 오프셋과 맞물려 있어 조절 대상에서 제외.
+const ATTENDANCE_COL_DEFAULTS: Record<string, number> = {
+  notes: 128, schoolGrade: 96, classGroup: 64, inout: 190, outing: 380,
+  memo: 128, dailyChange: 128, plannedChange: 128, planner: 112,
+  studyPlan: 80, mockAnalysis: 80, schoolAnalysis: 80,
+};
 
 type StudentWithAttendance = Student & {
   attendances: AttendanceRecord[];
@@ -119,6 +128,11 @@ export function AttendanceTable({ students, today }: Props) {
   const todayDate = new Date(today).toISOString().split("T")[0];
   const scrollRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  // 입퇴실 표 열 너비 커스텀(localStorage 저장). 고정 sticky 열 제외 전 열 드래그 조절.
+  const { widths: colW, setWidth: setColW, reset: resetColW } = useColumnWidths(
+    "attendance-table-col-widths",
+    ATTENDANCE_COL_DEFAULTS,
+  );
 
   // 자정 넘김 감지: 서버에서 받은 날짜와 현재 KST 날짜가 다르면 자동 새로고침
   useEffect(() => {
@@ -693,6 +707,17 @@ export function AttendanceTable({ students, today }: Props) {
         {q && (
           <span className="text-xs text-muted-foreground">{displayStudents.length}명 검색됨</span>
         )}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="ml-auto h-8 px-2 text-xs text-muted-foreground"
+          onClick={resetColW}
+          title="열 너비를 기본값으로 되돌립니다"
+        >
+          <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
+          열 너비 초기화
+        </Button>
       </div>
       {/* 테이블 — 가로 스크롤 */}
       <div className="relative">
@@ -704,21 +729,39 @@ export function AttendanceTable({ students, today }: Props) {
         </div>
         <div ref={scrollRef} className="rounded-lg border overflow-hidden overflow-x-auto mx-6">
         <table className="text-sm border-collapse min-w-max w-full">
+          <colgroup>
+            <col style={{ width: 32 }} />
+            <col style={{ width: 48 }} />
+            <col style={{ width: 112 }} />
+            <col style={{ width: colW.notes }} />
+            <col style={{ width: colW.schoolGrade }} />
+            <col style={{ width: colW.classGroup }} />
+            <col style={{ width: colW.inout }} />
+            <col style={{ width: colW.outing }} />
+            <col style={{ width: colW.memo }} />
+            <col style={{ width: colW.dailyChange }} />
+            <col style={{ width: colW.plannedChange }} />
+            <col style={{ width: colW.planner }} />
+            <col style={{ width: colW.studyPlan }} />
+            <col style={{ width: colW.mockAnalysis }} />
+            <col style={{ width: colW.schoolAnalysis }} />
+          </colgroup>
           <thead>
             <tr className="border-b bg-muted text-muted-foreground text-xs font-medium">
               <th className="w-8 shrink-0 sticky left-0 bg-muted z-[3]" />
               <th className="px-3 py-2.5 text-center w-12 sticky left-8 bg-muted z-[3]">좌석</th>
               <th className="px-3 py-2.5 text-left w-28 sticky left-20 bg-muted z-[3] border-r border-border">이름</th>
-              <th className="px-3 py-2.5 text-left w-32 hidden lg:table-cell">특이사항</th>
-              <th className="px-3 py-2.5 text-left w-24 hidden md:table-cell">학교·학년</th>
-              <th className="px-3 py-2.5 text-left w-16 hidden lg:table-cell">반</th>
-              <th className="px-3 py-2.5 text-left" style={{ minWidth: "190px" }}>입퇴실</th>
-              <th className="px-3 py-2.5 text-left" style={{ minWidth: "380px" }}>외출</th>
-              <th className="px-3 py-2.5 text-left w-32 hidden lg:table-cell">메모</th>
-              <th className="px-3 py-2.5 text-left w-32 hidden lg:table-cell">당일변동</th>
-              <th className="px-3 py-2.5 text-left w-32 hidden xl:table-cell">변동예정</th>
-              <th className="px-3 py-2.5 text-center w-28 hidden md:table-cell">플래너 전송</th>
-              <th className="px-2 py-2.5 text-center w-20 hidden md:table-cell">
+              <th className="relative px-3 py-2.5 text-left hidden lg:table-cell">특이사항<ColResizeHandle current={colW.notes} onResize={(w) => setColW("notes", w)} /></th>
+              <th className="relative px-3 py-2.5 text-left hidden md:table-cell">학교·학년<ColResizeHandle current={colW.schoolGrade} onResize={(w) => setColW("schoolGrade", w)} /></th>
+              <th className="relative px-3 py-2.5 text-left hidden lg:table-cell">반<ColResizeHandle current={colW.classGroup} onResize={(w) => setColW("classGroup", w)} /></th>
+              <th className="relative px-3 py-2.5 text-left">입퇴실<ColResizeHandle current={colW.inout} onResize={(w) => setColW("inout", w)} /></th>
+              <th className="relative px-3 py-2.5 text-left">외출<ColResizeHandle current={colW.outing} onResize={(w) => setColW("outing", w)} /></th>
+              <th className="relative px-3 py-2.5 text-left hidden lg:table-cell">메모<ColResizeHandle current={colW.memo} onResize={(w) => setColW("memo", w)} /></th>
+              <th className="relative px-3 py-2.5 text-left hidden lg:table-cell">당일변동<ColResizeHandle current={colW.dailyChange} onResize={(w) => setColW("dailyChange", w)} /></th>
+              <th className="relative px-3 py-2.5 text-left hidden xl:table-cell">변동예정<ColResizeHandle current={colW.plannedChange} onResize={(w) => setColW("plannedChange", w)} /></th>
+              <th className="relative px-3 py-2.5 text-center hidden md:table-cell">플래너 전송<ColResizeHandle current={colW.planner} onResize={(w) => setColW("planner", w)} /></th>
+              <th className="relative px-2 py-2.5 text-center hidden md:table-cell">
+                <ColResizeHandle current={colW.studyPlan} onResize={(w) => setColW("studyPlan", w)} />
                 <div className="flex flex-col items-center gap-0.5">
                   <span>공부계획</span>
                   <button
@@ -738,7 +781,8 @@ export function AttendanceTable({ students, today }: Props) {
                   </button>
                 </div>
               </th>
-              <th className="px-2 py-2.5 text-center w-20 hidden md:table-cell">
+              <th className="relative px-2 py-2.5 text-center hidden md:table-cell">
+                <ColResizeHandle current={colW.mockAnalysis} onResize={(w) => setColW("mockAnalysis", w)} />
                 <div className="flex flex-col items-center gap-0.5">
                   <span>모의 분석</span>
                   <button
@@ -758,7 +802,8 @@ export function AttendanceTable({ students, today }: Props) {
                   </button>
                 </div>
               </th>
-              <th className="px-2 py-2.5 text-center w-20 hidden md:table-cell">
+              <th className="relative px-2 py-2.5 text-center hidden md:table-cell">
+                <ColResizeHandle current={colW.schoolAnalysis} onResize={(w) => setColW("schoolAnalysis", w)} />
                 <div className="flex flex-col items-center gap-0.5">
                   <span>내신 분석</span>
                   <button
