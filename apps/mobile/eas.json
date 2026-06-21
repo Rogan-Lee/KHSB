@@ -1,0 +1,49 @@
+{
+  "cli": {
+    "appVersionSource": "remote",
+    "promptToConfigurePushNotifications": true,
+    "version": ">= 16.0.0"
+  },
+  "build": {
+    "base": {
+      "credentialsSource": "remote",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://khsb.vercel.app"
+      }
+    },
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "environment": "development",
+      "extends": "base"
+    },
+    "simulator": {
+      "extends": "development",
+      "ios": {
+        "simulator": true
+      }
+    },
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal",
+      "environment": "preview",
+      "extends": "base"
+    },
+    "production": {
+      "autoIncrement": true,
+      "environment": "production",
+      "extends": "base"
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "releaseStatus": "draft",
+        "track": "internal"
+      },
+      "ios": {}
+    }
+  }
+}
