@@ -36,7 +36,10 @@ export function ColResizeHandle({
       role="separator"
       aria-orientation="vertical"
       title="드래그하여 열 너비 조절"
-      className="absolute top-0 right-0 z-[1] h-full w-1.5 cursor-col-resize touch-none select-none hover:bg-primary/40 active:bg-primary/60"
-    />
+      className="group absolute top-0 right-0 z-[1] flex h-full w-2 cursor-col-resize touch-none select-none items-stretch justify-center"
+    >
+      {/* 항상 보이는 얇은 구분선 — 호버 시 굵고 진하게 */}
+      <span className="h-full w-px bg-border transition-colors group-hover:w-0.5 group-hover:bg-primary/60 group-active:bg-primary" />
+    </span>
   );
 }

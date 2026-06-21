@@ -3,11 +3,12 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Trash2, MessageSquareReply, Loader2 } from "lucide-react";
+import { Trash2, MessageSquareReply, Loader2, EyeOff, Eye } from "lucide-react";
 import {
   setSuggestionStatus,
   replyToSuggestion,
   deleteStudentSuggestion,
+  setSuggestionHidden,
   type StaffSuggestionView,
 } from "@/actions/student-suggestions";
 import {
@@ -147,11 +148,11 @@ function SuggestionCard({ s, canDelete }: { s: StaffSuggestionView; canDelete: b
   }
 
   function remove() {
-    if (!confirm("이 건의사항을 삭제할까요?")) return;
+    if (!confirm("이 건의사항을 삭제할까요? 삭제하면 학생 포털에 '삭제됨'으로 안내됩니다.")) return;
     startTransition(async () => {
       try {
         await deleteStudentSuggestion(s.id);
-        toast.success("삭제했어요");
+        toast.success("삭제했어요 (학생에게 안내됩니다)");
         router.refresh();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "삭제 실패");
@@ -159,8 +160,20 @@ function SuggestionCard({ s, canDelete }: { s: StaffSuggestionView; canDelete: b
     });
   }
 
+  function toggleHidden() {
+    startTransition(async () => {
+      try {
+        await setSuggestionHidden({ id: s.id, hidden: !s.isHidden });
+        toast.success(s.isHidden ? "숨김 해제했어요" : "숨김 처리했어요");
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "변경 실패");
+      }
+    });
+  }
+
   return (
-    <li className="rounded-xl border bg-card p-4">
+    <li className={`rounded-xl border bg-card p-4 ${s.isHidden ? "opacity-60" : ""}`}>
       <div className="flex flex-wrap items-center gap-2">
         <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${STATUS_BADGE[s.status]}`}>
           {STATUS_LABELS[s.status]}
@@ -212,6 +225,17 @@ function SuggestionCard({ s, canDelete }: { s: StaffSuggestionView; canDelete: b
           >
             <MessageSquareReply className="h-3.5 w-3.5" /> {s.staffReply ? "답변 수정" : "답변"}
           </button>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={toggleHidden}
+              disabled={pending}
+              title={s.isHidden ? "숨김 해제" : "숨김 처리"}
+              className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-accent disabled:opacity-50"
+            >
+              {s.isHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+            </button>
+          )}
           {canDelete && (
             <button
               type="button"

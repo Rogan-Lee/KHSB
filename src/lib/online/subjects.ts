@@ -27,3 +27,41 @@ export function subjectOrderIndex(subject: string): number {
 export function sortBySubjectOrder<T>(items: T[], getSubject: (item: T) => string): T[] {
   return [...items].sort((a, b) => subjectOrderIndex(getSubject(a)) - subjectOrderIndex(getSubject(b)));
 }
+
+// ── 국어/수학 선택과목 + 탐구 과목 카탈로그 (학생 프로필 구조화용) ──
+export const KOREAN_ELECTIVES = ["화법과작문", "언어와매체"] as const;
+export const MATH_ELECTIVES = ["확률과통계", "미적분", "기하"] as const;
+export const INQUIRY_SUBJECTS = [
+  // 사회탐구
+  "생활과윤리", "윤리와사상", "한국지리", "세계지리",
+  "동아시아사", "세계사", "경제", "정치와법", "사회·문화",
+  // 과학탐구
+  "물리학Ⅰ", "물리학Ⅱ", "화학Ⅰ", "화학Ⅱ",
+  "생명과학Ⅰ", "생명과학Ⅱ", "지구과학Ⅰ", "지구과학Ⅱ",
+] as const;
+
+type SubjectElectives = {
+  koreanElective?: string | null;
+  mathElective?: string | null;
+  inquiry1Subject?: string | null;
+  inquiry2Subject?: string | null;
+};
+
+/**
+ * 기본 과목명 + 학생 선택과목 정보를 합쳐 표시용 라벨로 변환.
+ * 예) "국어" → "국어(언어와매체)", "탐구1" → "생활과윤리". 표시 전용(데이터 불변).
+ */
+export function resolveSubjectLabel(base: string, s: SubjectElectives): string {
+  switch (base) {
+    case "국어":
+      return s.koreanElective ? `국어(${s.koreanElective})` : "국어";
+    case "수학":
+      return s.mathElective ? `수학(${s.mathElective})` : "수학";
+    case "탐구1":
+      return s.inquiry1Subject || "탐구1";
+    case "탐구2":
+      return s.inquiry2Subject || "탐구2";
+    default:
+      return base;
+  }
+}
