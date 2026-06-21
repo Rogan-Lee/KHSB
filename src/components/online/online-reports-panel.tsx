@@ -58,6 +58,7 @@ export type OnlineReportRow = {
 };
 
 const STATUS_LABEL: Record<OnlineReportStatus, string> = {
+  QUEUED: "대기열",
   DRAFT: "초안",
   DRAFT_FAILED: "생성 실패",
   REVIEW: "편집 중",
@@ -66,6 +67,7 @@ const STATUS_LABEL: Record<OnlineReportStatus, string> = {
 };
 
 const STATUS_COLORS: Record<OnlineReportStatus, string> = {
+  QUEUED: "bg-violet-100 text-violet-800 border-violet-200",
   DRAFT: "bg-slate-100 text-slate-700 border-slate-200",
   DRAFT_FAILED: "bg-red-100 text-red-800 border-red-200",
   REVIEW: "bg-amber-100 text-amber-800 border-amber-200",
