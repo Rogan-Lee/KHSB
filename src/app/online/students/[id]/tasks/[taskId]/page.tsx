@@ -3,7 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { ChevronLeft, MessageSquarePlus, Inbox } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
-import { isOnlineStaff } from "@/lib/roles";
+import { isAnyStaff, isFullAccess } from "@/lib/roles";
+import { isResponsibleFor } from "@/lib/student-access";
 import {
   TaskSubmissionsThread,
   type SubmissionVersion,
@@ -27,12 +28,22 @@ export default async function StaffTaskDetailPage({
 }) {
   const { id, taskId } = await params;
   const user = await getUser();
-  if (!isOnlineStaff(user?.role)) redirect("/");
+  if (!isAnyStaff(user?.role)) redirect("/");
 
   const task = await prisma.performanceTask.findUnique({
     where: { id: taskId },
     include: {
-      student: { select: { id: true, name: true, grade: true } },
+      student: {
+        select: {
+          id: true,
+          name: true,
+          grade: true,
+          mentorId: true,
+          assignedMentorId: true,
+          assignedConsultantId: true,
+          assignedStaffId: true,
+        },
+      },
       result: true,
       submissions: {
         orderBy: { version: "desc" },
@@ -46,6 +57,10 @@ export default async function StaffTaskDetailPage({
     },
   });
   if (!task || task.student.id !== id) notFound();
+  // 전체 학생 대상 — 원장/SA는 전체, 그 외는 담당 학생만.
+  if (!isFullAccess(user?.role) && !isResponsibleFor(task.student, user?.id)) {
+    notFound();
+  }
 
   const versions: SubmissionVersion[] = task.submissions.map((s) => ({
     id: s.id,

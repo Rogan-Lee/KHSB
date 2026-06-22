@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isOnlineStaff } from "@/lib/roles";
+import { isAnyStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
 import type { PortalChatSenderType } from "@/generated/prisma/enums";
@@ -176,15 +176,17 @@ export async function listStudentChats(params: { studentToken: string }) {
 export async function listStaffInbox() {
   const session = await auth();
   const role = session?.user?.role;
-  if (!session?.user || !role || !isOnlineStaff(role)) {
+  if (!session?.user || !role || !isAnyStaff(role)) {
     throw new Error("권한이 없습니다");
   }
   const staffId = session.user.id;
 
-  // 담당 학생 자동으로 채팅방 보장
+  // 담당 학생 자동으로 채팅방 보장 (온라인 배정 + 오프라인 자습실 멘토 모두)
   const myStudents = await prisma.student.findMany({
     where: {
+      status: "ACTIVE",
       OR: [
+        { mentorId: staffId }, // 오프라인 자습실 담당 멘토
         { assignedMentorId: staffId },
         { assignedConsultantId: staffId },
         { assignedStaffId: staffId },
@@ -292,7 +294,7 @@ export async function getChatMessages(params: {
     const session = await auth();
     if (
       session?.user?.id === chat.staffId &&
-      isOnlineStaff(session.user.role)
+      isAnyStaff(session.user.role)
     ) {
       viewer = "STAFF";
     }
@@ -373,7 +375,7 @@ export async function sendChatMessage(params: {
     const session = await auth();
     if (
       session?.user?.id !== chat.staffId ||
-      !isOnlineStaff(session.user.role)
+      !isAnyStaff(session.user.role)
     ) {
       throw new Error("권한이 없습니다");
     }
@@ -442,7 +444,7 @@ export async function markChatRead(params: {
     const session = await auth();
     if (
       session?.user?.id !== chat.staffId ||
-      !isOnlineStaff(session.user.role)
+      !isAnyStaff(session.user.role)
     ) {
       throw new Error("권한이 없습니다");
     }

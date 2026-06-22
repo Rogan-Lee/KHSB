@@ -1,9 +1,9 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
-import { isFullAccess } from "@/lib/roles";
+import { isFullAccess, isOnlineStaff } from "@/lib/roles";
 import { ReassignOnlineStudentForm } from "@/components/online/reassign-online-student-form";
 import { MagicLinkManager } from "@/components/online/magic-link-manager";
 import { ChevronLeft } from "lucide-react";
@@ -15,6 +15,8 @@ export default async function OnlineStudentDetailPage({
 }) {
   const { id } = await params;
   const user = await getUser();
+  // 온라인 학생 상세는 온라인 직원 전용 (레이아웃은 전 직원 허용으로 완화됨)
+  if (!isOnlineStaff(user?.role)) redirect("/");
   const canManage = isFullAccess(user?.role);
 
   const student = await prisma.student.findUnique({

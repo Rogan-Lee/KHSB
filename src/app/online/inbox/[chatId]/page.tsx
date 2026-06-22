@@ -2,7 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { getUser } from "@/lib/auth";
-import { isOnlineStaff } from "@/lib/roles";
+import { isAnyStaff } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import {
   getChatMessages,
@@ -18,7 +18,7 @@ export default async function StaffInboxChatPage({
 }) {
   const user = await getUser();
   if (!user) redirect("/sign-in");
-  if (!isOnlineStaff(user.role)) redirect("/online");
+  if (!isAnyStaff(user.role)) redirect("/");
 
   const { chatId } = await params;
 

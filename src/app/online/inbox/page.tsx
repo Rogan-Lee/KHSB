@@ -1,16 +1,16 @@
 import { redirect } from "next/navigation";
 import { MessageCircle } from "lucide-react";
 import { getUser } from "@/lib/auth";
-import { isOnlineStaff } from "@/lib/roles";
+import { isAnyStaff } from "@/lib/roles";
 import { listStaffInbox } from "@/actions/online/portal-chat";
 import { InboxListPanel } from "@/components/online/chat/inbox-list-panel";
 
-export const metadata = { title: "학생 메시지 · 온라인 관리" };
+export const metadata = { title: "학생 메시지" };
 
 export default async function StaffInboxPage() {
   const user = await getUser();
   if (!user) redirect("/sign-in");
-  if (!isOnlineStaff(user.role)) redirect("/online");
+  if (!isAnyStaff(user.role)) redirect("/");
 
   const chats = await listStaffInbox();
   const totalUnread = chats.reduce((sum, c) => sum + c.unread, 0);
