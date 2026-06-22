@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireOnlineStaff, requireFullAccess } from "@/lib/roles";
+import { requireAnyStaff, requireFullAccess } from "@/lib/roles";
+import { assertCanManageStudent } from "@/lib/student-access";
 import type { UploadedFile } from "@/actions/online/task-submissions";
 
 /**
@@ -18,13 +19,18 @@ export async function updateTaskResult(params: {
   finalFiles?: UploadedFile[] | null; // null = 변경 없음, [] = 빈 리스트로 리셋
 }) {
   const session = await auth();
-  requireOnlineStaff(session?.user?.role);
+  requireAnyStaff(session?.user?.role);
 
   const task = await prisma.performanceTask.findUnique({
     where: { id: params.taskId },
     select: { id: true, studentId: true, status: true },
   });
   if (!task) throw new Error("수행평가를 찾을 수 없습니다");
+  await assertCanManageStudent(
+    session?.user?.role,
+    session?.user?.id,
+    task.studentId
+  );
   if (task.status !== "DONE") {
     throw new Error("최종 완료(DONE) 상태의 수행평가만 결과물 편집 가능");
   }
@@ -69,13 +75,18 @@ export async function toggleTaskResultReportFlag(params: {
   includeInReport: boolean;
 }) {
   const session = await auth();
-  requireOnlineStaff(session?.user?.role);
+  requireAnyStaff(session?.user?.role);
 
   const task = await prisma.performanceTask.findUnique({
     where: { id: params.taskId },
     select: { studentId: true },
   });
   if (!task) throw new Error("수행평가를 찾을 수 없습니다");
+  await assertCanManageStudent(
+    session?.user?.role,
+    session?.user?.id,
+    task.studentId
+  );
 
   await prisma.taskResult.update({
     where: { taskId: params.taskId },
