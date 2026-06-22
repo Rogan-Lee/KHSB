@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
-import { isFullAccess } from "@/lib/roles";
+import { isAnyStaff, isFullAccess } from "@/lib/roles";
+import { isResponsibleFor } from "@/lib/student-access";
 import {
   PerformanceTaskList,
   type PerformanceTaskRow,
@@ -16,13 +17,28 @@ export default async function StudentPerformanceTasksPage({
 }) {
   const { id } = await params;
   const user = await getUser();
-  const canManage = isFullAccess(user?.role) || user?.role === "CONSULTANT";
+  if (!isAnyStaff(user?.role)) notFound();
+  const canManage = isAnyStaff(user?.role);
 
   const student = await prisma.student.findUnique({
     where: { id },
-    select: { id: true, name: true, isOnlineManaged: true, grade: true },
+    select: {
+      id: true,
+      name: true,
+      grade: true,
+      mentorId: true,
+      assignedMentorId: true,
+      assignedConsultantId: true,
+      assignedStaffId: true,
+    },
   });
-  if (!student || !student.isOnlineManaged) notFound();
+  // 전체 학생 대상 — 원장/SA는 전체, 그 외는 담당 학생만.
+  if (
+    !student ||
+    (!isFullAccess(user?.role) && !isResponsibleFor(student, user?.id))
+  ) {
+    notFound();
+  }
 
   const tasks = await prisma.performanceTask.findMany({
     where: { studentId: id },

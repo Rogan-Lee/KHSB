@@ -45,7 +45,14 @@ import {
   MessageSquarePlus,
 } from "lucide-react";
 
-type NavItem = { href: string; label: string; icon: React.ElementType; feature?: FeatureKey };
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  feature?: FeatureKey;
+  // 역할별 노출 제어. 미지정 시 섹션이 렌더되는 모든 역할에 노출.
+  show?: (role?: string | null) => boolean;
+};
 type NavSection = { label?: string; items: NavItem[] };
 
 const navSections: NavSection[] = [
@@ -68,7 +75,10 @@ const navSections: NavSection[] = [
       { href: "/questions", label: "학생 질문", icon: HelpCircle },
       { href: "/suggestions", label: "학생 건의사항", icon: MessageSquarePlus },
       { href: "/assignments", label: "과제 관리", icon: ClipboardCheck, feature: "assignments" },
+      { href: "/online/performance", label: "수행평가", icon: ClipboardCheck },
       { href: "/exams", label: "시험 관리", icon: GraduationCap, feature: "exam-scores" },
+      // 등원 스케줄(시간표 제안→학부모 승인 검토)은 원장/SA만.
+      { href: "/online/schedules", label: "등원 스케줄", icon: CalendarClock, show: isFullAccess },
     ],
   },
   {
@@ -88,21 +98,20 @@ const navSections: NavSection[] = [
       { href: "/calendar", label: "캘린더", icon: CalendarDays, feature: "calendar" },
       { href: "/meeting-minutes", label: "회의록", icon: NotebookText, feature: "meeting-minutes" },
       { href: "/messages", label: "카카오 메시지", icon: MessageCircle, feature: "kakao-messages" },
+      { href: "/online/inbox", label: "학생 메시지", icon: MessageSquare },
       { href: "/requests", label: "요청사항", icon: Megaphone, feature: "requests" },
     ],
   },
 ];
 
 // 온라인 관리 모듈. ONLINE_ROLES(원장·SUPER_ADMIN·CONSULTANT·MANAGER_MENTOR) 에만 노출.
+// 등원 스케줄·수행평가·학생 메시지는 전체 학생 대상이므로 navSections(일반 그룹)로 이동함.
 const onlineSection: NavSection = {
   label: "온라인 관리",
   items: [
     { href: "/online", label: "온라인 대시보드", icon: Globe },
     { href: "/online/students", label: "온라인 학생", icon: Users },
-    { href: "/online/schedules", label: "등원 스케줄", icon: CalendarClock },
-    { href: "/online/performance", label: "수행평가", icon: ClipboardCheck },
     { href: "/online/sessions", label: "화상 1:1 세션", icon: Video },
-    { href: "/online/inbox", label: "학생 메시지", icon: MessageCircle },
     { href: "/online/daily-log", label: "일일 보고", icon: MessageSquare },
     { href: "/online/reports", label: "학부모 보고서", icon: FileText },
   ],
@@ -245,16 +254,20 @@ export function AppSidebar({
     );
   };
 
-  const renderSection = ({ label, items }: NavSection, idx: number) => (
-    <div key={idx} className={cn("space-y-[1px]", idx > 0 && "pt-[18px]")}>
-      {label && !collapsed && (
-        <p className="px-2 pb-1.5 text-[11px] font-semibold text-ink-4 tracking-[-0.005em]">
-          {label}
-        </p>
-      )}
-      {items.map(renderLink)}
-    </div>
-  );
+  const renderSection = ({ label, items }: NavSection, idx: number) => {
+    const visible = items.filter((it) => (it.show ? it.show(role) : true));
+    if (visible.length === 0) return null;
+    return (
+      <div key={idx} className={cn("space-y-[1px]", idx > 0 && "pt-[18px]")}>
+        {label && !collapsed && (
+          <p className="px-2 pb-1.5 text-[11px] font-semibold text-ink-4 tracking-[-0.005em]">
+            {label}
+          </p>
+        )}
+        {visible.map(renderLink)}
+      </div>
+    );
+  };
 
   const isCollapsed = !mobile && collapsed;
 

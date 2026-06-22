@@ -64,6 +64,19 @@ export function requireOnlineStaff(role?: string | null) {
   if (!isOnlineStaff(role)) throw new Error("Forbidden");
 }
 
+// ─── 온라인+오프라인 통합 직원 가드 ───
+// STAFF_ROLES(자습실)와 ONLINE_ROLES(컨설턴트·총괄멘토)는 SUPER_ADMIN/DIRECTOR 외
+// 서로소이므로, 전 직원 대상 기능(수행평가·학생 메시지 등)은 둘의 합집합으로 판별.
+
+/** 오프라인 자습실 직원 또는 온라인 관리 직원이면 true */
+export function isAnyStaff(role?: string | null): boolean {
+  return isStaff(role) || isOnlineStaff(role);
+}
+
+export function requireAnyStaff(role?: string | null) {
+  if (!isAnyStaff(role)) throw new Error("Forbidden");
+}
+
 export function isConsultant(role?: string | null): boolean {
   return role === "CONSULTANT";
 }

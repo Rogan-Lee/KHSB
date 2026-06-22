@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getUser } from "@/lib/auth";
-import { isOnlineStaff, isFullAccess } from "@/lib/roles";
+import { isAnyStaff, isFullAccess } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 
 export default async function OnlineLayout({
@@ -11,7 +11,9 @@ export default async function OnlineLayout({
 }) {
   const user = await getUser();
   if (!user) redirect("/sign-in");
-  if (!isOnlineStaff(user.role)) redirect("/");
+  // 전 직원 대상 화면(수행평가·학생 메시지·등원 스케줄)이 /online/* 하위에 있으므로
+  // 레이아웃은 전 직원 허용. 온라인 전용 화면은 각 페이지에서 isOnlineStaff/isFullAccess 로 가드.
+  if (!isAnyStaff(user.role)) redirect("/");
 
   // 사이드바 미확인 배지 — 원장만 학부모 피드백 카운트 표시
   const sidebarBadges: Record<string, number> = {};
