@@ -469,15 +469,20 @@ function monthRange(yearMonth: string): { start: Date; end: Date } {
 
 async function collectMonthlyInputs(
   studentId: string,
-  yearMonth: string
+  yearMonth: string,
+  selectedExamSessionId?: string | null,
 ): Promise<MonthlyReportInputs> {
   const { start, end } = monthRange(yearMonth);
 
-  const [student, dailyLogs, subjectProgress, completedResults, weeklyPlans, monthlyPlan] =
+  const [student, dailyLogs, subjectProgress, completedResults, weeklyPlans, monthlyPlan, examSession] =
     await Promise.all([
       prisma.student.findUnique({
         where: { id: studentId },
-        select: { name: true, grade: true },
+        select: {
+          name: true, grade: true,
+          mockScoreRange: true, internalScoreRange: true, targetUniversity: true,
+          admissionType: true, selectedSubjects: true,
+        },
       }),
       prisma.dailyKakaoLog.findMany({
         where: { studentId, logDate: { gte: start, lte: end } },
@@ -503,6 +508,18 @@ async function collectMonthlyInputs(
       prisma.monthlyPlan.findUnique({
         where: { studentId_yearMonth: { studentId, yearMonth } },
       }),
+      selectedExamSessionId
+        ? prisma.examSession.findUnique({
+            where: { id: selectedExamSessionId },
+            select: {
+              title: true, examDate: true,
+              scores: {
+                where: { studentId },
+                select: { subject: true, grade: true, rawScore: true, percentile: true },
+              },
+            },
+          })
+        : Promise.resolve(null),
     ]);
 
   if (!student) throw new Error("학생을 찾을 수 없습니다");
@@ -513,6 +530,20 @@ async function collectMonthlyInputs(
     yearMonth,
     periodStartIso: start.toISOString().slice(0, 10),
     periodEndIso: end.toISOString().slice(0, 10),
+    profile: {
+      mockScoreRange: student.mockScoreRange,
+      internalScoreRange: student.internalScoreRange,
+      targetUniversity: student.targetUniversity,
+      admissionType: student.admissionType,
+      selectedSubjects: student.selectedSubjects,
+    },
+    mockExam: examSession
+      ? {
+          title: examSession.title,
+          examDate: examSession.examDate.toISOString().slice(0, 10),
+          scores: examSession.scores,
+        }
+      : null,
     dailyLogs,
     subjectProgress,
     completedTaskResults: completedResults.map((r) => ({
@@ -541,11 +572,22 @@ async function collectMonthlyInputs(
 export async function generateMonthlyReportDraft(params: {
   studentId: string;
   yearMonth: string;
+  selectedExamSessionId?: string | null;
 }): Promise<{ reportId: string; status: "DRAFT" | "DRAFT_FAILED" }> {
   const { start, end } = monthRange(params.yearMonth);
 
+  // 명시 전달이 없으면 기존 리포트에 저장된 모의고사 선택을 유지(재생성 시 드리프트 방지)
+  let examSessionId = params.selectedExamSessionId;
+  if (examSessionId === undefined) {
+    const existing = await prisma.onlineParentReport.findUnique({
+      where: { studentId_type_periodStart: { studentId: params.studentId, type: "MONTHLY", periodStart: start } },
+      select: { selectedExamSessionId: true },
+    });
+    examSessionId = existing?.selectedExamSessionId ?? null;
+  }
+
   try {
-    const inputs = await collectMonthlyInputs(params.studentId, params.yearMonth);
+    const inputs = await collectMonthlyInputs(params.studentId, params.yearMonth, examSessionId);
     const { systemPrompt, userPrompt } = buildMonthlyReportPrompt(inputs);
     const markdown = await callGroqWithRetry(systemPrompt, userPrompt);
 
@@ -553,6 +595,7 @@ export async function generateMonthlyReportDraft(params: {
       markdown,
       generatedAt: new Date().toISOString(),
     };
+    const profileSnapshot = inputs.profile ?? undefined;
 
     const report = await prisma.onlineParentReport.upsert({
       where: {
@@ -562,7 +605,7 @@ export async function generateMonthlyReportDraft(params: {
           periodStart: start,
         },
       },
-      update: { content, status: "DRAFT", errorMessage: null, periodEnd: end },
+      update: { content, status: "DRAFT", errorMessage: null, periodEnd: end, selectedExamSessionId: examSessionId, profileSnapshot },
       create: {
         studentId: params.studentId,
         type: "MONTHLY",
@@ -570,6 +613,8 @@ export async function generateMonthlyReportDraft(params: {
         periodEnd: end,
         content,
         status: "DRAFT",
+        selectedExamSessionId: examSessionId,
+        profileSnapshot,
       },
     });
     return { reportId: report.id, status: "DRAFT" };
@@ -596,6 +641,41 @@ export async function generateMonthlyReportDraft(params: {
     });
     return { reportId: report.id, status: "DRAFT_FAILED" };
   }
+}
+
+/** 월간 리포트에 포함할 모의고사 선택 변경 후 재생성 (원장). */
+export async function setMonthlyReportExamSession(
+  reportId: string,
+  examSessionId: string | null,
+): Promise<{ reportId: string; status: "DRAFT" | "DRAFT_FAILED" }> {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+
+  const report = await prisma.onlineParentReport.findUnique({
+    where: { id: reportId },
+    select: { studentId: true, type: true, periodStart: true },
+  });
+  if (!report) throw new Error("리포트를 찾을 수 없습니다");
+  if (report.type !== "MONTHLY") throw new Error("월간 리포트만 모의고사를 선택할 수 있습니다");
+
+  const yearMonth = report.periodStart.toISOString().slice(0, 7);
+  return generateMonthlyReportDraft({ studentId: report.studentId, yearMonth, selectedExamSessionId: examSessionId });
+}
+
+/** 해당 학생의 성적이 있는 모의고사(ExamSession) 목록 — 셀렉터용 (원장). */
+export async function listSelectableExamSessions(studentId: string): Promise<
+  { id: string; title: string; examDate: string }[]
+> {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+
+  const sessions = await prisma.examSession.findMany({
+    where: { scores: { some: { studentId } } },
+    orderBy: { examDate: "desc" },
+    select: { id: true, title: true, examDate: true },
+    take: 24,
+  });
+  return sessions.map((s) => ({ id: s.id, title: s.title, examDate: s.examDate.toISOString().slice(0, 10) }));
 }
 
 export async function batchGenerateMonthlyReports(params: {

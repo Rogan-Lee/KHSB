@@ -19,8 +19,10 @@ import { listStudentPortalLinks } from "@/actions/student-portal-links";
 import { auth } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
 import { PortalLinksPanel } from "@/components/students/portal-links-panel";
+import { PreRegistrationPanel } from "@/components/students/pre-registration-panel";
+import { listPreRegistrations } from "@/actions/pre-registrations";
 
-const VALID_TABS = ["list", "schedule", "import", "scores-import", "sheets", "portal-links"] as const;
+const VALID_TABS = ["list", "schedule", "pre-registration", "import", "scores-import", "sheets", "portal-links"] as const;
 type TabValue = (typeof VALID_TABS)[number];
 
 export default async function StudentsPage({
@@ -49,6 +51,7 @@ export default async function StudentsPage({
     listStudentPortalLinks(),
     auth(),
   ]);
+  const preRegistrations = await listPreRegistrations();
   const canManagePortalLinks = isFullAccess(session?.user.role);
 
   const googleAuthUrl = isOAuthAppConfigured() ? getGoogleAuthUrl() : "";
@@ -78,6 +81,12 @@ export default async function StudentsPage({
           <TabsList>
             <TabsTrigger value="list">원생 목록</TabsTrigger>
             <TabsTrigger value="schedule">입퇴실 일정</TabsTrigger>
+            <TabsTrigger value="pre-registration">
+              예비등록
+              {preRegistrations.length > 0 && (
+                <span className="ml-1.5 rounded-full bg-violet-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">{preRegistrations.length}</span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="portal-links">포털 링크</TabsTrigger>
             <TabsTrigger value="import">원생 CSV 가져오기</TabsTrigger>
             <TabsTrigger value="scores-import">성적 CSV 업로드</TabsTrigger>
@@ -97,6 +106,14 @@ export default async function StudentsPage({
 
         <TabsContent value="schedule" className="mt-3">
           <StudentsScheduleTable students={activeStudents} />
+        </TabsContent>
+
+        <TabsContent value="pre-registration" className="mt-3">
+          <Card className="rounded-[12px] border-line shadow-[var(--shadow-xs)]">
+            <CardContent className="pt-5">
+              <PreRegistrationPanel initial={preRegistrations} canFormalize={canManagePortalLinks} />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="portal-links" className="mt-3">

@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { HandoverPriority } from "@/generated/prisma";
-import { STAFF_ROLES } from "@/lib/roles";
+import { STAFF_ROLES, requireStaff, isFullAccess } from "@/lib/roles";
 import { todayKST } from "@/lib/utils";
 
 // ── 조회 ──────────────────────────────────────────────────────────────────────
@@ -100,8 +100,46 @@ export async function getHandoverById(id: string) {
       reads: { select: { userId: true, userName: true, readAt: true } },
       tasks: { orderBy: { order: "asc" } },
       checklist: { orderBy: { order: "asc" } },
+      comments: { orderBy: { createdAt: "asc" } },
     },
   });
+}
+
+/** 인수인계 댓글 작성 (직원). */
+export async function addHandoverComment(handoverId: string, content: string) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+  const text = content.trim();
+  if (!text) throw new Error("댓글 내용을 입력해 주세요");
+  if (text.length > 1000) throw new Error("댓글은 1000자 이하로 작성해 주세요");
+
+  await prisma.handoverComment.create({
+    data: {
+      handoverId,
+      authorId: session!.user!.id,
+      authorName: session!.user!.name ?? "",
+      content: text,
+    },
+  });
+  revalidatePath(`/handover/${handoverId}`);
+  return { ok: true };
+}
+
+/** 인수인계 댓글 삭제 (작성자 또는 관리자). */
+export async function deleteHandoverComment(commentId: string) {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+  const comment = await prisma.handoverComment.findUnique({
+    where: { id: commentId },
+    select: { authorId: true, handoverId: true },
+  });
+  if (!comment) throw new Error("댓글을 찾을 수 없습니다");
+  if (comment.authorId !== session!.user!.id && !isFullAccess(session?.user?.role)) {
+    throw new Error("삭제 권한이 없습니다");
+  }
+  await prisma.handoverComment.delete({ where: { id: commentId } });
+  revalidatePath(`/handover/${comment.handoverId}`);
+  return { ok: true };
 }
 
 export async function getTodayHandover() {
