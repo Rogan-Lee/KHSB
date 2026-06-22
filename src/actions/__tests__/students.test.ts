@@ -13,13 +13,14 @@ vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
 import { auth } from "@/lib/auth";
 import { createStudent } from "@/actions/students";
+import { mockSession } from "./_helpers";
 
-const mockSession = { user: { id: "user-1", role: "DIRECTOR", name: "원장" } };
+const session = mockSession({ id: "user-1", role: "DIRECTOR", name: "원장" });
 
 describe("createStudent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(auth).mockResolvedValue(mockSession);
+    vi.mocked(auth).mockResolvedValue(session);
   });
 
   it("throws ZodError when required field 'name' is missing", async () => {

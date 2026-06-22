@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sparkles, CalendarClock } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
@@ -11,6 +11,7 @@ import {
 } from "@/lib/online/month";
 import { ReportsTypeNav } from "@/components/online/reports-type-nav";
 import { MonthlyBatchButton } from "@/components/online/monthly-batch-button";
+import { MonthlyEnqueueButton } from "@/components/online/monthly-enqueue-button";
 import type { OnlineReportStatus } from "@/generated/prisma";
 
 const STATUS_LABEL: Record<OnlineReportStatus, string> = {
@@ -106,7 +107,17 @@ export default async function MonthlyReportsPage({
           총 <b className="text-foreground">{students.length}</b>명 · 생성{" "}
           <b className="text-foreground">{createdCount}</b>건
         </span>
-        <MonthlyBatchButton yearMonth={yearMonth} />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/online/reports/queue"
+            className="inline-flex items-center gap-1 text-[12px] text-ink-4 hover:text-ink"
+          >
+            <CalendarClock className="h-3.5 w-3.5" />
+            예약 대기열
+          </Link>
+          <MonthlyEnqueueButton yearMonth={yearMonth} />
+          <MonthlyBatchButton yearMonth={yearMonth} />
+        </div>
       </section>
 
       {students.length === 0 ? (
