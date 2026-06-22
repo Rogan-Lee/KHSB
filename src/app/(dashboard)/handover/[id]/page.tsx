@@ -18,6 +18,8 @@ import {
 import { ConfirmButton } from "./confirm-button";
 import { ChecklistToggleButton } from "./checklist-toggle-button";
 import { TaskToggleButton } from "./task-toggle-button";
+import { HandoverComments } from "./handover-comments";
+import { isFullAccess } from "@/lib/roles";
 
 export default async function HandoverDetailPage({
   params,
@@ -189,6 +191,14 @@ export default async function HandoverDetailPage({
           <ConfirmButton handoverId={handover.id} />
         )}
       </div>
+
+      {/* 댓글 */}
+      <HandoverComments
+        handoverId={handover.id}
+        comments={handover.comments}
+        currentUserId={session.user.id}
+        canModerate={isFullAccess(session.user.role)}
+      />
     </div>
   );
 }

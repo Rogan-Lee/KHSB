@@ -322,6 +322,10 @@ model Student {
   attentionFlaggedById String? // 플래그한 운영진 User.id 스냅샷 (FK 미설정 — createdById 패턴 동일)
   // ─────────────────────────────────
   selectedSubjects     String? // 선택과목 (예: "수학, 영어, 사탐")
+  koreanElective       String? // 국어 선택과목: "화법과작문" | "언어와매체"
+  mathElective         String? // 수학 선택과목: "확률과통계" | "미적분" | "기하"
+  inquiry1Subject      String? // 탐구1 과목명 (예: "생활과윤리")
+  inquiry2Subject      String? // 탐구2 과목명 (예: "사회·문화")
   admissionType        String? // 대학 입시 전형 (예: "수시 학종, 정시")
   onlineLectures       String? // 수강중인 인강 (예: "메가스터디 수학")
   changeNote           String? // 추후 변동 예정 사항
@@ -384,6 +388,7 @@ model Student {
   examSeatAssignments  ExamSeatAssignment[]
   photos               Photo[]
   patrolRecords        PatrolRecord[]
+  scheduleProposals    ScheduleProposal[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 
@@ -443,6 +448,9 @@ model StudentSuggestion {
   handledAt       DateTime?
   statusUpdatedAt DateTime? // 직원이 상태/답변 갱신한 시각 (학생 미확인 배지 기준)
   studentReadAt   DateTime? // 학생이 마지막 확인한 시각
+  hiddenAt        DateTime? // 숨김 처리(원장) — 직원 목록에서 숨김
+  deletedAt       DateTime? // 삭제 처리(원장) — 학생 포털에 '삭제됨' 안내
+  deletedById     String? // 삭제 처리한 원장 User.id
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
 
@@ -670,6 +678,7 @@ enum OnlineReportType {
 }
 
 enum OnlineReportStatus {
+  QUEUED // 생성 대기열 (배치 생성 대기) — online-report-queue
   DRAFT // AI 초안 생성 완료 (원장 검토 대기)
   DRAFT_FAILED // Groq 배치 생성 중 실패 (rate limit 등) — 재시도 UI 노출
   REVIEW // 원장 편집 중
@@ -697,6 +706,9 @@ model OnlineParentReport {
   sentAt          DateTime?
   errorMessage    String? // DRAFT_FAILED 시 사유
   feedbacks       OnlineParentFeedback[]
+  selectedExamSessionId String? // 월간 리포트에 포함할 모의고사(ExamSession)
+  selectedExamSession   ExamSession?     @relation("MonthlyReportExam", fields: [selectedExamSessionId], references: [id], onDelete: SetNull)
+  profileSnapshot Json? // 생성 시점 학생 프로필 최신값 동결
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 
@@ -1052,6 +1064,7 @@ model ExamSession {
 
   assignments ExamSeatAssignment[]
   scores      ExamScore[]
+  monthlyReportSelections OnlineParentReport[] @relation("MonthlyReportExam")
 
   @@index([examDate])
 }
@@ -1382,10 +1395,107 @@ model Handover {
   checklist            HandoverChecklist[]
   monthlyNotesSnapshot Json?
   reads                HandoverRead[]
+  comments             HandoverComment[]
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
 
   @@index([date])
+}
+
+model HandoverComment {
+  id         String   @id @default(cuid())
+  handoverId String
+  handover   Handover @relation(fields: [handoverId], references: [id], onDelete: Cascade)
+  authorId   String? // 작성자 User.id 스냅샷
+  authorName String? // 표시용 이름 스냅샷
+  content    String   @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([handoverId, createdAt])
+}
+
+// 앱 전역 설정 key-value (예: 링크 공유 안내 문구 템플릿)
+model AppSetting {
+  key       String   @id // 예: "share_wording.parent_report"
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+// 예비등록(가배정) — 정식 등록 전 임시 학생 + 가배정 좌석
+model PreRegistration {
+  id                  String    @id @default(cuid())
+  name                String
+  parentPhone         String?
+  phone               String?
+  grade               String?
+  school              String?
+  tentativeSeat       String? // 가배정 좌석 (실좌석과 충돌 검사 없음 — 경고만)
+  startDate           DateTime? @db.Date
+  memo                String?   @db.Text
+  selectedSubjects    String?
+  formalizedStudentId String?   @unique // 정식 등록 후 생성된 Student.id
+  formalizedAt        DateTime?
+  createdById         String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([formalizedAt])
+}
+
+enum ScheduleProposalStatus {
+  SUBMITTED // 학생 제출, 운영진 검토 대기
+  PROPOSED // 운영진 제안 작성, 학부모 승인 대기 (토큰 발급)
+  APPROVED // 학부모 승인 완료, 커밋 대기
+  REJECTED // 학부모 반려 (피드백)
+  COMMITTED // AttendanceSchedule/OutingSchedule 에 반영됨
+  SUPERSEDED // 더 최신 버전으로 대체됨
+  CANCELLED // 운영진 폐기
+}
+
+// 온라인 시간표 제출 → 학부모 승인 → 입퇴실 일정 반영(+롤백) 워크플로
+model ScheduleProposal {
+  id                     String                 @id @default(cuid())
+  studentId              String
+  student                Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  version                Int // 학생별 1,2,3… (커밋 이력)
+  status                 ScheduleProposalStatus @default(SUBMITTED)
+  // 학생이 제출한 원본 (감사/재검토용)
+  submittedAttendance    Json                   @default("[]") // [{dayOfWeek,startTime,endTime}]
+  submittedOutings       Json                   @default("[]") // [{dayOfWeek,outStart,outEnd,reason}]
+  studentMemo            String?                @db.Text
+  // 운영진 제안 (학부모에게 보여질 확정안)
+  proposedAttendance     Json                   @default("[]")
+  proposedOutings        Json                   @default("[]")
+  adminNote              String?                @db.Text
+  // 커밋 직전 스냅샷 — 롤백용
+  prevAttendanceSnapshot Json?
+  prevOutingSnapshot     Json?
+  token                  String                 @unique @default(cuid()) // 학부모 승인 페이지
+  expiresAt              DateTime?
+  revokedAt              DateTime?
+  reviewedById           String?
+  reviewedAt             DateTime?
+  committedById          String?
+  committedAt            DateTime?
+  approvedAt             DateTime? // 학부모 승인 시각
+  feedbacks              ScheduleProposalFeedback[]
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  @@unique([studentId, version])
+  @@index([studentId, status])
+  @@index([status])
+}
+
+model ScheduleProposalFeedback {
+  id         String           @id @default(cuid())
+  proposalId String
+  proposal   ScheduleProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  content    String           @db.Text
+  createdAt  DateTime         @default(now())
+  readAt     DateTime?
+
+  @@index([proposalId, createdAt])
 }
 
 model HandoverRead {

@@ -60,7 +60,7 @@ export async function verifyStudentGate(
 
 // ───────────────────── 학부모 게이트 (/r, /sp, /cr) ─────────────────────
 
-type ParentTokenModel = "parent-report" | "study-plan" | "consultation";
+type ParentTokenModel = "parent-report" | "study-plan" | "consultation" | "schedule";
 
 async function resolveParentToken(
   model: ParentTokenModel,
@@ -100,6 +100,17 @@ async function resolveParentToken(
       parentPhone: r.student.parentPhone,
       expiresAt: r.expiresAt!,
     };
+  }
+  if (model === "schedule") {
+    const r = await prisma.scheduleProposal.findUnique({
+      where: { token },
+      include: { student: { select: { id: true, parentPhone: true } } },
+    });
+    if (!r) return { ok: false, reason: "not_found" };
+    const fail = checkExpiry({ expiresAt: r.expiresAt, revokedAt: r.revokedAt });
+    if (fail) return { ok: false, reason: fail };
+    if (!r.student.parentPhone) return { ok: false, reason: "no_credential" };
+    return { ok: true, studentId: r.student.id, parentPhone: r.student.parentPhone, expiresAt: r.expiresAt! };
   }
   // consultation
   const r = await prisma.consultationReport.findUnique({

@@ -19,17 +19,22 @@ interface DashboardShellProps {
 }
 
 const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
+const VIEW_MODE_KEY = "adminViewMode";
+type ViewMode = "web" | "mobile";
 
 export function DashboardShell({ user, children, sidebarBadges }: DashboardShellProps) {
   const plan = getCurrentPlan();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("web");
 
   // localStorage에서 초기 상태 복원 (mount 후 1회)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
     if (saved === "true") setCollapsed(true);
+    const vm = localStorage.getItem(VIEW_MODE_KEY);
+    if (vm === "mobile") setViewMode("mobile");
   }, []);
 
   // collapsed 상태 변경 시 localStorage 저장
@@ -37,6 +42,15 @@ export function DashboardShell({ user, children, sidebarBadges }: DashboardShell
     if (typeof window === "undefined") return;
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
   }, [collapsed]);
+
+  function toggleViewMode() {
+    setViewMode((v) => {
+      const next: ViewMode = v === "web" ? "mobile" : "web";
+      if (typeof window !== "undefined") localStorage.setItem(VIEW_MODE_KEY, next);
+      return next;
+    });
+  }
+  const isMobilePreview = viewMode === "mobile";
 
   return (
     <div className="min-h-screen bg-background">
@@ -63,12 +77,19 @@ export function DashboardShell({ user, children, sidebarBadges }: DashboardShell
         data-print-main
       >
         <div className="flex-1 p-3 md:p-3.5" data-print-content>
-          <main className="h-full bg-panel border border-line rounded-[14px] shadow-[var(--shadow-xs)] overflow-clip max-w-[1400px] flex flex-col">
+          <main
+            className={cn(
+              "h-full bg-panel border border-line rounded-[14px] shadow-[var(--shadow-xs)] overflow-clip flex flex-col transition-[max-width] duration-300",
+              isMobilePreview ? "max-w-[430px] mx-auto ring-2 ring-info/40" : "max-w-[1400px]"
+            )}
+          >
             <div data-print-hide className="border-b border-line-2">
               <AppHeader
                 user={user}
                 title="독서실 관리 시스템"
                 onMenuClick={() => setOpen(true)}
+                viewMode={viewMode}
+                onToggleViewMode={toggleViewMode}
               />
             </div>
             <QuickAccessBar />

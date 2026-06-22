@@ -133,7 +133,7 @@ export function PhotoPickerDialog({
               <ImageOff className="h-10 w-10 opacity-30" />
               이 달 업로드된 사진이 없습니다.
               <span className="text-[11px]">
-                사진 관리(/photos) 에서 <code className="bg-muted px-1 rounded">YYYYMMDD_좌석_이름.jpg</code> 규칙으로 업로드
+                멘토링 기록에서 사진을 업로드하면 이곳에 표시됩니다
               </span>
             </div>
           ) : (

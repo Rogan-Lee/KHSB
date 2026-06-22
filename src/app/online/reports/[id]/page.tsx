@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
 import { ReportEditor } from "@/components/online/report-editor";
+import { MonthlyExamSelector } from "@/components/online/monthly-exam-selector";
 
 export default async function ReportEditPage({
   params,
@@ -103,6 +104,14 @@ export default async function ReportEditPage({
             </span>
           </div>
         </a>
+      )}
+
+      {report.type === "MONTHLY" && (
+        <MonthlyExamSelector
+          reportId={report.id}
+          studentId={report.studentId}
+          currentSessionId={report.selectedExamSessionId}
+        />
       )}
 
       <ReportEditor

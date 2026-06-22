@@ -15,6 +15,7 @@ import {
 import { Combobox } from "@/components/ui/combobox";
 import { createStudent, updateStudent } from "@/actions/students";
 import { GRADE_OPTIONS, parseSchool } from "@/lib/utils";
+import { KOREAN_ELECTIVES, MATH_ELECTIVES, INQUIRY_SUBJECTS } from "@/lib/online/subjects";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -319,6 +320,28 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
               placeholder="예: 수시 학생부종합, 정시"
             />
           </div>
+        </div>
+        {/* 국어/수학 선택과목 + 탐구 과목 (평가원 성적표 구조) */}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {([
+            { name: "koreanElective", label: "국어 선택", options: KOREAN_ELECTIVES as readonly string[], current: (student as { koreanElective?: string | null } | undefined)?.koreanElective },
+            { name: "mathElective", label: "수학 선택", options: MATH_ELECTIVES as readonly string[], current: (student as { mathElective?: string | null } | undefined)?.mathElective },
+            { name: "inquiry1Subject", label: "탐구1", options: INQUIRY_SUBJECTS as readonly string[], current: (student as { inquiry1Subject?: string | null } | undefined)?.inquiry1Subject },
+            { name: "inquiry2Subject", label: "탐구2", options: INQUIRY_SUBJECTS as readonly string[], current: (student as { inquiry2Subject?: string | null } | undefined)?.inquiry2Subject },
+          ] as const).map((f) => (
+            <div className="space-y-2" key={f.name}>
+              <Label htmlFor={f.name}>{f.label}</Label>
+              <select
+                id={f.name}
+                name={f.name}
+                defaultValue={f.current || "none"}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="none">선택 안 함</option>
+                {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+          ))}
         </div>
         <div className="space-y-2">
           <Label htmlFor="onlineLectures">수강중인 인강</Label>

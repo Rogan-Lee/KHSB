@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/lib/auth";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
 import { validateStaffMagicLink } from "@/lib/staff-auth";
@@ -249,6 +250,31 @@ export async function recordPatrol(
     },
   });
 
+  return toRecordView(record);
+}
+
+/**
+ * 순찰 기록 웹 수정 (관리자/스태프 전용, Clerk 세션).
+ * 종료된 회차여도 사후에 상태/특이사항을 수정할 수 있다 (recordPatrol 과 달리 endedAt 무관).
+ */
+export async function updatePatrolRecordByStaff(
+  recordId: string,
+  status: PatrolStatus,
+  note?: string,
+): Promise<PatrolRecordView> {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  const record = await prisma.patrolRecord.update({
+    where: { id: recordId },
+    data: { status, note: note?.trim() || null },
+    select: {
+      id: true, studentId: true, status: true, note: true, checkedAt: true,
+      student: { select: { name: true, seat: true } },
+    },
+  });
+
+  revalidatePath("/patrol");
   return toRecordView(record);
 }
 
