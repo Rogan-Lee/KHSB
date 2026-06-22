@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireOnlineStaff } from "@/lib/roles";
+import { requireAnyStaff } from "@/lib/roles";
+import { assertCanManageStudent } from "@/lib/student-access";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
 import type { TaskFeedbackStatus } from "@/generated/prisma";
@@ -121,7 +122,7 @@ export async function createFeedback(params: {
   files?: UploadedFile[];
 }) {
   const session = await auth();
-  requireOnlineStaff(session?.user?.role);
+  requireAnyStaff(session?.user?.role);
 
   if (!params.content.trim()) {
     throw new Error("피드백 내용을 입력하세요");
@@ -135,6 +136,11 @@ export async function createFeedback(params: {
     },
   });
   if (!submission) throw new Error("제출물을 찾을 수 없습니다");
+  await assertCanManageStudent(
+    session?.user?.role,
+    session?.user?.id,
+    submission.task.studentId
+  );
 
   await prisma.taskFeedback.create({
     data: {

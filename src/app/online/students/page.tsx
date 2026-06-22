@@ -1,7 +1,8 @@
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
-import { isFullAccess } from "@/lib/roles";
+import { isFullAccess, isOnlineStaff } from "@/lib/roles";
 import { AddOnlineStudentTabs } from "@/components/online/add-online-student-tabs";
 import {
   OnlineStudentsPanel,
@@ -10,6 +11,8 @@ import {
 
 export default async function OnlineStudentsPage() {
   const user = await getUser();
+  // 온라인 학생 로스터는 온라인 직원 전용 (레이아웃은 전 직원 허용으로 완화됨)
+  if (!isOnlineStaff(user?.role)) redirect("/");
   const canManage = isFullAccess(user?.role);
 
   const [onlineStudents, offlineStudents, mentors, consultants, staffs] = await Promise.all([
