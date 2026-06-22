@@ -40,8 +40,11 @@ npm run web
 
 ```bash
 EXPO_PUBLIC_API_URL=https://example.com
-EXPO_PUBLIC_EAS_PROJECT_ID=123e4567-e89b-12d3-a456-426614174000
 ```
+
+EAS 프로젝트 `@rogan_lee/study-room-manager-mobile`이 연결되어 있어 Expo Push
+Token 발급에는 `app.json`의 프로젝트 ID를 사용합니다.
+`EXPO_PUBLIC_EAS_PROJECT_ID`는 프로젝트 ID를 임시로 재정의할 때만 사용합니다.
 
 서버에는 선택적으로 Expo Push Security의 `EXPO_ACCESS_TOKEN`을 설정합니다.
 푸시 영수증은 GitHub Actions가 `CRON_SECRET`으로 보호된
@@ -64,7 +67,7 @@ Expo 프로젝트 연결, Apple 자격 증명, 실기기 푸시 검증 절차는
 ## 다음 구현
 
 1. 멘토링 일정 원격 푸시
-2. Expo 계정 로그인 후 EAS 프로젝트와 Apple 자격 증명 연결
+2. Apple Developer 로그인 후 배포 인증서와 APNs 키 연결
 3. TestFlight 내부 테스트와 스토어 메타데이터 준비
 
 `EXPO_PUBLIC_API_URL`에는 API 서버 주소만 설정합니다. 토큰과 개인정보는 소스 코드나
