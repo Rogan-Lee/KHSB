@@ -149,7 +149,9 @@ function ExamTableView({ scores, filterType, studentId, onUpdate, onDelete }: {
     examGroups.get(key)!.scores.push(s);
   }
   const groups = [...examGroups.values()].sort((a, b) => b.examDate.getTime() - a.examDate.getTime());
-  const allSubjects = [...new Set(typeScores.map((s) => s.subject))].sort();
+  // 평가원 성적표 순서(국·수·영·한·탐)로 정렬 — SUBJECTS 인덱스 기준, 미지정 과목은 뒤로.
+  const subjIndex = (s: string) => { const i = SUBJECTS.indexOf(s); return i === -1 ? 999 : i; };
+  const allSubjects = [...new Set(typeScores.map((s) => s.subject))].sort((a, b) => subjIndex(a) - subjIndex(b));
 
   if (groups.length === 0) return (
     <div className="flex items-center justify-center h-48 text-sm text-muted-foreground border rounded-lg bg-muted/20">

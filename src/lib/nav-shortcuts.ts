@@ -13,7 +13,6 @@ import {
   GraduationCap,
   BookOpen,
   CalendarDays,
-  Images,
   type LucideIcon,
 } from "lucide-react";
 
@@ -45,7 +44,6 @@ export const NAV_SHORTCUTS: NavShortcut[] = [
   { label: "시험 관리", href: "/exams", icon: GraduationCap },
   { label: "영단어 시험", href: "/vocab-test", icon: BookOpen },
   { label: "캘린더", href: "/calendar", icon: CalendarDays },
-  { label: "사진 관리", href: "/photos", icon: Images },
 ];
 
 /** 숫자키 → href 맵 (전역 단축키용) */

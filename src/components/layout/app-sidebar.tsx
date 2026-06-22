@@ -33,7 +33,6 @@ import {
   MapPin,
   Megaphone,
   GraduationCap,
-  Images,
   Wallet,
   Building2,
   Globe,
@@ -88,7 +87,6 @@ const navSections: NavSection[] = [
       { href: "/patrol", label: "순찰 관리", icon: ScanLine },
       { href: "/calendar", label: "캘린더", icon: CalendarDays, feature: "calendar" },
       { href: "/meeting-minutes", label: "회의록", icon: NotebookText, feature: "meeting-minutes" },
-      { href: "/photos", label: "사진 관리", icon: Images, feature: "photos" },
       { href: "/messages", label: "카카오 메시지", icon: MessageCircle, feature: "kakao-messages" },
       { href: "/requests", label: "요청사항", icon: Megaphone, feature: "requests" },
     ],
@@ -101,6 +99,7 @@ const onlineSection: NavSection = {
   items: [
     { href: "/online", label: "온라인 대시보드", icon: Globe },
     { href: "/online/students", label: "온라인 학생", icon: Users },
+    { href: "/online/schedules", label: "등원 스케줄", icon: CalendarClock },
     { href: "/online/performance", label: "수행평가", icon: ClipboardCheck },
     { href: "/online/sessions", label: "화상 1:1 세션", icon: Video },
     { href: "/online/inbox", label: "학생 메시지", icon: MessageCircle },

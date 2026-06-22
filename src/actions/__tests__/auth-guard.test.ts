@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
 import { auth } from "@/lib/auth";
 import { createStudent } from "@/actions/students";
+import { mockSession } from "./_helpers";
 
 describe("auth guard", () => {
   beforeEach(() => {
@@ -33,9 +34,9 @@ describe("auth guard", () => {
   });
 
   it("does NOT throw when auth() returns a valid session", async () => {
-    vi.mocked(auth).mockResolvedValue({
-      user: { id: "user-1", role: "DIRECTOR", name: "원장" },
-    });
+    vi.mocked(auth).mockResolvedValue(
+      mockSession({ id: "user-1", role: "DIRECTOR", name: "원장" })
+    );
 
     const { prisma } = await import("@/lib/prisma");
     vi.mocked(prisma.student.create).mockResolvedValue({} as never);

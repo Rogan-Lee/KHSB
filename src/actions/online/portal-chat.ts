@@ -27,6 +27,7 @@ export async function ensureStudentPortalChats(studentId: string) {
     where: { id: studentId },
     select: {
       id: true,
+      mentorId: true,
       assignedMentorId: true,
       assignedConsultantId: true,
       assignedStaffId: true,
@@ -34,11 +35,18 @@ export async function ensureStudentPortalChats(studentId: string) {
   });
   if (!student) throw new Error("학생을 찾을 수 없습니다");
 
+  // 온라인 배정(assigned*) + 오프라인 담당 멘토(mentorId) 모두 채팅 상대로 포함.
+  // 재원생은 mentorId 만 있는 경우가 많아 이를 포함해야 채팅이 동작.
   const staffIds = [
-    student.assignedMentorId,
-    student.assignedConsultantId,
-    student.assignedStaffId,
-  ].filter((id): id is string => !!id);
+    ...new Set(
+      [
+        student.assignedMentorId,
+        student.assignedConsultantId,
+        student.assignedStaffId,
+        student.mentorId,
+      ].filter((id): id is string => !!id)
+    ),
+  ];
 
   for (const staffId of staffIds) {
     await prisma.portalChat.upsert({
@@ -82,14 +90,19 @@ export async function listStudentChats(params: { studentToken: string }) {
   const student = await prisma.student.findUnique({
     where: { id: session.student.id },
     select: {
+      mentorId: true,
       assignedMentorId: true,
       assignedConsultantId: true,
       assignedStaffId: true,
     },
   });
   const currentStaffIds = new Set(
-    [student?.assignedMentorId, student?.assignedConsultantId, student?.assignedStaffId]
-      .filter((id): id is string => !!id)
+    [
+      student?.assignedMentorId,
+      student?.assignedConsultantId,
+      student?.assignedStaffId,
+      student?.mentorId,
+    ].filter((id): id is string => !!id)
   );
   const currentStaffArr = [...currentStaffIds];
 
