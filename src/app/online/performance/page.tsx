@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
-import { isOnlineStaff, isFullAccess } from "@/lib/roles";
+import { isAnyStaff, isFullAccess } from "@/lib/roles";
+import { assignedToMeWhere } from "@/lib/student-filters";
 import {
   PerformancePanel,
   type PerfPanelStudentRow,
@@ -11,13 +12,16 @@ import type { UploadedFile } from "@/actions/online/task-submissions";
 
 export default async function PerformanceOverviewPage() {
   const user = await getUser();
-  if (!isOnlineStaff(user?.role)) redirect("/");
+  if (!isAnyStaff(user?.role)) redirect("/");
 
-  // 컨설턴트/원장은 관리, 멘토는 읽기 + 자기 학생 한정 (필요 시 향후 분리)
-  const canManage = isFullAccess(user?.role) || user?.role === "CONSULTANT";
+  // 전 직원이 본인 담당 학생의 수행평가를 관리. 원장/SA는 전체.
+  const canManage = isAnyStaff(user?.role);
 
   const students = await prisma.student.findMany({
-    where: { isOnlineManaged: true, status: "ACTIVE" },
+    where: {
+      status: "ACTIVE",
+      ...(isFullAccess(user?.role) ? {} : assignedToMeWhere(user!.id)),
+    },
     orderBy: [{ grade: "asc" }, { name: "asc" }],
     select: {
       id: true,

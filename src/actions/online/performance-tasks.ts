@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireFullAccess, requireOnlineStaff } from "@/lib/roles";
+import { requireFullAccess, requireAnyStaff } from "@/lib/roles";
+import { assertCanManageStudent } from "@/lib/student-access";
 import type { PerformanceTaskStatus } from "@/generated/prisma";
 
 function toDateOnly(input: string | Date): Date {
@@ -22,15 +23,13 @@ export async function createPerformanceTask(params: {
   format?: string | null;
 }) {
   const session = await auth();
-  requireOnlineStaff(session?.user?.role);
-
-  const student = await prisma.student.findUnique({
-    where: { id: params.studentId },
-    select: { id: true, isOnlineManaged: true },
-  });
-  if (!student || !student.isOnlineManaged) {
-    throw new Error("온라인 관리 학생을 찾을 수 없습니다");
-  }
+  requireAnyStaff(session?.user?.role);
+  // 전체 학생 대상 — 원장/SA는 전체, 그 외는 담당 학생만.
+  await assertCanManageStudent(
+    session?.user?.role,
+    session?.user?.id,
+    params.studentId
+  );
 
   const task = await prisma.performanceTask.create({
     data: {
@@ -61,13 +60,18 @@ export async function updatePerformanceTask(params: {
   format?: string | null;
 }) {
   const session = await auth();
-  requireOnlineStaff(session?.user?.role);
+  requireAnyStaff(session?.user?.role);
 
   const task = await prisma.performanceTask.findUnique({
     where: { id: params.taskId },
     select: { id: true, studentId: true },
   });
   if (!task) throw new Error("수행평가를 찾을 수 없습니다");
+  await assertCanManageStudent(
+    session?.user?.role,
+    session?.user?.id,
+    task.studentId
+  );
 
   const updated = await prisma.performanceTask.update({
     where: { id: params.taskId },
@@ -90,7 +94,18 @@ export async function updatePerformanceTaskStatus(params: {
   status: PerformanceTaskStatus;
 }) {
   const session = await auth();
-  requireOnlineStaff(session?.user?.role);
+  requireAnyStaff(session?.user?.role);
+
+  const existing = await prisma.performanceTask.findUnique({
+    where: { id: params.taskId },
+    select: { studentId: true },
+  });
+  if (!existing) throw new Error("수행평가를 찾을 수 없습니다");
+  await assertCanManageStudent(
+    session?.user?.role,
+    session?.user?.id,
+    existing.studentId
+  );
 
   const task = await prisma.performanceTask.update({
     where: { id: params.taskId },
