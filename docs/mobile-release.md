@@ -5,6 +5,9 @@
 
 ## 1. Expo 프로젝트 연결
 
+현재 `@rogan_lee/study-room-manager-mobile` 프로젝트가 연결되어 있다. 아래 명령은
+프로젝트를 다시 연결해야 할 때만 실행한다.
+
 ```bash
 cd apps/mobile
 npx eas-cli@latest login
