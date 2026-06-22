@@ -17,6 +17,7 @@ import {
   isManagerMentor,
   isFullAccess,
   isConsultant,
+  isOnlineStaff,
 } from "@/lib/roles";
 import { todayKST } from "@/lib/utils";
 import { mondayOfKST } from "@/lib/online/week";
@@ -24,6 +25,8 @@ import { mondayOfKST } from "@/lib/online/week";
 export default async function OnlineHomePage() {
   const user = await getUser();
   if (!user) redirect("/sign-in");
+  // 온라인 대시보드는 온라인 직원 전용 (레이아웃은 전 직원 허용으로 완화됨)
+  if (!isOnlineStaff(user.role)) redirect("/");
 
   const today = todayKST();
   const in3Days = new Date(today);
