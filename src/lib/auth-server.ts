@@ -14,12 +14,12 @@ import { getAppUrl } from "@/lib/app-url";
 const INVITE_HEADER = "x-studyroom-invite";
 
 function getSecret() {
-  const secret = process.env.BETTER_AUTH_SECRET;
+  const secret = process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET;
   if (secret) return secret;
   if (process.env.NODE_ENV !== "production") {
     return "studyroom-development-secret-change-before-production";
   }
-  throw new Error("BETTER_AUTH_SECRET 환경변수가 필요합니다");
+  throw new Error("BETTER_AUTH_SECRET 또는 AUTH_SECRET 환경변수가 필요합니다");
 }
 
 function readInviteToken(
