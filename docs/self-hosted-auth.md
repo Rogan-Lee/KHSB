@@ -15,6 +15,9 @@ RESEND_API_KEY=<비밀번호 재설정 메일 발송 키>
 AUTH_EMAIL_FROM=스터디룸 매니저 <account@인증된도메인>
 ```
 
+기존 배포 환경의 마이그레이션을 위해 `AUTH_SECRET`, `AUTH_URL`도 fallback으로
+지원합니다. 신규 환경은 `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`을 우선 사용합니다.
+
 Expo 빌드:
 
 ```text
