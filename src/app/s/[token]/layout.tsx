@@ -85,25 +85,22 @@ export default async function StudentPortalLayout({
   if (!session) redirect("/s/expired");
 
   const isOnlineManaged = session.student.isOnlineManaged;
+  // 온라인/오프라인 구분 없이 동일 메뉴를 제공하므로 배지 카운트도 항상 계산.
   const [taskBadge, feedbackBadge, chatBadge, vocabTotal, vocabBadge, questionBadge, suggestionBadge] =
     await Promise.all([
-      isOnlineManaged
-        ? prisma.performanceTask.count({
-            where: {
-              studentId: session.student.id,
-              status: { in: ["OPEN", "IN_PROGRESS", "NEEDS_REVISION"] },
-            },
-          })
-        : Promise.resolve(0),
-      isOnlineManaged
-        ? prisma.taskFeedback.count({
-            where: {
-              readByStudentAt: null,
-              submission: { task: { studentId: session.student.id } },
-            },
-          })
-        : Promise.resolve(0),
-      isOnlineManaged ? countUnreadChatMessagesForStudent(session.student.id) : Promise.resolve(0),
+      prisma.performanceTask.count({
+        where: {
+          studentId: session.student.id,
+          status: { in: ["OPEN", "IN_PROGRESS", "NEEDS_REVISION"] },
+        },
+      }),
+      prisma.taskFeedback.count({
+        where: {
+          readByStudentAt: null,
+          submission: { task: { studentId: session.student.id } },
+        },
+      }),
+      countUnreadChatMessagesForStudent(session.student.id),
       prisma.vocabAttempt.count({ where: { studentId: session.student.id } }),
       prisma.vocabAttempt.count({
         where: { studentId: session.student.id, status: { in: ["ASSIGNED", "IN_PROGRESS"] } },
@@ -138,6 +135,7 @@ export default async function StudentPortalLayout({
           token={token}
           studentName={session.student.name}
           daysLeft={daysLeft}
+          isOnlineManaged={isOnlineManaged}
         />
         <main className="mx-auto max-w-[480px] px-4 pb-4 pt-3">{children}</main>
         <StudentBottomNav
@@ -149,7 +147,6 @@ export default async function StudentPortalLayout({
           hasVocab={vocabTotal > 0}
           questionBadge={questionBadge}
           suggestionBadge={suggestionBadge}
-          isOnlineManaged={isOnlineManaged}
         />
       </div>
     </>
