@@ -42,7 +42,7 @@ describe("getMentorings — role-based filtering", () => {
 
     await getMentorings();
 
-    const call = vi.mocked(prisma.mentoring.findMany).mock.calls[0][0];
+    const call = vi.mocked(prisma.mentoring.findMany).mock.calls[0]![0]!;
     // mentorId 필터는 없지만 status CANCELLED 제외는 기본 적용
     expect(call.where).toEqual({ status: { not: "CANCELLED" } });
   });
@@ -55,7 +55,7 @@ describe("getMentorings — role-based filtering", () => {
 
     await getMentorings(undefined, { includeCanceled: true });
 
-    const call = vi.mocked(prisma.mentoring.findMany).mock.calls[0][0];
+    const call = vi.mocked(prisma.mentoring.findMany).mock.calls[0]![0]!;
     expect(call.where).toEqual({});
   });
 

@@ -44,6 +44,7 @@ import {
   HelpCircle,
   ScanLine,
   MessageSquarePlus,
+  KeyRound,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType; feature?: FeatureKey };
@@ -123,6 +124,7 @@ const directorSection: NavSection = {
   label: "관리자",
   items: [
     { href: "/mentors", label: "직원 관리", icon: UserCog, feature: "mentors" },
+    { href: "/admin/auth", label: "계정 초대", icon: KeyRound },
     { href: "/payroll", label: "급여 정산", icon: Wallet, feature: "payroll" },
     { href: "/payroll/me", label: "내 출퇴근", icon: Wallet, feature: "payroll" },
     { href: "/admin/school-stats", label: "학교별 통계", icon: Building2, feature: "school-stats" },

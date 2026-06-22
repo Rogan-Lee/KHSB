@@ -32,6 +32,29 @@ enum UserStatus {
   TERMINATED // 퇴사 처리됨. 픽커/매직링크에서 제외, 과거 데이터는 보존.
 }
 
+enum AuthInviteType {
+  STAFF
+  STUDENT
+}
+
+enum DevicePlatform {
+  IOS
+  ANDROID
+}
+
+enum PushNotificationCategory {
+  TASK
+  QUESTION
+  MENTORING
+  SYSTEM
+}
+
+enum PushNotificationStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
 enum AttendanceType {
   NORMAL
   ABSENT
@@ -145,6 +168,9 @@ model User {
   workHourEntries         WorkHourEntry[]
   workMonths              WorkMonth[]
   staffMagicLinks         StaffMagicLink[]     @relation("StaffMagicLinks")
+  authIdentity            AuthUser?            @relation("AuthUserAppUser")
+  authInvites             AuthInvitation[]     @relation("AuthInviteTargetUser")
+  issuedAuthInvites       AuthInvitation[]     @relation("AuthInviteIssuer")
   // ── 근무자 상태(퇴사·매직링크 게이트용) ──
   status                  UserStatus           @default(ACTIVE)
   terminatedAt            DateTime?
@@ -344,6 +370,8 @@ model Student {
   assignedConsultant   User?                  @relation("ConsultantStudents", fields: [assignedConsultantId], references: [id])
   assignedStaffId      String? // STAFF (운영조교)
   assignedStaff        User?                  @relation("StaffStudents", fields: [assignedStaffId], references: [id])
+  authIdentity         AuthUser?              @relation("AuthUserStudent")
+  authInvites          AuthInvitation[]       @relation("AuthInviteTargetStudent")
   magicLinks           StudentMagicLink[]
   portalChats          PortalChat[]
   studentQuestions     StudentQuestion[]
@@ -392,6 +420,139 @@ model Student {
   @@index([assignedConsultantId])
   @@index([assignedStaffId])
   @@index([attentionFlag])
+}
+
+// Better Auth의 로그인 계정. 기존 운영 User/Student 레코드와 분리해
+// Clerk 제거 시에도 도메인 PK와 모든 기존 FK를 그대로 유지한다.
+model AuthUser {
+  id              String            @id @default(cuid())
+  name            String
+  email           String            @unique
+  emailVerified   Boolean           @default(false)
+  image           String?
+  username        String?           @unique
+  displayUsername String?
+  appUserId       String?           @unique
+  appUser         User?             @relation("AuthUserAppUser", fields: [appUserId], references: [id], onDelete: Cascade)
+  studentId       String?           @unique
+  student         Student?          @relation("AuthUserStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  sessions        AuthSession[]
+  accounts        AuthAccount[]
+  pushTokens      DevicePushToken[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([appUserId])
+  @@index([studentId])
+}
+
+model DevicePushToken {
+  id               String                    @id @default(cuid())
+  authUserId       String
+  authUser         AuthUser                  @relation(fields: [authUserId], references: [id], onDelete: Cascade)
+  token            String                    @unique
+  projectId        String
+  platform         DevicePlatform
+  deviceName       String?
+  appVersion       String?
+  enabled          Boolean                   @default(true)
+  tasksEnabled     Boolean                   @default(true)
+  questionsEnabled Boolean                   @default(true)
+  mentoringEnabled Boolean                   @default(true)
+  lastSeenAt       DateTime                  @default(now())
+  receipts         PushNotificationReceipt[]
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  @@index([authUserId, enabled])
+  @@index([enabled, lastSeenAt])
+}
+
+model PushNotificationReceipt {
+  id                String                   @id @default(cuid())
+  expoReceiptId     String                   @unique
+  devicePushTokenId String
+  devicePushToken   DevicePushToken          @relation(fields: [devicePushTokenId], references: [id], onDelete: Cascade)
+  category          PushNotificationCategory
+  status            PushNotificationStatus   @default(PENDING)
+  errorCode         String?
+  errorMessage      String?
+  checkedAt         DateTime?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@index([status, createdAt])
+  @@index([devicePushTokenId, createdAt])
+}
+
+model AuthSession {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model AuthAccount {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model AuthVerification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@index([expiresAt])
+}
+
+// 공개 회원가입은 허용하지 않는다. 기존 직원 또는 학생에 연결된
+// 만료 가능한 1회용 초대 토큰을 검증한 경우에만 AuthUser가 생성된다.
+model AuthInvitation {
+  id              String         @id @default(cuid())
+  type            AuthInviteType
+  tokenHash       String         @unique
+  targetUserId    String?
+  targetUser      User?          @relation("AuthInviteTargetUser", fields: [targetUserId], references: [id], onDelete: Cascade)
+  targetStudentId String?
+  targetStudent   Student?       @relation("AuthInviteTargetStudent", fields: [targetStudentId], references: [id], onDelete: Cascade)
+  invitedById     String
+  invitedBy       User           @relation("AuthInviteIssuer", fields: [invitedById], references: [id], onDelete: Restrict)
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  acceptedById    String?
+  revokedAt       DateTime?
+  createdAt       DateTime       @default(now())
+
+  @@index([targetUserId, acceptedAt])
+  @@index([targetStudentId, acceptedAt])
+  @@index([expiresAt])
 }
 
 // 온라인 학생 포털(`/s/[token]`) 접근용 매직링크.
