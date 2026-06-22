@@ -44,8 +44,8 @@ EXPO_PUBLIC_EAS_PROJECT_ID=123e4567-e89b-12d3-a456-426614174000
 ```
 
 서버에는 선택적으로 Expo Push Security의 `EXPO_ACCESS_TOKEN`을 설정합니다.
-푸시 영수증은 `CRON_SECRET`으로 보호된 `/api/cron/mobile-push-receipts`에서
-15분마다 확인합니다. 배포 전
+푸시 영수증은 GitHub Actions가 `CRON_SECRET`으로 보호된
+`/api/cron/mobile-push-receipts`를 15분마다 호출해 확인합니다. 배포 전
 `20260621030000_add_mobile_push_notifications` 마이그레이션을 승인된 DB 배포
 절차로 적용해야 합니다.
 
