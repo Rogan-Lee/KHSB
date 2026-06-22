@@ -24,6 +24,19 @@ type ReportContent = {
   generatedAt?: string;
 };
 
+/**
+ * QUEUED 상태 content 에 봉인되는 페이로드.
+ * lib/online/report-queue.ts 의 QueuedContent 와 반드시 동형이어야 한다 —
+ * 야간 루틴이 이 프롬프트를 그대로 꺼내 생성한다.
+ */
+type QueuedContent = {
+  queued: true;
+  systemPrompt: string;
+  userPrompt: string;
+  queuedAt: string;
+  queuedById?: string;
+};
+
 function weekRangeFromMonday(weekStartIso: string): {
   start: Date;
   end: Date;
@@ -713,6 +726,102 @@ export async function batchGenerateMonthlyReports(params: {
 }
 
 // ──────────────────────────────────────────────────────────
+
+/**
+ * 전체(또는 지정) 온라인 학생 보고서를 QUEUED 로 적재.
+ * Groq 호출 없이 프롬프트만 봉인하므로 즉시 끝나며, 야간 루틴
+ * (/api/cron/online-report-queue)이 순차로 꺼내 생성 → DRAFT 전환한다.
+ * 이미 APPROVED·SENT 된 보고서는 보호를 위해 건너뛴다(skipped).
+ * WEEKLY/MONTHLY 지원.
+ */
+export async function batchEnqueueReports(params: {
+  type: "WEEKLY" | "MONTHLY";
+  period: string; // WEEKLY: 주 시작(월요일) "YYYY-MM-DD" · MONTHLY: "YYYY-MM"
+  studentIds?: string[];
+}): Promise<{ total: number; queued: number; failed: number; skipped: number }> {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+  const queuedById = session?.user?.id;
+
+  const studentIds =
+    params.studentIds ??
+    (
+      await prisma.student.findMany({
+        where: { isOnlineManaged: true, status: "ACTIVE" },
+        select: { id: true },
+      })
+    ).map((s) => s.id);
+
+  const queuedAt = new Date().toISOString();
+  let queued = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  for (const studentId of studentIds) {
+    try {
+      const { start, end } =
+        params.type === "MONTHLY"
+          ? monthRange(params.period)
+          : weekRangeFromMonday(params.period);
+
+      const existing = await prisma.onlineParentReport.findUnique({
+        where: {
+          studentId_type_periodStart: { studentId, type: params.type, periodStart: start },
+        },
+        select: { status: true, selectedExamSessionId: true },
+      });
+      // 승인·발송된 보고서를 큐로 되돌려 덮어쓰지 않는다.
+      if (existing && (existing.status === "APPROVED" || existing.status === "SENT")) {
+        skipped++;
+        continue;
+      }
+
+      let systemPrompt: string;
+      let userPrompt: string;
+      let selectedExamSessionId: string | null = null;
+      if (params.type === "MONTHLY") {
+        // 기존에 선택된 모의고사가 있으면 유지(재큐잉 시 드리프트 방지).
+        selectedExamSessionId = existing?.selectedExamSessionId ?? null;
+        const inputs = await collectMonthlyInputs(studentId, params.period, selectedExamSessionId);
+        ({ systemPrompt, userPrompt } = buildMonthlyReportPrompt(inputs));
+      } else {
+        const inputs = await collectInputs(studentId, params.period);
+        ({ systemPrompt, userPrompt } = buildWeeklyReportPrompt(inputs));
+      }
+
+      const content: QueuedContent = { queued: true, systemPrompt, userPrompt, queuedAt, queuedById };
+
+      await prisma.onlineParentReport.upsert({
+        where: {
+          studentId_type_periodStart: { studentId, type: params.type, periodStart: start },
+        },
+        update: {
+          content,
+          status: "QUEUED",
+          errorMessage: null,
+          periodEnd: end,
+          ...(params.type === "MONTHLY" ? { selectedExamSessionId } : {}),
+        },
+        create: {
+          studentId,
+          type: params.type,
+          periodStart: start,
+          periodEnd: end,
+          content,
+          status: "QUEUED",
+          ...(params.type === "MONTHLY" ? { selectedExamSessionId } : {}),
+        },
+      });
+      queued++;
+    } catch {
+      failed++;
+    }
+  }
+
+  revalidatePath("/online/reports");
+  revalidatePath("/online/reports/queue");
+  return { total: studentIds.length, queued, failed, skipped };
+}
 
 /** 배치 생성 후 Slack 알림용 헬퍼 (크론이 사용). */
 export async function notifyBatchComplete(params: {
