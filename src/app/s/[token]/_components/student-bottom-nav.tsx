@@ -40,7 +40,6 @@ export function StudentBottomNav({
   hasVocab,
   questionBadge,
   suggestionBadge,
-  isOnlineManaged,
 }: {
   token: string;
   taskBadge?: number;
@@ -50,28 +49,25 @@ export function StudentBottomNav({
   hasVocab?: boolean;
   questionBadge?: number;
   suggestionBadge?: number;
-  isOnlineManaged?: boolean;
 }) {
   const pathname = usePathname() ?? "";
   const root = `/s/${token}`;
 
+  // 온라인/오프라인 구분 없이 동일한 메뉴를 노출(완전 통일).
+  // 영단어 탭만 배정 여부(hasVocab)에 따라 표시.
   const tabs: Tab[] = [
     { key: "home", href: root, match: (p) => p === root, label: "홈", Icon: Home },
+    { key: "tasks", href: `${root}/tasks`, match: (p) => p.startsWith(`${root}/tasks`), label: "수행평가", Icon: ClipboardList, badge: taskBadge },
   ];
-  if (isOnlineManaged) {
-    tabs.push({ key: "tasks", href: `${root}/tasks`, match: (p) => p.startsWith(`${root}/tasks`), label: "수행평가", Icon: ClipboardList, badge: taskBadge });
-  }
   if (hasVocab) {
     tabs.push({ key: "vocab", href: `${root}/vocab`, match: (p) => p.startsWith(`${root}/vocab`), label: "영단어", Icon: SpellCheck, badge: vocabBadge });
   }
   tabs.push({ key: "qna", href: `${root}/qna`, match: (p) => p.startsWith(`${root}/qna`), label: "질문", Icon: HelpCircle, badge: questionBadge });
   tabs.push({ key: "suggestions", href: `${root}/suggestions`, match: (p) => p.startsWith(`${root}/suggestions`), label: "건의", Icon: Megaphone, badge: suggestionBadge });
-  if (isOnlineManaged) {
-    tabs.push(
-      { key: "chat", href: `${root}/chat`, match: (p) => p.startsWith(`${root}/chat`), label: "메시지", Icon: MessageSquare, badge: chatBadge },
-      { key: "feedback", href: `${root}/feedback`, match: (p) => p.startsWith(`${root}/feedback`), label: "피드백", Icon: MessageCircle, badge: feedbackBadge },
-    );
-  }
+  tabs.push(
+    { key: "chat", href: `${root}/chat`, match: (p) => p.startsWith(`${root}/chat`), label: "메시지", Icon: MessageSquare, badge: chatBadge },
+    { key: "feedback", href: `${root}/feedback`, match: (p) => p.startsWith(`${root}/feedback`), label: "피드백", Icon: MessageCircle, badge: feedbackBadge },
+  );
 
   // 항목 수만큼 열을 만들어 항상 1행 유지(최대 7). 7개여도 wrap 없이 한 줄.
   const cols = COLS[Math.min(7, Math.max(2, tabs.length))] ?? "grid-cols-4";
