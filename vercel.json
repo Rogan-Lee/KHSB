@@ -20,10 +20,6 @@
     {
       "path": "/api/cron/online-monthly-report-draft",
       "schedule": "0 1 1 * *"
-    },
-    {
-      "path": "/api/cron/mobile-push-receipts",
-      "schedule": "*/15 * * * *"
     }
   ]
 }
