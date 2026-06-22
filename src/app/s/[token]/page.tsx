@@ -53,6 +53,9 @@ export default async function StudentPortalHomePage({
   const { student } = session;
   const isOnline = student.isOnlineManaged;
 
+  // 홈 카드는 온라인/오프라인 구분 없이 데이터 유무로 표시(완전 통일).
+  // 오프라인 학생은 보통 빈 결과 → 해당 카드만 자연스럽게 숨겨짐.
+  // 단, 초기 설문 카드는 온라인 온보딩 전용이라 isOnline 일 때만 노출.
   const [openQuestions, survey, taskCounts, nextTask, upcomingSessions] = await Promise.all([
     prisma.studentQuestion.count({
       where: { studentId: student.id, status: { in: ["OPEN", "ANSWERED"] } },
@@ -63,39 +66,33 @@ export default async function StudentPortalHomePage({
           select: { submittedAt: true, sections: true },
         })
       : Promise.resolve(null),
-    isOnline
-      ? prisma.performanceTask.groupBy({
-          by: ["status"],
-          where: { studentId: student.id },
-          _count: { _all: true },
-        })
-      : Promise.resolve([] as { status: PerformanceTaskStatus; _count: { _all: number } }[]),
-    isOnline
-      ? prisma.performanceTask.findFirst({
-          where: { studentId: student.id, status: { not: "DONE" } },
-          orderBy: { dueDate: "asc" },
-          select: { id: true, subject: true, title: true, dueDate: true, status: true },
-        })
-      : Promise.resolve(null),
-    isOnline
-      ? prisma.mentoringSession.findMany({
-          where: {
-            studentId: student.id,
-            status: { in: ["SCHEDULED", "IN_PROGRESS"] },
-            scheduledAt: { gte: new Date() },
-          },
-          orderBy: { scheduledAt: "asc" },
-          take: 3,
-          select: {
-            id: true,
-            title: true,
-            scheduledAt: true,
-            durationMinutes: true,
-            meetUrl: true,
-            host: { select: { name: true } },
-          },
-        })
-      : Promise.resolve([] as never[]),
+    prisma.performanceTask.groupBy({
+      by: ["status"],
+      where: { studentId: student.id },
+      _count: { _all: true },
+    }),
+    prisma.performanceTask.findFirst({
+      where: { studentId: student.id, status: { not: "DONE" } },
+      orderBy: { dueDate: "asc" },
+      select: { id: true, subject: true, title: true, dueDate: true, status: true },
+    }),
+    prisma.mentoringSession.findMany({
+      where: {
+        studentId: student.id,
+        status: { in: ["SCHEDULED", "IN_PROGRESS"] },
+        scheduledAt: { gte: new Date() },
+      },
+      orderBy: { scheduledAt: "asc" },
+      take: 3,
+      select: {
+        id: true,
+        title: true,
+        scheduledAt: true,
+        durationMinutes: true,
+        meetUrl: true,
+        host: { select: { name: true } },
+      },
+    }),
   ]);
 
   const totalTasks = taskCounts.reduce((sum, c) => sum + c._count._all, 0);
@@ -129,7 +126,7 @@ export default async function StudentPortalHomePage({
         <p className="text-[12px] font-medium opacity-90">{greeting()}</p>
         <h2 className="mt-1 text-[22px] font-bold tracking-[-0.02em]">{student.name}님 👋</h2>
         <p className="mt-2 text-[13px] leading-relaxed opacity-95">
-          {isOnline && openTasks > 0
+          {openTasks > 0
             ? `오늘 처리할 수행평가 ${openTasks}건이 있어요.`
             : "모르는 문제가 있으면 사진으로 찍어 물어보세요."}
         </p>
@@ -157,7 +154,7 @@ export default async function StudentPortalHomePage({
       </Link>
 
       {/* Today's session — prominent if happening today */}
-      {isOnline && todaysSession && (
+      {todaysSession && (
         <section
           className={`rounded-[14px] border bg-panel p-4 ${
             isToday ? "border-brand/40 ring-1 ring-brand/20" : "border-line"
@@ -208,7 +205,7 @@ export default async function StudentPortalHomePage({
       )}
 
       {/* Next urgent task */}
-      {isOnline && nextTask && (
+      {nextTask && (
         <Link
           href={`/s/${token}/tasks/${nextTask.id}`}
           className="block rounded-[14px] border border-line bg-panel p-4 active:bg-canvas-2 transition-colors"
@@ -237,9 +234,9 @@ export default async function StudentPortalHomePage({
         </Link>
       )}
 
-      {/* Progress widgets — 2-up grid (online only) */}
-      {isOnline && (
-        <section className="grid grid-cols-2 gap-3">
+      {/* Progress widgets — 수행평가(데이터 있으면) + 초기설문(온라인 전용) */}
+      {(isOnline || totalTasks > 0) && (
+        <section className={`grid gap-3 ${isOnline ? "grid-cols-2" : "grid-cols-1"}`}>
           <Link
             href={`/s/${token}/tasks`}
             className="rounded-[14px] border border-line bg-panel p-3.5 active:bg-canvas-2 transition-colors"
@@ -260,30 +257,47 @@ export default async function StudentPortalHomePage({
             <ProgressBar value={totalTasks ? doneTasks / totalTasks : 0} />
           </Link>
 
-          <Link
-            href={`/s/${token}/survey`}
-            className="rounded-[14px] border border-line bg-panel p-3.5 active:bg-canvas-2 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-soft text-violet-ink">
-                <FileText className="h-3.5 w-3.5" strokeWidth={2.5} />
-              </span>
-              <p className="text-[11px] font-semibold text-ink-4">초기 설문</p>
-            </div>
-            <p className="mt-2.5 text-[20px] font-bold tracking-[-0.02em] text-ink tabular-nums">
-              {filledSections}
-              <span className="text-[13px] font-medium text-ink-4"> / {SURVEY_SECTIONS.length}</span>
-            </p>
-            <p className="mt-0.5 text-[11px] text-ink-4">
-              {surveySubmitted ? "제출 완료" : filledSections === 0 ? "작성 시작" : "이어서 작성"}
-            </p>
-            <ProgressBar value={filledSections / SURVEY_SECTIONS.length} />
-          </Link>
+          {isOnline && (
+            <Link
+              href={`/s/${token}/survey`}
+              className="rounded-[14px] border border-line bg-panel p-3.5 active:bg-canvas-2 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-soft text-violet-ink">
+                  <FileText className="h-3.5 w-3.5" strokeWidth={2.5} />
+                </span>
+                <p className="text-[11px] font-semibold text-ink-4">초기 설문</p>
+              </div>
+              <p className="mt-2.5 text-[20px] font-bold tracking-[-0.02em] text-ink tabular-nums">
+                {filledSections}
+                <span className="text-[13px] font-medium text-ink-4"> / {SURVEY_SECTIONS.length}</span>
+              </p>
+              <p className="mt-0.5 text-[11px] text-ink-4">
+                {surveySubmitted ? "제출 완료" : filledSections === 0 ? "작성 시작" : "이어서 작성"}
+              </p>
+              <ProgressBar value={filledSections / SURVEY_SECTIONS.length} />
+            </Link>
+          )}
         </section>
       )}
 
+      {/* 등원 스케줄 제출 */}
+      <Link
+        href={`/s/${token}/schedule`}
+        className="flex items-center gap-3 rounded-[14px] border border-line bg-panel p-3.5 active:bg-canvas-2 transition-colors"
+      >
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-info-soft text-info-ink">
+          <CalendarClock className="h-4 w-4" strokeWidth={2.5} />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold text-ink">등원 스케줄 제출</p>
+          <p className="text-[11px] text-ink-4">주간 등하원·학원 일정을 보내면 학부모 승인 후 반영돼요</p>
+        </div>
+        <ChevronRight className="ml-auto h-4 w-4 text-ink-4" />
+      </Link>
+
       {/* Upcoming sessions list (excluding today's hero) */}
-      {isOnline && upcomingSessions.length > 1 && (
+      {upcomingSessions.length > 1 && (
         <section className="rounded-[14px] border border-line bg-panel p-4">
           <div className="flex items-center gap-2">
             <Sparkles className="h-3.5 w-3.5 text-ink-4" />

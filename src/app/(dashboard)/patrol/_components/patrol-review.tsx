@@ -3,11 +3,85 @@
 import { useMemo, useState, useTransition } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronLeft, AlertTriangle, UserX, Check, Clock, ShieldCheck, User } from "lucide-react";
+import { ChevronLeft, AlertTriangle, UserX, Check, Clock, ShieldCheck, User, Pencil, Save, X } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { getPatrolDayRoundsWithRecords, type PatrolRoundWithRecords } from "@/actions/patrol";
+import { getPatrolDayRoundsWithRecords, updatePatrolRecordByStaff, type PatrolRoundWithRecords } from "@/actions/patrol";
 import type { PatrolStatus } from "@/generated/prisma";
+
+type PatrolRecordItem = PatrolRoundWithRecords["records"][number];
+
+/** 순찰 기록 1행 — 클릭 시 인라인으로 상태/특이사항 수정 (관리자/스태프). */
+function PatrolRecordRow({ rec, onSaved }: { rec: PatrolRecordItem; onSaved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [status, setStatus] = useState<PatrolStatus>(rec.status);
+  const [note, setNote] = useState(rec.note ?? "");
+  const [saving, startSave] = useTransition();
+
+  function save() {
+    startSave(async () => {
+      try {
+        await updatePatrolRecordByStaff(rec.id, status, note);
+        toast.success("수정되었습니다");
+        setEditing(false);
+        onSaved();
+      } catch {
+        toast.error("수정에 실패했습니다");
+      }
+    });
+  }
+
+  if (!editing) {
+    return (
+      <li className={cn("flex items-center gap-2 py-2 text-sm group", rec.status === "NOTE" && "bg-amber-50/60 -mx-2 px-2 rounded")}>
+        <span className="w-12 shrink-0 font-mono text-xs text-muted-foreground">{rec.seat ?? "—"}</span>
+        <span className="w-20 shrink-0 font-medium flex items-center gap-1">
+          <User className="h-3 w-3 text-muted-foreground" />{rec.studentName}
+        </span>
+        <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_META[rec.status].cls}`}>
+          {STATUS_META[rec.status].label}
+        </span>
+        {rec.note && <span className="flex-1 text-xs text-foreground/80">{rec.note}</span>}
+        <button
+          type="button"
+          onClick={() => { setStatus(rec.status); setNote(rec.note ?? ""); setEditing(true); }}
+          className="ml-auto shrink-0 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+          title="수정"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      </li>
+    );
+  }
+
+  return (
+    <li className="flex flex-wrap items-center gap-2 py-2 text-sm bg-blue-50/40 -mx-2 px-2 rounded">
+      <span className="w-12 shrink-0 font-mono text-xs text-muted-foreground">{rec.seat ?? "—"}</span>
+      <span className="w-20 shrink-0 font-medium">{rec.studentName}</span>
+      <div className="inline-flex rounded-full border bg-background p-0.5">
+        {(Object.keys(STATUS_META) as PatrolStatus[]).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setStatus(s)}
+            className={cn("h-6 px-2 text-[11px] rounded-full transition-colors", status === s ? STATUS_META[s].cls : "text-muted-foreground hover:bg-muted")}
+          >
+            {STATUS_META[s].label}
+          </button>
+        ))}
+      </div>
+      <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="특이사항" className="h-7 flex-1 min-w-[140px] text-xs" />
+      <Button size="sm" className="h-7" onClick={save} disabled={saving}>
+        <Save className="h-3 w-3 mr-1" />{saving ? "저장 중" : "저장"}
+      </Button>
+      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditing(false)} disabled={saving}>
+        <X className="h-3.5 w-3.5" />
+      </Button>
+    </li>
+  );
+}
 
 const STATUS_META: Record<PatrolStatus, { label: string; cls: string }> = {
   OK: { label: "양호", cls: "bg-emerald-100 text-emerald-700" },
@@ -66,6 +140,17 @@ export function PatrolReview({ initialDate, initialRounds }: { initialDate: stri
         setRounds(await getPatrolDayRoundsWithRecords(newDate));
       } catch {
         setRounds([]);
+      }
+    });
+  }
+
+  // 기록 수정 후 현재 날짜 회차를 다시 불러와 화면 동기화
+  function refetch() {
+    startTransition(async () => {
+      try {
+        setRounds(await getPatrolDayRoundsWithRecords(date));
+      } catch {
+        /* keep current */
       }
     });
   }
@@ -164,16 +249,7 @@ export function PatrolReview({ initialDate, initialRounds }: { initialDate: stri
                       ) : (
                         <ul className="divide-y">
                           {r.records.map((rec) => (
-                            <li key={rec.id} className={cn("flex items-center gap-2 py-2 text-sm", rec.status === "NOTE" && "bg-amber-50/60 -mx-2 px-2 rounded")}>
-                              <span className="w-12 shrink-0 font-mono text-xs text-muted-foreground">{rec.seat ?? "—"}</span>
-                              <span className="w-20 shrink-0 font-medium flex items-center gap-1">
-                                <User className="h-3 w-3 text-muted-foreground" />{rec.studentName}
-                              </span>
-                              <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_META[rec.status].cls}`}>
-                                {STATUS_META[rec.status].label}
-                              </span>
-                              {rec.note && <span className="flex-1 text-xs text-foreground/80">{rec.note}</span>}
-                            </li>
+                            <PatrolRecordRow key={rec.id} rec={rec} onSaved={refetch} />
                           ))}
                         </ul>
                       )}

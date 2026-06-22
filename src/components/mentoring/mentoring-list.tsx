@@ -274,6 +274,8 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
   }, [initialDateFrom, initialDateTo]);
 
   const datesDirty = dateFrom !== initialDateFrom || dateTo !== initialDateTo;
+  // 날짜 미지정(빈 값) = 전체 기간(서버 필터 없음)
+  const isAllRange = !initialDateFrom && !initialDateTo;
   function applyDateRange(from: string, to: string) {
     const params = new URLSearchParams();
     if (from) params.set("from", from);
@@ -282,6 +284,14 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
     startRefetching(() => {
       router.push(qs ? `/mentoring?${qs}` : "/mentoring");
     });
+  }
+  // "최근 60일" 프리셋: 오늘 기준 -60일 ~ +14일
+  function applyRecentRange() {
+    const n = new Date();
+    const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const from = new Date(n.getFullYear(), n.getMonth(), n.getDate() - 60);
+    const to = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 14);
+    applyDateRange(iso(from), iso(to));
   }
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -503,10 +513,20 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
           variant="ghost"
           size="sm"
           className="h-8 px-2 text-xs"
-          onClick={() => applyDateRange("", "")}
+          onClick={applyRecentRange}
           disabled={isRefetching}
         >
-          기본 범위
+          최근 60일
+        </Button>
+        <Button
+          variant={isAllRange ? "secondary" : "ghost"}
+          size="sm"
+          className="h-8 px-2 text-xs"
+          onClick={() => applyDateRange("", "")}
+          disabled={isRefetching}
+          title="전체 기간 조회 (기본값)"
+        >
+          전체
         </Button>
         <div className="relative ml-2">
           <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />

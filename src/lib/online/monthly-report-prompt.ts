@@ -2,6 +2,7 @@
 // buildWeeklyReportPrompt 의 월간 버전.
 
 import type { KakaoLogTag } from "@/lib/online/kakao-tags";
+import { sortBySubjectOrder } from "@/lib/online/subjects";
 
 type DailyLog = {
   logDate: Date;
@@ -51,6 +52,20 @@ export type MonthlyReportInputs = {
   completedTaskResults: TaskResultRow[];
   weeklyPlans: WeeklyPlanSource[];
   monthlyPlan: MonthlyPlanSource | null;
+  /** 학생 프로필 최신값 (생성 시점 동결) */
+  profile?: {
+    mockScoreRange?: string | null;
+    internalScoreRange?: string | null;
+    targetUniversity?: string | null;
+    admissionType?: string | null;
+    selectedSubjects?: string | null;
+  } | null;
+  /** 리포트에 포함할 모의고사 성적 (선택) */
+  mockExam?: {
+    title: string;
+    examDate: string; // YYYY-MM-DD
+    scores: { subject: string; grade: number | null; rawScore: number | null; percentile: number | null }[];
+  } | null;
 };
 
 export function buildMonthlyReportPrompt(inputs: MonthlyReportInputs): {
@@ -59,8 +74,8 @@ export function buildMonthlyReportPrompt(inputs: MonthlyReportInputs): {
 } {
   const systemPrompt =
     "너는 관리형 독서실 원장이 학부모에게 보낼 월간 학부모 보고서 초안을 작성하는 조력자야. " +
-    "한 달간의 학습 흐름을 자연스럽게 서술하되, 근거는 관리 멘토의 일일 대화 요약 · 주간 계획 · 월간 계획 · 과목별 진도 · 완료된 수행평가 결과물 에서만 가져와. " +
-    "섹션 구조는 다음 5개: 1) 이번 달 총평, 2) 과목별 진도 및 주요 변화, 3) 수행평가·평가 결과, 4) 관리 멘토 상담 하이라이트, 5) 다음 달 계획. " +
+    "한 달간의 학습 흐름을 자연스럽게 서술하되, 근거는 관리 멘토의 일일 대화 요약 · 주간 계획 · 월간 계획 · 과목별 진도 · 완료된 수행평가 결과물 · 학생 프로필 · (제공된 경우) 모의고사 성적 에서만 가져와. " +
+    "섹션 구조는 다음 5개: 1) 이번 달 총평, 2) 과목별 진도 및 주요 변화, 3) 수행평가·모의고사 결과, 4) 관리 멘토 상담 하이라이트, 5) 다음 달 계획. 모의고사 성적이 제공되면 3번 섹션에서 과목별로 자연스럽게 언급(평가원 순서: 국어·수학·영어·한국사·탐구). " +
     "각 섹션을 마크다운 **굵은 제목**으로 구분하고, 내용은 문단 단위 정중하고 따뜻한 한국어로. " +
     "학생 이름과 학년은 자연스럽게 언급. 내부 메모·민감 정보·비공개 로그는 제외. " +
     "숫자나 일자는 제공된 값만 그대로 사용.";
@@ -69,6 +84,34 @@ export function buildMonthlyReportPrompt(inputs: MonthlyReportInputs): {
   lines.push(
     `${inputs.studentName}(${inputs.studentGrade}) 학생의 ${inputs.yearMonth} (${inputs.periodStartIso} ~ ${inputs.periodEndIso}) 월간 자료입니다.`
   );
+
+  // 0) 학생 프로필 (최신 설정값)
+  if (inputs.profile) {
+    const p = inputs.profile;
+    const rows: string[] = [];
+    if (p.targetUniversity) rows.push(`- 목표 대학: ${p.targetUniversity}`);
+    if (p.admissionType) rows.push(`- 입시 전형: ${p.admissionType}`);
+    if (p.mockScoreRange) rows.push(`- 모의고사 성적대: ${p.mockScoreRange}`);
+    if (p.internalScoreRange) rows.push(`- 내신 성적대: ${p.internalScoreRange}`);
+    if (p.selectedSubjects) rows.push(`- 선택과목: ${p.selectedSubjects}`);
+    if (rows.length > 0) {
+      lines.push("\n## 학생 프로필 (최신)");
+      lines.push(...rows);
+    }
+  }
+
+  // 0-2) 모의고사 성적 (선택)
+  if (inputs.mockExam && inputs.mockExam.scores.length > 0) {
+    lines.push(`\n## 모의고사 성적 — ${inputs.mockExam.title} (${inputs.mockExam.examDate})`);
+    const ordered = sortBySubjectOrder(inputs.mockExam.scores, (s) => s.subject);
+    for (const sc of ordered) {
+      const parts: string[] = [];
+      if (sc.grade != null) parts.push(`${sc.grade}등급`);
+      if (sc.percentile != null) parts.push(`백분위 ${sc.percentile}`);
+      if (sc.rawScore != null) parts.push(`원점수 ${sc.rawScore}`);
+      lines.push(`- ${sc.subject}: ${parts.join(" · ") || "기록 없음"}`);
+    }
+  }
 
   // 1) 월간 계획
   if (inputs.monthlyPlan) {

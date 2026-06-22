@@ -66,11 +66,27 @@ export default async function MentoringDetailPage({
   const analysisDate = mentoring.scheduledAt ?? new Date();
   const analysisYear = analysisDate.getFullYear();
   const analysisMonth = analysisDate.getMonth() + 1;
-  const [timetableEntries, mentoringSchoolEvents, studyAnalysis] = await Promise.all([
+  // 이달 상벌점 집계 기간 (멘토링 예정월 기준)
+  const monthStart = new Date(analysisYear, analysisMonth - 1, 1);
+  const monthEnd = new Date(analysisYear, analysisMonth, 1);
+  const [timetableEntries, mentoringSchoolEvents, studyAnalysis, monthMerits, patrolNotes] = await Promise.all([
     getTimetableEntries(mentoring.studentId),
     getStudentSchoolEvents(mentoring.studentId, evtFrom, evtTo),
     getStudentStudyAnalysis(mentoring.studentId, analysisYear, analysisMonth),
+    prisma.meritDemerit.findMany({
+      where: { studentId: mentoring.studentId, date: { gte: monthStart, lt: monthEnd } },
+      orderBy: { date: "desc" },
+      select: { id: true, date: true, type: true, points: true, reason: true, category: true },
+    }),
+    prisma.patrolRecord.findMany({
+      where: { studentId: mentoring.studentId, status: { in: ["NOTE", "ABSENT"] } },
+      orderBy: { checkedAt: "desc" },
+      take: 8,
+      select: { id: true, status: true, note: true, checkedAt: true, round: { select: { label: true, startedAt: true } } },
+    }),
   ]);
+  const meritPositive = monthMerits.filter((m) => m.type === "MERIT").reduce((sum, m) => sum + m.points, 0);
+  const meritNegative = monthMerits.filter((m) => m.type === "DEMERIT").reduce((sum, m) => sum + m.points, 0);
 
   // 해당 학생의 직전 멘토링 (현재 시점보다 이전, 상태 무관 — 가장 최근 기록)
   const previousMentoring: PreviousMentoring | null = await prisma.mentoring.findFirst({
@@ -140,6 +156,57 @@ export default async function MentoringDetailPage({
           </div>
         </CardContent>
       </Card>
+
+      {/* 상벌점 · 순찰 특이사항 — 멘토링 시 참고 (이달 누적 + 최근 순찰 특이) */}
+      {(monthMerits.length > 0 || patrolNotes.length > 0) && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              상벌점 · 순찰 특이사항
+              <span className="text-xs font-normal text-muted-foreground">({analysisYear}.{String(analysisMonth).padStart(2, "0")} 기준)</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <p className="text-xs text-muted-foreground">이달 상벌점</p>
+                {meritPositive > 0 && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">상점 +{meritPositive}</Badge>}
+                {meritNegative > 0 && <Badge variant="destructive">벌점 -{meritNegative}</Badge>}
+                {monthMerits.length === 0 && <span className="text-xs text-muted-foreground">없음</span>}
+              </div>
+              <ul className="space-y-1 max-h-32 overflow-y-auto">
+                {monthMerits.map((m) => (
+                  <li key={m.id} className="text-xs flex items-center gap-1.5">
+                    <span className="text-muted-foreground tabular-nums">{formatDate(m.date)}</span>
+                    <span className={m.type === "MERIT" ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
+                      {m.type === "MERIT" ? "+" : "-"}{m.points}
+                    </span>
+                    <span className="text-foreground/80 truncate">{m.category ? `[${m.category}] ` : ""}{m.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground mb-1.5">최근 순찰 특이사항</p>
+              {patrolNotes.length === 0 ? (
+                <span className="text-xs text-muted-foreground">없음</span>
+              ) : (
+                <ul className="space-y-1 max-h-32 overflow-y-auto">
+                  {patrolNotes.map((p) => (
+                    <li key={p.id} className="text-xs flex items-center gap-1.5">
+                      <span className="text-muted-foreground tabular-nums">{formatDate(p.round?.startedAt ?? p.checkedAt)}</span>
+                      <Badge variant="outline" className={p.status === "ABSENT" ? "border-gray-300 text-gray-600" : "border-amber-300 text-amber-700"}>
+                        {p.status === "ABSENT" ? "자리비움" : "특이"}
+                      </Badge>
+                      {p.note && <span className="text-foreground/80 truncate">{p.note}</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* 학습 정량 분석 — 멘토와 학생이 함께 확인하며 멘토링 자료로 활용 */}
       {studyAnalysis && (

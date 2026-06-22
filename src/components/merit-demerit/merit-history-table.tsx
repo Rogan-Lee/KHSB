@@ -137,6 +137,7 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
   const router = useRouter();
   const saved = typeof window !== "undefined" ? loadMeritFilters() : {};
   const [query, setQuery] = useState<string>(saved.q ?? "");
+  const [todayOnly, setTodayOnly] = useState<boolean>(false);
   const [editTarget, setEditTarget] = useState<MeritRecord | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isBulkPending, startBulkTransition] = useTransition();
@@ -146,15 +147,24 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
   }, [query]);
 
   const q = query.trim().toLowerCase();
+  const todayStr = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+  })();
+  const isToday = (d: Date) => {
+    const x = new Date(d);
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}` === todayStr;
+  };
 
-  const baseFiltered = q
-    ? records.filter(
-        (r) =>
-          r.student.name.toLowerCase().includes(q) ||
-          r.reason.toLowerCase().includes(q) ||
-          (r.category ?? "").toLowerCase().includes(q)
-      )
-    : records;
+  const baseFiltered = records.filter((r) => {
+    if (todayOnly && !isToday(r.date)) return false;
+    if (q && !(
+      r.student.name.toLowerCase().includes(q) ||
+      r.reason.toLowerCase().includes(q) ||
+      (r.category ?? "").toLowerCase().includes(q)
+    )) return false;
+    return true;
+  });
 
   // 헤더 클릭으로 정렬 (3-state 토글). 미정렬 시 서버 순서 유지.
   const { rows: filtered, sort, toggle } = useSortableTable(baseFiltered, {
@@ -218,7 +228,18 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
             </button>
           )}
         </div>
-        {q && <span className="text-xs text-muted-foreground">{filtered.length}건 검색됨</span>}
+        <Button
+          type="button"
+          variant={todayOnly ? "secondary" : "ghost"}
+          size="sm"
+          className="h-8 px-2.5 text-xs"
+          onClick={() => setTodayOnly((v) => !v)}
+          aria-pressed={todayOnly}
+          title="오늘 등록된 상벌점만 보기"
+        >
+          오늘만
+        </Button>
+        {(q || todayOnly) && <span className="text-xs text-muted-foreground">{filtered.length}건</span>}
         {selectedCount > 0 && (
           <Button variant="destructive" size="sm" className="ml-auto h-8 gap-1.5" onClick={handleBulkDelete} disabled={isBulkPending}>
             <Trash2 className="h-3.5 w-3.5" />{selectedCount}건 삭제
@@ -252,7 +273,7 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
           {filtered.length === 0 ? (
             <TableRow>
               <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
-                {q ? "검색 결과가 없습니다" : "상벌점 내역이 없습니다"}
+                {(q || todayOnly) ? "조건에 맞는 내역이 없습니다" : "상벌점 내역이 없습니다"}
               </TableCell>
             </TableRow>
           ) : (

@@ -26,12 +26,14 @@ export type SuggestionView = {
   handledAt: string | null;
   createdAt: string;
   hasUnseenUpdate: boolean; // 학생 측 — 직원 처리 후 미확인
+  deletedAt: string | null; // 원장이 삭제 처리한 시각 — 학생에게 '삭제됨' 안내
 };
 
 export type StaffSuggestionView = SuggestionView & {
   studentId: string;
   studentName: string;
   studentGrade: string;
+  isHidden: boolean; // 원장이 숨김 처리 (목록에서 흐리게/접힘)
 };
 
 function isUnseen(statusUpdatedAt: Date | null, studentReadAt: Date | null): boolean {
@@ -104,6 +106,7 @@ export async function listStudentSuggestions(params: { studentToken: string }): 
     handledAt: r.handledAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
     hasUnseenUpdate: isUnseen(r.statusUpdatedAt, r.studentReadAt),
+    deletedAt: r.deletedAt?.toISOString() ?? null,
   }));
 }
 
@@ -139,6 +142,7 @@ export async function getStudentSuggestions(params?: {
 
   const rows = await prisma.studentSuggestion.findMany({
     where: {
+      deletedAt: null, // 삭제 처리된 건의는 직원 목록에서 제외
       ...(params?.status ? { status: params.status } : {}),
       ...(params?.category ? { category: params.category } : {}),
     },
@@ -157,9 +161,11 @@ export async function getStudentSuggestions(params?: {
     handledAt: r.handledAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
     hasUnseenUpdate: false,
+    deletedAt: null,
     studentId: r.studentId,
     studentName: r.student.name,
     studentGrade: r.student.grade,
+    isHidden: !!r.hiddenAt,
   }));
 }
 
@@ -210,11 +216,37 @@ export async function replyToSuggestion(params: { id: string; reply: string; sta
   return { ok: true };
 }
 
-/** 건의 삭제 (원장 — FULL_ACCESS). */
+/** 건의 숨김/숨김해제 (원장 — FULL_ACCESS). 직원 목록에서 흐리게/접힘. */
+export async function setSuggestionHidden(params: { id: string; hidden: boolean }) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+  await prisma.studentSuggestion.update({
+    where: { id: params.id },
+    data: { hiddenAt: params.hidden ? new Date() : null },
+  });
+  revalidatePath("/suggestions");
+  return { ok: true };
+}
+
+/**
+ * 건의 삭제 (원장 — FULL_ACCESS). 소프트 삭제: 직원 목록에서 사라지고,
+ * 학생 포털에는 '관리자에 의해 삭제됨' 으로 표시(statusUpdatedAt 갱신 → 미확인 배지).
+ */
 export async function deleteStudentSuggestion(id: string) {
   const session = await auth();
   requireFullAccess(session?.user?.role);
-  await prisma.studentSuggestion.delete({ where: { id } });
+  const sug = await prisma.studentSuggestion.update({
+    where: { id },
+    data: {
+      deletedAt: new Date(),
+      deletedById: session!.user!.id,
+      statusUpdatedAt: new Date(), // 학생 미확인 배지 트리거
+    },
+    include: { student: { select: { name: true } } },
+  });
+  notifySlack(
+    `🗑️ [건의 삭제] ${sug.student.name} · "${sug.title}" — ${session!.user!.name ?? "원장"} 처리`,
+  );
   revalidatePath("/suggestions");
   revalidatePath("/");
   return { ok: true };

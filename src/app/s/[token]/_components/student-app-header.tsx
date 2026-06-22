@@ -43,10 +43,12 @@ export function StudentAppHeader({
   token,
   studentName,
   daysLeft,
+  isOnlineManaged = false,
 }: {
   token: string;
   studentName: string;
   daysLeft: number;
+  isOnlineManaged?: boolean;
 }) {
   const pathname = usePathname() ?? `/s/${token}`;
   const router = useRouter();
@@ -88,6 +90,15 @@ export function StudentAppHeader({
         <h1 className="flex-1 truncate text-center text-[14.5px] font-semibold tracking-[-0.01em] text-ink">
           {title}
         </h1>
+
+        {isOnlineManaged && (
+          <span
+            className="shrink-0 rounded-full bg-brand/12 px-2 py-0.5 text-[10.5px] font-semibold text-brand"
+            aria-label="온라인 관리 학생"
+          >
+            온라인 관리
+          </span>
+        )}
 
         <span
           className={`shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold tabular-nums ${
