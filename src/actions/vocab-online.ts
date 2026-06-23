@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { requireStaff } from "@/lib/roles";
+import { requireStaff, requireFullAccess } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { parseVocabCsv } from "@/lib/csv";
 import { buildPrompt, expandExpected, isAnswerCorrect } from "@/lib/vocab-grade";
@@ -18,6 +18,13 @@ async function requireStaffSession() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
   requireStaff(session.user.role);
+  return session.user;
+}
+
+async function requireFullAccessSession() {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
   return session.user;
 }
 
@@ -71,9 +78,20 @@ export async function deleteVocabBook(id: string) {
   await requireStaffSession();
   const examCount = await prisma.vocabExam.count({ where: { bookId: id } });
   if (examCount > 0) {
-    throw new Error("이 단어장으로 출제된 시험이 있어 삭제할 수 없습니다. 보관 처리하세요.");
+    throw new Error("이 단어장으로 출제된 시험이 있어 삭제할 수 없습니다. 출제 이력을 먼저 삭제하거나 보관 처리하세요.");
   }
   await prisma.vocabBook.delete({ where: { id } });
+  revalidatePath(ADMIN_PATH);
+}
+
+/**
+ * 출제 이력(시험) 삭제 — 원장/SA 전용.
+ * 응시 기록(VocabAttempt)·답안(VocabAttemptItem)이 cascade 로 함께 영구 삭제된다.
+ * 중복 단어장 정리 시, 단어장 삭제를 막던 출제 이력을 비우는 용도.
+ */
+export async function deleteVocabExam(examId: string) {
+  await requireFullAccessSession();
+  await prisma.vocabExam.delete({ where: { id: examId } });
   revalidatePath(ADMIN_PATH);
 }
 

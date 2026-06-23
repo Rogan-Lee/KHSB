@@ -3,7 +3,7 @@ export const revalidate = 30;
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { isStaff } from "@/lib/roles";
+import { isStaff, isFullAccess } from "@/lib/roles";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VocabTestBoard } from "@/components/vocab-test/vocab-test-board";
 import { VocabOnlinePanel } from "@/components/vocab-test/vocab-online-panel";
@@ -145,6 +145,7 @@ export default async function VocabTestPage() {
             books={booksForClient}
             exams={examsForClient}
             students={rosterStudents}
+            canDeleteExam={isFullAccess(session.user.role)}
           />
         </TabsContent>
         <TabsContent value="offline" className="mt-4">
