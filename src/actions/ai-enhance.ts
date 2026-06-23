@@ -8,10 +8,13 @@ import {
   buildMonthlyMentoringSummaryPrompt,
   parseEnhancedJson,
   finalizeEnhanced,
-  type EnhancedMentoringContent,
 } from "@/lib/report-ai-prompts";
 
-export type { EnhancedMentoringContent };
+// 주의: "use server" 모듈에서 `import { type X }` + `export type { X }` (재export)는
+// turbopack이 지워진 타입을 런타임에서 참조해 ReferenceError 를 낸다(멘토링 저장 장애 원인).
+// 타입 별칭 선언으로 재노출하면 완전히 erase 되어 런타임 바인딩이 생기지 않는다.
+export type EnhancedMentoringContent =
+  import("@/lib/report-ai-prompts").EnhancedMentoringContent;
 
 export async function getMentoringContent(mentoringId: string) {
   const session = await auth();
