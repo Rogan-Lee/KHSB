@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +11,7 @@ import { cn, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   Loader2, Search, X, CheckCircle2, Circle, Link2, Send, ExternalLink,
-  Copy, Check, Filter, MessageCircle, Sparkles, AlertCircle, UserMinus,
+  Copy, Check, Filter, MessageCircle, Sparkles, AlertCircle, UserMinus, CalendarClock,
 } from "lucide-react";
 import {
   createParentReportsForStudents,
@@ -18,6 +19,7 @@ import {
   type StudentReportRow,
   type BulkCreateByStudentResult,
 } from "@/actions/parent-reports";
+import { enqueueMentoringAiComments } from "@/actions/report-ai-queue";
 import { enhanceMentoringWithAI, type EnhancedMentoringContent } from "@/actions/ai-enhance";
 import { getShareWording, setAppSetting } from "@/actions/app-settings";
 import { SHARE_WORDING_KEYS, renderShareWording } from "@/lib/share-wording";
@@ -34,6 +36,7 @@ export function MentoringReportTab({ rows }: Props) {
   const [query, setQuery] = useState("");
   const [showOnlyWithReport, setShowOnlyWithReport] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [enqueuing, setEnqueuing] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<Record<string, "pending" | "created" | "existing" | "no-mentoring" | "failed">>({});
 
   // 디테일: 편집 중 customNote
@@ -134,6 +137,33 @@ export function MentoringReportTab({ rows }: Props) {
       toast.error(e instanceof Error ? e.message : "일괄 생성 실패");
     } finally {
       setBulkBusy(false);
+    }
+  }
+
+  // AI 코멘트 예약 큐 등록 (야간 Claude 루틴이 생성)
+  async function handleEnqueueAiComments() {
+    if (selectedIds.size === 0) {
+      toast.error("학생을 선택하세요");
+      return;
+    }
+    if (
+      !confirm(
+        `선택한 ${selectedIds.size}명의 'AI 코멘트'를 예약 큐에 등록합니다.\n리포트가 없으면 먼저 생성되고, 야간 Claude 루틴이 코멘트를 생성합니다. 계속할까요?`,
+      )
+    ) {
+      return;
+    }
+    setEnqueuing(true);
+    try {
+      const r = await enqueueMentoringAiComments({ studentIds: Array.from(selectedIds) });
+      toast.success(
+        `예약 ${r.queued}건 · 건너뜀 ${r.skipped}건` + (r.failed > 0 ? ` · 실패 ${r.failed}건` : ""),
+      );
+      startTransition(() => router.refresh());
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "예약 등록 실패");
+    } finally {
+      setEnqueuing(false);
     }
   }
 
@@ -247,6 +277,26 @@ export function MentoringReportTab({ rows }: Props) {
               {Object.values(bulkProgress).filter((s) => s !== "pending").length}/{Object.keys(bulkProgress).length} 진행 중
             </span>
           )}
+          <Link
+            href="/reports/ai-queue"
+            className="inline-flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
+          >
+            <CalendarClock className="h-3.5 w-3.5" />
+            예약 대기열
+          </Link>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-violet-700 border-violet-300 hover:bg-violet-50"
+            onClick={handleEnqueueAiComments}
+            disabled={enqueuing || selectedIds.size === 0}
+          >
+            {enqueuing ? (
+              <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />등록 중…</>
+            ) : (
+              <><CalendarClock className="h-3.5 w-3.5 mr-1" />AI 코멘트 예약</>
+            )}
+          </Button>
           <Button
             size="sm"
             variant="outline"
