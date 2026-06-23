@@ -1206,6 +1206,40 @@ model ParentReport {
   @@index([expiresAt])
 }
 
+// 리포트 AI 텍스트 생성 큐 — 본원 월간 '종합의견' / 멘토링 '코멘트' 의 AI 생성을
+// 야간 Claude 루틴에 위임하기 위한 작업 큐. 리포트 본문 자체는 즉시 생성되고,
+// 무거운 LLM 텍스트만 여기에 봉인된 프롬프트로 쌓였다가 루틴이 채운다.
+// 소비 엔드포인트: /api/cron/report-ai-queue (CRON_SECRET 게이트)
+enum ReportAiJobType {
+  MONTHLY_SUMMARY // 본원 월간 리포트 mentoringSummary → targetId = MonthlyReport.id
+  MENTORING_COMMENT // 멘토링 학부모 리포트 customNote → targetId = ParentReport.id
+}
+
+enum ReportAiJobStatus {
+  QUEUED
+  DONE
+  FAILED
+}
+
+model ReportAiJob {
+  id           String            @id @default(cuid())
+  type         ReportAiJobType
+  status       ReportAiJobStatus @default(QUEUED)
+  targetId     String // 결과를 기록할 리포트 행 id (type 에 따라 모델 다름)
+  studentName  String // 대기열 표시용 스냅샷
+  periodLabel  String? // "2026년 6월" / "최근 멘토링" 등 표시용
+  systemPrompt String            @db.Text // 봉인된 system 프롬프트
+  userPrompt   String            @db.Text // 봉인된 user 프롬프트
+  resultText   String?           @db.Text // 루틴이 생성한 원본 텍스트(plain 또는 JSON)
+  errorMessage String?
+  createdById  String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([type, targetId]) // 타깃당 1개 잡 (재예약 시 upsert)
+  @@index([status, updatedAt])
+}
+
 model TimetableEntry {
   id          String   @id @default(cuid())
   studentId   String
