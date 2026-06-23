@@ -1,15 +1,17 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { generateMonthlyReportsBulk, markReportsSentBulk } from "@/actions/reports";
 import type { BulkReportResult } from "@/actions/reports";
+import { enqueueMonthlyAiSummaries } from "@/actions/report-ai-queue";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Loader2, Search, X, CheckCircle2, Circle, Image as ImageIcon,
-  AlertCircle, XCircle, Send, Filter,
+  AlertCircle, XCircle, Send, Filter, CalendarClock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -44,6 +46,7 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
   const [, startTransition] = useTransition();
   const [query, setQuery] = useState("");
   const [showOnlyGenerated, setShowOnlyGenerated] = useState(false);
+  const [enqueuing, setEnqueuing] = useState(false);
 
   const reportMap = useMemo(() => new Map(reports.map((r) => [r.studentId, r])), [reports]);
 
@@ -145,6 +148,37 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
     }
   }
 
+  // AI 종합의견 예약 큐 등록 (야간 Claude 루틴이 생성)
+  async function handleEnqueueAiSummaries() {
+    if (selectedIds.size === 0) {
+      toast.error("학생을 선택하세요");
+      return;
+    }
+    if (
+      !confirm(
+        `선택한 ${selectedIds.size}명의 ${year}년 ${month}월 'AI 종합의견'을 예약 큐에 등록합니다.\n리포트가 없으면 먼저 생성되고, 야간 Claude 루틴이 종합의견을 생성합니다. 계속할까요?`,
+      )
+    ) {
+      return;
+    }
+    setEnqueuing(true);
+    try {
+      const r = await enqueueMonthlyAiSummaries({
+        studentIds: Array.from(selectedIds),
+        year,
+        month,
+      });
+      toast.success(
+        `예약 ${r.queued}건 · 건너뜀 ${r.skipped}건` + (r.failed > 0 ? ` · 실패 ${r.failed}건` : ""),
+      );
+      startTransition(() => router.refresh());
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "예약 등록 실패");
+    } finally {
+      setEnqueuing(false);
+    }
+  }
+
   const failedCount = Object.values(bulkProgress).filter((s) => s === "failed").length;
 
   return (
@@ -169,6 +203,26 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
               실패 {failedCount}건 재시도
             </Button>
           )}
+          <Link
+            href="/reports/ai-queue"
+            className="inline-flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
+          >
+            <CalendarClock className="h-3.5 w-3.5" />
+            예약 대기열
+          </Link>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleEnqueueAiSummaries}
+            disabled={enqueuing || selectedIds.size === 0}
+            className="text-violet-700 border-violet-300 hover:bg-violet-50"
+          >
+            {enqueuing ? (
+              <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />등록 중…</>
+            ) : (
+              <><CalendarClock className="h-3.5 w-3.5 mr-1" />AI 종합의견 예약</>
+            )}
+          </Button>
           <Button
             size="sm"
             variant="outline"
