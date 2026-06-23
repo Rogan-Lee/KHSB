@@ -9,10 +9,12 @@ export function VocabOnlinePanel({
   books,
   exams,
   students,
+  canDeleteExam = false,
 }: {
   books: VocabBookSummary[];
   exams: ExamSummary[];
   students: RosterStudent[];
+  canDeleteExam?: boolean;
 }) {
   return (
     <Tabs defaultValue="exams">
@@ -25,7 +27,7 @@ export function VocabOnlinePanel({
         <VocabExamCreator books={books} students={students} />
       </TabsContent>
       <TabsContent value="results" className="mt-4">
-        <VocabResultsBoard exams={exams} students={students} />
+        <VocabResultsBoard exams={exams} students={students} canDelete={canDeleteExam} />
       </TabsContent>
       <TabsContent value="books" className="mt-4">
         <VocabBookManager books={books} />
