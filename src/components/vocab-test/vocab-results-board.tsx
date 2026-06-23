@@ -9,9 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ChevronDown, ChevronRight, Copy, RefreshCw, RotateCcw, XCircle, Eye, UserPlus } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, RefreshCw, RotateCcw, XCircle, Eye, UserPlus, Trash2 } from "lucide-react";
 import {
   getVocabAttemptDetail, createRetakeFromAttempt, cancelVocabAttempt, reissueAttemptLink, assignExamToStudents,
+  deleteVocabExam,
 } from "@/actions/vocab-online";
 import type { RosterStudent } from "./vocab-exam-creator";
 import type { VocabAttemptStatus, VocabExamDirection } from "@/generated/prisma";
@@ -52,7 +53,7 @@ function fmt(iso: string | null) {
   return new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-export function VocabResultsBoard({ exams, students }: { exams: ExamSummary[]; students: RosterStudent[] }) {
+export function VocabResultsBoard({ exams, students, canDelete = false }: { exams: ExamSummary[]; students: RosterStudent[]; canDelete?: boolean }) {
   const [expanded, setExpanded] = useState<string | null>(exams[0]?.id ?? null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [assignFor, setAssignFor] = useState<ExamSummary | null>(null);
@@ -94,8 +95,27 @@ export function VocabResultsBoard({ exams, students }: { exams: ExamSummary[]; s
             </CardHeader>
             {open && (
               <CardContent>
-                <div className="flex justify-end mb-2">
+                <div className="flex justify-end gap-2 mb-2">
                   <Button variant="outline" size="sm" onClick={() => setAssignFor(exam)}><UserPlus className="h-3.5 w-3.5 mr-1" /> 학생 추가 배정</Button>
+                  {canDelete && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive"
+                      disabled={isPending}
+                      onClick={() => {
+                        if (
+                          !confirm(
+                            `"${exam.title}" 출제 이력을 삭제할까요?\n응시 기록 ${exam.attempts.length}건(점수·답안 포함)이 영구 삭제되며 되돌릴 수 없습니다.`
+                          )
+                        )
+                          return;
+                        act(() => deleteVocabExam(exam.id), "출제 이력을 삭제했습니다");
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1" /> 출제 이력 삭제
+                    </Button>
+                  )}
                 </div>
                 <div className="rounded-md border overflow-auto">
                   <Table>
