@@ -1,9 +1,31 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
+import { File as ExpoFile } from 'expo-file-system';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import type { DocumentPickerAsset } from 'expo-document-picker';
 
 import { authenticatedFetch } from '@/lib/session';
+
+/**
+ * 업로드 파일을 FormData 에 추가.
+ *
+ * 이 앱의 전역 fetch 는 Expo winter(WinterCG) fetch 라, FormData 파트로 RN 의
+ * `{ uri, name, type }` 형식을 지원하지 않는다("Unsupported FormDataPart implementation").
+ * 따라서 네이티브에서는 로컬 파일을 실제 Blob 으로 읽어 첨부한다.
+ */
+async function appendUploadFile(
+  formData: FormData,
+  fileLike: { uri: string; name: string; mimeType?: string; file?: File | Blob },
+) {
+  const type = fileLike.mimeType || 'application/octet-stream';
+  if (Platform.OS === 'web' && fileLike.file) {
+    formData.append('file', fileLike.file, fileLike.name);
+    return;
+  }
+  const buffer = await new ExpoFile(fileLike.uri).arrayBuffer();
+  const blob = new Blob([buffer], { type });
+  formData.append('file', blob, fileLike.name);
+}
 
 export type MobileAttachment = {
   id?: string;
@@ -572,21 +594,12 @@ export async function uploadMobileMedia(
       },
 ) {
   const formData = new FormData();
-  const name = asset.fileName || `photo-${Date.now()}.jpg`;
-  const type = asset.mimeType || 'image/jpeg';
-
-  if (Platform.OS === 'web' && asset.file) {
-    formData.append('file', asset.file);
-  } else {
-    formData.append(
-      'file',
-      {
-        name,
-        type,
-        uri: asset.uri,
-      } as unknown as Blob,
-    );
-  }
+  await appendUploadFile(formData, {
+    uri: asset.uri,
+    name: asset.fileName || `photo-${Date.now()}.jpg`,
+    mimeType: asset.mimeType || 'image/jpeg',
+    file: asset.file,
+  });
   formData.append('context', options.context);
   if (options.context === 'mentoring') {
     formData.append('mentoringId', options.mentoringId);
@@ -614,19 +627,12 @@ export async function uploadMobileTaskFile(
     | { context: 'feedback'; submissionId: string },
 ) {
   const formData = new FormData();
-  const type = asset.mimeType || 'application/octet-stream';
-  if (Platform.OS === 'web' && asset.file) {
-    formData.append('file', asset.file);
-  } else {
-    formData.append(
-      'file',
-      {
-        name: asset.name,
-        type,
-        uri: asset.uri,
-      } as unknown as Blob,
-    );
-  }
+  await appendUploadFile(formData, {
+    uri: asset.uri,
+    name: asset.name,
+    mimeType: asset.mimeType ?? undefined,
+    file: asset.file,
+  });
   formData.append('context', options.context);
   if (options.context === 'task') {
     formData.append('taskId', options.taskId);
@@ -657,15 +663,7 @@ export async function uploadMobileChatFile(
   chatId: string,
 ): Promise<MobileAttachment> {
   const formData = new FormData();
-  const type = fileLike.mimeType || 'application/octet-stream';
-  if (Platform.OS === 'web' && fileLike.file) {
-    formData.append('file', fileLike.file);
-  } else {
-    formData.append(
-      'file',
-      { name: fileLike.name, type, uri: fileLike.uri } as unknown as Blob,
-    );
-  }
+  await appendUploadFile(formData, fileLike);
   formData.append('context', 'chat');
   formData.append('chatId', chatId);
 
@@ -691,15 +689,7 @@ export async function uploadMobileQuestionFile(fileLike: {
   file?: File | Blob;
 }): Promise<MobileAttachment> {
   const formData = new FormData();
-  const type = fileLike.mimeType || 'application/octet-stream';
-  if (Platform.OS === 'web' && fileLike.file) {
-    formData.append('file', fileLike.file);
-  } else {
-    formData.append(
-      'file',
-      { name: fileLike.name, type, uri: fileLike.uri } as unknown as Blob,
-    );
-  }
+  await appendUploadFile(formData, fileLike);
   formData.append('context', 'question');
 
   const response = await authenticatedFetch('/api/mobile/v1/media', {
