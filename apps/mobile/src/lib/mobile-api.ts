@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import type { DocumentPickerAsset } from 'expo-document-picker';
 
@@ -574,7 +575,7 @@ export async function uploadMobileMedia(
   const name = asset.fileName || `photo-${Date.now()}.jpg`;
   const type = asset.mimeType || 'image/jpeg';
 
-  if (asset.file) {
+  if (Platform.OS === 'web' && asset.file) {
     formData.append('file', asset.file);
   } else {
     formData.append(
@@ -614,7 +615,7 @@ export async function uploadMobileTaskFile(
 ) {
   const formData = new FormData();
   const type = asset.mimeType || 'application/octet-stream';
-  if (asset.file) {
+  if (Platform.OS === 'web' && asset.file) {
     formData.append('file', asset.file);
   } else {
     formData.append(
@@ -657,7 +658,7 @@ export async function uploadMobileChatFile(
 ): Promise<MobileAttachment> {
   const formData = new FormData();
   const type = fileLike.mimeType || 'application/octet-stream';
-  if (fileLike.file) {
+  if (Platform.OS === 'web' && fileLike.file) {
     formData.append('file', fileLike.file);
   } else {
     formData.append(
@@ -691,7 +692,7 @@ export async function uploadMobileQuestionFile(fileLike: {
 }): Promise<MobileAttachment> {
   const formData = new FormData();
   const type = fileLike.mimeType || 'application/octet-stream';
-  if (fileLike.file) {
+  if (Platform.OS === 'web' && fileLike.file) {
     formData.append('file', fileLike.file);
   } else {
     formData.append(
