@@ -22,7 +22,7 @@ export function AttachmentPicker({
     const result = await ImagePicker.launchImageLibraryAsync({
       allowsMultipleSelection: true,
       mediaTypes: ['images'],
-      quality: 0.85,
+      quality: 0.6,
       selectionLimit: Math.max(1, max - assets.length),
     });
     if (!result.canceled) {
@@ -39,7 +39,7 @@ export function AttachmentPicker({
     }
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ['images'],
-      quality: 0.85,
+      quality: 0.6,
     });
     if (!result.canceled) {
       onChange([...assets, result.assets[0]].slice(0, max));
