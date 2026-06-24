@@ -4,6 +4,7 @@ import {
   BookMarked,
   CalendarClock,
   CircleHelp,
+  ClipboardList,
   LayoutGrid,
   Lightbulb,
   LockKeyhole,
@@ -41,6 +42,7 @@ const QNA_ROUTE = '/qna' as Href;
 const VOCAB_ROUTE = '/vocab' as Href;
 const FEEDBACK_ROUTE = '/feedback' as Href;
 const SUGGESTIONS_ROUTE = '/suggestions' as Href;
+const SURVEY_ROUTE = '/survey' as Href;
 const PROGRAMS_ROUTE = '/programs' as Href;
 const NOTIFICATIONS_ROUTE = '/notifications' as Href;
 const MORE_ROUTE = '/more' as Href;
@@ -151,6 +153,8 @@ function Content({ data }: { data: StudentOverviewResponse }) {
           onPress={() => router.push(VOCAB_ROUTE)} />
         <HubTile icon={Lightbulb} label="건의사항" tone="amber"
           onPress={() => router.push(SUGGESTIONS_ROUTE)} />
+        <HubTile icon={ClipboardList} label="초기 설문" tone="violet"
+          onPress={() => router.push(SURVEY_ROUTE)} />
         <HubTile icon={LayoutGrid} label="프로그램" tone="primary"
           onPress={() => router.push(PROGRAMS_ROUTE)} />
         <HubTile icon={UserRound} label="내 정보" tone="neutral"

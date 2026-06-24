@@ -499,6 +499,36 @@ export type SuggestionListResponse = {
   summary: { total: number; unseen: number };
 };
 
+// ─── 온보딩 설문 ───
+export type SurveySectionPayload = {
+  key: string;
+  kind:
+    | 'text'
+    | 'performance'
+    | 'history'
+    | 'goals'
+    | 'admissionType'
+    | 'strengthsWeaknesses';
+  title: string;
+  description: string;
+  placeholder?: string;
+  value: unknown;
+  complete: boolean;
+};
+
+export type SurveyResponse = {
+  submittedAt: string | null;
+  gradeNumber: 1 | 2 | 3 | null;
+  complete: boolean;
+  sections: SurveySectionPayload[];
+};
+
+export type SurveySaveResponse = {
+  ok: boolean;
+  sectionComplete: boolean;
+  surveyComplete: boolean;
+};
+
 export class MobileApiError extends Error {}
 
 export async function requestMobileApi<T>(
