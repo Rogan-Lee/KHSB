@@ -682,6 +682,39 @@ export async function uploadMobileChatFile(
   return body as MobileAttachment;
 }
 
+/** 질문(Q&A) 문서 첨부 업로드 — PDF/HWP/DOC/PPT/XLSX 등. 이미지는 AttachmentPicker 사용. */
+export async function uploadMobileQuestionFile(fileLike: {
+  uri: string;
+  name: string;
+  mimeType?: string;
+  file?: File | Blob;
+}): Promise<MobileAttachment> {
+  const formData = new FormData();
+  const type = fileLike.mimeType || 'application/octet-stream';
+  if (fileLike.file) {
+    formData.append('file', fileLike.file);
+  } else {
+    formData.append(
+      'file',
+      { name: fileLike.name, type, uri: fileLike.uri } as unknown as Blob,
+    );
+  }
+  formData.append('context', 'question');
+
+  const response = await authenticatedFetch('/api/mobile/v1/media', {
+    body: formData,
+    method: 'POST',
+  });
+  const body = (await response.json().catch(() => null)) as
+    | (MobileAttachment & { error?: never })
+    | { error?: string }
+    | null;
+  if (!response.ok || !body || 'error' in body) {
+    throw new MobileApiError(body?.error ?? '파일을 업로드하지 못했습니다.');
+  }
+  return body as MobileAttachment;
+}
+
 export function useMobileQuery<T>(path: string) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);

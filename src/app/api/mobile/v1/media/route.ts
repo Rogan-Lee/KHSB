@@ -97,7 +97,10 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "업로드 용도를 확인하세요" }, { status: 400 });
   }
   const isDocumentContext =
-    context === "task" || context === "feedback" || context === "chat";
+    context === "task" ||
+    context === "feedback" ||
+    context === "chat" ||
+    context === "question";
   const maxFileSize = isDocumentContext ? MAX_DOCUMENT_SIZE : MAX_IMAGE_SIZE;
   if (file.size > maxFileSize) {
     return Response.json(

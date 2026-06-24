@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { FileText } from 'lucide-react-native';
 import {
   Linking,
   Pressable,
@@ -9,9 +10,16 @@ import {
   View,
 } from 'react-native';
 
-import { colors, spacing } from '@/constants/theme';
+import { colors, palette, spacing, type as typeScale } from '@/constants/theme';
 import { formatShortDateTime } from '@/lib/format';
 import type { QuestionThreadResponse } from '@/lib/mobile-api';
+
+function attIsImage(att: { mimeType: string; name: string }) {
+  return (
+    att.mimeType.startsWith('image/') ||
+    /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(att.name)
+  );
+}
 
 export function FormInput({
   label,
@@ -58,20 +66,34 @@ export function MessageThread({
               <Text style={styles.messageText}>{message.content}</Text>
               {message.attachments.length > 0 ? (
                 <View style={styles.attachments}>
-                  {message.attachments.map((attachment) => (
-                    <Pressable
-                      accessibilityLabel={`${attachment.name} 사진 열기`}
-                      accessibilityRole="link"
-                      key={attachment.url}
-                      onPress={() => void Linking.openURL(attachment.url)}
-                      style={({ pressed }) => pressed && styles.pressed}>
-                      <Image
-                        contentFit="cover"
-                        source={{ uri: attachment.url }}
-                        style={styles.attachmentImage}
-                      />
-                    </Pressable>
-                  ))}
+                  {message.attachments.map((attachment) =>
+                    attIsImage(attachment) ? (
+                      <Pressable
+                        accessibilityLabel={`${attachment.name} 사진 열기`}
+                        accessibilityRole="link"
+                        key={attachment.url}
+                        onPress={() => void Linking.openURL(attachment.url)}
+                        style={({ pressed }) => pressed && styles.pressed}>
+                        <Image
+                          contentFit="cover"
+                          source={{ uri: attachment.url }}
+                          style={styles.attachmentImage}
+                        />
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        accessibilityLabel={`${attachment.name} 파일 열기`}
+                        accessibilityRole="link"
+                        key={attachment.url}
+                        onPress={() => void Linking.openURL(attachment.url)}
+                        style={({ pressed }) => [styles.fileChip, pressed && styles.pressed]}>
+                        <FileText color={palette.blue50} size={16} />
+                        <Text numberOfLines={1} style={styles.fileChipText}>
+                          {attachment.name}
+                        </Text>
+                      </Pressable>
+                    ),
+                  )}
                 </View>
               ) : null}
               <Text style={styles.messageTime}>{formatShortDateTime(message.createdAt)}</Text>
@@ -160,6 +182,22 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     height: 112,
     width: 112,
+  },
+  fileChip: {
+    alignItems: 'center',
+    backgroundColor: palette.blue5,
+    borderRadius: 10,
+    flexDirection: 'row',
+    gap: 6,
+    maxWidth: 220,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  fileChipText: {
+    ...typeScale.caption1,
+    color: palette.blue50,
+    flexShrink: 1,
+    fontWeight: '700',
   },
   pressed: {
     opacity: 0.72,
