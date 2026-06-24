@@ -36,17 +36,16 @@ export function DocAttachField({
     setError('');
     setUploading(true);
     try {
-      const uploaded: MobileAttachment[] = [];
-      for (const a of res.assets) {
-        uploaded.push(
-          await uploadMobileQuestionFile({
+      const uploaded = await Promise.all(
+        res.assets.map((a) =>
+          uploadMobileQuestionFile({
             uri: a.uri,
             name: a.name,
             mimeType: a.mimeType ?? undefined,
             file: a.file,
           }),
-        );
-      }
+        ),
+      );
       onChange([...value, ...uploaded].slice(0, max));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '파일을 첨부하지 못했습니다.');

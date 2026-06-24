@@ -78,10 +78,10 @@ export function ChatThread({
     setAttachError('');
     setUploading(true);
     try {
-      const uploaded: MobileAttachment[] = [];
-      for (const f of files) {
-        uploaded.push(await uploadMobileChatFile(f, chatId));
-      }
+      // 여러 파일 병렬 업로드 (순차 대비 체감 속도 개선)
+      const uploaded = await Promise.all(
+        files.map((f) => uploadMobileChatFile(f, chatId)),
+      );
       setPending((prev) => [...prev, ...uploaded]);
     } catch (caught) {
       setAttachError(
@@ -101,7 +101,7 @@ export function ChatThread({
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
-      quality: 0.85,
+      quality: 0.6, // HEIC 원본을 JPEG 로 재인코딩·압축 → 업로드 용량/시간 대폭 감소
     });
     if (res.canceled) return;
     await uploadAll(
