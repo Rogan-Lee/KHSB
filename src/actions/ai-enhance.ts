@@ -65,6 +65,7 @@ export async function enhanceMentoringWithAI(mentoringId: string): Promise<Enhan
     model: "llama-3.3-70b-versatile",
     temperature: 0.4,
     max_tokens: 4000,
+    response_format: { type: "json_object" }, // Groq JSON 모드: 파싱 실패 방지
     messages: [
       { role: "system", content: prompt.systemPrompt },
       { role: "user", content: prompt.userPrompt },
