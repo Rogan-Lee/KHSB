@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { AttachmentPicker } from '@/components/attachment-picker';
+import { DocAttachField } from '@/components/doc-attach-field';
 import {
   Badge,
   Card,
@@ -19,6 +20,7 @@ import { FormError, FormInput, MessageThread } from '@/components/workflow-ui';
 import { colors, spacing } from '@/constants/theme';
 import { formatRelativeTime } from '@/lib/format';
 import {
+  MobileAttachment,
   mutateMobileApi,
   QuestionThreadResponse,
   StudentQuestionsResponse,
@@ -129,6 +131,7 @@ function CreateQuestionSheet({
   const [subject, setSubject] = useState('');
   const [content, setContent] = useState('');
   const [assets, setAssets] = useState<ImagePickerAsset[]>([]);
+  const [docs, setDocs] = useState<MobileAttachment[]>([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -136,11 +139,11 @@ function CreateQuestionSheet({
     setError('');
     setSubmitting(true);
     try {
-      const attachments = await Promise.all(
+      const images = await Promise.all(
         assets.map((asset) => uploadMobileMedia(asset, { context: 'question' })),
       );
       await mutateMobileApi<{ id: string }>('/api/mobile/v1/student/questions', 'POST', {
-        attachments,
+        attachments: [...images, ...docs],
         content,
         subject,
         title,
@@ -149,6 +152,7 @@ function CreateQuestionSheet({
       setSubject('');
       setContent('');
       setAssets([]);
+      setDocs([]);
       await onCreated();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '질문을 등록하지 못했습니다.');
@@ -186,6 +190,7 @@ function CreateQuestionSheet({
         value={content}
       />
       <AttachmentPicker assets={assets} onChange={setAssets} />
+      <DocAttachField onChange={setDocs} value={docs} />
       <FormError message={error} />
       <PrimaryButton disabled={submitting} onPress={() => void submit()}>
         {submitting ? '등록 중' : '질문 등록'}
@@ -205,6 +210,7 @@ function StudentQuestionSheet({
 }) {
   const [message, setMessage] = useState('');
   const [assets, setAssets] = useState<ImagePickerAsset[]>([]);
+  const [docs, setDocs] = useState<MobileAttachment[]>([]);
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { data, error, isLoading, refresh, retry } = useMobileQuery<QuestionThreadResponse>(
@@ -215,16 +221,17 @@ function StudentQuestionSheet({
     setSubmitError('');
     setSubmitting(true);
     try {
-      const attachments = await Promise.all(
+      const images = await Promise.all(
         assets.map((asset) => uploadMobileMedia(asset, { context: 'question' })),
       );
       await mutateMobileApi(
         `/api/mobile/v1/student/questions/${questionId}/messages`,
         'POST',
-        { attachments, content: message },
+        { attachments: [...images, ...docs], content: message },
       );
       setMessage('');
       setAssets([]);
+      setDocs([]);
       await Promise.all([refresh(), onChanged()]);
     } catch (caught) {
       setSubmitError(
@@ -255,6 +262,7 @@ function StudentQuestionSheet({
             value={message}
           />
           <AttachmentPicker assets={assets} onChange={setAssets} />
+          <DocAttachField onChange={setDocs} value={docs} />
           <FormError message={submitError} />
           <PrimaryButton disabled={submitting} onPress={() => void sendMessage()}>
             {submitting ? '전송 중' : '추가 질문 전송'}

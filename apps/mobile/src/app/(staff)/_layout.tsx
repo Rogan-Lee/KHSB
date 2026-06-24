@@ -34,6 +34,7 @@ export default function StaffLayout() {
         options={{ tabBarIcon: tabIcon(MoreHorizontal), tabBarLabel: '더보기', title: '더보기' }}
       />
       <Tabs.Screen name="staff-tasks" options={{ href: null, title: '수행평가 관리' }} />
+      <Tabs.Screen name="chat" options={{ href: null, title: '학생 채팅' }} />
     </RoleTabs>
   );
 }

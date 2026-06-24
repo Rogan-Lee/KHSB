@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { AppScreen } from '@/components/app-screen';
 import { AttachmentPicker } from '@/components/attachment-picker';
+import { DocAttachField } from '@/components/doc-attach-field';
 import {
   Badge,
   Card,
@@ -19,6 +20,7 @@ import { FormError, FormInput, MessageThread } from '@/components/workflow-ui';
 import { colors, spacing } from '@/constants/theme';
 import { formatRelativeTime } from '@/lib/format';
 import {
+  MobileAttachment,
   mutateMobileApi,
   QuestionThreadResponse,
   StaffQuestionsResponse,
@@ -117,6 +119,7 @@ function StaffQuestionSheet({
 }) {
   const [answer, setAnswer] = useState('');
   const [assets, setAssets] = useState<ImagePickerAsset[]>([]);
+  const [docs, setDocs] = useState<MobileAttachment[]>([]);
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const { data, error, isLoading, retry } = useMobileQuery<QuestionThreadResponse>(
@@ -127,16 +130,17 @@ function StaffQuestionSheet({
     setSubmitError('');
     setSubmitting(true);
     try {
-      const attachments = await Promise.all(
+      const images = await Promise.all(
         assets.map((asset) => uploadMobileMedia(asset, { context: 'question' })),
       );
       await mutateMobileApi(
         `/api/mobile/v1/staff/questions/${questionId}/answer`,
         'POST',
-        { attachments, content: answer },
+        { attachments: [...images, ...docs], content: answer },
       );
       setAnswer('');
       setAssets([]);
+      setDocs([]);
       await onAnswered();
     } catch (caught) {
       setSubmitError(caught instanceof Error ? caught.message : '답변을 저장하지 못했습니다.');
@@ -168,6 +172,7 @@ function StaffQuestionSheet({
         value={answer}
       />
       <AttachmentPicker assets={assets} onChange={setAssets} />
+      <DocAttachField onChange={setDocs} value={docs} />
       <FormError message={submitError} />
       <PrimaryButton disabled={submitting} onPress={() => void submit()}>
         {submitting ? '저장 중' : '답변 등록'}
