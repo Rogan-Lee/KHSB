@@ -30,6 +30,12 @@ const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
   "application/x-hwp",
   "application/zip",
   "application/x-zip-compressed",
+  // PowerPoint
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  // Excel
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ]);
 const ALLOWED_DOCUMENT_EXTENSIONS = new Set([
   "doc",
@@ -43,7 +49,11 @@ const ALLOWED_DOCUMENT_EXTENSIONS = new Set([
   "jpg",
   "pdf",
   "png",
+  "ppt",
+  "pptx",
   "webp",
+  "xls",
+  "xlsx",
   "zip",
 ]);
 const MENTORING_TAGS = new Set(["KDA", "EXTRA", "FREE"]);
@@ -81,11 +91,13 @@ export async function POST(request: NextRequest) {
     context !== "question" &&
     context !== "mentoring" &&
     context !== "task" &&
-    context !== "feedback"
+    context !== "feedback" &&
+    context !== "chat"
   ) {
     return Response.json({ error: "업로드 용도를 확인하세요" }, { status: 400 });
   }
-  const isDocumentContext = context === "task" || context === "feedback";
+  const isDocumentContext =
+    context === "task" || context === "feedback" || context === "chat";
   const maxFileSize = isDocumentContext ? MAX_DOCUMENT_SIZE : MAX_IMAGE_SIZE;
   if (file.size > maxFileSize) {
     return Response.json(
@@ -105,7 +117,7 @@ export async function POST(request: NextRequest) {
     return Response.json(
       {
         error: isDocumentContext
-          ? "PDF, 이미지, DOCX, HWP, ZIP 파일만 업로드할 수 있습니다"
+          ? "PDF, 이미지, DOCX, HWP, PPT, XLSX, ZIP 파일만 업로드할 수 있습니다"
           : "JPG, PNG, WEBP, GIF, HEIC 사진만 업로드할 수 있습니다",
       },
       { status: 415 },
@@ -174,6 +186,33 @@ export async function POST(request: NextRequest) {
     submissionId = submission.id;
   }
 
+  let chatId: string | null = null;
+  if (context === "chat") {
+    const validStudent = student?.status === "ACTIVE";
+    const validStaff = appUser?.status === "ACTIVE" && isStaff(appUser.role);
+    if (!validStudent && !validStaff) {
+      return Response.json({ error: "권한이 없습니다" }, { status: 403 });
+    }
+    const rawChatId = formData.get("chatId");
+    if (typeof rawChatId !== "string" || !rawChatId) {
+      return Response.json({ error: "채팅방을 확인하세요" }, { status: 400 });
+    }
+    const chat = await prisma.portalChat.findUnique({
+      where: { id: rawChatId },
+      select: { id: true, studentId: true, staffId: true },
+    });
+    if (!chat) {
+      return Response.json({ error: "채팅방을 찾을 수 없습니다" }, { status: 404 });
+    }
+    const owned = validStudent
+      ? chat.studentId === student!.id
+      : chat.staffId === appUser!.id;
+    if (!owned) {
+      return Response.json({ error: "이 채팅방에 파일을 보낼 수 없습니다" }, { status: 403 });
+    }
+    chatId = chat.id;
+  }
+
   let mentoring:
     | { id: string; mentorId: string; studentId: string }
     | null = null;
@@ -222,7 +261,9 @@ export async function POST(request: NextRequest) {
         ? `online/tasks/${taskId}`
         : context === "feedback" && submissionId
           ? `online/feedback/${submissionId}`
-          : "student-questions/incoming";
+          : context === "chat" && chatId
+            ? `portal-chat/${chatId}`
+            : "student-questions/incoming";
   const blobKey = `${prefix}/${crypto.randomUUID()}-${safeName(file.name)}`;
 
   try {

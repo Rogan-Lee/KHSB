@@ -62,7 +62,7 @@ export default function StaffChatScreen() {
               </View>
               <Text style={styles.rowLast} numberOfLines={1}>
                 {c.lastMessage
-                  ? `${c.lastMessage.senderType === 'STAFF' ? '나: ' : ''}${c.lastMessage.content}`
+                  ? `${c.lastMessage.senderType === 'STAFF' ? '나: ' : ''}${c.lastMessage.content || (c.lastMessage.hasAttachments ? '📎 첨부파일' : '')}`
                   : '아직 대화가 없습니다.'}
               </Text>
             </View>
