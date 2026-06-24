@@ -34,6 +34,7 @@ export default function StudentLayout() {
       <Tabs.Screen name="qna" options={{ href: null, title: '질의응답' }} />
       <Tabs.Screen name="feedback" options={{ href: null, title: '받은 피드백' }} />
       <Tabs.Screen name="suggestions" options={{ href: null, title: '건의사항' }} />
+      <Tabs.Screen name="survey" options={{ href: null, title: '초기 설문' }} />
       <Tabs.Screen name="more" options={{ href: null, title: '내 정보' }} />
     </RoleTabs>
   );
