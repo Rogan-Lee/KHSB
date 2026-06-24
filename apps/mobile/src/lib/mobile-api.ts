@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import type { DocumentPickerAsset } from 'expo-document-picker';
 
@@ -11,8 +12,39 @@ type UploadFileLike = {
   uri: string;
   name: string;
   mimeType?: string;
+  width?: number;
   file?: File | Blob;
 };
+
+/** 업로드 전 큰 사진은 긴 변 기준 다운스케일 + JPEG 압축 (네이티브). */
+const MAX_IMAGE_DIM = 1600;
+async function downscaleImage(
+  fileLike: UploadFileLike,
+): Promise<{ uri: string; mimeType: string; name: string }> {
+  const type = fileLike.mimeType || '';
+  if (
+    Platform.OS === 'web' ||
+    !type.startsWith('image/') ||
+    !fileLike.width ||
+    fileLike.width <= MAX_IMAGE_DIM
+  ) {
+    return { uri: fileLike.uri, mimeType: type, name: fileLike.name };
+  }
+  try {
+    const result = await manipulateAsync(
+      fileLike.uri,
+      [{ resize: { width: MAX_IMAGE_DIM } }],
+      { compress: 0.7, format: SaveFormat.JPEG },
+    );
+    return {
+      uri: result.uri,
+      mimeType: 'image/jpeg',
+      name: fileLike.name.replace(/\.[^.]+$/, '') + '.jpg',
+    };
+  } catch {
+    return { uri: fileLike.uri, mimeType: type, name: fileLike.name };
+  }
+}
 
 /**
  * 미디어 업로드 공용 함수.
@@ -52,14 +84,15 @@ async function uploadMobileFile(
     return body as MobileAttachment & { id?: string };
   }
 
+  const scaled = await downscaleImage(fileLike);
   const headers = authHeaders();
   const result = await FileSystemLegacy.uploadAsync(
     `${API_BASE_URL}/api/mobile/v1/media`,
-    fileLike.uri,
+    scaled.uri,
     {
       fieldName: 'file',
       httpMethod: 'POST',
-      mimeType: type,
+      mimeType: scaled.mimeType || type,
       parameters: params,
       uploadType: FileSystemLegacy.FileSystemUploadType.MULTIPART,
       ...(headers ? { headers } : {}),
@@ -653,6 +686,7 @@ export async function uploadMobileMedia(
       uri: asset.uri,
       name: asset.fileName || `photo-${Date.now()}.jpg`,
       mimeType: asset.mimeType || 'image/jpeg',
+      width: asset.width,
       file: asset.file,
     },
     params,
