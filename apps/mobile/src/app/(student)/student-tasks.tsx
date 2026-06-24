@@ -1,5 +1,5 @@
 import type { DocumentPickerAsset } from 'expo-document-picker';
-import { FileText, RotateCcw } from 'lucide-react-native';
+import { FileText } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -7,16 +7,18 @@ import { AppScreen } from '@/components/app-screen';
 import { FormSheet } from '@/components/form-sheet';
 import {
   Badge,
+  Banner,
   Card,
   EmptyState,
   ErrorState,
   LoadingState,
   PrimaryButton,
   SectionTitle,
+  Segmented,
 } from '@/components/mobile-ui';
 import { TaskFilePicker } from '@/components/task-file-picker';
 import { FormError, FormInput } from '@/components/workflow-ui';
-import { colors, spacing } from '@/constants/theme';
+import { colors, palette, radius, spacing, Tone, type } from '@/constants/theme';
 import { formatDueDate, formatShortDateTime } from '@/lib/format';
 import {
   mutateMobileApi,
@@ -31,14 +33,32 @@ import type {
 } from '@/lib/mobile-api';
 import { syncTaskDeadlineNotifications } from '@/lib/notifications';
 
+type Filter = 'OPEN' | 'DONE' | 'ALL';
+
+function statusBadge(task: { status: string; statusLabel: string; dueDate: string }): {
+  tone: Tone;
+  text: string;
+} {
+  switch (task.status) {
+    case 'NEEDS_REVISION':
+      return { tone: 'violet', text: '수정 요청' };
+    case 'DONE':
+      return { tone: 'positive', text: '확정' };
+    case 'SUBMITTED':
+      return { tone: 'blue', text: '제출 완료' };
+    default:
+      return { tone: 'warning', text: `제출 ${formatDueDate(task.dueDate)}` };
+  }
+}
+
 export default function StudentTasksScreen() {
-  const [tab, setTab] = useState<'OPEN' | 'DONE'>('OPEN');
+  const [tab, setTab] = useState<Filter>('OPEN');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { data, error, isLoading, isRefreshing, refresh, retry } =
     useMobileQuery<StudentTasksResponse>('/api/mobile/v1/student/tasks');
   const items =
     data?.items.filter((item) =>
-      tab === 'DONE' ? item.status === 'DONE' : item.status !== 'DONE',
+      tab === 'ALL' ? true : tab === 'DONE' ? item.status === 'DONE' : item.status !== 'DONE',
     ) ?? [];
 
   useEffect(() => {
@@ -51,27 +71,23 @@ export default function StudentTasksScreen() {
     <AppScreen
       onRefresh={() => void refresh()}
       refreshing={isRefreshing}
-      subtitle="과제 파일을 제출하고 컨설턴트 피드백을 확인합니다."
-      title="수행평가">
-      <View style={styles.segmented}>
-        <Segment
-          active={tab === 'OPEN'}
-          label={`진행 중 ${data?.summary.open ?? 0}`}
-          onPress={() => setTab('OPEN')}
-        />
-        <Segment
-          active={tab === 'DONE'}
-          label={`완료 ${data?.summary.done ?? 0}`}
-          onPress={() => setTab('DONE')}
-        />
-      </View>
+      title="과제·수행평가">
+      <Segmented
+        options={[
+          { label: '진행 중', value: 'OPEN' },
+          { label: '완료', value: 'DONE' },
+          { label: '전체', value: 'ALL' },
+        ]}
+        value={tab}
+        onChange={(v) => setTab(v as Filter)}
+      />
+
       {data && data.summary.needsRevision > 0 ? (
-        <View style={styles.revisionNotice}>
-          <RotateCcw color={colors.red} size={20} />
-          <Text style={styles.revisionText}>
-            수정 요청된 수행평가가 {data.summary.needsRevision}건 있습니다.
-          </Text>
-        </View>
+        <Banner
+          text={`수정 요청된 수행평가 ${data.summary.needsRevision}건`}
+          right="확인"
+          tone="violet"
+        />
       ) : null}
 
       {isLoading && !data ? <LoadingState /> : null}
@@ -86,6 +102,12 @@ export default function StudentTasksScreen() {
           <TaskCard key={task.id} onPress={() => setSelectedId(task.id)} task={task} />
         ))}
       </View>
+
+      {items.length > 0 ? (
+        <View style={styles.flow}>
+          <Text style={styles.flowText}>상태 흐름: 제출 → 피드백 → 수정요청 → 확정</Text>
+        </View>
+      ) : null}
 
       {selectedId ? (
         <StudentTaskSheet
@@ -103,67 +125,34 @@ export default function StudentTasksScreen() {
   );
 }
 
-function Segment({
-  active,
-  label,
-  onPress,
-}: {
-  active: boolean;
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="tab"
-      accessibilityState={{ selected: active }}
-      onPress={onPress}
-      style={[styles.segment, active && styles.activeSegment]}>
-      <Text style={[styles.segmentText, active && styles.activeSegmentText]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function TaskCard({
-  onPress,
-  task,
-}: {
-  onPress: () => void;
-  task: MobileTaskSummary;
-}) {
-  const tone =
-    task.status === 'NEEDS_REVISION'
-      ? 'red'
-      : task.status === 'DONE'
-        ? 'primary'
-        : task.status === 'SUBMITTED'
-          ? 'amber'
-          : 'blue';
+function TaskCard({ onPress, task }: { onPress: () => void; task: MobileTaskSummary }) {
+  const badge = statusBadge(task);
+  const showSubmit = task.status === 'OPEN' || task.status === 'NEEDS_REVISION';
   return (
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => pressed && styles.pressed}>
-      <Card style={styles.taskCard}>
+      <Card>
         <View style={styles.taskTop}>
-          <View style={styles.badges}>
-            <Badge tone="blue">{task.subject}</Badge>
-            <Badge tone={tone}>{task.statusLabel}</Badge>
+          <Text style={styles.taskTitle} numberOfLines={1}>
+            {task.title}
+          </Text>
+          <Badge tone={badge.tone}>{badge.text}</Badge>
+        </View>
+        <Text style={styles.caption} numberOfLines={2}>
+          {task.subject}
+          {task.format ? ` · ${task.format}` : ''}
+          {task.scoreWeight ? ` · ${task.scoreWeight}점` : ''}
+          {task.submissionCount ? ` · 제출 ${task.submissionCount}회` : ''}
+        </Text>
+        {showSubmit ? (
+          <View style={{ marginTop: spacing.md }}>
+            <PrimaryButton onPress={onPress} size="md">
+              {task.status === 'NEEDS_REVISION' ? '수정본 제출하기' : '파일 제출하기'}
+            </PrimaryButton>
           </View>
-          <Text style={styles.due}>{formatDueDate(task.dueDate)}</Text>
-        </View>
-        <Text style={styles.taskTitle}>{task.title}</Text>
-        {task.description ? (
-          <Text numberOfLines={2} style={styles.description}>
-            {task.description}
-          </Text>
         ) : null}
-        <View style={styles.taskMeta}>
-          <Text style={styles.metaText}>
-            {task.format || '형식 미지정'}
-            {task.scoreWeight ? ` · ${task.scoreWeight}점` : ''}
-          </Text>
-          <Text style={styles.metaText}>제출 {task.submissionCount}회</Text>
-        </View>
       </Card>
     </Pressable>
   );
@@ -209,13 +198,12 @@ function StudentTaskSheet({
 }
 
 function TaskDetailHeader({ task }: { task: MobileTaskDetail }) {
+  const badge = statusBadge(task);
   return (
-    <Card style={styles.detailCard}>
+    <Card>
       <View style={styles.badges}>
-        <Badge tone="blue">{task.subject}</Badge>
-        <Badge tone={task.status === 'NEEDS_REVISION' ? 'red' : 'primary'}>
-          {task.statusLabel}
-        </Badge>
+        <Badge tone="neutral">{task.subject}</Badge>
+        <Badge tone={badge.tone}>{badge.text}</Badge>
       </View>
       {task.description ? <Text style={styles.detailText}>{task.description}</Text> : null}
       <Text style={styles.metaText}>
@@ -300,9 +288,9 @@ function SubmissionHistory({
       <SectionTitle>제출 및 피드백</SectionTitle>
       <View style={styles.history}>
         {submissions.map((submission) => (
-          <Card key={submission.id} style={styles.submissionCard}>
+          <Card key={submission.id}>
             <View style={styles.submissionHeader}>
-              <Badge tone="amber">v{submission.version}</Badge>
+              <Badge tone="neutral">v{submission.version}</Badge>
               <Text style={styles.metaText}>{formatShortDateTime(submission.submittedAt)}</Text>
             </View>
             <FileLinks files={submission.files} />
@@ -310,7 +298,7 @@ function SubmissionHistory({
             {submission.feedbacks.map((feedback) => (
               <View key={feedback.id} style={styles.feedback}>
                 <View style={styles.submissionHeader}>
-                  <Badge tone={feedback.status === 'NEEDS_REVISION' ? 'red' : 'primary'}>
+                  <Badge tone={feedback.status === 'NEEDS_REVISION' ? 'violet' : 'positive'}>
                     {feedback.status === 'APPROVED'
                       ? '승인'
                       : feedback.status === 'NEEDS_REVISION'
@@ -341,7 +329,7 @@ function FileLinks({ files }: { files: MobileTaskFile[] }) {
           key={file.url}
           onPress={() => void Linking.openURL(file.url)}
           style={({ pressed }) => [styles.fileLink, pressed && styles.pressed]}>
-          <FileText color={colors.blue} size={16} />
+          <FileText color={palette.blue50} size={16} />
           <Text numberOfLines={1} style={styles.fileName}>
             {file.name}
           </Text>
@@ -352,147 +340,61 @@ function FileLinks({ files }: { files: MobileTaskFile[] }) {
 }
 
 const styles = StyleSheet.create({
-  segmented: {
-    backgroundColor: '#E9EFEC',
-    borderRadius: 8,
-    flexDirection: 'row',
-    padding: 3,
-  },
-  segment: {
-    alignItems: 'center',
-    borderRadius: 6,
-    flex: 1,
-    justifyContent: 'center',
-    minHeight: 42,
-  },
-  activeSegment: {
-    backgroundColor: colors.surface,
-  },
-  segmentText: {
-    color: colors.muted,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  activeSegmentText: {
-    color: colors.ink,
-  },
-  revisionNotice: {
-    alignItems: 'center',
-    backgroundColor: colors.redSoft,
-    borderRadius: 8,
-    flexDirection: 'row',
-    gap: spacing.sm,
-    padding: spacing.md,
-  },
-  revisionText: {
-    color: colors.red,
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  list: {
-    gap: spacing.md,
-  },
-  taskCard: {
-    gap: spacing.sm,
-    padding: spacing.lg,
-  },
+  list: { gap: spacing.md },
   taskTop: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: spacing.sm,
   },
-  badges: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
+  taskTitle: { ...type.label1, color: colors.textNormal, flex: 1 },
+  caption: { ...type.caption1, color: colors.textAssistive, marginTop: 6 },
+
+  flow: {
+    backgroundColor: colors.fillAlt,
+    borderRadius: radius.lg,
+    paddingHorizontal: 11,
+    paddingVertical: 9,
   },
-  due: {
-    color: colors.red,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  taskTitle: {
-    color: colors.ink,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  description: {
-    color: colors.muted,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  taskMeta: {
-    alignItems: 'center',
-    borderTopColor: colors.line,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: spacing.sm,
-  },
-  metaText: {
-    color: colors.muted,
-    fontSize: 11,
-  },
-  detailCard: {
-    gap: spacing.md,
-    padding: spacing.lg,
-  },
-  detailText: {
-    color: colors.ink,
-    fontSize: 14,
-    lineHeight: 22,
-  },
-  history: {
-    gap: spacing.md,
-  },
-  submissionCard: {
-    gap: spacing.md,
-    padding: spacing.lg,
-  },
+  flowText: { ...type.caption2, color: colors.textAssistive },
+
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  detailText: { ...type.body3, color: colors.textNormal, marginTop: spacing.sm, lineHeight: 22 },
+  metaText: { ...type.caption2, color: colors.textAssistive },
+  history: { gap: spacing.md },
   submissionHeader: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: spacing.sm,
   },
-  files: {
-    gap: spacing.sm,
-  },
+  files: { gap: spacing.sm, marginTop: spacing.sm },
   fileLink: {
     alignItems: 'center',
-    backgroundColor: colors.blueSoft,
-    borderRadius: 8,
+    backgroundColor: palette.blue5,
+    borderRadius: radius.lg,
     flexDirection: 'row',
     gap: spacing.sm,
     minHeight: 42,
     paddingHorizontal: spacing.md,
   },
-  fileName: {
-    color: colors.blue,
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '700',
-  },
+  fileName: { ...type.caption1, color: palette.blue50, flex: 1, fontWeight: '700' },
   note: {
-    backgroundColor: colors.canvas,
-    borderRadius: 8,
-    color: colors.ink,
-    fontSize: 12,
+    backgroundColor: colors.bgSunken,
+    borderRadius: radius.lg,
+    color: colors.textNormal,
+    ...type.caption1,
     lineHeight: 18,
     padding: spacing.md,
+    marginTop: spacing.sm,
   },
   feedback: {
-    backgroundColor: colors.canvas,
-    borderRadius: 8,
+    backgroundColor: colors.bgSunken,
+    borderRadius: radius.lg,
     gap: spacing.sm,
     padding: spacing.md,
+    marginTop: spacing.sm,
   },
-  feedbackText: {
-    color: colors.ink,
-    fontSize: 13,
-    lineHeight: 20,
-  },
-  pressed: {
-    opacity: 0.72,
-  },
+  feedbackText: { ...type.body3, color: colors.textNormal, lineHeight: 20 },
+  pressed: { opacity: 0.72 },
 });

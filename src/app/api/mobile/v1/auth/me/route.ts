@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 
 import { getAuthIdentity } from "@/lib/auth";
+import {
+  staffCapabilities,
+  studentCapabilities,
+} from "@/lib/mobile-capabilities";
 
 export async function GET(request: NextRequest) {
   const current = await getAuthIdentity(request.headers);
@@ -18,6 +22,7 @@ export async function GET(request: NextRequest) {
       id: user.id,
       name: user.name,
       role: user.role,
+      capabilities: staffCapabilities(user.role),
     });
   }
 
@@ -32,6 +37,7 @@ export async function GET(request: NextRequest) {
       isOnlineManaged: student.isOnlineManaged,
       name: student.name,
       role: "STUDENT",
+      capabilities: studentCapabilities(student.isOnlineManaged),
     });
   }
 

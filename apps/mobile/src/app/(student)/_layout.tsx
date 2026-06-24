@@ -1,5 +1,5 @@
 import { Redirect, Tabs } from 'expo-router';
-import { CircleHelp, Grid2X2, Home, UserRound } from 'lucide-react-native';
+import { BookA, Bookmark, Home, MessagesSquare } from 'lucide-react-native';
 
 import { RoleTabs, tabIcon } from '@/components/role-tabs';
 import { useSession } from '@/lib/session';
@@ -18,18 +18,23 @@ export default function StudentLayout() {
         options={{ tabBarIcon: tabIcon(Home), tabBarLabel: '홈', title: '홈' }}
       />
       <Tabs.Screen
-        name="programs"
-        options={{ tabBarIcon: tabIcon(Grid2X2), tabBarLabel: '프로그램', title: '프로그램' }}
+        name="student-tasks"
+        options={{ tabBarIcon: tabIcon(Bookmark), tabBarLabel: '과제', title: '과제·수행평가' }}
       />
       <Tabs.Screen
-        name="qna"
-        options={{ tabBarIcon: tabIcon(CircleHelp), tabBarLabel: '질의응답', title: '질의응답' }}
+        name="vocab"
+        options={{ tabBarIcon: tabIcon(BookA), tabBarLabel: '단어', title: '단어' }}
       />
       <Tabs.Screen
-        name="more"
-        options={{ tabBarIcon: tabIcon(UserRound), tabBarLabel: '내 정보', title: '내 정보' }}
+        name="chat"
+        options={{ tabBarIcon: tabIcon(MessagesSquare), tabBarLabel: '소통', title: '멘토 채팅' }}
       />
-      <Tabs.Screen name="student-tasks" options={{ href: null, title: '수행평가' }} />
+      {/* 보조 라우트 — 탭바에는 노출하지 않음 */}
+      <Tabs.Screen name="programs" options={{ href: null, title: '프로그램' }} />
+      <Tabs.Screen name="qna" options={{ href: null, title: '질의응답' }} />
+      <Tabs.Screen name="feedback" options={{ href: null, title: '받은 피드백' }} />
+      <Tabs.Screen name="suggestions" options={{ href: null, title: '건의사항' }} />
+      <Tabs.Screen name="more" options={{ href: null, title: '내 정보' }} />
     </RoleTabs>
   );
 }

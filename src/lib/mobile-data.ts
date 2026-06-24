@@ -255,6 +255,17 @@ export function isAttendanceLate(
   );
 }
 
+export type MobileOutingStatus = "예정" | "외출중" | "복귀";
+
+function resolveOutingStatus(
+  outStart: Date | null,
+  outEnd: Date | null,
+): MobileOutingStatus {
+  if (outStart && outEnd) return "복귀";
+  if (outStart && !outEnd) return "외출중";
+  return "예정";
+}
+
 export async function getStaffMobileAttendance(now = new Date()) {
   const context = getKstDayContext(now);
   const students = await prisma.student.findMany({
@@ -270,6 +281,7 @@ export async function getStaffMobileAttendance(now = new Date()) {
           outEnd: true,
           outStart: true,
           type: true,
+          notes: true,
         },
       },
       grade: true,
@@ -279,7 +291,25 @@ export async function getStaffMobileAttendance(now = new Date()) {
         where: { dayOfWeek: context.dayOfWeek },
         orderBy: { startTime: "asc" },
         take: 1,
-        select: { startTime: true },
+        select: { startTime: true, endTime: true },
+      },
+      // 정기 외출 예정 (요일 기준) — 당일 기록이 없을 때 fallback
+      outings: {
+        where: { dayOfWeek: context.dayOfWeek },
+        orderBy: { outStart: "asc" },
+        select: { outStart: true, outEnd: true, reason: true },
+      },
+      // 당일 외출 (실제/예정 placeholder, 다중)
+      dailyOutings: {
+        where: { date: context.date },
+        orderBy: { sequence: "asc" },
+        select: {
+          sequence: true,
+          outStart: true,
+          outEnd: true,
+          reason: true,
+          isPlaceholder: true,
+        },
       },
       seat: true,
     },
@@ -287,7 +317,9 @@ export async function getStaffMobileAttendance(now = new Date()) {
 
   const items = students.map((student) => {
     const attendance = student.attendances[0];
-    const scheduleStart = student.schedules[0]?.startTime ?? null;
+    const schedule = student.schedules[0] ?? null;
+    const scheduleStart = schedule?.startTime ?? null;
+    const scheduleEnd = schedule?.endTime ?? null;
     const status = resolveAttendanceStatus(attendance);
     const eventTime =
       status === "퇴실"
@@ -297,12 +329,37 @@ export async function getStaffMobileAttendance(now = new Date()) {
           : attendance?.checkIn;
     const isLate = isAttendanceLate(status, scheduleStart, context.nowTime);
 
+    // 외출: 당일 기록 우선, 없으면 정기 예정으로 표시
+    const outings =
+      student.dailyOutings.length > 0
+        ? student.dailyOutings.map((o) => ({
+            sequence: o.sequence,
+            reason: o.reason,
+            planned: o.isPlaceholder,
+            start: formatKstTime(o.outStart),
+            end: formatKstTime(o.outEnd),
+            status: resolveOutingStatus(o.outStart, o.outEnd),
+          }))
+        : student.outings.map((o, index) => ({
+            sequence: index + 1,
+            reason: o.reason,
+            planned: true,
+            start: o.outStart,
+            end: o.outEnd,
+            status: "예정" as MobileOutingStatus,
+          }));
+    const outingActive = outings.some((o) => o.status === "외출중");
+
     return {
       attendanceType: attendance?.type ?? null,
       grade: student.grade,
       id: student.id,
       isLate,
       name: student.name,
+      note: attendance?.notes ?? null,
+      outingActive,
+      outings,
+      scheduleEnd,
       scheduleStart,
       seat: student.seat,
       status,
@@ -317,10 +374,12 @@ export async function getStaffMobileAttendance(now = new Date()) {
       absent: items.filter((item) => item.status === "결석").length,
       away: items.filter((item) => item.status === "외출").length,
       late: items.filter((item) => item.isLate).length,
+      outing: items.filter((item) => item.outingActive).length,
       present: items.filter((item) =>
         ["입실", "외출"].includes(item.status),
       ).length,
       total: items.length,
+      withNote: items.filter((item) => !!item.note).length,
     },
   };
 }
