@@ -65,7 +65,7 @@ export default function StudentChatScreen() {
               </View>
               <Text style={styles.rowLast} numberOfLines={1}>
                 {c.lastMessage
-                  ? `${c.lastMessage.senderType === 'STUDENT' ? '나: ' : ''}${c.lastMessage.content}`
+                  ? `${c.lastMessage.senderType === 'STUDENT' ? '나: ' : ''}${c.lastMessage.content || (c.lastMessage.hasAttachments ? '📎 첨부파일' : '')}`
                   : '먼저 인사를 남겨보세요.'}
               </Text>
             </View>

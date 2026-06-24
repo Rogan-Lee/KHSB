@@ -647,6 +647,41 @@ export async function uploadMobileTaskFile(
   return body;
 }
 
+/**
+ * 채팅 첨부 업로드 — 사진(ImagePicker)·문서(DocumentPicker) 공용.
+ * 호출 측에서 ImagePickerAsset/DocumentPickerAsset 을 공통 shape 로 정규화해 전달.
+ */
+export async function uploadMobileChatFile(
+  fileLike: { uri: string; name: string; mimeType?: string; file?: File | Blob },
+  chatId: string,
+): Promise<MobileAttachment> {
+  const formData = new FormData();
+  const type = fileLike.mimeType || 'application/octet-stream';
+  if (fileLike.file) {
+    formData.append('file', fileLike.file);
+  } else {
+    formData.append(
+      'file',
+      { name: fileLike.name, type, uri: fileLike.uri } as unknown as Blob,
+    );
+  }
+  formData.append('context', 'chat');
+  formData.append('chatId', chatId);
+
+  const response = await authenticatedFetch('/api/mobile/v1/media', {
+    body: formData,
+    method: 'POST',
+  });
+  const body = (await response.json().catch(() => null)) as
+    | (MobileAttachment & { error?: never })
+    | { error?: string }
+    | null;
+  if (!response.ok || !body || 'error' in body) {
+    throw new MobileApiError(body?.error ?? '파일을 업로드하지 못했습니다.');
+  }
+  return body as MobileAttachment;
+}
+
 export function useMobileQuery<T>(path: string) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
