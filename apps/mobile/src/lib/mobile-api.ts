@@ -1,30 +1,80 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
-import { File as ExpoFile } from 'expo-file-system';
+import * as FileSystemLegacy from 'expo-file-system/legacy';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import type { DocumentPickerAsset } from 'expo-document-picker';
 
-import { authenticatedFetch } from '@/lib/session';
+import { API_BASE_URL } from '@/lib/auth-client';
+import { authHeaders, authenticatedFetch } from '@/lib/session';
+
+type UploadFileLike = {
+  uri: string;
+  name: string;
+  mimeType?: string;
+  file?: File | Blob;
+};
 
 /**
- * 업로드 파일을 FormData 에 추가.
+ * 미디어 업로드 공용 함수.
  *
  * 이 앱의 전역 fetch 는 Expo winter(WinterCG) fetch 라, FormData 파트로 RN 의
- * `{ uri, name, type }` 형식을 지원하지 않는다("Unsupported FormDataPart implementation").
- * 따라서 네이티브에서는 로컬 파일을 실제 Blob 으로 읽어 첨부한다.
+ * `{ uri, name, type }` 도, ArrayBuffer 로 만든 Blob(RN Blob 제약)도 보낼 수 없다.
+ * 따라서 네이티브에서는 expo-file-system 의 멀티파트 uploadAsync 로 파일을 직접 올린다.
+ * 웹에서는 표준 File/Blob + fetch 를 사용한다.
  */
-async function appendUploadFile(
-  formData: FormData,
-  fileLike: { uri: string; name: string; mimeType?: string; file?: File | Blob },
-) {
+async function uploadMobileFile(
+  fileLike: UploadFileLike,
+  params: Record<string, string>,
+): Promise<MobileAttachment & { id?: string }> {
   const type = fileLike.mimeType || 'application/octet-stream';
-  if (Platform.OS === 'web' && fileLike.file) {
-    formData.append('file', fileLike.file, fileLike.name);
-    return;
+
+  if (Platform.OS === 'web') {
+    const blob =
+      fileLike.file ?? (await (await fetch(fileLike.uri)).blob());
+    const formData = new FormData();
+    formData.append('file', blob, fileLike.name);
+    for (const [key, value] of Object.entries(params)) {
+      formData.append(key, value);
+    }
+    const response = await authenticatedFetch('/api/mobile/v1/media', {
+      body: formData,
+      method: 'POST',
+    });
+    const body = (await response.json().catch(() => null)) as
+      | (MobileAttachment & { id?: string; error?: never })
+      | { error?: string }
+      | null;
+    if (!response.ok || !body || 'error' in body) {
+      throw new MobileApiError(
+        (body as { error?: string } | null)?.error ?? '파일을 업로드하지 못했습니다.',
+      );
+    }
+    return body as MobileAttachment & { id?: string };
   }
-  const buffer = await new ExpoFile(fileLike.uri).arrayBuffer();
-  const blob = new Blob([buffer], { type });
-  formData.append('file', blob, fileLike.name);
+
+  const headers = authHeaders();
+  const result = await FileSystemLegacy.uploadAsync(
+    `${API_BASE_URL}/api/mobile/v1/media`,
+    fileLike.uri,
+    {
+      fieldName: 'file',
+      httpMethod: 'POST',
+      mimeType: type,
+      parameters: params,
+      uploadType: FileSystemLegacy.FileSystemUploadType.MULTIPART,
+      ...(headers ? { headers } : {}),
+    },
+  );
+  let body: (MobileAttachment & { id?: string; error?: string }) | null = null;
+  try {
+    body = JSON.parse(result.body || 'null');
+  } catch {
+    body = null;
+  }
+  if (result.status < 200 || result.status >= 300 || !body || body.error) {
+    throw new MobileApiError(body?.error ?? '파일을 업로드하지 못했습니다.');
+  }
+  return body;
 }
 
 export type MobileAttachment = {
@@ -592,32 +642,21 @@ export async function uploadMobileMedia(
         mentoringId: string;
         tag?: 'KDA' | 'EXTRA' | 'FREE';
       },
-) {
-  const formData = new FormData();
-  await appendUploadFile(formData, {
-    uri: asset.uri,
-    name: asset.fileName || `photo-${Date.now()}.jpg`,
-    mimeType: asset.mimeType || 'image/jpeg',
-    file: asset.file,
-  });
-  formData.append('context', options.context);
+): Promise<MobileAttachment & { id?: string }> {
+  const params: Record<string, string> = { context: options.context };
   if (options.context === 'mentoring') {
-    formData.append('mentoringId', options.mentoringId);
-    formData.append('tag', options.tag ?? 'FREE');
+    params.mentoringId = options.mentoringId;
+    params.tag = options.tag ?? 'FREE';
   }
-
-  const response = await authenticatedFetch('/api/mobile/v1/media', {
-    body: formData,
-    method: 'POST',
-  });
-  const body = (await response.json().catch(() => null)) as
-    | (MobileAttachment & { error?: never })
-    | { error?: string }
-    | null;
-  if (!response.ok || !body || 'error' in body) {
-    throw new MobileApiError(body?.error ?? '사진을 업로드하지 못했습니다.');
-  }
-  return body;
+  return uploadMobileFile(
+    {
+      uri: asset.uri,
+      name: asset.fileName || `photo-${Date.now()}.jpg`,
+      mimeType: asset.mimeType || 'image/jpeg',
+      file: asset.file,
+    },
+    params,
+  );
 }
 
 export async function uploadMobileTaskFile(
@@ -625,33 +664,19 @@ export async function uploadMobileTaskFile(
   options:
     | { context: 'task'; taskId: string }
     | { context: 'feedback'; submissionId: string },
-) {
-  const formData = new FormData();
-  await appendUploadFile(formData, {
-    uri: asset.uri,
-    name: asset.name,
-    mimeType: asset.mimeType ?? undefined,
-    file: asset.file,
-  });
-  formData.append('context', options.context);
-  if (options.context === 'task') {
-    formData.append('taskId', options.taskId);
-  } else {
-    formData.append('submissionId', options.submissionId);
-  }
-
-  const response = await authenticatedFetch('/api/mobile/v1/media', {
-    body: formData,
-    method: 'POST',
-  });
-  const body = (await response.json().catch(() => null)) as
-    | (MobileTaskFile & { error?: never })
-    | { error?: string }
-    | null;
-  if (!response.ok || !body || 'error' in body) {
-    throw new MobileApiError(body?.error ?? '파일을 업로드하지 못했습니다.');
-  }
-  return body;
+): Promise<MobileTaskFile> {
+  const params: Record<string, string> = { context: options.context };
+  if (options.context === 'task') params.taskId = options.taskId;
+  else params.submissionId = options.submissionId;
+  return uploadMobileFile(
+    {
+      uri: asset.uri,
+      name: asset.name,
+      mimeType: asset.mimeType ?? undefined,
+      file: asset.file,
+    },
+    params,
+  );
 }
 
 /**
@@ -659,51 +684,17 @@ export async function uploadMobileTaskFile(
  * 호출 측에서 ImagePickerAsset/DocumentPickerAsset 을 공통 shape 로 정규화해 전달.
  */
 export async function uploadMobileChatFile(
-  fileLike: { uri: string; name: string; mimeType?: string; file?: File | Blob },
+  fileLike: UploadFileLike,
   chatId: string,
 ): Promise<MobileAttachment> {
-  const formData = new FormData();
-  await appendUploadFile(formData, fileLike);
-  formData.append('context', 'chat');
-  formData.append('chatId', chatId);
-
-  const response = await authenticatedFetch('/api/mobile/v1/media', {
-    body: formData,
-    method: 'POST',
-  });
-  const body = (await response.json().catch(() => null)) as
-    | (MobileAttachment & { error?: never })
-    | { error?: string }
-    | null;
-  if (!response.ok || !body || 'error' in body) {
-    throw new MobileApiError(body?.error ?? '파일을 업로드하지 못했습니다.');
-  }
-  return body as MobileAttachment;
+  return uploadMobileFile(fileLike, { context: 'chat', chatId });
 }
 
 /** 질문(Q&A) 문서 첨부 업로드 — PDF/HWP/DOC/PPT/XLSX 등. 이미지는 AttachmentPicker 사용. */
-export async function uploadMobileQuestionFile(fileLike: {
-  uri: string;
-  name: string;
-  mimeType?: string;
-  file?: File | Blob;
-}): Promise<MobileAttachment> {
-  const formData = new FormData();
-  await appendUploadFile(formData, fileLike);
-  formData.append('context', 'question');
-
-  const response = await authenticatedFetch('/api/mobile/v1/media', {
-    body: formData,
-    method: 'POST',
-  });
-  const body = (await response.json().catch(() => null)) as
-    | (MobileAttachment & { error?: never })
-    | { error?: string }
-    | null;
-  if (!response.ok || !body || 'error' in body) {
-    throw new MobileApiError(body?.error ?? '파일을 업로드하지 못했습니다.');
-  }
-  return body as MobileAttachment;
+export async function uploadMobileQuestionFile(
+  fileLike: UploadFileLike,
+): Promise<MobileAttachment> {
+  return uploadMobileFile(fileLike, { context: 'question' });
 }
 
 export function useMobileQuery<T>(path: string) {
