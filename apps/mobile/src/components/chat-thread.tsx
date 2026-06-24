@@ -72,7 +72,13 @@ export function ChatThread({
   const scrollRef = useRef<ScrollView>(null);
 
   async function uploadAll(
-    files: { uri: string; name: string; mimeType?: string; file?: File | Blob }[],
+    files: {
+      uri: string;
+      name: string;
+      mimeType?: string;
+      width?: number;
+      file?: File | Blob;
+    }[],
   ) {
     if (files.length === 0) return;
     setAttachError('');
@@ -109,6 +115,7 @@ export function ChatThread({
         uri: a.uri,
         name: a.fileName ?? `photo-${i + 1}.jpg`,
         mimeType: a.mimeType ?? 'image/jpeg',
+        width: a.width,
         file: a.file,
       })),
     );
