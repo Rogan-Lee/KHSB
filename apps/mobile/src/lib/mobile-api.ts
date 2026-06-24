@@ -131,6 +131,38 @@ export type StudentQuestionsResponse = {
   }[];
 };
 
+export type ChatPartner = { id: string; name: string; roleLabel: string };
+
+export type ChatSummary = {
+  id: string;
+  partner: ChatPartner;
+  lastMessage: {
+    content: string;
+    senderType: 'STUDENT' | 'STAFF';
+    createdAt: string;
+    hasAttachments: boolean;
+  } | null;
+  lastMessageAt: string | null;
+  unread: number;
+};
+
+export type ChatListResponse = { chats: ChatSummary[] };
+
+export type ChatMessage = {
+  id: string;
+  mine: boolean;
+  senderType: 'STUDENT' | 'STAFF';
+  content: string;
+  attachments: MobileAttachment[];
+  createdAt: string;
+};
+
+export type ChatThreadResponse = {
+  chatId: string;
+  partner: ChatPartner;
+  messages: ChatMessage[];
+};
+
 export type QuestionThreadResponse = {
   messages: {
     attachments: MobileAttachment[];
@@ -258,25 +290,42 @@ export type StaffOverviewResponse = {
   };
 };
 
+export type MobileOuting = {
+  sequence: number;
+  reason: string | null;
+  planned: boolean;
+  start: string | null;
+  end: string | null;
+  status: '예정' | '외출중' | '복귀';
+};
+
+export type StaffAttendanceItem = {
+  attendanceType: string | null;
+  grade: string;
+  id: string;
+  isLate: boolean;
+  name: string;
+  note: string | null;
+  outingActive: boolean;
+  outings: MobileOuting[];
+  scheduleStart: string | null;
+  scheduleEnd: string | null;
+  seat: string | null;
+  status: '입실' | '외출' | '퇴실' | '미입실' | '결석';
+  time: string | null;
+};
+
 export type StaffAttendanceResponse = {
   date: string;
-  items: {
-    attendanceType: string | null;
-    grade: string;
-    id: string;
-    isLate: boolean;
-    name: string;
-    scheduleStart: string | null;
-    seat: string | null;
-    status: '입실' | '외출' | '퇴실' | '미입실' | '결석';
-    time: string | null;
-  }[];
+  items: StaffAttendanceItem[];
   summary: {
     absent: number;
     away: number;
     late: number;
+    outing: number;
     present: number;
     total: number;
+    withNote: number;
   };
 };
 
@@ -333,6 +382,121 @@ export type StaffQuestionsResponse = {
     open: number;
     overdue: number;
   };
+};
+
+// ─── 단어시험 (vocab) ───
+export type VocabAttemptSummary = {
+  id: string;
+  title: string;
+  status: 'ASSIGNED' | 'IN_PROGRESS' | 'SUBMITTED' | 'EXPIRED';
+  statusLabel: string;
+  questionCount: number;
+  perQuestionSeconds: number;
+  score: number | null;
+  correctCount: number;
+  totalQuestions: number;
+  assignedAt: string;
+  submittedAt: string | null;
+};
+
+export type VocabListResponse = {
+  items: VocabAttemptSummary[];
+  summary: { todo: number; inProgress: number; done: number };
+};
+
+export type VocabRunnerItem = {
+  id: string;
+  order: number;
+  direction: 'EN_TO_KO' | 'KO_TO_EN';
+  prompt: string;
+};
+
+export type VocabRunnerState = {
+  attemptId: string;
+  status: 'in_progress' | 'submitted';
+  perQuestionSeconds: number;
+  examTitle: string;
+  items: VocabRunnerItem[];
+  resumeFromOrder: number;
+};
+
+export type VocabFinalizeResult = {
+  attemptId: string;
+  score: number;
+  correctCount: number;
+  totalQuestions: number;
+};
+
+export type VocabResultItem = {
+  id: string;
+  order: number;
+  direction: 'EN_TO_KO' | 'KO_TO_EN';
+  prompt: string;
+  word: string;
+  meanings: string[];
+  studentAnswer: string | null;
+  isCorrect: boolean | null;
+  answer: string;
+};
+
+export type VocabResultResponse = {
+  id: string;
+  title: string;
+  status: string;
+  score: number | null;
+  correctCount: number;
+  totalQuestions: number;
+  submittedAt: string | null;
+  durationMs: number | null;
+  items: VocabResultItem[];
+};
+
+// ─── 받은 피드백 ───
+export type StudentFeedbackItem = {
+  id: string;
+  content: string;
+  status: 'COMMENT' | 'NEEDS_REVISION' | 'APPROVED';
+  isNew: boolean;
+  authorName: string;
+  taskId: string;
+  taskTitle: string;
+  subject: string;
+  version: number;
+  fileCount: number;
+  createdAt: string;
+};
+
+export type StudentFeedbackResponse = {
+  items: StudentFeedbackItem[];
+  summary: { total: number; unread: number };
+};
+
+// ─── 건의사항 ───
+export type SuggestionCategory = 'FACILITY' | 'CLASS' | 'OPERATION' | 'ETC';
+export type SuggestionStatus =
+  | 'RECEIVED'
+  | 'REVIEWING'
+  | 'REFLECTED'
+  | 'DECLINED';
+
+export type SuggestionItem = {
+  id: string;
+  category: SuggestionCategory;
+  categoryLabel: string;
+  title: string;
+  content: string;
+  status: SuggestionStatus;
+  statusLabel: string;
+  staffReply: string | null;
+  handledByName: string | null;
+  handledAt: string | null;
+  createdAt: string;
+  hasUnseenUpdate: boolean;
+};
+
+export type SuggestionListResponse = {
+  items: SuggestionItem[];
+  summary: { total: number; unseen: number };
 };
 
 export class MobileApiError extends Error {}

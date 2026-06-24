@@ -6,6 +6,7 @@ import { colors, spacing } from '@/constants/theme';
 
 type AppScreenProps = PropsWithChildren<{
   eyebrow?: string;
+  eyebrowMuted?: boolean;
   onRefresh?: () => void;
   refreshing?: boolean;
   right?: ReactNode;
@@ -16,6 +17,7 @@ type AppScreenProps = PropsWithChildren<{
 export function AppScreen({
   children,
   eyebrow,
+  eyebrowMuted = false,
   onRefresh,
   refreshing = false,
   right,
@@ -40,7 +42,9 @@ export function AppScreen({
         showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View style={styles.heading}>
-            {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
+            {eyebrow ? (
+              <Text style={[styles.eyebrow, eyebrowMuted && styles.eyebrowMuted]}>{eyebrow}</Text>
+            ) : null}
             <Text style={styles.title}>{title}</Text>
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
           </View>
@@ -75,13 +79,18 @@ const styles = StyleSheet.create({
   },
   eyebrow: {
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
+  },
+  eyebrowMuted: {
+    color: colors.textAssistive,
+    fontWeight: '500',
   },
   title: {
     color: colors.ink,
-    fontSize: 27,
+    fontSize: 26,
     fontWeight: '800',
+    letterSpacing: -0.5,
   },
   subtitle: {
     color: colors.muted,
