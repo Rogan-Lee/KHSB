@@ -56,7 +56,7 @@ type ProfileResponse =
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
-function authHeaders() {
+export function authHeaders() {
   if (Platform.OS === 'web') return undefined;
   const cookie = authClient.getCookie();
   return cookie ? { Cookie: cookie } : undefined;
