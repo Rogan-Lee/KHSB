@@ -61,6 +61,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
+  const [kind, setKind] = useState<"WAITLIST" | "INQUIRY">("WAITLIST");
   const [branchId, setBranchId] = useState<string | null>(null);
   const [gender, setGender] = useState<WaitGender | null>(null);
   const [gradeType, setGradeType] = useState<WaitGradeType | null>(null);
@@ -136,6 +137,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
         phone,
         gender,
         gradeType,
+        kind,
         note,
         consentMarketing: consent,
       });
@@ -149,6 +151,30 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
 
   return (
     <div className="mt-8 space-y-10">
+      {/* 신청 유형 */}
+      <section>
+        <SectionTitle>어떤 도움이 필요하신가요?</SectionTitle>
+        <div className="grid grid-cols-2 gap-3">
+          {([
+            { value: "WAITLIST", label: "대기 신청" },
+            { value: "INQUIRY", label: "단순 문의" },
+          ] as const).map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => setKind(o.value)}
+              className={`rounded-lg border py-3 text-sm font-semibold transition ${
+                kind === o.value
+                  ? "border-blue-600 bg-blue-600 text-white"
+                  : "border-gray-200 bg-white text-gray-400"
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
       {/* 지점 선택 */}
       <section>
         <SectionTitle>어떤 지점 신청 원하시나요?</SectionTitle>
@@ -339,7 +365,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
           disabled={pending || !verified}
           className="w-full rounded-lg bg-gray-800 py-4 text-sm font-bold text-white disabled:opacity-60"
         >
-          {pending ? "제출 중..." : "신청서 제출"}
+          {pending ? "제출 중..." : kind === "INQUIRY" ? "문의 접수" : "신청서 제출"}
         </button>
         {!verified && (
           <p className="text-center text-[11px] text-gray-400">

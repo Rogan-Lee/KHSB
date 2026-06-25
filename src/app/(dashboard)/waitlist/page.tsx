@@ -3,6 +3,7 @@ import { ClipboardList } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { isStaff } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
+import { normalizeDigits } from "@/lib/token-auth";
 import { WaitlistAdmin } from "@/components/waitlist/waitlist-admin";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ export default async function WaitlistAdminPage() {
   if (!session?.user) redirect("/sign-in");
   if (!isStaff(session.user.role)) redirect("/");
 
-  const [branches, entries, grouped] = await Promise.all([
+  const [branches, entries, grouped, students] = await Promise.all([
     prisma.branch.findMany({
       orderBy: { sortOrder: "asc" },
       include: { programs: { orderBy: { sortOrder: "asc" } } },
@@ -25,7 +26,22 @@ export default async function WaitlistAdminPage() {
       by: ["branchId", "programId", "status"],
       _count: { _all: true },
     }),
+    prisma.student.findMany({
+      where: { status: "ACTIVE" },
+      select: { id: true, name: true, grade: true, phone: true, parentPhone: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
+
+  // 전화번호(학생 본인+학부모) → 학생 매칭 맵
+  const phoneToStudent = new Map<string, { id: string; name: string; grade: string }>();
+  for (const s of students) {
+    const lite = { id: s.id, name: s.name, grade: s.grade };
+    for (const p of [s.phone, s.parentPhone]) {
+      const d = normalizeDigits(p ?? "");
+      if (d) phoneToStudent.set(d, lite);
+    }
+  }
 
   // 정원 집계: 지점별 / 프로그램별 등록(ENROLLED)·대기(WAITING) 수
   const branchEnrolled = new Map<string, number>();
@@ -73,6 +89,7 @@ export default async function WaitlistAdminPage() {
             waiting: programWaiting.get(p.id) ?? 0,
           })),
         }))}
+        students={students.map((s) => ({ id: s.id, name: s.name, grade: s.grade }))}
         entries={entries.map((e) => ({
           id: e.id,
           name: e.name,
@@ -83,7 +100,14 @@ export default async function WaitlistAdminPage() {
           programName: e.program?.name ?? null,
           gender: e.gender,
           gradeType: e.gradeType,
+          kind: e.kind,
           status: e.status,
+          studentId: e.studentId,
+          matchedStudent: e.studentId
+            ? students
+                .filter((s) => s.id === e.studentId)
+                .map((s) => ({ id: s.id, name: s.name, grade: s.grade }))[0] ?? null
+            : phoneToStudent.get(normalizeDigits(e.phone)) ?? null,
           note: e.note,
           cancelReason: e.cancelReason,
           guideToken: e.guideToken,

@@ -11,6 +11,7 @@ import type {
   WaitGender,
   WaitGradeType,
   WaitlistStatus,
+  WaitlistKind,
 } from "@/generated/prisma/enums";
 
 const CODE_TTL_MS = 5 * 60 * 1000; // 5분 (Octomo exists 조회 기준과 동일)
@@ -105,6 +106,7 @@ export type WaitlistSubmitInput = {
   phone: string;
   gender: WaitGender;
   gradeType: WaitGradeType;
+  kind?: WaitlistKind;
   note?: string;
   consentMarketing?: boolean;
 };
@@ -144,6 +146,7 @@ export async function submitWaitlist(
       phone,
       gender: input.gender,
       gradeType: input.gradeType,
+      kind: input.kind ?? "WAITLIST",
       note: input.note?.trim() || null,
       consentMarketing: Boolean(input.consentMarketing),
       phoneVerifiedAt: verified.verifiedAt,
@@ -156,8 +159,8 @@ export async function submitWaitlist(
 export type WaitlistPosition = {
   name: string;
   branchName: string;
-  gradeType: WaitGradeType;
-  gender: WaitGender;
+  gradeType: WaitGradeType | null;
+  gender: WaitGender | null;
   status: WaitlistStatus;
   createdAt: Date;
   overall: number; // 전체 기준 순번
@@ -415,4 +418,51 @@ export async function updateProgram(
   });
   revalidatePath("/waitlist");
   return { ok: true };
+}
+
+/**
+ * 기존 ACTIVE 원생을 프로그램 참여자로 일괄 등록(ENROLLED Waitlist 생성, studentId 연결).
+ * 이미 해당 프로그램에 참여 중인 학생은 skip. 정원 집계(등원)에 자동 반영.
+ */
+export async function bulkEnrollStudents(
+  programId: string,
+  studentIds: string[]
+): Promise<Result<{ added: number; skipped: number }>> {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+  if (!studentIds.length) return { ok: false, error: "학생을 선택해주세요" };
+
+  const program = await prisma.waitlistProgram.findUnique({
+    where: { id: programId },
+    select: { id: true, branchId: true },
+  });
+  if (!program) return { ok: false, error: "프로그램을 찾을 수 없습니다" };
+
+  // 이미 이 프로그램에 ENROLLED 인 학생 제외
+  const existing = await prisma.waitlist.findMany({
+    where: { programId, status: "ENROLLED", studentId: { in: studentIds } },
+    select: { studentId: true },
+  });
+  const already = new Set(existing.map((e) => e.studentId));
+  const targets = await prisma.student.findMany({
+    where: { id: { in: studentIds.filter((id) => !already.has(id)) }, status: "ACTIVE" },
+    select: { id: true, name: true, phone: true, parentPhone: true },
+  });
+
+  if (targets.length > 0) {
+    await prisma.waitlist.createMany({
+      data: targets.map((s) => ({
+        branchId: program.branchId,
+        programId,
+        studentId: s.id,
+        name: s.name,
+        phone: (s.phone || s.parentPhone || "").replace(/\D/g, ""),
+        status: "ENROLLED" as WaitlistStatus,
+        enrolledAt: new Date(),
+        kind: "WAITLIST" as WaitlistKind,
+      })),
+    });
+  }
+  revalidatePath("/waitlist");
+  return { ok: true, data: { added: targets.length, skipped: studentIds.length - targets.length } };
 }

@@ -14,14 +14,18 @@ import {
   cancelWaitlist,
   updateWaitlistEntry,
   saveWaitlistGuide,
+  bulkEnrollStudents,
   createBranch,
   updateBranch,
   createProgram,
   toggleProgram,
   updateProgram,
 } from "@/actions/waitlist";
+import { createConsultation } from "@/actions/consultations";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { formatDateTime } from "@/lib/utils";
+
+type StudentLite = { id: string; name: string; grade: string };
 
 type Program = {
   id: string;
@@ -51,9 +55,12 @@ type Entry = {
   branchName: string;
   programId: string | null;
   programName: string | null;
-  gender: WaitGender;
-  gradeType: WaitGradeType;
+  gender: WaitGender | null;
+  gradeType: WaitGradeType | null;
+  kind: "WAITLIST" | "INQUIRY";
   status: WaitlistStatus;
+  studentId: string | null;
+  matchedStudent: StudentLite | null;
   note: string | null;
   cancelReason: string | null;
   guideToken: string | null;
@@ -83,7 +90,15 @@ const STATUS_TONE: Record<WaitlistStatus, string> = {
 const btn = "rounded-md px-2.5 py-1 text-xs font-medium transition disabled:opacity-50";
 const input = "rounded-md border border-border bg-background px-3 py-2 text-sm";
 
-export function WaitlistAdmin({ branches, entries }: { branches: Branch[]; entries: Entry[] }) {
+export function WaitlistAdmin({
+  branches,
+  entries,
+  students,
+}: {
+  branches: Branch[];
+  entries: Entry[];
+  students: StudentLite[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [tab, setTab] = useState<"entries" | "branches">("entries");
@@ -132,7 +147,7 @@ export function WaitlistAdmin({ branches, entries }: { branches: Branch[]; entri
       {tab === "entries" ? (
         <EntriesTab entries={entries} branches={branches} positionOf={positionOf} run={run} pending={pending} />
       ) : (
-        <BranchesTab branches={branches} run={run} pending={pending} />
+        <BranchesTab branches={branches} entries={entries} students={students} run={run} pending={pending} />
       )}
     </div>
   );
@@ -190,13 +205,21 @@ function ShareApply() {
   );
 }
 
-const ENTRY_FILTERS: { key: WaitlistStatus | "ALL"; label: string }[] = [
+type EntryFilter = WaitlistStatus | "ALL" | "INQUIRY";
+const ENTRY_FILTERS: { key: EntryFilter; label: string }[] = [
   { key: "WAITING", label: "대기" },
   { key: "INVITED", label: "초대됨" },
   { key: "ENROLLED", label: "등원" },
   { key: "CANCELLED", label: "취소" },
+  { key: "INQUIRY", label: "문의" },
   { key: "ALL", label: "전체" },
 ];
+
+function matchesFilter(e: Entry, f: EntryFilter): boolean {
+  if (f === "ALL") return true;
+  if (f === "INQUIRY") return e.kind === "INQUIRY";
+  return e.status === f;
+}
 
 function EntriesTab({
   entries,
@@ -211,13 +234,13 @@ function EntriesTab({
   run: (a: () => Promise<{ ok: boolean; error?: string }>) => void;
   pending: boolean;
 }) {
-  const [filter, setFilter] = useState<WaitlistStatus | "ALL">("WAITING");
+  const [filter, setFilter] = useState<EntryFilter>("WAITING");
   const [editing, setEditing] = useState<Entry | null>(null);
   const [guiding, setGuiding] = useState<Entry | null>(null);
+  const [consulting, setConsulting] = useState<Entry | null>(null);
 
-  const shown = entries.filter((e) => filter === "ALL" || e.status === filter);
-  const countOf = (k: WaitlistStatus | "ALL") =>
-    k === "ALL" ? entries.length : entries.filter((e) => e.status === k).length;
+  const shown = entries.filter((e) => matchesFilter(e, filter));
+  const countOf = (k: EntryFilter) => entries.filter((e) => matchesFilter(e, k)).length;
 
   function handleCancel(e: Entry) {
     // ponytail: 취소 사유는 prompt로 수집 — 별도 모달 없이 한 줄. 풍부한 UX 필요해지면 교체.
@@ -277,11 +300,27 @@ function EntriesTab({
                   <td className="px-3 py-2 font-semibold text-brand">
                     {e.status === "WAITING" ? positionOf(e) : "-"}
                   </td>
-                  <td className="px-3 py-2 font-medium">{e.name}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{e.phone}</td>
+                  <td className="px-3 py-2 font-medium">
+                    <div className="flex flex-wrap items-center gap-1">
+                      {e.name}
+                      {e.kind === "INQUIRY" && (
+                        <span className="rounded bg-purple-50 px-1 py-0.5 text-[10px] text-purple-600">문의</span>
+                      )}
+                      {e.matchedStudent && (
+                        <span
+                          className="rounded bg-green-50 px-1 py-0.5 text-[10px] text-green-600"
+                          title={`기존 원생: ${e.matchedStudent.name} (${e.matchedStudent.grade})`}
+                        >
+                          기존 원생
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-muted-foreground">{e.phone || "-"}</td>
                   <td className="px-3 py-2">{e.branchName}</td>
                   <td className="px-3 py-2">
-                    {e.gradeType === "REPEAT" ? "N수생" : "재학생"} · {e.gender === "MALE" ? "남" : "여"}
+                    {e.gradeType ? (e.gradeType === "REPEAT" ? "N수생" : "재학생") : "-"} ·{" "}
+                    {e.gender ? (e.gender === "MALE" ? "남" : "여") : "-"}
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">{e.programName ?? "-"}</td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">{formatDateTime(e.createdAt)}</td>
@@ -301,6 +340,13 @@ function EntriesTab({
                         className={`${btn} bg-gray-100 text-gray-700`}
                       >
                         수정
+                      </button>
+                      <button
+                        disabled={pending}
+                        onClick={() => setConsulting(e)}
+                        className={`${btn} bg-violet-100 text-violet-700`}
+                      >
+                        면담 등록
                       </button>
                       <button
                         disabled={pending}
@@ -366,6 +412,87 @@ function EntriesTab({
       )}
 
       {guiding && <GuideEditorModal entry={guiding} onClose={() => setGuiding(null)} />}
+      {consulting && <ConsultationModal entry={consulting} onClose={() => setConsulting(null)} />}
+    </div>
+  );
+}
+
+/** 면담 빠른 등록 — createConsultation 재사용. 기존 원생이면 studentId, 아니면 prospect. */
+function ConsultationModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
+  const router = useRouter();
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [agenda, setAgenda] = useState("");
+  const [saving, setSaving] = useState(false);
+  const matched = entry.matchedStudent;
+
+  async function save() {
+    setSaving(true);
+    const fd = new FormData();
+    if (matched) {
+      fd.set("studentId", matched.id);
+      fd.set("category", "ENROLLED");
+      fd.set("type", "STUDENT");
+    } else {
+      fd.set("prospectName", entry.name);
+      fd.set("prospectPhone", entry.phone);
+      fd.set("prospectGrade", entry.gradeType === "REPEAT" ? "N수생" : entry.gradeType === "ENROLLED" ? "재학생" : "");
+      fd.set("category", "NEW_ADMISSION");
+    }
+    fd.set("owner", "DIRECTOR");
+    if (scheduledAt) fd.set("scheduledAt", new Date(scheduledAt).toISOString());
+    if (agenda.trim()) fd.set("agenda", agenda.trim());
+    try {
+      await createConsultation(fd);
+      toast.success("면담이 등록되었습니다");
+      router.refresh();
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "면담 등록 실패");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="w-full max-w-md rounded-xl bg-background p-5 shadow-lg">
+        <h3 className="mb-1 text-base font-bold">면담 등록 — {entry.name}</h3>
+        <p className="mb-4 text-xs text-muted-foreground">
+          {matched ? `기존 원생(${matched.name}) 면담으로 등록됩니다.` : "신규 상담(예비)으로 등록됩니다."} 면담 관리에서 확인할 수 있어요.
+        </p>
+        <div className="space-y-3">
+          <label className="block text-xs text-muted-foreground">
+            면담 일시 (선택)
+            <input
+              type="datetime-local"
+              value={scheduledAt}
+              onChange={(e) => setScheduledAt(e.target.value)}
+              className={`${input} mt-1 w-full`}
+            />
+          </label>
+          <label className="block text-xs text-muted-foreground">
+            안건/메모 (선택)
+            <textarea
+              value={agenda}
+              onChange={(e) => setAgenda(e.target.value)}
+              rows={3}
+              className={`${input} mt-1 w-full resize-none`}
+              placeholder="면담 안건"
+            />
+          </label>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} className={`${btn} bg-muted text-muted-foreground`}>
+            닫기
+          </button>
+          <button onClick={save} disabled={saving} className={`${btn} bg-brand text-white`}>
+            {saving ? "등록 중..." : "면담 등록"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -444,8 +571,8 @@ function EditEntryModal({
   const [name, setName] = useState(entry.name);
   const [phone, setPhone] = useState(entry.phone);
   const [programId, setProgramId] = useState(entry.programId ?? "");
-  const [gender, setGender] = useState<WaitGender>(entry.gender);
-  const [gradeType, setGradeType] = useState<WaitGradeType>(entry.gradeType);
+  const [gender, setGender] = useState<WaitGender>(entry.gender ?? "MALE");
+  const [gradeType, setGradeType] = useState<WaitGradeType>(entry.gradeType ?? "ENROLLED");
   const [note, setNote] = useState(entry.note ?? "");
 
   return (
@@ -559,16 +686,21 @@ function CapacityBadge({
 
 function BranchesTab({
   branches,
+  entries,
+  students,
   run,
   pending,
 }: {
   branches: Branch[];
+  entries: Entry[];
+  students: StudentLite[];
   run: (a: () => Promise<{ ok: boolean; error?: string }>) => void;
   pending: boolean;
 }) {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [programInputs, setProgramInputs] = useState<Record<string, string>>({});
+  const [enrolling, setEnrolling] = useState<Program | null>(null);
 
   const capOrNull = (v: string): number | null => {
     const t = v.trim();
@@ -686,6 +818,13 @@ function BranchesTab({
                   />
                 </label>
                 <CapacityBadge capacity={p.capacity} enrolled={p.enrolled} waiting={p.waiting} />
+                <button
+                  disabled={pending}
+                  onClick={() => setEnrolling(p)}
+                  className={`${btn} ml-auto bg-green-50 text-green-700`}
+                >
+                  기존 원생 등록
+                </button>
               </div>
             ))}
             <div className="flex gap-2 pt-1">
@@ -711,6 +850,120 @@ function BranchesTab({
           </div>
         </div>
       ))}
+
+      {enrolling && (
+        <BulkEnrollModal
+          program={enrolling}
+          students={students}
+          entries={entries}
+          onClose={() => setEnrolling(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** 기존 ACTIVE 원생을 프로그램 참여자로 일괄 등록. 이미 참여/신청한 학생 표시. */
+function BulkEnrollModal({
+  program,
+  students,
+  entries,
+  onClose,
+}: {
+  program: Program;
+  students: StudentLite[];
+  entries: Entry[];
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [saving, setSaving] = useState(false);
+
+  // 이미 이 프로그램 참여자(ENROLLED + studentId)
+  const participantIds = new Set(
+    entries.filter((e) => e.programId === program.id && e.status === "ENROLLED" && e.studentId).map((e) => e.studentId)
+  );
+  // 이미 신청/매칭된 학생 (중복 인지용)
+  const appliedIds = new Set(entries.map((e) => e.matchedStudent?.id).filter(Boolean));
+
+  const candidates = students
+    .filter((s) => !participantIds.has(s.id))
+    .filter((s) => {
+      const q = query.toLowerCase();
+      return s.name.toLowerCase().includes(q) || s.grade.toLowerCase().includes(q);
+    });
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function save() {
+    if (selected.size === 0) return;
+    setSaving(true);
+    const res = await bulkEnrollStudents(program.id, [...selected]);
+    setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(`${res.data?.added ?? 0}명 등록 (중복 ${res.data?.skipped ?? 0}명 제외)`);
+    router.refresh();
+    onClose();
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl bg-background p-5 shadow-lg">
+        <h3 className="mb-1 text-base font-bold">기존 원생 등록 — {program.name}</h3>
+        <p className="mb-3 text-xs text-muted-foreground">
+          재원생(ACTIVE)을 이 프로그램 참여자로 추가합니다. 이미 참여 중인 학생은 목록에서 제외됩니다.
+        </p>
+        <input
+          className={`${input} mb-2`}
+          placeholder="이름·학년 검색"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-border">
+          {candidates.length === 0 ? (
+            <p className="p-4 text-center text-xs text-muted-foreground">추가할 수 있는 재원생이 없습니다.</p>
+          ) : (
+            candidates.map((s) => (
+              <label
+                key={s.id}
+                className="flex cursor-pointer items-center gap-2 border-b border-border px-3 py-2 text-sm last:border-0 hover:bg-muted/40"
+              >
+                <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} className="h-4 w-4" />
+                <span className="font-medium">{s.name}</span>
+                <span className="text-xs text-muted-foreground">{s.grade}</span>
+                {appliedIds.has(s.id) && (
+                  <span className="ml-auto rounded bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-600">신청함</span>
+                )}
+              </label>
+            ))
+          )}
+        </div>
+        <div className="mt-4 flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">{selected.size}명 선택</span>
+          <div className="flex gap-2">
+            <button onClick={onClose} className={`${btn} bg-muted text-muted-foreground`}>
+              닫기
+            </button>
+            <button onClick={save} disabled={saving || selected.size === 0} className={`${btn} bg-brand text-white`}>
+              {saving ? "등록 중..." : "참여자 등록"}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
