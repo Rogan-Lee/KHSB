@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { BranchWaitStatus, WaitGender, WaitGradeType } from "@/generated/prisma/enums";
 import {
@@ -90,6 +90,29 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
   const [verified, setVerified] = useState(false);
   const [duplicates, setDuplicates] = useState<ExistingEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // 현황 조회 결과를 세션에 보관 → 순번 페이지에서 뒤로가기 시 재인증 없이 목록 복원
+  const LOOKUP_KEY = "waitlist_lookup";
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(LOOKUP_KEY);
+      if (!raw) return;
+      const s = JSON.parse(raw) as { phone: string; duplicates: ExistingEntry[] };
+      setPhone(s.phone);
+      setVerified(true);
+      setLookupMode(true);
+      setDuplicates(s.duplicates);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  function clearLookupCache() {
+    try {
+      sessionStorage.removeItem(LOOKUP_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
 
   const selectedBranch = branches.find((b) => b.id === branchId) ?? null;
 
@@ -188,6 +211,11 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
         setError("해당 번호로 등록된 신청 내역이 없습니다");
         return;
       }
+      try {
+        sessionStorage.setItem(LOOKUP_KEY, JSON.stringify({ phone, duplicates: ex }));
+      } catch {
+        /* ignore */
+      }
       setDuplicates(ex);
     });
   }
@@ -279,6 +307,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
         <button
           type="button"
           onClick={() => {
+            clearLookupCache();
             setLookupMode(false);
             resetVerify();
           }}
@@ -356,18 +385,20 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
 
   return (
     <div className="mt-8 space-y-10">
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => {
-            resetVerify();
-            setLookupMode(true);
-          }}
-          className="text-xs font-medium text-blue-600 underline underline-offset-2"
-        >
-          이미 신청하셨나요? 현황 조회
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={() => {
+          resetVerify();
+          setLookupMode(true);
+        }}
+        className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3.5 text-left transition hover:border-blue-200 hover:bg-blue-50"
+      >
+        <span className="text-sm">
+          <span className="font-semibold text-gray-900">이미 신청하셨나요?</span>{" "}
+          <span className="text-gray-500">대기 순번을 확인해보세요</span>
+        </span>
+        <span className="shrink-0 text-sm font-semibold text-blue-600">현황 조회 →</span>
+      </button>
 
       {/* 신청 유형 */}
       <section>
