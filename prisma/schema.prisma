@@ -389,6 +389,7 @@ model Student {
   photos               Photo[]
   patrolRecords        PatrolRecord[]
   scheduleProposals    ScheduleProposal[]
+  waitlistEntries      Waitlist[]             @relation("StudentWaitlist")
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 
@@ -2010,6 +2011,11 @@ enum WaitGradeType {
   ENROLLED // 재학생
 }
 
+enum WaitlistKind {
+  WAITLIST // 대기 신청
+  INQUIRY // 단순 문의
+}
+
 enum WaitlistStatus {
   WAITING // 대기 중
   INVITED // 초대(등록 안내) 발송
@@ -2055,8 +2061,11 @@ model Waitlist {
   program          WaitlistProgram? @relation(fields: [programId], references: [id])
   name             String
   phone            String
-  gender           WaitGender
-  gradeType        WaitGradeType
+  gender           WaitGender? // nullable — 기존 원생 일괄등록 시 없음
+  gradeType        WaitGradeType? // nullable — 기존 원생 일괄등록 시 없음
+  kind             WaitlistKind     @default(WAITLIST) // 대기신청 / 단순문의
+  studentId        String? // 기존 원생 연결 (매칭/일괄등록)
+  student          Student?         @relation("StudentWaitlist", fields: [studentId], references: [id], onDelete: SetNull)
   note             String?
   consentMarketing Boolean          @default(false)
   phoneVerifiedAt  DateTime?
@@ -2071,6 +2080,7 @@ model Waitlist {
   updatedAt        DateTime         @updatedAt
 
   @@index([branchId, status, createdAt])
+  @@index([studentId])
 }
 
 // 휴대폰 인증번호 (공개 신청 흐름).
