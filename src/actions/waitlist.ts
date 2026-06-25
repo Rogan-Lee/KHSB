@@ -104,8 +104,8 @@ export type WaitlistSubmitInput = {
   programId?: string | null;
   name: string;
   phone: string;
-  gender: WaitGender;
-  gradeType: WaitGradeType;
+  gender?: WaitGender | null;
+  gradeType?: WaitGradeType | null;
   kind?: WaitlistKind;
   note?: string;
   consentMarketing?: boolean;
@@ -118,9 +118,14 @@ export type WaitlistSubmitInput = {
 export async function submitWaitlist(
   input: WaitlistSubmitInput
 ): Promise<Result<{ token: string }>> {
+  const kind = input.kind ?? "WAITLIST";
   const phone = normalizePhone(input.phone);
   if (!phone) return { ok: false, error: "올바른 휴대폰 번호를 입력해주세요" };
   if (!input.name?.trim()) return { ok: false, error: "이름을 입력해주세요" };
+  // 대기 신청만 성별/학년 필수. 문의는 생략 가능.
+  if (kind === "WAITLIST" && (!input.gender || !input.gradeType)) {
+    return { ok: false, error: "성별과 학년을 선택해주세요" };
+  }
 
   // 최근 인증 완료된 레코드 확인
   const verified = await prisma.phoneVerification.findFirst({
@@ -129,24 +134,24 @@ export async function submitWaitlist(
   });
   if (!verified) return { ok: false, error: "휴대폰 본인인증을 먼저 완료해주세요" };
 
-  // 지점 유효성 (활성 + 마감 아님)
   const branch = await prisma.branch.findFirst({
     where: { id: input.branchId, isActive: true },
   });
   if (!branch) return { ok: false, error: "선택한 지점을 찾을 수 없습니다" };
-  if (branch.waitStatus === "CLOSED") {
+  // 마감 지점은 대기 신청만 차단. 문의는 허용.
+  if (kind === "WAITLIST" && branch.waitStatus === "CLOSED") {
     return { ok: false, error: "해당 지점은 현재 신청을 받지 않습니다" };
   }
 
   const entry = await prisma.waitlist.create({
     data: {
       branchId: branch.id,
-      programId: input.programId || null,
+      programId: kind === "WAITLIST" ? input.programId || null : null,
       name: input.name.trim(),
       phone,
-      gender: input.gender,
-      gradeType: input.gradeType,
-      kind: input.kind ?? "WAITLIST",
+      gender: kind === "WAITLIST" ? input.gender : null,
+      gradeType: kind === "WAITLIST" ? input.gradeType : null,
+      kind,
       note: input.note?.trim() || null,
       consentMarketing: Boolean(input.consentMarketing),
       phoneVerifiedAt: verified.verifiedAt,

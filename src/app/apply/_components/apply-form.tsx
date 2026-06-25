@@ -121,22 +121,25 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
     setVerified(true);
   }
 
+  const isInquiry = kind === "INQUIRY";
+
   function handleSubmit() {
     setError(null);
-    if (!branchId) return setError("지점을 선택해주세요");
-    if (!gender) return setError("성별을 선택해주세요");
-    if (!gradeType) return setError("학년을 선택해주세요");
+    if (!branchId) return setError(isInquiry ? "문의할 지점을 선택해주세요" : "지점을 선택해주세요");
+    if (!isInquiry && !gender) return setError("성별을 선택해주세요");
+    if (!isInquiry && !gradeType) return setError("학년을 선택해주세요");
     if (!name.trim()) return setError("이름을 입력해주세요");
+    if (isInquiry && !note.trim()) return setError("문의 내용을 입력해주세요");
     if (!verified) return setError("휴대폰 본인인증을 먼저 완료해주세요");
 
     startTransition(async () => {
       const res = await submitWaitlist({
         branchId,
-        programId: programId || null,
+        programId: isInquiry ? null : programId || null,
         name,
         phone,
-        gender,
-        gradeType,
+        gender: isInquiry ? null : gender,
+        gradeType: isInquiry ? null : gradeType,
         kind,
         note,
         consentMarketing: consent,
@@ -157,7 +160,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
         <div className="grid grid-cols-2 gap-3">
           {([
             { value: "WAITLIST", label: "대기 신청" },
-            { value: "INQUIRY", label: "단순 문의" },
+            { value: "INQUIRY", label: "문의하기" },
           ] as const).map((o) => (
             <button
               key={o.value}
@@ -177,11 +180,14 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
 
       {/* 지점 선택 */}
       <section>
-        <SectionTitle>어떤 지점 신청 원하시나요?</SectionTitle>
+        <SectionTitle>
+          {isInquiry ? "어떤 지점에 문의하시나요?" : "어떤 지점 신청 원하시나요?"}
+        </SectionTitle>
         <div className="grid grid-cols-2 gap-3">
           {branches.map((b) => {
             const badge = WAIT_BADGE[b.waitStatus];
-            const closed = b.waitStatus === "CLOSED";
+            // 문의는 마감 지점도 선택 가능
+            const closed = b.waitStatus === "CLOSED" && !isInquiry;
             const active = branchId === b.id;
             return (
               <button
@@ -219,34 +225,37 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
         )}
       </section>
 
-      {/* 성별 */}
-      <section>
-        <SectionTitle>학생분의 성별은 어떻게 되시나요?</SectionTitle>
-        <Toggle
-          value={gender}
-          onChange={setGender}
-          options={[
-            { value: "MALE", label: "남학생" },
-            { value: "FEMALE", label: "여학생" },
-          ]}
-        />
-      </section>
+      {/* 성별·학년·프로그램 — 대기 신청만 */}
+      {!isInquiry && (
+        <>
+          <section>
+            <SectionTitle>학생분의 성별은 어떻게 되시나요?</SectionTitle>
+            <Toggle
+              value={gender}
+              onChange={setGender}
+              options={[
+                { value: "MALE", label: "남학생" },
+                { value: "FEMALE", label: "여학생" },
+              ]}
+            />
+          </section>
 
-      {/* 학년 */}
-      <section>
-        <SectionTitle>현재 학년</SectionTitle>
-        <Toggle
-          value={gradeType}
-          onChange={setGradeType}
-          options={[
-            { value: "REPEAT", label: "N수생" },
-            { value: "ENROLLED", label: "재학생" },
-          ]}
-        />
-      </section>
+          <section>
+            <SectionTitle>현재 학년</SectionTitle>
+            <Toggle
+              value={gradeType}
+              onChange={setGradeType}
+              options={[
+                { value: "REPEAT", label: "N수생" },
+                { value: "ENROLLED", label: "재학생" },
+              ]}
+            />
+          </section>
+        </>
+      )}
 
-      {/* 프로그램 (지점에 프로그램이 있을 때만) */}
-      {selectedBranch && selectedBranch.programs.length > 0 && (
+      {/* 프로그램 (대기 신청 + 지점에 프로그램이 있을 때만) */}
+      {!isInquiry && selectedBranch && selectedBranch.programs.length > 0 && (
         <section>
           <SectionTitle>프로그램을 선택해주세요</SectionTitle>
           <select
@@ -336,13 +345,16 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
         </div>
       </section>
 
-      {/* 기타 요청 */}
+      {/* 문의 내용 / 기타 요청 */}
       <section>
-        <SectionTitle>기타 요청사항이 있으신가요?</SectionTitle>
+        <SectionTitle>{isInquiry ? "무엇이 궁금하신가요?" : "기타 요청사항이 있으신가요?"}</SectionTitle>
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          rows={3}
+          rows={isInquiry ? 5 : 3}
+          placeholder={
+            isInquiry ? "문의 내용을 자유롭게 남겨주세요 (예: 등원 가능 시기, 비용, 상담 예약 등)" : undefined
+          }
           className="w-full resize-none rounded-lg border border-gray-200 px-4 py-3 text-sm"
         />
       </section>
@@ -365,11 +377,11 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
           disabled={pending || !verified}
           className="w-full rounded-lg bg-gray-800 py-4 text-sm font-bold text-white disabled:opacity-60"
         >
-          {pending ? "제출 중..." : kind === "INQUIRY" ? "문의 접수" : "신청서 제출"}
+          {pending ? "제출 중..." : isInquiry ? "문의 남기기" : "신청서 제출"}
         </button>
         {!verified && (
           <p className="text-center text-[11px] text-gray-400">
-            휴대폰 본인인증을 완료하면 신청할 수 있어요
+            휴대폰 본인인증을 완료하면 {isInquiry ? "문의를 남길 수 있어요" : "신청할 수 있어요"}
           </p>
         )}
       </div>
