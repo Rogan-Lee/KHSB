@@ -162,6 +162,7 @@ export type WaitlistPosition = {
   gradeType: WaitGradeType | null;
   gender: WaitGender | null;
   status: WaitlistStatus;
+  kind: "WAITLIST" | "INQUIRY";
   createdAt: Date;
   overall: number; // 전체 기준 순번
   byGrade: number; // 학년(N수생/재학생) 기준 순번
@@ -177,16 +178,20 @@ export async function getWaitlistPosition(
   });
   if (!entry) return null;
 
-  // WAITING 인 본인보다 먼저 등록된 사람 수 + 본인(1)
+  // 순번 = 대기(WAITLIST) WAITING 만 카운트. 단순 문의(INQUIRY)는 줄을 서지 않음.
   const base = {
     branchId: entry.branchId,
     status: "WAITING" as WaitlistStatus,
+    kind: "WAITLIST" as const,
     createdAt: { lte: entry.createdAt },
   };
-  const [overall, byGrade] = await Promise.all([
-    prisma.waitlist.count({ where: base }),
-    prisma.waitlist.count({ where: { ...base, gradeType: entry.gradeType } }),
-  ]);
+  const inQueue = entry.status === "WAITING" && entry.kind === "WAITLIST";
+  const [overall, byGrade] = inQueue
+    ? await Promise.all([
+        prisma.waitlist.count({ where: base }),
+        prisma.waitlist.count({ where: { ...base, gradeType: entry.gradeType } }),
+      ])
+    : [0, 0];
 
   return {
     name: entry.name,
@@ -194,10 +199,10 @@ export async function getWaitlistPosition(
     gradeType: entry.gradeType,
     gender: entry.gender,
     status: entry.status,
+    kind: entry.kind,
     createdAt: entry.createdAt,
-    // 이미 초대/등원/취소된 경우 순번 의미 없음 → 0 처리
-    overall: entry.status === "WAITING" ? overall : 0,
-    byGrade: entry.status === "WAITING" ? byGrade : 0,
+    overall,
+    byGrade,
   };
 }
 

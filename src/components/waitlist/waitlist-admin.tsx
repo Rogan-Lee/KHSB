@@ -113,12 +113,16 @@ export function WaitlistAdmin({
     });
   }
 
-  // 대기 순번: 같은 지점+학년의 WAITING 중 등록순
+  // 대기 순번: 같은 지점+학년의 대기신청(WAITLIST) WAITING 중 등록순. 단순 문의 제외.
   const positionOf = (entry: Entry): number => {
-    if (entry.status !== "WAITING") return 0;
+    if (entry.status !== "WAITING" || entry.kind !== "WAITLIST") return 0;
     const group = entries
       .filter(
-        (e) => e.branchId === entry.branchId && e.gradeType === entry.gradeType && e.status === "WAITING"
+        (e) =>
+          e.branchId === entry.branchId &&
+          e.gradeType === entry.gradeType &&
+          e.status === "WAITING" &&
+          e.kind === "WAITLIST"
       )
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     return group.findIndex((e) => e.id === entry.id) + 1;
@@ -298,7 +302,7 @@ function EntriesTab({
               {shown.map((e) => (
                 <tr key={e.id} className="border-t border-border align-top">
                   <td className="px-3 py-2 font-semibold text-brand">
-                    {e.status === "WAITING" ? positionOf(e) : "-"}
+                    {e.status === "WAITING" && e.kind === "WAITLIST" ? positionOf(e) : "-"}
                   </td>
                   <td className="px-3 py-2 font-medium">
                     <div className="flex flex-wrap items-center gap-1">
