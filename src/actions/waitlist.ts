@@ -103,6 +103,8 @@ export type WaitlistSubmitInput = {
   branchId: string;
   programId?: string | null;
   name: string;
+  school?: string | null;
+  grade?: string | null;
   phone: string;
   gender?: WaitGender | null;
   gradeType?: WaitGradeType | null;
@@ -148,6 +150,8 @@ export async function submitWaitlist(
       branchId: branch.id,
       programId: kind === "WAITLIST" ? input.programId || null : null,
       name: input.name.trim(),
+      school: input.school?.trim() || null,
+      grade: input.grade?.trim() || null,
       phone,
       gender: kind === "WAITLIST" ? input.gender : null,
       gradeType: kind === "WAITLIST" ? input.gradeType : null,
@@ -164,6 +168,8 @@ export async function submitWaitlist(
 export type ExistingEntry = {
   token: string;
   name: string;
+  school: string | null;
+  grade: string | null;
   branchName: string;
   kind: "WAITLIST" | "INQUIRY";
   status: WaitlistStatus;
@@ -190,6 +196,8 @@ export async function findExistingByPhone(rawPhone: string): Promise<ExistingEnt
   return entries.map((e) => ({
     token: e.token,
     name: e.name,
+    school: e.school,
+    grade: e.grade,
     branchName: e.branch.name,
     kind: e.kind,
     status: e.status,
@@ -199,6 +207,8 @@ export async function findExistingByPhone(rawPhone: string): Promise<ExistingEnt
 
 export type WaitlistPosition = {
   name: string;
+  school: string | null;
+  grade: string | null;
   branchName: string;
   gradeType: WaitGradeType | null;
   gender: WaitGender | null;
@@ -236,6 +246,8 @@ export async function getWaitlistPosition(
 
   return {
     name: entry.name,
+    school: entry.school,
+    grade: entry.grade,
     branchName: entry.branch.name,
     gradeType: entry.gradeType,
     gender: entry.gender,
