@@ -23,7 +23,7 @@ export default async function WaitlistAdminPage() {
       include: { branch: { select: { name: true } }, program: { select: { name: true } } },
     }),
     prisma.waitlist.groupBy({
-      by: ["branchId", "programId", "status"],
+      by: ["branchId", "programId", "status", "kind"],
       _count: { _all: true },
     }),
     prisma.student.findMany({
@@ -53,7 +53,8 @@ export default async function WaitlistAdminPage() {
     if (g.status === "ENROLLED") {
       branchEnrolled.set(g.branchId, (branchEnrolled.get(g.branchId) ?? 0) + n);
       if (g.programId) programEnrolled.set(g.programId, (programEnrolled.get(g.programId) ?? 0) + n);
-    } else if (g.status === "WAITING") {
+    } else if (g.status === "WAITING" && g.kind === "WAITLIST") {
+      // 단순 문의(INQUIRY)는 대기 집계에서 제외
       branchWaiting.set(g.branchId, (branchWaiting.get(g.branchId) ?? 0) + n);
       if (g.programId) programWaiting.set(g.programId, (programWaiting.get(g.programId) ?? 0) + n);
     }

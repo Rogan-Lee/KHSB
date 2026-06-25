@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getWaitlistPosition } from "@/actions/waitlist";
 import { formatDateTime } from "@/lib/utils";
 
-export const metadata: Metadata = { title: "대기 현황 · 스터디룸" };
+export const metadata: Metadata = { title: "신청 현황 · 스터디룸" };
 export const viewport: Viewport = { width: "device-width", initialScale: 1, maximumScale: 1 };
 export const dynamic = "force-dynamic";
 
@@ -25,6 +25,29 @@ export default async function WaitlistStatusPage({
   const gradeLabel = pos.gradeType === "REPEAT" ? "N수생" : "재학생";
   const genderLabel = pos.gender === "MALE" ? "남학생" : "여학생";
   const waiting = pos.status === "WAITING";
+
+  // 단순 문의 — 순번 없이 접수 완료 안내
+  if (pos.kind === "INQUIRY") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-blue-600 px-5">
+        <div className="w-full max-w-lg rounded-2xl bg-white px-6 py-10 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-2xl">
+            ✓
+          </div>
+          <h1 className="text-xl font-bold text-gray-900">문의가 접수되었습니다</h1>
+          <p className="mt-2 text-sm text-gray-500">
+            {pos.name}님, 문의해 주셔서 감사합니다.
+            <br />
+            확인 후 빠르게 연락드리겠습니다.
+          </p>
+          <div className="mt-6 rounded-xl bg-gray-50 px-4 py-3 text-sm">
+            <span className="text-gray-500">문의 지점</span>{" "}
+            <span className="font-semibold text-gray-900">{pos.branchName}</span>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-blue-600">
