@@ -9,6 +9,7 @@ import { ParentGate } from "@/components/magic-link-gate/parent-gate";
 import { TokenNotice, reasonToNotice } from "@/components/magic-link-gate/token-notice";
 import { NotesSection } from "@/components/reports/notes-section";
 import { VocabTrendMiniChart } from "@/components/reports/vocab-trend-mini-chart";
+import { MonthlyExamTrendChart } from "@/components/reports/monthly-exam-trend-chart";
 
 export default async function ParentReportPage({
   params,
@@ -31,6 +32,16 @@ export default async function ParentReportPage({
   const { student, mentoring, studyPlanNote, studyPlanImages, customNote } = report;
 
   const analytics = await getStudentAnalytics(student.id);
+
+  // 성적 추이 차트용 원본 점수 (공식/사설 모의 + 내신, 최근 50개)
+  const examScores = await prisma.examScore.findMany({
+    where: {
+      studentId: student.id,
+      examType: { in: ["OFFICIAL_MOCK", "PRIVATE_MOCK", "SCHOOL_EXAM"] },
+    },
+    orderBy: { examDate: "asc" },
+    take: 50,
+  });
 
   // 노트·상벌점: 멘토링이 속한 달 기준으로 조회 (없으면 리포트 작성일 기준)
   const noteAnchor = new Date(
@@ -316,6 +327,23 @@ export default async function ParentReportPage({
                 </div>
               </div>
 
+              {/* 모의고사 성적 추이 차트 */}
+              {examScores.length >= 2 && (
+                <div className="pt-1">
+                  <p className="text-xs font-semibold text-gray-500 mb-2">모의고사 성적 추이</p>
+                  <MonthlyExamTrendChart
+                    scores={examScores.map((s) => ({
+                      examDate: s.examDate.toISOString(),
+                      examName: s.examName,
+                      subject: s.subject,
+                      grade: s.grade,
+                      percentile: s.percentile,
+                      examType: s.examType,
+                    }))}
+                  />
+                </div>
+              )}
+
               {/* subject table */}
               <table className="w-full text-sm">
                 <thead>
@@ -330,11 +358,25 @@ export default async function ParentReportPage({
                   {analytics.subjects.map((s) => (
                     <tr key={s.subject} className="border-b last:border-0">
                       <td className="py-2 font-medium text-gray-800">{s.subject}</td>
-                      <td className="py-2 text-center text-gray-400 text-xs">
-                        {s.firstGrade ? `${s.firstGrade}등급` : "-"}
+                      <td className="py-2 text-center">
+                        <span className="text-gray-400 text-xs">
+                          {s.firstGrade ? `${s.firstGrade}등급` : "-"}
+                        </span>
+                        {s.firstExamName && (
+                          <span className="block text-[10px] text-gray-300 leading-tight mt-0.5">
+                            {s.firstExamName}
+                          </span>
+                        )}
                       </td>
-                      <td className="py-2 text-center text-gray-400 text-xs">
-                        {s.latestGrade ? `${s.latestGrade}등급` : "-"}
+                      <td className="py-2 text-center">
+                        <span className="text-gray-600 text-xs font-medium">
+                          {s.latestGrade ? `${s.latestGrade}등급` : "-"}
+                        </span>
+                        {s.latestExamName && (
+                          <span className="block text-[10px] text-gray-400 leading-tight mt-0.5">
+                            {s.latestExamName}
+                          </span>
+                        )}
                       </td>
                       <td className="py-2 text-center">
                         {s.improvement !== null ? (
