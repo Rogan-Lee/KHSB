@@ -161,6 +161,42 @@ export async function submitWaitlist(
   return { ok: true, data: { token: entry.token } };
 }
 
+export type ExistingEntry = {
+  token: string;
+  name: string;
+  branchName: string;
+  kind: "WAITLIST" | "INQUIRY";
+  status: WaitlistStatus;
+  createdAt: string;
+};
+
+/**
+ * 인증된 휴대폰으로 이미 남긴 활성(미취소) 신청/문의 조회 — 중복 등록 전 확인용.
+ * 인증된 폰만 조회 허용(타인 정보 열람 방지).
+ */
+export async function findExistingByPhone(rawPhone: string): Promise<ExistingEntry[]> {
+  const phone = normalizePhone(rawPhone);
+  if (!phone) return [];
+  const verified = await prisma.phoneVerification.findFirst({
+    where: { phone, verifiedAt: { gt: new Date(Date.now() - SUBMIT_WINDOW_MS) } },
+  });
+  if (!verified) return [];
+
+  const entries = await prisma.waitlist.findMany({
+    where: { phone, status: { not: "CANCELLED" } },
+    include: { branch: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  return entries.map((e) => ({
+    token: e.token,
+    name: e.name,
+    branchName: e.branch.name,
+    kind: e.kind,
+    status: e.status,
+    createdAt: e.createdAt.toISOString(),
+  }));
+}
+
 export type WaitlistPosition = {
   name: string;
   branchName: string;
