@@ -2060,6 +2060,8 @@ model Waitlist {
   programId        String?
   program          WaitlistProgram? @relation(fields: [programId], references: [id])
   name             String
+  school           String? // 학교 (학생 구분용)
+  grade            String? // 학년 (예: 고3, 중2)
   phone            String
   gender           WaitGender? // nullable — 기존 원생 일괄등록 시 없음
   gradeType        WaitGradeType? // nullable — 기존 원생 일괄등록 시 없음
