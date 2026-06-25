@@ -3,7 +3,13 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { BranchWaitStatus, WaitGender, WaitGradeType } from "@/generated/prisma/enums";
-import { issuePhoneCode, confirmPhoneVerification, submitWaitlist } from "@/actions/waitlist";
+import {
+  issuePhoneCode,
+  confirmPhoneVerification,
+  submitWaitlist,
+  findExistingByPhone,
+  type ExistingEntry,
+} from "@/actions/waitlist";
 
 type Branch = {
   id: string;
@@ -77,6 +83,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
   const [issuing, setIssuing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [duplicates, setDuplicates] = useState<ExistingEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const selectedBranch = branches.find((b) => b.id === branchId) ?? null;
@@ -123,6 +130,28 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
 
   const isInquiry = kind === "INQUIRY";
 
+  // 실제 등록 (중복 확인 통과 후 / "새로 등록" 선택 시)
+  async function doSubmit() {
+    if (!branchId) return;
+    const res = await submitWaitlist({
+      branchId,
+      programId: isInquiry ? null : programId || null,
+      name,
+      phone,
+      gender: isInquiry ? null : gender,
+      gradeType: isInquiry ? null : gradeType,
+      kind,
+      note,
+      consentMarketing: consent,
+    });
+    if (!res.ok) {
+      setError(res.error);
+      setDuplicates(null);
+      return;
+    }
+    router.push(`/apply/${res.data!.token}`);
+  }
+
   function handleSubmit() {
     setError(null);
     if (!branchId) return setError(isInquiry ? "문의할 지점을 선택해주세요" : "지점을 선택해주세요");
@@ -133,23 +162,69 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
     if (!verified) return setError("휴대폰 본인인증을 먼저 완료해주세요");
 
     startTransition(async () => {
-      const res = await submitWaitlist({
-        branchId,
-        programId: isInquiry ? null : programId || null,
-        name,
-        phone,
-        gender: isInquiry ? null : gender,
-        gradeType: isInquiry ? null : gradeType,
-        kind,
-        note,
-        consentMarketing: consent,
-      });
-      if (!res.ok) {
-        setError(res.error);
+      // 동일 인증번호로 이미 남긴 내역이 있으면 → 선택지 제공 (중복 등록 방지)
+      const existing = await findExistingByPhone(phone);
+      if (existing.length > 0) {
+        setDuplicates(existing);
         return;
       }
-      router.push(`/apply/${res.data!.token}`);
+      await doSubmit();
     });
+  }
+
+  // 이미 남긴 내역이 있을 때 — 현황 보기 / 새로 등록 선택
+  if (duplicates) {
+    return (
+      <div className="mt-8 space-y-5">
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-5">
+          <h2 className="text-base font-bold text-gray-900">이미 남기신 내역이 있어요</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            같은 번호로 등록된 내역입니다. 현황을 확인하시거나, 다른 학생으로 새로 등록할 수 있어요.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {duplicates.map((d) => (
+            <button
+              key={d.token}
+              type="button"
+              onClick={() => router.push(`/apply/${d.token}`)}
+              className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 text-left"
+            >
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  {d.name}{" "}
+                  <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-500">
+                    {d.kind === "INQUIRY" ? "문의" : "대기 신청"}
+                  </span>
+                </p>
+                <p className="mt-0.5 text-xs text-gray-400">{d.branchName}</p>
+              </div>
+              <span className="text-xs font-semibold text-blue-600">현황 보기 →</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-3 pt-2">
+          <button
+            type="button"
+            onClick={() => startTransition(doSubmit)}
+            disabled={pending}
+            className="w-full rounded-lg bg-blue-600 py-4 text-sm font-bold text-white disabled:opacity-60"
+          >
+            {pending ? "등록 중..." : "다른 학생으로 새로 등록"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setDuplicates(null)}
+            className="w-full rounded-lg border border-gray-200 py-3 text-sm font-medium text-gray-500"
+          >
+            돌아가기
+          </button>
+        </div>
+        {error && <p className="text-center text-sm text-red-500">{error}</p>}
+      </div>
+    );
   }
 
   return (
