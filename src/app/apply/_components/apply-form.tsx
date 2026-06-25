@@ -73,9 +73,14 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
   const [gradeType, setGradeType] = useState<WaitGradeType | null>(null);
   const [programId, setProgramId] = useState<string>("");
   const [name, setName] = useState("");
+  const [school, setSchool] = useState("");
+  const [grade, setGrade] = useState("");
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
   const [consent, setConsent] = useState(false);
+
+  // "현황 조회" 모드 — 전화 인증 후 내 신청 목록 조회
+  const [lookupMode, setLookupMode] = useState(false);
 
   const [issued, setIssued] = useState<{ code: string; receiver: string; qrCode: string | null } | null>(
     null
@@ -137,6 +142,8 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
       branchId,
       programId: isInquiry ? null : programId || null,
       name,
+      school: isInquiry ? null : school,
+      grade: isInquiry ? null : grade,
       phone,
       gender: isInquiry ? null : gender,
       gradeType: isInquiry ? null : gradeType,
@@ -172,14 +179,129 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
     });
   }
 
-  // 이미 남긴 내역이 있을 때 — 현황 보기 / 새로 등록 선택
+  function handleLookup() {
+    setError(null);
+    if (!verified) return setError("휴대폰 본인인증을 먼저 완료해주세요");
+    startTransition(async () => {
+      const ex = await findExistingByPhone(phone);
+      if (ex.length === 0) {
+        setError("해당 번호로 등록된 신청 내역이 없습니다");
+        return;
+      }
+      setDuplicates(ex);
+    });
+  }
+
+  function resetVerify() {
+    setIssued(null);
+    setVerified(false);
+    setDuplicates(null);
+    setError(null);
+  }
+
+  // 전화 인증 블록 (신청 폼 + 현황 조회에서 공용)
+  const phoneVerify = (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <input
+          value={phone}
+          onChange={(e) => handlePhoneChange(e.target.value)}
+          inputMode="numeric"
+          placeholder="핸드폰번호를 적어주세요"
+          className="flex-1 rounded-lg border border-gray-200 px-4 py-3 text-sm"
+        />
+        <button
+          type="button"
+          onClick={handleIssue}
+          disabled={issuing || !phone}
+          className="shrink-0 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {issuing ? "발급 중" : issued ? "재발급" : "인증번호 발급"}
+        </button>
+      </div>
+
+      {issued && !verified && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-center">
+          <p className="text-xs text-gray-600">아래 인증번호를 문자로 보낸 뒤 “문자를 보냈어요”를 눌러주세요</p>
+          <p className="my-2 text-3xl font-extrabold tracking-widest text-blue-600">{issued.code}</p>
+          <p className="text-xs text-gray-500">
+            수신번호 <span className="font-semibold">{issued.receiver}</span>
+          </p>
+          <a href={smsLink} className="mt-3 block w-full rounded-lg bg-blue-600 py-3 text-sm font-bold text-white">
+            ① 문자 앱으로 인증번호 보내기
+          </a>
+          {issued.qrCode && (
+            <div className="mt-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={issued.qrCode} alt="SMS QR" width={140} height={140} className="mx-auto" />
+              <p className="mt-1 text-[11px] text-gray-400">PC라면 휴대폰 카메라로 QR을 스캔하세요</p>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={confirming}
+            className="mt-3 w-full rounded-lg border border-blue-600 bg-white py-3 text-sm font-bold text-blue-600 disabled:opacity-60"
+          >
+            {confirming ? "확인 중..." : "② 문자를 보냈어요 (인증 확인)"}
+          </button>
+        </div>
+      )}
+
+      {verified && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-semibold text-green-700">
+          ✓ 본인인증이 완료되었어요
+        </div>
+      )}
+    </div>
+  );
+
+  // 현황 조회 모드 — 전화 인증 후 내 신청 목록 조회
+  if (lookupMode && !duplicates) {
+    return (
+      <div className="mt-8 space-y-5">
+        <div>
+          <h2 className="text-base font-bold text-gray-900">신청 현황 조회</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            등록 시 인증한 번호로 본인인증하면 신청한 학생들의 순번을 확인할 수 있어요.
+          </p>
+        </div>
+        {phoneVerify}
+        <button
+          type="button"
+          onClick={handleLookup}
+          disabled={pending || !verified}
+          className="w-full rounded-lg bg-gray-800 py-4 text-sm font-bold text-white disabled:opacity-60"
+        >
+          {pending ? "조회 중..." : "현황 조회"}
+        </button>
+        {error && <p className="text-center text-sm text-red-500">{error}</p>}
+        <button
+          type="button"
+          onClick={() => {
+            setLookupMode(false);
+            resetVerify();
+          }}
+          className="w-full rounded-lg border border-gray-200 py-3 text-sm font-medium text-gray-500"
+        >
+          신청 폼으로 돌아가기
+        </button>
+      </div>
+    );
+  }
+
+  // 신청 내역 목록 — 학생 선택해 순번 확인 / (등록 흐름이면) 새로 등록
   if (duplicates) {
     return (
       <div className="mt-8 space-y-5">
         <div className="rounded-xl border border-blue-200 bg-blue-50 p-5">
-          <h2 className="text-base font-bold text-gray-900">이미 남기신 내역이 있어요</h2>
+          <h2 className="text-base font-bold text-gray-900">
+            {lookupMode ? "신청하신 학생 목록" : "이미 남기신 내역이 있어요"}
+          </h2>
           <p className="mt-1 text-sm text-gray-500">
-            같은 번호로 등록된 내역입니다. 현황을 확인하시거나, 다른 학생으로 새로 등록할 수 있어요.
+            {lookupMode
+              ? "확인할 학생을 선택하면 순번을 볼 수 있어요."
+              : "같은 번호로 등록된 내역입니다. 현황을 확인하시거나, 다른 학생으로 새로 등록할 수 있어요."}
           </p>
         </div>
 
@@ -198,7 +320,10 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
                     {d.kind === "INQUIRY" ? "문의" : "대기 신청"}
                   </span>
                 </p>
-                <p className="mt-0.5 text-xs text-gray-400">{d.branchName}</p>
+                <p className="mt-0.5 text-xs text-gray-400">
+                  {[d.school, d.grade].filter(Boolean).join(" · ") || d.branchName}
+                  {(d.school || d.grade) && ` · ${d.branchName}`}
+                </p>
               </div>
               <span className="text-xs font-semibold text-blue-600">현황 보기 →</span>
             </button>
@@ -206,14 +331,16 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
         </div>
 
         <div className="space-y-3 pt-2">
-          <button
-            type="button"
-            onClick={() => startTransition(doSubmit)}
-            disabled={pending}
-            className="w-full rounded-lg bg-blue-600 py-4 text-sm font-bold text-white disabled:opacity-60"
-          >
-            {pending ? "등록 중..." : "다른 학생으로 새로 등록"}
-          </button>
+          {!lookupMode && (
+            <button
+              type="button"
+              onClick={() => startTransition(doSubmit)}
+              disabled={pending}
+              className="w-full rounded-lg bg-blue-600 py-4 text-sm font-bold text-white disabled:opacity-60"
+            >
+              {pending ? "등록 중..." : "다른 학생으로 새로 등록"}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setDuplicates(null)}
@@ -229,6 +356,19 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
 
   return (
     <div className="mt-8 space-y-10">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => {
+            resetVerify();
+            setLookupMode(true);
+          }}
+          className="text-xs font-medium text-blue-600 underline underline-offset-2"
+        >
+          이미 신청하셨나요? 현황 조회
+        </button>
+      </div>
+
       {/* 신청 유형 */}
       <section>
         <SectionTitle>어떤 도움이 필요하신가요?</SectionTitle>
@@ -350,73 +490,31 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
 
       {/* 정보 입력 */}
       <section>
-        <SectionTitle>간단한 정보만 적어주세요</SectionTitle>
+        <SectionTitle>{isInquiry ? "연락받으실 정보를 적어주세요" : "학생 정보를 적어주세요"}</SectionTitle>
         <div className="space-y-3">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="이름을 적어주세요"
+            placeholder={isInquiry ? "이름을 적어주세요" : "학생 이름을 적어주세요"}
             className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm"
           />
-          <div className="flex gap-2">
-            <input
-              value={phone}
-              onChange={(e) => handlePhoneChange(e.target.value)}
-              inputMode="numeric"
-              placeholder="핸드폰번호를 적어주세요"
-              className="flex-1 rounded-lg border border-gray-200 px-4 py-3 text-sm"
-            />
-            <button
-              type="button"
-              onClick={handleIssue}
-              disabled={issuing || !phone}
-              className="shrink-0 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white disabled:opacity-60"
-            >
-              {issuing ? "발급 중" : issued ? "재발급" : "인증번호 발급"}
-            </button>
-          </div>
-
-          {issued && !verified && (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-center">
-              <p className="text-xs text-gray-600">아래 인증번호를 문자로 보낸 뒤 “문자를 보냈어요”를 눌러주세요</p>
-              <p className="my-2 text-3xl font-extrabold tracking-widest text-blue-600">
-                {issued.code}
-              </p>
-              <p className="text-xs text-gray-500">
-                수신번호 <span className="font-semibold">{issued.receiver}</span>
-              </p>
-
-              <a
-                href={smsLink}
-                className="mt-3 block w-full rounded-lg bg-blue-600 py-3 text-sm font-bold text-white"
-              >
-                ① 문자 앱으로 인증번호 보내기
-              </a>
-
-              {issued.qrCode && (
-                <div className="mt-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={issued.qrCode} alt="SMS QR" width={140} height={140} className="mx-auto" />
-                  <p className="mt-1 text-[11px] text-gray-400">PC라면 휴대폰 카메라로 QR을 스캔하세요</p>
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={handleConfirm}
-                disabled={confirming}
-                className="mt-3 w-full rounded-lg border border-blue-600 bg-white py-3 text-sm font-bold text-blue-600 disabled:opacity-60"
-              >
-                {confirming ? "확인 중..." : "② 문자를 보냈어요 (인증 확인)"}
-              </button>
-            </div>
+          {!isInquiry && (
+            <>
+              <input
+                value={school}
+                onChange={(e) => setSchool(e.target.value)}
+                placeholder="학교를 적어주세요 (예: OO고등학교)"
+                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm"
+              />
+              <input
+                value={grade}
+                onChange={(e) => setGrade(e.target.value)}
+                placeholder="학년을 적어주세요 (예: 고3, 중2)"
+                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm"
+              />
+            </>
           )}
-
-          {verified && (
-            <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-semibold text-green-700">
-              ✓ 본인인증이 완료되었어요
-            </div>
-          )}
+          {phoneVerify}
         </div>
       </section>
 

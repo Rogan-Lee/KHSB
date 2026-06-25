@@ -87,9 +87,12 @@ export default async function WaitlistStatusPage({
 
         <div className="mt-6 space-y-4 rounded-2xl bg-white px-6 py-6">
           {[
+            ["학생 이름", pos.name],
             ["대기 등록 지점", pos.branchName],
+            ...(pos.school ? [["학교", pos.school] as [string, string]] : []),
+            ...(pos.grade ? [["학년", pos.grade] as [string, string]] : []),
+            ["학생 구분", gradeLabel],
             ["학생 성별", genderLabel],
-            ["학생 학년", gradeLabel],
           ].map(([label, value]) => (
             <div
               key={label}
