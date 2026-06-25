@@ -43,6 +43,7 @@ import {
   HelpCircle,
   ScanLine,
   MessageSquarePlus,
+  UserPlus,
 } from "lucide-react";
 
 type NavItem = {
@@ -69,6 +70,7 @@ const navSections: NavSection[] = [
     label: "원생",
     items: [
       { href: "/students", label: "원생 관리", icon: Users, feature: "students" },
+      { href: "/waitlist", label: "대기자 관리", icon: UserPlus },
       { href: "/seat-map", label: "좌석 배치도", icon: MapPin, feature: "seat-map" },
       { href: "/merit-demerit", label: "상벌점", icon: Star, feature: "merit-demerit" },
       { href: "/vocab-test", label: "영단어 시험", icon: BookOpen, feature: "vocab-test" },
