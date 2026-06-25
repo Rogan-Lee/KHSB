@@ -39,9 +39,11 @@ export default async function ParentReportPage({
       studentId: student.id,
       examType: { in: ["OFFICIAL_MOCK", "PRIVATE_MOCK", "SCHOOL_EXAM"] },
     },
-    orderBy: { examDate: "asc" },
+    orderBy: { examDate: "desc" },
     take: 50,
   });
+  // 최근 50개를 가져온 뒤 차트 표시용으로 시간순(오름차순) 복원
+  examScores.reverse();
 
   // 노트·상벌점: 멘토링이 속한 달 기준으로 조회 (없으면 리포트 작성일 기준)
   const noteAnchor = new Date(
