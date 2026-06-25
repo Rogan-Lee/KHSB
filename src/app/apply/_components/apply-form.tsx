@@ -331,7 +331,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
             onChange={(e) => setConsent(e.target.checked)}
             className="h-4 w-4"
           />
-          다양한 소식을 전달받으실 수 있습니다.
+          마케팅 수신에 동의하시면, 등원 가능한 시점에 즉시 안내를 받으실 수 있습니다.
         </label>
         <button
           type="button"
