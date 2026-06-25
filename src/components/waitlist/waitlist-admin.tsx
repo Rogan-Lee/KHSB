@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type {
   BranchWaitStatus,
@@ -111,6 +111,8 @@ export function WaitlistAdmin({ branches, entries }: { branches: Branch[]; entri
 
   return (
     <div>
+      <ShareApply />
+
       <div className="mb-4 flex gap-2 border-b border-border">
         {(["entries", "branches"] as const).map((t) => (
           <button
@@ -132,6 +134,58 @@ export function WaitlistAdmin({ branches, entries }: { branches: Branch[]; entri
       ) : (
         <BranchesTab branches={branches} run={run} pending={pending} />
       )}
+    </div>
+  );
+}
+
+/** 대기 신청 유도 메시지 + /apply 링크 공유 (저장 없음, 작성→복사). */
+function ShareApply() {
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
+  const link = `${origin}/apply`;
+  const [msg, setMsg] = useState(
+    "안녕하세요! 대기 신청 안내드립니다.\n현재 정원이 가득 차 대기 신청만 받고 있어요. 아래 링크에서 1분이면 신청하실 수 있습니다 👇"
+  );
+
+  async function copy(text: string, ok: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(ok);
+    } catch {
+      toast.error("복사 실패 — 브라우저 권한을 확인하세요");
+    }
+  }
+
+  return (
+    <div className="mb-5 rounded-lg border border-border bg-muted/30 p-4">
+      <p className="text-sm font-semibold">대기 신청 링크 공유</p>
+      <p className="mb-3 text-xs text-muted-foreground">
+        유도 안내 메시지와 함께 카톡·문자로 보내세요. (예비 신청자에게 발송)
+      </p>
+      <div className="mb-2 flex items-center gap-2">
+        <input readOnly value={link} className={`${input} flex-1 text-xs`} />
+        <button
+          onClick={() => copy(link, "신청 링크가 복사되었습니다")}
+          className={`${btn} bg-gray-100 text-gray-700`}
+        >
+          링크만 복사
+        </button>
+      </div>
+      <textarea
+        value={msg}
+        onChange={(e) => setMsg(e.target.value)}
+        rows={3}
+        className={`${input} w-full resize-none text-sm`}
+        placeholder="유도 안내 메시지"
+      />
+      <div className="mt-2 flex justify-end">
+        <button
+          onClick={() => copy(`${msg}\n${link}`, "안내 메시지 + 링크가 복사되었습니다")}
+          className={`${btn} bg-brand text-white`}
+        >
+          메시지 + 링크 복사
+        </button>
+      </div>
     </div>
   );
 }
