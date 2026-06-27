@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import * as FileSystemLegacy from 'expo-file-system/legacy';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
@@ -782,6 +783,28 @@ export function useMobileQuery<T>(path: string) {
       active = false;
     };
   }, [path]);
+
+  // 화면 재포커스 시 조용히 재조회 — 다른 화면에서 읽음 처리된 미확인 배지 등이
+  // 돌아왔을 때 즉시 반영되도록(스피너 없이 백그라운드 갱신). 최초 포커스는 위 마운트
+  // 이펙트가 처리하므로 건너뛴다.
+  const mounted = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!mounted.current) {
+        mounted.current = true;
+        return;
+      }
+      let active = true;
+      void requestMobileApi<T>(path)
+        .then((nextData) => {
+          if (active) setData(nextData);
+        })
+        .catch(() => undefined);
+      return () => {
+        active = false;
+      };
+    }, [path]),
+  );
 
   const refresh = useCallback(async () => {
     await load(true);
