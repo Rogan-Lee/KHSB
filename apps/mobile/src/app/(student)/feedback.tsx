@@ -1,5 +1,4 @@
 import { router } from 'expo-router';
-import type { Href } from 'expo-router';
 import { ChevronRight, MessageSquareText } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -20,7 +19,7 @@ import type {
   StudentFeedbackResponse,
 } from '@/lib/mobile-api';
 
-const TASKS_ROUTE = '/student-tasks' as Href;
+const TASKS_ROUTE = '/student-tasks' as const;
 
 function statusBadge(status: StudentFeedbackItem['status']): {
   tone: Tone;
@@ -79,7 +78,12 @@ export default function StudentFeedbackScreen() {
 
               <View
                 style={styles.taskRef}
-                onTouchEnd={() => router.push(TASKS_ROUTE)}>
+                onTouchEnd={() =>
+                  router.push({
+                    pathname: TASKS_ROUTE,
+                    params: { taskId: fb.taskId },
+                  })
+                }>
                 <View style={styles.subjectChip}>
                   <Text style={styles.subjectText}>{fb.subject}</Text>
                 </View>

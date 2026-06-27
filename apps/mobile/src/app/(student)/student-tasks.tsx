@@ -1,4 +1,5 @@
 import type { DocumentPickerAsset } from 'expo-document-picker';
+import { router, useLocalSearchParams } from 'expo-router';
 import { FileText } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -56,6 +57,15 @@ export default function StudentTasksScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { data, error, isLoading, isRefreshing, refresh, retry } =
     useMobileQuery<StudentTasksResponse>('/api/mobile/v1/student/tasks');
+
+  // 피드백 화면에서 특정 과제로 진입(taskId 파라미터) → 해당 과제 상세를 바로 연다.
+  const { taskId: taskIdParam } = useLocalSearchParams<{ taskId?: string }>();
+  useEffect(() => {
+    if (taskIdParam) {
+      setSelectedId(taskIdParam);
+      router.setParams({ taskId: '' }); // 같은 과제 재진입 시에도 다시 열리도록 소비
+    }
+  }, [taskIdParam]);
   const items =
     data?.items.filter((item) =>
       tab === 'ALL' ? true : tab === 'DONE' ? item.status === 'DONE' : item.status !== 'DONE',
