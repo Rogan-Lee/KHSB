@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>강한 관리 시스템 | 강한선배</title>
+  <meta name="description" content="출결·생활 관리, 1:1 담임제 멘토링, 월간 학부모 리포트, 학습·성적 관리, 교시제·환경관리까지 — 강한선배의 관리 시스템을 자세히 소개합니다.">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="landing.css">
+  <style>
+    .prog-hero { text-align: center; padding: 140px 0 20px; }
+    .prog-row { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; padding: 64px 0; border-top: 1px solid var(--line); }
+    .prog-row:nth-child(even) .prog-visual { order: -1; }
+    .prog-no { font-size: 14px; font-weight: 800; color: var(--purple); letter-spacing: .02em; }
+    .prog-row h2 { font-size: clamp(24px,3.2vw,34px); font-weight: 800; letter-spacing: -.03em; line-height: 1.25; margin: 10px 0 16px; }
+    .prog-row > div > p { font-size: 16px; color: var(--mute); line-height: 1.85; margin-bottom: 22px; }
+    .prog-bul { display: flex; flex-direction: column; gap: 12px; }
+    .prog-bul span { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; color: var(--ink); }
+    .prog-bul span::before { content: "✓"; color: var(--purple); font-weight: 800; flex-shrink: 0; }
+    .prog-visual { background: var(--card-cream); border: 1px solid var(--line); border-radius: var(--radius); padding: 32px; }
+    .prog-visual .mock { box-shadow: var(--shadow-sm); }
+    .env-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 36px; }
+    .env { background: var(--card-cream); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 28px; }
+    .env .emo { font-size: 26px; } .env h4 { font-size: 17px; font-weight: 800; margin: 12px 0 8px; }
+    .env p { font-size: 14px; color: var(--mute); line-height: 1.7; }
+    @media (max-width: 820px) {
+      .prog-row { grid-template-columns: 1fr; gap: 28px; padding: 48px 0; }
+      .prog-row:nth-child(even) .prog-visual { order: 0; }
+      .env-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<nav id="topNav">
+  <div class="nav-inner">
+    <a href="landing.html" class="nav-logo"><span class="logo-mark">강</span>강한선배</a>
+    <div class="nav-links">
+      <a href="landing.html#mentors">선배 멘토진</a>
+      <a href="landing.html#voices">후기</a>
+      <a href="landing.html#faq">FAQ</a>
+    </div>
+    <a href="landing.html#contact" class="pill pill-dark">입회 상담<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
+  </div>
+</nav>
+
+<header class="prog-hero wrap">
+  <p class="sec-label">강한 관리 시스템</p>
+  <h1 class="hero-title" style="font-size:clamp(34px,6vw,64px);">관리의 차이가<br>성적의 차이입니다.</h1>
+  <p class="hero-sub" style="margin-left:auto;margin-right:auto;">출결부터 멘탈까지, 강한선배가 어떻게 관리하는지<br>하나하나 자세히 보여드립니다.</p>
+</header>
+
+<main class="wrap">
+
+  <!-- 01 출결 · 생활 관리 -->
+  <section class="prog-row">
+    <div>
+      <p class="prog-no">/01</p>
+      <h2>출결 · 생활 관리</h2>
+      <p>입·퇴실 시각을 기록하고, 자리 이탈과 휴식, 순찰 점검, 상벌점까지 — 아이의 하루를 빠짐없이 관리해 진짜 공부한 시간을 남깁니다.</p>
+      <div class="prog-bul">
+        <span>입·퇴실 기록과 주간 학습시간 집계</span>
+        <span>정기 순찰로 자세·집중 상태 점검</span>
+        <span>상·벌점으로 생활 습관까지 관리</span>
+      </div>
+    </div>
+    <div class="prog-visual">
+      <div class="mock"><div class="log">
+        <div class="log-row"><span class="log-tag merit">상점 +2</span><p>자습 시간 끝까지 집중</p></div>
+        <div class="log-row"><span class="log-tag patrol">순찰</span><p>19시 점검 · 정자세 학습 중</p></div>
+        <div class="log-row"><span class="log-tag ment">멘토링</span><p>주간 학습 계획 점검 완료</p></div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 02 1:1 담임제 멘토링 -->
+  <section class="prog-row">
+    <div>
+      <p class="prog-no">/02</p>
+      <h2>1:1 담임제 멘토링</h2>
+      <p>학생마다 담임 멘토를 배정합니다. 같은 입시를 통과한 명문대 선배가 학습 계획부터 슬럼프까지 매주 1:1로 코칭하고, 변화를 기록합니다.</p>
+      <div class="prog-bul">
+        <span>주간 1:1 면담과 학습 플랜 점검</span>
+        <span>개선점·약점·다음 목표를 매주 기록</span>
+        <span>멘탈과 동기까지 함께 관리</span>
+      </div>
+    </div>
+    <div class="prog-visual">
+      <div class="mock" style="min-height:150px; display:flex; flex-direction:column; justify-content:flex-end; gap:14px;">
+        <div class="men-ava-stack">
+          <span class="m-ava" style="background:linear-gradient(135deg,#F2754A,#D8431C);">徐</span>
+          <span class="m-ava" style="background:linear-gradient(135deg,#E0A24A,#A86A22);">金</span>
+          <span class="m-ava" style="background:linear-gradient(135deg,#4AAE7C,#1F7A4F);">李</span>
+          <span class="m-ava m-more">+8</span>
+        </div>
+        <div class="men-tag">이번 주 멘토링 <b>완료</b> · 다음 면담 D-3</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 학부모 리포트 -->
+  <section class="prog-row">
+    <div>
+      <p class="prog-no">/03</p>
+      <h2>월간 학부모 리포트</h2>
+      <p>출결·순공·멘토링·성적에 상벌점·순찰 기록까지, 관리한 모든 내용을 한 장으로 정리해 매달 카카오톡으로 보내드립니다. 숨기는 관리는 하지 않습니다.</p>
+      <div class="prog-bul">
+        <span>월간 종합 리포트 자동 정리</span>
+        <span>상벌점·순찰까지 투명하게 공유</span>
+        <span>카카오톡으로 간편하게 받아보기</span>
+      </div>
+    </div>
+    <div class="prog-visual">
+      <div class="mock"><div class="report">
+        <p class="rep-ttl">6월 월간 리포트 · 김민준</p>
+        <div class="rep-row"><span>순공 시간</span><b>107시간</b></div>
+        <div class="rep-row"><span>1:1 멘토링</span><b>4회</b></div>
+        <div class="rep-row"><span>상·벌점</span><b class="up">+6점</b></div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 04 학습 · 성적 관리 -->
+  <section class="prog-row">
+    <div>
+      <p class="prog-no">/04</p>
+      <h2>학습 · 성적 관리</h2>
+      <p>영단어·개념 시험을 자동 채점하고, 내신·모의고사 성적 추이를 그래프로 관리합니다. 약점 과목을 데이터로 잡아내 다음 학습으로 연결합니다.</p>
+      <div class="prog-bul">
+        <span>단어·개념 시험 자동 채점</span>
+        <span>성적 추이 그래프로 흐름 파악</span>
+        <span>약점 과목 분석 후 학습 설계</span>
+      </div>
+    </div>
+    <div class="prog-visual">
+      <div class="mock">
+        <svg class="chart" viewBox="0 0 220 90" preserveAspectRatio="none">
+          <polyline points="6,72 50,60 94,64 138,40 182,28 214,16" fill="none" stroke="#1d4ed8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="214" cy="16" r="4.5" fill="#1d4ed8"/>
+        </svg>
+        <div class="chart-cap">3월 → 6월 <b class="up">내신 2.8 → 1.9</b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 환경 관리 -->
+  <section class="sec">
+    <p class="sec-label">환경 관리</p>
+    <h2 class="sec-title">오래 앉는 게 아니라, 진짜 집중하도록.</h2>
+    <div class="env-grid">
+      <div class="env"><span class="emo">📵</span><h4>전자기기 절제</h4><p>입실 시 휴대폰을 보관하고 하원 시 돌려드립니다. 학습 외 사이트 접속은 관리자 확인 후에만 가능합니다.</p></div>
+      <div class="env"><span class="emo">🪑</span><h4>정자세 · 교시제</h4><p>교시제로 학습 리듬을 잡고, 순찰로 자세와 집중 상태를 점검해 흐트러짐을 바로잡습니다.</p></div>
+      <div class="env"><span class="emo">🎥</span><h4>안전한 공간</h4><p>CCTV와 관리자 상주로 안전하게 운영합니다. 입·퇴실과 외출은 반드시 허가 후 이뤄집니다.</p></div>
+    </div>
+  </section>
+
+  <!-- 교시제 시간표 -->
+  <section class="sec" id="timetable">
+    <p class="sec-label">교시제 운영</p>
+    <h2 class="sec-title">하루를 교시로 쪼개, 집중을 설계합니다.</h2>
+    <div class="tt-grid">
+      <div class="tt-card">
+        <h4 class="tt-h">방학 · 주말/공휴일</h4>
+        <div class="tt-rows">
+          <div class="tt-row"><span class="tt-no">1교시</span><span>09:00 – 10:30</span></div>
+          <div class="tt-row"><span class="tt-no">2교시</span><span>10:40 – 12:10</span></div>
+          <div class="tt-row tt-meal"><span class="tt-no">점심</span><span>12:10 – 13:20</span></div>
+          <div class="tt-row"><span class="tt-no">3교시</span><span>13:20 – 14:50</span></div>
+          <div class="tt-row"><span class="tt-no">4교시</span><span>15:00 – 16:30</span></div>
+          <div class="tt-row"><span class="tt-no">5교시</span><span>16:40 – 18:10</span></div>
+          <div class="tt-row tt-meal"><span class="tt-no">저녁</span><span>18:10 – 19:20</span></div>
+          <div class="tt-row"><span class="tt-no">6–9교시</span><span>19:20 – 24:00</span></div>
+        </div>
+      </div>
+      <div class="tt-card">
+        <h4 class="tt-h">학기 중 · 평일</h4>
+        <div class="tt-rows">
+          <div class="tt-row"><span class="tt-no">1교시</span><span>16:00 – 16:50</span></div>
+          <div class="tt-row"><span class="tt-no">2교시</span><span>17:00 – 17:50</span></div>
+          <div class="tt-row"><span class="tt-no">3교시</span><span>18:00 – 18:50</span></div>
+          <div class="tt-row"><span class="tt-no">4교시</span><span>19:00 – 19:50</span></div>
+          <div class="tt-row"><span class="tt-no">5교시</span><span>20:00 – 20:50</span></div>
+          <div class="tt-row"><span class="tt-no">6교시</span><span>21:00 – 21:50</span></div>
+          <div class="tt-row"><span class="tt-no">7교시</span><span>22:00 – 22:50</span></div>
+          <div class="tt-row"><span class="tt-no">8교시</span><span>23:00 – 24:00</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="partner">
+      <span class="partner-badge">정식 제휴</span>
+      <p><b>대성 더프리미엄</b> 콘텐츠 정식 도입 — 2027 수능 대비 프리미엄 학습 콘텐츠를 강한선배 관리 시스템과 함께 제공합니다.</p>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="sec">
+    <div class="persona-card" style="text-align:center; display:block;">
+      <h2 style="margin-bottom:24px;">이 모든 관리를, <b>한 곳에서.</b></h2>
+      <a href="landing.html#contact" class="pill pill-dark big">입회 상담 신청 →</a>
+    </div>
+  </section>
+
+</main>
+
+<footer style="margin-top:96px;">
+  <div class="wrap foot-bottom" style="border-top:0; padding-top:0;">
+    <span>&copy; 2026 KHSB · 대표 강한지</span><span>관리형 프리미엄 독서실</span>
+  </div>
+</footer>
+
+<script>
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); }), { threshold: 0.08 });
+  document.querySelectorAll('.r').forEach(el => io.observe(el));
+</script>
+</body>
+</html>
