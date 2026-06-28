@@ -1,0 +1,87 @@
+{
+  "expo": {
+    "name": "스터디룸 매니저",
+    "slug": "study-room-manager-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "studyroom",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "com.studyroommanager.mobile",
+      "supportsTablet": false,
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.studyroommanager.mobile",
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#176B52",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#176B52",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 112
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "스터디룸 매니저 로그인 보호를 위해 Face ID를 사용합니다."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "barcodeScannerEnabled": true,
+          "cameraPermission": "좌석 QR 코드를 스캔하려면 카메라 접근 권한이 필요합니다.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "질문과 멘토링에 사진을 첨부하려면 카메라 접근 권한이 필요합니다.",
+          "photosPermission": "질문과 멘토링에 사진을 첨부하려면 사진 보관함 접근 권한이 필요합니다."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#176B52",
+          "defaultChannel": "reminders",
+          "enableBackgroundRemoteNotifications": false
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d3a9ff21-786a-4191-8ab1-66e3b1757816"
+      }
+    },
+    "owner": "rogan_lee"
+  }
+}

@@ -1,10 +1,12 @@
-import { SignIn } from "@clerk/nextjs";
+import { redirect } from "next/navigation";
 
-export default function SignInPage() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-background pointer-events-none" />
-      <SignIn />
-    </div>
-  );
+import { SignInForm } from "@/components/auth/sign-in-form";
+import { getAuthIdentity } from "@/lib/auth";
+
+export default async function SignInPage() {
+  const current = await getAuthIdentity();
+  if (current?.identity.appUser) redirect("/");
+  if (current?.identity.student) redirect("/student");
+
+  return <SignInForm />;
 }

@@ -1,0 +1,64 @@
+name: Mobile EAS Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Build platform
+        required: true
+        default: ios
+        type: choice
+        options:
+          - ios
+          - android
+          - all
+      profile:
+        description: EAS build profile
+        required: true
+        default: preview
+        type: choice
+        options:
+          - development
+          - simulator
+          - preview
+          - production
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    env:
+      CI: "1"
+      EXPO_NO_TELEMETRY: "1"
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: apps/mobile/package-lock.json
+
+      - run: npm ci
+
+      - name: Validate build selection
+        run: |
+          if [ "${{ inputs.profile }}" = "simulator" ] && [ "${{ inputs.platform }}" != "ios" ]; then
+            echo "simulator 프로필은 iOS에서만 사용할 수 있습니다."
+            exit 1
+          fi
+
+      - name: Verify Expo authentication
+        run: npx eas-cli@20.3.0 whoami
+
+      - name: Start EAS build
+        run: >-
+          npx eas-cli@20.3.0 build
+          --platform ${{ inputs.platform }}
+          --profile ${{ inputs.profile }}
+          --non-interactive
+          --no-wait
