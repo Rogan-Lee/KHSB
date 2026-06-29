@@ -76,7 +76,7 @@ function validateEmail(value: unknown) {
 const baseURL = getAppUrl();
 
 export const authServer = betterAuth({
-  appName: "스터디룸 매니저",
+  appName: "강한선배 | KHSB",
   baseURL,
   basePath: "/api/auth",
   secret: getSecret(),
@@ -122,7 +122,7 @@ export const authServer = betterAuth({
       after(async () => {
         await sendAuthEmail({
           to: user.email,
-          subject: "[스터디룸 매니저] 비밀번호 재설정",
+          subject: "[강한선배 | KHSB] 비밀번호 재설정",
           text: `아래 링크에서 비밀번호를 재설정하세요.\n\n${url}\n\n본인이 요청하지 않았다면 이 메일을 무시하세요.`,
         });
       });
@@ -133,7 +133,7 @@ export const authServer = betterAuth({
       after(async () => {
         await sendAuthEmail({
           to: user.email,
-          subject: "[스터디룸 매니저] 이메일 인증",
+          subject: "[강한선배 | KHSB] 이메일 인증",
           text: `아래 링크에서 이메일 주소를 인증하세요.\n\n${url}`,
         });
       });
