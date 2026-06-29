@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="pageTitle">멘토 소개 | 강한선배</title>
+  <meta name="description" content="강한선배 선배 멘토의 이력과 인터뷰를 소개합니다.">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="landing.css">
+  <style>
+    .m-back { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--mute); }
+    .m-hero { border-radius: var(--radius); padding: 48px; margin-top: 96px; box-shadow: var(--shadow-sm); display: grid; grid-template-columns: auto 1fr; gap: 36px; align-items: center; }
+    .m-hero-ava { width: 132px; height: 132px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 48px; box-shadow: var(--shadow); }
+    .m-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .m-badge { font-size: 12px; font-weight: 800; background: rgba(255,255,255,.6); border-radius: 999px; padding: 6px 13px; }
+    .m-name { font-size: clamp(30px,5vw,48px); font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
+    .m-role { font-size: 15px; color: rgba(24,19,13,.62); margin-top: 8px; }
+    .m-oneliner { font-size: clamp(16px,2vw,19px); font-weight: 600; line-height: 1.6; margin-top: 20px; color: rgba(24,19,13,.85); }
+    .m-body { display: grid; grid-template-columns: 1fr 320px; gap: 56px; margin-top: 64px; align-items: start; }
+    .m-h3 { font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 18px; }
+    .m-bio { font-size: 16px; line-height: 1.9; color: var(--mute); margin-bottom: 48px; white-space: pre-line; }
+    .m-timeline { list-style: none; margin-bottom: 48px; }
+    .m-timeline li { position: relative; padding: 0 0 22px 26px; border-left: 2px solid var(--line); }
+    .m-timeline li:last-child { padding-bottom: 0; }
+    .m-timeline li::before { content: ""; position: absolute; left: -7px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--purple); }
+    .m-tl-year { font-size: 13px; font-weight: 800; color: var(--purple); }
+    .m-tl-text { font-size: 15px; color: var(--ink); margin-top: 3px; line-height: 1.6; }
+    .m-aside { background: var(--card-cream); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; position: sticky; top: 96px; }
+    .m-aside h4 { font-size: 13px; font-weight: 800; color: var(--mute); letter-spacing: .04em; margin-bottom: 14px; }
+    .m-subj { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+    .m-subj span { font-size: 13px; font-weight: 700; background: var(--brand-soft); color: #3B2F70; padding: 6px 12px; border-radius: 999px; }
+    @media (max-width: 860px) {
+      .m-hero { grid-template-columns: 1fr; text-align: center; justify-items: center; padding: 36px 28px; }
+      .m-badges { justify-content: center; }
+      .m-body { grid-template-columns: 1fr; gap: 40px; }
+      .m-aside { position: static; }
+    }
+  </style>
+</head>
+<body>
+
+<nav id="topNav">
+  <div class="nav-inner">
+    <a href="landing.html" class="nav-logo"><span class="logo-mark">강</span>강한선배</a>
+    <a href="mentors.html" class="m-back">← 멘토진 전체보기</a>
+    <a href="landing.html#contact" class="pill pill-dark">입회 상담</a>
+  </div>
+</nav>
+
+<main class="wrap">
+  <section class="m-hero" id="mHero">
+    <div class="m-hero-ava" id="mAva"></div>
+    <div>
+      <div class="m-badges" id="mBadges"></div>
+      <h1 class="m-name" id="mName"></h1>
+      <p class="m-role" id="mRole"></p>
+      <p class="m-oneliner" id="mOneliner"></p>
+    </div>
+  </section>
+
+  <div class="m-body">
+    <div>
+      <h3 class="m-h3">멘토 소개</h3>
+      <p class="m-bio" id="mBio"></p>
+      <h3 class="m-h3">이력 · 합격</h3>
+      <ul class="m-timeline" id="mTimeline"></ul>
+      <h3 class="m-h3">멘토 인터뷰</h3>
+      <div id="mInterview" class="faq-list"></div>
+    </div>
+    <aside class="m-aside">
+      <h4>담당 과목 · 역할</h4>
+      <div class="m-subj" id="mSubjects"></div>
+      <a href="landing.html#contact" class="lead-btn full" style="display:block; text-align:center; text-decoration:none;">이 멘토와 상담하기</a>
+      <p style="font-size:12px; color:var(--faint); text-align:center; margin-top:12px;">상담 시 담당 멘토 배정을 안내해 드려요</p>
+    </aside>
+  </div>
+</main>
+
+<footer style="margin-top:96px;">
+  <div class="wrap foot-bottom" style="border-top:0; padding-top:0;">
+    <span>&copy; 2026 강한선배</span><span>관리형 프리미엄 독서실</span>
+  </div>
+</footer>
+
+<script src="mentors-data.js"></script>
+<script src="mentor.js"></script>
+</body>
+</html>

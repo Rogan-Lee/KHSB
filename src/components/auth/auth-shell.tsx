@@ -1,4 +1,4 @@
-import { LockKeyhole } from "lucide-react";
+import Image from "next/image";
 
 export function AuthShell({
   children,
@@ -13,9 +13,14 @@ export function AuthShell({
     <main className="min-h-screen bg-canvas px-4 py-10 sm:grid sm:place-items-center">
       <section className="mx-auto w-full max-w-[420px]">
         <div className="mb-7 flex flex-col items-center text-center">
-          <div className="mb-4 grid h-12 w-12 place-items-center rounded-[8px] bg-brand text-white">
-            <LockKeyhole className="h-6 w-6" />
-          </div>
+          <Image
+            src="/khsb-logo.png"
+            alt="KHSB"
+            width={640}
+            height={242}
+            priority
+            className="mb-4 h-11 w-auto"
+          />
           <p className="text-[13px] font-semibold text-brand-2">
             스터디룸 매니저
           </p>
