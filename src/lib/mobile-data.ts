@@ -5,6 +5,7 @@ import type {
   Role,
 } from "@/generated/prisma";
 
+import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
 
 const ABSENT_TYPES = new Set<AttendanceType>([
@@ -304,6 +305,7 @@ export async function getStaffMobileAttendance(now = new Date()) {
         where: { date: context.date },
         orderBy: { sequence: "asc" },
         select: {
+          id: true,
           sequence: true,
           outStart: true,
           outEnd: true,
@@ -320,19 +322,13 @@ export async function getStaffMobileAttendance(now = new Date()) {
     const schedule = student.schedules[0] ?? null;
     const scheduleStart = schedule?.startTime ?? null;
     const scheduleEnd = schedule?.endTime ?? null;
-    const status = resolveAttendanceStatus(attendance);
-    const eventTime =
-      status === "퇴실"
-        ? attendance?.checkOut
-        : status === "외출"
-          ? attendance?.outStart
-          : attendance?.checkIn;
-    const isLate = isAttendanceLate(status, scheduleStart, context.nowTime);
+    const baseStatus = resolveAttendanceStatus(attendance);
 
     // 외출: 당일 기록 우선, 없으면 정기 예정으로 표시
     const outings =
       student.dailyOutings.length > 0
         ? student.dailyOutings.map((o) => ({
+            id: o.id,
             sequence: o.sequence,
             reason: o.reason,
             planned: o.isPlaceholder,
@@ -341,6 +337,7 @@ export async function getStaffMobileAttendance(now = new Date()) {
             status: resolveOutingStatus(o.outStart, o.outEnd),
           }))
         : student.outings.map((o, index) => ({
+            id: null,
             sequence: index + 1,
             reason: o.reason,
             planned: true,
@@ -350,8 +347,26 @@ export async function getStaffMobileAttendance(now = new Date()) {
           }));
     const outingActive = outings.some((o) => o.status === "외출중");
 
+    // 외출 진행 중이면(seq≥2 포함) 상태를 "외출"로 보정
+    const status: MobileAttendanceStatus =
+      baseStatus === "입실" && outingActive ? "외출" : baseStatus;
+    const activeOutingStart =
+      outings.find((o) => o.status === "외출중")?.start ?? null;
+    const eventTime =
+      status === "퇴실"
+        ? formatKstTime(attendance?.checkOut ?? null)
+        : status === "외출"
+          ? activeOutingStart ?? formatKstTime(attendance?.outStart ?? null)
+          : formatKstTime(attendance?.checkIn ?? null);
+    const isLate = isAttendanceLate(status, scheduleStart, context.nowTime);
+
     return {
       attendanceType: attendance?.type ?? null,
+      // 실제 기록 시각 (HH:MM, KST) — 시트에서 직접 수정용 prefill
+      checkIn: formatKstTime(attendance?.checkIn ?? null),
+      checkOut: formatKstTime(attendance?.checkOut ?? null),
+      outStart: formatKstTime(attendance?.outStart ?? null),
+      outEnd: formatKstTime(attendance?.outEnd ?? null),
       grade: student.grade,
       id: student.id,
       isLate,
@@ -363,7 +378,7 @@ export async function getStaffMobileAttendance(now = new Date()) {
       scheduleStart,
       seat: student.seat,
       status,
-      time: formatKstTime(eventTime ?? null),
+      time: eventTime,
     };
   });
 
@@ -543,5 +558,106 @@ export async function getStaffMobileOverview(
       openQuestions,
       todayMentoring,
     },
+  };
+}
+
+// 운영진용 학생 상세 — 기본정보 + 과제 + 성적 (입퇴실 시트 탭)
+export async function getStaffMobileStudentDetail(studentId: string) {
+  const student = await prisma.student.findFirst({
+    where: { id: studentId, status: "ACTIVE" },
+    select: {
+      id: true,
+      name: true,
+      grade: true,
+      school: true,
+      classGroup: true,
+      seat: true,
+      phone: true,
+      parentPhone: true,
+      parentEmail: true,
+      startDate: true,
+      targetUniversity: true,
+      admissionType: true,
+      internalScoreRange: true,
+      mockScoreRange: true,
+      selectedSubjects: true,
+      onlineLectures: true,
+      mentoringNotes: true,
+      studentInfo: true,
+      changeNote: true,
+      assignments: {
+        orderBy: { createdAt: "desc" },
+        take: 30,
+        select: {
+          id: true,
+          title: true,
+          subject: true,
+          dueDate: true,
+          isCompleted: true,
+          completedAt: true,
+          description: true,
+        },
+      },
+      examScores: {
+        orderBy: { examDate: "desc" },
+        take: 50,
+        select: {
+          id: true,
+          examType: true,
+          examName: true,
+          examDate: true,
+          subject: true,
+          rawScore: true,
+          grade: true,
+          percentile: true,
+        },
+      },
+    },
+  });
+  if (!student) throw new MobileApiError("학생을 찾을 수 없습니다", 404);
+
+  const dateStr = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+
+  return {
+    info: {
+      id: student.id,
+      name: student.name,
+      grade: student.grade,
+      school: student.school,
+      classGroup: student.classGroup,
+      seat: student.seat,
+      phone: student.phone,
+      parentPhone: student.parentPhone,
+      parentEmail: student.parentEmail,
+      startDate: dateStr(student.startDate),
+      targetUniversity: student.targetUniversity,
+      admissionType: student.admissionType,
+      internalScoreRange: student.internalScoreRange,
+      mockScoreRange: student.mockScoreRange,
+      selectedSubjects: student.selectedSubjects,
+      onlineLectures: student.onlineLectures,
+      mentoringNotes: student.mentoringNotes,
+      studentInfo: student.studentInfo,
+      changeNote: student.changeNote,
+    },
+    assignments: student.assignments.map((a) => ({
+      id: a.id,
+      title: a.title,
+      subject: a.subject,
+      dueDate: dateStr(a.dueDate),
+      isCompleted: a.isCompleted,
+      completedAt: dateStr(a.completedAt),
+      description: a.description,
+    })),
+    scores: student.examScores.map((s) => ({
+      id: s.id,
+      examType: s.examType,
+      examName: s.examName,
+      examDate: dateStr(s.examDate),
+      subject: s.subject,
+      rawScore: s.rawScore,
+      grade: s.grade,
+      percentile: s.percentile,
+    })),
   };
 }
