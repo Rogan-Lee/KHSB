@@ -22,7 +22,7 @@ export function AuthShell({
             className="mb-4 h-11 w-auto"
           />
           <p className="text-[13px] font-semibold text-brand-2">
-            스터디룸 매니저
+            강한선배 | KHSB
           </p>
           <h1 className="mt-1 text-2xl font-bold text-ink">{title}</h1>
           <p className="mt-2 text-sm leading-6 text-ink-3">{description}</p>
