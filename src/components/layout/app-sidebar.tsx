@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
@@ -325,12 +326,16 @@ export function AppSidebar({
               onToggle && "hover:border-line-strong cursor-pointer"
             )}
           >
-            <span className="w-8 h-8 rounded-[9px] bg-ink text-white grid place-items-center shrink-0 text-[13px] font-bold tracking-[-0.02em] relative overflow-hidden">
-              K
-              <span className="absolute inset-[2px] rounded-[7px] bg-[linear-gradient(135deg,rgba(255,255,255,0.08),transparent_60%)] pointer-events-none" />
-            </span>
+            <Image
+              src="/khsb-logo.png"
+              alt="KHSB"
+              width={640}
+              height={242}
+              priority
+              className="h-7 w-auto shrink-0"
+            />
             <span className="min-w-0 text-left flex-1">
-              <span className="block font-semibold text-[12.5px] text-ink tracking-[-0.015em] truncate">KHSB BackOffice</span>
+              <span className="block font-semibold text-[12.5px] text-ink tracking-[-0.015em] truncate">BackOffice</span>
               <span className="block text-[11px] text-ink-4 leading-none mt-0.5">원장 · {PLAN_LABELS[plan].label}</span>
             </span>
             {onToggle && <ChevronsLeft className="h-3.5 w-3.5 text-ink-4 shrink-0" />}
