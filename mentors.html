@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>선배 멘토진 전체 | 강한선배</title>
+  <meta name="description" content="강한선배 선배 멘토진 전체를 소개합니다. 과목별 담당 멘토의 이력과 인터뷰를 확인하세요.">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="landing.css">
+  <style>
+    .ml-head { margin-top: 120px; }
+    .ml-head .sec-label { display: inline-block; }
+    .ml-sub { font-size: 16px; color: var(--mute); line-height: 1.7; margin-top: 14px; max-width: 640px; }
+    .ml-foot-cta { text-align: center; margin: 72px 0 0; }
+  </style>
+</head>
+<body>
+
+<nav id="topNav">
+  <div class="nav-inner">
+    <a href="landing.html" class="nav-logo"><span class="logo-mark">강</span>강한선배</a>
+    <div class="nav-links">
+      <a href="landing.html#program">관리 프로그램</a>
+      <a href="landing.html#space">학습 공간</a>
+      <a href="mentors.html">선배 멘토진</a>
+      <a href="director.html">대표 소개</a>
+      <a href="landing.html#faq">FAQ</a>
+    </div>
+    <a href="landing.html#contact" class="pill pill-dark">입회 상담</a>
+  </div>
+</nav>
+
+<main class="wrap">
+  <header class="ml-head">
+    <p class="sec-label">선배 멘토진</p>
+    <h1 class="sec-title">같은 입시를 통과한 선배가,<br>과목마다 곁에 있습니다.</h1>
+    <p class="ml-sub">국어·수학·영어·탐구부터 논술·면접, 재수·N수 관리까지 — 분야별 담당 멘토가 1:1로 끌어줍니다. 카드에 마우스를 올리면 약력이 펼쳐지고, 누르면 전체 이력과 인터뷰를 볼 수 있어요.</p>
+  </header>
+
+  <div class="mentor-grid mentor-grid-all" id="allMentors"></div>
+
+  <div class="ml-foot-cta">
+    <a href="landing.html#contact" class="pill pill-dark big">담당 멘토 배정 상담받기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
+  </div>
+</main>
+
+<footer style="margin-top:96px;">
+  <div class="wrap foot-bottom" style="border-top:0; padding-top:0;">
+    <span>&copy; 2026 강한선배</span><span>관리형 프리미엄 독서실</span>
+  </div>
+</footer>
+
+<script src="mentors-data.js"></script>
+<script>
+  const grid = document.getElementById('allMentors');
+  grid.innerHTML = MENTOR_ORDER
+    .map(id => `<article class="flip">${mentorCardInner(id, false)}</article>`)
+    .join('');
+</script>
+</body>
+</html>
