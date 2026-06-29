@@ -1,7 +1,8 @@
 import { Redirect, router } from 'expo-router';
-import { KeyRound, LockKeyhole, LogIn } from 'lucide-react-native';
+import { KeyRound, LogIn } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -165,9 +166,11 @@ export default function AuthScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboard}>
         <View style={styles.brand}>
-          <View style={styles.brandIcon}>
-            <LockKeyhole color={colors.surface} size={28} />
-          </View>
+          <Image
+            source={require('@/assets/images/khsb-wordmark.png')}
+            style={styles.brandLogo}
+            resizeMode="contain"
+          />
           <Text style={styles.brandName}>강한선배</Text>
           <Text style={styles.brandCaption}>학생 관리와 시설 운영을 한곳에서</Text>
         </View>
@@ -335,13 +338,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.xl,
   },
-  brandIcon: {
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    height: 56,
-    justifyContent: 'center',
-    width: 56,
+  brandLogo: {
+    height: 64,
+    width: 200,
   },
   brandName: {
     color: colors.ink,

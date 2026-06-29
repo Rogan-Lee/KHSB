@@ -20,7 +20,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#176B52",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
@@ -35,7 +35,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#176B52",
+          "backgroundColor": "#FFFFFF",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 112
         }
@@ -66,7 +66,7 @@
       [
         "expo-notifications",
         {
-          "color": "#176B52",
+          "color": "#0066ff",
           "defaultChannel": "reminders",
           "enableBackgroundRemoteNotifications": false
         }
