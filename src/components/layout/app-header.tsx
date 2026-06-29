@@ -1,6 +1,6 @@
 "use client";
 
-import { useClerk } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LogOut, Menu, User, Bell, Monitor, Smartphone } from "lucide-react";
 import type { Role } from "@/generated/prisma";
+import { authClient } from "@/lib/auth-client";
 
 const ROLE_LABELS: Record<Role, string> = {
   SUPER_ADMIN: "시스템 관리자",
@@ -38,7 +39,13 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ user, title, onMenuClick, viewMode, onToggleViewMode }: AppHeaderProps) {
-  const { signOut } = useClerk();
+  const router = useRouter();
+
+  async function signOut() {
+    await authClient.signOut();
+    router.replace("/sign-in");
+    router.refresh();
+  }
 
   return (
     <header className="h-12 bg-panel flex items-center justify-between px-4 md:px-5 sticky top-0 z-10">
@@ -107,7 +114,7 @@ export function AppHeader({ user, title, onMenuClick, viewMode, onToggleViewMode
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-[12.5px] text-destructive focus:text-destructive"
-              onClick={() => signOut({ redirectUrl: "/sign-in" })}
+              onClick={signOut}
             >
               <LogOut className="mr-2 h-3.5 w-3.5" />
               로그아웃
