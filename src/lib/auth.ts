@@ -1,38 +1,63 @@
-import { auth as clerkAuth, currentUser } from "@clerk/nextjs/server";
-import { prisma } from "./prisma";
+import { headers } from "next/headers";
 
-// Clerk 인증 기반으로 Prisma User를 반환
-// - clerkId로 먼저 조회
-// - 없으면 email로 기존 유저 조회 후 clerkId 연결 (기존 계정 마이그레이션)
-// - 둘 다 없으면 신규 생성 (기본 role: MENTOR)
-export async function getUser() {
-  const { userId: clerkId } = await clerkAuth();
-  if (!clerkId) return null;
+import { authServer } from "@/lib/auth-server";
+import { prisma } from "@/lib/prisma";
 
-  let user = await prisma.user.findUnique({ where: { clerkId } });
-  if (user) return user;
-
-  const clerkUser = await currentUser();
-  if (!clerkUser) return null;
-
-  const email = clerkUser.emailAddresses[0]?.emailAddress ?? "";
-  const firstName = clerkUser.firstName ?? "";
-  const lastName = clerkUser.lastName ?? "";
-  const name = `${lastName}${firstName}`.trim() || email.split("@")[0] || "사용자";
-
-  // upsert: 이메일로 기존 계정 연동 or 신규 생성 (race condition 방지)
-  user = await prisma.user.upsert({
-    where: { email },
-    update: { clerkId },
-    create: { clerkId, email, name, role: "MENTOR" },
+export async function getAuthIdentity(requestHeaders?: Headers) {
+  const session = await authServer.api.getSession({
+    headers: requestHeaders ?? (await headers()),
   });
+  if (!session) return null;
+
+  const identity = await prisma.authUser.findUnique({
+    where: { id: session.user.id },
+    include: {
+      appUser: true,
+      student: true,
+    },
+  });
+  if (!identity) return null;
+
+  return {
+    identity,
+    session,
+  };
+}
+
+export async function getUser() {
+  const authIdentity = await getAuthIdentity();
+  const user = authIdentity?.identity.appUser;
+
+  if (!user || user.status !== "ACTIVE") return null;
   return user;
 }
 
-// 기존 server action들과의 호환성 레이어
-// session.user.id / session.user.role / session.user.name 그대로 사용 가능
-export async function auth() {
+export async function getStudent() {
+  const authIdentity = await getAuthIdentity();
+  const student = authIdentity?.identity.student;
+
+  if (!student || student.status !== "ACTIVE") return null;
+  return student;
+}
+
+// 기존 Server Action들과의 호환성 레이어.
+// session.user.id / role / name 사용 코드를 그대로 유지한다.
+export async function auth(): Promise<{
+  user: {
+    email?: string;
+    id: string;
+    name: string;
+    role: string;
+  };
+} | null> {
   const user = await getUser();
   if (!user) return null;
-  return { user };
+  return {
+    user: {
+      email: user.email,
+      id: user.id,
+      name: user.name,
+      role: user.role,
+    },
+  };
 }
