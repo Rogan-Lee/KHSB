@@ -195,7 +195,7 @@ export async function scheduleNotificationPreview() {
     content: {
       body: '알림 설정이 정상적으로 적용되었습니다.',
       data: { source: 'studyroom-preview', url: '/notifications' },
-      title: '스터디룸 매니저',
+      title: '강한선배',
     },
     trigger: {
       channelId: REMINDER_CHANNEL,

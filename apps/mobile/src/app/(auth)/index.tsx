@@ -168,7 +168,7 @@ export default function AuthScreen() {
           <View style={styles.brandIcon}>
             <LockKeyhole color={colors.surface} size={28} />
           </View>
-          <Text style={styles.brandName}>스터디룸 매니저</Text>
+          <Text style={styles.brandName}>강한선배</Text>
           <Text style={styles.brandCaption}>학생 관리와 시설 운영을 한곳에서</Text>
         </View>
 

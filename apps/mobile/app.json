@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "스터디룸 매니저",
+    "name": "강한선배",
     "slug": "study-room-manager-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,14 +8,14 @@
     "scheme": "studyroom",
     "userInterfaceStyle": "light",
     "ios": {
-      "bundleIdentifier": "com.studyroommanager.mobile",
+      "bundleIdentifier": "com.khsb.mobile",
       "supportsTablet": false,
       "config": {
         "usesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "com.studyroommanager.mobile",
+      "package": "com.khsb.mobile",
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO"
       ],
@@ -44,7 +44,7 @@
         "expo-secure-store",
         {
           "configureAndroidBackup": true,
-          "faceIDPermission": "스터디룸 매니저 로그인 보호를 위해 Face ID를 사용합니다."
+          "faceIDPermission": "강한선배 로그인 보호를 위해 Face ID를 사용합니다."
         }
       ],
       [
