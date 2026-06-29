@@ -93,7 +93,7 @@ export function PatrolSheet({
     if (!data) return;
     const studentId = decodeStudentQr(result.data);
     if (!studentId) {
-      setSubmitError('스터디룸 좌석 QR 코드가 아닙니다.');
+      setSubmitError('강한선배 좌석 QR 코드가 아닙니다.');
       return;
     }
     const student = data.allStudents.find((item) => item.id === studentId);
