@@ -3,6 +3,15 @@ import type { AuthInviteType } from "@/generated/prisma";
 import { hashAuthToken } from "@/lib/auth-tokens";
 import { prisma } from "@/lib/prisma";
 
+export type BulkInvitationResult = {
+  error?: string;
+  expiresAt?: string;
+  id: string;
+  name: string;
+  ok: boolean;
+  url?: string;
+};
+
 export async function findValidAuthInvitation(token: string) {
   if (!token) return null;
 
