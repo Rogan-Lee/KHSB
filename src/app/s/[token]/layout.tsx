@@ -18,7 +18,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "내 포털 · 스터디룸 매니저",
+  title: "내 포털 · 강한선배 | KHSB",
   description: "본인 전용 학생 포털입니다.",
   appleWebApp: {
     capable: true,
