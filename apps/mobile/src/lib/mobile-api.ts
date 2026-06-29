@@ -398,6 +398,7 @@ export type StaffOverviewResponse = {
 };
 
 export type MobileOuting = {
+  id: string | null;
   sequence: number;
   reason: string | null;
   planned: boolean;
@@ -406,13 +407,60 @@ export type MobileOuting = {
   status: '예정' | '외출중' | '복귀';
 };
 
+export type StaffStudentDetail = {
+  info: {
+    id: string;
+    name: string;
+    grade: string;
+    school: string | null;
+    classGroup: string | null;
+    seat: string | null;
+    phone: string | null;
+    parentPhone: string | null;
+    parentEmail: string | null;
+    startDate: string | null;
+    targetUniversity: string | null;
+    admissionType: string | null;
+    internalScoreRange: string | null;
+    mockScoreRange: string | null;
+    selectedSubjects: string | null;
+    onlineLectures: string | null;
+    mentoringNotes: string | null;
+    studentInfo: string | null;
+    changeNote: string | null;
+  };
+  assignments: {
+    id: string;
+    title: string;
+    subject: string | null;
+    dueDate: string | null;
+    isCompleted: boolean;
+    completedAt: string | null;
+    description: string | null;
+  }[];
+  scores: {
+    id: string;
+    examType: 'OFFICIAL_MOCK' | 'PRIVATE_MOCK' | 'SCHOOL_EXAM';
+    examName: string;
+    examDate: string | null;
+    subject: string;
+    rawScore: number | null;
+    grade: number | null;
+    percentile: number | null;
+  }[];
+};
+
 export type StaffAttendanceItem = {
   attendanceType: string | null;
+  checkIn: string | null;
+  checkOut: string | null;
   grade: string;
   id: string;
   isLate: boolean;
   name: string;
   note: string | null;
+  outEnd: string | null;
+  outStart: string | null;
   outingActive: boolean;
   outings: MobileOuting[];
   scheduleStart: string | null;
