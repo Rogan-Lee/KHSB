@@ -2,15 +2,16 @@
 
 import { Copy, KeyRound, RefreshCw, UserRoundPlus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
-  createAuthInvitation,
+  createAuthInvitationsBulk,
   revokeAuthInvitation,
 } from "@/actions/auth-invitations";
 import { Button } from "@/components/ui/button";
 import { PageHead } from "@/components/ui/page-head";
+import type { BulkInvitationResult } from "@/lib/auth-invitations";
 
 type StaffOption = {
   email: string;
@@ -34,6 +35,11 @@ type InvitationRow = {
   type: "STAFF" | "STUDENT";
 };
 
+type PanelOption = {
+  id: string;
+  label: string;
+};
+
 export function AuthInvitationManager({
   invitations,
   staff,
@@ -45,32 +51,53 @@ export function AuthInvitationManager({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [staffId, setStaffId] = useState(staff[0]?.id ?? "");
-  const [studentId, setStudentId] = useState(students[0]?.id ?? "");
-  const [latestUrl, setLatestUrl] = useState("");
+  const [results, setResults] = useState<BulkInvitationResult[]>([]);
 
-  function issue(type: "STAFF" | "STUDENT") {
-    const targetId = type === "STAFF" ? staffId : studentId;
-    if (!targetId) {
+  const staffOptions = useMemo<PanelOption[]>(
+    () =>
+      staff.map((user) => ({
+        id: user.id,
+        label: `${user.name} · ${user.role} · ${user.email}`,
+      })),
+    [staff],
+  );
+
+  const studentOptions = useMemo<PanelOption[]>(
+    () =>
+      students.map((student) => ({
+        id: student.id,
+        label: `${student.name} · ${student.grade}${
+          student.isOnlineManaged ? " · 온라인 관리" : ""
+        }`,
+      })),
+    [students],
+  );
+
+  function issueBulk(type: "STAFF" | "STUDENT", ids: string[]) {
+    if (ids.length === 0) {
       toast.error("초대할 대상을 선택하세요");
       return;
     }
 
     startTransition(async () => {
       try {
-        const result =
+        const next =
           type === "STAFF"
-            ? await createAuthInvitation({
-                type: "STAFF",
-                targetUserId: targetId,
-              })
-            : await createAuthInvitation({
-                type: "STUDENT",
-                targetStudentId: targetId,
-              });
-        setLatestUrl(result.url);
-        await navigator.clipboard.writeText(result.url);
-        toast.success("초대 링크를 발급하고 클립보드에 복사했습니다");
+            ? await createAuthInvitationsBulk({ type, targetUserIds: ids })
+            : await createAuthInvitationsBulk({ type, targetStudentIds: ids });
+        setResults(next);
+
+        const ok = next.filter((row) => row.ok).length;
+        const failed = next.length - ok;
+        if (ok > 0) {
+          toast.success(
+            failed > 0
+              ? `${ok}건 발급 · ${failed}건 실패`
+              : `${ok}건의 초대 링크를 발급했습니다`,
+          );
+        } else {
+          toast.error("초대 링크를 발급하지 못했습니다");
+        }
         router.refresh();
       } catch (error) {
         toast.error(
@@ -96,76 +123,32 @@ export function AuthInvitationManager({
     <div className="space-y-6">
       <PageHead
         title="계정 초대"
-        subline="직원과 학생의 자체 로그인 계정을 발급합니다."
+        subline="직원과 학생의 자체 로그인 계정을 일괄 발급합니다."
       />
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <InvitePanel
-          description="등록된 직원 이메일과 역할을 그대로 사용합니다."
+        <BulkInvitePanel
+          description="대상을 선택해 한 번에 초대 링크를 발급합니다. 등록된 이메일·역할을 그대로 사용합니다."
+          emptyLabel="초대 가능한 직원이 없습니다"
           icon={KeyRound}
-          onIssue={() => issue("STAFF")}
+          options={staffOptions}
           pending={isPending}
-          title="직원 계정 초대">
-          <select
-            className="h-10 w-full rounded-[8px] border border-line bg-panel px-3 text-sm text-ink"
-            value={staffId}
-            onChange={(event) => setStaffId(event.target.value)}>
-            {staff.length === 0 ? (
-              <option value="">초대 가능한 직원이 없습니다</option>
-            ) : (
-              staff.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name} · {user.role} · {user.email}
-                </option>
-              ))
-            )}
-          </select>
-        </InvitePanel>
+          onIssue={(ids) => issueBulk("STAFF", ids)}
+          title="직원 계정 일괄 초대"
+        />
 
-        <InvitePanel
-          description="학생이 로그인 아이디와 복구 이메일을 직접 설정합니다."
+        <BulkInvitePanel
+          description="대상을 선택해 한 번에 초대 링크를 발급합니다. 학생이 아이디와 복구 이메일을 직접 설정합니다."
+          emptyLabel="초대 가능한 학생이 없습니다"
           icon={UserRoundPlus}
-          onIssue={() => issue("STUDENT")}
+          options={studentOptions}
           pending={isPending}
-          title="학생 계정 초대">
-          <select
-            className="h-10 w-full rounded-[8px] border border-line bg-panel px-3 text-sm text-ink"
-            value={studentId}
-            onChange={(event) => setStudentId(event.target.value)}>
-            {students.length === 0 ? (
-              <option value="">초대 가능한 학생이 없습니다</option>
-            ) : (
-              students.map((student) => (
-                <option key={student.id} value={student.id}>
-                  {student.name} · {student.grade}
-                  {student.isOnlineManaged ? " · 온라인 관리" : ""}
-                </option>
-              ))
-            )}
-          </select>
-        </InvitePanel>
+          onIssue={(ids) => issueBulk("STUDENT", ids)}
+          title="학생 계정 일괄 초대"
+        />
       </div>
 
-      {latestUrl ? (
-        <div className="rounded-[8px] border border-brand/30 bg-brand-soft p-4">
-          <p className="text-xs font-semibold text-brand-2">최근 발급 링크</p>
-          <div className="mt-2 flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate text-xs text-ink">
-              {latestUrl}
-            </code>
-            <Button
-              size="compact"
-              variant="outline"
-              onClick={async () => {
-                await navigator.clipboard.writeText(latestUrl);
-                toast.success("링크를 복사했습니다");
-              }}>
-              <Copy />
-              복사
-            </Button>
-          </div>
-        </div>
-      ) : null}
+      {results.length > 0 ? <ResultsPanel results={results} /> : null}
 
       <section>
         <div className="mb-3 flex items-center justify-between">
@@ -213,21 +196,40 @@ export function AuthInvitationManager({
   );
 }
 
-function InvitePanel({
-  children,
+function BulkInvitePanel({
   description,
+  emptyLabel,
   icon: Icon,
   onIssue,
+  options,
   pending,
   title,
 }: {
-  children: React.ReactNode;
   description: string;
+  emptyLabel: string;
   icon: React.ElementType;
-  onIssue: () => void;
+  onIssue: (ids: string[]) => void;
+  options: PanelOption[];
   pending: boolean;
   title: string;
 }) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const allSelected = options.length > 0 && selected.size === options.length;
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(options.map((o) => o.id)));
+  }
+
   return (
     <section className="rounded-[8px] border border-line bg-panel p-4">
       <div className="flex items-start gap-3">
@@ -239,12 +241,110 @@ function InvitePanel({
           <p className="mt-1 text-xs leading-5 text-ink-4">{description}</p>
         </div>
       </div>
+
       <div className="mt-4 space-y-3">
-        {children}
-        <Button className="w-full" disabled={pending} onClick={onIssue}>
-          초대 링크 발급
-        </Button>
+        {options.length === 0 ? (
+          <p className="rounded-[8px] border border-line-2 bg-canvas-2 px-3 py-6 text-center text-sm text-ink-4">
+            {emptyLabel}
+          </p>
+        ) : (
+          <>
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                className="text-xs font-medium text-brand-2 hover:underline"
+                onClick={toggleAll}>
+                {allSelected ? "전체 해제" : "전체 선택"}
+              </button>
+              <span className="text-xs text-ink-4">
+                {selected.size}/{options.length} 선택
+              </span>
+            </div>
+            <div className="max-h-64 space-y-1 overflow-y-auto rounded-[8px] border border-line-2 bg-canvas-2 p-1">
+              {options.map((option) => (
+                <label
+                  key={option.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-[6px] px-2 py-1.5 hover:bg-panel">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 shrink-0 accent-[var(--brand,#2563eb)]"
+                    checked={selected.has(option.id)}
+                    onChange={() => toggle(option.id)}
+                  />
+                  <span className="min-w-0 truncate text-sm text-ink">
+                    {option.label}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <Button
+              className="w-full"
+              disabled={pending || selected.size === 0}
+              onClick={() => onIssue(Array.from(selected))}>
+              {selected.size > 0
+                ? `${selected.size}명 초대 링크 발급`
+                : "초대 링크 발급"}
+            </Button>
+          </>
+        )}
       </div>
     </section>
+  );
+}
+
+function ResultsPanel({ results }: { results: BulkInvitationResult[] }) {
+  const ok = results.filter((row) => row.ok && row.url);
+  const failed = results.filter((row) => !row.ok);
+
+  async function copyAll() {
+    const text = ok.map((row) => `${row.name}\t${row.url}`).join("\n");
+    await navigator.clipboard.writeText(text);
+    toast.success(`${ok.length}건의 링크를 복사했습니다`);
+  }
+
+  return (
+    <div className="rounded-[8px] border border-brand/30 bg-brand-soft p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-brand-2">
+          발급 결과 · {ok.length}건 성공
+          {failed.length > 0 ? ` · ${failed.length}건 실패` : ""}
+        </p>
+        {ok.length > 0 ? (
+          <Button size="compact" variant="outline" onClick={copyAll}>
+            <Copy />
+            전체 복사
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {ok.map((row) => (
+          <div
+            key={row.id}
+            className="flex items-center gap-2 rounded-[6px] bg-panel px-3 py-2">
+            <span className="w-20 shrink-0 truncate text-xs font-medium text-ink">
+              {row.name}
+            </span>
+            <code className="min-w-0 flex-1 truncate text-xs text-ink-4">
+              {row.url}
+            </code>
+            <Button
+              size="compact"
+              variant="ghost"
+              onClick={async () => {
+                await navigator.clipboard.writeText(row.url ?? "");
+                toast.success(`${row.name} 링크를 복사했습니다`);
+              }}>
+              <Copy />
+            </Button>
+          </div>
+        ))}
+        {failed.map((row) => (
+          <p key={row.id} className="px-3 text-xs text-destructive">
+            실패: {row.error ?? "초대를 만들지 못했습니다"}
+          </p>
+        ))}
+      </div>
+    </div>
   );
 }
