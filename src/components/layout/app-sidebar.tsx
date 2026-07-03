@@ -33,6 +33,7 @@ import {
   CalendarClock,
   MapPin,
   Megaphone,
+  Utensils,
   GraduationCap,
   Wallet,
   Building2,
@@ -100,6 +101,7 @@ const navSections: NavSection[] = [
     label: "운영",
     items: [
       { href: "/patrol", label: "순찰 관리", icon: ScanLine },
+      { href: "/lunch", label: "점심 도시락", icon: Utensils },
       { href: "/calendar", label: "캘린더", icon: CalendarDays, feature: "calendar" },
       { href: "/meeting-minutes", label: "회의록", icon: NotebookText, feature: "meeting-minutes" },
       { href: "/messages", label: "카카오 메시지", icon: MessageCircle, feature: "kakao-messages" },
