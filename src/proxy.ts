@@ -11,6 +11,7 @@ const PUBLIC_ROUTE_ROOTS = [
   "/cr",
   "/sp",
   "/s",
+  "/meal",
   "/v",
   "/w",
   "/apply",

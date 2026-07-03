@@ -418,6 +418,8 @@ model Student {
   patrolRecords        PatrolRecord[]
   scheduleProposals    ScheduleProposal[]
   waitlistEntries      Waitlist[]             @relation("StudentWaitlist")
+  lunchOrders          LunchOrder[]
+  lunchChangeRequests  LunchChangeRequest[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 
@@ -2257,4 +2259,85 @@ model PhoneVerification {
   createdAt    DateTime  @default(now())
 
   @@index([phone, createdAt])
+}
+
+// ─── 방학 점심 도시락 ───
+// 관리자가 날짜별 메뉴/가격을 입력(LunchMenu)하고, 학부모가 매직링크 포털
+// (`/s/[token]/lunch`)에서 날짜를 골라 신청(LunchOrder + LunchOrderItem).
+// 하루 1메뉴 고정이라 날짜가 곧 메뉴. 입금은 계좌이체 수동확인.
+enum LunchPaidStatus {
+  PENDING // 입금 확인 대기
+  PAID // 입금 확인 완료
+}
+
+model LunchMenu {
+  id          String   @id @default(cuid())
+  date        DateTime @unique @db.Date // 하루 1메뉴 — date 유니크
+  name        String // 메뉴명 (예: "제육덮밥")
+  price       Int // 원
+  buffer      Int      @default(0) // 비상 여유분 (발주표에만 반영, 학생 주문과 무관)
+  closed      Boolean  @default(false) // 마감 — 학부모 신규 신청 차단
+  createdById String? // 등록 운영진 User.id 스냅샷 (createdBy 패턴)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items LunchOrderItem[]
+
+  @@index([date])
+}
+
+model LunchOrder {
+  id         String          @id @default(cuid())
+  studentId  String
+  student    Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  paidStatus LunchPaidStatus @default(PENDING)
+  paidAt     DateTime?
+  paidById   String? // 입금 확인한 운영진 User.id
+  depositClaimedAt  DateTime? // 학부모가 "입금했어요" 알림한 시각 (관리자 확인 전)
+  memo       String? // 학부모 요청사항
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  items LunchOrderItem[]
+
+  @@index([studentId])
+  @@index([paidStatus])
+}
+
+model LunchOrderItem {
+  id         String     @id @default(cuid())
+  orderId    String
+  order      LunchOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuId     String
+  menu       LunchMenu  @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  price      Int // 주문 시점 가격 스냅샷 — 메뉴 가격 변경에도 총액 불변
+  received   Boolean    @default(false) // 배부 완료 개별 체크
+  receivedAt DateTime?
+  createdAt  DateTime   @default(now())
+
+  @@unique([orderId, menuId]) // 한 주문에서 같은 날 중복 방지
+  @@index([menuId])
+}
+
+// 학부모 변경 요청 ↔ 운영자 답변(반영 내용) 스레드. 학생별로 누적(히스토리).
+model LunchChangeRequest {
+  id            String    @id @default(cuid())
+  studentId     String
+  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  message       String    @db.Text // 학부모 요청
+  reply         String?   @db.Text // 운영자 답변 = 반영 내용 (null이면 미처리)
+  repliedByName String? // 답변한 운영진 이름 스냅샷
+  repliedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([studentId])
+}
+
+// 입금 계좌·안내문 (단일 행, 전 주문 공용)
+model LunchSetting {
+  id        String   @id @default("default")
+  bankInfo  String? // 예: "국민 123-456-7890 (홍길동)"
+  guideText String?  @db.Text // 학부모 안내문
+  updatedAt DateTime @updatedAt
 }
