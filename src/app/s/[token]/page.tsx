@@ -13,8 +13,10 @@ import {
   ShieldAlert,
   ArrowUpRight,
   Camera,
+  Utensils,
 } from "lucide-react";
 import type { PerformanceTaskStatus } from "@/generated/prisma";
+import { todayKST } from "@/lib/utils";
 import { PwaInstallPrompt } from "./_components/pwa-install-prompt";
 
 const STATUS_LABEL: Record<PerformanceTaskStatus, string> = {
@@ -56,7 +58,7 @@ export default async function StudentPortalHomePage({
   // 홈 카드는 온라인/오프라인 구분 없이 데이터 유무로 표시(완전 통일).
   // 오프라인 학생은 보통 빈 결과 → 해당 카드만 자연스럽게 숨겨짐.
   // 단, 초기 설문 카드는 온라인 온보딩 전용이라 isOnline 일 때만 노출.
-  const [openQuestions, survey, taskCounts, nextTask, upcomingSessions] = await Promise.all([
+  const [openQuestions, survey, taskCounts, nextTask, upcomingSessions, lunchMenuCount] = await Promise.all([
     prisma.studentQuestion.count({
       where: { studentId: student.id, status: { in: ["OPEN", "ANSWERED"] } },
     }),
@@ -92,6 +94,9 @@ export default async function StudentPortalHomePage({
         meetUrl: true,
         host: { select: { name: true } },
       },
+    }),
+    prisma.lunchMenu.count({
+      where: { date: { gte: todayKST() }, closed: false },
     }),
   ]);
 
@@ -152,6 +157,27 @@ export default async function StudentPortalHomePage({
           <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" strokeWidth={2.5} />
         </div>
       </Link>
+
+      {/* 점심 도시락 신청 — 활성 메뉴가 있을 때만 (방학 시즌) */}
+      {lunchMenuCount > 0 && (
+        <Link
+          href={`/s/${token}/lunch`}
+          className="block rounded-[14px] border border-brand/30 bg-panel p-4 ring-1 ring-brand/10 active:bg-canvas-2 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-white">
+              <Utensils className="h-5 w-5" strokeWidth={2.2} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-semibold text-ink">점심 도시락 신청</p>
+              <p className="mt-0.5 text-[12px] text-ink-4">
+                먹을 날짜를 고르고 입금하면 신청이 확정돼요.
+              </p>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" strokeWidth={2.5} />
+          </div>
+        </Link>
+      )}
 
       {/* Today's session — prominent if happening today */}
       {todaysSession && (
