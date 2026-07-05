@@ -420,11 +420,13 @@ function DayEditor({
         />
       </label>
       <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-        여유분
+        여유분(선택)
         <input
           type="number"
           value={buffer}
           onChange={(e) => setBuffer(e.target.value)}
+          placeholder="0"
+          title="비워두면 0. 학부모 신청/선택과는 무관합니다."
           className="w-16 rounded-md border border-line bg-background px-2 py-1.5 text-sm"
         />
       </label>
