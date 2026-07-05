@@ -231,22 +231,36 @@ function OrderView({
             if (!dateStr) return <div key={idx} className="aspect-square" />;
             const menu = byDate.get(dateStr);
             const day = Number(dateStr.slice(-2));
-            const isPaid = menu ? paidSet.has(menu.id) : false;
-            const isSel = menu ? selected.has(menu.id) || isPaid : false;
             const dow = (firstDow + day - 1) % 7;
+
+            // 메뉴 없는 날 = 신청 불가 (회색 비활성)
+            if (!menu) {
+              return (
+                <div
+                  key={idx}
+                  aria-disabled
+                  className="flex aspect-square flex-col items-center justify-center rounded-[10px] bg-canvas-2/30 text-center"
+                >
+                  <span className="text-[12px] font-medium leading-none text-ink-4/40 line-through decoration-ink-4/30">
+                    {day}
+                  </span>
+                </div>
+              );
+            }
+
+            const isPaid = paidSet.has(menu.id);
+            const isSel = selected.has(menu.id) || isPaid;
             return (
               <button
                 key={idx}
-                disabled={!menu || isPaid}
-                onClick={() => menu && toggle(menu.id)}
+                disabled={isPaid}
+                onClick={() => toggle(menu.id)}
                 className={`flex aspect-square flex-col items-center justify-center rounded-[10px] border p-0.5 text-center transition-colors ${
                   isPaid
                     ? "border-ok/40 bg-ok-soft/50"
                     : isSel
                       ? "border-brand bg-brand text-white"
-                      : menu
-                        ? "border-line bg-canvas-2/40 active:bg-canvas-2"
-                        : "border-transparent"
+                      : "border-brand/30 bg-brand/5 active:bg-brand/10"
                 }`}
               >
                 <span
@@ -256,23 +270,32 @@ function OrderView({
                 >
                   {day}
                 </span>
-                {menu && (
-                  <span
-                    className={`mt-0.5 text-[8.5px] leading-tight tabular-nums ${
-                      isSel ? "text-white/90" : "text-ink-4"
-                    }`}
-                  >
-                    {(menu.price / 1000).toLocaleString("ko-KR")}천
-                  </span>
-                )}
+                <span
+                  className={`mt-0.5 text-[8.5px] leading-tight tabular-nums ${
+                    isSel ? "text-white/90" : "text-brand"
+                  }`}
+                >
+                  {(menu.price / 1000).toLocaleString("ko-KR")}천
+                </span>
                 {isPaid && <Check className="h-2.5 w-2.5 text-ok-ink" strokeWidth={3} />}
               </button>
             );
           })}
         </div>
-        <p className="mt-2 text-[10.5px] text-ink-4">
-          날짜를 눌러 선택 · <span className="text-ok-ink">✓ 결제완료</span>는 변경 불가
-        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-ink-4">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-[3px] border border-brand/40 bg-brand/10" /> 주문 가능
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-[3px] bg-brand" /> 선택됨
+          </span>
+          <span className="flex items-center gap-1 text-ok-ink">
+            <Check className="h-3 w-3" /> 결제완료
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-[3px] bg-canvas-2" /> 신청 불가(메뉴 없음)
+          </span>
+        </div>
       </section>
 
       {/* 선택 요약 (메뉴 가독성) */}
