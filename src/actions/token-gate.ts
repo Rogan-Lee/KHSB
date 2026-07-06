@@ -60,7 +60,7 @@ export async function verifyStudentGate(
 
 // ───────────────────── 학부모 게이트 (/r, /sp, /cr) ─────────────────────
 
-type ParentTokenModel = "parent-report" | "study-plan" | "consultation" | "schedule";
+type ParentTokenModel = "parent-report" | "study-plan" | "consultation" | "schedule" | "monthly";
 
 async function resolveParentToken(
   model: ParentTokenModel,
@@ -99,6 +99,21 @@ async function resolveParentToken(
       studentId: r.student.id,
       parentPhone: r.student.parentPhone,
       expiresAt: r.expiresAt!,
+    };
+  }
+  if (model === "monthly") {
+    // 월간 리포트는 shareToken 으로 조회하며 만료 개념이 없다 → 쿠키 만료는 30일 폴백.
+    const r = await prisma.monthlyReport.findUnique({
+      where: { shareToken: token },
+      include: { student: { select: { id: true, parentPhone: true } } },
+    });
+    if (!r) return { ok: false, reason: "not_found" };
+    if (!r.student.parentPhone) return { ok: false, reason: "no_credential" };
+    return {
+      ok: true,
+      studentId: r.student.id,
+      parentPhone: r.student.parentPhone,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     };
   }
   if (model === "schedule") {
