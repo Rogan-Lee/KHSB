@@ -22,6 +22,7 @@ import {
   updateLunchMenu,
   deleteLunchMenu,
   bulkConfirmPayment,
+  deleteLunchOrder,
   revertPayment,
   setItemReceived,
   updateLunchSetting,
@@ -526,6 +527,24 @@ function OrdersTab({ orders }: { orders: Order[] }) {
       }
     });
   }
+  function remove(o: Order) {
+    if (!confirm(`${o.studentName} 학생의 신청(${o.items.length}일)을 삭제할까요? 되돌릴 수 없습니다.`))
+      return;
+    startTransition(async () => {
+      try {
+        await deleteLunchOrder(o.id);
+        toast.success("신청을 삭제했어요");
+        setSelected((prev) => {
+          const next = new Set(prev);
+          next.delete(o.id);
+          return next;
+        });
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "삭제 실패");
+      }
+    });
+  }
   const orderTotal = (o: Order) => o.items.reduce((s, it) => s + it.price, 0);
   const claimedCount = orders.filter(
     (o) => o.paidStatus === "PENDING" && o.depositClaimed
@@ -619,17 +638,27 @@ function OrdersTab({ orders }: { orders: Order[] }) {
                 </p>
                 {o.memo && <p className="mt-0.5 text-xs text-ink-3">📝 {o.memo}</p>}
               </div>
-              <div className="text-right">
+              <div className="flex flex-col items-end gap-0.5">
                 <p className="font-semibold tabular-nums">{WON(orderTotal(o))}</p>
-                {paid && (
+                <div className="flex items-center gap-2">
+                  {paid && (
+                    <button
+                      onClick={() => revert(o.id)}
+                      disabled={pending}
+                      className="text-[11px] text-muted-foreground hover:text-red-600"
+                    >
+                      확인취소
+                    </button>
+                  )}
                   <button
-                    onClick={() => revert(o.id)}
+                    onClick={() => remove(o)}
                     disabled={pending}
-                    className="text-[11px] text-muted-foreground hover:text-red-600"
+                    title="신청 삭제(취소)"
+                    className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground hover:text-red-600"
                   >
-                    확인취소
+                    <Trash2 className="h-3.5 w-3.5" /> 삭제
                   </button>
-                )}
+                </div>
               </div>
             </div>
           );
