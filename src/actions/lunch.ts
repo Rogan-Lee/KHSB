@@ -179,6 +179,14 @@ export async function bulkConfirmPayment(orderIds: string[]) {
   return { count: res.count };
 }
 
+/** 신청 삭제(취소) — 주문과 항목(cascade) 전체 제거. 입금 여부 무관, 관리자 재량. */
+export async function deleteLunchOrder(orderId: string) {
+  const s = await auth();
+  requireStaff(s?.user?.role);
+  await prisma.lunchOrder.delete({ where: { id: orderId } });
+  revalidatePath("/lunch");
+}
+
 /** 입금 확인 취소(오확인 되돌리기) */
 export async function revertPayment(orderId: string) {
   const s = await auth();
