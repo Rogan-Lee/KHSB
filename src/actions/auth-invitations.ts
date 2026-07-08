@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/lib/auth";
+import { authServer } from "@/lib/auth-server";
 import { getAppUrl } from "@/lib/app-url";
 import type { BulkInvitationResult } from "@/lib/auth-invitations";
 import { createOpaqueToken, hashAuthToken } from "@/lib/auth-tokens";
@@ -171,6 +172,18 @@ export async function createAuthInvitationsBulk(
   revalidatePath("/admin/auth");
 
   return results;
+}
+
+export async function sendPasswordResetForAccount(email: string) {
+  const session = await auth();
+  if (!session) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
+
+  // Better Auth는 이메일 존재 여부와 무관하게 성공을 반환한다(계정 열거 방지).
+  // 관리자는 계정 목록에서 골랐으므로 존재는 보장된다.
+  await authServer.api.requestPasswordReset({
+    body: { email, redirectTo: "/reset-password" },
+  });
 }
 
 export async function revokeAuthInvitation(invitationId: string) {
