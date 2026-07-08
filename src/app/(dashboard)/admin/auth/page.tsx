@@ -10,7 +10,8 @@ export default async function AuthAdminPage() {
   if (!session) redirect("/sign-in");
   requireFullAccess(session.user.role);
 
-  const [staff, students, invitations] = await Promise.all([
+  const now = new Date();
+  const [staff, students, invitations, accounts] = await Promise.all([
     prisma.user.findMany({
       where: {
         status: "ACTIVE",
@@ -39,30 +40,49 @@ export default async function AuthAdminPage() {
       },
     }),
     prisma.authInvitation.findMany({
-      where: {
-        acceptedAt: null,
-        revokedAt: null,
-        expiresAt: { gt: new Date() },
-      },
       orderBy: { createdAt: "desc" },
-      take: 30,
+      take: 60,
       include: {
         targetStudent: { select: { name: true } },
         targetUser: { select: { name: true } },
+      },
+    }),
+    prisma.authUser.findMany({
+      orderBy: { createdAt: "desc" },
+      select: {
+        appUserId: true,
+        email: true,
+        id: true,
+        name: true,
+        studentId: true,
+        username: true,
       },
     }),
   ]);
 
   return (
     <AuthInvitationManager
+      accounts={accounts.map((account) => ({
+        email: account.email,
+        id: account.id,
+        name: account.name,
+        type: account.appUserId ? "STAFF" : "STUDENT",
+        username: account.username ?? "",
+      }))}
       invitations={invitations.map((invitation) => ({
-        createdAt: invitation.createdAt.toISOString(),
         expiresAt: invitation.expiresAt.toISOString(),
         id: invitation.id,
         name:
           invitation.targetUser?.name ??
           invitation.targetStudent?.name ??
           "알 수 없음",
+        status: invitation.revokedAt
+          ? "REVOKED"
+          : invitation.acceptedAt
+            ? "ACCEPTED"
+            : invitation.expiresAt < now
+              ? "EXPIRED"
+              : "PENDING",
         type: invitation.type,
       }))}
       staff={staff}
