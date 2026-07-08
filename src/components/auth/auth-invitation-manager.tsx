@@ -1,6 +1,13 @@
 "use client";
 
-import { Copy, KeyRound, RefreshCw, UserRoundPlus, X } from "lucide-react";
+import {
+  Copy,
+  KeyRound,
+  Mail,
+  RefreshCw,
+  UserRoundPlus,
+  X,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -8,6 +15,7 @@ import { toast } from "sonner";
 import {
   createAuthInvitationsBulk,
   revokeAuthInvitation,
+  sendPasswordResetForAccount,
 } from "@/actions/auth-invitations";
 import { Button } from "@/components/ui/button";
 import { PageHead } from "@/components/ui/page-head";
@@ -27,12 +35,32 @@ type StudentOption = {
   name: string;
 };
 
+type InviteStatus = "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED";
+
 type InvitationRow = {
-  createdAt: string;
   expiresAt: string;
   id: string;
   name: string;
+  status: InviteStatus;
   type: "STAFF" | "STUDENT";
+};
+
+type AccountRow = {
+  email: string;
+  id: string;
+  name: string;
+  type: "STAFF" | "STUDENT";
+  username: string;
+};
+
+const STATUS_META: Record<
+  InviteStatus,
+  { className: string; label: string }
+> = {
+  ACCEPTED: { className: "bg-emerald-100 text-emerald-700", label: "가입완료" },
+  EXPIRED: { className: "bg-canvas-2 text-ink-4", label: "만료됨" },
+  PENDING: { className: "bg-amber-100 text-amber-700", label: "대기중" },
+  REVOKED: { className: "bg-canvas-2 text-ink-4", label: "취소됨" },
 };
 
 type PanelOption = {
@@ -41,10 +69,12 @@ type PanelOption = {
 };
 
 export function AuthInvitationManager({
+  accounts,
   invitations,
   staff,
   students,
 }: {
+  accounts: AccountRow[];
   invitations: InvitationRow[];
   staff: StaffOption[];
   students: StudentOption[];
@@ -152,7 +182,7 @@ export function AuthInvitationManager({
 
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-ink">사용 대기 중인 초대</h2>
+          <h2 className="text-base font-semibold text-ink">초대 현황</h2>
           <Button size="compact" variant="ghost" onClick={() => router.refresh()}>
             <RefreshCw />
             새로고침
@@ -161,38 +191,127 @@ export function AuthInvitationManager({
         <div className="overflow-hidden rounded-[8px] border border-line bg-panel">
           {invitations.length === 0 ? (
             <p className="p-6 text-center text-sm text-ink-4">
-              사용 대기 중인 초대가 없습니다.
+              발급된 초대가 없습니다.
             </p>
           ) : (
-            invitations.map((invitation, index) => (
-              <div
-                key={invitation.id}
-                className={`flex items-center gap-3 px-4 py-3 ${
-                  index > 0 ? "border-t border-line-2" : ""
-                }`}>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-ink">
-                    {invitation.name}
-                  </p>
-                  <p className="mt-0.5 text-xs text-ink-4">
-                    {invitation.type === "STAFF" ? "직원" : "학생"} · 만료{" "}
-                    {new Date(invitation.expiresAt).toLocaleString("ko-KR")}
-                  </p>
+            invitations.map((invitation, index) => {
+              const meta = STATUS_META[invitation.status];
+              return (
+                <div
+                  key={invitation.id}
+                  className={`flex items-center gap-3 px-4 py-3 ${
+                    index > 0 ? "border-t border-line-2" : ""
+                  }`}>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${meta.className}`}>
+                    {meta.label}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-ink">
+                      {invitation.name}
+                    </p>
+                    <p className="mt-0.5 text-xs text-ink-4">
+                      {invitation.type === "STAFF" ? "직원" : "학생"} · 만료{" "}
+                      {new Date(invitation.expiresAt).toLocaleString("ko-KR")}
+                    </p>
+                  </div>
+                  {invitation.status === "PENDING" ? (
+                    <Button
+                      aria-label={`${invitation.name} 초대 취소`}
+                      size="icon"
+                      variant="ghost"
+                      disabled={isPending}
+                      onClick={() => revoke(invitation.id)}>
+                      <X />
+                    </Button>
+                  ) : null}
                 </div>
-                <Button
-                  aria-label={`${invitation.name} 초대 취소`}
-                  size="icon"
-                  variant="ghost"
-                  disabled={isPending}
-                  onClick={() => revoke(invitation.id)}>
-                  <X />
-                </Button>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </section>
+
+      <AccountsPanel accounts={accounts} />
     </div>
+  );
+}
+
+function AccountsPanel({ accounts }: { accounts: AccountRow[] }) {
+  const [isPending, startTransition] = useTransition();
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return accounts;
+    return accounts.filter((a) =>
+      `${a.name} ${a.username} ${a.email}`.toLowerCase().includes(q),
+    );
+  }, [accounts, query]);
+
+  function sendReset(account: AccountRow) {
+    startTransition(async () => {
+      try {
+        await sendPasswordResetForAccount(account.email);
+        toast.success(`${account.name} 재설정 링크를 ${account.email}로 보냈습니다`);
+      } catch {
+        toast.error("재설정 링크를 보내지 못했습니다");
+      }
+    });
+  }
+
+  return (
+    <section>
+      <h2 className="mb-1 text-base font-semibold text-ink">
+        비밀번호 재설정
+      </h2>
+      <p className="mb-3 text-xs text-ink-4">
+        비밀번호를 잊은 계정의 등록 이메일로 재설정 링크를 보냅니다.
+      </p>
+      <input
+        type="search"
+        placeholder="이름 · 아이디 · 이메일 검색"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        className="mb-3 w-full rounded-[8px] border border-line-2 bg-canvas-2 px-3 py-2 text-sm text-ink placeholder:text-ink-4"
+      />
+      <div className="overflow-hidden rounded-[8px] border border-line bg-panel">
+        {filtered.length === 0 ? (
+          <p className="p-6 text-center text-sm text-ink-4">
+            계정이 없습니다.
+          </p>
+        ) : (
+          filtered.map((account, index) => (
+            <div
+              key={account.id}
+              className={`flex items-center gap-3 px-4 py-3 ${
+                index > 0 ? "border-t border-line-2" : ""
+              }`}>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-ink">
+                  {account.name}
+                  <span className="ml-2 text-xs font-normal text-ink-4">
+                    {account.type === "STAFF" ? "직원" : "학생"}
+                    {account.username ? ` · @${account.username}` : ""}
+                  </span>
+                </p>
+                <p className="mt-0.5 truncate text-xs text-ink-4">
+                  {account.email}
+                </p>
+              </div>
+              <Button
+                size="compact"
+                variant="outline"
+                disabled={isPending}
+                onClick={() => sendReset(account)}>
+                <Mail />
+                재설정 발송
+              </Button>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
