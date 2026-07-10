@@ -10,7 +10,7 @@ import {
   hasFeature, getMinimumPlan, PLAN_LABELS,
   type PlanTier, type FeatureKey,
 } from "@/lib/features";
-import { isFullAccess, isOnlineStaff, isStaff } from "@/lib/roles";
+import { canViewMentoringTime, isFullAccess, isOnlineStaff, isStaff } from "@/lib/roles";
 import {
   BookOpen,
   Users,
@@ -31,6 +31,7 @@ import {
   ListTodo,
   NotebookText,
   CalendarClock,
+  Clock,
   MapPin,
   Megaphone,
   Utensils,
@@ -95,6 +96,8 @@ const navSections: NavSection[] = [
       { href: "/timetable", label: "시간표", icon: LayoutList, feature: "timetable" },
       { href: "/consultations", label: "면담 관리", icon: FileText, feature: "consultations" },
       { href: "/mentoring/schedule", label: "멘토 스케줄", icon: Calendar, feature: "mentoring" },
+      // 원장/SUPER_ADMIN + 총괄 멘토만. 그룹 맨 아래 배치.
+      { href: "/mentoring/time", label: "멘토링 시간 관리", icon: Clock, feature: "mentoring", show: canViewMentoringTime },
     ],
   },
   {
