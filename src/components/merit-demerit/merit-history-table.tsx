@@ -50,11 +50,13 @@ function EditMeritDialog({
   onClose: (refresh?: boolean) => void;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [type, setType] = useState<"MERIT" | "DEMERIT">(record.type);
   const dateStr = new Date(record.date).toISOString().split("T")[0];
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    fd.set("type", type);
     startTransition(async () => {
       try {
         await updateMeritDemerit(record.id, fd);
@@ -93,7 +95,7 @@ function EditMeritDialog({
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">구분</Label>
-              <Select name="type" defaultValue={record.type}>
+              <Select value={type} onValueChange={(v) => setType(v as "MERIT" | "DEMERIT")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="MERIT">상점</SelectItem>
