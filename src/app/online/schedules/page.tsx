@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getUser } from "@/lib/auth";
-import { isFullAccess } from "@/lib/roles";
+import { isStaff } from "@/lib/roles";
 import { listScheduleProposalsForReview } from "@/actions/online/schedule-proposals";
 import { CalendarClock, ChevronRight, MessageSquare } from "lucide-react";
 
@@ -16,7 +16,7 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
 
 export default async function OnlineSchedulesPage() {
   const user = await getUser();
-  if (!isFullAccess(user?.role)) redirect("/online");
+  if (!isStaff(user?.role)) redirect("/online");
 
   const proposals = await listScheduleProposalsForReview();
 
