@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getUser } from "@/lib/auth";
-import { isFullAccess } from "@/lib/roles";
+import { isStaff } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { ScheduleReviewPanel } from "./review-panel";
 import type { AttendanceSlot, OutingSlot } from "@/components/online/schedule-slots-editor";
@@ -15,7 +15,7 @@ export default async function ScheduleReviewPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await getUser();
-  if (!isFullAccess(user?.role)) redirect("/online");
+  if (!isStaff(user?.role)) redirect("/online");
 
   const { id } = await params;
   const proposal = await prisma.scheduleProposal.findUnique({

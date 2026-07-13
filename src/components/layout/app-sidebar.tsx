@@ -84,8 +84,8 @@ const navSections: NavSection[] = [
       { href: "/assignments", label: "과제 관리", icon: ClipboardCheck, feature: "assignments" },
       { href: "/online/performance", label: "수행평가", icon: ClipboardCheck },
       { href: "/exams", label: "시험 관리", icon: GraduationCap, feature: "exam-scores" },
-      // 등원 스케줄(시간표 제안→학부모 승인 검토)은 원장/SA만.
-      { href: "/online/schedules", label: "등원 스케줄", icon: CalendarClock, show: isFullAccess },
+      // 등원 스케줄(시간표 제안→학부모 승인 검토) — 자습실 운영진 전체.
+      { href: "/online/schedules", label: "등원 스케줄", icon: CalendarClock, show: isStaff },
     ],
   },
   {

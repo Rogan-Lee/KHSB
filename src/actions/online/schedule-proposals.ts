@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireFullAccess } from "@/lib/roles";
+import { requireStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 import { hasGatePass, reportExpiresAt } from "@/lib/token-auth";
 
@@ -94,7 +94,7 @@ export async function listMyScheduleProposals(studentToken: string) {
 /** 검토 큐 — SUBMITTED/PROPOSED 상태 제안 목록. */
 export async function listScheduleProposalsForReview() {
   const sessionUser = await auth();
-  requireFullAccess(sessionUser?.user?.role);
+  requireStaff(sessionUser?.user?.role);
   const rows = await prisma.scheduleProposal.findMany({
     where: { status: { in: ["SUBMITTED", "PROPOSED", "APPROVED", "REJECTED"] } },
     orderBy: { updatedAt: "desc" },
@@ -109,7 +109,7 @@ export async function updateProposedSchedule(
   data: { proposedAttendance: AttendanceSlot[]; proposedOutings: OutingSlot[]; adminNote?: string },
 ) {
   const sessionUser = await auth();
-  requireFullAccess(sessionUser?.user?.role);
+  requireStaff(sessionUser?.user?.role);
   await prisma.scheduleProposal.update({
     where: { id },
     data: {
@@ -127,7 +127,7 @@ export async function updateProposedSchedule(
 /** 학부모에게 전송 — PROPOSED + 토큰 만료 설정. 학부모 승인 링크 반환. */
 export async function sendProposalToParent(id: string) {
   const sessionUser = await auth();
-  requireFullAccess(sessionUser?.user?.role);
+  requireStaff(sessionUser?.user?.role);
   const updated = await prisma.scheduleProposal.update({
     where: { id },
     data: { status: "PROPOSED", expiresAt: reportExpiresAt(), revokedAt: null },
@@ -144,7 +144,7 @@ export async function sendProposalToParent(id: string) {
  */
 export async function commitScheduleProposal(id: string) {
   const sessionUser = await auth();
-  requireFullAccess(sessionUser?.user?.role);
+  requireStaff(sessionUser?.user?.role);
 
   const proposal = await prisma.scheduleProposal.findUnique({ where: { id } });
   if (!proposal) throw new Error("스케줄 제안을 찾을 수 없습니다");
@@ -198,7 +198,7 @@ export async function commitScheduleProposal(id: string) {
 /** 롤백 — 커밋 직전 스냅샷으로 입퇴실 일정 복원. */
 export async function rollbackScheduleProposal(id: string) {
   const sessionUser = await auth();
-  requireFullAccess(sessionUser?.user?.role);
+  requireStaff(sessionUser?.user?.role);
 
   const proposal = await prisma.scheduleProposal.findUnique({ where: { id } });
   if (!proposal) throw new Error("스케줄 제안을 찾을 수 없습니다");
