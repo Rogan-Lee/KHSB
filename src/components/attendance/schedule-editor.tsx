@@ -1,31 +1,18 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TimePickerInput } from "@/components/ui/time-picker";
-import { scheduleScheduleChange, cancelScheduledChange } from "@/actions/attendance";
+import { saveAttendanceSchedule, saveOutingSchedules } from "@/actions/attendance";
 import { toast } from "sonner";
 import type { AttendanceSchedule, OutingSchedule, Student } from "@/generated/prisma";
-import { CalendarClock, ChevronDown, ChevronUp, Plus, Trash2, X } from "lucide-react";
-
-type ScheduledChange = { id: string; effectiveDate: Date | string };
+import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 
 type StudentWithSchedules = Student & {
   schedules: AttendanceSchedule[];
   outings: OutingSchedule[];
-  scheduledChanges: ScheduledChange[];
 };
-
-function fmtDate(d: Date | string): string {
-  return new Date(d).toLocaleDateString("ko-KR", { month: "long", day: "numeric" });
-}
-
-// 오늘(KST) YYYY-MM-DD — <input type="date"> min 값
-function todayKSTStr(): string {
-  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-}
 
 interface Props {
   students: StudentWithSchedules[];
@@ -72,13 +59,10 @@ function initRows(schedules: AttendanceSchedule[], outings: OutingSchedule[]): R
 }
 
 export function ScheduleEditor({ students }: Props) {
-  const router = useRouter();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [rowMap, setRowMap] = useState<Record<string, Record<number, DayRow>>>(
     Object.fromEntries(students.map((s) => [s.id, initRows(s.schedules, s.outings)]))
   );
-  // 학생별 실행 예정일 ("" = 즉시 적용)
-  const [effDate, setEffDate] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
 
   function updateDay(studentId: string, day: number, field: "enabled" | "startTime" | "endTime", value: string | boolean) {
@@ -144,31 +128,15 @@ export function ScheduleEditor({ students }: Props) {
         : []
     );
 
-    const date = effDate[studentId] || null;
     startTransition(async () => {
       try {
-        const res = await scheduleScheduleChange(studentId, date, schedules, outings);
-        if (res.applied) {
-          toast.success("저장되었습니다");
-        } else {
-          toast.success(`${fmtDate(res.effectiveDate)}에 적용 예약되었습니다`);
-        }
-        setEffDate((prev) => ({ ...prev, [studentId]: "" }));
-        router.refresh();
+        await Promise.all([
+          saveAttendanceSchedule(studentId, schedules),
+          saveOutingSchedules(studentId, outings),
+        ]);
+        toast.success("저장되었습니다");
       } catch {
         toast.error("저장 실패");
-      }
-    });
-  }
-
-  function cancelReservation(id: string) {
-    startTransition(async () => {
-      try {
-        await cancelScheduledChange(id);
-        toast.success("예약이 취소되었습니다");
-        router.refresh();
-      } catch {
-        toast.error("취소 실패");
       }
     });
   }
@@ -206,14 +174,6 @@ export function ScheduleEditor({ students }: Props) {
                 {outingCount > 0 && (
                   <Badge variant="outline" className="text-xs text-orange-600 border-orange-300 shrink-0">
                     외출 {outingCount}건
-                  </Badge>
-                )}
-                {student.scheduledChanges.length > 0 && (
-                  <Badge variant="outline" className="text-xs text-info border-info/40 shrink-0 gap-1">
-                    <CalendarClock className="h-3 w-3" />
-                    {student.scheduledChanges.length === 1
-                      ? `${fmtDate(student.scheduledChanges[0].effectiveDate)} 예약`
-                      : `예약 ${student.scheduledChanges.length}건`}
                   </Badge>
                 )}
               </div>
@@ -328,45 +288,8 @@ export function ScheduleEditor({ students }: Props) {
                     </tbody>
                   </table>
                 </div>
-                <div className="px-4 py-3 border-t space-y-3">
-                  {student.scheduledChanges.length > 0 && (
-                    <div className="space-y-1">
-                      {student.scheduledChanges.map((c) => (
-                        <div key={c.id} className="flex items-center gap-2 text-xs text-info">
-                          <CalendarClock className="h-3.5 w-3.5" />
-                          <span>{fmtDate(c.effectiveDate)}에 변경 적용 예약됨</span>
-                          <button
-                            type="button"
-                            onClick={() => cancelReservation(c.id)}
-                            disabled={isPending}
-                            className="text-muted-foreground hover:text-destructive inline-flex items-center gap-0.5"
-                          >
-                            <X className="h-3 w-3" />취소
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      실행 예정일
-                      <input
-                        type="date"
-                        min={todayKSTStr()}
-                        value={effDate[student.id] ?? ""}
-                        onChange={(e) => setEffDate((prev) => ({ ...prev, [student.id]: e.target.value }))}
-                        className="border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-blue-400"
-                      />
-                    </label>
-                    <Button size="sm" onClick={() => save(student.id)} disabled={isPending}>
-                      {effDate[student.id] ? "적용 예약" : "저장"}
-                    </Button>
-                    {effDate[student.id] && (
-                      <span className="text-[11px] text-muted-foreground">
-                        지정일 00시에 자동 반영됩니다
-                      </span>
-                    )}
-                  </div>
+                <div className="px-4 py-3 border-t">
+                  <Button size="sm" onClick={() => save(student.id)} disabled={isPending}>저장</Button>
                 </div>
               </div>
             )}
