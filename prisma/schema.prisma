@@ -417,6 +417,7 @@ model Student {
   photos               Photo[]
   patrolRecords        PatrolRecord[]
   scheduleProposals    ScheduleProposal[]
+  scheduledChanges     ScheduledScheduleChange[]
   waitlistEntries      Waitlist[]             @relation("StudentWaitlist")
   lunchOrders          LunchOrder[]
   lunchChangeRequests  LunchChangeRequest[]
@@ -1683,6 +1684,22 @@ model ScheduleProposal {
   @@unique([studentId, version])
   @@index([studentId, status])
   @@index([status])
+}
+
+// 실행 예정일 예약 — 등원 일정을 미래 날짜에 자동 반영 (KST 자정 cron)
+model ScheduledScheduleChange {
+  id            String    @id @default(cuid())
+  studentId     String
+  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  effectiveDate DateTime  @db.Date // 이 날짜(KST 00시)에 적용
+  attendance    Json      @default("[]") // [{dayOfWeek,startTime,endTime}] 스냅샷
+  outings       Json      @default("[]") // [{dayOfWeek,outStart,outEnd,reason}] 스냅샷
+  appliedAt     DateTime? // 적용 완료 시각 (null=대기)
+  createdById   String?
+  createdAt     DateTime  @default(now())
+
+  @@index([effectiveDate, appliedAt])
+  @@index([studentId, appliedAt])
 }
 
 model ScheduleProposalFeedback {

@@ -6,7 +6,15 @@ import { offlineStudentWhere } from "@/lib/student-filters";
 export default async function AttendanceSchedulePage() {
   const students = await prisma.student.findMany({
     where: offlineStudentWhere({ status: "ACTIVE" }),
-    include: { schedules: true, outings: true },
+    include: {
+      schedules: true,
+      outings: true,
+      scheduledChanges: {
+        where: { appliedAt: null },
+        orderBy: { effectiveDate: "asc" },
+        select: { id: true, effectiveDate: true },
+      },
+    },
     orderBy: { name: "asc" },
   });
 
