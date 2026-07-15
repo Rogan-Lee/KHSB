@@ -6,14 +6,23 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Send, Save, CheckCircle2, RotateCcw, Copy, MessageSquare } from "lucide-react";
+import { Send, Save, CheckCircle2, RotateCcw, Copy, MessageSquare, CalendarClock, X } from "lucide-react";
 import { ScheduleSlotsEditor, type AttendanceSlot, type OutingSlot } from "@/components/online/schedule-slots-editor";
 import {
   updateProposedSchedule,
   sendProposalToParent,
   commitScheduleProposal,
+  cancelScheduledCommit,
   rollbackScheduleProposal,
 } from "@/actions/online/schedule-proposals";
+
+function fmtDate(d: string): string {
+  return new Date(d).toLocaleDateString("ko-KR", { month: "long", day: "numeric" });
+}
+// 오늘(KST) YYYY-MM-DD — <input type="date"> min 값
+function todayKSTStr(): string {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
 
 type Feedback = { id: string; content: string; createdAt: string };
 type Version = { id: string; version: number; status: string; committedAt: string | null };
@@ -33,6 +42,7 @@ export function ScheduleReviewPanel(props: {
   proposedOutings: OutingSlot[];
   adminNote: string | null;
   studentMemo: string | null;
+  scheduledFor: string | null;
   feedbacks: Feedback[];
   versions: Version[];
 }) {
@@ -40,6 +50,7 @@ export function ScheduleReviewPanel(props: {
   const [att, setAtt] = useState<AttendanceSlot[]>(props.proposedAttendance);
   const [out, setOut] = useState<OutingSlot[]>(props.proposedOutings);
   const [adminNote, setAdminNote] = useState(props.adminNote ?? "");
+  const [effDate, setEffDate] = useState("");
   const [pending, startTransition] = useTransition();
 
   const canEdit = props.status === "SUBMITTED" || props.status === "PROPOSED" || props.status === "REJECTED";
@@ -68,10 +79,24 @@ export function ScheduleReviewPanel(props: {
     });
   }
   function commit() {
-    if (!confirm("승인된 스케줄을 입퇴실 일정에 반영할까요? (이전 일정은 되돌릴 수 있게 보관됩니다)")) return;
+    const date = effDate || null;
+    const msg = date
+      ? `${fmtDate(date)} 00시에 자동 반영되도록 예약할까요?`
+      : "승인된 스케줄을 지금 입퇴실 일정에 반영할까요? (이전 일정은 되돌릴 수 있게 보관됩니다)";
+    if (!confirm(msg)) return;
     startTransition(async () => {
-      try { await commitScheduleProposal(props.id); toast.success("입퇴실 일정에 반영했어요"); router.refresh(); }
-      catch (e) { toast.error(e instanceof Error ? e.message : "반영 실패"); }
+      try {
+        const res = await commitScheduleProposal(props.id, date);
+        toast.success(res.scheduled ? `${fmtDate(res.scheduledFor)}에 반영 예약했어요` : "입퇴실 일정에 반영했어요");
+        setEffDate("");
+        router.refresh();
+      } catch (e) { toast.error(e instanceof Error ? e.message : "반영 실패"); }
+    });
+  }
+  function cancelScheduled() {
+    startTransition(async () => {
+      try { await cancelScheduledCommit(props.id); toast.success("반영 예약을 취소했어요"); router.refresh(); }
+      catch (e) { toast.error(e instanceof Error ? e.message : "취소 실패"); }
     });
   }
   function rollback() {
@@ -100,15 +125,50 @@ export function ScheduleReviewPanel(props: {
               <label className="text-sm font-medium">학부모 안내 메모</label>
               <Textarea value={adminNote} onChange={(e) => setAdminNote(e.target.value)} rows={2} disabled={!canEdit} placeholder="학부모님께 전달할 안내" />
             </div>
-            <div className="flex flex-wrap gap-2">
+            {props.scheduledFor && (
+              <div className="flex items-center gap-2 rounded-lg bg-info/10 px-3 py-2 text-sm text-info">
+                <CalendarClock className="h-4 w-4 shrink-0" />
+                <span>{fmtDate(props.scheduledFor)} 00시에 자동 반영 예약됨</span>
+                <button
+                  type="button"
+                  onClick={cancelScheduled}
+                  disabled={pending}
+                  className="ml-auto inline-flex items-center gap-0.5 text-xs text-muted-foreground hover:text-destructive"
+                >
+                  <X className="h-3.5 w-3.5" />예약 취소
+                </button>
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
               {canEdit && <Button variant="outline" onClick={save} disabled={pending}><Save className="h-4 w-4 mr-1.5" />저장</Button>}
               {canEdit && <Button onClick={send} disabled={pending}><Send className="h-4 w-4 mr-1.5" />학부모 전송</Button>}
               {(props.status === "PROPOSED" || props.status === "APPROVED") && (
                 <Button variant="ghost" onClick={copyLink}><Copy className="h-4 w-4 mr-1.5" />링크 복사</Button>
               )}
-              {canCommit && <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={commit} disabled={pending}><CheckCircle2 className="h-4 w-4 mr-1.5" />입퇴실 반영</Button>}
+              {canCommit && (
+                <>
+                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <CalendarClock className="h-3.5 w-3.5" />실행 예정일
+                    <input
+                      type="date"
+                      min={todayKSTStr()}
+                      value={effDate}
+                      onChange={(e) => setEffDate(e.target.value)}
+                      className="border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                    />
+                  </label>
+                  <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={commit} disabled={pending}>
+                    <CheckCircle2 className="h-4 w-4 mr-1.5" />{effDate ? "반영 예약" : "즉시 반영"}
+                  </Button>
+                </>
+              )}
               {canRollback && <Button variant="destructive" onClick={rollback} disabled={pending}><RotateCcw className="h-4 w-4 mr-1.5" />되돌리기</Button>}
             </div>
+            {canCommit && (
+              <p className="text-[11px] text-muted-foreground">
+                실행 예정일을 지정하면 그날 00시(KST)에 자동 반영됩니다. 비우면 즉시 반영.
+              </p>
+            )}
           </CardContent>
         </Card>
 

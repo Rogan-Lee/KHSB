@@ -6,37 +6,15 @@ import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 import { hasGatePass, reportExpiresAt } from "@/lib/token-auth";
-
-export type AttendanceSlot = { dayOfWeek: number; startTime: string; endTime: string };
-export type OutingSlot = { dayOfWeek: number; outStart: string; outEnd: string; reason?: string | null };
-
-function deriveClassGroup(dayCount: number): string | null {
-  if (dayCount === 0) return null;
-  if (dayCount >= 4) return "정규반";
-  return "선택반";
-}
-
-function sanitizeAttendance(rows: unknown): AttendanceSlot[] {
-  if (!Array.isArray(rows)) return [];
-  return rows
-    .filter((r): r is AttendanceSlot =>
-      !!r && typeof r === "object" &&
-      typeof (r as AttendanceSlot).dayOfWeek === "number" &&
-      typeof (r as AttendanceSlot).startTime === "string" &&
-      typeof (r as AttendanceSlot).endTime === "string")
-    .map((r) => ({ dayOfWeek: r.dayOfWeek, startTime: r.startTime, endTime: r.endTime }));
-}
-
-function sanitizeOutings(rows: unknown): OutingSlot[] {
-  if (!Array.isArray(rows)) return [];
-  return rows
-    .filter((r): r is OutingSlot =>
-      !!r && typeof r === "object" &&
-      typeof (r as OutingSlot).dayOfWeek === "number" &&
-      typeof (r as OutingSlot).outStart === "string" &&
-      typeof (r as OutingSlot).outEnd === "string")
-    .map((r) => ({ dayOfWeek: r.dayOfWeek, outStart: r.outStart, outEnd: r.outEnd, reason: r.reason ?? null }));
-}
+import { todayKST } from "@/lib/utils";
+import {
+  sanitizeAttendance,
+  sanitizeOutings,
+  deriveClassGroup,
+  applyProposalCommit,
+  type AttendanceSlot,
+  type OutingSlot,
+} from "@/lib/online/schedule-commit";
 
 // ───────────────────── 학생 (매직링크 토큰) ─────────────────────
 
@@ -139,59 +117,42 @@ export async function sendProposalToParent(id: string) {
 }
 
 /**
- * 커밋 — 승인된 제안안을 AttendanceSchedule/OutingSchedule 에 반영.
- * 직전 상태를 prev*Snapshot 에 저장(롤백용), 기존 COMMITTED 는 SUPERSEDED.
+ * 반영 — 즉시 또는 실행 예정일 예약.
+ * effectiveDate("YYYY-MM-DD") 가 미래면 예약(APPROVED 유지, scheduledFor 설정)해
+ * 해당일 00시(KST) cron 이 자동 반영. 오늘 이하/미지정이면 즉시 반영.
  */
-export async function commitScheduleProposal(id: string) {
+export async function commitScheduleProposal(id: string, effectiveDate?: string | null) {
   const sessionUser = await auth();
   requireStaff(sessionUser?.user?.role);
 
-  const proposal = await prisma.scheduleProposal.findUnique({ where: { id } });
-  if (!proposal) throw new Error("스케줄 제안을 찾을 수 없습니다");
-  if (proposal.status !== "APPROVED") throw new Error("학부모 승인 후에만 반영할 수 있습니다");
-
-  const studentId = proposal.studentId;
-  const proposedAttendance = sanitizeAttendance(proposal.proposedAttendance);
-  const proposedOutings = sanitizeOutings(proposal.proposedOutings);
-
-  await prisma.$transaction(async (tx) => {
-    // 1) 현재 상태 스냅샷
-    const [curAtt, curOut] = await Promise.all([
-      tx.attendanceSchedule.findMany({ where: { studentId }, select: { dayOfWeek: true, startTime: true, endTime: true } }),
-      tx.outingSchedule.findMany({ where: { studentId }, select: { dayOfWeek: true, outStart: true, outEnd: true, reason: true } }),
-    ]);
-    // 2) 입퇴실 일정 교체
-    await tx.attendanceSchedule.deleteMany({ where: { studentId } });
-    if (proposedAttendance.length > 0) {
-      await tx.attendanceSchedule.createMany({ data: proposedAttendance.map((s) => ({ ...s, studentId })) });
-    }
-    await tx.outingSchedule.deleteMany({ where: { studentId } });
-    if (proposedOutings.length > 0) {
-      await tx.outingSchedule.createMany({ data: proposedOutings.map((o) => ({ studentId, dayOfWeek: o.dayOfWeek, outStart: o.outStart, outEnd: o.outEnd, reason: o.reason ?? null })) });
-    }
-    const dayCount = new Set(proposedAttendance.map((s) => s.dayOfWeek)).size;
-    await tx.student.update({ where: { id: studentId }, data: { classGroup: deriveClassGroup(dayCount) } });
-    // 3) 기존 COMMITTED 는 SUPERSEDED
-    await tx.scheduleProposal.updateMany({
-      where: { studentId, status: "COMMITTED", id: { not: id } },
-      data: { status: "SUPERSEDED" },
-    });
-    // 4) 이 제안 COMMITTED + 스냅샷 저장
-    await tx.scheduleProposal.update({
+  const todayStr = todayKST().toISOString().slice(0, 10);
+  if (effectiveDate && effectiveDate > todayStr) {
+    const proposal = await prisma.scheduleProposal.findUnique({ where: { id }, select: { status: true } });
+    if (proposal?.status !== "APPROVED") throw new Error("학부모 승인 후에만 예약할 수 있습니다");
+    await prisma.scheduleProposal.update({
       where: { id },
-      data: {
-        status: "COMMITTED",
-        committedById: sessionUser!.user!.id,
-        committedAt: new Date(),
-        prevAttendanceSnapshot: curAtt,
-        prevOutingSnapshot: curOut,
-      },
+      data: { scheduledFor: new Date(effectiveDate) },
     });
-  });
+    revalidatePath(`/online/schedules/${id}`);
+    revalidatePath("/online/schedules");
+    return { scheduled: true as const, scheduledFor: effectiveDate };
+  }
 
-  revalidatePath("/attendance");
-  revalidatePath(`/students/${studentId}`);
+  await applyProposalCommit(id, sessionUser!.user!.id);
+  revalidatePath("/online/schedules");
+  return { scheduled: false as const };
+}
+
+/** 실행 예정일 예약 취소 — scheduledFor 해제 (아직 반영 전). */
+export async function cancelScheduledCommit(id: string) {
+  const sessionUser = await auth();
+  requireStaff(sessionUser?.user?.role);
+  await prisma.scheduleProposal.update({
+    where: { id },
+    data: { scheduledFor: null },
+  });
   revalidatePath(`/online/schedules/${id}`);
+  revalidatePath("/online/schedules");
   return { ok: true };
 }
 
