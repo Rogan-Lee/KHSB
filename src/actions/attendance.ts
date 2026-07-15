@@ -7,7 +7,6 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AttendanceType } from "@/generated/prisma";
 import { todayKST } from "@/lib/utils";
-import { applyScheduleChange, deriveClassGroup } from "@/lib/attendance-schedule";
 
 const recordSchema = z.object({
   studentId: z.string(),
@@ -161,6 +160,18 @@ export async function saveAttendanceRecord(data: {
   revalidatePath(`/students/${data.studentId}`);
 }
 
+/**
+ * 입실 요일 수 → 반 자동 분류
+ * - 0회: null (미배정)
+ * - 1~3회: 선택반
+ * - 4회 이상: 정규반
+ */
+function deriveClassGroup(dayCount: number): string | null {
+  if (dayCount === 0) return null;
+  if (dayCount >= 4) return "정규반";
+  return "선택반";
+}
+
 export async function saveAttendanceSchedule(
   studentId: string,
   schedules: { dayOfWeek: number; startTime: string; endTime: string }[]
@@ -233,58 +244,27 @@ export async function saveScheduleAndOutings(
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  await applyScheduleChange(studentId, schedules, outings);
+  // 입실 요일 수에 따라 정규반/선택반 자동 분류
+  const dayCount = new Set(schedules.map((s) => s.dayOfWeek)).size;
+
+  await prisma.$transaction([
+    prisma.attendanceSchedule.deleteMany({ where: { studentId } }),
+    ...(schedules.length > 0
+      ? [prisma.attendanceSchedule.createMany({ data: schedules.map((s) => ({ ...s, studentId })) })]
+      : []),
+    prisma.outingSchedule.deleteMany({ where: { studentId } }),
+    ...(outings.length > 0
+      ? [prisma.outingSchedule.createMany({ data: outings.map((o) => ({ ...o, studentId })) })]
+      : []),
+    prisma.student.update({
+      where: { id: studentId },
+      data: { classGroup: deriveClassGroup(dayCount) },
+    }),
+  ]);
 
   revalidatePath("/attendance/schedule");
   revalidatePath(`/students/${studentId}`);
   revalidatePath("/students");
-}
-
-/**
- * 등원 일정 변경 — effectiveDate 미래면 예약(ScheduledScheduleChange), 오늘/과거/미지정이면 즉시 적용.
- * effectiveDate: "YYYY-MM-DD" | null
- */
-export async function scheduleScheduleChange(
-  studentId: string,
-  effectiveDate: string | null,
-  schedules: { dayOfWeek: number; startTime: string; endTime: string }[],
-  outings: { dayOfWeek: number; outStart: string; outEnd: string; reason?: string }[]
-) {
-  const session = await auth();
-  requireStaff(session?.user?.role);
-
-  const todayStr = todayKST().toISOString().slice(0, 10);
-  if (!effectiveDate || effectiveDate <= todayStr) {
-    await applyScheduleChange(studentId, schedules, outings);
-    revalidatePath("/attendance/schedule");
-    revalidatePath(`/students/${studentId}`);
-    revalidatePath("/students");
-    return { applied: true as const };
-  }
-
-  // 같은 날짜 대기 예약이 있으면 교체
-  await prisma.scheduledScheduleChange.deleteMany({
-    where: { studentId, effectiveDate: new Date(effectiveDate), appliedAt: null },
-  });
-  await prisma.scheduledScheduleChange.create({
-    data: {
-      studentId,
-      effectiveDate: new Date(effectiveDate),
-      attendance: schedules,
-      outings,
-      createdById: session!.user!.id,
-    },
-  });
-  revalidatePath("/attendance/schedule");
-  return { applied: false as const, effectiveDate };
-}
-
-/** 대기 중인 등원 일정 예약 취소 */
-export async function cancelScheduledChange(id: string) {
-  const session = await auth();
-  requireStaff(session?.user?.role);
-  await prisma.scheduledScheduleChange.deleteMany({ where: { id, appliedAt: null } });
-  revalidatePath("/attendance/schedule");
 }
 
 // 외출 일정 저장 (주간 반복)

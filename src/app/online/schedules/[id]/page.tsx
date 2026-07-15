@@ -52,6 +52,7 @@ export default async function ScheduleReviewPage({
         proposedOutings={(proposal.proposedOutings as unknown as OutingSlot[]) ?? []}
         adminNote={proposal.adminNote}
         studentMemo={proposal.studentMemo}
+        scheduledFor={proposal.scheduledFor ? proposal.scheduledFor.toISOString() : null}
         feedbacks={proposal.feedbacks.map((f) => ({ id: f.id, content: f.content, createdAt: f.createdAt.toISOString() }))}
         versions={versions.map((v) => ({ id: v.id, version: v.version, status: v.status, committedAt: v.committedAt?.toISOString() ?? null }))}
       />

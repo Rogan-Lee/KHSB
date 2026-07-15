@@ -44,6 +44,12 @@ export default async function OnlineSchedulesPage() {
                 </span>
                 <span className="font-medium">{p.student.name}</span>
                 <span className="text-xs text-muted-foreground">{p.student.grade} · v{p.version}</span>
+                {p.scheduledFor && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-info/40 px-2 py-0.5 text-[11px] text-info">
+                    <CalendarClock className="h-3 w-3" />
+                    {new Date(p.scheduledFor).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })} 예약
+                  </span>
+                )}
                 {p._count.feedbacks > 0 && (
                   <span className="inline-flex items-center gap-1 text-xs text-rose-600">
                     <MessageSquare className="h-3.5 w-3.5" />{p._count.feedbacks}
