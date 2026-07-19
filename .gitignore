@@ -47,3 +47,4 @@ next-env.d.ts
 .gstack/
 claude-talk-to-figma-mcp/
 .claude/scheduled_tasks.lock
+.claude/settings.json

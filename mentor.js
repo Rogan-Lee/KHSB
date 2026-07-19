@@ -7,7 +7,11 @@ document.getElementById('pageTitle').textContent = `${m.name} | 강한선배`;
 const hero = document.getElementById('mHero');
 hero.style.background = m.tint || 'var(--lav)';
 const ava = document.getElementById('mAva');
-ava.textContent = m.avatar; ava.style.background = m.grad;
+if (m.photo) {
+  ava.innerHTML = `<img src="${m.photo}" alt="${m.name}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+} else {
+  ava.textContent = m.avatar; ava.style.background = m.grad;
+}
 document.getElementById('mBadges').innerHTML = m.badges.map(b => `<span class="m-badge">${b}</span>`).join('');
 document.getElementById('mName').textContent = m.name;
 document.getElementById('mRole').textContent = m.role;

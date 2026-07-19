@@ -107,10 +107,15 @@ setupMarquee(document.getElementById('grTrack'), GRADES, gradeCardEl, 46);
 // ── 대표 멘토 5인 카드 (가운데 featured) — mentors-data.js 의 데이터로 생성 ──
 const mentorCards = document.getElementById('mentorCards');
 if (mentorCards && typeof MENTOR_FEATURED !== 'undefined') {
-  const mid = Math.floor(MENTOR_FEATURED.length / 2);
   mentorCards.innerHTML = MENTOR_FEATURED
-    .map((id, i) => `<article class="flip${i === mid ? ' feat' : ''}">${mentorCardInner(id, i === mid)}</article>`)
+    .map(id => `<article class="flip">${mentorCardInner(id, false)}</article>`)
     .join('');
+}
+
+// ── 운영진(조교) 카드 — 사진 영역 없는 텍스트 카드 ──
+const staffTeam = document.getElementById('staffTeam');
+if (staffTeam && typeof STAFF_TEAM !== 'undefined') {
+  staffTeam.innerHTML = STAFF_TEAM.map(id => staffCardInner(id)).join('');
 }
 
 // reveal on scroll

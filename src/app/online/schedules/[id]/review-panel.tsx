@@ -6,12 +6,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Send, Save, CheckCircle2, RotateCcw, Copy, MessageSquare, CalendarClock, X } from "lucide-react";
+import { Send, Save, RotateCcw, Copy, MessageSquare, CalendarClock, X, Zap, Trash2 } from "lucide-react";
 import { ScheduleSlotsEditor, type AttendanceSlot, type OutingSlot } from "@/components/online/schedule-slots-editor";
 import {
   updateProposedSchedule,
   sendProposalToParent,
-  commitScheduleProposal,
+  commitProposalByAdmin,
+  deleteScheduleProposal,
   cancelScheduledCommit,
   rollbackScheduleProposal,
 } from "@/actions/online/schedule-proposals";
@@ -50,11 +51,10 @@ export function ScheduleReviewPanel(props: {
   const [att, setAtt] = useState<AttendanceSlot[]>(props.proposedAttendance);
   const [out, setOut] = useState<OutingSlot[]>(props.proposedOutings);
   const [adminNote, setAdminNote] = useState(props.adminNote ?? "");
-  const [effDate, setEffDate] = useState("");
+  const [effDate, setEffDate] = useState(props.scheduledFor ? props.scheduledFor.slice(0, 10) : "");
   const [pending, startTransition] = useTransition();
 
   const canEdit = props.status === "SUBMITTED" || props.status === "PROPOSED" || props.status === "REJECTED";
-  const canCommit = props.status === "APPROVED";
   const canRollback = props.status === "COMMITTED";
 
   function save() {
@@ -67,10 +67,11 @@ export function ScheduleReviewPanel(props: {
     });
   }
   function send() {
+    if (!effDate) { toast.error("실행 예정일을 지정해 주세요"); return; }
     startTransition(async () => {
       try {
         await updateProposedSchedule(props.id, { proposedAttendance: att, proposedOutings: out, adminNote });
-        const { token } = await sendProposalToParent(props.id);
+        const { token } = await sendProposalToParent(props.id, effDate);
         const url = `${window.location.origin}/r/schedule/${token}`;
         await navigator.clipboard.writeText(url).catch(() => {});
         toast.success("학부모 승인 링크를 복사했어요");
@@ -78,19 +79,23 @@ export function ScheduleReviewPanel(props: {
       } catch (e) { toast.error(e instanceof Error ? e.message : "전송 실패"); }
     });
   }
-  function commit() {
-    const date = effDate || null;
-    const msg = date
-      ? `${fmtDate(date)} 00시에 자동 반영되도록 예약할까요?`
-      : "승인된 스케줄을 지금 입퇴실 일정에 반영할까요? (이전 일정은 되돌릴 수 있게 보관됩니다)";
-    if (!confirm(msg)) return;
+  function commitNow() {
+    const when = effDate && effDate > todayKSTStr() ? `${fmtDate(effDate)}부터 예약 반영` : "지금 즉시 반영";
+    if (!confirm(`학부모 승인 없이 이 스케줄을 ${when}할까요?`)) return;
     startTransition(async () => {
       try {
-        const res = await commitScheduleProposal(props.id, date);
-        toast.success(res.scheduled ? `${fmtDate(res.scheduledFor)}에 반영 예약했어요` : "입퇴실 일정에 반영했어요");
-        setEffDate("");
+        await updateProposedSchedule(props.id, { proposedAttendance: att, proposedOutings: out, adminNote });
+        await commitProposalByAdmin(props.id, effDate || undefined);
+        toast.success("우선 반영했어요");
         router.refresh();
       } catch (e) { toast.error(e instanceof Error ? e.message : "반영 실패"); }
+    });
+  }
+  function remove() {
+    if (!confirm("이 등원 스케줄 제안을 삭제할까요? 되돌릴 수 없습니다.")) return;
+    startTransition(async () => {
+      try { await deleteScheduleProposal(props.id); toast.success("삭제했어요"); router.push("/online/schedules"); }
+      catch (e) { toast.error(e instanceof Error ? e.message : "삭제 실패"); }
     });
   }
   function cancelScheduled() {
@@ -125,7 +130,7 @@ export function ScheduleReviewPanel(props: {
               <label className="text-sm font-medium">학부모 안내 메모</label>
               <Textarea value={adminNote} onChange={(e) => setAdminNote(e.target.value)} rows={2} disabled={!canEdit} placeholder="학부모님께 전달할 안내" />
             </div>
-            {props.scheduledFor && (
+            {props.status === "APPROVED" && props.scheduledFor && (
               <div className="flex items-center gap-2 rounded-lg bg-info/10 px-3 py-2 text-sm text-info">
                 <CalendarClock className="h-4 w-4 shrink-0" />
                 <span>{fmtDate(props.scheduledFor)} 00시에 자동 반영 예약됨</span>
@@ -140,33 +145,32 @@ export function ScheduleReviewPanel(props: {
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2">
+              {canEdit && (
+                <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <CalendarClock className="h-3.5 w-3.5" />실행 예정일
+                  <input
+                    type="date"
+                    min={todayKSTStr()}
+                    value={effDate}
+                    onChange={(e) => setEffDate(e.target.value)}
+                    className="border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                  />
+                </label>
+              )}
               {canEdit && <Button variant="outline" onClick={save} disabled={pending}><Save className="h-4 w-4 mr-1.5" />저장</Button>}
-              {canEdit && <Button onClick={send} disabled={pending}><Send className="h-4 w-4 mr-1.5" />학부모 전송</Button>}
-              {(props.status === "PROPOSED" || props.status === "APPROVED") && (
+              {canEdit && <Button variant="outline" onClick={send} disabled={pending}><Send className="h-4 w-4 mr-1.5" />학부모 전송</Button>}
+              {canEdit && <Button onClick={commitNow} disabled={pending}><Zap className="h-4 w-4 mr-1.5" />우선 반영</Button>}
+              {(props.status === "PROPOSED" || props.status === "APPROVED" || props.status === "COMMITTED") && (
                 <Button variant="ghost" onClick={copyLink}><Copy className="h-4 w-4 mr-1.5" />링크 복사</Button>
               )}
-              {canCommit && (
-                <>
-                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <CalendarClock className="h-3.5 w-3.5" />실행 예정일
-                    <input
-                      type="date"
-                      min={todayKSTStr()}
-                      value={effDate}
-                      onChange={(e) => setEffDate(e.target.value)}
-                      className="border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-emerald-400"
-                    />
-                  </label>
-                  <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={commit} disabled={pending}>
-                    <CheckCircle2 className="h-4 w-4 mr-1.5" />{effDate ? "반영 예약" : "즉시 반영"}
-                  </Button>
-                </>
-              )}
               {canRollback && <Button variant="destructive" onClick={rollback} disabled={pending}><RotateCcw className="h-4 w-4 mr-1.5" />되돌리기</Button>}
+              {props.status !== "COMMITTED" && (
+                <Button variant="ghost" onClick={remove} disabled={pending} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4 mr-1.5" />삭제</Button>
+              )}
             </div>
-            {canCommit && (
+            {canEdit && (
               <p className="text-[11px] text-muted-foreground">
-                실행 예정일을 지정하면 그날 00시(KST)에 자동 반영됩니다. 비우면 즉시 반영.
+                <b>학부모 전송</b>은 승인 후 반영, <b>우선 반영</b>은 승인 없이 즉시(또는 실행 예정일에) 반영하고 이후 학부모 피드백을 받습니다.
               </p>
             )}
           </CardContent>

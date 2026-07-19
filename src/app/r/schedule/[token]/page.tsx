@@ -42,6 +42,7 @@ export default async function ParentSchedulePage({
       attendance={(proposal.proposedAttendance as unknown as AttendanceSlot[]) ?? []}
       outings={(proposal.proposedOutings as unknown as OutingSlot[]) ?? []}
       adminNote={proposal.adminNote}
+      scheduledFor={proposal.scheduledFor ? proposal.scheduledFor.toISOString() : null}
     />
   );
 }
