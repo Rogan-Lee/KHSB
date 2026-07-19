@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Pencil,
   Send,
+  Lock,
 } from "lucide-react";
 import { shiftMonth, formatYearMonth } from "@/lib/online/month";
 import {
@@ -112,6 +113,11 @@ function OrderView({
   const router = useRouter();
   const [busy, startTransition] = useTransition();
   const paidSet = useMemo(() => new Set(paidMenuIds), [paidMenuIds]);
+  // 마감(잠긴) 주의 메뉴 — 신규 신청/변경 불가
+  const lockedSet = useMemo(
+    () => new Set(menus.filter((m) => m.locked).map((m) => m.id)),
+    [menus]
+  );
   const [selected, setSelected] = useState<Set<string>>(() => new Set(pendingMenuIds));
   const [memo, setMemo] = useState(pendingMemo);
 
@@ -126,8 +132,8 @@ function OrderView({
   );
 
   const selectableMenus = useMemo(
-    () => menus.filter((m) => !paidSet.has(m.id)),
-    [menus, paidSet]
+    () => menus.filter((m) => !paidSet.has(m.id) && !lockedSet.has(m.id)),
+    [menus, paidSet, lockedSet]
   );
   const selectedLines = useMemo(
     () =>
@@ -139,10 +145,14 @@ function OrderView({
   const total = selectedLines.reduce((s, m) => s + m.price, 0);
 
   function bulk(filter: (dow: number) => boolean) {
-    setSelected(new Set(selectableMenus.filter((m) => filter(dowOf(m.date))).map((m) => m.id)));
+    setSelected((prev) => {
+      // 이미 신청된 잠긴 날짜는 유지(변경 불가)
+      const keep = [...prev].filter((id) => lockedSet.has(id));
+      return new Set([...keep, ...selectableMenus.filter((m) => filter(dowOf(m.date))).map((m) => m.id)]);
+    });
   }
   function toggle(id: string) {
-    if (paidSet.has(id)) return;
+    if (paidSet.has(id) || lockedSet.has(id)) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -184,7 +194,10 @@ function OrderView({
             { label: "전체", fn: () => bulk(() => true) },
             { label: "주중(월~금)", fn: () => bulk((d) => d >= 1 && d <= 5) },
             { label: "주말(토·일)", fn: () => bulk((d) => d === 0 || d === 6) },
-            { label: "선택 해제", fn: () => setSelected(new Set()) },
+            {
+              label: "선택 해제",
+              fn: () => setSelected((prev) => new Set([...prev].filter((id) => lockedSet.has(id)))),
+            },
           ].map((b) => (
             <button
               key={b.label}
@@ -249,7 +262,26 @@ function OrderView({
             }
 
             const isPaid = paidSet.has(menu.id);
+            const isLocked = lockedSet.has(menu.id);
             const isSel = selected.has(menu.id) || isPaid;
+            // 마감된 날: 이미 신청분이면 잠긴 채로 표시, 아니면 신청 불가(비활성)
+            if (isLocked) {
+              return (
+                <div
+                  key={idx}
+                  aria-disabled
+                  title="신청 마감된 날짜예요"
+                  className={`flex aspect-square flex-col items-center justify-center rounded-[10px] border p-0.5 text-center ${
+                    isSel ? "border-ink-4/30 bg-canvas-2" : "border-transparent bg-canvas-2/40"
+                  }`}
+                >
+                  <span className={`text-[12px] font-semibold leading-none ${isSel ? "text-ink-3" : "text-ink-4/50"}`}>
+                    {day}
+                  </span>
+                  <Lock className="mt-0.5 h-2.5 w-2.5 text-ink-4/70" strokeWidth={2.6} />
+                </div>
+              );
+            }
             return (
               <button
                 key={idx}
@@ -294,6 +326,9 @@ function OrderView({
           </span>
           <span className="flex items-center gap-1">
             <span className="inline-block h-2.5 w-2.5 rounded-[3px] bg-canvas-2" /> 신청 불가(메뉴 없음)
+          </span>
+          <span className="flex items-center gap-1">
+            <Lock className="h-3 w-3 text-ink-4/70" /> 신청 마감
           </span>
         </div>
       </section>

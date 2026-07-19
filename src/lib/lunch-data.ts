@@ -1,6 +1,7 @@
 import { validateMagicLink } from "@/lib/student-auth";
 import { prisma } from "@/lib/prisma";
 import { todayKST } from "@/lib/utils";
+import { isLunchLocked } from "@/lib/lunch-lock";
 
 function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -25,7 +26,7 @@ export type LunchChangeThread = {
 
 export type LunchFormProps = {
   token: string;
-  menus: { id: string; date: string; name: string; price: number }[];
+  menus: { id: string; date: string; name: string; price: number; locked: boolean }[];
   pendingMenuIds: string[];
   pendingMemo: string;
   paidMenuIds: string[];
@@ -51,6 +52,7 @@ export async function loadLunchFormData(token: string): Promise<LunchFormData | 
   if (!session) return null;
   const studentId = session.student.id;
   const today = todayKST();
+  const now = new Date();
 
   const [menus, orders, changeRequests, setting] = await Promise.all([
     prisma.lunchMenu.findMany({
@@ -91,7 +93,13 @@ export async function loadLunchFormData(token: string): Promise<LunchFormData | 
     studentName: session.student.name,
     form: {
       token,
-      menus: menus.map((m) => ({ id: m.id, date: ymd(m.date), name: m.name, price: m.price })),
+      menus: menus.map((m) => ({
+        id: m.id,
+        date: ymd(m.date),
+        name: m.name,
+        price: m.price,
+        locked: isLunchLocked(m.date, now),
+      })),
       pendingMenuIds: pendingOrder ? pendingOrder.items.map((i) => i.menuId) : [],
       pendingMemo: pendingOrder?.memo ?? "",
       paidMenuIds: [...paidMenuIds],
