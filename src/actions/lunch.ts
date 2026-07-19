@@ -7,6 +7,7 @@ import { requireStaff, requireFullAccess } from "@/lib/roles";
 import { validateMagicLink, issueMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
 import { todayKST } from "@/lib/utils";
+import { isLunchLocked } from "@/lib/lunch-lock";
 
 // ─────────────────────────── 학부모 (매직링크 토큰 인증) ───────────────────────────
 
@@ -27,6 +28,7 @@ export async function submitLunchOrder(input: {
   const memo = input.memo?.trim() || null;
 
   const today = todayKST();
+  const now = new Date();
   const menus = await prisma.lunchMenu.findMany({
     where: { id: { in: input.menuIds }, closed: false, date: { gte: today } },
   });
@@ -37,14 +39,23 @@ export async function submitLunchOrder(input: {
     select: { menuId: true },
   });
   const paidMenuIds = new Set(paidItems.map((i) => i.menuId));
-  const finalMenus = menus.filter((m) => !paidMenuIds.has(m.id));
 
   const pending = await prisma.lunchOrder.findFirst({
     where: { studentId, paidStatus: "PENDING" },
     orderBy: { createdAt: "desc" },
+    include: { items: { include: { menu: { select: { date: true } } } } },
   });
 
-  if (finalMenus.length === 0) {
+  // 이미 신청된 항목 중 마감(잠긴)된 주의 날짜는 변경 불가 → 그대로 보존
+  const lockedKeep = (pending?.items ?? []).filter((i) => isLunchLocked(i.menu.date, now));
+  const lockedMenuIds = new Set(lockedKeep.map((i) => i.menuId));
+
+  // 새로 선택한 메뉴는 미결제·마감 전 날짜만 반영 (결제완료·보존항목과 중복 제거)
+  const finalMenus = menus.filter(
+    (m) => !paidMenuIds.has(m.id) && !lockedMenuIds.has(m.id) && !isLunchLocked(m.date, now)
+  );
+
+  if (finalMenus.length === 0 && lockedKeep.length === 0) {
     if (pending) await prisma.lunchOrder.delete({ where: { id: pending.id } });
     revalidatePath("/lunch");
     return { count: 0 };
@@ -58,14 +69,17 @@ export async function submitLunchOrder(input: {
       })
     : await prisma.lunchOrder.create({ data: { studentId, memo } });
 
-  // 미결제 주문이라 항목 전체 교체가 안전
+  // 미결제 주문이라 항목 전체 교체가 안전 (단, 잠긴 항목은 스냅샷 가격으로 재생성해 보존)
   await prisma.lunchOrderItem.deleteMany({ where: { orderId: order.id } });
   await prisma.lunchOrderItem.createMany({
-    data: finalMenus.map((m) => ({ orderId: order.id, menuId: m.id, price: m.price })),
+    data: [
+      ...lockedKeep.map((i) => ({ orderId: order.id, menuId: i.menuId, price: i.price })),
+      ...finalMenus.map((m) => ({ orderId: order.id, menuId: m.id, price: m.price })),
+    ],
   });
 
   revalidatePath("/lunch");
-  return { count: finalMenus.length };
+  return { count: finalMenus.length + lockedKeep.length };
 }
 
 /** 학부모가 "입금했어요" 알림 — 미결제 주문에 표식. 관리자는 이후 실제 확인. */
