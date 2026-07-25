@@ -9,8 +9,11 @@ import {
   Eye, ListChecks, Users, User, CheckSquare, Square, Plus,
   ChevronDown, ChevronRight, Sparkles,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, DAY_NAMES, todayKST } from "@/lib/utils";
 import { deleteHandover, markHandoverRead, togglePin, toggleHandoverTask } from "@/actions/handover";
+import { toggleRoutineCompletion } from "@/actions/checklist-templates";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TodoForm } from "@/components/todos/todo-manager";
 import Link from "next/link";
 import { DateRangeToolbar } from "@/components/ui/date-range-toolbar";
 
@@ -20,6 +23,15 @@ type HandoverChecklist = { id: string; templateId: string | null; title: string;
 type HandoverRead = { userId: string; userName: string; readAt: Date };
 type Handover = { id: string; date: Date; content: string; priority: "URGENT" | "NORMAL"; category: string | null; isPinned: boolean; authorId: string; authorName: string; recipientId: string | null; recipientName: string | null; reads: HandoverRead[]; tasks: HandoverTask[]; checklist: HandoverChecklist[]; monthlyNotesSnapshot: object | null; createdAt: Date };
 type Staff = { id: string; name: string; role: string };
+type RoutineTemplate = { id: string; title: string; shiftType: string; days: string; isActive: boolean; order: number };
+
+const SHIFT_LABEL: Record<string, string> = { OPEN: "오픈", CLOSE: "마감", ALL: "공통" };
+const SHIFT_COLOR: Record<string, string> = {
+  OPEN: "bg-blue-50 text-blue-700 border-blue-200",
+  CLOSE: "bg-purple-50 text-purple-700 border-purple-200",
+  ALL: "bg-gray-50 text-gray-600 border-gray-200",
+};
+const SHIFT_ORDER = ["ALL", "OPEN", "CLOSE"];
 
 interface Props {
   initialHandovers: Handover[];
@@ -27,6 +39,11 @@ interface Props {
   currentUserId: string;
   currentUserName: string;
   currentUserRole: string;
+  templates: RoutineTemplate[];
+  /** 오늘 완료된 루틴 templateId 목록 */
+  completedToday: string[];
+  /** 오늘 날짜 ISO(YYYY-MM-DD, KST) */
+  todayIso: string;
   /** 서버 조회 범위 (URL ?from=&to=). 기본 최근 60일~오늘+14일 */
   initialDateFrom: string;
   initialDateTo: string;
@@ -232,11 +249,39 @@ function DeleteConfirm({ onConfirm, onCancel, isPending }: { onConfirm: () => vo
 }
 
 // ── Main board ────────────────────────────────────────────────────────────────
-export function HandoverBoard({ initialHandovers, staffList, currentUserId, currentUserName, currentUserRole, initialDateFrom, initialDateTo }: Props) {
+export function HandoverBoard({ initialHandovers, staffList, currentUserId, currentUserName, currentUserRole, templates, completedToday, todayIso, initialDateFrom, initialDateTo }: Props) {
   const [handovers, setHandovers] = useState<Handover[]>(initialHandovers);
   // initialHandovers가 바뀌면 (searchParams 변경 시) 상태 동기화
   useEffect(() => { setHandovers(initialHandovers); }, [initialHandovers]);
   const [isPending, startTransition] = useTransition();
+
+  // 오늘의 루틴 완료 상태 (templateId Set)
+  const [completed, setCompleted] = useState<Set<string>>(() => new Set(completedToday));
+  useEffect(() => { setCompleted(new Set(completedToday)); }, [completedToday]);
+  // 할 일 추가 모달
+  const [todoModalOpen, setTodoModalOpen] = useState(false);
+
+  function toggleRoutine(templateId: string) {
+    // 낙관적 토글
+    setCompleted((prev) => {
+      const next = new Set(prev);
+      if (next.has(templateId)) next.delete(templateId); else next.add(templateId);
+      return next;
+    });
+    startTransition(async () => {
+      try {
+        await toggleRoutineCompletion(templateId, todayIso);
+      } catch {
+        toast.error("처리 실패");
+        setCompleted((prev) => {
+          const next = new Set(prev);
+          if (next.has(templateId)) next.delete(templateId); else next.add(templateId);
+          return next;
+        });
+      }
+    });
+  }
+
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // 각 date 그룹 접힘 상태 (기본: 오늘만 열고 나머지는 접힘)
@@ -467,17 +512,83 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
             );
           })()}
 
+          {/* 오늘의 루틴 */}
+          {(() => {
+            const todayDow = todayKST().getUTCDay();
+            const todays = templates
+              .filter((t) => t.isActive && (t.days === "" || t.days.split(",").map(Number).includes(todayDow)))
+              .sort((a, b) => SHIFT_ORDER.indexOf(a.shiftType) - SHIFT_ORDER.indexOf(b.shiftType));
+            return (
+              <div className="rounded-xl border bg-card overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
+                  <ListChecks className="h-3.5 w-3.5 text-amber-500" />
+                  <span className="text-sm font-semibold flex-1">오늘의 루틴</span>
+                  <span className="text-[11px] text-muted-foreground">{DAY_NAMES[todayDow]}요일</span>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">{todays.length}개</span>
+                </div>
+                {todays.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-6">오늘 해당하는 루틴이 없습니다</p>
+                ) : (
+                  <div className="divide-y max-h-72 overflow-y-auto">
+                    {todays.map((t) => {
+                      const done = completed.has(t.id);
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => toggleRoutine(t.id)}
+                          disabled={isPending}
+                          className={cn("w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-muted/20 transition-colors", done && "bg-green-50/40")}
+                        >
+                          {done
+                            ? <CheckSquare className="h-4 w-4 text-green-500 shrink-0" />
+                            : <Square className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                          }
+                          <span className={cn("text-[10px] border rounded px-1.5 py-0.5 shrink-0 w-9 text-center", SHIFT_COLOR[t.shiftType] ?? "bg-gray-50")}>
+                            {SHIFT_LABEL[t.shiftType] ?? t.shiftType}
+                          </span>
+                          <span className={cn("text-sm flex-1 min-w-0", done && "line-through text-muted-foreground")}>{t.title}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* 할 일 추가 */}
+          <div className="rounded-xl border bg-card p-3 flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setTodoModalOpen(true)} className="flex-1 h-8 text-xs gap-1.5">
+              <Plus className="h-3.5 w-3.5" />할 일 추가
+            </Button>
+            <Link href="/todos" className="text-[11px] text-primary hover:underline shrink-0">투두 →</Link>
+          </div>
+
           <div className="rounded-xl border bg-card p-4 flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold">루틴 관리</p>
-              <p className="text-xs text-muted-foreground mt-0.5">투두리스트 페이지에서 관리할 수 있습니다</p>
+              <p className="text-xs text-muted-foreground mt-0.5">투두리스트 · 루틴 탭에서 요일별로 관리할 수 있습니다</p>
             </div>
-            <Link href="/todos" className="text-xs text-primary hover:underline shrink-0">
+            <Link href="/todos?tab=routine" className="text-xs text-primary hover:underline shrink-0">
               바로가기 →
             </Link>
           </div>
         </div>
       </div>
+
+      <Dialog open={todoModalOpen} onOpenChange={setTodoModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>할 일 추가</DialogTitle>
+          </DialogHeader>
+          <TodoForm
+            staffList={staffList}
+            onDone={() => setTodoModalOpen(false)}
+            onCancel={() => setTodoModalOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

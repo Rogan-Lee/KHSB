@@ -1,6 +1,7 @@
 export const revalidate = 30;
 
 import { getHandoversBetween, getStaffList } from "@/actions/handover";
+import { getChecklistTemplates, getRoutineCompletions } from "@/actions/checklist-templates";
 import { getMonthlyNotes } from "@/actions/monthly-notes";
 import { prisma } from "@/lib/prisma";
 import { HandoverBoard } from "@/components/handover/handover-board";
@@ -8,6 +9,7 @@ import { MonthlyNotesPanel } from "@/components/handover/monthly-notes-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { auth } from "@/lib/auth";
 import { resolveDateRange, toIsoDate } from "@/lib/date-range";
+import { todayKST } from "@/lib/utils";
 
 export default async function HandoverPage({
   searchParams,
@@ -40,9 +42,13 @@ export default async function HandoverPage({
     sp.to ?? defaultTo,
   );
 
-  const [handovers, staffList, monthlyNotes, students] = await Promise.all([
+  const todayIso = toIsoDate(todayKST());
+
+  const [handovers, staffList, templates, completedToday, monthlyNotes, students] = await Promise.all([
     getHandoversBetween(initialFrom, initialTo),
     getStaffList(),
+    getChecklistTemplates(),
+    getRoutineCompletions(todayIso),
     getMonthlyNotes(year, month),
     prisma.student.findMany({
       where: { status: "ACTIVE" },
@@ -70,6 +76,9 @@ export default async function HandoverPage({
           currentUserId={session?.user?.id ?? ""}
           currentUserName={session?.user?.name ?? ""}
           currentUserRole={session?.user?.role ?? ""}
+          templates={templates}
+          completedToday={completedToday}
+          todayIso={todayIso}
           initialDateFrom={initialFrom}
           initialDateTo={initialTo}
         />
