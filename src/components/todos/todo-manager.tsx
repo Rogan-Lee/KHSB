@@ -1,23 +1,21 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useDraft } from "@/hooks/use-draft";
 import {
   Plus, CheckSquare, Square, Pencil, Trash2, AlertTriangle,
-  Calendar, User, ChevronDown, ChevronUp, X, Check, Settings2, History,
+  Calendar, User, ChevronDown, ChevronUp, X, Check, History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
-import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
-} from "@/components/ui/sheet";
 import { createTodo, updateTodo, deleteTodo, toggleTodo, getTodoVersions } from "@/actions/todos";
 import { ChecklistManager } from "@/components/handover/checklist-manager";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type ChecklistTemplate = { id: string; title: string; shiftType: string; order: number; isActive: boolean };
+type ChecklistTemplate = { id: string; title: string; shiftType: string; days: string; order: number; isActive: boolean };
 type Todo = {
   id: string;
   title: string;
@@ -107,7 +105,7 @@ const TARGET_ROLE_LABEL: Record<"ALL" | "STAFF" | "MENTOR", string> = {
   MENTOR: "멘토",
 };
 
-function TodoForm({
+export function TodoForm({
   initial, initialCategory, staffList, onDone, onCancel,
 }: {
   initial?: Todo;
@@ -381,7 +379,6 @@ function TodoCard({
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 const ROLE_FILTER_STORAGE_KEY = "todo-role-filter";
-const ROUTINE_CATEGORY = "루틴";
 type RoleFilter = "ALL" | "STAFF" | "MENTOR";
 
 function isRoleFilter(v: string | null): v is RoleFilter {
@@ -392,7 +389,12 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
   const [todos, setTodos] = useState<Todo[]>(initialTodos);
   const [isPending, startTransition] = useTransition();
   const [showForm, setShowForm] = useState(false);
-  // 새 폼의 카테고리 prefill ("루틴 추가" → "루틴", 일반 "새 할 일" → undefined)
+  // 상단 탭: 투두리스트 / 루틴 (?tab=routine 딥링크 지원)
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<"todos" | "routine">(
+    searchParams.get("tab") === "routine" ? "routine" : "todos"
+  );
+  // 새 폼의 카테고리 prefill (일반 "새 할 일" → undefined)
   const [formCategory, setFormCategory] = useState<string | undefined>(undefined);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -420,13 +422,8 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
   }
   const visibleTodos = todos.filter(matchesRole);
 
-  // 루틴 섹션 분리 — category === "루틴" 정확 매칭 (운영 컨벤션)
-  const routineTodos = visibleTodos.filter((t) => t.category === ROUTINE_CATEGORY);
-  const regularTodos = visibleTodos.filter((t) => t.category !== ROUTINE_CATEGORY);
-
-  const pending = regularTodos.filter((t) => !t.isCompleted);
-  const completed = regularTodos.filter((t) => t.isCompleted);
-  // KPI 는 루틴 포함 전체 가시 todos 기준 (운영자 시야).
+  const pending = visibleTodos.filter((t) => !t.isCompleted);
+  const completed = visibleTodos.filter((t) => t.isCompleted);
   const overdue = visibleTodos.filter((t) => !t.isCompleted && isOverdue(t.dueDate, false));
 
   function handleToggle(id: string) {
@@ -464,12 +461,6 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
   function openNewForm() {
     setEditingTodo(null);
     setFormCategory(undefined);
-    setShowForm(true);
-  }
-  // 루틴 추가 (category="루틴" prefill)
-  function openRoutineForm() {
-    setEditingTodo(null);
-    setFormCategory(ROUTINE_CATEGORY);
     setShowForm(true);
   }
   function closeForm() {
@@ -517,73 +508,32 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-4 items-start">
-      {/* ── 좌: 루틴 사이드바 ─────────────────────────────────────────── */}
-      <aside className="lg:sticky lg:top-4 space-y-3">
-        <section
-          aria-label="루틴 할 일"
-          className="rounded-xl border bg-amber-50/40 border-amber-200/70 overflow-hidden"
-        >
-          {/* 헤더 "루틴 (N)" */}
-          <div className="flex items-center gap-1.5 px-3 py-2.5 border-b border-amber-200/60">
-            <span className="text-sm font-semibold text-amber-900">루틴</span>
-            <span className="text-[11px] font-normal text-amber-700/80">{routineTodos.length}개</span>
-          </div>
-
-          {/* 루틴 리스트 / 빈 상태 */}
-          <div className="p-2 space-y-2">
-            {routineTodos.length === 0 ? (
-              <div className="text-center py-6 px-2 text-amber-800/70">
-                <p className="text-xs">등록된 루틴이 없습니다</p>
-              </div>
-            ) : (
-              routineTodos.map(renderTodoRow)
-            )}
-
-            {/* + 루틴 추가 */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={openRoutineForm}
-              className="w-full h-8 text-xs gap-1 border-amber-300/70 bg-amber-50/60 text-amber-900 hover:bg-amber-100/60"
-            >
-              <Plus className="h-3.5 w-3.5" />루틴 추가
-            </Button>
-          </div>
-
-          {/* 루틴 관리 (관리자 전용 — Sheet) */}
-          {initialTemplates !== undefined && (
-            <div className="border-t border-amber-200/60 p-2">
-              {isAdmin ? (
-                <Sheet>
-                  <SheetTrigger asChild>
-                    <button
-                      type="button"
-                      className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium text-amber-900/80 hover:bg-amber-100/60 transition-colors"
-                    >
-                      <Settings2 className="h-3.5 w-3.5" />루틴 관리
-                    </button>
-                  </SheetTrigger>
-                  <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
-                    <SheetHeader>
-                      <SheetTitle>루틴 관리</SheetTitle>
-                    </SheetHeader>
-                    <div className="mt-4">
-                      <ChecklistManager initialTemplates={initialTemplates} />
-                    </div>
-                  </SheetContent>
-                </Sheet>
-              ) : (
-                <p className="text-[11px] text-amber-800/60 text-center py-1">
-                  루틴 관리는 관리자·총괄멘토만 가능합니다.
-                </p>
+    <div className="space-y-4">
+      {/* ── 상단 탭 ── */}
+      <div className="flex gap-1 border-b" role="tablist" aria-label="투두 / 루틴">
+        {(["todos", "routine"] as const).map((key) => {
+          const label = key === "todos" ? "투두리스트" : "루틴";
+          const active = tab === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setTab(key)}
+              className={cn(
+                "px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors",
+                active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
               )}
-            </div>
-          )}
-        </section>
-      </aside>
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
 
-      {/* ── 우: 할 일 메인 ────────────────────────────────────────────── */}
+      {/* ── 투두리스트 탭 ── */}
+      {tab === "todos" && (
       <div className="space-y-4 min-w-0">
         {/* 헤더 + 새 할 일 */}
         <div className="flex items-center justify-between">
@@ -681,6 +631,18 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
           </div>
         )}
       </div>
+      )}
+
+      {/* ── 루틴 탭 ── */}
+      {tab === "routine" && (
+        <div className="min-w-0">
+          {initialTemplates !== undefined ? (
+            <ChecklistManager initialTemplates={initialTemplates} editable={isAdmin} />
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-10">루틴 데이터를 불러올 수 없습니다.</p>
+          )}
+        </div>
+      )}
 
       {historyTodo && (
         <VersionsDialog todo={historyTodo} onClose={() => setHistoryTodo(null)} />

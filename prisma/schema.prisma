@@ -1527,10 +1527,24 @@ model ChecklistTemplate {
   id        String    @id @default(cuid())
   title     String
   shiftType ShiftType @default(ALL)
+  days      String    @default("") // CSV of DOW ints "0,1,2" (0=일..6=토). 빈 문자열 = 매일
   order     Int       @default(0)
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+}
+
+// 루틴 일별 완료 기록 — (templateId, date) 당 1행. 매일 리셋(그날 행 없으면 미완료).
+model RoutineCompletion {
+  id            String   @id @default(cuid())
+  templateId    String
+  date          DateTime @db.Date
+  checkedById   String?
+  checkedByName String?
+  checkedAt     DateTime @default(now())
+
+  @@unique([templateId, date])
+  @@index([date])
 }
 
 model HandoverTask {
