@@ -19,7 +19,6 @@ import {
   Send,
   Lock,
 } from "lucide-react";
-import { shiftMonth, formatYearMonth } from "@/lib/online/month";
 import {
   submitLunchOrder,
   claimLunchDeposit,
@@ -28,7 +27,6 @@ import {
 import type { LunchFormProps, LunchOrderState, LunchChangeThread } from "@/lib/lunch-data";
 
 const WON = (n: number) => n.toLocaleString("ko-KR") + "원";
-const DOW = ["일", "월", "화", "수", "목", "금", "토"];
 
 function dateLabel(ymd: string): string {
   const d = new Date(ymd + "T00:00:00+09:00");
@@ -52,6 +50,20 @@ function dateTimeLabel(iso: string): string {
     hour12: false,
   });
 }
+// 해당 날짜가 속한 주의 월요일(YYYY-MM-DD). @db.Date(UTC자정)라 UTC 메서드로 KST 달력요일을 읽는다.
+function weekStartOf(ymd: string): string {
+  const d = new Date(ymd + "T00:00:00Z");
+  const mondayOffset = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - mondayOffset);
+  return d.toISOString().slice(0, 10);
+}
+function weekRangeLabel(monday: string): string {
+  const m = new Date(monday + "T00:00:00Z");
+  const s = new Date(monday + "T00:00:00Z");
+  s.setUTCDate(s.getUTCDate() + 6);
+  const f = (d: Date) => `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+  return `${f(m)}~${f(s)}`;
+}
 
 type View = "order" | "payment" | "confirmed";
 
@@ -70,7 +82,7 @@ export function LunchOrderForm(props: LunchFormProps) {
         </div>
         <p className="mt-2 text-[13px] leading-relaxed opacity-95">
           {view === "order"
-            ? "달력에서 먹을 날짜를 골라 신청해 주세요."
+            ? "주차를 선택해 먹을 날짜를 골라 신청해 주세요."
             : view === "payment"
               ? "아래 계좌로 입금 후 ‘입금했어요’를 눌러 주세요."
               : "신청이 확정되었습니다. 내역을 확인하세요."}
@@ -121,34 +133,58 @@ function OrderView({
   const [selected, setSelected] = useState<Set<string>>(() => new Set(pendingMenuIds));
   const [memo, setMemo] = useState(pendingMemo);
 
-  const byDate = useMemo(() => {
-    const m = new Map<string, (typeof menus)[number]>();
-    for (const menu of menus) m.set(menu.date, menu);
-    return m;
+  // 메뉴가 있는 주(월요일 기준) 목록 — 오름차순
+  const weeks = useMemo(() => {
+    const set = new Set(menus.map((m) => weekStartOf(m.date)));
+    return [...set].sort();
   }, [menus]);
 
-  const [viewYm, setViewYm] = useState(
-    () => menus[0]?.date.slice(0, 7) ?? new Date().toISOString().slice(0, 7)
-  );
+  // 주별 신청 가능 여부 (잠기지 않고 미결제 메뉴가 하나라도 있으면 열림)
+  const weekOpen = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const w of weeks) {
+      map.set(
+        w,
+        menus.some((m) => weekStartOf(m.date) === w && !m.locked && !paidSet.has(m.id))
+      );
+    }
+    return map;
+  }, [weeks, menus, paidSet]);
 
-  const selectableMenus = useMemo(
-    () => menus.filter((m) => !paidSet.has(m.id) && !lockedSet.has(m.id)),
-    [menus, paidSet, lockedSet]
-  );
-  const selectedLines = useMemo(
+  // 초기 주차 = 신청 가능한 첫 주, 없으면 첫 주
+  const [weekIdx, setWeekIdx] = useState(() => {
+    const i = weeks.findIndex((w) => weekOpen.get(w));
+    return i >= 0 ? i : 0;
+  });
+  const weekStart = weeks[weekIdx];
+
+  const weekMenus = useMemo(
     () =>
       menus
-        .filter((m) => selected.has(m.id))
+        .filter((m) => weekStartOf(m.date) === weekStart)
         .sort((a, b) => a.date.localeCompare(b.date)),
+    [menus, weekStart]
+  );
+  const weekLocked = weekMenus.length > 0 && weekMenus.every((m) => m.locked);
+  const weekSelectable = useMemo(
+    () => weekMenus.filter((m) => !paidSet.has(m.id) && !lockedSet.has(m.id)),
+    [weekMenus, paidSet, lockedSet]
+  );
+
+  const selectedLines = useMemo(
+    () => menus.filter((m) => selected.has(m.id)).sort((a, b) => a.date.localeCompare(b.date)),
     [menus, selected]
   );
   const total = selectedLines.reduce((s, m) => s + m.price, 0);
 
-  function bulk(filter: (dow: number) => boolean) {
+  function bulkAdd(filter: (dow: number) => boolean) {
+    setSelected((prev) => new Set([...prev, ...weekSelectable.filter((m) => filter(dowOf(m.date))).map((m) => m.id)]));
+  }
+  function clearWeek() {
     setSelected((prev) => {
-      // 이미 신청된 잠긴 날짜는 유지(변경 불가)
-      const keep = [...prev].filter((id) => lockedSet.has(id));
-      return new Set([...keep, ...selectableMenus.filter((m) => filter(dowOf(m.date))).map((m) => m.id)]);
+      const next = new Set(prev);
+      for (const m of weekSelectable) next.delete(m.id);
+      return next;
     });
   }
   function toggle(id: string) {
@@ -175,165 +211,159 @@ function OrderView({
     });
   }
 
-  // 달력 셀
-  const [y, mo] = viewYm.split("-").map(Number);
-  const firstDow = new Date(Date.UTC(y, mo - 1, 1)).getUTCDay();
-  const daysInMonth = new Date(Date.UTC(y, mo, 0)).getUTCDate();
-  const cells: (string | null)[] = [
-    ...Array(firstDow).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => `${viewYm}-${String(i + 1).padStart(2, "0")}`),
-  ];
+  if (weeks.length === 0) {
+    return (
+      <section className="rounded-[14px] border border-line bg-panel p-6 text-center text-[13px] text-ink-4">
+        아직 신청 가능한 도시락 메뉴가 없어요.
+      </section>
+    );
+  }
 
   return (
     <>
-      {/* 일괄 선택 */}
+      {/* 주차 선택 스트립 — 열린 주가 한눈에 (초록 점 = 신청 가능) */}
       <section className="rounded-[14px] border border-line bg-panel p-3">
-        <p className="mb-2 text-[11px] font-semibold text-ink-4">빠른 선택</p>
-        <div className="flex flex-wrap gap-1.5">
-          {[
-            { label: "전체", fn: () => bulk(() => true) },
-            { label: "주중(월~금)", fn: () => bulk((d) => d >= 1 && d <= 5) },
-            { label: "주말(토·일)", fn: () => bulk((d) => d === 0 || d === 6) },
-            {
-              label: "선택 해제",
-              fn: () => setSelected((prev) => new Set([...prev].filter((id) => lockedSet.has(id)))),
-            },
-          ].map((b) => (
-            <button
-              key={b.label}
-              onClick={b.fn}
-              className="rounded-full border border-line bg-canvas-2/50 px-3 py-1.5 text-[12px] font-medium text-ink-2 active:bg-canvas-2"
-            >
-              {b.label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* 달력 */}
-      <section className="rounded-[14px] border border-line bg-panel p-3">
-        <div className="mb-2 flex items-center justify-between">
-          <button
-            onClick={() => setViewYm(shiftMonth(viewYm, -1))}
-            className="rounded-lg p-1.5 text-ink-4 active:bg-canvas-2"
-            aria-label="이전 달"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <span className="flex items-center gap-1.5 text-[14px] font-bold text-ink">
-            <CalendarDays className="h-4 w-4 text-ink-4" />
-            {formatYearMonth(viewYm)}
-          </span>
-          <button
-            onClick={() => setViewYm(shiftMonth(viewYm, 1))}
-            className="rounded-lg p-1.5 text-ink-4 active:bg-canvas-2"
-            aria-label="다음 달"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="grid grid-cols-7 text-center text-[10px] font-medium text-ink-4">
-          {DOW.map((d, i) => (
-            <div key={d} className={`py-1 ${i === 0 ? "text-red-400" : i === 6 ? "text-blue-400" : ""}`}>
-              {d}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-1">
-          {cells.map((dateStr, idx) => {
-            if (!dateStr) return <div key={idx} className="aspect-square" />;
-            const menu = byDate.get(dateStr);
-            const day = Number(dateStr.slice(-2));
-            const dow = (firstDow + day - 1) % 7;
-
-            // 메뉴 없는 날 = 신청 불가 (회색 비활성)
-            if (!menu) {
-              return (
-                <div
-                  key={idx}
-                  aria-disabled
-                  className="flex aspect-square flex-col items-center justify-center rounded-[10px] bg-canvas-2/30 text-center"
-                >
-                  <span className="text-[12px] font-medium leading-none text-ink-4/40 line-through decoration-ink-4/30">
-                    {day}
-                  </span>
-                </div>
-              );
-            }
-
-            const isPaid = paidSet.has(menu.id);
-            const isLocked = lockedSet.has(menu.id);
-            const isSel = selected.has(menu.id) || isPaid;
-            // 마감된 날: 이미 신청분이면 잠긴 채로 표시, 아니면 신청 불가(비활성)
-            if (isLocked) {
-              return (
-                <div
-                  key={idx}
-                  aria-disabled
-                  title="신청 마감된 날짜예요"
-                  className={`flex aspect-square flex-col items-center justify-center rounded-[10px] border p-0.5 text-center ${
-                    isSel ? "border-ink-4/30 bg-canvas-2" : "border-transparent bg-canvas-2/40"
-                  }`}
-                >
-                  <span className={`text-[12px] font-semibold leading-none ${isSel ? "text-ink-3" : "text-ink-4/50"}`}>
-                    {day}
-                  </span>
-                  <Lock className="mt-0.5 h-2.5 w-2.5 text-ink-4/70" strokeWidth={2.6} />
-                </div>
-              );
-            }
+        <p className="mb-2 text-[11px] font-semibold text-ink-4">신청 주차</p>
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {weeks.map((w, i) => {
+            const open = weekOpen.get(w);
+            const active = i === weekIdx;
             return (
               <button
-                key={idx}
-                disabled={isPaid}
-                onClick={() => toggle(menu.id)}
-                className={`flex aspect-square flex-col items-center justify-center rounded-[10px] border p-0.5 text-center transition-colors ${
-                  isPaid
-                    ? "border-ok/40 bg-ok-soft/50"
-                    : isSel
-                      ? "border-brand bg-brand text-white"
-                      : "border-brand/30 bg-brand/5 active:bg-brand/10"
+                key={w}
+                onClick={() => setWeekIdx(i)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                  active ? "border-brand bg-brand text-white" : "border-line bg-canvas-2/40 text-ink-2"
                 }`}
               >
                 <span
-                  className={`text-[12px] font-semibold leading-none ${
-                    isSel ? "text-white" : dow === 0 ? "text-red-400" : dow === 6 ? "text-blue-400" : "text-ink"
+                  className={`inline-block h-1.5 w-1.5 rounded-full ${
+                    active ? "bg-white" : open ? "bg-ok" : "bg-ink-4/40"
                   }`}
-                >
-                  {day}
-                </span>
-                <span
-                  className={`mt-0.5 text-[8.5px] leading-tight tabular-nums ${
-                    isSel ? "text-white/90" : "text-brand"
-                  }`}
-                >
-                  {(menu.price / 1000).toLocaleString("ko-KR")}천
-                </span>
-                {isPaid && <Check className="h-2.5 w-2.5 text-ok-ink" strokeWidth={3} />}
+                />
+                {weekRangeLabel(w)}
               </button>
             );
           })}
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-ink-4">
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-[3px] border border-brand/40 bg-brand/10" /> 주문 가능
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-[3px] bg-brand" /> 선택됨
-          </span>
-          <span className="flex items-center gap-1 text-ok-ink">
-            <Check className="h-3 w-3" /> 결제완료
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-[3px] bg-canvas-2" /> 신청 불가(메뉴 없음)
-          </span>
-          <span className="flex items-center gap-1">
-            <Lock className="h-3 w-3 text-ink-4/70" /> 신청 마감
-          </span>
-        </div>
       </section>
 
-      {/* 선택 요약 (메뉴 가독성) */}
+      {/* 현재 주 헤더 + 상태 + 요일별 카드 */}
+      <section className="rounded-[14px] border border-line bg-panel p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <button
+            onClick={() => setWeekIdx((i) => Math.max(0, i - 1))}
+            disabled={weekIdx === 0}
+            className="rounded-lg p-1.5 text-ink-4 active:bg-canvas-2 disabled:opacity-30"
+            aria-label="이전 주"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <div className="text-center">
+            <div className="flex items-center justify-center gap-1.5 text-[14px] font-bold text-ink">
+              <CalendarDays className="h-4 w-4 text-ink-4" />
+              {weekRangeLabel(weekStart)}
+            </div>
+            <span
+              className={`mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                weekLocked ? "bg-canvas-2 text-ink-4" : "bg-ok-soft/60 text-ok-ink"
+              }`}
+            >
+              {weekLocked ? (
+                <>
+                  <Lock className="h-3 w-3" /> 신청 마감
+                </>
+              ) : (
+                "신청 가능"
+              )}
+            </span>
+          </div>
+          <button
+            onClick={() => setWeekIdx((i) => Math.min(weeks.length - 1, i + 1))}
+            disabled={weekIdx === weeks.length - 1}
+            className="rounded-lg p-1.5 text-ink-4 active:bg-canvas-2 disabled:opacity-30"
+            aria-label="다음 주"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* 이번 주 빠른 선택 */}
+        {!weekLocked && weekSelectable.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {[
+              { label: "이번 주 전체", fn: () => bulkAdd(() => true) },
+              { label: "주중", fn: () => bulkAdd((d) => d >= 1 && d <= 5) },
+              { label: "주말", fn: () => bulkAdd((d) => d === 0 || d === 6) },
+              { label: "해제", fn: clearWeek },
+            ].map((b) => (
+              <button
+                key={b.label}
+                onClick={b.fn}
+                className="rounded-full border border-line bg-canvas-2/50 px-3 py-1.5 text-[12px] font-medium text-ink-2 active:bg-canvas-2"
+              >
+                {b.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 요일별 큰 카드 리스트 */}
+        <ul className="space-y-1.5">
+          {weekMenus.map((menu) => {
+            const isPaid = paidSet.has(menu.id);
+            const isLocked = lockedSet.has(menu.id);
+            const isSel = selected.has(menu.id) || isPaid;
+            const disabled = isPaid || isLocked;
+            const onBrand = isSel && !isPaid;
+            return (
+              <li key={menu.id}>
+                <button
+                  disabled={disabled}
+                  onClick={() => toggle(menu.id)}
+                  className={`flex w-full items-center gap-3 rounded-[12px] border p-3 text-left transition-colors ${
+                    isPaid
+                      ? "border-ok/40 bg-ok-soft/40"
+                      : isLocked
+                        ? "border-line bg-canvas-2/40"
+                        : isSel
+                          ? "border-brand bg-brand text-white"
+                          : "border-brand/30 bg-brand/5 active:bg-brand/10"
+                  }`}
+                >
+                  <span
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
+                      onBrand
+                        ? "border-white bg-white/20"
+                        : isPaid
+                          ? "border-ok/50 bg-ok/10"
+                          : "border-brand/40"
+                    }`}
+                  >
+                    {isSel && <Check className={`h-3.5 w-3.5 ${isPaid ? "text-ok-ink" : "text-white"}`} strokeWidth={3} />}
+                    {isLocked && !isSel && <Lock className="h-3 w-3 text-ink-4/60" />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-[14px] font-semibold ${onBrand ? "text-white" : "text-ink"}`}>
+                      {dateLabel(menu.date)}
+                    </p>
+                    <p className={`truncate text-[12px] ${onBrand ? "text-white/85" : "text-ink-3"}`}>
+                      {menu.name}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 text-[13px] font-semibold tabular-nums ${onBrand ? "text-white" : "text-ink-2"}`}>
+                    {WON(menu.price)}
+                  </span>
+                  {isPaid && <span className="shrink-0 text-[10px] font-bold text-ok-ink">결제완료</span>}
+                  {isLocked && !isPaid && <span className="shrink-0 text-[10px] font-medium text-ink-4">마감</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      {/* 선택 요약 (전체 주 통합) */}
       {selectedLines.length > 0 && (
         <section className="rounded-[14px] border border-brand/30 bg-panel p-4">
           <p className="mb-2 text-[12px] font-semibold text-ink-2">
@@ -497,9 +527,9 @@ function PaymentView({
       )}
       <button
         onClick={onEdit}
-        className="mx-auto flex items-center gap-1 text-[12.5px] font-medium text-ink-4 active:text-ink-2"
+        className="flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-brand/40 bg-brand/5 px-4 py-3 text-[14px] font-semibold text-brand active:bg-brand/10"
       >
-        <Pencil className="h-3.5 w-3.5" /> 신청 내용 수정
+        <Pencil className="h-4 w-4" /> 신청 내용 수정하기
       </button>
     </>
   );

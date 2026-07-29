@@ -212,6 +212,46 @@ export async function revertPayment(orderId: string) {
   revalidatePath("/lunch");
 }
 
+/**
+ * 직원이 특정 주문의 신청 날짜(메뉴) 목록을 직접 편집.
+ * - 마감/결제 여부와 무관하게 관리자 재량으로 교체 (학부모 대신 수정)
+ * - 기존 항목은 가격 스냅샷 보존, 신규 항목은 현재 메뉴 가격으로 추가
+ * - 선택이 비면 주문 전체 삭제(취소)
+ */
+export async function staffUpdateLunchOrderItems(orderId: string, menuIds: string[]) {
+  const s = await auth();
+  requireStaff(s?.user?.role);
+
+  const order = await prisma.lunchOrder.findUnique({
+    where: { id: orderId },
+    include: { items: true },
+  });
+  if (!order) throw new Error("주문을 찾을 수 없습니다");
+
+  const menus = await prisma.lunchMenu.findMany({ where: { id: { in: menuIds } } });
+  const menuById = new Map(menus.map((m) => [m.id, m]));
+  const priceByExisting = new Map(order.items.map((i) => [i.menuId, i.price]));
+  const finalIds = menuIds.filter((id) => menuById.has(id));
+
+  if (finalIds.length === 0) {
+    await prisma.lunchOrder.delete({ where: { id: orderId } });
+    revalidatePath("/lunch");
+    return { count: 0 };
+  }
+
+  await prisma.lunchOrderItem.deleteMany({ where: { orderId } });
+  await prisma.lunchOrderItem.createMany({
+    data: finalIds.map((id) => ({
+      orderId,
+      menuId: id,
+      price: priceByExisting.get(id) ?? menuById.get(id)!.price,
+    })),
+  });
+
+  revalidatePath("/lunch");
+  return { count: finalIds.length };
+}
+
 /** 변경 요청에 대한 운영자 답변(= 반영 내용). 학부모가 확인 가능. */
 export async function replyLunchChangeRequest(id: string, reply: string) {
   const s = await auth();

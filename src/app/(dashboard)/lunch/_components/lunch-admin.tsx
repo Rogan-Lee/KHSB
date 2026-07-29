@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Send,
   LinkIcon,
+  Pencil,
 } from "lucide-react";
 import { shiftMonth, formatYearMonth } from "@/lib/online/month";
 import { useStickyState } from "@/hooks/use-sticky-state";
@@ -29,6 +30,7 @@ import {
   updateLunchSetting,
   issueLunchParentLinks,
   replyLunchChangeRequest,
+  staffUpdateLunchOrderItems,
 } from "@/actions/lunch";
 
 type Menu = {
@@ -178,7 +180,7 @@ export function LunchAdmin({
       </div>
 
       {tab === "menu" && <CalendarMenuTab ym={ym} menus={menus} orders={orders} />}
-      {tab === "orders" && <OrdersTab orders={orders} />}
+      {tab === "orders" && <OrdersTab orders={orders} menus={menus} />}
       {tab === "links" && (
         <LinksTab students={students} canIssue={canIssueLinks} orders={orders} />
       )}
@@ -481,11 +483,43 @@ function DayEditor({
 
 // ─────────────────────────── 신청 · 입금 ───────────────────────────
 
-function OrdersTab({ orders }: { orders: Order[] }) {
+function OrdersTab({ orders, menus }: { orders: Order[]; menus: Menu[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [onlyUnpaid, setOnlyUnpaid] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editSel, setEditSel] = useState<Set<string>>(new Set());
+  const [editBusy, startEditTransition] = useTransition();
+
+  const sortedMenus = useMemo(
+    () => menus.slice().sort((a, b) => a.date.localeCompare(b.date)),
+    [menus]
+  );
+  function startEdit(o: Order) {
+    setEditingId(o.id);
+    setEditSel(new Set(o.items.map((it) => it.menuId)));
+  }
+  function toggleEditMenu(id: string) {
+    setEditSel((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
+  function saveEdit(orderId: string) {
+    startEditTransition(async () => {
+      try {
+        const res = await staffUpdateLunchOrderItems(orderId, [...editSel]);
+        toast.success(res.count === 0 ? "신청을 삭제했어요" : `${res.count}일로 수정했어요`);
+        setEditingId(null);
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "수정 실패");
+      }
+    });
+  }
 
   const rows = onlyUnpaid ? orders.filter((o) => o.paidStatus === "PENDING") : orders;
   const selectablePending = rows.filter((o) => o.paidStatus === "PENDING");
@@ -599,8 +633,10 @@ function OrdersTab({ orders }: { orders: Order[] }) {
         )}
         {rows.map((o) => {
           const paid = o.paidStatus === "PAID";
+          const editing = editingId === o.id;
           return (
-            <div key={o.id} className="flex items-start gap-3 px-3 py-2.5">
+            <div key={o.id}>
+            <div className="flex items-start gap-3 px-3 py-2.5">
               {!paid ? (
                 <input
                   type="checkbox"
@@ -652,6 +688,14 @@ function OrdersTab({ orders }: { orders: Order[] }) {
                     </button>
                   )}
                   <button
+                    onClick={() => (editing ? setEditingId(null) : startEdit(o))}
+                    disabled={pending}
+                    title="신청 내용 수정"
+                    className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground hover:text-brand"
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> {editing ? "닫기" : "수정"}
+                  </button>
+                  <button
                     onClick={() => remove(o)}
                     disabled={pending}
                     title="신청 삭제(취소)"
@@ -661,6 +705,48 @@ function OrdersTab({ orders }: { orders: Order[] }) {
                   </button>
                 </div>
               </div>
+            </div>
+            {editing && (
+              <div className="border-t border-line bg-muted/30 px-3 py-3">
+                <p className="mb-2 text-xs font-medium text-muted-foreground">
+                  신청 날짜 수정 — 포함할 날짜를 선택하세요
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {sortedMenus.map((m) => {
+                    const on = editSel.has(m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => toggleEditMenu(m.id)}
+                        title={m.closed ? "마감된 메뉴" : undefined}
+                        className={`rounded-md border px-2 py-1 text-xs transition-colors ${
+                          on
+                            ? "border-brand bg-brand text-white"
+                            : "border-line bg-background text-muted-foreground hover:bg-muted"
+                        } ${m.closed ? "opacity-60" : ""}`}
+                      >
+                        {dateLabel(m.date)} {m.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-2.5 flex items-center gap-3">
+                  <button
+                    onClick={() => saveEdit(o.id)}
+                    disabled={editBusy}
+                    className="inline-flex items-center gap-1 rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                  >
+                    <Check className="h-3.5 w-3.5" /> {editSel.size}일 저장
+                  </button>
+                  <button
+                    onClick={() => setEditingId(null)}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            )}
             </div>
           );
         })}
