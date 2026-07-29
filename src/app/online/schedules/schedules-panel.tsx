@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { CalendarClock, ChevronRight, MessageSquare, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { DeleteProposalButton } from "./delete-proposal-button";
 
 export type ProposalRow = {
@@ -43,9 +44,9 @@ const STATUS_FILTERS: { key: string; label: string }[] = [
 ];
 
 export function SchedulesPanel({ proposals }: { proposals: ProposalRow[] }) {
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<Sort>("recent");
-  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [query, setQuery] = useStickyState("online-schedules:query", "");
+  const [sort, setSort] = useStickyState<Sort>("online-schedules:sort", "recent");
+  const [statusFilter, setStatusFilter] = useStickyState("online-schedules:statusFilter", "ALL");
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { ALL: proposals.length };

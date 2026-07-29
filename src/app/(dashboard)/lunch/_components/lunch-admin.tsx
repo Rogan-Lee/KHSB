@@ -17,6 +17,7 @@ import {
   LinkIcon,
 } from "lucide-react";
 import { shiftMonth, formatYearMonth } from "@/lib/online/month";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import {
   createLunchMenu,
   updateLunchMenu,
@@ -135,7 +136,7 @@ export function LunchAdmin({
   bankInfo: string;
   guideText: string;
 }) {
-  const [tab, setTab] = useState<Tab>("menu");
+  const [tab, setTab] = useStickyState<Tab>("lunch-admin:tab", "menu");
   const pendingCount = orders.filter((o) => o.paidStatus === "PENDING").length;
   const openRequestCount = changeRequests.filter((c) => !c.reply).length;
 
