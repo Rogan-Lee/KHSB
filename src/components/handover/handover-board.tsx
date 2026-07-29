@@ -21,7 +21,7 @@ import { DateRangeToolbar } from "@/components/ui/date-range-toolbar";
 // ── Types ─────────────────────────────────────────────────────────────────────
 type HandoverTask = { id: string; title: string; content: string; assigneeId: string | null; assigneeName: string | null; order: number; isCompleted: boolean; completedAt: Date | null };
 type HandoverChecklist = { id: string; templateId: string | null; title: string; shiftType: string; isChecked: boolean; checkedAt: Date | null; checkedById: string | null; checkedByName: string | null; order: number };
-type HandoverRead = { userId: string; userName: string; readAt: Date };
+type HandoverRead = { userId: string; userName: string; readAt: Date; confirmedAt: Date | null };
 type Handover = { id: string; date: Date; content: string; priority: "URGENT" | "NORMAL"; category: string | null; isPinned: boolean; authorId: string; authorName: string; recipientId: string | null; recipientName: string | null; reads: HandoverRead[]; tasks: HandoverTask[]; checklist: HandoverChecklist[]; monthlyNotesSnapshot: object | null; createdAt: Date };
 type Staff = { id: string; name: string; role: string };
 type RoutineTemplate = { id: string; title: string; shiftType: string; days: string; isActive: boolean; order: number };
@@ -107,7 +107,9 @@ function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRe
   const [expanded, setExpanded] = useState(defaultExpanded);
   // 짧은 한 줄 메모는 굳이 더보기 버튼을 달지 않는다
   const isLong = h.content.length > 160 || h.content.includes("\n");
-  const isRead = h.reads.some((r) => r.userId === currentUserId);
+  // isRead = "확인함". 단순 열람(confirmedAt null)은 확인으로 치지 않는다.
+  const isRead = h.reads.some((r) => r.userId === currentUserId && r.confirmedAt != null);
+  const confirmedReads = h.reads.filter((r) => r.confirmedAt != null);
   const isAuthor = h.authorId === currentUserId;
   const isUrgent = h.priority === "URGENT";
   const checkedCount = h.checklist.filter((c) => c.isChecked).length;
@@ -117,7 +119,7 @@ function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRe
   const recipientNames: string[] = h.recipientName ? (() => { try { const p = JSON.parse(h.recipientName); return Array.isArray(p) ? p : [h.recipientName]; } catch { return [h.recipientName]; } })() : [];
   const isRecipient = recipientIds.includes(currentUserId);
   const needsMyConfirm = isRecipient && !isRead;
-  const confirmedCount = recipientIds.filter((rid) => h.reads.some((r) => r.userId === rid)).length;
+  const confirmedCount = recipientIds.filter((rid) => h.reads.some((r) => r.userId === rid && r.confirmedAt != null)).length;
 
   function handleCardClick(e: React.MouseEvent) {
     const target = e.target as HTMLElement;
@@ -201,9 +203,9 @@ function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRe
           )}
           <div className="relative">
             <button onClick={() => setShowReaders((p) => !p)} className="flex items-center gap-1 hover:text-foreground transition-colors">
-              <Eye className="h-3 w-3" />{h.reads.length}
+              <Eye className="h-3 w-3" />{confirmedReads.length}
             </button>
-            {showReaders && <ReadersPopover reads={h.reads} onClose={() => setShowReaders(false)} />}
+            {showReaders && <ReadersPopover reads={confirmedReads} onClose={() => setShowReaders(false)} />}
           </div>
 
           {/* 수신자 확인 현황 */}
@@ -211,7 +213,7 @@ function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRe
             <div className="flex items-center gap-1">
               {recipientNames.map((name, idx) => {
                 const rid = recipientIds[idx];
-                const rRead = rid ? h.reads.find((r) => r.userId === rid) : null;
+                const rRead = rid ? h.reads.find((r) => r.userId === rid && r.confirmedAt != null) : null;
                 return (
                   <span key={idx} className={cn("text-[10px] rounded px-1.5 py-0.5 font-medium", rRead ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500")}>
                     {name}{rRead ? " ✓" : ""}
@@ -316,7 +318,7 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
   });
   const pinned = sorted.filter((h) => h.isPinned);
   const byDate = sorted.filter((h) => !h.isPinned);
-  const unreadCount = handovers.filter((h) => h.authorId !== currentUserId && !h.reads.some((r) => r.userId === currentUserId)).length;
+  const unreadCount = handovers.filter((h) => h.authorId !== currentUserId && !h.reads.some((r) => r.userId === currentUserId && r.confirmedAt != null)).length;
 
   // Group by date — "오늘" 그룹은 상단 고정 카드로 분리
   const today: Handover[] = [];
@@ -331,7 +333,7 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
       else olderGroups.push({ label, items: [h] });
     }
   }
-  const todayUnread = today.filter((h) => h.authorId !== currentUserId && !h.reads.some((r) => r.userId === currentUserId)).length;
+  const todayUnread = today.filter((h) => h.authorId !== currentUserId && !h.reads.some((r) => r.userId === currentUserId && r.confirmedAt != null)).length;
 
   function handleDelete(id: string) {
     startTransition(async () => {
@@ -353,9 +355,19 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
   }
 
   function handleRead(h: Handover) {
-    if (h.reads.some((r) => r.userId === currentUserId)) return;
+    if (h.reads.some((r) => r.userId === currentUserId && r.confirmedAt != null)) return;
     startTransition(async () => {
-      try { await markHandoverRead(h.id); setHandovers((prev) => prev.map((item) => item.id === h.id ? { ...item, reads: [...item.reads, { userId: currentUserId, userName: currentUserName, readAt: new Date() }] } : item)); }
+      try {
+        await markHandoverRead(h.id);
+        setHandovers((prev) => prev.map((item) => {
+          if (item.id !== h.id) return item;
+          const has = item.reads.some((r) => r.userId === currentUserId);
+          const reads = has
+            ? item.reads.map((r) => r.userId === currentUserId ? { ...r, confirmedAt: new Date() } : r)
+            : [...item.reads, { userId: currentUserId, userName: currentUserName, readAt: new Date(), confirmedAt: new Date() }];
+          return { ...item, reads };
+        }));
+      }
       catch { toast.error("확인 처리 실패"); }
     });
   }
