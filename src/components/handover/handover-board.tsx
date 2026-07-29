@@ -14,6 +14,7 @@ import { deleteHandover, markHandoverRead, togglePin, toggleHandoverTask } from 
 import { toggleRoutineCompletion } from "@/actions/checklist-templates";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TodoForm } from "@/components/todos/todo-manager";
+import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import Link from "next/link";
 import { DateRangeToolbar } from "@/components/ui/date-range-toolbar";
 
@@ -98,11 +99,14 @@ function stripMarkdownPreview(src: string, max = 140): string {
   return flat.length > max ? flat.slice(0, max) + "…" : flat;
 }
 
-function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRead, onTogglePin, isPending }: {
-  h: Handover; currentUserId: string; currentUserName: string; onDelete: (id: string) => void; onRead: (h: Handover) => void; onTogglePin: (h: Handover) => void; isPending: boolean;
+function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRead, onTogglePin, isPending, defaultExpanded = false }: {
+  h: Handover; currentUserId: string; currentUserName: string; onDelete: (id: string) => void; onRead: (h: Handover) => void; onTogglePin: (h: Handover) => void; isPending: boolean; defaultExpanded?: boolean;
 }) {
   const router = useRouter();
   const [showReaders, setShowReaders] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  // 짧은 한 줄 메모는 굳이 더보기 버튼을 달지 않는다
+  const isLong = h.content.length > 160 || h.content.includes("\n");
   const isRead = h.reads.some((r) => r.userId === currentUserId);
   const isAuthor = h.authorId === currentUserId;
   const isUrgent = h.priority === "URGENT";
@@ -154,11 +158,27 @@ function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRe
           {!isRead && !isAuthor && <span className="text-[10px] font-semibold bg-blue-500 text-white rounded px-1.5 py-0.5">NEW</span>}
         </div>
 
-        {/* 본문 미리보기 (Markdown 평문화) */}
+        {/* 본문 — 카드에서 가장 눈에 띄는 요소. 펼치면 Markdown 원본을 인라인 렌더 */}
         {h.content && (
-          <p className="text-[13px] text-foreground/85 line-clamp-2 leading-snug">
-            {stripMarkdownPreview(h.content)}
-          </p>
+          <div className="space-y-0.5">
+            {expanded ? (
+              <div onClick={(e) => e.stopPropagation()} className="text-sm text-foreground">
+                <MarkdownViewer source={h.content} />
+              </div>
+            ) : (
+              <p className="text-sm text-foreground line-clamp-4 leading-relaxed whitespace-pre-wrap">
+                {stripMarkdownPreview(h.content, 280)}
+              </p>
+            )}
+            {isLong && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setExpanded((p) => !p); }}
+                className="text-xs font-medium text-blue-600 hover:underline"
+              >
+                {expanded ? "접기" : "더보기"}
+              </button>
+            )}
+          </div>
         )}
 
         {/* 하단 정보 */}
@@ -410,7 +430,7 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
                   today.map((h) =>
                     deleteConfirmId === h.id
                       ? <DeleteConfirm key={h.id} onConfirm={() => handleDelete(h.id)} onCancel={() => setDeleteConfirmId(null)} isPending={isPending} />
-                      : <HandoverSummaryCard key={h.id} h={h} currentUserId={currentUserId} currentUserName={currentUserName} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} isPending={isPending} />
+                      : <HandoverSummaryCard key={h.id} h={h} currentUserId={currentUserId} currentUserName={currentUserName} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} isPending={isPending} defaultExpanded />
                   )
                 )}
               </div>
