@@ -1712,12 +1712,13 @@ model ScheduleProposalFeedback {
 }
 
 model HandoverRead {
-  id         String   @id @default(cuid())
-  handoverId String
-  handover   Handover @relation(fields: [handoverId], references: [id], onDelete: Cascade)
-  userId     String
-  userName   String
-  readAt     DateTime @default(now())
+  id          String    @id @default(cuid())
+  handoverId  String
+  handover    Handover  @relation(fields: [handoverId], references: [id], onDelete: Cascade)
+  userId      String
+  userName    String
+  readAt      DateTime  @default(now()) // 최초 열람(봤음) 시각 — 상세 페이지를 처음 연 시점
+  confirmedAt DateTime? // 명시적 "확인" 클릭 시각. null = 봤지만 아직 미확인
 
   @@unique([handoverId, userId])
 }

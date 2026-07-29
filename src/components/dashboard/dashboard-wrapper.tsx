@@ -36,7 +36,7 @@ type Handover = {
   authorName: string;
   recipientId: string | null;
   recipientName: string | null;
-  reads: { userId: string; userName: string; readAt: Date }[];
+  reads: { userId: string; userName: string; readAt: Date; confirmedAt: Date | null }[];
   tasks: HandoverTask[];
   checklist: HandoverChecklist[];
   createdAt: Date;
