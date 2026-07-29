@@ -131,7 +131,8 @@ export async function getMobileStaffOperations(
     prisma.handover.count({
       where: {
         date: { gte: since },
-        reads: { none: { userId } },
+        // 미확인 = 확인(confirmedAt) 기록이 없는 인수인계. 단순 열람은 미확인으로 유지.
+        reads: { none: { userId, confirmedAt: { not: null } } },
       },
     }),
     prisma.handover.count({ where: { date: context.date } }),
@@ -238,7 +239,7 @@ function serializeHandover(
     id: string;
     isPinned: boolean;
     priority: "URGENT" | "NORMAL";
-    reads: { readAt: Date; userId: string; userName: string }[];
+    reads: { confirmedAt: Date | null; readAt: Date; userId: string; userName: string }[];
     recipientName: string | null;
     tasks: {
       assigneeName: string | null;
@@ -259,9 +260,9 @@ function serializeHandover(
     date: handover.date.toISOString().slice(0, 10),
     id: handover.id,
     isPinned: handover.isPinned,
-    isRead: handover.reads.some((read) => read.userId === userId),
+    isRead: handover.reads.some((read) => read.userId === userId && read.confirmedAt != null),
     priority: handover.priority,
-    readCount: handover.reads.length,
+    readCount: handover.reads.filter((read) => read.confirmedAt != null).length,
     recipientName: handover.recipientName,
     tasks: handover.tasks,
   };
@@ -273,7 +274,7 @@ const handoverInclude = {
     select: { id: true, isChecked: true, title: true },
   },
   reads: {
-    select: { readAt: true, userId: true, userName: true },
+    select: { confirmedAt: true, readAt: true, userId: true, userName: true },
   },
   tasks: {
     orderBy: { order: "asc" as const },
@@ -333,14 +334,16 @@ export async function markMobileHandoverRead(
   });
   if (!exists) throw new MobileApiError("인수인계를 찾을 수 없습니다", 404);
 
+  // 모바일 "확인" = confirmedAt 세팅. 최초 열람(readAt)은 보존.
   await prisma.handoverRead.upsert({
     where: { handoverId_userId: { handoverId, userId: user.id } },
     create: {
       handoverId,
       userId: user.id,
       userName: user.name || "알 수 없음",
+      confirmedAt: new Date(),
     },
-    update: { readAt: new Date() },
+    update: { confirmedAt: new Date() },
   });
   return { ok: true };
 }
