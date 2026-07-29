@@ -93,11 +93,11 @@ export function DateRangeToolbar({ initialFrom, initialTo, basePath, extraParams
         onClick={() => {
           const n = new Date();
           const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-          applyRange(iso(new Date(n.getFullYear(), n.getMonth(), n.getDate() - 60)), iso(new Date(n.getFullYear(), n.getMonth(), n.getDate() + 14)));
+          applyRange(iso(new Date(n.getFullYear(), n.getMonth(), n.getDate() - 7)), iso(new Date(n.getFullYear(), n.getMonth(), n.getDate() + 14)));
         }}
         disabled={isRefetching}
       >
-        최근 60일
+        최근 1주일
       </Button>
     </div>
   );
