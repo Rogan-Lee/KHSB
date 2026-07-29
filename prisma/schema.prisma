@@ -125,6 +125,12 @@ enum ExamType {
   SCHOOL_EXAM // 학교 내신
 }
 
+enum ExamApplicationStatus {
+  PENDING // 학생/학부모 신청 접수
+  CONFIRMED // 운영진 확정 (좌석배정 대상)
+  CANCELLED // 운영진이 반려/취소
+}
+
 enum CalendarEventType {
   SCHOOL_EXAM // 학교 시험
   SCHOOL_EVENT // 학교 행사
@@ -414,6 +420,7 @@ model Student {
   vocabScores          VocabTestScore[]
   vocabAttempts        VocabAttempt[]
   examSeatAssignments  ExamSeatAssignment[]
+  examApplications     ExamApplication[]
   photos               Photo[]
   patrolRecords        PatrolRecord[]
   scheduleProposals    ScheduleProposal[]
@@ -1222,15 +1229,36 @@ model ExamSession {
   examType    ExamType @default(OFFICIAL_MOCK)
   subjects    String[] // ["국어","수학","영어","탐구1","탐구2"]
   notes       String?
+  applicationOpen Boolean @default(false) // 학생/학부모 신청 접수 여부 (운영진 토글)
   createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   assignments ExamSeatAssignment[]
   scores      ExamScore[]
+  applications ExamApplication[]
   monthlyReportSelections OnlineParentReport[] @relation("MonthlyReportExam")
 
   @@index([examDate])
+}
+
+// 모의고사 신청 — 학생/학부모가 매직링크로 신청, 운영진 확정 후 좌석배정 대상이 됨. (LunchOrder 패턴)
+model ExamApplication {
+  id            String                @id @default(cuid())
+  sessionId     String
+  session       ExamSession           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status        ExamApplicationStatus @default(PENDING)
+  memo          String? // 학생/학부모 요청사항
+  appliedAt     DateTime              @default(now())
+  confirmedAt   DateTime?
+  confirmedById String? // 확정한 운영진 User.id
+  updatedAt     DateTime              @updatedAt
+
+  @@unique([sessionId, studentId]) // 학생당 세션 1신청
+  @@index([sessionId])
+  @@index([studentId])
 }
 
 model PhotoFolder {
