@@ -14,6 +14,7 @@ import {
   ArrowUpRight,
   Camera,
   Utensils,
+  GraduationCap,
 } from "lucide-react";
 import type { PerformanceTaskStatus } from "@/generated/prisma";
 import { todayKST } from "@/lib/utils";
@@ -58,7 +59,7 @@ export default async function StudentPortalHomePage({
   // 홈 카드는 온라인/오프라인 구분 없이 데이터 유무로 표시(완전 통일).
   // 오프라인 학생은 보통 빈 결과 → 해당 카드만 자연스럽게 숨겨짐.
   // 단, 초기 설문 카드는 온라인 온보딩 전용이라 isOnline 일 때만 노출.
-  const [openQuestions, survey, taskCounts, nextTask, upcomingSessions, lunchMenuCount] = await Promise.all([
+  const [openQuestions, survey, taskCounts, nextTask, upcomingSessions, lunchMenuCount, examApplyOpenCount] = await Promise.all([
     prisma.studentQuestion.count({
       where: { studentId: student.id, status: { in: ["OPEN", "ANSWERED"] } },
     }),
@@ -97,6 +98,9 @@ export default async function StudentPortalHomePage({
     }),
     prisma.lunchMenu.count({
       where: { date: { gte: todayKST() }, closed: false },
+    }),
+    prisma.examSession.count({
+      where: { applicationOpen: true, examDate: { gte: todayKST() } },
     }),
   ]);
 
@@ -172,6 +176,27 @@ export default async function StudentPortalHomePage({
               <p className="text-[15px] font-semibold text-ink">점심 도시락 신청</p>
               <p className="mt-0.5 text-[12px] text-ink-4">
                 먹을 날짜를 고르고 입금하면 신청이 확정돼요.
+              </p>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" strokeWidth={2.5} />
+          </div>
+        </Link>
+      )}
+
+      {/* 모의고사 신청 — 접수중인 시험이 있을 때만 */}
+      {examApplyOpenCount > 0 && (
+        <Link
+          href={`/s/${token}/exam`}
+          className="block rounded-[14px] border border-brand/30 bg-panel p-4 ring-1 ring-brand/10 active:bg-canvas-2 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-white">
+              <GraduationCap className="h-5 w-5" strokeWidth={2.2} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-semibold text-ink">모의고사 신청</p>
+              <p className="mt-0.5 text-[12px] text-ink-4">
+                접수 중인 모의고사 {examApplyOpenCount}건 — 응시할 시험을 신청하세요.
               </p>
             </div>
             <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" strokeWidth={2.5} />

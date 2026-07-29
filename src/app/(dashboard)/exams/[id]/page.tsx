@@ -8,6 +8,7 @@ import { PageIntro } from "@/components/ui/page-intro";
 import { ChevronLeft } from "lucide-react";
 import { ExamSeatManager } from "@/components/exams/exam-seat-manager";
 import { ExamScoreBulkEditor } from "@/components/exams/exam-score-bulk-editor";
+import { ExamApplicationAdmin } from "@/components/exams/exam-application-admin";
 import { EXAM_TYPE_LABELS } from "@/components/exams/exam-type-label";
 import { H_ROOM_SEATS } from "@/lib/exam-seats";
 import { offlineStudentWhere } from "@/lib/student-filters";
@@ -26,10 +27,22 @@ export default async function ExamSessionDetailPage({
         include: { student: { select: { id: true, name: true, grade: true, seat: true, school: true } } },
         orderBy: { seatNumber: "asc" },
       },
+      applications: {
+        include: { student: { select: { name: true, grade: true } } },
+        orderBy: { appliedAt: "asc" },
+      },
       scores: true,
     },
   });
   if (!session) notFound();
+
+  const applicationRows = session.applications.map((a) => ({
+    id: a.id,
+    studentName: a.student.name,
+    grade: a.student.grade,
+    status: a.status,
+    memo: a.memo,
+  }));
 
   // 공식 모의·내신은 학생들이 학교/시험장에서 응시하므로 자습실 좌석 배정이 의미 없음.
   // PRIVATE_MOCK 만 좌석 배정 흐름 유지.
@@ -103,6 +116,16 @@ export default async function ExamSessionDetailPage({
         description={headerDescription}
         accent="text-info"
       />
+
+      <Card>
+        <CardContent className="pt-4">
+          <ExamApplicationAdmin
+            sessionId={session.id}
+            applicationOpen={session.applicationOpen}
+            applications={applicationRows}
+          />
+        </CardContent>
+      </Card>
 
       {isExternalExam ? (
         // 외부 시험: 좌석 배정 없이 성적 입력만.
