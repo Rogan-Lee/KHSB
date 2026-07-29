@@ -70,7 +70,8 @@ export async function listMyScheduleProposals(studentToken: string) {
 
 // ───────────────────── 운영진 (Clerk, 원장) ─────────────────────
 
-/** 검토 큐 — SUBMITTED/PROPOSED 상태 제안 목록. sort: 최신순(기본)/이름순/제출순. */
+/** 검토 큐 — SUBMITTED/PROPOSED 상태 제안 목록. sort: 최신순(기본)/이름순/제출순.
+ *  리스트에는 학생별 **최신 버전 1건만** 노출 (이전 버전은 상세의 '버전 이력'에서 확인). */
 export type ProposalSort = "recent" | "name" | "submitted";
 export async function listScheduleProposalsForReview(sort: ProposalSort = "recent") {
   const sessionUser = await auth();
@@ -84,7 +85,13 @@ export async function listScheduleProposalsForReview(sort: ProposalSort = "recen
     orderBy,
     include: { student: { select: { id: true, name: true, grade: true } }, _count: { select: { feedbacks: true } } },
   });
-  return rows;
+  // 학생별 최신 버전만 남긴다 (정렬 순서 유지).
+  const latestVersion = new Map<string, number>();
+  for (const r of rows) {
+    const cur = latestVersion.get(r.studentId);
+    if (cur === undefined || r.version > cur) latestVersion.set(r.studentId, r.version);
+  }
+  return rows.filter((r) => r.version === latestVersion.get(r.studentId));
 }
 
 /** 운영진 제안안 수정. */
