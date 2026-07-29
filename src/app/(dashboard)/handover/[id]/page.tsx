@@ -14,6 +14,7 @@ import {
   User,
   Pencil,
   Clock,
+  Eye,
 } from "lucide-react";
 import { ConfirmButton } from "./confirm-button";
 import { ChecklistToggleButton } from "./checklist-toggle-button";
@@ -191,6 +192,48 @@ export default async function HandoverDetailPage({
           <ConfirmButton handoverId={handover.id} />
         )}
       </div>
+
+      {/* 확인 현황 (원장 전용) — 누가·언제 확인했는지 */}
+      {isFullAccess(session.user.role) && (
+        <div className="rounded-lg border bg-card p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Eye className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">확인 현황</h3>
+            <span className="text-[10px] bg-muted text-muted-foreground rounded px-1.5 py-0.5">원장 전용</span>
+          </div>
+          {handover.reads.length === 0 ? (
+            <p className="text-sm text-muted-foreground">아직 확인한 직원이 없습니다</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {[...handover.reads]
+                .sort((a, b) => new Date(a.readAt).getTime() - new Date(b.readAt).getTime())
+                .map((r) => (
+                  <li key={r.userId} className="flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                      {r.userName}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(r.readAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          )}
+          {(() => {
+            const unconfirmed = recipientNames.filter((_, i) => {
+              const rid = recipientIds[i];
+              return rid && !handover.reads.some((r) => r.userId === rid);
+            });
+            if (unconfirmed.length === 0) return null;
+            return (
+              <p className="text-xs text-muted-foreground pt-2 border-t">
+                미확인 수신자: <span className="text-orange-600 font-medium">{unconfirmed.join(", ")}</span>
+              </p>
+            );
+          })()}
+        </div>
+      )}
 
       {/* 댓글 */}
       <HandoverComments
