@@ -686,8 +686,73 @@ export function AttendanceTable({ students, today }: Props) {
     { key: "schedule", label: "일정" },
   ];
 
+  // 곧 입실/퇴실 예정 (30분 이내) — nowMinutes(60초 갱신) 기준. 검색 필터와 무관하게 전체 대상.
+  const imminentIn: { name: string; time: string; mins: number }[] = [];
+  const imminentOut: { name: string; time: string; mins: number }[] = [];
+  for (const s of students) {
+    const lt = localTimes.get(s.id);
+    const checkIn = lt?.checkIn ?? "";
+    const checkOut = lt?.checkOut ?? "";
+    const schedIn = s.schedules[0]?.startTime;
+    const schedOut = s.schedules[0]?.endTime;
+    const isAbsent = lt?.type === "ABSENT" || lt?.type === "APPROVED_ABSENT" || lt?.type === "NOTIFIED_ABSENT";
+    // 입실 예정: 미입실 + 결석류 아님 + 예정 입실 0~30분 이내
+    if (!checkIn && schedIn && schedIn !== "FLEXIBLE" && !isAbsent) {
+      const d = toMinutes(schedIn) - nowMinutes;
+      if (d >= 0 && d <= 30) imminentIn.push({ name: s.name, time: schedIn, mins: d });
+    }
+    // 퇴실 예정: 입실했고 미퇴실 + 예정 퇴실 0~30분 이내
+    if (checkIn && !checkOut && schedOut && schedOut !== "FLEXIBLE") {
+      const d = toMinutes(schedOut) - nowMinutes;
+      if (d >= 0 && d <= 30) imminentOut.push({ name: s.name, time: schedOut, mins: d });
+    }
+  }
+  imminentIn.sort((a, b) => a.mins - b.mins);
+  imminentOut.sort((a, b) => a.mins - b.mins);
+  const hasImminent = imminentIn.length > 0 || imminentOut.length > 0;
+
   return (
     <>
+      {/* 곧 입실/퇴실 예정 (30분 이내) — 둘 다 비면 렌더 안 함 */}
+      {hasImminent && (
+        <div className="mb-3 rounded-lg border bg-card p-3">
+          <p className="text-xs font-semibold text-muted-foreground mb-2">곧 입실/퇴실 예정 (30분 이내)</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
+            {imminentIn.length > 0 && (
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1 text-[11px] font-medium text-green-700 mb-1">
+                  <LogIn className="h-3 w-3" /> 입실 예정 {imminentIn.length}명
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {imminentIn.map((i, idx) => (
+                    <span key={`in-${idx}`} className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[11px] text-green-800">
+                      <span className="font-medium">{i.name}</span>
+                      <span className="font-mono tabular-nums">{i.time}</span>
+                      <span className="text-green-600">{i.mins}분 후</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {imminentOut.length > 0 && (
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1 text-[11px] font-medium text-blue-700 mb-1">
+                  <LogOut className="h-3 w-3" /> 퇴실 예정 {imminentOut.length}명
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {imminentOut.map((i, idx) => (
+                    <span key={`out-${idx}`} className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">
+                      <span className="font-medium">{i.name}</span>
+                      <span className="font-mono tabular-nums">{i.time}</span>
+                      <span className="text-blue-600">{i.mins}분 후</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {/* 검색 */}
       <div className="flex items-center gap-2 mb-2">
         <div className="relative">

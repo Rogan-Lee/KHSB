@@ -77,10 +77,10 @@ function getPresets() {
 
   return [
     {
-      label: "최근 60일",
+      label: "최근 1주일",
       from: (() => {
         const d = new Date(now);
-        d.setDate(now.getDate() - 60);
+        d.setDate(now.getDate() - 7);
         return fmt(d);
       })(),
       to: fmt(now),
@@ -174,24 +174,24 @@ function StudentRow({ group }: { group: StudentGroup }) {
 
 export function MeritRangeReport() {
   const today = new Date().toISOString().slice(0, 10);
-  // 기본 조회 기간: 최근 60일 (멘토링 등 다른 리스트와 동일하게 길게)
-  const sixtyDaysAgo = (() => {
+  // 기본 조회 기간: 최근 1주일
+  const oneWeekAgo = (() => {
     const d = new Date();
-    d.setDate(d.getDate() - 60);
+    d.setDate(d.getDate() - 7);
     return d.toISOString().slice(0, 10);
   })();
 
-  const [from, setFrom] = useState(sixtyDaysAgo);
+  const [from, setFrom] = useState(oneWeekAgo);
   const [to, setTo] = useState(today);
   const [results, setResults] = useState<MeritRecord[] | null>(null);
   const [isPending, startTransition] = useTransition();
   const [sortKey, setSortKey] = useState<SortKey>("net");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
-  // 진입 시 기본 기간(최근 60일)으로 자동 1회 조회 — 빈 화면 대신 바로 결과 표시.
+  // 진입 시 기본 기간(최근 1주일)으로 자동 1회 조회 — 빈 화면 대신 바로 결과 표시.
   useEffect(() => {
     startTransition(async () => {
-      const data = await getMeritsByRange(sixtyDaysAgo, today);
+      const data = await getMeritsByRange(oneWeekAgo, today);
       setResults(data as MeritRecord[]);
     });
     // 최초 마운트 1회만

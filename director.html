@@ -12,7 +12,7 @@
     .m-back { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--mute); }
     .dir-hero { margin-top: 96px; display: grid; grid-template-columns: 300px 1fr; gap: 48px; align-items: center; }
     .dir-photo { aspect-ratio: 3/4; border-radius: var(--radius); background: linear-gradient(160deg,#EFEDFA,#D9D4F4); display: flex; align-items: flex-end; justify-content: center; box-shadow: var(--shadow-sm); overflow: hidden; }
-    .dir-photo .ph-ava { width: 120px; height: 120px; border-radius: 50%; background: linear-gradient(135deg,#F2754A,#D8431C); color: #fff; font-size: 44px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin-bottom: 40px; box-shadow: var(--shadow); }
+    .dir-photo img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
     .dir-tag { display: inline-block; font-size: 13px; font-weight: 700; color: var(--purple); background: var(--brand-soft); padding: 6px 14px; border-radius: 999px; margin-bottom: 18px; }
     .dir-name { font-size: clamp(30px,5vw,50px); font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
     .dir-name span { font-size: .42em; font-weight: 700; color: var(--mute); margin-left: 12px; }
@@ -57,7 +57,7 @@
 <main class="wrap">
 
   <section class="dir-hero">
-    <div class="dir-photo"><div class="ph-ava">강</div></div>
+    <div class="dir-photo"><img src="photos/director.jpg" alt="강한지 대표원장"></div>
     <div>
       <span class="dir-tag">대표 인사말</span>
       <h1 class="dir-name">강한지 대표원장<span>Founder</span></h1>

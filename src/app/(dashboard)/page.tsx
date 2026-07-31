@@ -106,7 +106,7 @@ export default async function DashboardPage() {
   const checkInCount = todayAttendances.filter((a) => a.checkIn).length;
 
   const unreadCount = recentHandovers.filter(
-    (h) => h.authorId !== session?.user?.id && !h.reads.some((r) => r.userId === session?.user?.id)
+    (h) => h.authorId !== session?.user?.id && !h.reads.some((r) => r.userId === session?.user?.id && r.confirmedAt != null)
   ).length;
 
   const attendanceRate = totalActive > 0 ? Math.round((normalCount / totalActive) * 100) : 0;
