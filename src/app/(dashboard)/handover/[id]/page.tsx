@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
-import { getHandoverById } from "@/actions/handover";
+import { getHandoverById, recordHandoverView } from "@/actions/handover";
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
   User,
   Pencil,
   Clock,
+  Eye,
 } from "lucide-react";
 import { ConfirmButton } from "./confirm-button";
 import { ChecklistToggleButton } from "./checklist-toggle-button";
@@ -32,8 +33,11 @@ export default async function HandoverDetailPage({
   const { id } = await params;
   const handover = await getHandoverById(id);
   if (!handover) notFound();
+  // 존재하는 인수인계에만 열람 기록 (없는/삭제된 id 로 FK 위반 500 방지). "봤음"만 남기고 confirmedAt 은 건드리지 않음.
+  await recordHandoverView(id);
 
-  const isRead = handover.reads.some((r) => r.userId === session.user.id);
+  // isRead = "확인함" (명시적 확인 클릭). 단순 열람은 확인으로 치지 않는다.
+  const isRead = handover.reads.some((r) => r.userId === session.user.id && r.confirmedAt != null);
   const isAuthor = handover.authorId === session.user.id;
   const isUrgent = handover.priority === "URGENT";
 
@@ -102,7 +106,7 @@ export default async function HandoverDetailPage({
         <div className="flex items-center gap-2 flex-wrap">
           {recipientNames.map((name, idx) => {
             const rid = recipientIds[idx];
-            const rRead = rid ? handover.reads.find((r) => r.userId === rid) : null;
+            const rRead = rid ? handover.reads.find((r) => r.userId === rid && r.confirmedAt != null) : null;
             return (
               <span key={idx} className={`inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-1 ${rRead ? "bg-green-50 text-green-700 border border-green-200" : "bg-gray-100 text-gray-500 border border-gray-200"}`}>
                 <User className="h-3 w-3" />
@@ -181,7 +185,7 @@ export default async function HandoverDetailPage({
       <div className="rounded-lg border bg-card p-4 flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <CheckCircle2 className="h-4 w-4" />
-          {handover.reads.length}명 확인
+          {handover.reads.filter((r) => r.confirmedAt != null).length}명 확인
         </div>
         {isAuthor ? null : isRead ? (
           <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-600">
@@ -191,6 +195,78 @@ export default async function HandoverDetailPage({
           <ConfirmButton handoverId={handover.id} />
         )}
       </div>
+
+      {/* 열람/확인 현황 (원장 전용) — 누가·언제 봤고 확인했는지 (3상태) */}
+      {isFullAccess(session.user.role) && (() => {
+        const fmt = (d: Date | string) =>
+          new Date(d).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+        // 지정 수신자가 있으면 수신자를 기준 명단으로, 없으면 열람한 사람 전체를 대상으로 표시
+        type ReadItem = { userId: string; userName: string; readAt: Date; confirmedAt: Date | null };
+        type Row = { userId: string; name: string; read?: ReadItem };
+        const rows: Row[] = recipientNames.length > 0
+          ? recipientNames.map((name, i) => {
+              const uid = recipientIds[i] ?? name;
+              return { userId: uid, name, read: recipientIds[i] ? handover.reads.find((r) => r.userId === recipientIds[i]) : undefined };
+            })
+          : [...handover.reads]
+              .sort((a, b) => new Date(a.readAt).getTime() - new Date(b.readAt).getTime())
+              .map((r) => ({ userId: r.userId, name: r.userName, read: r }));
+        // 수신자 외 열람자(기타)
+        const extraReaders = recipientNames.length > 0
+          ? handover.reads.filter((r) => !recipientIds.includes(r.userId))
+          : [];
+
+        function StatusBadge({ read }: { read?: ReadItem }) {
+          if (!read) return <span className="text-[10px] rounded px-1.5 py-0.5 bg-gray-100 text-gray-500 border border-gray-200">미열람</span>;
+          if (read.confirmedAt) return <span className="text-[10px] rounded px-1.5 py-0.5 bg-green-100 text-green-700 border border-green-200">확인완료</span>;
+          return <span className="text-[10px] rounded px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-200">열람</span>;
+        }
+
+        return (
+          <div className="rounded-lg border bg-card p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Eye className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">열람 · 확인 현황</h3>
+              <span className="text-[10px] bg-muted text-muted-foreground rounded px-1.5 py-0.5">원장 전용</span>
+            </div>
+            <ul className="space-y-2">
+              {rows.map((row) => (
+                <li key={row.userId} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="font-medium truncate">{row.name}</span>
+                    <StatusBadge read={row.read} />
+                  </span>
+                  <span className="text-[11px] text-muted-foreground text-right shrink-0">
+                    {row.read
+                      ? row.read.confirmedAt
+                        ? `확인 ${fmt(row.read.confirmedAt)}`
+                        : `열람 ${fmt(row.read.readAt)}`
+                      : "—"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {extraReaders.length > 0 && (
+              <div className="pt-2 border-t space-y-2">
+                <p className="text-[11px] text-muted-foreground">기타 열람자</p>
+                <ul className="space-y-2">
+                  {extraReaders.map((r) => (
+                    <li key={r.userId} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="font-medium truncate">{r.userName}</span>
+                        <StatusBadge read={r} />
+                      </span>
+                      <span className="text-[11px] text-muted-foreground text-right shrink-0">
+                        {r.confirmedAt ? `확인 ${fmt(r.confirmedAt)}` : `열람 ${fmt(r.readAt)}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 댓글 */}
       <HandoverComments

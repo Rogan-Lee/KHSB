@@ -143,6 +143,11 @@ export const authServer = betterAuth({
     baseURL,
     "studyroom://",
     "studyroom://*",
+    // Vercel preview 배포는 baseURL(프로덕션)과 도메인이 달라 origin이 막힘 → preview origin 신뢰
+    ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+    ...(process.env.VERCEL_ENV === "preview"
+      ? ["https://khsb-git-*.vercel.app"]
+      : []),
     ...(process.env.NODE_ENV === "development"
       ? ["http://localhost:*", "exp://", "exp://**"]
       : []),
