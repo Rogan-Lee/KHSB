@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import {
   Pin, PinOff, CheckCircle2, Clock, Trash2, AlertTriangle,
   Eye, ListChecks, Users, User, CheckSquare, Square, Plus,
-  ChevronDown, ChevronRight, Sparkles,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { cn, DAY_NAMES, todayKST } from "@/lib/utils";
-import { deleteHandover, markHandoverRead, togglePin, toggleHandoverTask } from "@/actions/handover";
+import { deleteHandover, markHandoverRead, togglePin, toggleHandoverTask, recordHandoverView } from "@/actions/handover";
 import { toggleRoutineCompletion } from "@/actions/checklist-templates";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TodoForm } from "@/components/todos/todo-manager";
@@ -306,34 +306,49 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  // 각 date 그룹 접힘 상태 (기본: 오늘만 열고 나머지는 접힘)
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-  function toggleGroup(label: string) {
-    setCollapsedGroups((prev) => ({ ...prev, [label]: !prev[label] }));
-  }
-
+  // 정렬: 고정 먼저 → 날짜(최신) → 작성시각(최신)
   const sorted = [...handovers].sort((a, b) => {
     const dd = new Date(b.date).getTime() - new Date(a.date).getTime();
     return dd !== 0 ? dd : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
   const pinned = sorted.filter((h) => h.isPinned);
   const byDate = sorted.filter((h) => !h.isPinned);
+  const ordered = [...pinned, ...byDate];
   const unreadCount = handovers.filter((h) => h.authorId !== currentUserId && !h.reads.some((r) => r.userId === currentUserId && r.confirmedAt != null)).length;
 
-  // Group by date — "오늘" 그룹은 상단 고정 카드로 분리
-  const today: Handover[] = [];
-  const olderGroups: { label: string; items: Handover[] }[] = [];
-  for (const h of byDate) {
-    const label = relDate(h.date);
-    if (label === "오늘") {
-      today.push(h);
-    } else {
-      const g = olderGroups.find((g) => g.label === label);
-      if (g) g.items.push(h);
-      else olderGroups.push({ label, items: [h] });
-    }
+  // 좌우로 넘겨보는 포커스 뷰어 인덱스
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  useEffect(() => {
+    setFocusedIndex((i) => Math.min(Math.max(0, i), Math.max(0, ordered.length - 1)));
+  }, [ordered.length]);
+  const focused = ordered[focusedIndex];
+
+  // 5개씩 페이지네이션 리스트
+  const PAGE_SIZE = 5;
+  const [listPage, setListPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(ordered.length / PAGE_SIZE));
+  useEffect(() => { setListPage((p) => Math.min(p, pageCount - 1)); }, [pageCount]);
+
+  // 뷰어에 뜬 인수인계는 "열람(봤음)" 로그 자동 기록 (confirmedAt 은 건드리지 않음)
+  const viewedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!focused || viewedRef.current.has(focused.id)) return;
+    const id = focused.id;
+    viewedRef.current.add(id);
+    recordHandoverView(id)
+      .then(() => setHandovers((prev) => prev.map((it) =>
+        it.id !== id || it.reads.some((r) => r.userId === currentUserId)
+          ? it
+          : { ...it, reads: [...it.reads, { userId: currentUserId, userName: currentUserName, readAt: new Date(), confirmedAt: null }] }
+      )))
+      .catch(() => {});
+  }, [focused?.id, currentUserId, currentUserName]);
+
+  // 리스트 행 클릭 → 뷰어로 포커스 (해당 페이지도 이동)
+  function focusHandover(id: string) {
+    const idx = ordered.findIndex((h) => h.id === id);
+    if (idx >= 0) { setFocusedIndex(idx); setListPage(Math.floor(idx / PAGE_SIZE)); }
   }
-  const todayUnread = today.filter((h) => h.authorId !== currentUserId && !h.reads.some((r) => r.userId === currentUserId && r.confirmedAt != null)).length;
 
   function handleDelete(id: string) {
     startTransition(async () => {
@@ -379,7 +394,7 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
     });
   }
 
-  const hasAny = pinned.length > 0 || today.length > 0 || olderGroups.length > 0;
+  const hasAny = ordered.length > 0;
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -408,94 +423,136 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
       {/* 2-col main */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 items-start">
 
-        {/* LEFT -- feed */}
+        {/* LEFT -- 좌우 뷰어 + 페이지네이션 리스트 */}
         <div className="space-y-4">
-          {/* 오늘 섹션 — 상단 고정 강조 카드 */}
-          <div className="rounded-xl border-2 border-blue-500/40 bg-gradient-to-br from-blue-50/80 via-blue-50/30 to-transparent shadow-sm">
-            <div className="px-4 py-3 border-b border-blue-100 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-blue-600" />
-              <span className="text-sm font-bold text-blue-900">오늘 인수인계</span>
-              <span className="text-[11px] bg-blue-600 text-white rounded-full px-2 py-0.5 font-semibold">
-                {today.length}건
-              </span>
-              {todayUnread > 0 && (
-                <span className="text-[11px] bg-red-100 text-red-700 border border-red-200 rounded-full px-2 py-0.5 font-semibold">
-                  미확인 {todayUnread}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => toggleGroup("오늘")}
-                className="ml-auto p-1 rounded hover:bg-blue-100 text-blue-700 transition-colors"
-                aria-label={collapsedGroups["오늘"] ? "펼치기" : "접기"}
-              >
-                {collapsedGroups["오늘"] ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </button>
-            </div>
-            {!collapsedGroups["오늘"] && (
-              <div className="px-3 py-2">
-                {today.length === 0 ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
-                    오늘 작성된 인수인계가 없습니다
-                  </p>
-                ) : (
-                  today.map((h) =>
-                    deleteConfirmId === h.id
-                      ? <DeleteConfirm key={h.id} onConfirm={() => handleDelete(h.id)} onCancel={() => setDeleteConfirmId(null)} isPending={isPending} />
-                      : <HandoverSummaryCard key={h.id} h={h} currentUserId={currentUserId} currentUserName={currentUserName} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} isPending={isPending} defaultExpanded />
-                  )
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Pinned + 이전 날짜 그룹 */}
-          {(pinned.length > 0 || olderGroups.length > 0) && (
-            <div className="rounded-xl border bg-card divide-y">
-              {pinned.length > 0 && (
-                <div className="px-3 pt-3 pb-2">
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup("__pinned")}
-                    className="w-full flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-amber-600 uppercase tracking-wide hover:opacity-70"
-                  >
-                    {collapsedGroups["__pinned"] ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                    <Pin className="h-3 w-3" />
-                    고정됨 ({pinned.length})
-                  </button>
-                  {!collapsedGroups["__pinned"] && pinned.map((h) =>
-                    deleteConfirmId === h.id
-                      ? <DeleteConfirm key={h.id} onConfirm={() => handleDelete(h.id)} onCancel={() => setDeleteConfirmId(null)} isPending={isPending} />
-                      : <HandoverSummaryCard key={h.id} h={h} currentUserId={currentUserId} currentUserName={currentUserName} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} isPending={isPending} />
-                  )}
-                </div>
-              )}
-
-              {olderGroups.map(({ label, items }) => (
-                <div key={label} className="px-3 pt-3 pb-2">
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(label)}
-                    className="w-full flex items-center gap-1.5 mb-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground"
-                  >
-                    {collapsedGroups[label] ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                    {label} ({items.length})
-                  </button>
-                  {!collapsedGroups[label] && items.map((h) =>
-                    deleteConfirmId === h.id
-                      ? <DeleteConfirm key={h.id} onConfirm={() => handleDelete(h.id)} onCancel={() => setDeleteConfirmId(null)} isPending={isPending} />
-                      : <HandoverSummaryCard key={h.id} h={h} currentUserId={currentUserId} currentUserName={currentUserName} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} isPending={isPending} />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {!hasAny && (
+          {!hasAny ? (
             <div className="rounded-xl border bg-card flex flex-col items-center justify-center py-16 text-muted-foreground">
               <Clock className="h-10 w-10 mb-3 opacity-20" />
               <p className="text-sm">아직 인수인계 내역이 없습니다</p>
             </div>
+          ) : (
+            <>
+              {/* 좌우로 넘겨보는 포커스 뷰어 (넘길 때마다 열람 로그) */}
+              <div className="rounded-xl border-2 border-blue-500/30 bg-gradient-to-br from-blue-50/60 to-transparent shadow-sm">
+                <div className="px-3 py-2 border-b border-blue-100 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFocusedIndex((i) => Math.max(0, i - 1))}
+                    disabled={focusedIndex === 0}
+                    className="p-1.5 rounded-lg text-blue-700 hover:bg-blue-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                    aria-label="이전 인수인계"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <span className="text-xs font-bold text-blue-900 tabular-nums">
+                    {focusedIndex + 1} <span className="text-blue-700/50">/ {ordered.length}</span>
+                  </span>
+                  {focused && <span className="text-[11px] text-blue-700/70">· {relDate(focused.date)}</span>}
+                  <button
+                    type="button"
+                    onClick={() => setFocusedIndex((i) => Math.min(ordered.length - 1, i + 1))}
+                    disabled={focusedIndex >= ordered.length - 1}
+                    className="ml-auto p-1.5 rounded-lg text-blue-700 hover:bg-blue-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                    aria-label="다음 인수인계"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="px-3 py-2">
+                  {focused && (deleteConfirmId === focused.id
+                    ? <DeleteConfirm onConfirm={() => handleDelete(focused.id)} onCancel={() => setDeleteConfirmId(null)} isPending={isPending} />
+                    : <HandoverSummaryCard h={focused} currentUserId={currentUserId} currentUserName={currentUserName} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} isPending={isPending} defaultExpanded />
+                  )}
+                </div>
+              </div>
+
+              {/* 전체 리스트 — 5개씩 페이지네이션 (행 클릭 시 위 뷰어로) */}
+              <div className="rounded-xl border bg-card">
+                <div className="px-4 py-2.5 border-b flex items-center gap-2">
+                  <span className="text-sm font-semibold">전체 인수인계</span>
+                  <span className="text-[11px] text-muted-foreground">{ordered.length}건</span>
+                </div>
+                <ul className="divide-y">
+                  {ordered.slice(listPage * PAGE_SIZE, listPage * PAGE_SIZE + PAGE_SIZE).map((h) => {
+                    const gi = ordered.findIndex((x) => x.id === h.id);
+                    const isFocused = gi === focusedIndex;
+                    const iRead = h.reads.some((r) => r.userId === currentUserId && r.confirmedAt != null);
+                    const iViewed = h.reads.some((r) => r.userId === currentUserId);
+                    return (
+                      <li key={h.id}>
+                        <button
+                          type="button"
+                          onClick={() => focusHandover(h.id)}
+                          className={cn(
+                            "w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors",
+                            isFocused ? "bg-blue-50/70" : "hover:bg-muted/40"
+                          )}
+                        >
+                          <div className={cn(
+                            "w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0",
+                            h.priority === "URGENT" ? "bg-red-100 text-red-700" : "bg-[#FBE9DE] text-[#C5461A]"
+                          )}>
+                            {h.authorName.slice(0, 1)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-semibold truncate">{h.authorName}</span>
+                              <span className="text-[11px] text-muted-foreground shrink-0">{relDate(h.date)}</span>
+                              {h.isPinned && <Pin className="h-3 w-3 text-amber-500 shrink-0" />}
+                              {h.priority === "URGENT" && <span className="text-[9px] font-semibold bg-red-100 text-red-700 rounded px-1 shrink-0">긴급</span>}
+                              {!iRead && h.authorId !== currentUserId && <span className="text-[9px] font-semibold bg-blue-500 text-white rounded px-1 shrink-0">NEW</span>}
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {stripMarkdownPreview(h.content, 80) || "(내용 없음)"}
+                            </p>
+                          </div>
+                          {iRead
+                            ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                            : iViewed
+                              ? <Eye className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                              : null}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {pageCount > 1 && (
+                  <div className="flex items-center justify-center gap-1 px-4 py-2.5 border-t">
+                    <button
+                      type="button"
+                      onClick={() => setListPage((p) => Math.max(0, p - 1))}
+                      disabled={listPage === 0}
+                      className="p-1 rounded hover:bg-muted disabled:opacity-30"
+                      aria-label="이전 페이지"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    {Array.from({ length: pageCount }).map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setListPage(i)}
+                        className={cn(
+                          "min-w-7 h-7 rounded-md text-xs font-medium transition-colors",
+                          i === listPage ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+                        )}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setListPage((p) => Math.min(pageCount - 1, p + 1))}
+                      disabled={listPage >= pageCount - 1}
+                      className="p-1 rounded hover:bg-muted disabled:opacity-30"
+                      aria-label="다음 페이지"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
 
