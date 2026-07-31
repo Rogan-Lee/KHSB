@@ -31,10 +31,10 @@ export default async function HandoverDetailPage({
   if (!session?.user) redirect("/sign-in");
 
   const { id } = await params;
-  // 상세 페이지 열람 = "봤음" 자동 기록 (confirmedAt 은 건드리지 않음). 조회 전에 기록해 본인 열람도 반영.
-  await recordHandoverView(id);
   const handover = await getHandoverById(id);
   if (!handover) notFound();
+  // 존재하는 인수인계에만 열람 기록 (없는/삭제된 id 로 FK 위반 500 방지). "봤음"만 남기고 confirmedAt 은 건드리지 않음.
+  await recordHandoverView(id);
 
   // isRead = "확인함" (명시적 확인 클릭). 단순 열람은 확인으로 치지 않는다.
   const isRead = handover.reads.some((r) => r.userId === session.user.id && r.confirmedAt != null);
