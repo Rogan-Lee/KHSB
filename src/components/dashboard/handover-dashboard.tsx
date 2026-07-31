@@ -9,8 +9,10 @@ import {
   CheckCircle2, AlertTriangle, StickyNote, Pin,
   Plus, CheckSquare, Square, User, Send,
   Clock, ListChecks, MessageSquare, Pencil,
-  ChevronDown, ChevronUp, Calendar, ListTodo, History, X,
+  ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Calendar, ListTodo, History, X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { cn } from "@/lib/utils";
 import { markHandoverRead, toggleHandoverTask } from "@/actions/handover";
 import { toggleTodo, getTodoVersions } from "@/actions/todos";
@@ -63,10 +65,12 @@ function isOverdue(d: Date | null, done: boolean) {
 }
 
 export function HandoverDashboard({ handovers, templates, monthlyNotes, students, staffList, currentUserId, currentUserName, year, month, todos }: Props) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [localHandovers, setLocalHandovers] = useState<Handover[]>(handovers);
   const [localTodos, setLocalTodos] = useState<Todo[]>(todos);
   const [localNotes, setLocalNotes] = useState<MonthlyNote[]>(monthlyNotes);
+  const [unreadIdx, setUnreadIdx] = useState(0);
 
   // 이달 특이사항 빠른 등록
   const [showNoteForm, setShowNoteForm] = useState(false);
@@ -82,6 +86,7 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
   }
 
   const unread = localHandovers.filter((h) => h.authorId !== currentUserId && !h.reads.some((r) => r.userId === currentUserId && r.confirmedAt != null));
+  useEffect(() => { setUnreadIdx((i) => Math.min(Math.max(0, i), Math.max(0, unread.length - 1))); }, [unread.length]);
 
   // 나에게 배정된 인수인계 할 일
   type MyHandoverTask = HandoverTask & { handoverAuthorName: string; handoverDate: Date };
@@ -181,33 +186,48 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
         <KpiChip value={localNotes.length} label="이달 특이사항" color="amber" icon={<StickyNote className="h-3.5 w-3.5" />} />
       </div>
 
-      {/* 미확인 인수인계 배너 */}
-      {unread.length > 0 && (
-        <div className="rounded-xl border border-red-200 bg-red-50/60 overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-red-100">
-            <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
-            <span className="text-sm font-semibold text-red-700">미확인 인수인계 {unread.length}건</span>
-            <Link href="/handover" className="ml-auto text-[11px] text-red-400 hover:text-red-600">전체보기 →</Link>
-          </div>
-          <div className="divide-y divide-red-100">
-            {unread.slice(0, 2).map((h) => (
-              <div key={h.id} className="flex items-start gap-3 px-4 py-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    {h.isPinned && <Pin className="h-3 w-3 text-amber-400" />}
-                    {h.priority === "URGENT" && <AlertTriangle className="h-3 w-3 text-red-500" />}
-                    <span className="text-[11px] text-muted-foreground">{h.authorName} · {new Date(h.date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}</span>
-                  </div>
-                  <p className="text-sm font-medium line-clamp-1">{h.content || "(내용 없음)"}</p>
-                </div>
-                <button onClick={() => handleMarkRead(h)} disabled={isPending} className="shrink-0 flex items-center gap-1 text-xs bg-red-600 text-white rounded-md px-2.5 py-1.5 hover:bg-red-700 font-medium">
+      {/* 미확인 인수인계 — 좌우로 넘기며 글 본문 전체를 인라인으로 (클릭 시 상세) */}
+      {unread.length > 0 && (() => {
+        const idx = Math.min(unreadIdx, unread.length - 1);
+        const h = unread[idx];
+        return (
+          <div className="rounded-xl border border-red-200 bg-red-50/60 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-red-100">
+              <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+              <span className="text-sm font-semibold text-red-700">미확인 인수인계 {unread.length}건</span>
+              <div className="ml-auto flex items-center gap-1">
+                <button type="button" onClick={() => setUnreadIdx(() => Math.max(0, idx - 1))} disabled={idx === 0}
+                  className="p-1 rounded text-red-500 hover:bg-red-100 disabled:opacity-30 disabled:hover:bg-transparent" aria-label="이전">
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="text-[11px] font-semibold text-red-600 tabular-nums">{idx + 1}/{unread.length}</span>
+                <button type="button" onClick={() => setUnreadIdx(() => Math.min(unread.length - 1, idx + 1))} disabled={idx >= unread.length - 1}
+                  className="p-1 rounded text-red-500 hover:bg-red-100 disabled:opacity-30 disabled:hover:bg-transparent" aria-label="다음">
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+                <Link href="/handover" className="ml-1 text-[11px] text-red-400 hover:text-red-600">전체보기 →</Link>
+              </div>
+            </div>
+            <div className="px-4 py-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                {h.isPinned && <Pin className="h-3 w-3 text-amber-400" />}
+                {h.priority === "URGENT" && <span className="text-[9px] font-semibold bg-red-100 text-red-700 rounded px-1">긴급</span>}
+                {h.category && <span className="text-[9px] bg-muted text-muted-foreground rounded px-1">{h.category}</span>}
+                <span className="text-[11px] text-muted-foreground">{h.authorName} · {new Date(h.date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}</span>
+                <button onClick={() => handleMarkRead(h)} disabled={isPending} className="ml-auto shrink-0 flex items-center gap-1 text-xs bg-red-600 text-white rounded-md px-2.5 py-1.5 hover:bg-red-700 font-medium">
                   <CheckCircle2 className="h-3 w-3" />확인
                 </button>
               </div>
-            ))}
+              <div
+                onClick={(e) => { const t = e.target as HTMLElement; if (t.closest("button") || t.closest("a")) return; router.push(`/handover/${h.id}`); }}
+                className="cursor-pointer rounded-lg border border-red-100 bg-white/60 px-3 py-2.5 max-h-80 overflow-y-auto text-sm text-foreground"
+              >
+                {h.content ? <MarkdownViewer source={h.content} /> : <span className="text-muted-foreground">(내용 없음)</span>}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 2-col 메인 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 items-start">
