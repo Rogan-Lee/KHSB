@@ -5,6 +5,8 @@
   font-size: 0.875rem;
   line-height: 1.7;
   color: #1e2124;
+  /* 긴 URL·토큰이 컬럼 폭을 밀어내지 않도록 강제 줄바꿈 */
+  overflow-wrap: anywhere;
 }
 
 .notion-editor-content .tiptap p {

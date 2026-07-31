@@ -422,7 +422,7 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
       </div>
 
       {/* 2-col main */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
 
         {/* LEFT -- 좌우 뷰어 + 페이지네이션 리스트 */}
         {/* min-w-0: grid item 기본 min-width:auto 때문에 긴 본문(코드블록 등)이 안 줄어들어
