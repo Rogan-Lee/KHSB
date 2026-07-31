@@ -27,7 +27,7 @@ if (devUrl.includes("pooler.supabase.com") && devUrl.includes(":6543")) {
 }
 
 // 프로덕션 project-ref 가 DEV 에 섞이면 거부
-const PROD_PROJECT_REF = "ulefrypbhdgbtkjjlnco";
+const PROD_PROJECT_REF = "vrdzlviqepexwznwdmkf";
 if (devUrl.includes(PROD_PROJECT_REF)) {
   console.error(`❌ DATABASE_URL_DEV 에 프로덕션 project-ref(${PROD_PROJECT_REF}) 포함. 중단.`);
   process.exit(1);

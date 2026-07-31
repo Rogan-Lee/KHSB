@@ -40,7 +40,7 @@ if (urlToUse.includes("pooler.supabase.com") && urlToUse.includes(":6543")) {
 }
 
 // 안전 가드 3: 프로덕션 project-ref 가 DEV URL 에 포함되면 거부
-const PROD_PROJECT_REF = "ulefrypbhdgbtkjjlnco";
+const PROD_PROJECT_REF = "vrdzlviqepexwznwdmkf";
 if (urlToUse.includes(PROD_PROJECT_REF)) {
   console.error(`❌ ${source} 에 프로덕션 project-ref(${PROD_PROJECT_REF}) 가 포함됐습니다. 중단.`);
   process.exit(1);
