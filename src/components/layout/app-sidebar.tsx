@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
@@ -9,7 +10,7 @@ import {
   hasFeature, getMinimumPlan, PLAN_LABELS,
   type PlanTier, type FeatureKey,
 } from "@/lib/features";
-import { isFullAccess, isOnlineStaff, isStaff } from "@/lib/roles";
+import { canViewMentoringTime, isFullAccess, isOnlineStaff, isStaff } from "@/lib/roles";
 import {
   BookOpen,
   Users,
@@ -30,8 +31,10 @@ import {
   ListTodo,
   NotebookText,
   CalendarClock,
+  Clock,
   MapPin,
   Megaphone,
+  Utensils,
   GraduationCap,
   Wallet,
   Building2,
@@ -43,6 +46,8 @@ import {
   HelpCircle,
   ScanLine,
   MessageSquarePlus,
+  UserPlus,
+  KeyRound,
 } from "lucide-react";
 
 type NavItem = {
@@ -69,6 +74,7 @@ const navSections: NavSection[] = [
     label: "원생",
     items: [
       { href: "/students", label: "원생 관리", icon: Users, feature: "students" },
+      { href: "/waitlist", label: "대기자 관리", icon: UserPlus },
       { href: "/seat-map", label: "좌석 배치도", icon: MapPin, feature: "seat-map" },
       { href: "/merit-demerit", label: "상벌점", icon: Star, feature: "merit-demerit" },
       { href: "/vocab-test", label: "영단어 시험", icon: BookOpen, feature: "vocab-test" },
@@ -78,8 +84,8 @@ const navSections: NavSection[] = [
       { href: "/assignments", label: "과제 관리", icon: ClipboardCheck, feature: "assignments" },
       { href: "/online/performance", label: "수행평가", icon: ClipboardCheck },
       { href: "/exams", label: "시험 관리", icon: GraduationCap, feature: "exam-scores" },
-      // 등원 스케줄(시간표 제안→학부모 승인 검토)은 원장/SA만.
-      { href: "/online/schedules", label: "등원 스케줄", icon: CalendarClock, show: isFullAccess },
+      // 등원 스케줄(시간표 제안→학부모 승인 검토) — 자습실 운영진 전체.
+      { href: "/online/schedules", label: "등원 스케줄", icon: CalendarClock, show: isStaff },
     ],
   },
   {
@@ -90,12 +96,15 @@ const navSections: NavSection[] = [
       { href: "/timetable", label: "시간표", icon: LayoutList, feature: "timetable" },
       { href: "/consultations", label: "면담 관리", icon: FileText, feature: "consultations" },
       { href: "/mentoring/schedule", label: "멘토 스케줄", icon: Calendar, feature: "mentoring" },
+      // 원장/SUPER_ADMIN + 총괄 멘토만. 그룹 맨 아래 배치.
+      { href: "/mentoring/time", label: "멘토링 시간 관리", icon: Clock, feature: "mentoring", show: canViewMentoringTime },
     ],
   },
   {
     label: "운영",
     items: [
       { href: "/patrol", label: "순찰 관리", icon: ScanLine },
+      { href: "/lunch", label: "점심 도시락", icon: Utensils },
       { href: "/calendar", label: "캘린더", icon: CalendarDays, feature: "calendar" },
       { href: "/meeting-minutes", label: "회의록", icon: NotebookText, feature: "meeting-minutes" },
       { href: "/messages", label: "카카오 메시지", icon: MessageCircle, feature: "kakao-messages" },
@@ -131,6 +140,7 @@ const directorSection: NavSection = {
   label: "관리자",
   items: [
     { href: "/mentors", label: "직원 관리", icon: UserCog, feature: "mentors" },
+    { href: "/admin/auth", label: "계정 초대", icon: KeyRound },
     { href: "/payroll", label: "급여 정산", icon: Wallet, feature: "payroll" },
     { href: "/payroll/me", label: "내 출퇴근", icon: Wallet, feature: "payroll" },
     { href: "/admin/school-stats", label: "학교별 통계", icon: Building2, feature: "school-stats" },
@@ -323,12 +333,16 @@ export function AppSidebar({
               onToggle && "hover:border-line-strong cursor-pointer"
             )}
           >
-            <span className="w-8 h-8 rounded-[9px] bg-ink text-white grid place-items-center shrink-0 text-[13px] font-bold tracking-[-0.02em] relative overflow-hidden">
-              K
-              <span className="absolute inset-[2px] rounded-[7px] bg-[linear-gradient(135deg,rgba(255,255,255,0.08),transparent_60%)] pointer-events-none" />
-            </span>
+            <Image
+              src="/khsb-logo.png"
+              alt="KHSB"
+              width={640}
+              height={242}
+              priority
+              className="h-7 w-auto shrink-0"
+            />
             <span className="min-w-0 text-left flex-1">
-              <span className="block font-semibold text-[12.5px] text-ink tracking-[-0.015em] truncate">KHSB BackOffice</span>
+              <span className="block font-semibold text-[12.5px] text-ink tracking-[-0.015em] truncate">BackOffice</span>
               <span className="block text-[11px] text-ink-4 leading-none mt-0.5">원장 · {PLAN_LABELS[plan].label}</span>
             </span>
             {onToggle && <ChevronsLeft className="h-3.5 w-3.5 text-ink-4 shrink-0" />}

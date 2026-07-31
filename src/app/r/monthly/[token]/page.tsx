@@ -1,5 +1,7 @@
-import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { hasGatePass } from "@/lib/token-auth";
+import { ParentGate } from "@/components/magic-link-gate/parent-gate";
+import { TokenNotice, reasonToNotice } from "@/components/magic-link-gate/token-notice";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { MonthlyExamTrendChart } from "@/components/reports/monthly-exam-trend-chart";
 import { NotesSection } from "@/components/reports/notes-section";
@@ -28,8 +30,17 @@ export default async function MonthlyParentReportPage({
     },
   });
 
-  if (!report) notFound();
+  if (!report) {
+    // 월간 리포트는 만료 개념이 없어(shareToken 영구) 무효/삭제 토큰만 여기 도달.
+    const n = reasonToNotice("not_found");
+    return <TokenNotice title={n.title} body={n.body} />;
+  }
   const { student, year, month } = report;
+
+  const gated = await hasGatePass("PARENT", token, student.id);
+  if (!gated) {
+    return <ParentGate model="monthly" token={token} />;
+  }
 
   // 월간 모의고사 성적
   const start = new Date(year, month - 1, 1);

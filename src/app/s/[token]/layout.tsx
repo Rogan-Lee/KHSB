@@ -18,7 +18,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "내 포털 · 스터디룸 매니저",
+  title: "내 포털 · 강한선배 | KHSB",
   description: "본인 전용 학생 포털입니다.",
   appleWebApp: {
     capable: true,
@@ -79,7 +79,10 @@ async function countUnreadQuestionAnswersForStudent(
 export default async function StudentPortalLayout({
   children,
   params,
-}: LayoutProps<"/s/[token]">) {
+}: {
+  children: React.ReactNode;
+  params: Promise<{ token: string }>;
+}) {
   const { token } = await params;
   const session = await validateMagicLink(token);
   if (!session) redirect("/s/expired");

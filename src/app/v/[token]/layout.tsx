@@ -9,7 +9,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "영단어 시험 · 스터디룸 매니저",
+  title: "영단어 시험 · 강한선배 | KHSB",
   description: "영단어 온라인 시험 응시 페이지",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "영단어 시험" },
   formatDetection: { telephone: false },

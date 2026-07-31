@@ -18,7 +18,7 @@ import { formatDate } from "@/lib/utils";
 import { Search, X, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Checkbox } from "@/components/ui/checkbox";
-import { updateMeritDemerit, deleteMeritDemerit, bulkDeleteMeritDemerits, toggleMeritDemeritVisibility } from "@/actions/merit-demerit";
+import { updateMeritDemerit, deleteMeritDemerit, bulkDeleteMeritDemerits, toggleMeritDemeritVisibility, getMeritsByRange } from "@/actions/merit-demerit";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useSortableTable } from "@/hooks/use-sortable-table";
@@ -50,11 +50,13 @@ function EditMeritDialog({
   onClose: (refresh?: boolean) => void;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [type, setType] = useState<"MERIT" | "DEMERIT">(record.type);
   const dateStr = new Date(record.date).toISOString().split("T")[0];
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    fd.set("type", type);
     startTransition(async () => {
       try {
         await updateMeritDemerit(record.id, fd);
@@ -93,7 +95,7 @@ function EditMeritDialog({
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">구분</Label>
-              <Select name="type" defaultValue={record.type}>
+              <Select value={type} onValueChange={(v) => setType(v as "MERIT" | "DEMERIT")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="MERIT">상점</SelectItem>
@@ -138,6 +140,9 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
   const saved = typeof window !== "undefined" ? loadMeritFilters() : {};
   const [query, setQuery] = useState<string>(saved.q ?? "");
   const [todayOnly, setTodayOnly] = useState<boolean>(false);
+  // "오늘만"은 서버에서 오늘자 전체를 조회한다 (records prop은 최신 50건이라 오늘 기록이 잘릴 수 있음).
+  const [todayRecords, setTodayRecords] = useState<MeritRecord[] | null>(null);
+  const [todayLoading, startTodayTransition] = useTransition();
   const [editTarget, setEditTarget] = useState<MeritRecord | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isBulkPending, startBulkTransition] = useTransition();
@@ -151,13 +156,23 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
     const n = new Date();
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
   })();
-  const isToday = (d: Date) => {
-    const x = new Date(d);
-    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}` === todayStr;
-  };
 
-  const baseFiltered = records.filter((r) => {
-    if (todayOnly && !isToday(r.date)) return false;
+  function handleToggleToday() {
+    const next = !todayOnly;
+    setTodayOnly(next);
+    if (next && todayRecords === null) {
+      startTodayTransition(async () => {
+        try {
+          const rows = await getMeritsByRange(todayStr, todayStr);
+          setTodayRecords(rows as MeritRecord[]);
+        } catch { toast.error("오늘 상벌점 조회 실패"); }
+      });
+    }
+  }
+
+  // 오늘만 ON: 서버 조회 결과(오늘자 전체) 사용 / OFF: 최신 50건 prop 사용
+  const source = todayOnly ? (todayRecords ?? []) : records;
+  const baseFiltered = source.filter((r) => {
     if (q && !(
       r.student.name.toLowerCase().includes(q) ||
       r.reason.toLowerCase().includes(q) ||
@@ -233,13 +248,15 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
           variant={todayOnly ? "secondary" : "ghost"}
           size="sm"
           className="h-8 px-2.5 text-xs"
-          onClick={() => setTodayOnly((v) => !v)}
+          onClick={handleToggleToday}
           aria-pressed={todayOnly}
-          title="오늘 등록된 상벌점만 보기"
+          title="오늘 등록된 상벌점 전체 보기"
         >
           오늘만
         </Button>
-        {(q || todayOnly) && <span className="text-xs text-muted-foreground">{filtered.length}건</span>}
+        {todayOnly && todayLoading
+          ? <span className="text-xs text-muted-foreground">조회 중...</span>
+          : (q || todayOnly) && <span className="text-xs text-muted-foreground">{filtered.length}건</span>}
         {selectedCount > 0 && (
           <Button variant="destructive" size="sm" className="ml-auto h-8 gap-1.5" onClick={handleBulkDelete} disabled={isBulkPending}>
             <Trash2 className="h-3.5 w-3.5" />{selectedCount}건 삭제

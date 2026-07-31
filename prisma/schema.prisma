@@ -32,6 +32,29 @@ enum UserStatus {
   TERMINATED // 퇴사 처리됨. 픽커/매직링크에서 제외, 과거 데이터는 보존.
 }
 
+enum AuthInviteType {
+  STAFF
+  STUDENT
+}
+
+enum DevicePlatform {
+  IOS
+  ANDROID
+}
+
+enum PushNotificationCategory {
+  TASK
+  QUESTION
+  MENTORING
+  SYSTEM
+}
+
+enum PushNotificationStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
 enum AttendanceType {
   NORMAL
   ABSENT
@@ -102,6 +125,12 @@ enum ExamType {
   SCHOOL_EXAM // 학교 내신
 }
 
+enum ExamApplicationStatus {
+  PENDING // 학생/학부모 신청 접수
+  CONFIRMED // 운영진 확정 (좌석배정 대상)
+  CANCELLED // 운영진이 반려/취소
+}
+
 enum CalendarEventType {
   SCHOOL_EXAM // 학교 시험
   SCHOOL_EVENT // 학교 행사
@@ -145,6 +174,9 @@ model User {
   workHourEntries         WorkHourEntry[]
   workMonths              WorkMonth[]
   staffMagicLinks         StaffMagicLink[]     @relation("StaffMagicLinks")
+  authIdentity            AuthUser?            @relation("AuthUserAppUser")
+  authInvites             AuthInvitation[]     @relation("AuthInviteTargetUser")
+  issuedAuthInvites       AuthInvitation[]     @relation("AuthInviteIssuer")
   // ── 근무자 상태(퇴사·매직링크 게이트용) ──
   status                  UserStatus           @default(ACTIVE)
   terminatedAt            DateTime?
@@ -348,6 +380,8 @@ model Student {
   assignedConsultant   User?                  @relation("ConsultantStudents", fields: [assignedConsultantId], references: [id])
   assignedStaffId      String? // STAFF (운영조교)
   assignedStaff        User?                  @relation("StaffStudents", fields: [assignedStaffId], references: [id])
+  authIdentity         AuthUser?              @relation("AuthUserStudent")
+  authInvites          AuthInvitation[]       @relation("AuthInviteTargetStudent")
   magicLinks           StudentMagicLink[]
   portalChats          PortalChat[]
   studentQuestions     StudentQuestion[]
@@ -386,9 +420,13 @@ model Student {
   vocabScores          VocabTestScore[]
   vocabAttempts        VocabAttempt[]
   examSeatAssignments  ExamSeatAssignment[]
+  examApplications     ExamApplication[]
   photos               Photo[]
   patrolRecords        PatrolRecord[]
   scheduleProposals    ScheduleProposal[]
+  waitlistEntries      Waitlist[]             @relation("StudentWaitlist")
+  lunchOrders          LunchOrder[]
+  lunchChangeRequests  LunchChangeRequest[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 
@@ -397,6 +435,139 @@ model Student {
   @@index([assignedConsultantId])
   @@index([assignedStaffId])
   @@index([attentionFlag])
+}
+
+// Better Auth의 로그인 계정. 기존 운영 User/Student 레코드와 분리해
+// Clerk 제거 시에도 도메인 PK와 모든 기존 FK를 그대로 유지한다.
+model AuthUser {
+  id              String            @id @default(cuid())
+  name            String
+  email           String            @unique
+  emailVerified   Boolean           @default(false)
+  image           String?
+  username        String?           @unique
+  displayUsername String?
+  appUserId       String?           @unique
+  appUser         User?             @relation("AuthUserAppUser", fields: [appUserId], references: [id], onDelete: Cascade)
+  studentId       String?           @unique
+  student         Student?          @relation("AuthUserStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  sessions        AuthSession[]
+  accounts        AuthAccount[]
+  pushTokens      DevicePushToken[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([appUserId])
+  @@index([studentId])
+}
+
+model DevicePushToken {
+  id               String                    @id @default(cuid())
+  authUserId       String
+  authUser         AuthUser                  @relation(fields: [authUserId], references: [id], onDelete: Cascade)
+  token            String                    @unique
+  projectId        String
+  platform         DevicePlatform
+  deviceName       String?
+  appVersion       String?
+  enabled          Boolean                   @default(true)
+  tasksEnabled     Boolean                   @default(true)
+  questionsEnabled Boolean                   @default(true)
+  mentoringEnabled Boolean                   @default(true)
+  lastSeenAt       DateTime                  @default(now())
+  receipts         PushNotificationReceipt[]
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  @@index([authUserId, enabled])
+  @@index([enabled, lastSeenAt])
+}
+
+model PushNotificationReceipt {
+  id                String                   @id @default(cuid())
+  expoReceiptId     String                   @unique
+  devicePushTokenId String
+  devicePushToken   DevicePushToken          @relation(fields: [devicePushTokenId], references: [id], onDelete: Cascade)
+  category          PushNotificationCategory
+  status            PushNotificationStatus   @default(PENDING)
+  errorCode         String?
+  errorMessage      String?
+  checkedAt         DateTime?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  @@index([status, createdAt])
+  @@index([devicePushTokenId, createdAt])
+}
+
+model AuthSession {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model AuthAccount {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  AuthUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+model AuthVerification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@index([expiresAt])
+}
+
+// 공개 회원가입은 허용하지 않는다. 기존 직원 또는 학생에 연결된
+// 만료 가능한 1회용 초대 토큰을 검증한 경우에만 AuthUser가 생성된다.
+model AuthInvitation {
+  id              String         @id @default(cuid())
+  type            AuthInviteType
+  tokenHash       String         @unique
+  targetUserId    String?
+  targetUser      User?          @relation("AuthInviteTargetUser", fields: [targetUserId], references: [id], onDelete: Cascade)
+  targetStudentId String?
+  targetStudent   Student?       @relation("AuthInviteTargetStudent", fields: [targetStudentId], references: [id], onDelete: Cascade)
+  invitedById     String
+  invitedBy       User           @relation("AuthInviteIssuer", fields: [invitedById], references: [id], onDelete: Restrict)
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  acceptedById    String?
+  revokedAt       DateTime?
+  createdAt       DateTime       @default(now())
+
+  @@index([targetUserId, acceptedAt])
+  @@index([targetStudentId, acceptedAt])
+  @@index([expiresAt])
 }
 
 // 온라인 학생 포털(`/s/[token]`) 접근용 매직링크.
@@ -1058,15 +1229,36 @@ model ExamSession {
   examType    ExamType @default(OFFICIAL_MOCK)
   subjects    String[] // ["국어","수학","영어","탐구1","탐구2"]
   notes       String?
+  applicationOpen Boolean @default(false) // 학생/학부모 신청 접수 여부 (운영진 토글)
   createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   assignments ExamSeatAssignment[]
   scores      ExamScore[]
+  applications ExamApplication[]
   monthlyReportSelections OnlineParentReport[] @relation("MonthlyReportExam")
 
   @@index([examDate])
+}
+
+// 모의고사 신청 — 학생/학부모가 매직링크로 신청, 운영진 확정 후 좌석배정 대상이 됨. (LunchOrder 패턴)
+model ExamApplication {
+  id            String                @id @default(cuid())
+  sessionId     String
+  session       ExamSession           @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       Student               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status        ExamApplicationStatus @default(PENDING)
+  memo          String? // 학생/학부모 요청사항
+  appliedAt     DateTime              @default(now())
+  confirmedAt   DateTime?
+  confirmedById String? // 확정한 운영진 User.id
+  updatedAt     DateTime              @updatedAt
+
+  @@unique([sessionId, studentId]) // 학생당 세션 1신청
+  @@index([sessionId])
+  @@index([studentId])
 }
 
 model PhotoFolder {
@@ -1363,10 +1555,24 @@ model ChecklistTemplate {
   id        String    @id @default(cuid())
   title     String
   shiftType ShiftType @default(ALL)
+  days      String    @default("") // CSV of DOW ints "0,1,2" (0=일..6=토). 빈 문자열 = 매일
   order     Int       @default(0)
   isActive  Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+}
+
+// 루틴 일별 완료 기록 — (templateId, date) 당 1행. 매일 리셋(그날 행 없으면 미완료).
+model RoutineCompletion {
+  id            String   @id @default(cuid())
+  templateId    String
+  date          DateTime @db.Date
+  checkedById   String?
+  checkedByName String?
+  checkedAt     DateTime @default(now())
+
+  @@unique([templateId, date])
+  @@index([date])
 }
 
 model HandoverTask {
@@ -1511,6 +1717,7 @@ model ScheduleProposal {
   reviewedAt             DateTime?
   committedById          String?
   committedAt            DateTime?
+  scheduledFor           DateTime? @db.Date // 실행 예정일 — 지정 시 이 날짜(KST 00시)에 자동 반영
   approvedAt             DateTime? // 학부모 승인 시각
   feedbacks              ScheduleProposalFeedback[]
   createdAt              DateTime               @default(now())
@@ -1533,12 +1740,13 @@ model ScheduleProposalFeedback {
 }
 
 model HandoverRead {
-  id         String   @id @default(cuid())
-  handoverId String
-  handover   Handover @relation(fields: [handoverId], references: [id], onDelete: Cascade)
-  userId     String
-  userName   String
-  readAt     DateTime @default(now())
+  id          String    @id @default(cuid())
+  handoverId  String
+  handover    Handover  @relation(fields: [handoverId], references: [id], onDelete: Cascade)
+  userId      String
+  userName    String
+  readAt      DateTime  @default(now()) // 최초 열람(봤음) 시각 — 상세 페이지를 처음 연 시점
+  confirmedAt DateTime? // 명시적 "확인" 클릭 시각. null = 봤지만 아직 미확인
 
   @@unique([handoverId, userId])
 }
@@ -1989,4 +2197,191 @@ model QuestionMessage {
   createdAt    DateTime                  @default(now())
 
   @@index([questionId, createdAt])
+}
+
+// ─── 대기자 관리 (Waitlist) ───────────────────────────────────────────────────
+
+enum BranchWaitStatus {
+  WAITLIST_OPEN // 대기 등록
+  ALMOST_FULL // 마감 임박
+  IMMEDIATE // 바로 등원
+  CLOSED // 마감
+}
+
+enum WaitGender {
+  MALE
+  FEMALE
+}
+
+enum WaitGradeType {
+  REPEAT // N수생
+  ENROLLED // 재학생
+}
+
+enum WaitlistKind {
+  WAITLIST // 대기 신청
+  INQUIRY // 단순 문의
+}
+
+enum WaitlistStatus {
+  WAITING // 대기 중
+  INVITED // 초대(등록 안내) 발송
+  ENROLLED // 등원 확정
+  CANCELLED // 취소
+}
+
+// 지점. 현재 단일 시설이지만 대기자 신청은 다지점 구조 (수능선배 참고).
+model Branch {
+  id         String           @id @default(cuid())
+  name       String
+  slug       String           @unique
+  waitStatus BranchWaitStatus @default(WAITLIST_OPEN)
+  notice     String? // "현재 정원이 차서..." 공개 안내문
+  capacity   Int? // 지점 총정원 (null = 미설정)
+  sortOrder  Int              @default(0)
+  isActive   Boolean          @default(true)
+  programs   WaitlistProgram[]
+  entries    Waitlist[]
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+}
+
+// 지점이 제공하는 프로그램(신청 시 선택).
+model WaitlistProgram {
+  id        String     @id @default(cuid())
+  branchId  String
+  branch    Branch     @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  name      String
+  capacity  Int? // 프로그램 정원 (null = 미설정)
+  sortOrder Int        @default(0)
+  isActive  Boolean    @default(true)
+  entries   Waitlist[]
+}
+
+// 대기 신청 1건.
+model Waitlist {
+  id               String           @id @default(cuid())
+  token            String           @unique @default(cuid()) // 순번 상태 페이지 링크
+  branchId         String
+  branch           Branch           @relation(fields: [branchId], references: [id])
+  programId        String?
+  program          WaitlistProgram? @relation(fields: [programId], references: [id])
+  name             String
+  school           String? // 학교 (학생 구분용)
+  grade            String? // 학년 (예: 고3, 중2)
+  phone            String
+  gender           WaitGender? // nullable — 기존 원생 일괄등록 시 없음
+  gradeType        WaitGradeType? // nullable — 기존 원생 일괄등록 시 없음
+  kind             WaitlistKind     @default(WAITLIST) // 대기신청 / 단순문의
+  studentId        String? // 기존 원생 연결 (매칭/일괄등록)
+  student          Student?         @relation("StudentWaitlist", fields: [studentId], references: [id], onDelete: SetNull)
+  note             String?
+  consentMarketing Boolean          @default(false)
+  phoneVerifiedAt  DateTime?
+  status           WaitlistStatus   @default(WAITING)
+  invitedAt        DateTime?
+  enrolledAt       DateTime?
+  cancelledAt      DateTime?
+  cancelReason     String? // 취소 사유 (관리자 입력)
+  guideContent     String? // 등록 안내 마크다운 (관리자 작성, 공개 링크로 전달)
+  guideToken       String?  @unique // 등록 안내 공개 링크 토큰 (작성 시 발급)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([branchId, status, createdAt])
+  @@index([studentId])
+}
+
+// 휴대폰 인증번호 (공개 신청 흐름).
+model PhoneVerification {
+  id           String    @id @default(cuid())
+  phone        String
+  code         String
+  expiresAt    DateTime
+  verifiedAt   DateTime?
+  attemptCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+
+  @@index([phone, createdAt])
+}
+
+// ─── 방학 점심 도시락 ───
+// 관리자가 날짜별 메뉴/가격을 입력(LunchMenu)하고, 학부모가 매직링크 포털
+// (`/s/[token]/lunch`)에서 날짜를 골라 신청(LunchOrder + LunchOrderItem).
+// 하루 1메뉴 고정이라 날짜가 곧 메뉴. 입금은 계좌이체 수동확인.
+enum LunchPaidStatus {
+  PENDING // 입금 확인 대기
+  PAID // 입금 확인 완료
+}
+
+model LunchMenu {
+  id          String   @id @default(cuid())
+  date        DateTime @unique @db.Date // 하루 1메뉴 — date 유니크
+  name        String // 메뉴명 (예: "제육덮밥")
+  price       Int // 원
+  buffer      Int      @default(0) // 비상 여유분 (발주표에만 반영, 학생 주문과 무관)
+  closed      Boolean  @default(false) // 마감 — 학부모 신규 신청 차단
+  createdById String? // 등록 운영진 User.id 스냅샷 (createdBy 패턴)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items LunchOrderItem[]
+
+  @@index([date])
+}
+
+model LunchOrder {
+  id         String          @id @default(cuid())
+  studentId  String
+  student    Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  paidStatus LunchPaidStatus @default(PENDING)
+  paidAt     DateTime?
+  paidById   String? // 입금 확인한 운영진 User.id
+  depositClaimedAt  DateTime? // 학부모가 "입금했어요" 알림한 시각 (관리자 확인 전)
+  memo       String? // 학부모 요청사항
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  items LunchOrderItem[]
+
+  @@index([studentId])
+  @@index([paidStatus])
+}
+
+model LunchOrderItem {
+  id         String     @id @default(cuid())
+  orderId    String
+  order      LunchOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuId     String
+  menu       LunchMenu  @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  price      Int // 주문 시점 가격 스냅샷 — 메뉴 가격 변경에도 총액 불변
+  received   Boolean    @default(false) // 배부 완료 개별 체크
+  receivedAt DateTime?
+  createdAt  DateTime   @default(now())
+
+  @@unique([orderId, menuId]) // 한 주문에서 같은 날 중복 방지
+  @@index([menuId])
+}
+
+// 학부모 변경 요청 ↔ 운영자 답변(반영 내용) 스레드. 학생별로 누적(히스토리).
+model LunchChangeRequest {
+  id            String    @id @default(cuid())
+  studentId     String
+  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  message       String    @db.Text // 학부모 요청
+  reply         String?   @db.Text // 운영자 답변 = 반영 내용 (null이면 미처리)
+  repliedByName String? // 답변한 운영진 이름 스냅샷
+  repliedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([studentId])
+}
+
+// 입금 계좌·안내문 (단일 행, 전 주문 공용)
+model LunchSetting {
+  id        String   @id @default("default")
+  bankInfo  String? // 예: "국민 123-456-7890 (홍길동)"
+  guideText String?  @db.Text // 학부모 안내문
+  updatedAt DateTime @updatedAt
 }

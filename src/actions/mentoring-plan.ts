@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { isStaff, STAFF_ROLES } from "@/lib/roles";
+import { isStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { todayKST } from "@/lib/utils";
 
@@ -49,9 +49,9 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
 
   const mentors = await prisma.user.findMany({
     where: {
-      // 주간 플랜 picker — 퇴사자 제외
+      // 주간 플랜 picker — 퇴사자 제외, 멘토만 (운영조교 STAFF 제외)
       status: "ACTIVE",
-      role: { in: [...STAFF_ROLES] },
+      role: { in: ["HEAD_MENTOR", "MENTOR"] },
       mentorSchedules: { some: {} },
     },
     include: {

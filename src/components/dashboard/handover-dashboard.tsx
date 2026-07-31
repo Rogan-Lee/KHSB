@@ -19,7 +19,7 @@ import { createMonthlyNote } from "@/actions/monthly-notes";
 // ── Types ─────────────────────────────────────────────────────────────────────
 type HandoverTask = { id: string; title: string; content: string; assigneeId: string | null; assigneeName: string | null; order: number; isCompleted: boolean; completedAt: Date | null };
 type HandoverChecklist = { id: string; templateId: string | null; title: string; shiftType: string; isChecked: boolean; order: number };
-type HandoverRead = { userId: string; userName: string; readAt: Date };
+type HandoverRead = { userId: string; userName: string; readAt: Date; confirmedAt: Date | null };
 type Handover = { id: string; date: Date; content: string; priority: "URGENT" | "NORMAL"; category: string | null; isPinned: boolean; authorId: string; authorName: string; reads: HandoverRead[]; tasks: HandoverTask[]; checklist: HandoverChecklist[]; createdAt: Date };
 type ChecklistTemplate = { id: string; title: string; shiftType: string; order: number; isActive: boolean };
 type MonthlyNote = { id: string; studentName: string; content: string; authorName: string; createdAt: Date };
@@ -81,7 +81,7 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
     setOpenSections((p) => ({ ...p, [key]: !p[key] }));
   }
 
-  const unread = localHandovers.filter((h) => h.authorId !== currentUserId && !h.reads.some((r) => r.userId === currentUserId));
+  const unread = localHandovers.filter((h) => h.authorId !== currentUserId && !h.reads.some((r) => r.userId === currentUserId && r.confirmedAt != null));
 
   // 나에게 배정된 인수인계 할 일
   type MyHandoverTask = HandoverTask & { handoverAuthorName: string; handoverDate: Date };
@@ -122,7 +122,14 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
     startTransition(async () => {
       try {
         await markHandoverRead(h.id);
-        setLocalHandovers((prev) => prev.map((item) => item.id === h.id ? { ...item, reads: [...item.reads, { userId: currentUserId, userName: currentUserName, readAt: new Date() }] } : item));
+        setLocalHandovers((prev) => prev.map((item) => {
+          if (item.id !== h.id) return item;
+          const has = item.reads.some((r) => r.userId === currentUserId);
+          const reads = has
+            ? item.reads.map((r) => r.userId === currentUserId ? { ...r, confirmedAt: new Date() } : r)
+            : [...item.reads, { userId: currentUserId, userName: currentUserName, readAt: new Date(), confirmedAt: new Date() }];
+          return { ...item, reads };
+        }));
         toast.success("확인 완료");
       } catch { toast.error("처리 실패"); }
     });
@@ -341,7 +348,7 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
             ) : (
               <div className="divide-y">
                 {localHandovers.slice(0, 5).map((h) => {
-                  const isRead = h.reads.some((r) => r.userId === currentUserId);
+                  const isRead = h.reads.some((r) => r.userId === currentUserId && r.confirmedAt != null);
                   const isAuthor = h.authorId === currentUserId;
                   const showUnread = !isRead && !isAuthor;
                   return (

@@ -27,6 +27,15 @@ export function isStaff(role?: string | null): boolean {
   return !!role && (STAFF_ROLES as readonly string[]).includes(role);
 }
 
+/** 멘토링 시간 관리 대시보드 접근 — 원장/SUPER_ADMIN + 총괄 멘토 */
+export function canViewMentoringTime(role?: string | null): boolean {
+  return isFullAccess(role) || role === "HEAD_MENTOR";
+}
+
+export function requireMentoringTime(role?: string | null) {
+  if (!canViewMentoringTime(role)) throw new Error("Forbidden");
+}
+
 /** STAFF 이상 역할이 아니면 에러를 던진다 */
 export function requireStaff(role?: string | null) {
   if (!isStaff(role)) throw new Error("Forbidden");

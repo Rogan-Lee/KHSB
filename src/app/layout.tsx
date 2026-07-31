@@ -2,8 +2,6 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { KakaoSdkLoader } from "@/components/kakao-sdk-loader";
-import { ClerkProvider } from "@clerk/nextjs";
-import { koKR } from "@clerk/localizations";
 import { Analytics } from "@vercel/analytics/react";
 
 // 도메인: NEXT_PUBLIC_APP_URL (예: https://app.example.com). 링크 미리보기(OG)·sitemap 기준.
@@ -39,19 +37,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider
-      localization={koKR}
-      signInFallbackRedirectUrl="/"
-      signUpFallbackRedirectUrl="/"
-    >
-      <html lang="ko" suppressHydrationWarning>
-        <body className="antialiased">
-          {children}
-          <Toaster richColors position="top-right" />
-          <KakaoSdkLoader />
-          <Analytics />
-        </body>
-      </html>
-    </ClerkProvider>
+    <html lang="ko" suppressHydrationWarning>
+      <body className="antialiased">
+        {children}
+        <Toaster richColors position="top-right" />
+        <KakaoSdkLoader />
+        <Analytics />
+      </body>
+    </html>
   );
 }

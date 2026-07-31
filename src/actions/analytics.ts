@@ -10,6 +10,8 @@ export interface SubjectTrend {
   improvement: number | null; // 양수 = 상승 (등급 낮아짐)
   firstDate: string | null;
   latestDate: string | null;
+  firstExamName: string | null;
+  latestExamName: string | null;
 }
 
 export interface StudentAnalytics {
@@ -80,6 +82,8 @@ export async function getOverallAnalytics(): Promise<OverallAnalytics> {
         improvement,
         firstDate: new Date(first.examDate).toISOString().split("T")[0],
         latestDate: new Date(latest.examDate).toISOString().split("T")[0],
+        firstExamName: first.examName,
+        latestExamName: latest.examName,
       });
     }
 
@@ -187,6 +191,8 @@ export async function getStudentAnalytics(studentId: string): Promise<StudentAna
       improvement: scores.length >= 2 && first.grade && latest.grade ? first.grade - latest.grade : null,
       firstDate: new Date(first.examDate).toISOString().split("T")[0],
       latestDate: new Date(latest.examDate).toISOString().split("T")[0],
+      firstExamName: first.examName,
+      latestExamName: latest.examName,
     });
   }
 

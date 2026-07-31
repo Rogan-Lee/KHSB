@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export function GET() {
   const manifest = {
-    name: "스터디룸 매니저",
+    name: "강한선배 | KHSB",
     short_name: "KHSB",
     description: "관리형 독서실 올인원 운영 콘솔",
     start_url: "/",
