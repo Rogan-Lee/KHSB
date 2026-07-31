@@ -285,11 +285,11 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
       router.push(qs ? `/mentoring?${qs}` : "/mentoring");
     });
   }
-  // "최근 60일" 프리셋: 오늘 기준 -60일 ~ +14일
+  // "최근 1주일" 프리셋: 오늘 기준 -7일 ~ +14일
   function applyRecentRange() {
     const n = new Date();
     const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const from = new Date(n.getFullYear(), n.getMonth(), n.getDate() - 60);
+    const from = new Date(n.getFullYear(), n.getMonth(), n.getDate() - 7);
     const to = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 14);
     applyDateRange(iso(from), iso(to));
   }
@@ -516,7 +516,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
           onClick={applyRecentRange}
           disabled={isRefetching}
         >
-          최근 60일
+          최근 1주일
         </Button>
         <Button
           variant={isAllRange ? "secondary" : "ghost"}

@@ -169,6 +169,8 @@ export function MeritForm({ students }: Props) {
   const [isPending, startTransition] = useTransition();
   const [lastRecord, setLastRecord] = useState<LastRecord | null>(null);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+  const [type, setType] = useState<"MERIT" | "DEMERIT">("MERIT");
+  const [category, setCategory] = useState("");
 
   const [draft, setDraft, clearDraft] = useDraft("merit-form-draft", {
     reason: "",
@@ -180,11 +182,9 @@ export function MeritForm({ students }: Props) {
       return;
     }
 
-    const type = formData.get("type") as "MERIT" | "DEMERIT";
     const points = Number(formData.get("points"));
     const reason = formData.get("reason") as string;
     const date = formData.get("date") as string;
-    const category = formData.get("category") as string;
     const names = [...selectedStudentIds].map((id) => students.find((s) => s.id === id)?.name).filter(Boolean);
 
     startTransition(async () => {
@@ -202,6 +202,7 @@ export function MeritForm({ students }: Props) {
         }
         clearDraft();
         setSelectedStudentIds(new Set());
+        setCategory("");
         const label = selectedStudentIds.size > 1 ? `${names[0]} 외 ${selectedStudentIds.size - 1}명` : names[0];
         toast.success(`${label}에게 상벌점이 부여되었습니다`);
         setLastRecord({ studentName: names.join(", ") ?? "", type, points, reason });
@@ -242,7 +243,7 @@ export function MeritForm({ students }: Props) {
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1.5">
             <Label>구분</Label>
-            <Select name="type" defaultValue="MERIT">
+            <Select value={type} onValueChange={(v) => setType(v as "MERIT" | "DEMERIT")}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -260,7 +261,7 @@ export function MeritForm({ students }: Props) {
 
         <div className="space-y-1.5">
           <Label>카테고리</Label>
-          <Select name="category">
+          <Select value={category} onValueChange={setCategory}>
             <SelectTrigger>
               <SelectValue placeholder="카테고리 선택" />
             </SelectTrigger>

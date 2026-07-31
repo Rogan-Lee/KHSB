@@ -1,0 +1,594 @@
+"use client";
+
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import type { BranchWaitStatus, WaitGender, WaitGradeType } from "@/generated/prisma/enums";
+import {
+  issuePhoneCode,
+  confirmPhoneVerification,
+  submitWaitlist,
+  findExistingByPhone,
+  type ExistingEntry,
+} from "@/actions/waitlist";
+
+type Branch = {
+  id: string;
+  name: string;
+  waitStatus: BranchWaitStatus;
+  notice: string | null;
+  programs: { id: string; name: string }[];
+};
+
+const WAIT_BADGE: Record<BranchWaitStatus, { label: string; cls: string }> = {
+  WAITLIST_OPEN: { label: "대기 등록", cls: "bg-blue-50 text-blue-600" },
+  ALMOST_FULL: { label: "마감 임박", cls: "bg-amber-50 text-amber-600" },
+  IMMEDIATE: { label: "바로 등원", cls: "bg-green-50 text-green-600" },
+  CLOSED: { label: "마감", cls: "bg-red-50 text-red-500" },
+};
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="mb-3 border-b border-gray-200 pb-2 text-base font-bold text-gray-900">
+      {children}
+    </h2>
+  );
+}
+
+function Toggle<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T | null;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          className={`rounded-lg border py-3 text-sm font-semibold transition ${
+            value === o.value
+              ? "border-blue-600 bg-blue-600 text-white"
+              : "border-gray-200 bg-white text-gray-400"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function ApplyForm({ branches }: { branches: Branch[] }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  const [kind, setKind] = useState<"WAITLIST" | "INQUIRY">("WAITLIST");
+  const [branchId, setBranchId] = useState<string | null>(null);
+  const [gender, setGender] = useState<WaitGender | null>(null);
+  const [gradeType, setGradeType] = useState<WaitGradeType | null>(null);
+  const [programId, setProgramId] = useState<string>("");
+  const [name, setName] = useState("");
+  const [school, setSchool] = useState("");
+  const [grade, setGrade] = useState("");
+  const [phone, setPhone] = useState("");
+  const [note, setNote] = useState("");
+  const [consent, setConsent] = useState(false);
+
+  // "현황 조회" 모드 — 전화 인증 후 내 신청 목록 조회
+  const [lookupMode, setLookupMode] = useState(false);
+
+  const [issued, setIssued] = useState<{ code: string; receiver: string; qrCode: string | null } | null>(
+    null
+  );
+  const [issuing, setIssuing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [verified, setVerified] = useState(false);
+  const [duplicates, setDuplicates] = useState<ExistingEntry[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // 현황 조회 결과를 세션에 보관 → 순번 페이지에서 뒤로가기 시 재인증 없이 목록 복원
+  const LOOKUP_KEY = "waitlist_lookup";
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(LOOKUP_KEY);
+      if (!raw) return;
+      const s = JSON.parse(raw) as { phone: string; duplicates: ExistingEntry[] };
+      setPhone(s.phone);
+      setVerified(true);
+      setLookupMode(true);
+      setDuplicates(s.duplicates);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  function clearLookupCache() {
+    try {
+      sessionStorage.removeItem(LOOKUP_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const selectedBranch = branches.find((b) => b.id === branchId) ?? null;
+
+  // sms: 딥링크 (탭 → 문자앱에 수신번호·본문 자동 채움). iOS/Android 모두 동작하는 ?&body 형태.
+  const smsLink = issued
+    ? `sms:${issued.receiver.replace(/\D/g, "")}?&body=${encodeURIComponent(issued.code)}`
+    : "";
+
+  // 번호가 바뀌면 발급/인증 상태 초기화 (다른 번호로 제출 방지)
+  function handlePhoneChange(value: string) {
+    setPhone(value);
+    if (issued || verified) {
+      setIssued(null);
+      setVerified(false);
+    }
+  }
+
+  async function handleIssue() {
+    setError(null);
+    if (!phone.trim()) return setError("휴대폰 번호를 먼저 입력해주세요");
+    setIssuing(true);
+    const res = await issuePhoneCode(phone);
+    setIssuing(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setVerified(false);
+    setIssued({ code: res.code, receiver: res.receiver, qrCode: res.qrCode });
+  }
+
+  async function handleConfirm() {
+    setError(null);
+    setConfirming(true);
+    const res = await confirmPhoneVerification(phone);
+    setConfirming(false);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setVerified(true);
+  }
+
+  const isInquiry = kind === "INQUIRY";
+
+  // 실제 등록 (중복 확인 통과 후 / "새로 등록" 선택 시)
+  async function doSubmit() {
+    if (!branchId) return;
+    const res = await submitWaitlist({
+      branchId,
+      programId: isInquiry ? null : programId || null,
+      name,
+      school: isInquiry ? null : school,
+      grade: isInquiry ? null : grade,
+      phone,
+      gender: isInquiry ? null : gender,
+      gradeType: isInquiry ? null : gradeType,
+      kind,
+      note,
+      consentMarketing: consent,
+    });
+    if (!res.ok) {
+      setError(res.error);
+      setDuplicates(null);
+      return;
+    }
+    router.push(`/apply/${res.data!.token}`);
+  }
+
+  function handleSubmit() {
+    setError(null);
+    if (!branchId) return setError(isInquiry ? "문의할 지점을 선택해주세요" : "지점을 선택해주세요");
+    if (!isInquiry && !gender) return setError("성별을 선택해주세요");
+    if (!isInquiry && !gradeType) return setError("학년을 선택해주세요");
+    if (!name.trim()) return setError("이름을 입력해주세요");
+    if (isInquiry && !note.trim()) return setError("문의 내용을 입력해주세요");
+    if (!verified) return setError("휴대폰 본인인증을 먼저 완료해주세요");
+
+    startTransition(async () => {
+      // 동일 인증번호로 이미 남긴 내역이 있으면 → 선택지 제공 (중복 등록 방지)
+      const existing = await findExistingByPhone(phone);
+      if (existing.length > 0) {
+        setDuplicates(existing);
+        return;
+      }
+      await doSubmit();
+    });
+  }
+
+  function handleLookup() {
+    setError(null);
+    if (!verified) return setError("휴대폰 본인인증을 먼저 완료해주세요");
+    startTransition(async () => {
+      const ex = await findExistingByPhone(phone);
+      if (ex.length === 0) {
+        setError("해당 번호로 등록된 신청 내역이 없습니다");
+        return;
+      }
+      try {
+        sessionStorage.setItem(LOOKUP_KEY, JSON.stringify({ phone, duplicates: ex }));
+      } catch {
+        /* ignore */
+      }
+      setDuplicates(ex);
+    });
+  }
+
+  function resetVerify() {
+    setIssued(null);
+    setVerified(false);
+    setDuplicates(null);
+    setError(null);
+  }
+
+  // 전화 인증 블록 (신청 폼 + 현황 조회에서 공용)
+  const phoneVerify = (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <input
+          value={phone}
+          onChange={(e) => handlePhoneChange(e.target.value)}
+          inputMode="numeric"
+          placeholder="핸드폰번호를 적어주세요"
+          className="flex-1 rounded-lg border border-gray-200 px-4 py-3 text-sm"
+        />
+        <button
+          type="button"
+          onClick={handleIssue}
+          disabled={issuing || !phone}
+          className="shrink-0 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {issuing ? "발급 중" : issued ? "재발급" : "인증번호 발급"}
+        </button>
+      </div>
+
+      {issued && !verified && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-center">
+          <p className="text-xs text-gray-600">아래 인증번호를 문자로 보낸 뒤 “문자를 보냈어요”를 눌러주세요</p>
+          <p className="my-2 text-3xl font-extrabold tracking-widest text-blue-600">{issued.code}</p>
+          <p className="text-xs text-gray-500">
+            수신번호 <span className="font-semibold">{issued.receiver}</span>
+          </p>
+          <a href={smsLink} className="mt-3 block w-full rounded-lg bg-blue-600 py-3 text-sm font-bold text-white">
+            ① 문자 앱으로 인증번호 보내기
+          </a>
+          {issued.qrCode && (
+            <div className="mt-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={issued.qrCode} alt="SMS QR" width={140} height={140} className="mx-auto" />
+              <p className="mt-1 text-[11px] text-gray-400">PC라면 휴대폰 카메라로 QR을 스캔하세요</p>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={confirming}
+            className="mt-3 w-full rounded-lg border border-blue-600 bg-white py-3 text-sm font-bold text-blue-600 disabled:opacity-60"
+          >
+            {confirming ? "확인 중..." : "② 문자를 보냈어요 (인증 확인)"}
+          </button>
+        </div>
+      )}
+
+      {verified && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-center text-sm font-semibold text-green-700">
+          ✓ 본인인증이 완료되었어요
+        </div>
+      )}
+    </div>
+  );
+
+  // 현황 조회 모드 — 전화 인증 후 내 신청 목록 조회
+  if (lookupMode && !duplicates) {
+    return (
+      <div className="mt-8 space-y-5">
+        <div>
+          <h2 className="text-base font-bold text-gray-900">신청 현황 조회</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            등록 시 인증한 번호로 본인인증하면 신청한 학생들의 순번을 확인할 수 있어요.
+          </p>
+        </div>
+        {phoneVerify}
+        <button
+          type="button"
+          onClick={handleLookup}
+          disabled={pending || !verified}
+          className="w-full rounded-lg bg-gray-800 py-4 text-sm font-bold text-white disabled:opacity-60"
+        >
+          {pending ? "조회 중..." : "현황 조회"}
+        </button>
+        {error && <p className="text-center text-sm text-red-500">{error}</p>}
+        <button
+          type="button"
+          onClick={() => {
+            clearLookupCache();
+            setLookupMode(false);
+            resetVerify();
+          }}
+          className="w-full rounded-lg border border-gray-200 py-3 text-sm font-medium text-gray-500"
+        >
+          신청 폼으로 돌아가기
+        </button>
+      </div>
+    );
+  }
+
+  // 신청 내역 목록 — 학생 선택해 순번 확인 / (등록 흐름이면) 새로 등록
+  if (duplicates) {
+    return (
+      <div className="mt-8 space-y-5">
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-5">
+          <h2 className="text-base font-bold text-gray-900">
+            {lookupMode ? "신청하신 학생 목록" : "이미 남기신 내역이 있어요"}
+          </h2>
+          <p className="mt-1 text-sm text-gray-500">
+            {lookupMode
+              ? "확인할 학생을 선택하면 순번을 볼 수 있어요."
+              : "같은 번호로 등록된 내역입니다. 현황을 확인하시거나, 다른 학생으로 새로 등록할 수 있어요."}
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {duplicates.map((d) => (
+            <button
+              key={d.token}
+              type="button"
+              onClick={() => router.push(`/apply/${d.token}`)}
+              className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 text-left"
+            >
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  {d.name}{" "}
+                  <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-500">
+                    {d.kind === "INQUIRY" ? "문의" : "대기 신청"}
+                  </span>
+                </p>
+                <p className="mt-0.5 text-xs text-gray-400">
+                  {[d.school, d.grade].filter(Boolean).join(" · ") || d.branchName}
+                  {(d.school || d.grade) && ` · ${d.branchName}`}
+                </p>
+              </div>
+              <span className="text-xs font-semibold text-blue-600">현황 보기 →</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-3 pt-2">
+          {!lookupMode && (
+            <button
+              type="button"
+              onClick={() => startTransition(doSubmit)}
+              disabled={pending}
+              className="w-full rounded-lg bg-blue-600 py-4 text-sm font-bold text-white disabled:opacity-60"
+            >
+              {pending ? "등록 중..." : "다른 학생으로 새로 등록"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setDuplicates(null)}
+            className="w-full rounded-lg border border-gray-200 py-3 text-sm font-medium text-gray-500"
+          >
+            돌아가기
+          </button>
+        </div>
+        {error && <p className="text-center text-sm text-red-500">{error}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-8 space-y-10">
+      <button
+        type="button"
+        onClick={() => {
+          resetVerify();
+          setLookupMode(true);
+        }}
+        className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3.5 text-left transition hover:border-blue-200 hover:bg-blue-50"
+      >
+        <span className="text-sm">
+          <span className="font-semibold text-gray-900">이미 신청하셨나요?</span>{" "}
+          <span className="text-gray-500">대기 순번을 확인해보세요</span>
+        </span>
+        <span className="shrink-0 text-sm font-semibold text-blue-600">현황 조회 →</span>
+      </button>
+
+      {/* 신청 유형 */}
+      <section>
+        <SectionTitle>어떤 도움이 필요하신가요?</SectionTitle>
+        <div className="grid grid-cols-2 gap-3">
+          {([
+            { value: "WAITLIST", label: "대기 신청" },
+            { value: "INQUIRY", label: "문의하기" },
+          ] as const).map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => setKind(o.value)}
+              className={`rounded-lg border py-3 text-sm font-semibold transition ${
+                kind === o.value
+                  ? "border-blue-600 bg-blue-600 text-white"
+                  : "border-gray-200 bg-white text-gray-400"
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* 지점 선택 */}
+      <section>
+        <SectionTitle>
+          {isInquiry ? "어떤 지점에 문의하시나요?" : "어떤 지점 신청 원하시나요?"}
+        </SectionTitle>
+        <div className="grid grid-cols-2 gap-3">
+          {branches.map((b) => {
+            const badge = WAIT_BADGE[b.waitStatus];
+            // 문의는 마감 지점도 선택 가능
+            const closed = b.waitStatus === "CLOSED" && !isInquiry;
+            const active = branchId === b.id;
+            return (
+              <button
+                key={b.id}
+                type="button"
+                disabled={closed}
+                onClick={() => {
+                  setBranchId(b.id);
+                  setProgramId("");
+                }}
+                className={`flex items-center justify-between rounded-lg border px-4 py-3 text-sm transition ${
+                  active
+                    ? "border-blue-600 bg-blue-600 text-white"
+                    : closed
+                      ? "border-gray-100 bg-gray-50 text-gray-300"
+                      : "border-gray-200 bg-white text-gray-500"
+                }`}
+              >
+                <span className="font-semibold">{b.name}</span>
+                <span
+                  className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                    active ? "bg-white/20 text-white" : badge.cls
+                  }`}
+                >
+                  {badge.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {selectedBranch?.notice && (
+          <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-500">
+            • {selectedBranch.notice}
+          </p>
+        )}
+      </section>
+
+      {/* 성별·학년·프로그램 — 대기 신청만 */}
+      {!isInquiry && (
+        <>
+          <section>
+            <SectionTitle>학생분의 성별은 어떻게 되시나요?</SectionTitle>
+            <Toggle
+              value={gender}
+              onChange={setGender}
+              options={[
+                { value: "MALE", label: "남학생" },
+                { value: "FEMALE", label: "여학생" },
+              ]}
+            />
+          </section>
+
+          <section>
+            <SectionTitle>현재 학년</SectionTitle>
+            <Toggle
+              value={gradeType}
+              onChange={setGradeType}
+              options={[
+                { value: "REPEAT", label: "N수생" },
+                { value: "ENROLLED", label: "재학생" },
+              ]}
+            />
+          </section>
+        </>
+      )}
+
+      {/* 프로그램 (대기 신청 + 지점에 프로그램이 있을 때만) */}
+      {!isInquiry && selectedBranch && selectedBranch.programs.length > 0 && (
+        <section>
+          <SectionTitle>프로그램을 선택해주세요</SectionTitle>
+          <select
+            value={programId}
+            onChange={(e) => setProgramId(e.target.value)}
+            className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-700"
+          >
+            <option value="">선택 안 함</option>
+            {selectedBranch.programs.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </section>
+      )}
+
+      {/* 정보 입력 */}
+      <section>
+        <SectionTitle>{isInquiry ? "연락받으실 정보를 적어주세요" : "학생 정보를 적어주세요"}</SectionTitle>
+        <div className="space-y-3">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={isInquiry ? "이름을 적어주세요" : "학생 이름을 적어주세요"}
+            className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm"
+          />
+          {!isInquiry && (
+            <>
+              <input
+                value={school}
+                onChange={(e) => setSchool(e.target.value)}
+                placeholder="학교를 적어주세요 (예: OO고등학교)"
+                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm"
+              />
+              <input
+                value={grade}
+                onChange={(e) => setGrade(e.target.value)}
+                placeholder="학년을 적어주세요 (예: 고3, 중2)"
+                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm"
+              />
+            </>
+          )}
+          {phoneVerify}
+        </div>
+      </section>
+
+      {/* 문의 내용 / 기타 요청 */}
+      <section>
+        <SectionTitle>{isInquiry ? "무엇이 궁금하신가요?" : "기타 요청사항이 있으신가요?"}</SectionTitle>
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={isInquiry ? 5 : 3}
+          placeholder={
+            isInquiry ? "문의 내용을 자유롭게 남겨주세요 (예: 등원 가능 시기, 비용, 상담 예약 등)" : undefined
+          }
+          className="w-full resize-none rounded-lg border border-gray-200 px-4 py-3 text-sm"
+        />
+      </section>
+
+      {error && <p className="text-center text-sm text-red-500">{error}</p>}
+
+      <div className="space-y-3">
+        <label className="flex items-center gap-2 text-xs text-gray-500">
+          <input
+            type="checkbox"
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+            className="h-4 w-4"
+          />
+          마케팅 수신에 동의하시면, 등원 가능한 시점에 즉시 안내를 받으실 수 있습니다.
+        </label>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={pending || !verified}
+          className="w-full rounded-lg bg-gray-800 py-4 text-sm font-bold text-white disabled:opacity-60"
+        >
+          {pending ? "제출 중..." : isInquiry ? "문의 남기기" : "신청서 제출"}
+        </button>
+        {!verified && (
+          <p className="text-center text-[11px] text-gray-400">
+            휴대폰 본인인증을 완료하면 {isInquiry ? "문의를 남길 수 있어요" : "신청할 수 있어요"}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}

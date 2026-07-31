@@ -18,7 +18,7 @@ export async function getHandovers(options?: { date?: string; limit?: number }) 
   return prisma.handover.findMany({
     where,
     include: {
-      reads: { select: { userId: true, userName: true, readAt: true } },
+      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
       tasks: { orderBy: { order: "asc" } },
       checklist: { orderBy: { order: "asc" } },
     },
@@ -37,7 +37,7 @@ export async function getRecentHandovers(days = 14) {
   return prisma.handover.findMany({
     where: { date: { gte: since } },
     include: {
-      reads: { select: { userId: true, userName: true, readAt: true } },
+      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
       tasks: { orderBy: { order: "asc" } },
       checklist: { orderBy: { order: "asc" } },
     },
@@ -61,7 +61,7 @@ export async function getHandoversSince(sinceYMD: string) {
   return prisma.handover.findMany({
     where: { date: { gte: effective } },
     include: {
-      reads: { select: { userId: true, userName: true, readAt: true } },
+      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
       tasks: { orderBy: { order: "asc" } },
       checklist: { orderBy: { order: "asc" } },
     },
@@ -82,7 +82,7 @@ export async function getHandoversBetween(fromYMD: string, toYMD: string) {
   return prisma.handover.findMany({
     where: { date: { gte: from, lte: toEnd } },
     include: {
-      reads: { select: { userId: true, userName: true, readAt: true } },
+      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
       tasks: { orderBy: { order: "asc" } },
       checklist: { orderBy: { order: "asc" } },
     },
@@ -97,7 +97,7 @@ export async function getHandoverById(id: string) {
   return prisma.handover.findUnique({
     where: { id },
     include: {
-      reads: { select: { userId: true, userName: true, readAt: true } },
+      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
       tasks: { orderBy: { order: "asc" } },
       checklist: { orderBy: { order: "asc" } },
       comments: { orderBy: { createdAt: "asc" } },
@@ -151,7 +151,7 @@ export async function getTodayHandover() {
   return prisma.handover.findFirst({
     where: { date: today },
     include: {
-      reads: { select: { userId: true, userName: true, readAt: true } },
+      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
       tasks: { orderBy: { order: "asc" } },
       checklist: { orderBy: { order: "asc" } },
     },
@@ -226,7 +226,7 @@ export async function createFullHandover(data: {
       },
     },
     include: {
-      reads: { select: { userId: true, userName: true, readAt: true } },
+      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
       tasks: { orderBy: { order: "asc" } },
       checklist: { orderBy: { order: "asc" } },
     },
@@ -308,7 +308,7 @@ export async function updateFullHandover(
       }),
     },
     include: {
-      reads: { select: { userId: true, userName: true, readAt: true } },
+      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
       tasks: { orderBy: { order: "asc" } },
       checklist: { orderBy: { order: "asc" } },
     },
@@ -361,6 +361,10 @@ export async function deleteHandover(id: string) {
 
 // ── 확인 / 고정 ───────────────────────────────────────────────────────────────
 
+/**
+ * 명시적 "확인" 클릭. confirmedAt 을 세팅한다(= 확인완료).
+ * 최초 열람(readAt)은 건드리지 않는다 — 이미 열람 기록이 있으면 그 시각을 보존.
+ */
 export async function markHandoverRead(handoverId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
@@ -371,12 +375,33 @@ export async function markHandoverRead(handoverId: string) {
       handoverId,
       userId: session.user.id,
       userName: session.user.name ?? "알 수 없음",
+      confirmedAt: new Date(),
     },
-    update: { readAt: new Date() },
+    update: { confirmedAt: new Date() },
   });
 
   revalidatePath("/handover");
   revalidatePath("/");
+}
+
+/**
+ * 상세 페이지 열람 시 자동 호출(봤음 기록). readAt 만 남기고 confirmedAt 은 건드리지 않는다.
+ * 이미 열람 기록이 있으면 최초 열람 시각을 보존하기 위해 아무것도 갱신하지 않는다.
+ * revalidatePath 를 호출하지 않으므로 서버 컴포넌트 렌더 중 호출해도 안전.
+ */
+export async function recordHandoverView(handoverId: string) {
+  const session = await auth();
+  if (!session?.user) return;
+
+  await prisma.handoverRead.upsert({
+    where: { handoverId_userId: { handoverId, userId: session.user.id } },
+    create: {
+      handoverId,
+      userId: session.user.id,
+      userName: session.user.name ?? "알 수 없음",
+    },
+    update: {}, // 최초 열람 시각·확인 상태 보존
+  });
 }
 
 export async function toggleHandoverTask(taskId: string) {

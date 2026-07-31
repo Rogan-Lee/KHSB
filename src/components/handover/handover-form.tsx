@@ -18,7 +18,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, todayKST } from "@/lib/utils";
 import {
   createFullHandover,
   updateFullHandover,
@@ -30,6 +30,7 @@ type ChecklistTemplate = {
   id: string;
   title: string;
   shiftType: string;
+  days: string;
   order: number;
   isActive: boolean;
 };
@@ -147,6 +148,10 @@ export function HandoverForm({ editingHandover, templates, monthlyNotes, staffLi
   const [taskAssignee, setTaskAssignee] = useState<Staff | null>(null);
 
   // Section 3: 루틴 체크리스트
+  // 근무 타임 필터 (오픈/마감). null = 미선택(전체 노출)
+  const [shift, setShift] = useState<"OPEN" | "CLOSE" | null>(null);
+  // 작성일 요일으로 시드 필터 (편집 시엔 스냅샷이 우선이라 무관)
+  const todayDow = todayKST().getUTCDay();
   const [checklist, setChecklist] = useState<ChecklistDraft[]>(() => {
     if (editingHandover?.checklist.length) {
       return editingHandover.checklist.map((c) => ({
@@ -158,7 +163,7 @@ export function HandoverForm({ editingHandover, templates, monthlyNotes, staffLi
       }));
     }
     return templates
-      .filter((t) => t.isActive)
+      .filter((t) => t.isActive && (t.days === "" || t.days.split(",").map(Number).includes(todayDow)))
       .map((t, i) => ({
         templateId: t.id,
         title: t.title,
@@ -167,6 +172,9 @@ export function HandoverForm({ editingHandover, templates, monthlyNotes, staffLi
         order: i,
       }));
   });
+
+  // 타임 필터: 공통(ALL)은 항상, 미선택이면 전체, 아니면 해당 타임만
+  const shiftMatch = (st: string) => st === "ALL" || shift === null || st === shift;
 
   const editDraftKey = editingHandover ? `handover-form-edit-${editingHandover.id}` : null;
 
@@ -280,13 +288,16 @@ export function HandoverForm({ editingHandover, templates, monthlyNotes, staffLi
       order: i,
     }));
 
-    const checklistInputs: HandoverChecklistInput[] = checklist.map((c, i) => ({
-      templateId: c.templateId,
-      title: c.title,
-      shiftType: c.shiftType,
-      isChecked: c.isChecked,
-      order: i,
-    }));
+    // 편집 시엔 스냅샷 그대로, 신규 시엔 선택 타임에 해당하는 항목만 저장
+    const checklistInputs: HandoverChecklistInput[] = checklist
+      .filter((c) => editingHandover || shiftMatch(c.shiftType))
+      .map((c, i) => ({
+        templateId: c.templateId,
+        title: c.title,
+        shiftType: c.shiftType,
+        isChecked: c.isChecked,
+        order: i,
+      }));
 
     const monthlyNotesSnapshot = monthlyNotes.map((n) => ({
       id: n.id,
@@ -334,7 +345,12 @@ export function HandoverForm({ editingHandover, templates, monthlyNotes, staffLi
     });
   }
 
-  const checkedCount = checklist.filter((c) => c.isChecked).length;
+  const visibleCount = checklist.filter((c) => shiftMatch(c.shiftType)).length;
+  const checkedCount = checklist.filter((c) => shiftMatch(c.shiftType) && c.isChecked).length;
+  const SHIFT_FILTERS = [
+    { value: "OPEN" as const, label: "오픈" },
+    { value: "CLOSE" as const, label: "마감" },
+  ];
 
   return (
     <div className="space-y-3">
@@ -541,14 +557,14 @@ export function HandoverForm({ editingHandover, templates, monthlyNotes, staffLi
           <div className="flex items-center gap-2 text-sm font-semibold">
             <CheckSquare className="h-4 w-4 text-muted-foreground" />
             루틴 체크리스트
-            {checklist.length > 0 && (
+            {visibleCount > 0 && (
               <span className={cn(
                 "text-[11px] font-semibold rounded-full px-2 py-0.5 border ml-1",
-                checkedCount === checklist.length
+                checkedCount === visibleCount
                   ? "bg-green-50 text-green-700 border-green-200"
                   : "bg-muted text-muted-foreground border-border"
               )}>
-                {checkedCount}/{checklist.length}
+                {checkedCount}/{visibleCount}
               </span>
             )}
           </div>
@@ -559,12 +575,34 @@ export function HandoverForm({ editingHandover, templates, monthlyNotes, staffLi
           )}
         </button>
         {openSections.has("checklist") && (
-          <div className="px-4 pb-4">
-            {checklist.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-3">등록된 루틴 항목이 없습니다.</p>
+          <div className="px-4 pb-4 space-y-2">
+            {/* 근무 타임 필터 (신규 작성 시) */}
+            {!editingHandover && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-muted-foreground mr-0.5">근무 타임</span>
+                {SHIFT_FILTERS.map((f) => (
+                  <button
+                    key={f.value}
+                    type="button"
+                    onClick={() => setShift((prev) => (prev === f.value ? null : f.value))}
+                    className={cn(
+                      "text-xs px-2.5 py-1 rounded-full border transition-all",
+                      shift === f.value
+                        ? "bg-primary/10 border-primary/40 text-primary font-medium"
+                        : "border-border text-muted-foreground hover:bg-muted/40"
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {visibleCount === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-3">해당 요일·타임의 루틴 항목이 없습니다.</p>
             ) : (
               <div className="space-y-1">
-                {checklist.map((item, i) => (
+                {checklist.map((item, i) =>
+                  shiftMatch(item.shiftType) ? (
                   <button
                     key={i}
                     type="button"
@@ -588,7 +626,8 @@ export function HandoverForm({ editingHandover, templates, monthlyNotes, staffLi
                       {SHIFT_TYPE_LABEL[item.shiftType] ?? item.shiftType}
                     </span>
                   </button>
-                ))}
+                  ) : null
+                )}
               </div>
             )}
           </div>
