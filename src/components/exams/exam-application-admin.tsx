@@ -4,7 +4,8 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Check, X, Shuffle, RotateCcw } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Check, X, Shuffle, RotateCcw, Copy } from "lucide-react";
 import {
   toggleExamApplicationOpen,
   setExamApplicationStatus,
@@ -26,6 +27,8 @@ const STATUS_META: Record<ExamApplicationStatus, { label: string; tone: string }
   CANCELLED: { label: "반려", tone: "bg-bad-soft text-bad-ink" },
 };
 
+const STATUS_TABS: ExamApplicationStatus[] = ["PENDING", "CONFIRMED", "CANCELLED"];
+
 export function ExamApplicationAdmin({
   sessionId,
   applicationOpen,
@@ -39,6 +42,72 @@ export function ExamApplicationAdmin({
   const [busy, startTransition] = useTransition();
 
   const confirmedCount = applications.filter((a) => a.status === "CONFIRMED").length;
+  const countOf = (s: ExamApplicationStatus) => applications.filter((a) => a.status === s).length;
+
+  function renderRow(a: ApplicationRow) {
+    const meta = STATUS_META[a.status];
+    return (
+      <li key={a.id} className="flex items-center gap-2 px-3 py-2.5">
+        <div className="min-w-0 flex-1">
+          <span className="text-sm font-medium">{a.studentName}</span>
+          <span className="ml-1.5 text-xs text-muted-foreground">{a.grade}</span>
+          {a.memo && <p className="mt-0.5 text-xs text-muted-foreground">{a.memo}</p>}
+        </div>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${meta.tone}`}>
+          {meta.label}
+        </span>
+        {a.status !== "CONFIRMED" ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() => run(() => setExamApplicationStatus(a.id, "CONFIRMED"), "확정했습니다")}
+          >
+            <Check className="h-3.5 w-3.5" />
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() => run(() => setExamApplicationStatus(a.id, "PENDING"), "확정을 취소했습니다")}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        {a.status !== "CANCELLED" ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => run(() => setExamApplicationStatus(a.id, "CANCELLED"), "반려했습니다")}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => run(() => setExamApplicationStatus(a.id, "PENDING"), "대기로 되돌렸습니다")}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </li>
+    );
+  }
+
+  async function copyApplyLink() {
+    const link = `${window.location.origin}/exam-apply/${sessionId}`;
+    const msg = `📢 모의고사 신청 안내\n아래 링크에서 휴대폰 본인인증 후 신청해주세요 👇\n${link}`;
+    try {
+      await navigator.clipboard.writeText(msg);
+      toast.success("신청 링크가 복사되었습니다 (카톡·문자로 전달하세요)");
+    } catch {
+      toast.error("복사 실패 — 브라우저 권한을 확인하세요");
+    }
+  }
 
   function run(fn: () => Promise<unknown>, ok: string) {
     startTransition(async () => {
@@ -62,6 +131,12 @@ export function ExamApplicationAdmin({
           </p>
         </div>
         <div className="flex gap-2">
+          {applicationOpen && (
+            <Button size="sm" variant="outline" disabled={busy} onClick={copyApplyLink}>
+              <Copy className="h-4 w-4 mr-1" />
+              신청 링크 복사
+            </Button>
+          )}
           <Button
             size="sm"
             variant={applicationOpen ? "outline" : "default"}
@@ -94,52 +169,32 @@ export function ExamApplicationAdmin({
       {applications.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">아직 신청자가 없습니다.</p>
       ) : (
-        <ul className="divide-y divide-line rounded-lg border border-line">
-          {applications.map((a) => {
-            const meta = STATUS_META[a.status];
+        <Tabs defaultValue="PENDING" className="w-full">
+          <TabsList>
+            {STATUS_TABS.map((s) => (
+              <TabsTrigger key={s} value={s}>
+                {STATUS_META[s].label}
+                <span className="ml-1.5 text-[10px] text-muted-foreground">({countOf(s)})</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {STATUS_TABS.map((s) => {
+            const rows = applications.filter((a) => a.status === s);
             return (
-              <li key={a.id} className="flex items-center gap-2 px-3 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <span className="text-sm font-medium">{a.studentName}</span>
-                  <span className="ml-1.5 text-xs text-muted-foreground">{a.grade}</span>
-                  {a.memo && <p className="mt-0.5 text-xs text-muted-foreground">{a.memo}</p>}
-                </div>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${meta.tone}`}>
-                  {meta.label}
-                </span>
-                {a.status !== "CONFIRMED" ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => run(() => setExamApplicationStatus(a.id, "CONFIRMED"), "확정했습니다")}
-                  >
-                    <Check className="h-3.5 w-3.5" />
-                  </Button>
+              <TabsContent key={s} value={s} className="mt-3">
+                {rows.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    {STATUS_META[s].label} 상태의 신청자가 없습니다.
+                  </p>
                 ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => run(() => setExamApplicationStatus(a.id, "PENDING"), "확정을 취소했습니다")}
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                  </Button>
+                  <ul className="divide-y divide-line rounded-lg border border-line">
+                    {rows.map(renderRow)}
+                  </ul>
                 )}
-                {a.status !== "CANCELLED" && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() => run(() => setExamApplicationStatus(a.id, "CANCELLED"), "반려했습니다")}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-              </li>
+              </TabsContent>
             );
           })}
-        </ul>
+        </Tabs>
       )}
     </div>
   );
