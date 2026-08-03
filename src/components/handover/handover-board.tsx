@@ -424,7 +424,9 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-4 items-start">
 
         {/* LEFT -- 좌우 뷰어 + 페이지네이션 리스트 */}
-        <div className="space-y-4">
+        {/* min-w-0: grid item 기본 min-width:auto 때문에 긴 본문(코드블록 등)이 안 줄어들어
+            오른쪽 루틴 패널을 화면 밖으로 밀어내는(overflow-clip 로 잘림) 문제 방지 */}
+        <div className="space-y-4 min-w-0">
           {!hasAny ? (
             <div className="rounded-xl border bg-card flex flex-col items-center justify-center py-16 text-muted-foreground">
               <Clock className="h-10 w-10 mb-3 opacity-20" />
@@ -557,7 +559,7 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
         </div>
 
         {/* RIGHT -- my tasks */}
-        <div className="space-y-3">
+        <div className="space-y-3 min-w-0">
           {(() => {
             type MyTask = HandoverTask & { handoverAuthorName: string; handoverDate: Date };
             const myTasks: MyTask[] = handovers
