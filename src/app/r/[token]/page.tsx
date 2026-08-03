@@ -251,13 +251,9 @@ export default async function ParentReportPage({
         </>
         )}
 
-        {/* 영단어 테스트 결과 — 멘토링 해당 월 기준 (상벌점과 동일 스코프), 없으면 자동 hide */}
-        <VocabTrendMiniChart
-          studentId={student.id}
-          fromDate={noteMonthStart}
-          toDate={noteMonthEnd}
-          title="이번 달 영단어 테스트 결과"
-        />
+        {/* 영단어 테스트 결과 — 전체 이력. 시험이 멘토링 월보다 늦게 입력돼 월 스코프 시 빈 경우가 많아
+            (실데이터: 8월 리포트인데 시험은 6~7월) 최근 추이 전체를 노출. 데이터 없으면 자동 hide */}
+        <VocabTrendMiniChart studentId={student.id} title="영단어 테스트 결과" />
 
         {/* 원생 기록 + 상벌점 (Sprint 1 PR 1.4) */}
         <NotesSection
