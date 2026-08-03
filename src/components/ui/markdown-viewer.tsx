@@ -36,8 +36,10 @@ export function MarkdownViewer({ source, className }: Props) {
     return <span className="text-muted-foreground italic text-sm">내용 없음</span>;
   }
 
+  // min-w-0 + overflow-x-auto: 코드블록/긴 줄이 부모 레이아웃을 밀어내지 않고
+  // 이 영역 안에서만 스크롤되도록 (인수인계 보드에서 오른쪽 패널 잘림 방지)
   return (
-    <div className={className}>
+    <div className={`min-w-0 overflow-x-auto ${className ?? ""}`}>
       <EditorContent editor={editor} className="notion-editor-content" />
     </div>
   );
