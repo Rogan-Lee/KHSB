@@ -412,15 +412,19 @@ function OrderView({
 function OrderSummaryCard({ order }: { order: LunchOrderState }) {
   return (
     <section className="rounded-[14px] border border-line bg-panel p-4">
-      <p className="mb-2 text-[12px] font-semibold text-ink-2">신청 내역 {order.items.length}일</p>
+      <p className="mb-2.5 text-[12px] font-semibold text-ink-2">신청 내역 {order.items.length}일</p>
       <ul className="space-y-1.5">
         {order.items.map((it) => (
-          <li key={it.date} className="flex items-center justify-between text-[13px]">
-            <span className="text-ink">
-              <b className="font-semibold">{dateLabel(it.date)}</b>
-              <span className="ml-1.5 text-ink-3">{it.name}</span>
-            </span>
-            <span className="tabular-nums text-ink-2">{WON(it.price)}</span>
+          <li key={it.date} className="rounded-[10px] bg-canvas-2/50 px-3 py-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <b className="text-[13.5px] font-bold text-ink">{dateLabel(it.date)}</b>
+              <span className="shrink-0 tabular-nums text-[13px] font-semibold text-ink-2">
+                {WON(it.price)}
+              </span>
+            </div>
+            <p className="mt-1 text-[12px] leading-relaxed text-ink-3">
+              {it.name.replace(/,/g, ", ")}
+            </p>
           </li>
         ))}
       </ul>
@@ -527,9 +531,9 @@ function PaymentView({
       )}
       <button
         onClick={onEdit}
-        className="flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-brand/40 bg-brand/5 px-4 py-3 text-[14px] font-semibold text-brand active:bg-brand/10"
+        className="flex w-full items-center justify-center gap-2 rounded-[12px] border-[1.5px] border-brand bg-brand/10 px-4 py-3.5 text-[15px] font-bold text-brand transition-transform active:scale-[0.98] active:bg-brand/15"
       >
-        <Pencil className="h-4 w-4" /> 신청 내용 수정하기
+        <Pencil className="h-[18px] w-[18px]" strokeWidth={2.4} /> 신청 날짜·메뉴 수정하기
       </button>
     </>
   );
