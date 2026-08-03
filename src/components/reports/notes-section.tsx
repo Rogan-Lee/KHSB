@@ -70,8 +70,8 @@ export function NotesSection({ year, month, monthlyNote, merits }: NotesSectionP
       )}
 
       {visibleMerits.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
-          <div className="px-5 py-4 border-b border-gray-50">
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-amber-200">
+          <div className="px-5 py-4 border-b border-amber-100 bg-amber-50/60">
             <div className="flex items-center gap-2">
               <Award className="h-4 w-4 text-amber-500 shrink-0" />
               <p className="text-sm font-bold text-gray-800">상벌점</p>

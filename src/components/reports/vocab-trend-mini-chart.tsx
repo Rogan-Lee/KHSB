@@ -56,8 +56,8 @@ export async function VocabTrendMiniChart({
   }));
 
   return (
-    <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
-      <div className="px-5 py-4 border-b border-gray-50">
+    <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-emerald-200">
+      <div className="px-5 py-4 border-b border-emerald-100 bg-emerald-50/60">
         <div className="flex items-center gap-2">
           <BookOpen className="h-4 w-4 text-emerald-600 shrink-0" />
           <p className="text-sm font-bold text-gray-800">{title}</p>
