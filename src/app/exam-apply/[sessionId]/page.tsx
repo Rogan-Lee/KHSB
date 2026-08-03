@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { todayKST } from "@/lib/utils";
 import { EXAM_TYPE_LABELS } from "@/components/exams/exam-type-label";
 import { ExamApplyForm } from "./_components/exam-apply-form";
 
@@ -16,7 +15,8 @@ export default async function ExamApplyPage({
     select: { id: true, title: true, examDate: true, examType: true, applicationOpen: true },
   });
 
-  const closed = !exam || !exam.applicationOpen || exam.examDate < todayKST();
+  // 신청 접수 여부는 운영진이 켜는 applicationOpen 하나로 판단 (열면 열린 걸로 보임).
+  const closed = !exam || !exam.applicationOpen;
 
   return (
     <div className="mx-auto min-h-screen max-w-md px-5 py-10">

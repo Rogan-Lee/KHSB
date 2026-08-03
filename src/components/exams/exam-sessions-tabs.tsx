@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ExamSessionRowActions } from "@/components/exams/exam-session-row-actions";
+import { ExamApplicationManager } from "@/components/exams/exam-application-manager";
 import { EXAM_TYPE_LABELS } from "@/components/exams/exam-type-label";
 import type { ExamType } from "@/generated/prisma";
 
@@ -16,6 +17,8 @@ interface SessionRow {
   room: string;
   subjects: string[];
   assignmentsCount: number;
+  applicationOpen: boolean;
+  applicationsCount: number;
   // 평균 백분위 (있을 때만) — 내신 탭에서는 숨김
   averagePercentile: number | null;
 }
@@ -31,7 +34,7 @@ const TABS: { value: ExamType; label: string }[] = [
 ];
 
 export function ExamSessionsTabs({ sessions }: Props) {
-  const [active, setActive] = useState<ExamType>("OFFICIAL_MOCK");
+  const [active, setActive] = useState<string>("OFFICIAL_MOCK");
 
   const grouped = useMemo(() => {
     const m: Record<ExamType, SessionRow[]> = {
@@ -43,8 +46,15 @@ export function ExamSessionsTabs({ sessions }: Props) {
     return m;
   }, [sessions]);
 
+  // 신청 관리 대상 = 학생 신청형(모의고사·학력평가). 내신은 학교 응시라 제외.
+  const applicationSessions = useMemo(
+    () => sessions.filter((s) => s.examType !== "SCHOOL_EXAM"),
+    [sessions]
+  );
+  const openCount = applicationSessions.filter((s) => s.applicationOpen).length;
+
   return (
-    <Tabs value={active} onValueChange={(v) => setActive(v as ExamType)} className="w-full">
+    <Tabs value={active} onValueChange={setActive} className="w-full">
       <TabsList>
         {TABS.map((t) => (
           <TabsTrigger key={t.value} value={t.value}>
@@ -52,7 +62,17 @@ export function ExamSessionsTabs({ sessions }: Props) {
             <span className="ml-1.5 text-[10px] text-muted-foreground">({grouped[t.value].length})</span>
           </TabsTrigger>
         ))}
+        <TabsTrigger value="APPLICATIONS">
+          신청 관리
+          {openCount > 0 && (
+            <span className="ml-1.5 text-[10px] text-ok-ink">({openCount} 열림)</span>
+          )}
+        </TabsTrigger>
       </TabsList>
+
+      <TabsContent value="APPLICATIONS">
+        <ExamApplicationManager sessions={applicationSessions} />
+      </TabsContent>
 
       {TABS.map((t) => {
         const rows = grouped[t.value];
