@@ -251,6 +251,23 @@ export default async function ParentReportPage({
         </>
         )}
 
+        {/* 영단어 테스트 결과 — 멘토링 해당 월 기준 (상벌점과 동일 스코프), 없으면 자동 hide */}
+        <VocabTrendMiniChart
+          studentId={student.id}
+          fromDate={noteMonthStart}
+          toDate={noteMonthEnd}
+          title="이번 달 영단어 테스트 결과"
+        />
+
+        {/* 원생 기록 + 상벌점 (Sprint 1 PR 1.4) */}
+        <NotesSection
+          studentId={student.id}
+          year={noteYear}
+          month={noteMonth}
+          monthlyNote={monthlyNote}
+          merits={merits}
+        />
+
         {/* 학습 계획 */}
         {hasStudyPlan && (
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
@@ -282,18 +299,6 @@ export default async function ParentReportPage({
             </div>
           </div>
         )}
-
-        {/* 영단어 학습 추이 (Sprint 1 PR 1.3) — 스코어 없으면 자동 hide */}
-        <VocabTrendMiniChart studentId={student.id} />
-
-        {/* 원생 기록 + 상벌점 (Sprint 1 PR 1.4) */}
-        <NotesSection
-          studentId={student.id}
-          year={noteYear}
-          month={noteMonth}
-          monthlyNote={monthlyNote}
-          merits={merits}
-        />
 
         {/* 성적 현황 */}
         {analytics && analytics.subjects.length > 0 && (
