@@ -1,9 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Pager } from "@/components/ui/pager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Check, X, Shuffle, RotateCcw, Copy } from "lucide-react";
 import {
@@ -28,6 +29,30 @@ const STATUS_META: Record<ExamApplicationStatus, { label: string; tone: string }
 };
 
 const STATUS_TABS: ExamApplicationStatus[] = ["PENDING", "CONFIRMED", "CANCELLED"];
+
+const PAGE_SIZE = 5;
+
+/** 5개 단위 페이징 목록 (탭마다 독립 페이지 상태). */
+function PaginatedRows({
+  rows,
+  renderRow,
+}: {
+  rows: ApplicationRow[];
+  renderRow: (a: ApplicationRow) => ReactNode;
+}) {
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount - 1);
+  const start = current * PAGE_SIZE;
+  return (
+    <div className="space-y-2">
+      <ul className="divide-y divide-line rounded-lg border border-line">
+        {rows.slice(start, start + PAGE_SIZE).map(renderRow)}
+      </ul>
+      <Pager page={current} pageCount={pageCount} onPage={setPage} className="pt-1" />
+    </div>
+  );
+}
 
 export function ExamApplicationAdmin({
   sessionId,
@@ -187,9 +212,7 @@ export function ExamApplicationAdmin({
                     {STATUS_META[s].label} 상태의 신청자가 없습니다.
                   </p>
                 ) : (
-                  <ul className="divide-y divide-line rounded-lg border border-line">
-                    {rows.map(renderRow)}
-                  </ul>
+                  <PaginatedRows rows={rows} renderRow={renderRow} />
                 )}
               </TabsContent>
             );

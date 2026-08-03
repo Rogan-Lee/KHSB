@@ -4,6 +4,7 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Pager } from "@/components/ui/pager";
 import {
   Pin, PinOff, CheckCircle2, Clock, Trash2, AlertTriangle,
   Eye, ListChecks, Users, User, CheckSquare, Square, Plus,
@@ -518,41 +519,12 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
                     );
                   })}
                 </ul>
-                {pageCount > 1 && (
-                  <div className="flex items-center justify-center gap-1 px-4 py-2.5 border-t">
-                    <button
-                      type="button"
-                      onClick={() => setListPage((p) => Math.max(0, p - 1))}
-                      disabled={listPage === 0}
-                      className="p-1 rounded hover:bg-muted disabled:opacity-30"
-                      aria-label="이전 페이지"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    {Array.from({ length: pageCount }).map((_, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => setListPage(i)}
-                        className={cn(
-                          "min-w-7 h-7 rounded-md text-xs font-medium transition-colors",
-                          i === listPage ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-                        )}
-                      >
-                        {i + 1}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setListPage((p) => Math.min(pageCount - 1, p + 1))}
-                      disabled={listPage >= pageCount - 1}
-                      className="p-1 rounded hover:bg-muted disabled:opacity-30"
-                      aria-label="다음 페이지"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </div>
-                )}
+                <Pager
+                  page={listPage}
+                  pageCount={pageCount}
+                  onPage={setListPage}
+                  className="px-4 py-2.5 border-t"
+                />
               </div>
             </>
           )}
