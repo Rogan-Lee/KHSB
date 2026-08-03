@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { TimePickerInput } from "@/components/ui/time-picker";
 import { ChevronLeft, ChevronRight, Copy, Check, Settings2, Plus, X, Trash2, Search } from "lucide-react";
 import { toast } from "sonner";
 
@@ -754,19 +755,9 @@ function ScheduleEditSheet({
 
                 {isEditing ? (
                   <div className="flex items-center gap-2 flex-1 flex-wrap">
-                    <input
-                      type="time"
-                      value={editStart}
-                      onChange={(e) => setEditStart(e.target.value)}
-                      className="h-7 text-xs border rounded px-1.5 bg-white w-[90px]"
-                    />
+                    <TimePickerInput value={editStart} onChange={setEditStart} size="sm" className="bg-white" />
                     <span className="text-muted-foreground text-xs">~</span>
-                    <input
-                      type="time"
-                      value={editEnd}
-                      onChange={(e) => setEditEnd(e.target.value)}
-                      className="h-7 text-xs border rounded px-1.5 bg-white w-[90px]"
-                    />
+                    <TimePickerInput value={editEnd} onChange={setEditEnd} size="sm" className="bg-white" />
                     <Button size="sm" className="h-7 text-xs px-3" onClick={handleSave} disabled={isPending}>
                       저장
                     </Button>
