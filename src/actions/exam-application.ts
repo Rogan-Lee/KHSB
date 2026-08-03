@@ -6,7 +6,6 @@ import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
-import { todayKST } from "@/lib/utils";
 import { normalizeMobile, phonesMatch } from "@/lib/phone";
 import { ExamApplicationStatus } from "@/generated/prisma";
 import { assignExamSeatsRandomly } from "@/actions/exam-sessions";
@@ -24,9 +23,8 @@ export async function submitExamApplication(token: string, sessionId: string, me
 
   const exam = await prisma.examSession.findUnique({ where: { id: sessionId } });
   if (!exam) throw new Error("시험을 찾을 수 없습니다");
-  if (!exam.applicationOpen || exam.examDate < todayKST()) {
-    throw new Error("신청이 마감된 시험입니다");
-  }
+  // 신청 접수 여부는 운영진이 켜는 applicationOpen 하나로 판단 (시험일 경과는 운영진이 닫아 관리).
+  if (!exam.applicationOpen) throw new Error("신청이 마감된 시험입니다");
 
   const trimmed = memo?.trim() || null;
   await prisma.examApplication.upsert({
@@ -121,9 +119,7 @@ export async function submitExamApplicationPublic(
 
   const exam = await prisma.examSession.findUnique({ where: { id: sessionId } });
   if (!exam) return { ok: false, error: "시험을 찾을 수 없습니다" };
-  if (!exam.applicationOpen || exam.examDate < todayKST()) {
-    return { ok: false, error: "신청이 마감된 시험입니다" };
-  }
+  if (!exam.applicationOpen) return { ok: false, error: "신청이 마감된 시험입니다" };
 
   const trimmed = memo?.trim() || null;
   await prisma.examApplication.upsert({

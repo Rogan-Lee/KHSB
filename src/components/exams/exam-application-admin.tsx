@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Pager } from "@/components/ui/pager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, X, Shuffle, RotateCcw, Copy } from "lucide-react";
+import { Check, X, Shuffle, RotateCcw } from "lucide-react";
+import { ExamApplyLinkShare } from "@/components/exams/exam-apply-link-share";
 import {
   toggleExamApplicationOpen,
   setExamApplicationStatus,
@@ -123,17 +124,6 @@ export function ExamApplicationAdmin({
     );
   }
 
-  async function copyApplyLink() {
-    const link = `${window.location.origin}/exam-apply/${sessionId}`;
-    const msg = `📢 모의고사 신청 안내\n아래 링크에서 휴대폰 본인인증 후 신청해주세요 👇\n${link}`;
-    try {
-      await navigator.clipboard.writeText(msg);
-      toast.success("신청 링크가 복사되었습니다 (카톡·문자로 전달하세요)");
-    } catch {
-      toast.error("복사 실패 — 브라우저 권한을 확인하세요");
-    }
-  }
-
   function run(fn: () => Promise<unknown>, ok: string) {
     startTransition(async () => {
       try {
@@ -156,12 +146,6 @@ export function ExamApplicationAdmin({
           </p>
         </div>
         <div className="flex gap-2">
-          {applicationOpen && (
-            <Button size="sm" variant="outline" disabled={busy} onClick={copyApplyLink}>
-              <Copy className="h-4 w-4 mr-1" />
-              신청 링크 복사
-            </Button>
-          )}
           <Button
             size="sm"
             variant={applicationOpen ? "outline" : "default"}
@@ -190,6 +174,8 @@ export function ExamApplicationAdmin({
           </Button>
         </div>
       </div>
+
+      {applicationOpen && <ExamApplyLinkShare sessionId={sessionId} />}
 
       {applications.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">아직 신청자가 없습니다.</p>
