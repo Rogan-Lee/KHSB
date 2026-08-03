@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { ChevronDown, ChevronRight, Copy, RefreshCw, RotateCcw, XCircle, Eye, UserPlus, Trash2 } from "lucide-react";
 import {
   getVocabAttemptDetail, createRetakeFromAttempt, cancelVocabAttempt, reissueAttemptLink, assignExamToStudents,
-  deleteVocabExam,
+  deleteVocabExam, overrideVocabItemCorrectness,
 } from "@/actions/vocab-online";
 import type { RosterStudent } from "./vocab-exam-creator";
 import type { VocabAttemptStatus, VocabExamDirection } from "@/generated/prisma";
@@ -183,15 +183,36 @@ export function VocabResultsBoard({ exams, students, canDelete = false }: { exam
   );
 }
 
+type ItemOverride = {
+  id: string; previousCorrect: boolean | null; newCorrect: boolean;
+  reason: string | null; changedByName: string; createdAt: string | Date;
+};
 type DetailItem = {
   id: string; order: number; direction: VocabExamDirection; prompt: string;
   word: string; meanings: string[]; expectedAnswers: string[];
   studentAnswer: string | null; isCorrect: boolean | null; timeMs: number | null;
+  overrides: ItemOverride[];
 };
 
 function AttemptDetailDialog({ attemptId, onClose }: { attemptId: string; onClose: () => void }) {
   const [data, setData] = useState<{ studentName: string; examTitle: string; score: number | null; items: DetailItem[] } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const toggleItem = async (it: DetailItem) => {
+    const next = !it.isCorrect;
+    const reason = window.prompt(`${it.prompt}: ${it.isCorrect ? "O→X" : "X→O"} 로 수정합니다.\n사유(선택, 비워도 됨):`);
+    if (reason === null) return; // 취소
+    setSaving(it.id);
+    try {
+      await overrideVocabItemCorrectness(it.id, next, reason);
+      const d = await getVocabAttemptDetail(attemptId);
+      if (d) setData({ studentName: d.student.name, examTitle: d.exam.title, score: d.score, items: d.items as unknown as DetailItem[] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "저장 실패");
+    } finally {
+      setSaving(null);
+    }
+  };
   useEffect(() => {
     let cancelled = false;
     getVocabAttemptDetail(attemptId)
@@ -232,8 +253,25 @@ function AttemptDetailDialog({ attemptId, onClose }: { attemptId: string; onClos
                 {data.items.map((it) => (
                   <TableRow key={it.id} className={it.isCorrect ? "" : "bg-red-50/50"}>
                     <TableCell className="text-xs text-muted-foreground">{it.order + 1}</TableCell>
-                    <TableCell>{it.isCorrect ? <span className="text-green-600">O</span> : <span className="text-red-600">X</span>}</TableCell>
-                    <TableCell className="font-medium">{it.prompt}<span className="ml-1 text-[10px] text-muted-foreground">{DIR_LABEL[it.direction]}</span></TableCell>
+                    <TableCell>
+                      <button type="button" onClick={() => toggleItem(it)} disabled={saving === it.id}
+                        title="클릭하여 정/오답 수정"
+                        className={`w-7 h-7 rounded font-bold hover:bg-muted disabled:opacity-40 ${it.isCorrect ? "text-green-600" : "text-red-600"}`}>
+                        {it.isCorrect ? "O" : "X"}
+                      </button>
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {it.prompt}<span className="ml-1 text-[10px] text-muted-foreground">{DIR_LABEL[it.direction]}</span>
+                      {it.overrides?.length > 0 && (
+                        <ul className="mt-0.5 space-y-0.5 text-[10px] font-normal text-muted-foreground">
+                          {it.overrides.map((o) => (
+                            <li key={o.id}>
+                              ✏ {o.changedByName} · {new Date(o.createdAt).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} · {o.previousCorrect ? "O" : "X"}→{o.newCorrect ? "O" : "X"}{o.reason ? ` · ${o.reason}` : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </TableCell>
                     <TableCell className={it.isCorrect ? "" : "text-red-700"}>{it.studentAnswer || <span className="text-muted-foreground">(미입력)</span>}</TableCell>
                     <TableCell className="text-xs">{it.direction === "EN_TO_KO" ? it.meanings.join(" / ") : it.word}</TableCell>
                     <TableCell className="text-xs tabular-nums">{it.timeMs != null ? `${(it.timeMs / 1000).toFixed(1)}s` : "—"}</TableCell>

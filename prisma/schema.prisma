@@ -2140,8 +2140,24 @@ model VocabAttemptItem {
   isCorrect       Boolean?
   timeMs          Int?
   answeredAt      DateTime?
+  overrides       VocabItemOverride[]
 
   @@index([attemptId])
+}
+
+// 관리자의 문항 정오답 수동 수정 이력 (append-only)
+model VocabItemOverride {
+  id              String           @id @default(cuid())
+  itemId          String
+  item            VocabAttemptItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  previousCorrect Boolean? // 수정 직전 값 (null=미채점 상태였음)
+  newCorrect      Boolean
+  reason          String? // 선택 입력
+  changedById     String
+  changedByName   String // 스냅샷 (직원 이름 변경/삭제 대비)
+  createdAt       DateTime         @default(now())
+
+  @@index([itemId])
 }
 
 // ─── 학생 질문 게시판 (콴다식: 사진 문제 질문 → 멘토 풀이) ───

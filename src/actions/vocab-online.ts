@@ -411,9 +411,52 @@ export async function getVocabAttemptDetail(attemptId: string) {
     include: {
       student: { select: { id: true, name: true, grade: true } },
       exam: { select: { id: true, title: true, direction: true, perQuestionSeconds: true } },
-      items: { orderBy: { order: "asc" } },
+      items: {
+        orderBy: { order: "asc" },
+        include: { overrides: { orderBy: { createdAt: "desc" } } },
+      },
     },
   });
+}
+
+// 관리자가 문항 정오답을 수동 수정. 이력 1행 기록 + attempt 집계(correctCount/score) 재계산.
+export async function overrideVocabItemCorrectness(itemId: string, isCorrect: boolean, reason?: string) {
+  const user = await requireStaffSession();
+  const before = await prisma.vocabAttemptItem.findUnique({
+    where: { id: itemId },
+    select: { attemptId: true, isCorrect: true },
+  });
+  if (!before) throw new Error("문항을 찾을 수 없습니다");
+  const [item] = await prisma.$transaction([
+    prisma.vocabAttemptItem.update({
+      where: { id: itemId },
+      data: { isCorrect },
+      select: { attemptId: true },
+    }),
+    prisma.vocabItemOverride.create({
+      data: {
+        itemId,
+        previousCorrect: before.isCorrect,
+        newCorrect: isCorrect,
+        reason: reason?.trim() || null,
+        changedById: user.id,
+        changedByName: user.name ?? user.id,
+      },
+    }),
+  ]);
+  const items = await prisma.vocabAttemptItem.findMany({
+    where: { attemptId: item.attemptId },
+    select: { isCorrect: true },
+  });
+  const total = items.length;
+  const correct = items.filter((i) => i.isCorrect).length;
+  const score = total > 0 ? Math.round((correct / total) * 1000) / 10 : 0;
+  await prisma.vocabAttempt.update({
+    where: { id: item.attemptId },
+    data: { correctCount: correct, score },
+  });
+  revalidatePath(ADMIN_PATH);
+  return { correctCount: correct, score, totalQuestions: total };
 }
 
 // ───────────────────── 학생 응시 (/v/[token] 에서 호출) ─────────────────────
