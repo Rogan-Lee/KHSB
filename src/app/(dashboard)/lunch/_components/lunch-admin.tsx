@@ -665,14 +665,29 @@ function OrdersTab({ orders, menus }: { orders: Order[]; menus: Menu[] }) {
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <div className="mt-1.5 overflow-hidden rounded-md border border-line/70">
                   {o.items
                     .slice()
                     .sort((a, b) => a.date.localeCompare(b.date))
-                    .map((it) => `${dateLabel(it.date)} ${it.name}`)
-                    .join(" · ")}{" "}
-                  ({o.items.length}일)
-                </p>
+                    .map((it, i) => (
+                      <div
+                        key={it.date}
+                        className={`flex gap-2.5 px-2 py-1 text-xs ${
+                          i % 2 ? "bg-muted/30" : ""
+                        }`}
+                      >
+                        <span className="w-[4.75rem] shrink-0 whitespace-nowrap font-semibold tabular-nums text-foreground">
+                          {dateLabel(it.date)}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {it.name.replace(/,/g, ", ")}
+                        </span>
+                      </div>
+                    ))}
+                  <p className="bg-muted/40 px-2 py-0.5 text-right text-[11px] font-medium text-muted-foreground">
+                    총 {o.items.length}일
+                  </p>
+                </div>
                 {o.memo && <p className="mt-0.5 text-xs text-ink-3">📝 {o.memo}</p>}
               </div>
               <div className="flex flex-col items-end gap-0.5">
