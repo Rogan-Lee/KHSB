@@ -164,7 +164,7 @@ function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRe
         {h.content && (
           <div className="space-y-0.5">
             {expanded ? (
-              <div onClick={(e) => e.stopPropagation()} className="text-sm text-foreground">
+              <div onClick={(e) => e.stopPropagation()} className="text-sm text-foreground max-h-[26rem] overflow-y-auto pr-1">
                 <MarkdownViewer source={h.content} />
               </div>
             ) : (
