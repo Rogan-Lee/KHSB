@@ -12,7 +12,7 @@ export default async function ExamsPage() {
   const sessions = await prisma.examSession.findMany({
     orderBy: [{ examDate: "desc" }, { createdAt: "desc" }],
     include: {
-      _count: { select: { assignments: true } },
+      _count: { select: { assignments: true, applications: true } },
       scores: { select: { percentile: true } },
     },
   });
@@ -34,6 +34,8 @@ export default async function ExamsPage() {
       room: s.room,
       subjects: s.subjects,
       assignmentsCount: s._count.assignments,
+      applicationOpen: s.applicationOpen,
+      applicationsCount: s._count.applications,
       averagePercentile,
     };
   });
