@@ -256,5 +256,7 @@ export async function deleteStudentSuggestion(id: string) {
 export async function getNewSuggestionCount(): Promise<number> {
   const session = await auth();
   requireStaff(session?.user?.role);
-  return prisma.studentSuggestion.count({ where: { status: "RECEIVED" } });
+  return prisma.studentSuggestion.count({
+    where: { status: "RECEIVED", deletedAt: null },
+  });
 }
