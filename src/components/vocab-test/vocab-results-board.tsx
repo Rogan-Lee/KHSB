@@ -91,14 +91,14 @@ export function VocabResultsBoard({ exams, students, canDelete = false }: { exam
 
   return (
     <>
-      <div className="grid grid-cols-1 lg:grid-cols-[260px_300px_1fr] gap-3 min-h-[600px]">
+      <div className="grid grid-cols-1 lg:grid-cols-[260px_300px_1fr] gap-3 min-h-[600px] lg:h-[calc(100dvh-15rem)]">
         {/* ── 1) 시험 ── */}
         <aside className="border rounded-lg overflow-hidden flex flex-col">
           <div className="px-3 py-2 border-b bg-muted/40 text-[11px] text-muted-foreground flex items-center justify-between">
             <span>시험 선택</span>
             <span className="tabular-nums">총 {exams.length}건</span>
           </div>
-          <div className="flex-1 overflow-y-auto divide-y max-h-[680px]">
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y">
             {exams.map((ex) => {
               const active = ex.id === exam?.id;
               const avg = avgOf(ex);
@@ -145,7 +145,7 @@ export function VocabResultsBoard({ exams, students, canDelete = false }: { exam
               )}
             </div>
           )}
-          <div className="flex-1 overflow-y-auto divide-y max-h-[640px]">
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y">
             {!exam ? (
               <p className="px-3 py-8 text-center text-sm text-muted-foreground">좌측에서 시험을 선택하세요</p>
             ) : exam.attempts.length === 0 ? (
@@ -172,7 +172,7 @@ export function VocabResultsBoard({ exams, students, canDelete = false }: { exam
         </aside>
 
         {/* ── 3) 내역 ── */}
-        <main className="border rounded-lg flex flex-col min-h-[600px]">
+        <main className="border rounded-lg flex flex-col min-h-[600px] lg:min-h-0 overflow-hidden">
           {!attempt ? (
             <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">학생을 선택하면 응시 내역이 표시됩니다</div>
           ) : (
@@ -290,7 +290,7 @@ function AttemptDetailPane({ attempt, isPending, onCopy, onRetake, onReissue, on
       </div>
 
       {/* body */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {loading ? (
           <p className="p-5 text-sm text-muted-foreground">불러오는 중…</p>
         ) : !items || items.length === 0 ? (
