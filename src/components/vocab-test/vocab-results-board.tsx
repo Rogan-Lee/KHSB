@@ -107,7 +107,11 @@ export function VocabResultsBoard({ exams, students, canDelete = false }: { exam
                   className={`w-full text-left px-3 py-2.5 border-l-2 transition-colors block ${active ? "bg-primary/5 border-primary" : "hover:bg-muted/40 border-transparent"}`}>
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium text-[13px] truncate">{ex.title}</span>
-                    {ex.isRetake && <Badge variant="secondary" className="text-[10px] px-1 py-0">재시험</Badge>}
+                    {ex.isRetake && (
+                      <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0 text-[10px] font-medium leading-4 text-amber-700">
+                        <RotateCcw className="h-2.5 w-2.5" />재시험
+                      </span>
+                    )}
                   </div>
                   <div className="mt-0.5 text-[10.5px] text-muted-foreground truncate">
                     {ex.bookName} · {DIR_LABEL[ex.direction]} · {ex.questionCount}문항
