@@ -29,6 +29,7 @@ import type {
   MentoringSessionStatus,
 } from "@/generated/prisma";
 import { SessionPhotoUploader } from "@/components/mentoring/session-photo-uploader";
+import { TimePickerInput } from "@/components/ui/time-picker";
 
 export type MentoringSessionRow = {
   id: string;
@@ -519,12 +520,12 @@ function NewSessionForm({
           />
         </Field>
         <Field label="시간 (KST)">
-          <input
-            type="time"
+          {/* styled-jsx .field는 컴포넌트 경계를 못 넘어 tailwind로 동일 룩 재현 */}
+          <TimePickerInput
             value={time}
-            onChange={(e) => setTime(e.target.value)}
+            onChange={setTime}
             disabled={isPending}
-            className="field"
+            className="w-full rounded-[8px] border-[color:var(--line)] bg-[color:var(--canvas)] px-2.5 py-1.5 text-[12.5px]"
           />
         </Field>
         <Field label="길이 (분)">
