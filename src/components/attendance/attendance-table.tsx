@@ -1042,20 +1042,19 @@ export function AttendanceTable({ students, today }: Props) {
                           !checkInTime ? "text-red-500" :
                           lt?.type === "TARDY" ? "text-amber-600" : "text-muted-foreground"
                         )}>{schedIn === "FLEXIBLE" ? "자율" : schedIn ?? "00:00"}</span>
-                        <input
-                          type="time"
+                        <TimePickerInput
                           value={checkInTime}
-                          onChange={(e) => {
-                            const v = e.target.value;
+                          onChange={(v) => {
                             setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(student.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(student.id, { ...c, checkIn: v }); return m; });
+                            if (v) quickSaveField(student, "checkIn", v);
                           }}
                           onFocus={() => setActiveTimeInput({ studentId: student.id, field: "checkIn", studentName: student.name })}
                           onBlur={() => {
                             setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "checkIn" ? null : prev), 200);
-                            if (checkInTime && /^\d{2}:\d{2}$/.test(checkInTime)) quickSaveField(student, "checkIn", checkInTime);
                           }}
+                          size="sm"
                           className={cn(
-                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-green-400 focus:border-green-400",
+                            "w-28 px-2 focus:ring-green-400 focus:border-green-400",
                             checkInTime ? "text-foreground font-semibold" : "text-gray-400"
                           )}
                         />
@@ -1068,20 +1067,19 @@ export function AttendanceTable({ students, today }: Props) {
                           !schedOut ? "text-transparent" :
                           schedOut === "FLEXIBLE" ? "text-violet-600" : "text-muted-foreground"
                         )}>{schedOut === "FLEXIBLE" ? "자율" : schedOut ?? "00:00"}</span>
-                        <input
-                          type="time"
+                        <TimePickerInput
                           value={checkOutTime}
-                          onChange={(e) => {
-                            const v = e.target.value;
+                          onChange={(v) => {
                             setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(student.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(student.id, { ...c, checkOut: v }); return m; });
+                            if (v) quickSaveField(student, "checkOut", v);
                           }}
                           onFocus={() => setActiveTimeInput({ studentId: student.id, field: "checkOut", studentName: student.name })}
                           onBlur={() => {
                             setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "checkOut" ? null : prev), 200);
-                            if (checkOutTime && /^\d{2}:\d{2}$/.test(checkOutTime)) quickSaveField(student, "checkOut", checkOutTime);
                           }}
+                          size="sm"
                           className={cn(
-                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400",
+                            "w-28 px-2 focus:ring-blue-400 focus:border-blue-400",
                             checkOutTime ? "text-foreground font-semibold" : "text-gray-400"
                           )}
                         />
@@ -1107,12 +1105,10 @@ export function AttendanceTable({ students, today }: Props) {
                         <span className={cn("text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
                           outSch?.outStart ? "text-muted-foreground" : "text-transparent"
                         )}>{outSch?.outStart ?? "00:00"}</span>
-                        <input
-                          type="time"
+                        <TimePickerInput
                           value={activeOuting ? toTimeString(activeOuting.outStart) ?? "" : ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            if (!v || !/^\d{2}:\d{2}$/.test(v)) return;
+                          onChange={(v) => {
+                            if (!v) return;
                             if (activeOuting?.id) {
                               // 진행 중 외출의 시작 시간 수정
                               setLocalOutings((prev) => {
@@ -1128,8 +1124,9 @@ export function AttendanceTable({ students, today }: Props) {
                               quickStartOuting(student, v);
                             }
                           }}
+                          size="sm"
                           className={cn(
-                            "w-28 font-mono border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
+                            "w-28 px-2 focus:ring-orange-400 focus:border-orange-400",
                             activeOuting ? "text-orange-600 font-semibold" : "text-gray-400"
                           )}
                           placeholder="—"
@@ -1151,19 +1148,18 @@ export function AttendanceTable({ students, today }: Props) {
                         <span className={cn("text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
                           outSch?.outEnd ? "text-muted-foreground" : "text-transparent"
                         )}>{outSch?.outEnd ?? "00:00"}</span>
-                        <input
-                          type="time"
+                        <TimePickerInput
                           value=""
                           disabled={!activeOuting}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            if (activeOuting?.id && v && /^\d{2}:\d{2}$/.test(v)) {
+                          onChange={(v) => {
+                            if (activeOuting?.id && v) {
                               quickEndOuting(student, v); // 진행 중 외출 복귀 처리(지각 자동판정 포함)
                             }
                           }}
+                          size="sm"
                           className={cn(
-                            "w-28 font-mono border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-orange-400 focus:border-orange-400",
-                            activeOuting ? "bg-background text-gray-600" : "bg-muted/40 text-gray-300 cursor-not-allowed"
+                            "w-28 px-2 focus:ring-orange-400 focus:border-orange-400",
+                            activeOuting ? "bg-background text-gray-600" : "bg-muted/40 text-gray-300"
                           )}
                           placeholder={activeOuting ? "복귀 시각" : "—"}
                         />
@@ -1186,19 +1182,19 @@ export function AttendanceTable({ students, today }: Props) {
                           <div className="mt-0.5">
                             {isAdding ? (
                               <div className="flex flex-wrap items-center gap-1 pt-1" onClick={(e) => e.stopPropagation()}>
-                                <input
-                                  type="time"
+                                <TimePickerInput
                                   value={addOutingDraft!.outStart}
-                                  onChange={(e) => setAddOutingDraft((d) => d && { ...d, outStart: e.target.value })}
-                                  className="w-24 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                  onChange={(v) => setAddOutingDraft((d) => d && { ...d, outStart: v })}
+                                  size="sm"
+                                  className="w-24 py-0.5 text-[11px] focus:ring-orange-400"
                                   placeholder="시작"
                                 />
                                 <span className="text-muted-foreground text-[11px]">-</span>
-                                <input
-                                  type="time"
+                                <TimePickerInput
                                   value={addOutingDraft!.outEnd}
-                                  onChange={(e) => setAddOutingDraft((d) => d && { ...d, outEnd: e.target.value })}
-                                  className="w-24 font-mono border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                  onChange={(v) => setAddOutingDraft((d) => d && { ...d, outEnd: v })}
+                                  size="sm"
+                                  className="w-24 py-0.5 text-[11px] focus:ring-orange-400"
                                   placeholder="복귀"
                                 />
                                 <input

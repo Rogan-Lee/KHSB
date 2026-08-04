@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DateTimePickerInput } from "@/components/ui/time-picker";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -570,7 +571,7 @@ function TagEditRow({ tag, onDone, onCancel }: { tag: WorkTag; onDone: () => voi
         </select>
       </td>
       <td className="px-3 py-1.5">
-        <input type="datetime-local" value={taggedAt} onChange={(e) => setTaggedAt(e.target.value)} className="text-xs border rounded px-1 py-0.5 bg-background" />
+        <DateTimePickerInput value={taggedAt} onChange={setTaggedAt} className="min-w-[15rem]" />
       </td>
       <td className="px-3 py-1.5">
         <input type="text" value={note} onChange={(e) => setNote(e.target.value)} className="text-xs border rounded px-1 py-0.5 bg-background w-full" placeholder="메모" />
@@ -612,7 +613,7 @@ function TagAddRow({ userId, onDone, onCancel }: { userId: string; onDone: () =>
         <option value="CLOCK_IN">출근</option>
         <option value="CLOCK_OUT">퇴근</option>
       </select>
-      <input type="datetime-local" value={taggedAt} onChange={(e) => setTaggedAt(e.target.value)} className="border rounded px-1 py-0.5 bg-background" />
+      <DateTimePickerInput value={taggedAt} onChange={setTaggedAt} className="min-w-[15rem]" />
       <input type="text" value={note} onChange={(e) => setNote(e.target.value)} className="border rounded px-1 py-0.5 bg-background flex-1 min-w-[120px]" placeholder="메모(선택)" />
       <Button size="sm" onClick={save} disabled={pending} className="h-7 text-xs">저장</Button>
       <Button size="sm" variant="ghost" onClick={onCancel} className="h-7 text-xs">취소</Button>

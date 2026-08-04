@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TimePickerInput } from "@/components/ui/time-picker";
 import { Plus, Trash2 } from "lucide-react";
 
 export type AttendanceSlot = { dayOfWeek: number; startTime: string; endTime: string };
@@ -62,9 +63,9 @@ export function ScheduleSlotsEditor({
                 </label>
                 {on ? (
                   <div className="flex items-center gap-1.5">
-                    <Input type="time" value={slot!.startTime} disabled={readOnly} onChange={(e) => setAttTime(d.value, "startTime", e.target.value)} className="h-8 w-28" />
+                    <TimePickerInput value={slot!.startTime} disabled={readOnly} onChange={(v) => setAttTime(d.value, "startTime", v)} className="h-8" />
                     <span className="text-muted-foreground">~</span>
-                    <Input type="time" value={slot!.endTime} disabled={readOnly} onChange={(e) => setAttTime(d.value, "endTime", e.target.value)} className="h-8 w-28" />
+                    <TimePickerInput value={slot!.endTime} disabled={readOnly} onChange={(v) => setAttTime(d.value, "endTime", v)} className="h-8" />
                   </div>
                 ) : (
                   <span className="text-xs text-muted-foreground">등원 안 함</span>
@@ -93,9 +94,9 @@ export function ScheduleSlotsEditor({
                 <select value={o.dayOfWeek} disabled={readOnly} onChange={(e) => setOuting(i, { dayOfWeek: Number(e.target.value) })} className="h-8 rounded-md border border-input bg-background px-2 text-sm">
                   {DAYS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
                 </select>
-                <Input type="time" value={o.outStart} disabled={readOnly} onChange={(e) => setOuting(i, { outStart: e.target.value })} className="h-8 w-28" />
+                <TimePickerInput value={o.outStart} disabled={readOnly} onChange={(v) => setOuting(i, { outStart: v })} className="h-8" />
                 <span className="text-muted-foreground">~</span>
-                <Input type="time" value={o.outEnd} disabled={readOnly} onChange={(e) => setOuting(i, { outEnd: e.target.value })} className="h-8 w-28" />
+                <TimePickerInput value={o.outEnd} disabled={readOnly} onChange={(v) => setOuting(i, { outEnd: v })} className="h-8" />
                 <Input placeholder="사유 (예: 수학학원)" value={o.reason ?? ""} disabled={readOnly} onChange={(e) => setOuting(i, { reason: e.target.value })} className="h-8 flex-1 min-w-[120px]" />
                 {!readOnly && (
                   <button type="button" onClick={() => removeOuting(i)} className="p-1 text-muted-foreground hover:text-destructive">

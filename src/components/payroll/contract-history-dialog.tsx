@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { TimePickerInput } from "@/components/ui/time-picker";
 import { toast } from "sonner";
 import { Trash2, ChevronDown } from "lucide-react";
 import { createContract, deleteContract } from "@/actions/payroll";
@@ -463,9 +464,9 @@ function NewContractForm({
           })}
         </div>
         <div className="flex items-center gap-2">
-          <Input type="time" value={workStart} onChange={(e) => setWorkStart(e.target.value)} disabled={isPending} className="w-32" />
+          <TimePickerInput value={workStart} onChange={setWorkStart} disabled={isPending} />
           <span className="text-muted-foreground text-sm">~</span>
-          <Input type="time" value={workEnd} onChange={(e) => setWorkEnd(e.target.value)} disabled={isPending} className="w-32" />
+          <TimePickerInput value={workEnd} onChange={setWorkEnd} disabled={isPending} />
         </div>
         {workDays.length === 0 && (
           <p className="text-[11px] text-muted-foreground">요일을 선택하지 않으면 근무 일정은 변경되지 않습니다.</p>

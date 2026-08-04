@@ -23,6 +23,7 @@ import {
 } from "@/actions/waitlist";
 import { createConsultation } from "@/actions/consultations";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
+import { DateTimePickerInput } from "@/components/ui/time-picker";
 import { formatDateTime } from "@/lib/utils";
 
 type StudentLite = { id: string; name: string; grade: string };
@@ -470,12 +471,7 @@ function ConsultationModal({ entry, onClose }: { entry: Entry; onClose: () => vo
         <div className="space-y-3">
           <label className="block text-xs text-muted-foreground">
             면담 일시 (선택)
-            <input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              className={`${input} mt-1 w-full`}
-            />
+            <DateTimePickerInput value={scheduledAt} onChange={setScheduledAt} className="mt-1 w-full" />
           </label>
           <label className="block text-xs text-muted-foreground">
             안건/메모 (선택)
