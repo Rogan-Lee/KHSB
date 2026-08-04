@@ -290,7 +290,7 @@ function AttemptDetailPane({ attempt, isPending, onCopy, onRetake, onReissue, on
       </div>
 
       {/* body */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-auto">
         {loading ? (
           <p className="p-5 text-sm text-muted-foreground">불러오는 중…</p>
         ) : !items || items.length === 0 ? (
@@ -321,7 +321,7 @@ function AttemptDetailPane({ attempt, isPending, onCopy, onRetake, onReissue, on
                       <Pencil className="w-3 h-3 opacity-50" />
                     </button>
                   </TableCell>
-                  <TableCell className="font-medium">
+                  <TableCell className="font-medium whitespace-nowrap">
                     {it.prompt}<span className="ml-1 text-[10px] text-muted-foreground">{DIR_LABEL[it.direction]}</span>
                     {it.overrides?.length > 0 && (
                       <ul className="mt-0.5 space-y-0.5 text-[10px] font-normal text-muted-foreground">
@@ -333,8 +333,8 @@ function AttemptDetailPane({ attempt, isPending, onCopy, onRetake, onReissue, on
                       </ul>
                     )}
                   </TableCell>
-                  <TableCell className={it.isCorrect ? "" : "text-red-700"}>{it.studentAnswer || <span className="text-muted-foreground">(미입력)</span>}</TableCell>
-                  <TableCell className="text-xs">{it.direction === "EN_TO_KO" ? it.meanings.join(" / ") : it.word}</TableCell>
+                  <TableCell className={`whitespace-nowrap ${it.isCorrect ? "" : "text-red-700"}`}>{it.studentAnswer || <span className="text-muted-foreground">(미입력)</span>}</TableCell>
+                  <TableCell className="text-xs whitespace-nowrap">{it.direction === "EN_TO_KO" ? it.meanings.join(" / ") : it.word}</TableCell>
                   <TableCell className="text-xs tabular-nums">{it.timeMs != null ? `${(it.timeMs / 1000).toFixed(1)}s` : "—"}</TableCell>
                 </TableRow>
               ))}
