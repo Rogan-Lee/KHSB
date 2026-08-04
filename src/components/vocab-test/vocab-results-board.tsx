@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ChevronDown, ChevronRight, Copy, RefreshCw, RotateCcw, XCircle, Eye, UserPlus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, RefreshCw, RotateCcw, XCircle, Eye, UserPlus, Trash2, Pencil } from "lucide-react";
 import {
   getVocabAttemptDetail, createRetakeFromAttempt, cancelVocabAttempt, reissueAttemptLink, assignExamToStudents,
   deleteVocabExam, overrideVocabItemCorrectness,
@@ -242,7 +242,7 @@ function AttemptDetailDialog({ attemptId, onClose }: { attemptId: string; onClos
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-8">#</TableHead>
-                  <TableHead className="w-16">정/오</TableHead>
+                  <TableHead className="w-24">정/오 <span className="text-[10px] font-normal text-muted-foreground">(클릭 수정)</span></TableHead>
                   <TableHead>문제</TableHead>
                   <TableHead>학생 답</TableHead>
                   <TableHead>정답</TableHead>
@@ -256,8 +256,9 @@ function AttemptDetailDialog({ attemptId, onClose }: { attemptId: string; onClos
                     <TableCell>
                       <button type="button" onClick={() => toggleItem(it)} disabled={saving === it.id}
                         title="클릭하여 정/오답 수정"
-                        className={`w-7 h-7 rounded font-bold hover:bg-muted disabled:opacity-40 ${it.isCorrect ? "text-green-600" : "text-red-600"}`}>
+                        className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-sm font-bold cursor-pointer transition-colors hover:bg-muted disabled:opacity-40 ${it.isCorrect ? "border-green-300 text-green-700" : "border-red-300 text-red-700"}`}>
                         {it.isCorrect ? "O" : "X"}
+                        <Pencil className="w-3 h-3 opacity-50" />
                       </button>
                     </TableCell>
                     <TableCell className="font-medium">
