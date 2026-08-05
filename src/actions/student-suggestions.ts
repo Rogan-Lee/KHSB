@@ -251,12 +251,3 @@ export async function deleteStudentSuggestion(id: string) {
   revalidatePath("/");
   return { ok: true };
 }
-
-/** 신규(접수) 건의 수 — 사이드바 배지용. */
-export async function getNewSuggestionCount(): Promise<number> {
-  const session = await auth();
-  requireStaff(session?.user?.role);
-  return prisma.studentSuggestion.count({
-    where: { status: "RECEIVED", deletedAt: null },
-  });
-}

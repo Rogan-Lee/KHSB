@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { AppSidebar } from "./app-sidebar";
@@ -24,9 +25,36 @@ type ViewMode = "web" | "mobile";
 
 export function DashboardShell({ user, children, sidebarBadges }: DashboardShellProps) {
   const plan = getCurrentPlan();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("web");
+  const [badges, setBadges] = useState(sidebarBadges);
+
+  // 배지 갱신 — layout은 소프트 네비게이션에서 리렌더되지 않아 서버 스냅샷이 얼어붙는다.
+  // 페이지 이동·창 포커스·2분 주기로 폴링해 실시간에 가깝게 유지.
+  useEffect(() => {
+    let alive = true;
+    const refresh = async () => {
+      try {
+        const res = await fetch("/api/sidebar-badges");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (alive) setBadges(data);
+      } catch {
+        // 네트워크 실패 시 기존 배지 유지
+      }
+    };
+    refresh();
+    const onFocus = () => refresh();
+    window.addEventListener("focus", onFocus);
+    const timer = setInterval(refresh, 120_000);
+    return () => {
+      alive = false;
+      window.removeEventListener("focus", onFocus);
+      clearInterval(timer);
+    };
+  }, [pathname]);
 
   // localStorage에서 초기 상태 복원 (mount 후 1회)
   useEffect(() => {
@@ -57,14 +85,14 @@ export function DashboardShell({ user, children, sidebarBadges }: DashboardShell
       <CommandPalette />
       {/* Desktop sidebar */}
       <div className="hidden md:block" data-print-hide>
-        <AppSidebar role={user.role} plan={plan} collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} badges={sidebarBadges} />
+        <AppSidebar role={user.role} plan={plan} collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} badges={badges} />
       </div>
 
       {/* Mobile sidebar (Sheet) — 접기 기능 미적용, 항상 펼침 */}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="p-0 w-[240px] [&>button]:hidden">
           <VisuallyHidden><SheetTitle>내비게이션 메뉴</SheetTitle></VisuallyHidden>
-          <AppSidebar role={user.role} plan={plan} mobile onClose={() => setOpen(false)} badges={sidebarBadges} />
+          <AppSidebar role={user.role} plan={plan} mobile onClose={() => setOpen(false)} badges={badges} />
         </SheetContent>
       </Sheet>
 

@@ -112,20 +112,6 @@ export async function markAllOpenFeatureRequestsSeen() {
   return open.length;
 }
 
-/**
- * 현재 user 가 아직 보지 않은 open(PENDING/IN_PROGRESS) FeatureRequest 개수.
- * 헤더 배지에 사용.
- */
-export async function getUnseenFeatureRequestCount(): Promise<number> {
-  const user = await getSession();
-  return prisma.featureRequest.count({
-    where: {
-      status: { in: ["PENDING", "IN_PROGRESS"] },
-      NOT: { seenById: { has: user.id } },
-    },
-  });
-}
-
 export async function updateRequestStatus(id: string, status: RequestStatus) {
   await getSession();
   await prisma.featureRequest.update({ where: { id }, data: { status } });

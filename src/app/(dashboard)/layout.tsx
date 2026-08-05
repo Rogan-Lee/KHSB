@@ -2,8 +2,7 @@ import { redirect } from "next/navigation";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getUser } from "@/lib/auth";
 import { isOnlineStaff, isStaff } from "@/lib/roles";
-import { getUnseenFeatureRequestCount } from "@/actions/feature-requests";
-import { getNewSuggestionCount } from "@/actions/student-suggestions";
+import { getSidebarBadges } from "@/lib/sidebar-badges";
 
 export default async function DashboardLayout({
   children,
@@ -19,20 +18,8 @@ export default async function DashboardLayout({
     redirect("/sign-in");
   }
 
-  // 사이드바 미확인 배지 — 건의사항 unseen 카운트 (전 직원)
-  const sidebarBadges: Record<string, number> = {};
-  try {
-    const unseenRequests = await getUnseenFeatureRequestCount();
-    if (unseenRequests > 0) sidebarBadges["/requests"] = unseenRequests;
-  } catch {
-    // 카운트 실패해도 레이아웃은 그대로 렌더링
-  }
-  try {
-    const newSuggestions = await getNewSuggestionCount();
-    if (newSuggestions > 0) sidebarBadges["/suggestions"] = newSuggestions;
-  } catch {
-    // 카운트 실패해도 레이아웃은 그대로 렌더링
-  }
+  // 사이드바 미확인 배지 — 초기 스냅샷. 이후 갱신은 DashboardShell이 /api/sidebar-badges 폴링
+  const sidebarBadges = await getSidebarBadges(user.id, user.role).catch(() => ({}));
 
   return (
     <DashboardShell
