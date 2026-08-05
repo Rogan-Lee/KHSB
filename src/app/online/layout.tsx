@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { getUser } from "@/lib/auth";
-import { isAnyStaff, isFullAccess } from "@/lib/roles";
-import { prisma } from "@/lib/prisma";
+import { isAnyStaff } from "@/lib/roles";
+import { getSidebarBadges } from "@/lib/sidebar-badges";
 
 export default async function OnlineLayout({
   children,
@@ -15,14 +15,8 @@ export default async function OnlineLayout({
   // 레이아웃은 전 직원 허용. 온라인 전용 화면은 각 페이지에서 isOnlineStaff/isFullAccess 로 가드.
   if (!isAnyStaff(user.role)) redirect("/");
 
-  // 사이드바 미확인 배지 — 원장만 학부모 피드백 카운트 표시
-  const sidebarBadges: Record<string, number> = {};
-  if (isFullAccess(user.role)) {
-    const unread = await prisma.onlineParentFeedback.count({
-      where: { readAt: null },
-    });
-    if (unread > 0) sidebarBadges["/online/reports"] = unread;
-  }
+  // 사이드바 미확인 배지 — 초기 스냅샷. 이후 갱신은 DashboardShell이 /api/sidebar-badges 폴링
+  const sidebarBadges = await getSidebarBadges(user.id, user.role).catch(() => ({}));
 
   return (
     <DashboardShell
