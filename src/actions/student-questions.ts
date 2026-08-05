@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isStaff, requireStaff } from "@/lib/roles";
+import { requireStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
 import type { StudentQuestionStatus } from "@/generated/prisma/enums";
@@ -366,13 +366,6 @@ export async function listStaffQuestionInbox(params?: { filter?: StaffInboxFilte
       unread: unreadCounts[i],
     };
   });
-}
-
-/** 미답변(OPEN) 질문 수 — 사이드바 배지용. */
-export async function countOpenStudentQuestions(): Promise<number> {
-  const session = await auth();
-  if (!session?.user || !isStaff(session.user.role)) return 0;
-  return prisma.studentQuestion.count({ where: { status: "OPEN" } });
 }
 
 /** 직원이 질문 스레드 조회 — 진입 시 staffReadAt 갱신. */
