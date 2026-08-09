@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
+import sharp from "sharp";
 import { auth } from "@/lib/auth";
 import { isOnlineStaff, isStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 import { prisma } from "@/lib/prisma";
+
+export const runtime = "nodejs"; // sharp(HEIC 변환) 은 node 런타임 필요
 
 const MAX_FILE_SIZE_MB = 50;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -16,6 +19,8 @@ const ALLOWED_MIMES = new Set<string>([
   "image/jpg",
   "image/webp",
   "image/gif",
+  "image/heic", // 아이폰 기본 사진 포맷 (아래서 JPEG 변환)
+  "image/heif",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // docx
   "application/msword", // doc
   "application/x-hwp",
@@ -27,7 +32,7 @@ const ALLOWED_MIMES = new Set<string>([
 ]);
 
 const ALLOWED_EXTENSIONS = new Set<string>([
-  "pdf", "png", "jpg", "jpeg", "webp", "gif", "docx", "doc", "hwp", "hwpx", "zip",
+  "pdf", "png", "jpg", "jpeg", "webp", "gif", "heic", "heif", "docx", "doc", "hwp", "hwpx", "zip",
 ]);
 
 function getExt(filename: string): string {
@@ -180,19 +185,43 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // 업로드할 실제 바디/이름/타입. HEIC/HEIF 는 Chrome/Android 가 <img> 로 못 그리므로 JPEG 로 변환.
+  let body: Blob | File = file;
+  let outName = file.name;
+  let outMime = file.type || `application/${ext}`;
+  const isHeic =
+    file.type === "image/heic" ||
+    file.type === "image/heif" ||
+    ext === "heic" ||
+    ext === "heif";
+  if (isHeic) {
+    try {
+      const jpeg = await sharp(Buffer.from(await file.arrayBuffer()))
+        .rotate() // EXIF 회전 보정
+        .jpeg({ quality: 88 })
+        .toBuffer();
+      body = new Blob([new Uint8Array(jpeg)], { type: "image/jpeg" });
+      outName = file.name.replace(/\.(heic|heif)$/i, ".jpg");
+      outMime = "image/jpeg";
+    } catch (err) {
+      console.warn("[online upload] HEIC → JPEG 변환 실패, 원본 유지:", err);
+      // 변환 실패 시 원본 그대로 저장 (일부 브라우저에서 안 보일 수 있음)
+    }
+  }
+
   const random = Math.random().toString(36).slice(2, 10);
-  const blobPath = `${blobPathPrefix}/${Date.now()}-${random}-${safeName(file.name)}`;
+  const blobPath = `${blobPathPrefix}/${Date.now()}-${random}-${safeName(outName)}`;
 
   try {
-    const blob = await put(blobPath, file, {
+    const blob = await put(blobPath, body, {
       access: "public",
       addRandomSuffix: false,
     });
     return NextResponse.json({
       url: blob.url,
-      name: file.name,
-      sizeBytes: file.size,
-      mimeType: file.type || `application/${ext}`,
+      name: outName,
+      sizeBytes: body.size,
+      mimeType: outMime,
     });
   } catch (err) {
     console.error("[online upload] blob put failed", err);
