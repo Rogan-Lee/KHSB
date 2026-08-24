@@ -16,6 +16,23 @@ import {
 export type EnhancedMentoringContent =
   import("@/lib/report-ai-prompts").EnhancedMentoringContent;
 
+// Groq 는 일시적으로 5xx/네트워크 오류를 낸다. 429(rate limit)는 재시도하지 않고
+// 그대로 던져 상위에서 사용자 안내 메시지로 변환한다.
+async function callGroqWithRetry(
+  groq: Groq,
+  body: Parameters<Groq["chat"]["completions"]["create"]>[0],
+) {
+  const run = () => groq.chat.completions.create({ ...body, stream: false });
+  try {
+    return await run();
+  } catch (err) {
+    const status = (err as { status?: number })?.status;
+    if (status === 429 || (status !== undefined && status < 500)) throw err;
+    // ponytail: 단일 재시도. 반복 장애면 지수 백오프로 승격.
+    return await run();
+  }
+}
+
 export async function getMentoringContent(mentoringId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
@@ -61,16 +78,16 @@ export async function enhanceMentoringWithAI(mentoringId: string): Promise<Enhan
 
   let completion;
   try {
-    completion = await groq.chat.completions.create({
-    model: "llama-3.3-70b-versatile",
-    temperature: 0.4,
-    max_tokens: 4000,
-    response_format: { type: "json_object" }, // Groq JSON 모드: 파싱 실패 방지
-    messages: [
-      { role: "system", content: prompt.systemPrompt },
-      { role: "user", content: prompt.userPrompt },
-    ],
-  });
+    completion = await callGroqWithRetry(groq, {
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.4,
+      max_tokens: 4000,
+      response_format: { type: "json_object" }, // Groq JSON 모드: 파싱 실패 방지
+      messages: [
+        { role: "system", content: prompt.systemPrompt },
+        { role: "user", content: prompt.userPrompt },
+      ],
+    });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     const retryMatch = msg.match(/Please try again in (\d+h)?(\d+m)?(\d+[\d.]*s)?/);
@@ -88,6 +105,8 @@ export async function enhanceMentoringWithAI(mentoringId: string): Promise<Enhan
       }
       throw new Error(`AI 사용량 한도에 도달했습니다.${waitTime} 다시 시도해주세요.`);
     }
+    // 실제 원인이 사라지지 않도록 서버 로그에 남긴다(generic 메시지만으론 디버깅 불가).
+    console.error("[enhanceMentoringWithAI] Groq 호출 실패:", err);
     throw new Error("AI 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
   }
 
@@ -157,7 +176,7 @@ export async function generateMonthlyMentoringSummary(
   const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
   try {
-    const completion = await groq.chat.completions.create({
+    const completion = await callGroqWithRetry(groq, {
       messages: [
         { role: "system", content: prompt.systemPrompt },
         { role: "user", content: prompt.userPrompt },
@@ -172,6 +191,7 @@ export async function generateMonthlyMentoringSummary(
     if (err.status === 429) {
       throw new Error("AI 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.");
     }
+    console.error("[generateMonthlyMentoringSummary] Groq 호출 실패:", error);
     throw new Error(`AI 요약 생성 실패: ${err.message ?? "알 수 없는 오류"}`);
   }
 }
