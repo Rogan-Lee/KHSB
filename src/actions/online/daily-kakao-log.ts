@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import Groq from "groq-sdk";
+import { GROQ_MODEL } from "@/lib/groq";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireManagerMentor } from "@/lib/roles";
@@ -130,7 +131,7 @@ export async function summarizeKakaoRaw(params: {
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      model: "llama-3.3-70b-versatile",
+      model: GROQ_MODEL,
       temperature: 0.3,
       response_format: { type: "json_object" },
     });
