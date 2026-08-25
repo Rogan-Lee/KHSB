@@ -1,6 +1,7 @@
 "use server";
 
 import Groq from "groq-sdk";
+import { GROQ_MODEL } from "@/lib/groq";
 import { auth } from "@/lib/auth";
 
 export type CardNewsTemplate = "announcement" | "study-tip" | "top-student";
@@ -234,7 +235,7 @@ export async function generateCardNewsSlides(
     const prompt = buildPrompt(template, inputs);
 
     const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model: GROQ_MODEL,
       messages: [{ role: "user", content: prompt }],
     });
 
