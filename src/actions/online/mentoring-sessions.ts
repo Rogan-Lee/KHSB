@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import Groq from "groq-sdk";
+import { GROQ_MODEL } from "@/lib/groq";
 import { del } from "@vercel/blob";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -16,7 +17,6 @@ import {
 import { buildMentoringSessionPrompt } from "@/lib/online/mentoring-session-prompt";
 import type { MentoringPhotoTag } from "@/generated/prisma";
 
-const GROQ_MODEL = "llama-3.3-70b-versatile";
 
 // ─────────────────── 헬퍼: 제목 포맷 ───────────────────
 // 형식: [YYYY-MM-DD | 호스트 - 학생] (HH:MM) 일일 관리 세션

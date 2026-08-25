@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import Groq from "groq-sdk";
+import { GROQ_MODEL } from "@/lib/groq";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -119,7 +120,7 @@ ${ACADEMY_CONTEXT}
 ${categoryInstruction}`;
 
   const result = await groq.chat.completions.create({
-    model: "llama-3.3-70b-versatile",
+    model: GROQ_MODEL,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: `다음 상담 내용을 바탕으로 ${recipient}에게 보낼 카카오톡 팔로업 메시지를 작성해주세요.\n\n${context}` },

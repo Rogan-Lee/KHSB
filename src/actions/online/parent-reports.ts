@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import Groq from "groq-sdk";
+import { GROQ_MODEL } from "@/lib/groq";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireFullAccess } from "@/lib/roles";
@@ -15,7 +16,6 @@ import {
   type MonthlyReportInputs,
 } from "@/lib/online/monthly-report-prompt";
 
-const GROQ_MODEL = "llama-3.3-70b-versatile";
 const GROQ_CONCURRENCY = 3;       // 30명 배치 시 순차 3병렬
 const GROQ_RETRIES = 2;           // rate limit 재시도
 

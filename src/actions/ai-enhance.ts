@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import Groq from "groq-sdk";
+import { GROQ_MODEL } from "@/lib/groq";
 import {
   buildMentoringEnhancePrompt,
   buildMonthlyMentoringSummaryPrompt,
@@ -79,7 +80,7 @@ export async function enhanceMentoringWithAI(mentoringId: string): Promise<Enhan
   let completion;
   try {
     completion = await callGroqWithRetry(groq, {
-      model: "llama-3.3-70b-versatile",
+      model: GROQ_MODEL,
       temperature: 0.4,
       max_tokens: 4000,
       response_format: { type: "json_object" }, // Groq JSON 모드: 파싱 실패 방지
@@ -181,7 +182,7 @@ export async function generateMonthlyMentoringSummary(
         { role: "system", content: prompt.systemPrompt },
         { role: "user", content: prompt.userPrompt },
       ],
-      model: "llama-3.3-70b-versatile",
+      model: GROQ_MODEL,
       temperature: 0.5,
     });
 
