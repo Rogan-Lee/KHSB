@@ -15,6 +15,7 @@ import { getStudentsForReportDispatch } from "@/actions/parent-reports";
 import { Calendar } from "lucide-react";
 import { isFullAccess, isStaff, isOnlineStaff } from "@/lib/roles";
 import { PageIntro } from "@/components/ui/page-intro";
+import { redirect } from "next/navigation";
 
 export const revalidate = 10;
 
@@ -32,6 +33,9 @@ export default async function MentoringPage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const session = await auth();
+  // 오프라인 멘토링 업무 — 온라인 전용 역할(CONSULTANT/MANAGER_MENTOR)은 접근 불가.
+  // getStudentsForReportDispatch 등이 requireStaff로 throw → 페이지 전체 크래시 방지.
+  if (!isStaff(session?.user?.role)) redirect("/");
   const isDirector = isFullAccess(session?.user?.role);
   const canEditAnnouncement = isStaff(session?.user?.role) || isOnlineStaff(session?.user?.role);
   const now = new Date();
