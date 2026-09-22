@@ -684,6 +684,46 @@ export type SurveySaveResponse = {
   surveyComplete: boolean;
 };
 
+// ─── 학부모 ───
+export type ParentOverviewChild = {
+  grade: string;
+  id: string;
+  name: string;
+  seat: string | null;
+  todayAttendance: {
+    status: string;
+    checkIn: string | null;
+    checkOut: string | null;
+  };
+  monthPoints: { merit: number; demerit: number };
+  latestReportAt: string | null;
+};
+
+export type ParentOverviewResponse = {
+  children: ParentOverviewChild[];
+};
+
+export type ParentAttendanceResponse = {
+  month: string;
+  items: {
+    date: string;
+    status: string;
+    type: string;
+    checkIn: string | null;
+    checkOut: string | null;
+  }[];
+};
+
+export type ParentReportsResponse = {
+  items: {
+    id: string;
+    createdAt: string;
+    expiresAt: string | null;
+    hasNote: boolean;
+    url: string;
+  }[];
+};
+
 export class MobileApiError extends Error {}
 
 export async function requestMobileApi<T>(

@@ -13,11 +13,19 @@ import { API_BASE_URL, authClient } from '@/lib/auth-client';
 import {
   Capabilities,
   MobileNavRole,
+  ParentCapabilities,
   StaffCapabilities,
   StudentCapabilities,
 } from '@/lib/capabilities';
 
-export type AppRole = 'student' | 'staff';
+export type AppRole = 'student' | 'staff' | 'parent';
+
+export type ParentChild = {
+  grade: string;
+  id: string;
+  name: string;
+  seat: string | null;
+};
 
 export type MobileSession = {
   displayName: string;
@@ -27,6 +35,8 @@ export type MobileSession = {
   /** 세분 역할 — 역할별 내비게이션에 사용 */
   navRole: MobileNavRole;
   staffRole?: string;
+  /** 학부모 계정: 연결된 자녀 목록 */
+  children?: ParentChild[];
   capabilities: Capabilities;
 };
 
@@ -52,6 +62,14 @@ type ProfileResponse =
       name: string;
       role: 'STUDENT';
       capabilities: StudentCapabilities;
+    }
+  | {
+      accountType: 'PARENT';
+      id: string;
+      name: string;
+      role: 'PARENT';
+      children: ParentChild[];
+      capabilities: ParentCapabilities;
     };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -80,23 +98,34 @@ async function fetchProfile(): Promise<MobileSession | null> {
   if (!response.ok) return null;
 
   const profile = (await response.json()) as ProfileResponse;
-  return profile.accountType === 'STAFF'
-    ? {
-        displayName: profile.name,
-        domainId: profile.id,
-        role: 'staff',
-        navRole: profile.capabilities.navRole,
-        staffRole: profile.role,
-        capabilities: profile.capabilities,
-      }
-    : {
-        displayName: profile.name,
-        domainId: profile.id,
-        isOnlineManaged: profile.isOnlineManaged,
-        role: 'student',
-        navRole: 'student',
-        capabilities: profile.capabilities,
-      };
+  if (profile.accountType === 'STAFF') {
+    return {
+      displayName: profile.name,
+      domainId: profile.id,
+      role: 'staff',
+      navRole: profile.capabilities.navRole,
+      staffRole: profile.role,
+      capabilities: profile.capabilities,
+    };
+  }
+  if (profile.accountType === 'PARENT') {
+    return {
+      displayName: profile.name,
+      domainId: profile.id,
+      role: 'parent',
+      navRole: 'parent',
+      children: profile.children,
+      capabilities: profile.capabilities,
+    };
+  }
+  return {
+    displayName: profile.name,
+    domainId: profile.id,
+    isOnlineManaged: profile.isOnlineManaged,
+    role: 'student',
+    navRole: 'student',
+    capabilities: profile.capabilities,
+  };
 }
 
 export function SessionProvider({ children }: PropsWithChildren) {

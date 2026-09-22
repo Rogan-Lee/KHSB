@@ -2,9 +2,11 @@ import { NextRequest } from "next/server";
 
 import { getAuthIdentity } from "@/lib/auth";
 import {
+  parentCapabilities,
   staffCapabilities,
   studentCapabilities,
 } from "@/lib/mobile-capabilities";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   const current = await getAuthIdentity(request.headers);
@@ -38,6 +40,27 @@ export async function GET(request: NextRequest) {
       name: student.name,
       role: "STUDENT",
       capabilities: studentCapabilities(student.isOnlineManaged),
+    });
+  }
+
+  const parentLinks = await prisma.parentLink.findMany({
+    where: {
+      authUserId: current.identity.id,
+      student: { status: "ACTIVE" },
+    },
+    include: {
+      student: { select: { grade: true, id: true, name: true, seat: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  if (parentLinks.length > 0) {
+    return Response.json({
+      accountType: "PARENT",
+      id: current.identity.id,
+      name: current.identity.name,
+      role: "PARENT",
+      children: parentLinks.map((link) => link.student),
+      capabilities: parentCapabilities(),
     });
   }
 
