@@ -15,6 +15,7 @@ import {
   SectionTitle,
 } from '@/components/mobile-ui';
 import { FormSheet } from '@/components/form-sheet';
+import { TwoPane } from '@/components/two-pane';
 import { FormError, FormInput } from '@/components/workflow-ui';
 import { colors, spacing } from '@/constants/theme';
 import { formatKoreanDateTime } from '@/lib/format';
@@ -25,15 +26,31 @@ import {
   uploadMobileMedia,
   useMobileQuery,
 } from '@/lib/mobile-api';
+import { useResponsive } from '@/lib/responsive';
 
 export default function MentoringScreen() {
+  const { isTablet } = useResponsive();
   const [selectedSession, setSelectedSession] = useState<
     StaffMentoringResponse['items'][number] | null
   >(null);
   const { data, error, isLoading, isRefreshing, refresh, retry } =
     useMobileQuery<StaffMentoringResponse>('/api/mobile/v1/staff/mentoring');
 
-  return (
+  // 태블릿=우측 디테일 패널(inline), 폰=기존 풀스크린 Modal
+  const sheet = selectedSession ? (
+    <MentoringRecordSheet
+      inline={isTablet}
+      key={selectedSession.id}
+      onClose={() => setSelectedSession(null)}
+      onCompleted={async () => {
+        setSelectedSession(null);
+        await refresh();
+      }}
+      session={selectedSession}
+    />
+  ) : null;
+
+  const master = (
     <AppScreen
       onRefresh={() => void refresh()}
       refreshing={isRefreshing}
@@ -90,25 +107,29 @@ export default function MentoringScreen() {
           </Card>
         ))}
       </View>
-      {selectedSession ? (
-        <MentoringRecordSheet
-          onClose={() => setSelectedSession(null)}
-          onCompleted={async () => {
-            setSelectedSession(null);
-            await refresh();
-          }}
-          session={selectedSession}
-        />
-      ) : null}
+      {isTablet ? null : sheet}
     </AppScreen>
+  );
+
+  return (
+    <TwoPane
+      detail={isTablet ? sheet : null}
+      detailVisible={isTablet && !!selectedSession}
+      emptyMessage="왼쪽 목록에서 일정을 선택하면 상담 기록 작성이 열립니다."
+      emptyTitle="멘토링 일정을 선택하세요"
+      master={master}
+      onCloseDetail={() => setSelectedSession(null)}
+    />
   );
 }
 
 function MentoringRecordSheet({
+  inline = false,
   onClose,
   onCompleted,
   session,
 }: {
+  inline?: boolean;
   onClose: () => void;
   onCompleted: () => Promise<void>;
   session: StaffMentoringResponse['items'][number];
@@ -119,6 +140,7 @@ function MentoringRecordSheet({
 
   return (
     <FormSheet
+      inline={inline}
       onClose={onClose}
       subtitle={`${session.grade} · ${formatKoreanDateTime(session.scheduledAt)}`}
       title={session.studentName}
