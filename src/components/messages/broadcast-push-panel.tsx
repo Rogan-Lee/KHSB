@@ -23,9 +23,10 @@ import {
 import { sendBroadcastPush } from "@/actions/staff-messages";
 
 const AUDIENCE_LABEL = {
-  ALL: "전체 (학생 + 직원)",
+  ALL: "전체 (학생 + 직원 + 학부모)",
   STUDENTS: "학생만",
   STAFF: "직원만",
+  PARENTS: "학부모만",
 } as const;
 
 type Audience = keyof typeof AUDIENCE_LABEL;

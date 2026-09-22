@@ -3,13 +3,15 @@
 import { auth } from "@/lib/auth";
 import { sendMobilePush } from "@/lib/mobile-push";
 import { prisma } from "@/lib/prisma";
-import { requireFullAccess, requireStaff } from "@/lib/roles";
+import { requireAnyStaff, requireFullAccess } from "@/lib/roles";
 
 const MAX_CONTENT_LEN = 4000;
 
+// DM 상대 셀렉트(messages/page.tsx)는 STUDENT 외 전 직원을 보여주므로
+// 온라인 직원(CONSULTANT/MANAGER_MENTOR)도 포함하는 requireAnyStaff 로 판별.
 async function requireStaffSession() {
   const session = await auth();
-  requireStaff(session?.user?.role);
+  requireAnyStaff(session?.user?.role);
   return session!.user;
 }
 
@@ -185,8 +187,10 @@ export async function getUnreadStaffDmCount() {
  * 발송 이력 저장은 이번엔 생략.
  * // ponytail: 이력 테이블 없음 — 감사/재발송 필요해지면 BroadcastPushLog 모델 추가
  */
+// ponytail: 학부모 대상 자동 푸시(리포트 발행·질문 답변 등 이벤트 트리거)는 미연결 —
+// 필요해지면 해당 액션에서 ParentLink 로 authUserId 조회 후 sendMobilePush 호출 추가
 export async function sendBroadcastPush(params: {
-  audience: "ALL" | "STUDENTS" | "STAFF";
+  audience: "ALL" | "PARENTS" | "STUDENTS" | "STAFF";
   title: string;
   body: string;
 }) {
@@ -199,13 +203,16 @@ export async function sendBroadcastPush(params: {
   if (title.length > 100) throw new Error("제목은 100자 이하로 작성해 주세요");
   if (body.length > 1000) throw new Error("내용은 1000자 이하로 작성해 주세요");
 
-  // AuthUser.studentId 유무로 학생/직원 구분
+  // AuthUser 구분: 학생 = studentId 有, 직원 = appUserId 有, 학부모 = ParentLink 有.
+  // ALL = 필터 없음 — 푸시 토큰을 등록한 모든 계정(학생 + 직원 + 학부모).
   const audienceFilter =
     params.audience === "STUDENTS"
       ? { studentId: { not: null } }
       : params.audience === "STAFF"
         ? { appUserId: { not: null } }
-        : {};
+        : params.audience === "PARENTS"
+          ? { parentLinks: { some: { student: { status: "ACTIVE" as const } } } }
+          : {};
 
   const targets = await prisma.authUser.findMany({
     where: {
