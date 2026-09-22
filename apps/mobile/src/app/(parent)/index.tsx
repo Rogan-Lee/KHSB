@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { LogOut } from 'lucide-react-native';
+import { type Href, router } from 'expo-router';
+import { Bell, LogOut } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -18,6 +18,8 @@ import { colors, spacing, Tone, type } from '@/constants/theme';
 import { formatKstTime, formatShortDateTime } from '@/lib/format';
 import { ParentOverviewResponse, useMobileQuery } from '@/lib/mobile-api';
 import { useSession } from '@/lib/session';
+
+const NOTIFICATIONS_ROUTE = '/notifications' as Href;
 
 const STATUS_TONE: Record<string, Tone> = {
   입실: 'positive',
@@ -44,6 +46,13 @@ export default function ParentHomeScreen() {
       refreshing={isRefreshing}
       right={
         <View style={styles.headerActions}>
+          <Pressable
+            accessibilityLabel="알림 설정"
+            accessibilityRole="button"
+            onPress={() => router.push(NOTIFICATIONS_ROUTE)}
+            style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}>
+            <Bell color={colors.textAlternative} size={20} strokeWidth={2} />
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             onPress={() => void signOut()}

@@ -205,7 +205,9 @@ export default function NotificationSettingsScreen() {
           caption={
             session?.role === 'student'
               ? `마감 전날·당일 알림 · 예약 ${scheduledCount}건`
-              : '학생 제출 및 수정본 알림'
+              : session?.role === 'parent'
+                ? '자녀 수행평가 관련 알림'
+                : '학생 제출 및 수정본 알림'
           }
           disabled={busy || !preferences.enabled}
           icon={Clock3}

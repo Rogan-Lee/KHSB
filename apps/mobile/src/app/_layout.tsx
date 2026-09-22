@@ -53,6 +53,7 @@ export default function RootLayout() {
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(student)" />
               <Stack.Screen name="(staff)" />
+              <Stack.Screen name="(parent)" />
               <Stack.Screen name="notifications" />
             </Stack>
           </ThemeProvider>
