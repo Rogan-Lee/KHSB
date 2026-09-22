@@ -2,6 +2,15 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { requireStaff } from "@/lib/roles";
+import { todayKST } from "@/lib/utils";
+import {
+  buildAttendanceTimeStats,
+  stayMs,
+  weekStartOf,
+  type AttendanceInterval,
+  type AttendanceTimeStats,
+} from "@/lib/attendance-stats";
 
 export interface SubjectTrend {
   subject: string;
@@ -24,6 +33,8 @@ export interface StudentAnalytics {
   mentoringCount: number;            // 완료된 멘토링 수
   studyHours: number;                // 총 재원 시간 (hours)
   subjects: SubjectTrend[];
+  /** 최근 4주 주별 재원시간 합계 (getStudentAnalytics 에서만 채움) */
+  weeklyStudyHours?: { weekStart: string; hours: number }[];
 }
 
 export interface CorrelationPoint {
@@ -166,7 +177,7 @@ export async function getStudentAnalytics(studentId: string): Promise<StudentAna
       mentorings: { where: { status: "COMPLETED" } },
       attendances: {
         where: { checkIn: { not: null }, checkOut: { not: null } },
-        select: { checkIn: true, checkOut: true },
+        select: { date: true, checkIn: true, checkOut: true, outStart: true, outEnd: true },
       },
     },
   });
@@ -216,6 +227,26 @@ export async function getStudentAnalytics(studentId: string): Promise<StudentAna
     return sum + (diff > 0 && diff < 24 ? diff : 0);
   }, 0);
 
+  // 최근 4주 주별 재원시간 합계 (이번 주 포함, 외출 차감)
+  const thisWeek = weekStartOf(todayKST().toISOString().slice(0, 10));
+  const weekStarts: string[] = [];
+  for (let i = 3; i >= 0; i--) {
+    const d = new Date(`${thisWeek}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - i * 7);
+    weekStarts.push(d.toISOString().slice(0, 10));
+  }
+  const msByWeek = new Map(weekStarts.map((w) => [w, 0]));
+  for (const a of student.attendances) {
+    const ms = stayMs(a);
+    if (ms === null) continue;
+    const w = weekStartOf(new Date(a.date).toISOString().slice(0, 10));
+    if (msByWeek.has(w)) msByWeek.set(w, msByWeek.get(w)! + ms);
+  }
+  const weeklyStudyHours = weekStarts.map((w) => ({
+    weekStart: w,
+    hours: Math.round((msByWeek.get(w)! / (1000 * 60 * 60)) * 10) / 10,
+  }));
+
   return {
     studentId: student.id,
     studentName: student.name,
@@ -226,5 +257,46 @@ export async function getStudentAnalytics(studentId: string): Promise<StudentAna
     mentoringCount: student.mentorings.length,
     studyHours: Math.round(studyHours),
     subjects,
+    weeklyStudyHours,
   };
+}
+
+/** 기간 내 등원(재원) 시간 통계 — 일별 평균 추이, 요일별 평균 입실/재원, 학생별 합계 */
+export async function getAttendanceTimeStats(range: {
+  from: string; // "YYYY-MM-DD"
+  to: string;
+}): Promise<AttendanceTimeStats> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  const records = await prisma.attendanceRecord.findMany({
+    where: {
+      date: { gte: new Date(range.from), lte: new Date(range.to) },
+      checkIn: { not: null },
+      checkOut: { not: null }, // 완료된 기록만
+      student: { status: "ACTIVE" },
+    },
+    select: {
+      studentId: true,
+      date: true,
+      checkIn: true,
+      checkOut: true,
+      outStart: true,
+      outEnd: true,
+      student: { select: { name: true } },
+    },
+  });
+
+  const intervals: AttendanceInterval[] = records.map((r) => ({
+    studentId: r.studentId,
+    studentName: r.student.name,
+    date: new Date(r.date).toISOString().slice(0, 10),
+    checkIn: r.checkIn,
+    checkOut: r.checkOut,
+    outStart: r.outStart,
+    outEnd: r.outEnd,
+  }));
+
+  return buildAttendanceTimeStats(intervals);
 }
