@@ -1,3 +1,6 @@
+// ── 콘텐츠(팟캐스트·아티클) 공개 피드 API — 운영 중인 앱 도메인 (APPLY_URL 과 동일 앱) ──
+const CONTENT_API = 'https://khsb.vercel.app/api/public/content';
+
 // ── 대학 로고 마퀴 (logos/*.png 가 있으면 로고, 없으면 텍스트 칩으로 폴백) ──
 // logos/ 폴더에 file 이름에 맞춰 로고 이미지를 넣으면 자동으로 표시됩니다.
 const UNIS = [
@@ -155,3 +158,51 @@ function goContact(e) {
 window.goContact = goContact;
 
 // 입회 상담은 운영 중인 /apply 신청 페이지로 연결 (별도 폼 없음)
+
+// ── 콘텐츠 섹션 — 앱 공개 API에서 팟캐스트·아티클을 불러와 카드 그리드 렌더 ──
+// 콘텐츠가 0개이거나 fetch 실패 시 섹션은 hidden 그대로 유지.
+(function renderContents() {
+  const sec = document.getElementById('contents');
+  const grid = document.getElementById('contentGrid');
+  if (!sec || !grid) return;
+
+  const TYPE_LABEL = { podcast: '🎙 팟캐스트', article: '📝 아티클' };
+
+  function cardEl(p) {
+    const a = document.createElement('a');
+    a.className = 'content-card';
+    a.href = p.url; a.target = '_blank'; a.rel = 'noopener';
+    if (p.coverImageUrl) {
+      const img = document.createElement('img');
+      img.className = 'content-cover'; img.src = p.coverImageUrl; img.alt = ''; img.loading = 'lazy';
+      img.onerror = () => img.remove();
+      a.appendChild(img);
+    }
+    const body = document.createElement('div'); body.className = 'content-body';
+    const meta = document.createElement('p'); meta.className = 'content-meta';
+    const date = p.publishedAt
+      ? new Date(p.publishedAt).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
+      : '';
+    meta.textContent = `${TYPE_LABEL[p.type] || '콘텐츠'} · ${date}`;
+    const title = document.createElement('p'); title.className = 'content-title';
+    title.textContent = p.title;
+    body.append(meta, title);
+    if (p.summary) {
+      const sum = document.createElement('p'); sum.className = 'content-sum';
+      sum.textContent = p.summary;
+      body.appendChild(sum);
+    }
+    a.appendChild(body);
+    return a;
+  }
+
+  fetch(CONTENT_API)
+    .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+    .then(data => {
+      const posts = (data && data.posts) || [];
+      if (posts.length === 0) return;
+      posts.slice(0, 6).forEach(p => grid.appendChild(cardEl(p)));
+      sec.hidden = false;
+    })
+    .catch(() => {}); // 실패 시 섹션 숨김 유지 — 랜딩은 콘텐츠 없이도 완결
+})();
