@@ -71,6 +71,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
   const [branchId, setBranchId] = useState<string | null>(null);
   const [gender, setGender] = useState<WaitGender | null>(null);
   const [gradeType, setGradeType] = useState<WaitGradeType | null>(null);
+  const [entryPreference, setEntryPreference] = useState<"winter" | "immediate" | null>(null);
   const [programId, setProgramId] = useState<string>("");
   const [name, setName] = useState("");
   const [school, setSchool] = useState("");
@@ -171,6 +172,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
       gender: isInquiry ? null : gender,
       gradeType: isInquiry ? null : gradeType,
       kind,
+      entryPreference: isInquiry ? null : entryPreference,
       note,
       consentMarketing: consent,
     });
@@ -189,11 +191,14 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
     if (!isInquiry && !gradeType) return setError("학년을 선택해주세요");
     if (!name.trim()) return setError("이름을 입력해주세요");
     if (isInquiry && !note.trim()) return setError("문의 내용을 입력해주세요");
-    if (!verified) return setError("휴대폰 본인인증을 먼저 완료해주세요");
+    if (!phone.trim()) return setError("휴대폰 번호를 입력해주세요");
+    // 대기 신청만 본인인증 필수 — 단순 문의는 인증 없이 접수 가능
+    if (!isInquiry && !verified) return setError("휴대폰 본인인증을 먼저 완료해주세요");
 
     startTransition(async () => {
       // 동일 인증번호로 이미 남긴 내역이 있으면 → 선택지 제공 (중복 등록 방지)
-      const existing = await findExistingByPhone(phone);
+      // 미인증(문의)이면 조회 권한이 없어 빈 배열 → 바로 제출
+      const existing = verified ? await findExistingByPhone(phone) : [];
       if (existing.length > 0) {
         setDuplicates(existing);
         return;
@@ -497,6 +502,19 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
               ]}
             />
           </section>
+
+          <section>
+            <SectionTitle>언제 입실을 희망하시나요? (선택)</SectionTitle>
+            {/* 다시 누르면 선택 해제 — 미선택 허용 */}
+            <Toggle
+              value={entryPreference}
+              onChange={(v) => setEntryPreference((prev) => (prev === v ? null : v))}
+              options={[
+                { value: "winter", label: "윈터 시즌 입실 희망" },
+                { value: "immediate", label: "즉시 입실 희망" },
+              ]}
+            />
+          </section>
         </>
       )}
 
@@ -578,14 +596,16 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={pending || !verified}
+          disabled={pending || (!isInquiry && !verified)}
           className="w-full rounded-lg bg-gray-800 py-4 text-sm font-bold text-white disabled:opacity-60"
         >
           {pending ? "제출 중..." : isInquiry ? "문의 남기기" : "신청서 제출"}
         </button>
         {!verified && (
           <p className="text-center text-[11px] text-gray-400">
-            휴대폰 본인인증을 완료하면 {isInquiry ? "문의를 남길 수 있어요" : "신청할 수 있어요"}
+            {isInquiry
+              ? "문의는 본인인증 없이도 남길 수 있어요 (번호만 정확히 입력해주세요)"
+              : "휴대폰 본인인증을 완료하면 신청할 수 있어요"}
           </p>
         )}
       </div>
