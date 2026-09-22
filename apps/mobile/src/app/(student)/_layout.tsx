@@ -1,5 +1,5 @@
 import { Redirect, Tabs } from 'expo-router';
-import { BookA, Bookmark, Home, MessagesSquare } from 'lucide-react-native';
+import { BookA, Bookmark, Home, LayoutGrid, MessagesSquare } from 'lucide-react-native';
 
 import { RoleTabs, tabIcon } from '@/components/role-tabs';
 import { useSession } from '@/lib/session';
@@ -28,6 +28,10 @@ export default function StudentLayout() {
       <Tabs.Screen
         name="chat"
         options={{ tabBarIcon: tabIcon(MessagesSquare), tabBarLabel: '소통', title: '멘토 채팅' }}
+      />
+      <Tabs.Screen
+        name="menu"
+        options={{ tabBarIcon: tabIcon(LayoutGrid), tabBarLabel: '메뉴', title: '전체 메뉴' }}
       />
       {/* 보조 라우트 — 탭바에는 노출하지 않음 */}
       <Tabs.Screen name="programs" options={{ href: null, title: '프로그램' }} />

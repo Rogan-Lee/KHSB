@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { BackHandler, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
@@ -20,6 +21,22 @@ type PortalTokenResponse = {
 export function PortalWebView({ path, title }: { path: string; title: string }) {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const webRef = useRef<WebView>(null);
+  const canGoBackRef = useRef(false);
+
+  // Android hardware back: 웹뷰 히스토리가 있으면 웹뷰 뒤로가기, 없으면 네비게이션에 위임
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (canGoBackRef.current) {
+          webRef.current?.goBack();
+          return true;
+        }
+        return false;
+      });
+      return () => sub.remove();
+    }, []),
+  );
 
   const load = useCallback(async () => {
     setError(null);
@@ -49,9 +66,13 @@ export function PortalWebView({ path, title }: { path: string; title: string }) 
         <LoadingState label="포털 여는 중" />
       ) : (
         <WebView
+          ref={webRef}
           source={{ uri: url }}
           style={styles.web}
           startInLoadingState
+          onNavigationStateChange={(nav) => {
+            canGoBackRef.current = nav.canGoBack;
+          }}
           renderLoading={() => (
             <View style={[StyleSheet.absoluteFill, styles.loadingOverlay]}>
               <LoadingState label="불러오는 중" />
