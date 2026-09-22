@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatTime, parseSchool } from "@/lib/utils";
+import { calcPointBalance } from "@/lib/points";
 import { StudentForm } from "@/components/students/student-form";
 import { StudentScheduleEditor } from "@/components/students/student-schedule-editor";
 import { CommunicationPanel } from "@/components/communications/communication-panel";
@@ -93,12 +94,10 @@ export default async function StudentDetailPage({
   const schools = [...new Set(schoolRows.map((s) => parseSchool(s.school ?? "")).filter(Boolean))].sort();
   const occupiedSeats = seatRows.map((s) => s.seat!);
 
-  const totalMerits = student.merits
-    .filter((m) => m.type === "MERIT")
-    .reduce((acc, m) => acc + m.points, 0);
-  const totalDemerits = student.merits
-    .filter((m) => m.type === "DEMERIT")
-    .reduce((acc, m) => acc + m.points, 0);
+  // ponytail: 기존 동작 유지 — 최근 20건(take: 20) 기준 합산
+  const { merit: totalMerits, demerit: totalDemerits } = calcPointBalance({
+    merits: student.merits,
+  });
 
   return (
     <div className="space-y-4 max-w-5xl">
