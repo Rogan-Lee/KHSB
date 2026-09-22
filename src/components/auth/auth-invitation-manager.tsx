@@ -42,14 +42,14 @@ type InvitationRow = {
   id: string;
   name: string;
   status: InviteStatus;
-  type: "STAFF" | "STUDENT";
+  type: "STAFF" | "STUDENT" | "PARENT";
 };
 
 type AccountRow = {
   email: string;
   id: string;
   name: string;
-  type: "STAFF" | "STUDENT";
+  type: "STAFF" | "STUDENT" | "PARENT";
   username: string;
 };
 
@@ -211,7 +211,7 @@ export function AuthInvitationManager({
                       {invitation.name}
                     </p>
                     <p className="mt-0.5 text-xs text-ink-4">
-                      {invitation.type === "STAFF" ? "직원" : "학생"} · 만료{" "}
+                      {invitation.type === "STAFF" ? "직원" : invitation.type === "PARENT" ? "학부모" : "학생"} · 만료{" "}
                       {new Date(invitation.expiresAt).toLocaleString("ko-KR")}
                     </p>
                   </div>
@@ -291,7 +291,7 @@ function AccountsPanel({ accounts }: { accounts: AccountRow[] }) {
                 <p className="truncate text-sm font-medium text-ink">
                   {account.name}
                   <span className="ml-2 text-xs font-normal text-ink-4">
-                    {account.type === "STAFF" ? "직원" : "학생"}
+                    {account.type === "STAFF" ? "직원" : account.type === "PARENT" ? "학부모" : "학생"}
                     {account.username ? ` · @${account.username}` : ""}
                   </span>
                 </p>
