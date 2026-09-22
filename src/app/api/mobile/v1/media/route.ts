@@ -30,6 +30,10 @@ const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
   "application/x-hwp",
   "application/zip",
   "application/x-zip-compressed",
+  // Video
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
   // PowerPoint
   "application/vnd.ms-powerpoint",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -47,15 +51,21 @@ const ALLOWED_DOCUMENT_EXTENSIONS = new Set([
   "hwpx",
   "jpeg",
   "jpg",
+  "mov",
+  "mp4",
   "pdf",
   "png",
   "ppt",
   "pptx",
   "webp",
+  "webm",
   "xls",
   "xlsx",
   "zip",
 ]);
+// ponytail: 이 라우트는 파일 바디가 Vercel 함수를 통과하므로 실질 한도는 ~4.5MB.
+// 그보다 큰 파일(특히 영상)은 여기서 실패한다 — 대용량은 웹의
+// /api/online/upload/client (blob client upload) 방식으로 이식 필요.
 const MENTORING_TAGS = new Set(["KDA", "EXTRA", "FREE"]);
 
 function safeName(filename: string) {
