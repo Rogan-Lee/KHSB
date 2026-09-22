@@ -52,10 +52,11 @@ export function toPublicInvitation(
     invitation.type === "STAFF"
       ? invitation.targetUser
       : invitation.targetStudent;
+  const baseName = target?.name ?? "";
 
   return {
     expiresAt: invitation.expiresAt.toISOString(),
-    name: target?.name ?? "",
+    name: invitation.type === "PARENT" ? `${baseName} 학부모` : baseName,
     type: invitation.type as AuthInviteType,
     email:
       invitation.type === "STAFF"
