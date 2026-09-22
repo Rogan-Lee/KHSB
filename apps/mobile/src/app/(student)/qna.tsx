@@ -16,6 +16,7 @@ import {
   SectionTitle,
 } from '@/components/mobile-ui';
 import { FormSheet } from '@/components/form-sheet';
+import { TwoPane } from '@/components/two-pane';
 import { FormError, FormInput, MessageThread } from '@/components/workflow-ui';
 import { colors, spacing } from '@/constants/theme';
 import { formatRelativeTime } from '@/lib/format';
@@ -27,6 +28,7 @@ import {
   uploadMobileMedia,
   useMobileQuery,
 } from '@/lib/mobile-api';
+import { useResponsive } from '@/lib/responsive';
 
 const STATUS_LABELS = {
   OPEN: '답변 대기',
@@ -36,12 +38,38 @@ const STATUS_LABELS = {
 } as const;
 
 export default function StudentQnaScreen() {
+  const { isTablet } = useResponsive();
   const [createVisible, setCreateVisible] = useState(false);
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const { data, error, isLoading, isRefreshing, refresh, retry } =
     useMobileQuery<StudentQuestionsResponse>('/api/mobile/v1/student/questions');
 
-  return (
+  // 태블릿=우측 디테일 패널(inline), 폰=기존 풀스크린 Modal
+  const createSheet = createVisible ? (
+    <CreateQuestionSheet
+      inline={isTablet}
+      onClose={() => setCreateVisible(false)}
+      onCreated={async () => {
+        setCreateVisible(false);
+        await refresh();
+      }}
+    />
+  ) : null;
+  const threadSheet = selectedQuestionId ? (
+    <StudentQuestionSheet
+      inline={isTablet}
+      key={selectedQuestionId}
+      onChanged={refresh}
+      onClose={() => {
+        setSelectedQuestionId(null);
+        void refresh();
+      }}
+      questionId={selectedQuestionId}
+    />
+  ) : null;
+  const detailSheet = createSheet ?? threadSheet;
+
+  const master = (
     <AppScreen
       onRefresh={() => void refresh()}
       refreshing={isRefreshing}
@@ -97,33 +125,36 @@ export default function StudentQnaScreen() {
         })}
       </View>
 
-      {createVisible ? (
-        <CreateQuestionSheet
-          onClose={() => setCreateVisible(false)}
-          onCreated={async () => {
-            setCreateVisible(false);
-            await refresh();
-          }}
-        />
-      ) : null}
-      {selectedQuestionId ? (
-        <StudentQuestionSheet
-          onChanged={refresh}
-          onClose={() => {
-            setSelectedQuestionId(null);
-            void refresh();
-          }}
-          questionId={selectedQuestionId}
-        />
-      ) : null}
+      {isTablet ? null : (
+        <>
+          {createSheet}
+          {threadSheet}
+        </>
+      )}
     </AppScreen>
+  );
+
+  return (
+    <TwoPane
+      detail={isTablet ? detailSheet : null}
+      detailVisible={isTablet && !!detailSheet}
+      emptyMessage="왼쪽 목록에서 질문을 선택하거나 새 질문을 작성하세요."
+      emptyTitle="질문을 선택하세요"
+      master={master}
+      onCloseDetail={() => {
+        setCreateVisible(false);
+        setSelectedQuestionId(null);
+      }}
+    />
   );
 }
 
 function CreateQuestionSheet({
+  inline = false,
   onClose,
   onCreated,
 }: {
+  inline?: boolean;
   onClose: () => void;
   onCreated: () => Promise<void>;
 }) {
@@ -163,6 +194,7 @@ function CreateQuestionSheet({
 
   return (
     <FormSheet
+      inline={inline}
       onClose={onClose}
       subtitle="제목과 질문 내용을 입력하면 운영진에게 전달됩니다."
       title="새 질문"
@@ -200,10 +232,12 @@ function CreateQuestionSheet({
 }
 
 function StudentQuestionSheet({
+  inline = false,
   onChanged,
   onClose,
   questionId,
 }: {
+  inline?: boolean;
   onChanged: () => Promise<void>;
   onClose: () => void;
   questionId: string;
@@ -244,6 +278,7 @@ function StudentQuestionSheet({
 
   return (
     <FormSheet
+      inline={inline}
       onClose={onClose}
       subtitle={data?.question.subject ?? '과목 미지정'}
       title={data?.question.title ?? '질문 상세'}

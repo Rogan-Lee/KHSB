@@ -16,6 +16,7 @@ import {
   Segmented,
 } from '@/components/mobile-ui';
 import { FormSheet } from '@/components/form-sheet';
+import { TwoPane } from '@/components/two-pane';
 import { FormError } from '@/components/workflow-ui';
 import { colors, palette, radius, spacing, Tone, type } from '@/constants/theme';
 import {
@@ -25,6 +26,7 @@ import {
   StaffStudentDetail,
   useMobileQuery,
 } from '@/lib/mobile-api';
+import { useResponsive } from '@/lib/responsive';
 
 const FILTERS = ['전체', '입실', '외출', '퇴실', '미입실', '결석'] as const;
 type AttendanceFilter = (typeof FILTERS)[number];
@@ -45,6 +47,7 @@ function scheduleText(item: StaffAttendanceItem): string | null {
 }
 
 export default function AttendanceScreen() {
+  const { isTablet } = useResponsive();
   const [filter, setFilter] = useState<AttendanceFilter>('전체');
   const [query, setQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<StaffAttendanceItem | null>(null);
@@ -66,7 +69,21 @@ export default function AttendanceScreen() {
 
   const summary = data?.summary;
 
-  return (
+  // 태블릿=우측 디테일 패널(inline), 폰=기존 풀스크린 Modal
+  const sheet = selectedStudent ? (
+    <AttendanceActionSheet
+      inline={isTablet}
+      key={selectedStudent.id}
+      onClose={() => setSelectedStudent(null)}
+      onUpdated={async () => {
+        setSelectedStudent(null);
+        await refresh();
+      }}
+      student={selectedStudent}
+    />
+  ) : null;
+
+  const master = (
     <AppScreen
       onRefresh={() => void refresh()}
       refreshing={isRefreshing}
@@ -154,17 +171,19 @@ export default function AttendanceScreen() {
           })}
         </Card>
       ) : null}
-      {selectedStudent ? (
-        <AttendanceActionSheet
-          onClose={() => setSelectedStudent(null)}
-          onUpdated={async () => {
-            setSelectedStudent(null);
-            await refresh();
-          }}
-          student={selectedStudent}
-        />
-      ) : null}
+      {isTablet ? null : sheet}
     </AppScreen>
+  );
+
+  return (
+    <TwoPane
+      detail={isTablet ? sheet : null}
+      detailVisible={isTablet && !!selectedStudent}
+      emptyMessage="왼쪽 목록에서 학생을 선택하면 입퇴실과 정보를 관리할 수 있습니다."
+      emptyTitle="학생을 선택하세요"
+      master={master}
+      onCloseDetail={() => setSelectedStudent(null)}
+    />
   );
 }
 
@@ -193,10 +212,12 @@ const SHEET_TABS: { label: string; value: SheetTab }[] = [
 ];
 
 function AttendanceActionSheet({
+  inline = false,
   onClose,
   onUpdated,
   student,
 }: {
+  inline?: boolean;
   onClose: () => void;
   onUpdated: () => Promise<void>;
   student: StaffAttendanceItem;
@@ -299,6 +320,7 @@ function AttendanceActionSheet({
 
   return (
     <FormSheet
+      inline={inline}
       onClose={onClose}
       subtitle={`${student.grade}${student.seat ? ` · ${student.seat}` : ''}`}
       title={student.name}

@@ -16,11 +16,14 @@ import { colors, spacing } from '@/constants/theme';
 
 export function FormSheet({
   children,
+  inline = false,
   onClose,
   subtitle,
   title,
   visible,
 }: PropsWithChildren<{
+  /** true 면 Modal 대신 부모 레이아웃(예: TwoPane 디테일 패널) 안에 렌더 */
+  inline?: boolean;
   onClose: () => void;
   subtitle?: string;
   title: string;
@@ -30,6 +33,40 @@ export function FormSheet({
   // inset 이 0 이 된다(닫기 버튼이 상태바 밑에 깔림). 부모 트리에서 읽은 inset 을
   // 직접 패딩으로 적용한다.
   const insets = useSafeAreaInsets();
+  const body = (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.flex}>
+      <View style={styles.header}>
+        <View style={styles.heading}>
+          <Text style={styles.title}>{title}</Text>
+          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+        </View>
+        <Pressable
+          accessibilityLabel="닫기"
+          accessibilityRole="button"
+          hitSlop={12}
+          onPress={onClose}
+          style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}>
+          <X color={colors.ink} size={22} />
+        </Pressable>
+      </View>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
+        {children}
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+
+  if (inline) {
+    if (!visible) return null;
+    return (
+      <View style={[styles.safeArea, { paddingTop: Math.max(insets.top, 12) }]}>{body}</View>
+    );
+  }
+
   return (
     <Modal
       animationType="slide"
@@ -44,30 +81,7 @@ export function FormSheet({
             paddingBottom: insets.bottom,
           },
         ]}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.flex}>
-          <View style={styles.header}>
-            <View style={styles.heading}>
-              <Text style={styles.title}>{title}</Text>
-              {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-            </View>
-            <Pressable
-              accessibilityLabel="닫기"
-              accessibilityRole="button"
-              hitSlop={12}
-              onPress={onClose}
-              style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}>
-              <X color={colors.ink} size={22} />
-            </Pressable>
-          </View>
-          <ScrollView
-            contentContainerStyle={styles.content}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}>
-            {children}
-          </ScrollView>
-        </KeyboardAvoidingView>
+        {body}
       </View>
     </Modal>
   );
