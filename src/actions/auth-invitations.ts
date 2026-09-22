@@ -158,16 +158,9 @@ async function issueParentInvitation(
         type: "PARENT",
         tokenHash,
         targetStudentId: primary.id,
+        targetStudentIds: ids,
+        parentRelation: relation,
         invitedById,
-        expiresAt,
-      },
-    }),
-    // ponytail: AuthInvitation 에는 다중 자녀/관계 필드가 없어 초대 페이로드를
-    // AuthVerification(key-value) 행에 함께 실어 보낸다. 수락 시 auth-server.ts 가 읽는다.
-    prisma.authVerification.create({
-      data: {
-        identifier: `parent-invite:${tokenHash}`,
-        value: JSON.stringify({ relation, studentIds: ids }),
         expiresAt,
       },
     }),
