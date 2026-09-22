@@ -7,11 +7,14 @@ import { colors, spacing } from '@/constants/theme';
 
 export function FormSheet({
   children,
+  inline = false,
   onClose,
   subtitle,
   title,
   visible,
 }: PropsWithChildren<{
+  /** true 면 fixed 오버레이 대신 부모 레이아웃(예: TwoPane 디테일 패널) 안에 렌더 */
+  inline?: boolean;
   onClose: () => void;
   subtitle?: string;
   title: string;
@@ -19,22 +22,8 @@ export function FormSheet({
 }>) {
   if (!visible || typeof document === 'undefined') return null;
 
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-      style={{
-        background: colors.canvas,
-        bottom: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        left: 0,
-        position: 'fixed',
-        right: 0,
-        top: 0,
-        zIndex: 1000,
-      }}>
+  const body = (
+    <>
       <View style={styles.header}>
         <View style={styles.heading}>
           <Text style={styles.title}>{title}</Text>
@@ -55,6 +44,34 @@ export function FormSheet({
         style={styles.scroll}>
         {children}
       </ScrollView>
+    </>
+  );
+
+  if (inline) {
+    return (
+      <div style={{ background: colors.canvas, display: 'flex', flex: 1, flexDirection: 'column' }}>
+        {body}
+      </div>
+    );
+  }
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      style={{
+        background: colors.canvas,
+        bottom: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        left: 0,
+        position: 'fixed',
+        right: 0,
+        top: 0,
+        zIndex: 1000,
+      }}>
+      {body}
     </div>,
     document.body,
   );
