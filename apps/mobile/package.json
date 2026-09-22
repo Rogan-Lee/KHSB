@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@better-auth/expo": "^1.6.19",
-    "@expo/ui": "~56.0.18",
+    "@expo/ui": "~56.0.26",
     "better-auth": "^1.6.19",
     "expo": "~56.0.12",
     "expo-camera": "~56.0.8",
@@ -35,7 +35,7 @@
     "react-native-gesture-handler": "~2.31.1",
     "react-native-reanimated": "4.3.1",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-screens": "4.25.2",
+    "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
     "react-native-web": "~0.21.0",
     "react-native-webview": "13.16.1",
