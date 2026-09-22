@@ -359,7 +359,7 @@ export async function rescheduleMentoringSession(params: {
 }
 
 // ─────────────────── 6) 세션 사진 첨부 (Sprint 5 PR 5.1) ───────────────────
-// KDA(핵심 자료) / EXTRA(추가 자료) / FREE(자유) 3종 태그.
+// EXTRA(추가 자료) / FREE(자유) 태그. KDA 는 운영 종료 — 신규 첨부 차단, 과거 데이터만 표시.
 // 실제 파일 업로드는 /api/upload/mentoring-session 라우트에서 처리 후
 // 반환된 url/mimeType 을 이 액션으로 DB 에 기록한다.
 export async function attachSessionPhoto(
@@ -374,6 +374,7 @@ export async function attachSessionPhoto(
 ) {
   const session = await auth();
   requireOnlineStaff(session?.user?.role);
+  if (data.tag === "KDA") throw new Error("KDA 태그는 더 이상 사용할 수 없습니다");
 
   const target = await prisma.mentoringSession.findUnique({
     where: { id: sessionId },

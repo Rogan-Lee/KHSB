@@ -66,7 +66,8 @@ const ALLOWED_DOCUMENT_EXTENSIONS = new Set([
 // ponytail: 이 라우트는 파일 바디가 Vercel 함수를 통과하므로 실질 한도는 ~4.5MB.
 // 그보다 큰 파일(특히 영상)은 여기서 실패한다 — 대용량은 웹의
 // /api/online/upload/client (blob client upload) 방식으로 이식 필요.
-const MENTORING_TAGS = new Set(["KDA", "EXTRA", "FREE"]);
+// KDA 는 운영 종료 — 신규 업로드 차단 (과거 데이터는 표시 유지)
+const MENTORING_TAGS = new Set(["EXTRA", "FREE"]);
 
 function safeName(filename: string) {
   return filename
