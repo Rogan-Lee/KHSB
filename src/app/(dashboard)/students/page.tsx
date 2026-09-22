@@ -17,7 +17,7 @@ import { isGoogleCalendarConfigured, getGoogleAuthUrl, isOAuthAppConfigured } fr
 import { offlineStudentWhere } from "@/lib/student-filters";
 import { listStudentPortalLinks } from "@/actions/student-portal-links";
 import { auth } from "@/lib/auth";
-import { isFullAccess } from "@/lib/roles";
+import { isFullAccess, isStaff } from "@/lib/roles";
 import { PortalLinksPanel } from "@/components/students/portal-links-panel";
 import { PreRegistrationPanel } from "@/components/students/pre-registration-panel";
 import { listPreRegistrations } from "@/actions/pre-registrations";
@@ -52,7 +52,9 @@ export default async function StudentsPage({
     auth(),
   ]);
   const preRegistrations = await listPreRegistrations();
-  const canManagePortalLinks = isFullAccess(session?.user.role);
+  // 포털 링크 발급/재발급은 운영자 전원 허용, 사전등록 정식 전환은 원장 유지
+  const canManagePortalLinks = isStaff(session?.user.role);
+  const canFormalize = isFullAccess(session?.user.role);
 
   const googleAuthUrl = isOAuthAppConfigured() ? getGoogleAuthUrl() : "";
 
@@ -111,7 +113,7 @@ export default async function StudentsPage({
         <TabsContent value="pre-registration" className="mt-3">
           <Card className="rounded-[12px] border-line shadow-[var(--shadow-xs)]">
             <CardContent className="pt-5">
-              <PreRegistrationPanel initial={preRegistrations} canFormalize={canManagePortalLinks} />
+              <PreRegistrationPanel initial={preRegistrations} canFormalize={canFormalize} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -122,7 +124,6 @@ export default async function StudentsPage({
               <div className="mb-3 text-sm text-muted-foreground">
                 재원생에게 보낼 본인 전용 학생 포털 링크({portalLinkRows.filter((s) => s.token).length}/{portalLinkRows.length}명 발급됨).
                 링크는 30일 후 만료되며 재발급할 수 있어요.
-                {!canManagePortalLinks && " (발급·재발급은 원장 권한 필요)"}
               </div>
               <PortalLinksPanel students={portalLinkRows} canManage={canManagePortalLinks} />
             </CardContent>

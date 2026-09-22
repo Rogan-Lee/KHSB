@@ -94,7 +94,7 @@ export default async function MentoringPage({
     getAnnouncement("mentoring"),
     prisma.attendanceRecord.findMany({
       where: { date: new Date(today), checkIn: { not: null } },
-      select: { studentId: true, checkOut: true, checkIn: true, notes: true },
+      select: { studentId: true, checkOut: true, checkIn: true, notes: true, type: true },
     }),
     prisma.meritDemerit.groupBy({
       by: ["studentId", "type"],
@@ -107,10 +107,12 @@ export default async function MentoringPage({
   const checkedInStudentIds = new Set(
     todayAttendance.filter((a) => !a.checkOut).map((a) => a.studentId)
   );
-  // 오늘 출석 특이사항 맵 (studentId → notes)
+  // 오늘 출석 특이사항 맵 (studentId → notes) + 지연입실 학생
   const attendanceNotesMap: Record<string, string> = {};
+  const tardyStudentIds: string[] = [];
   for (const a of todayAttendance) {
     if (a.notes) attendanceNotesMap[a.studentId] = a.notes;
+    if (a.type === "TARDY") tardyStudentIds.push(a.studentId);
   }
   // 이달 상벌점 맵 (studentId → { positive, negative })
   const meritPointsByStudent: Record<string, { positive: number; negative: number }> = {};
@@ -172,7 +174,7 @@ export default async function MentoringPage({
               </Link>
             </CardHeader>
             <CardContent>
-              <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} vocabEnrolledStudentIds={vocabEnrolledIds} attendanceNotes={attendanceNotesMap} meritPoints={meritPointsByStudent} initialDateFrom={initialFrom} initialDateTo={initialTo} />
+              <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} vocabEnrolledStudentIds={vocabEnrolledIds} attendanceNotes={attendanceNotesMap} tardyStudentIds={tardyStudentIds} meritPoints={meritPointsByStudent} initialDateFrom={initialFrom} initialDateTo={initialTo} />
             </CardContent>
           </Card>
         </TabsContent>

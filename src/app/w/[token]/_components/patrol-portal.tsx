@@ -15,7 +15,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { QrScanner } from "./qr-scanner";
-import { decodeStudentQr } from "@/lib/patrol";
+import { decodeStudentQr, PATROL_NOTE_PRESETS } from "@/lib/patrol";
 import {
   startPatrolRound,
   endPatrolRound,
@@ -406,12 +406,28 @@ export function PatrolPortal({
               })}
             </div>
 
+            {/* 특이사항 프리셋 칩 — 탭하면 NOTE 상태로 전환 + note 에 append */}
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {PATROL_NOTE_PRESETS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => {
+                    setDraftStatus("NOTE");
+                    setDraftNote((prev) => (prev.trim() ? `${prev.trim()}, ${p}` : p));
+                  }}
+                  className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-[12.5px] text-gray-600 active:bg-gray-100"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+
             {draftStatus === "NOTE" && (
               <textarea
                 value={draftNote}
                 onChange={(e) => setDraftNote(e.target.value)}
                 rows={3}
-                autoFocus
                 placeholder="특이사항 내용 (예: 졸고 있음, 자리 이탈, 휴대폰 사용)"
                 className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-[16px] focus:border-slate-400 focus:outline-none"
               />

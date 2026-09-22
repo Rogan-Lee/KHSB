@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireFullAccess } from "@/lib/roles";
+import { requireStaff } from "@/lib/roles";
 import {
   issueStaffMagicLink,
   revokeStaffMagicLink,
@@ -16,7 +16,7 @@ import { notifySlack } from "@/lib/slack";
  */
 export async function issueLinkForStaff(userId: string) {
   const session = await auth();
-  requireFullAccess(session?.user?.role);
+  requireStaff(session?.user?.role);
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -45,7 +45,7 @@ export async function issueLinkForStaff(userId: string) {
 /** 단일 링크 무효화. */
 export async function revokeLink(linkId: string) {
   const session = await auth();
-  requireFullAccess(session?.user?.role);
+  requireStaff(session?.user?.role);
 
   await revokeStaffMagicLink(linkId);
   revalidatePath("/payroll");
@@ -59,7 +59,7 @@ export async function revokeLink(linkId: string) {
  */
 export async function listLinksForStaff(userId: string) {
   const session = await auth();
-  requireFullAccess(session?.user?.role);
+  requireStaff(session?.user?.role);
 
   const links = await prisma.staffMagicLink.findMany({
     where: { userId },

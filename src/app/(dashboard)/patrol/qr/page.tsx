@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { isStaff } from "@/lib/roles";
 import { PatrolQrSheet } from "./_components/patrol-qr-sheet";
+import { compareSeat } from "@/lib/patrol";
 
 export const revalidate = 60;
 
@@ -13,11 +14,12 @@ export default async function PatrolQrPage() {
   const session = await auth();
   if (!isStaff(session?.user?.role)) redirect("/");
 
-  const students = await prisma.student.findMany({
-    where: { status: "ACTIVE" },
-    select: { id: true, name: true, grade: true, seat: true },
-    orderBy: [{ seat: "asc" }, { name: "asc" }],
-  });
+  const students = (
+    await prisma.student.findMany({
+      where: { status: "ACTIVE" },
+      select: { id: true, name: true, grade: true, seat: true },
+    })
+  ).sort(compareSeat);
 
   return (
     <div className="space-y-4">

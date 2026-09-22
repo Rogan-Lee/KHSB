@@ -67,6 +67,7 @@ type Props = {
   checkedInStudentIds?: string[];
   vocabEnrolledStudentIds?: string[];
   attendanceNotes?: Record<string, string>;
+  tardyStudentIds?: string[];
   /** 이달 기준 학생별 상/벌점 누적 (§2.17) */
   meritPoints?: Record<string, { positive: number; negative: number }>;
   /** 서버 측 조회 범위(URL ?from=&to=). 클라이언트는 표시만 하고 변경 시 navigate. */
@@ -247,9 +248,10 @@ function saveFilters(f: FilterState) {
   try { sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(f)); } catch { /* ignore */ }
 }
 
-export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [], vocabEnrolledStudentIds = [], attendanceNotes = {}, meritPoints = {}, initialDateFrom, initialDateTo }: Props) {
+export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [], vocabEnrolledStudentIds = [], attendanceNotes = {}, tardyStudentIds = [], meritPoints = {}, initialDateFrom, initialDateTo }: Props) {
   const router = useRouter();
   const checkedInSet = new Set(checkedInStudentIds);
+  const tardySet = new Set(tardyStudentIds);
   const vocabEnrolledSet = new Set(vocabEnrolledStudentIds);
   const today = getToday();
 
@@ -720,9 +722,12 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                             );
                           })()}
                         </div>
-                        {/* 특이사항 */}
-                        {attendanceNotes[m.student.id] && (
+                        {/* 입퇴실 특이사항 · 지연입실 */}
+                        {(tardySet.has(m.student.id) || attendanceNotes[m.student.id]) && (
                           <p className="text-[11px] text-amber-600 truncate max-w-[200px] mt-0.5" title={attendanceNotes[m.student.id]}>
+                            {tardySet.has(m.student.id) && (
+                              <span className="mr-1 rounded bg-amber-100 px-1 py-px font-semibold text-amber-700">지연입실</span>
+                            )}
                             {attendanceNotes[m.student.id]}
                           </p>
                         )}

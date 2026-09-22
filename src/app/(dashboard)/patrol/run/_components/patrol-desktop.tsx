@@ -19,7 +19,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { QrScanner } from "@/app/w/[token]/_components/qr-scanner";
-import { decodeStudentQr } from "@/lib/patrol";
+import { decodeStudentQr, PATROL_NOTE_PRESETS } from "@/lib/patrol";
 import {
   startPatrolRound,
   endPatrolRound,
@@ -436,7 +436,8 @@ export function PatrolDesktop({
           )}
         </div>
 
-        {/* 우: 선택 학생 상세 패널 */}
+        {/* 우: 선택 학생 상세 패널 — self-stretch 로 컬럼을 행 높이만큼 늘려야 sticky 가 스크롤을 따라온다 */}
+        <div className="md:self-stretch">
         <div className="rounded-xl border border-line bg-panel p-4 shadow-[var(--shadow-xs)] md:sticky md:top-3">
           {!target ? (
             <div className="py-16 text-center text-[13px] text-ink-4">
@@ -558,6 +559,23 @@ export function PatrolDesktop({
                 })}
               </div>
 
+              {/* 특이사항 프리셋 칩 — 탭하면 NOTE 상태로 전환 + note 에 append */}
+              <div className="flex flex-wrap gap-1.5">
+                {PATROL_NOTE_PRESETS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => {
+                      setDraftStatus("NOTE");
+                      setDraftNote((prev) => (prev.trim() ? `${prev.trim()}, ${p}` : p));
+                    }}
+                    className="rounded-full border border-line bg-panel-2 px-2.5 py-1 text-[11.5px] text-ink-3 hover:border-brand hover:text-ink"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+
               {draftStatus === "NOTE" && (
                 <textarea
                   value={draftNote}
@@ -581,6 +599,7 @@ export function PatrolDesktop({
               )}
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>

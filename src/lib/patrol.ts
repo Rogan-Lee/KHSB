@@ -4,6 +4,31 @@
 
 export const PATROL_QR_PREFIX = "KHSB-STU:";
 
+/**
+ * 좌석 번호 정렬 비교기 — 숫자 인식(numeric)이라 "2" < "10" 이 올바로 정렬된다.
+ * (DB orderBy 는 문자열 정렬이라 "10" < "2" 가 되므로 fetch 후 이걸로 재정렬할 것)
+ */
+export function compareSeat(
+  a: { seat: string | null; name: string },
+  b: { seat: string | null; name: string },
+): number {
+  return (
+    (a.seat ?? "").localeCompare(b.seat ?? "", "ko", { numeric: true }) ||
+    a.name.localeCompare(b.name, "ko")
+  );
+}
+
+/** 순찰 특이사항 자주 쓰는 유형 — 칩 탭으로 note 에 append. */
+// ponytail: 하드코딩 상수 — 시설별 커스텀 니즈 생기면 AppSetting(patrol.notePresets)으로 승격
+export const PATROL_NOTE_PRESETS = [
+  "졸음",
+  "휴대폰 사용",
+  "자리 이탈",
+  "잡담/소음",
+  "취식",
+  "이어폰 사용",
+] as const;
+
 /** 학생 id → 좌석 QR 페이로드 문자열. */
 export function encodeStudentQr(studentId: string): string {
   return `${PATROL_QR_PREFIX}${studentId}`;

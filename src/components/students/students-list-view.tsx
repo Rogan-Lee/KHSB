@@ -19,9 +19,16 @@ interface StudentsListViewProps {
 export function StudentsListView({ students }: StudentsListViewProps) {
   const [view, setView] = useState<"list" | "grid">("list");
   const [query, setQuery] = useState("");
+  const [classGroup, setClassGroup] = useState<string | null>(null);
 
+  // 반(정규반/선택반 등) 칩 — 실데이터에 존재하는 값만 노출
+  const classGroups = [...new Set(students.map((s) => s.classGroup).filter((g): g is string => !!g))].sort(
+    (a, b) => a.localeCompare(b, "ko")
+  );
+
+  const byGroup = classGroup ? students.filter((s) => s.classGroup === classGroup) : students;
   const filtered = query
-    ? students.filter((s) => {
+    ? byGroup.filter((s) => {
         const q = query.toLowerCase();
         return (
           s.name.toLowerCase().includes(q) ||
@@ -30,7 +37,7 @@ export function StudentsListView({ students }: StudentsListViewProps) {
           (s.seat?.toLowerCase().includes(q) ?? false)
         );
       })
-    : students;
+    : byGroup;
 
   return (
     <div className="flex flex-col gap-[14px]">
@@ -54,6 +61,25 @@ export function StudentsListView({ students }: StudentsListViewProps) {
             </button>
           )}
         </div>
+        {classGroups.length > 0 && (
+          <div className="flex items-center gap-1">
+            {[null, ...classGroups].map((g) => (
+              <button
+                key={g ?? "__all"}
+                type="button"
+                onClick={() => setClassGroup(g)}
+                className={cn(
+                  "px-[10px] py-[5px] rounded-full border text-[11.5px] transition-colors",
+                  classGroup === g
+                    ? "bg-ink text-white border-ink"
+                    : "bg-panel border-line text-ink-3 hover:text-ink-2 hover:bg-canvas-2"
+                )}
+              >
+                {g ?? "전체"}
+              </button>
+            ))}
+          </div>
+        )}
         <span className="text-[11.5px] text-ink-4 font-mono tabular-nums">
           {filtered.length} / {students.length}
         </span>
