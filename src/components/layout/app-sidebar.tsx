@@ -48,6 +48,7 @@ import {
   MessageSquarePlus,
   UserPlus,
   KeyRound,
+  Podcast,
 } from "lucide-react";
 
 type NavItem = {
@@ -108,6 +109,7 @@ const navSections: NavSection[] = [
       { href: "/calendar", label: "캘린더", icon: CalendarDays, feature: "calendar" },
       { href: "/meeting-minutes", label: "회의록", icon: NotebookText, feature: "meeting-minutes" },
       { href: "/messages", label: "카카오 메시지", icon: MessageCircle, feature: "kakao-messages" },
+      { href: "/contents", label: "콘텐츠", icon: Podcast, show: isStaff },
       { href: "/requests", label: "요청사항", icon: Megaphone, feature: "requests" },
     ],
   },
