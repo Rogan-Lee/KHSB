@@ -33,7 +33,15 @@ function AttachmentGrid({ attachments }: { attachments: QuestionAttachment[] }) 
   return (
     <div className="mt-2 grid grid-cols-2 gap-1.5">
       {attachments.map((a, i) =>
-        a.mimeType.startsWith("image/") ? (
+        a.mimeType.startsWith("video/") ? (
+          <video
+            key={`${a.url}-${i}`}
+            controls
+            preload="metadata"
+            className="col-span-2 max-w-full rounded-[10px] border border-line bg-canvas-2"
+            src={a.url}
+          />
+        ) : a.mimeType.startsWith("image/") ? (
           <a
             key={`${a.url}-${i}`}
             href={a.url}
