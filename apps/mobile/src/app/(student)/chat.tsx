@@ -4,37 +4,29 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChatThread } from '@/components/chat-thread';
 import { Avatar, Badge, EmptyState, ErrorState, LoadingState } from '@/components/mobile-ui';
+import { TwoPane } from '@/components/two-pane';
 import { colors, palette, spacing, type } from '@/constants/theme';
 import { ChatListResponse, useMobileQuery } from '@/lib/mobile-api';
+import { useResponsive } from '@/lib/responsive';
 
 const BASE = '/api/mobile/v1/student/chats';
 
 export default function StudentChatScreen() {
+  const { isTablet } = useResponsive();
   const { data, error, isLoading, refresh, retry } = useMobileQuery<ChatListResponse>(BASE);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const chats = data?.chats ?? [];
   const active = chats.find((c) => c.id === activeId) ?? null;
 
-  // 채팅방(전체화면)
-  if (active) {
-    return (
-      <SafeAreaView edges={['top']} style={styles.safe}>
-        <ChatThread
-          basePath={BASE}
-          chatId={active.id}
-          onBack={() => {
-            setActiveId(null);
-            void refresh();
-          }}
-        />
-      </SafeAreaView>
-    );
-  }
+  const closeDetail = () => {
+    setActiveId(null);
+    void refresh();
+  };
 
-  // 채팅 목록
-  return (
-    <SafeAreaView edges={['top']} style={styles.safe}>
+  // 채팅 목록 (마스터)
+  const master = (
+    <>
       <View style={styles.header}>
         <Text style={styles.title}>소통</Text>
         <Text style={styles.subtitle}>담당 선생님과 1:1로 대화하세요.</Text>
@@ -52,7 +44,11 @@ export default function StudentChatScreen() {
           <Pressable
             key={c.id}
             onPress={() => setActiveId(c.id)}
-            style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}>
+            style={({ pressed }) => [
+              styles.row,
+              isTablet && activeId === c.id && styles.rowActive,
+              pressed && { opacity: 0.7 },
+            ]}>
             <Avatar
               label={c.partner.name.slice(0, 2)}
               size={48}
@@ -73,6 +69,29 @@ export default function StudentChatScreen() {
           </Pressable>
         ))}
       </ScrollView>
+    </>
+  );
+
+  return (
+    <SafeAreaView edges={['top']} style={styles.safe}>
+      <TwoPane
+        detail={
+          active ? (
+            <ChatThread
+              basePath={BASE}
+              chatId={active.id}
+              key={active.id}
+              onBack={isTablet ? undefined : closeDetail}
+            />
+          ) : null
+        }
+        detailVisible={!!active}
+        emptyMessage="왼쪽에서 선생님을 선택하면 대화가 열립니다."
+        emptyTitle="대화를 선택하세요"
+        master={master}
+        masterWidth={360}
+        onCloseDetail={closeDetail}
+      />
     </SafeAreaView>
   );
 }
@@ -89,9 +108,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.lineAlt,
   },
+  rowActive: { backgroundColor: colors.primarySurface, borderBottomColor: 'transparent' },
   rowText: { flex: 1, gap: 3 },
   rowTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   rowName: { ...type.label1, color: colors.textNormal },
