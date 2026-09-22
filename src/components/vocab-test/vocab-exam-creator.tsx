@@ -40,8 +40,9 @@ export function VocabExamCreator({ books, students }: { books: VocabBookSummary[
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   const [direction, setDirection] = useState<VocabExamDirection>("EN_TO_KO");
   const [title, setTitle] = useState("");
-  const [questionCount, setQuestionCount] = useState(20);
-  const [perQuestionSeconds, setPerQuestionSeconds] = useState(10);
+  // 입력 중 필드를 완전히 비울 수 있도록 string state — 제출 시에만 숫자로 변환/검증
+  const [questionCount, setQuestionCount] = useState("20");
+  const [perQuestionSeconds, setPerQuestionSeconds] = useState("10");
   const [shuffle, setShuffle] = useState(true);
   const [notifyOnSlack, setNotifyOnSlack] = useState(false);
 
@@ -86,6 +87,9 @@ export function VocabExamCreator({ books, students }: { books: VocabBookSummary[
     if (!bookId) return toast.error("단어장을 선택하세요");
     if (poolCount === 0) return toast.error("선택한 범위에 단어가 없습니다");
     if (selectedStudentIds.length === 0) return toast.error("대상 학생을 1명 이상 선택하세요");
+    const parsedCount = parseInt(questionCount, 10) || 0;
+    const parsedSeconds = Math.max(0, parseInt(perQuestionSeconds, 10) || 0);
+    if (parsedCount < 1) return toast.error("문항 수를 1 이상 입력하세요");
     const finalTitle = title.trim() || `${book?.name ?? "영단어"} 시험${selectedUnits.length ? ` (${selectedUnits.join(", ")})` : ""}`;
     startTransition(async () => {
       try {
@@ -93,8 +97,8 @@ export function VocabExamCreator({ books, students }: { books: VocabBookSummary[
           title: finalTitle,
           bookId,
           direction,
-          questionCount,
-          perQuestionSeconds,
+          questionCount: parsedCount,
+          perQuestionSeconds: parsedSeconds,
           units: selectedUnits,
           entryIds: [],
           shuffle,
@@ -215,14 +219,14 @@ export function VocabExamCreator({ books, students }: { books: VocabBookSummary[
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>문항 수</Label>
-                  <Input type="number" min={1} max={poolCount || 1} value={questionCount}
-                    onChange={(e) => setQuestionCount(Math.max(1, Number(e.target.value) || 1))} />
+                  <Input type="number" min={0} max={poolCount || 1} value={questionCount}
+                    onChange={(e) => setQuestionCount(e.target.value)} />
                   <p className="text-xs text-muted-foreground mt-0.5">선택 범위 단어 {poolCount}개</p>
                 </div>
                 <div>
                   <Label>문항당 제한시간(초)</Label>
                   <Input type="number" min={0} max={600} value={perQuestionSeconds}
-                    onChange={(e) => setPerQuestionSeconds(Math.max(0, Number(e.target.value) || 0))} />
+                    onChange={(e) => setPerQuestionSeconds(e.target.value)} />
                   <p className="text-xs text-muted-foreground mt-0.5">0 = 무제한</p>
                 </div>
               </div>
