@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { VocabEnrollReason } from "@/generated/prisma";
 
@@ -9,6 +10,7 @@ import { VocabEnrollReason } from "@/generated/prisma";
 export async function enrollVocabTest(studentId: string, reason: VocabEnrollReason) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   await prisma.vocabTestEnrollment.upsert({
     where: { studentId },
@@ -24,6 +26,7 @@ export async function enrollVocabTest(studentId: string, reason: VocabEnrollReas
 export async function bulkEnrollVocabTest(studentIds: string[], reason: VocabEnrollReason) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   for (const studentId of studentIds) {
     await prisma.vocabTestEnrollment.upsert({
@@ -41,6 +44,7 @@ export async function bulkEnrollVocabTest(studentIds: string[], reason: VocabEnr
 export async function unenrollVocabTest(studentId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   await prisma.vocabTestEnrollment.update({
     where: { studentId },
@@ -55,6 +59,7 @@ export async function unenrollVocabTest(studentId: string) {
 export async function createVocabScore(formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   const studentId = formData.get("studentId") as string;
   const testDate = formData.get("testDate") as string;
@@ -85,6 +90,7 @@ export async function createVocabScore(formData: FormData) {
 export async function deleteVocabScore(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   await prisma.vocabTestScore.delete({ where: { id } });
   revalidatePath("/vocab-test");

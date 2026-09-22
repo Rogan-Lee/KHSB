@@ -7,6 +7,7 @@ import { requireStaff } from "@/lib/roles";
 import { validateStaffMagicLink } from "@/lib/staff-auth";
 import { hasGatePass } from "@/lib/token-auth";
 import { todayKST } from "@/lib/utils";
+import { compareSeat } from "@/lib/patrol";
 import type { PatrolStatus } from "@/generated/prisma";
 
 // ───────────────────── 순찰자 인증 (매직링크 토큰 OR 로그인 세션) ─────────────────────
@@ -83,7 +84,7 @@ async function getTodayRoster(): Promise<PatrolRosterStudent[]> {
     .map((a) => a.student)
     .filter((s) => s.status === "ACTIVE")
     .map((s) => ({ id: s.id, name: s.name, grade: s.grade, seat: s.seat }))
-    .sort((a, b) => (a.seat ?? "").localeCompare(b.seat ?? "", "ko") || a.name.localeCompare(b.name, "ko"));
+    .sort(compareSeat);
 }
 
 function toRecordView(r: {
@@ -138,7 +139,9 @@ export async function getPatrolPortalData(token?: string): Promise<PatrolPortalD
   return {
     patrollerName: patroller.name,
     roster,
-    allStudents: allStudentRows.map((s) => ({ id: s.id, name: s.name, grade: s.grade, seat: s.seat })),
+    allStudents: allStudentRows
+      .map((s) => ({ id: s.id, name: s.name, grade: s.grade, seat: s.seat }))
+      .sort(compareSeat),
     activeRound: activeRound
       ? { id: activeRound.id, label: activeRound.label, startedAt: activeRound.startedAt.toISOString() }
       : null,

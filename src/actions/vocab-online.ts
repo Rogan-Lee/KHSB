@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { requireStaff, requireFullAccess } from "@/lib/roles";
+import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { parseVocabCsv } from "@/lib/csv";
 import { buildPrompt, expandExpected, isAnswerCorrect } from "@/lib/vocab-grade";
@@ -18,13 +18,6 @@ async function requireStaffSession() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
   requireStaff(session.user.role);
-  return session.user;
-}
-
-async function requireFullAccessSession() {
-  const session = await auth();
-  if (!session?.user) throw new Error("Unauthorized");
-  requireFullAccess(session.user.role);
   return session.user;
 }
 
@@ -85,12 +78,11 @@ export async function deleteVocabBook(id: string) {
 }
 
 /**
- * 출제 이력(시험) 삭제 — 원장/SA 전용.
+ * 출제 이력(시험) 삭제 — 운영자 전원 허용.
  * 응시 기록(VocabAttempt)·답안(VocabAttemptItem)이 cascade 로 함께 영구 삭제된다.
- * 중복 단어장 정리 시, 단어장 삭제를 막던 출제 이력을 비우는 용도.
  */
 export async function deleteVocabExam(examId: string) {
-  await requireFullAccessSession();
+  await requireStaffSession();
   await prisma.vocabExam.delete({ where: { id: examId } });
   revalidatePath(ADMIN_PATH);
 }
