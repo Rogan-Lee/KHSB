@@ -1,5 +1,5 @@
 import { CircleAlert, ChevronRight, Inbox, LucideIcon } from 'lucide-react-native';
-import { PropsWithChildren, ReactNode } from 'react';
+import { Children, PropsWithChildren, ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -13,6 +13,33 @@ import {
 } from 'react-native';
 
 import { colors, radius, shadow, spacing, Tone, tones, type } from '@/constants/theme';
+import { useResponsive } from '@/lib/responsive';
+
+// ──────────────────────────────────────────────────────────
+// Columns — responsive multi-column container.
+// On tablet, lays each direct child out as an equal-width column
+// side by side; on phone they stack vertically. Wrap each column's
+// sections in a single <View> so they travel together.
+// ──────────────────────────────────────────────────────────
+export function Columns({
+  children,
+  gap = spacing.lg,
+}: PropsWithChildren<{ gap?: number }>) {
+  const { isTablet } = useResponsive();
+  const items = Children.toArray(children);
+  if (!isTablet || items.length < 2) {
+    return <View style={{ gap }}>{children}</View>;
+  }
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap }}>
+      {items.map((child, i) => (
+        <View key={i} style={{ flex: 1, gap }}>
+          {child}
+        </View>
+      ))}
+    </View>
+  );
+}
 
 // ──────────────────────────────────────────────────────────
 // Section title

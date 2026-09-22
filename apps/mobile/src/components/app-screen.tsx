@@ -3,6 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, spacing } from '@/constants/theme';
+import { useResponsive } from '@/lib/responsive';
 
 type AppScreenProps = PropsWithChildren<{
   eyebrow?: string;
@@ -24,10 +25,11 @@ export function AppScreen({
   subtitle,
   title,
 }: AppScreenProps) {
+  const { gutter } = useResponsive();
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingHorizontal: gutter }]}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           onRefresh ? (
@@ -64,7 +66,6 @@ const styles = StyleSheet.create({
   content: {
     gap: spacing.lg,
     paddingBottom: 36,
-    paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
   },
   header: {
