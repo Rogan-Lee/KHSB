@@ -1,83 +1,31 @@
 import { put } from "@vercel/blob";
 import type { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
-import crypto from "node:crypto";
 
 import { getAuthIdentity } from "@/lib/auth";
-import { isStaff } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
+import {
+  ALLOWED_DOCUMENT_EXTENSIONS,
+  ALLOWED_DOCUMENT_MIME_TYPES,
+  ALLOWED_IMAGE_MIME_TYPES,
+  authorizeMediaUpload,
+  buildBlobKey,
+  extension,
+  isMobileMediaContext,
+} from "./shared";
 
 export const runtime = "nodejs";
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const MAX_DOCUMENT_SIZE = 50 * 1024 * 1024;
-const ALLOWED_IMAGE_MIME_TYPES = new Set([
-  "image/gif",
-  "image/heic",
-  "image/heif",
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/webp",
-]);
-const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
-  ...ALLOWED_IMAGE_MIME_TYPES,
-  "application/msword",
-  "application/octet-stream",
-  "application/pdf",
-  "application/vnd.hancom.hwp",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/x-hwp",
-  "application/zip",
-  "application/x-zip-compressed",
-  // Video
-  "video/mp4",
-  "video/quicktime",
-  "video/webm",
-  // PowerPoint
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  // Excel
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-]);
-const ALLOWED_DOCUMENT_EXTENSIONS = new Set([
-  "doc",
-  "docx",
-  "gif",
-  "heic",
-  "heif",
-  "hwp",
-  "hwpx",
-  "jpeg",
-  "jpg",
-  "mov",
-  "mp4",
-  "pdf",
-  "png",
-  "ppt",
-  "pptx",
-  "webp",
-  "webm",
-  "xls",
-  "xlsx",
-  "zip",
-]);
-// ponytail: 이 라우트는 파일 바디가 Vercel 함수를 통과하므로 실질 한도는 ~4.5MB.
-// 그보다 큰 파일(특히 영상)은 여기서 실패한다 — 대용량은 웹의
-// /api/online/upload/client (blob client upload) 방식으로 이식 필요.
-// KDA 는 운영 종료 — 신규 업로드 차단 (과거 데이터는 표시 유지)
-const MENTORING_TAGS = new Set(["EXTRA", "FREE"]);
 
-function safeName(filename: string) {
-  return filename
-    .replace(/[\\/]/g, "_")
-    .replace(/\.\./g, "_")
-    .slice(0, 160);
-}
+// 이 라우트는 파일 바디가 Vercel 함수를 통과하므로 실질 한도는 ~4.5MB.
+// 대용량(영상·큰 문서)은 ./client-token 라우트로 토큰을 받아 클라 → Blob
+// 직접 업로드한다(apps/mobile/src/lib/media-upload.ts). 이 라우트는 소형 파일
+// 및 mentoring 컨텍스트(Photo 레코드 생성 필요)의 하위호환용으로 유지.
 
-function extension(filename: string) {
-  return filename.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? "";
+function asOptionalString(value: FormDataEntryValue | null) {
+  return typeof value === "string" && value ? value : undefined;
 }
 
 export async function POST(request: NextRequest) {
@@ -98,20 +46,10 @@ export async function POST(request: NextRequest) {
   if (!(file instanceof File)) {
     return Response.json({ error: "파일을 선택하세요" }, { status: 400 });
   }
-  if (
-    context !== "question" &&
-    context !== "mentoring" &&
-    context !== "task" &&
-    context !== "feedback" &&
-    context !== "chat"
-  ) {
+  if (!isMobileMediaContext(context)) {
     return Response.json({ error: "업로드 용도를 확인하세요" }, { status: 400 });
   }
-  const isDocumentContext =
-    context === "task" ||
-    context === "feedback" ||
-    context === "chat" ||
-    context === "question";
+  const isDocumentContext = context !== "mentoring";
   const maxFileSize = isDocumentContext ? MAX_DOCUMENT_SIZE : MAX_IMAGE_SIZE;
   if (file.size > maxFileSize) {
     return Response.json(
@@ -138,147 +76,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const authz = await authorizeMediaUpload(current.identity, context, {
+    taskId: asOptionalString(formData.get("taskId")),
+    submissionId: asOptionalString(formData.get("submissionId")),
+    chatId: asOptionalString(formData.get("chatId")),
+    mentoringId: asOptionalString(formData.get("mentoringId")),
+    tag: asOptionalString(formData.get("tag")),
+  });
+  if (!authz.ok) {
+    return Response.json({ error: authz.error }, { status: authz.status });
+  }
+
+  const blobKey = buildBlobKey(authz.prefix, file.name);
   const appUser = current.identity.appUser;
-  const student = current.identity.student;
-  if (context === "question") {
-    const validStudent = student?.status === "ACTIVE";
-    const validStaff =
-      appUser?.status === "ACTIVE" && isStaff(appUser.role);
-    if (!validStudent && !validStaff) {
-      return Response.json({ error: "권한이 없습니다" }, { status: 403 });
-    }
-  }
-
-  let taskId: string | null = null;
-  if (context === "task") {
-    if (!student || student.status !== "ACTIVE") {
-      return Response.json({ error: "학생 권한이 필요합니다" }, { status: 403 });
-    }
-    const rawTaskId = formData.get("taskId");
-    if (typeof rawTaskId !== "string" || !rawTaskId) {
-      return Response.json({ error: "수행평가를 확인하세요" }, { status: 400 });
-    }
-    const task = await prisma.performanceTask.findFirst({
-      where: { id: rawTaskId, studentId: student.id },
-      select: { id: true },
-    });
-    if (!task) {
-      return Response.json(
-        { error: "수행평가를 찾을 수 없습니다" },
-        { status: 404 },
-      );
-    }
-    taskId = task.id;
-  }
-
-  let submissionId: string | null = null;
-  if (context === "feedback") {
-    if (
-      !appUser ||
-      appUser.status !== "ACTIVE" ||
-      !["SUPER_ADMIN", "DIRECTOR", "CONSULTANT"].includes(appUser.role)
-    ) {
-      return Response.json(
-        { error: "수행평가 피드백 권한이 필요합니다" },
-        { status: 403 },
-      );
-    }
-    const rawSubmissionId = formData.get("submissionId");
-    if (typeof rawSubmissionId !== "string" || !rawSubmissionId) {
-      return Response.json({ error: "제출물을 확인하세요" }, { status: 400 });
-    }
-    const submission = await prisma.taskSubmission.findUnique({
-      where: { id: rawSubmissionId },
-      select: { id: true },
-    });
-    if (!submission) {
-      return Response.json(
-        { error: "제출물을 찾을 수 없습니다" },
-        { status: 404 },
-      );
-    }
-    submissionId = submission.id;
-  }
-
-  let chatId: string | null = null;
-  if (context === "chat") {
-    const validStudent = student?.status === "ACTIVE";
-    const validStaff = appUser?.status === "ACTIVE" && isStaff(appUser.role);
-    if (!validStudent && !validStaff) {
-      return Response.json({ error: "권한이 없습니다" }, { status: 403 });
-    }
-    const rawChatId = formData.get("chatId");
-    if (typeof rawChatId !== "string" || !rawChatId) {
-      return Response.json({ error: "채팅방을 확인하세요" }, { status: 400 });
-    }
-    const chat = await prisma.portalChat.findUnique({
-      where: { id: rawChatId },
-      select: { id: true, studentId: true, staffId: true },
-    });
-    if (!chat) {
-      return Response.json({ error: "채팅방을 찾을 수 없습니다" }, { status: 404 });
-    }
-    const owned = validStudent
-      ? chat.studentId === student!.id
-      : chat.staffId === appUser!.id;
-    if (!owned) {
-      return Response.json({ error: "이 채팅방에 파일을 보낼 수 없습니다" }, { status: 403 });
-    }
-    chatId = chat.id;
-  }
-
-  let mentoring:
-    | { id: string; mentorId: string; studentId: string }
-    | null = null;
-  let mentoringTag = "FREE";
-  if (context === "mentoring") {
-    if (
-      !appUser ||
-      appUser.status !== "ACTIVE" ||
-      !isStaff(appUser.role)
-    ) {
-      return Response.json({ error: "권한이 없습니다" }, { status: 403 });
-    }
-    const mentoringId = formData.get("mentoringId");
-    const tag = formData.get("tag");
-    if (typeof mentoringId !== "string" || !mentoringId) {
-      return Response.json(
-        { error: "멘토링 기록을 확인하세요" },
-        { status: 400 },
-      );
-    }
-    if (typeof tag === "string" && MENTORING_TAGS.has(tag)) {
-      mentoringTag = tag;
-    }
-    mentoring = await prisma.mentoring.findUnique({
-      where: { id: mentoringId },
-      select: { id: true, mentorId: true, studentId: true },
-    });
-    if (!mentoring) {
-      return Response.json(
-        { error: "멘토링을 찾을 수 없습니다" },
-        { status: 404 },
-      );
-    }
-    if (appUser.role === "MENTOR" && mentoring.mentorId !== appUser.id) {
-      return Response.json(
-        { error: "이 멘토링에 사진을 추가할 수 없습니다" },
-        { status: 403 },
-      );
-    }
-  }
-
-  const prefix =
-    context === "mentoring" && mentoring
-      ? `mentoring/${mentoring.id}`
-      : context === "task" && taskId
-        ? `online/tasks/${taskId}`
-        : context === "feedback" && submissionId
-          ? `online/feedback/${submissionId}`
-          : context === "chat" && chatId
-            ? `portal-chat/${chatId}`
-            : "student-questions/incoming";
-  const blobKey = `${prefix}/${crypto.randomUUID()}-${safeName(file.name)}`;
 
   try {
     const blob = await put(blobKey, file, {
@@ -294,16 +104,16 @@ export async function POST(request: NextRequest) {
       url: blob.url,
     };
 
-    if (context === "mentoring" && mentoring && appUser) {
+    if (context === "mentoring" && authz.mentoring && appUser) {
       const photo = await prisma.photo.create({
         data: {
           fileName: file.name,
           folderId: null,
-          mentoringId: mentoring.id,
-          mentoringTag,
+          mentoringId: authz.mentoring.id,
+          mentoringTag: authz.mentoringTag,
           mimeType: file.type,
           sizeBytes: file.size,
-          studentId: mentoring.studentId,
+          studentId: authz.mentoring.studentId,
           uploadedById: appUser.id,
           uploadedByName: appUser.name || "알 수 없음",
           url: blob.url,
@@ -311,7 +121,7 @@ export async function POST(request: NextRequest) {
         select: { id: true },
       });
       revalidatePath("/photos");
-      revalidatePath(`/mentoring/${mentoring.id}`);
+      revalidatePath(`/mentoring/${authz.mentoring.id}`);
       return Response.json({ ...attachment, id: photo.id });
     }
 
