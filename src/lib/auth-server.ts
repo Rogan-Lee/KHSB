@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { hashAuthToken } from "@/lib/auth-tokens";
 import { sendAuthEmail } from "@/lib/auth-email";
 import { getAppUrl } from "@/lib/app-url";
+import { resolveParentInviteTargets } from "@/lib/parent-invite";
 
 const INVITE_HEADER = "x-studyroom-invite";
 
@@ -258,6 +259,8 @@ export const authServer = betterAuth({
               acceptedAt: true,
               revokedAt: true,
               targetStudentId: true,
+              targetStudentIds: true,
+              parentRelation: true,
               type: true,
             },
           });
@@ -274,38 +277,24 @@ export const authServer = betterAuth({
             },
           });
 
-          // 학부모 초대: 초대에 실린 자녀 목록으로 ParentLink 생성.
-          // 페이로드는 발급 시 AuthVerification 행(parent-invite:<hash>)에 저장됨.
+          // 학부모 초대: 초대의 자녀 목록(targetStudentIds)으로 ParentLink 생성.
           if (
             invitation?.type === "PARENT" &&
             !invitation.acceptedAt &&
             !invitation.revokedAt
           ) {
-            let studentIds = invitation.targetStudentId
-              ? [invitation.targetStudentId]
-              : [];
-            let relation: string | null = null;
-
-            const payloadRow = await prisma.authVerification.findFirst({
-              where: { identifier: `parent-invite:${tokenHash}` },
-            });
-            if (payloadRow) {
-              try {
-                const payload = JSON.parse(payloadRow.value) as {
-                  relation?: string | null;
-                  studentIds?: string[];
-                };
-                if (
-                  Array.isArray(payload.studentIds) &&
-                  payload.studentIds.length > 0
-                ) {
-                  studentIds = payload.studentIds;
-                }
-                relation = payload.relation ?? null;
-              } catch {
-                // 페이로드 파싱 실패 시 targetStudentId 폴백 유지
-              }
-            }
+            // 폴백: 새 필드 도입 전 발급된 대기 초대는 AuthVerification 행에
+            // 페이로드가 동봉되어 있다. 새 필드가 비어 있을 때만 조회한다.
+            const legacyRow =
+              invitation.targetStudentIds.length === 0
+                ? await prisma.authVerification.findFirst({
+                    where: { identifier: `parent-invite:${tokenHash}` },
+                  })
+                : null;
+            const { studentIds, relation } = resolveParentInviteTargets(
+              invitation,
+              legacyRow?.value ?? null,
+            );
 
             if (studentIds.length > 0) {
               await prisma.parentLink.createMany({
