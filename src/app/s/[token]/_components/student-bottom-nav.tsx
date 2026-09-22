@@ -10,6 +10,7 @@ import {
   SpellCheck,
   HelpCircle,
   Megaphone,
+  Coins,
   type LucideIcon,
 } from "lucide-react";
 
@@ -29,6 +30,7 @@ const COLS: Record<number, string> = {
   5: "grid-cols-5",
   6: "grid-cols-6",
   7: "grid-cols-7",
+  8: "grid-cols-8",
 };
 
 export function StudentBottomNav({
@@ -62,6 +64,7 @@ export function StudentBottomNav({
   if (hasVocab) {
     tabs.push({ key: "vocab", href: `${root}/vocab`, match: (p) => p.startsWith(`${root}/vocab`), label: "영단어", Icon: SpellCheck, badge: vocabBadge });
   }
+  tabs.push({ key: "points", href: `${root}/points`, match: (p) => p.startsWith(`${root}/points`), label: "포인트", Icon: Coins });
   tabs.push({ key: "qna", href: `${root}/qna`, match: (p) => p.startsWith(`${root}/qna`), label: "질문", Icon: HelpCircle, badge: questionBadge });
   tabs.push({ key: "suggestions", href: `${root}/suggestions`, match: (p) => p.startsWith(`${root}/suggestions`), label: "건의", Icon: Megaphone, badge: suggestionBadge });
   tabs.push(
@@ -69,8 +72,8 @@ export function StudentBottomNav({
     { key: "feedback", href: `${root}/feedback`, match: (p) => p.startsWith(`${root}/feedback`), label: "피드백", Icon: MessageCircle, badge: feedbackBadge },
   );
 
-  // 항목 수만큼 열을 만들어 항상 1행 유지(최대 7). 7개여도 wrap 없이 한 줄.
-  const cols = COLS[Math.min(7, Math.max(2, tabs.length))] ?? "grid-cols-4";
+  // 항목 수만큼 열을 만들어 항상 1행 유지(최대 8). 8개여도 wrap 없이 한 줄.
+  const cols = COLS[Math.min(8, Math.max(2, tabs.length))] ?? "grid-cols-4";
   const dense = tabs.length >= 6; // 6~7개면 아이콘/글자 살짝 축소
 
   return (
