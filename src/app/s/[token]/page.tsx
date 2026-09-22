@@ -15,6 +15,8 @@ import {
   Camera,
   Utensils,
   GraduationCap,
+  Moon,
+  Wifi,
 } from "lucide-react";
 import type { PerformanceTaskStatus } from "@/generated/prisma";
 import { todayKST } from "@/lib/utils";
@@ -331,6 +333,34 @@ export default async function StudentPortalHomePage({
           )}
         </section>
       )}
+
+      {/* 쪽잠 · 네트워크 사용 신청 */}
+      <section className="grid grid-cols-2 gap-3">
+        <Link
+          href={`/s/${token}/nap`}
+          className="rounded-[14px] border border-line bg-panel p-3.5 active:bg-canvas-2 transition-colors"
+        >
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-violet-soft text-violet-ink">
+            <Moon className="h-4 w-4" strokeWidth={2.5} />
+          </span>
+          <p className="mt-2 text-[13px] font-semibold text-ink">쪽잠 신청</p>
+          <p className="mt-0.5 text-[11px] leading-snug text-ink-4">
+            하루 2회 · 20~30분, 승인 후 이용
+          </p>
+        </Link>
+        <Link
+          href={`/s/${token}/network`}
+          className="rounded-[14px] border border-line bg-panel p-3.5 active:bg-canvas-2 transition-colors"
+        >
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-info-soft text-info-ink">
+            <Wifi className="h-4 w-4" strokeWidth={2.5} />
+          </span>
+          <p className="mt-2 text-[13px] font-semibold text-ink">네트워크 사용</p>
+          <p className="mt-0.5 text-[11px] leading-snug text-ink-4">
+            와이파이·사이트·앱 사용 신청
+          </p>
+        </Link>
+      </section>
 
       {/* 등원 스케줄 제출 */}
       <Link
