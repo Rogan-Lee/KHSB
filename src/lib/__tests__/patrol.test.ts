@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { encodeStudentQr, decodeStudentQr, compareSeat, PATROL_QR_PREFIX } from "@/lib/patrol";
+import { encodeStudentQr, decodeStudentQr, compareSeat, seatRoom, formatAttendanceSpan, PATROL_QR_PREFIX } from "@/lib/patrol";
 
 describe("compareSeat", () => {
   it("sorts seat numbers numerically (2 before 10)", () => {
@@ -53,5 +53,34 @@ describe("patrol QR payload", () => {
 
   it("trims surrounding whitespace from scans", () => {
     expect(decodeStudentQr(`  ${PATROL_QR_PREFIX}xyz  `)).toBe("xyz");
+  });
+});
+
+describe("seatRoom", () => {
+  it("maps KHSB numeric seats to K룸/H룸 by layout range", () => {
+    expect(seatRoom("1")).toBe("K룸");
+    expect(seatRoom("53")).toBe("K룸");
+    expect(seatRoom("88")).toBe("K룸");
+    expect(seatRoom("54")).toBe("H룸");
+    expect(seatRoom("86")).toBe("H룸");
+  });
+
+  it("derives prefix groups and 기타 fallback", () => {
+    expect(seatRoom("A-12")).toBe("A");
+    expect(seatRoom("999")).toBe("기타");
+    expect(seatRoom("특별석")).toBe("기타");
+  });
+
+  it("returns null for empty/null seats", () => {
+    expect(seatRoom(null)).toBeNull();
+    expect(seatRoom("  ")).toBeNull();
+  });
+});
+
+describe("formatAttendanceSpan", () => {
+  it("shows 입실 only / in~out range / null", () => {
+    expect(formatAttendanceSpan("10:02", null)).toBe("10:02 입실");
+    expect(formatAttendanceSpan("10:02", "18:30")).toBe("10:02~18:30");
+    expect(formatAttendanceSpan(null, "18:30")).toBeNull();
   });
 });
