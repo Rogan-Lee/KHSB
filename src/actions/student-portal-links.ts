@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireFullAccess, requireStaff } from "@/lib/roles";
+import { requireStaff } from "@/lib/roles";
 import {
   issueMagicLink,
   revokeAllLinksForStudent,
@@ -59,7 +59,7 @@ export async function issueStudentPortalLink(params: {
   daysValid?: number;
 }) {
   const session = await auth();
-  requireFullAccess(session?.user?.role);
+  requireStaff(session?.user?.role);
 
   const student = await prisma.student.findUnique({
     where: { id: params.studentId },
@@ -94,7 +94,7 @@ export async function issueStudentPortalLink(params: {
 /** 활성 링크가 없는 모든 ACTIVE 학생에게 일괄 발급. 이미 활성 링크가 있으면 건너뜀. */
 export async function issuePortalLinksForAllActive(params?: { daysValid?: number }) {
   const session = await auth();
-  requireFullAccess(session?.user?.role);
+  requireStaff(session?.user?.role);
 
   const students = await prisma.student.findMany({
     where: {
@@ -120,7 +120,7 @@ export async function issuePortalLinksForAllActive(params?: { daysValid?: number
 /** 학생의 모든 활성 링크 무효화. */
 export async function revokeStudentPortalLinks(params: { studentId: string }) {
   const session = await auth();
-  requireFullAccess(session?.user?.role);
+  requireStaff(session?.user?.role);
 
   const count = await revokeAllLinksForStudent(params.studentId);
   revalidatePath("/students");
