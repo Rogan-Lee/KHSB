@@ -18,6 +18,17 @@ export function compareSeat(
   );
 }
 
+/** 순찰 특이사항 자주 쓰는 유형 — 칩 탭으로 note 에 append. */
+// ponytail: 하드코딩 상수 — 시설별 커스텀 니즈 생기면 AppSetting(patrol.notePresets)으로 승격
+export const PATROL_NOTE_PRESETS = [
+  "졸음",
+  "휴대폰 사용",
+  "자리 이탈",
+  "잡담/소음",
+  "취식",
+  "이어폰 사용",
+] as const;
+
 /** 학생 id → 좌석 QR 페이로드 문자열. */
 export function encodeStudentQr(studentId: string): string {
   return `${PATROL_QR_PREFIX}${studentId}`;
