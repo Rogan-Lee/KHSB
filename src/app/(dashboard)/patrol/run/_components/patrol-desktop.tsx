@@ -19,7 +19,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { QrScanner } from "@/app/w/[token]/_components/qr-scanner";
-import { decodeStudentQr, PATROL_NOTE_PRESETS } from "@/lib/patrol";
+import { decodeStudentQr, formatAttendanceSpan, seatRoom, PATROL_NOTE_PRESETS } from "@/lib/patrol";
 import {
   startPatrolRound,
   endPatrolRound,
@@ -78,11 +78,25 @@ export function PatrolDesktop({
   const rosterCount = data.roster.length;
   const pct = rosterCount > 0 ? Math.min(100, Math.round((checkedCount / rosterCount) * 100)) : 0;
 
+  // 룸 칩 필터 — 실데이터에 존재하는 그룹만, 1개 이하면 칩 숨김
+  const [roomFilter, setRoomFilter] = useState<string | null>(null);
+  const rooms = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of data.roster) {
+      const r = seatRoom(s.seat);
+      if (r) set.add(r);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, "ko", { numeric: true }));
+  }, [data.roster]);
+
   const filteredRoster = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return data.roster;
-    return data.roster.filter((s) => `${s.name} ${s.grade} ${s.seat ?? ""}`.toLowerCase().includes(q));
-  }, [query, data.roster]);
+    return data.roster.filter(
+      (s) =>
+        (!roomFilter || seatRoom(s.seat) === roomFilter) &&
+        (!q || `${s.name} ${s.grade} ${s.seat ?? ""}`.toLowerCase().includes(q)),
+    );
+  }, [query, roomFilter, data.roster]);
 
   const offRosterRecords = useMemo(
     () => data.records.filter((r) => !data.roster.find((s) => s.id === r.studentId)),
@@ -356,6 +370,27 @@ export function PatrolDesktop({
               </span>
             </div>
 
+            {/* 룸 칩 필터 */}
+            {rooms.length > 1 && (
+              <div className="flex flex-wrap gap-1.5 border-b border-line-2 px-3 py-2">
+                {[null, ...rooms].map((room) => (
+                  <button
+                    key={room ?? "__all"}
+                    type="button"
+                    onClick={() => setRoomFilter(room)}
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-[11.5px] font-medium",
+                      roomFilter === room
+                        ? "border-brand bg-brand-soft text-brand-2"
+                        : "border-line text-ink-3 hover:bg-panel-2",
+                    )}
+                  >
+                    {room ?? "전체"}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {rosterCount === 0 ? (
               <p className="px-4 py-8 text-center text-[13px] text-ink-4">오늘 재실(체크인) 학생이 없어요</p>
             ) : (
@@ -388,6 +423,11 @@ export function PatrolDesktop({
                           <span className="inline-flex items-center gap-1.5">
                             {flagged && <Flag className="h-3 w-3 text-warn" />}
                             {s.name}
+                            {formatAttendanceSpan(s.checkInAt, s.checkOutAt) && (
+                              <span className="text-[11px] font-normal tabular-nums text-ink-4">
+                                {formatAttendanceSpan(s.checkInAt, s.checkOutAt)}
+                              </span>
+                            )}
                           </span>
                         </td>
                         <td className="px-3 py-2 text-[11.5px] text-ink-4">{s.grade}</td>
