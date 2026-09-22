@@ -16,6 +16,7 @@ import {
   SectionTitle,
 } from '@/components/mobile-ui';
 import { FormSheet } from '@/components/form-sheet';
+import { TwoPane } from '@/components/two-pane';
 import { FormError, FormInput, MessageThread } from '@/components/workflow-ui';
 import { colors, spacing } from '@/constants/theme';
 import { formatRelativeTime } from '@/lib/format';
@@ -27,13 +28,29 @@ import {
   uploadMobileMedia,
   useMobileQuery,
 } from '@/lib/mobile-api';
+import { useResponsive } from '@/lib/responsive';
 
 export default function StaffQnaScreen() {
+  const { isTablet } = useResponsive();
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const { data, error, isLoading, isRefreshing, refresh, retry } =
     useMobileQuery<StaffQuestionsResponse>('/api/mobile/v1/staff/questions');
 
-  return (
+  // 태블릿=우측 디테일 패널(inline), 폰=기존 풀스크린 Modal
+  const sheet = selectedQuestionId ? (
+    <StaffQuestionSheet
+      inline={isTablet}
+      key={selectedQuestionId}
+      onAnswered={async () => {
+        setSelectedQuestionId(null);
+        await refresh();
+      }}
+      onClose={() => setSelectedQuestionId(null)}
+      questionId={selectedQuestionId}
+    />
+  ) : null;
+
+  const master = (
     <AppScreen
       onRefresh={() => void refresh()}
       refreshing={isRefreshing}
@@ -94,25 +111,29 @@ export default function StaffQnaScreen() {
         ))}
       </View>
 
-      {selectedQuestionId ? (
-        <StaffQuestionSheet
-          onAnswered={async () => {
-            setSelectedQuestionId(null);
-            await refresh();
-          }}
-          onClose={() => setSelectedQuestionId(null)}
-          questionId={selectedQuestionId}
-        />
-      ) : null}
+      {isTablet ? null : sheet}
     </AppScreen>
+  );
+
+  return (
+    <TwoPane
+      detail={isTablet ? sheet : null}
+      detailVisible={isTablet && !!selectedQuestionId}
+      emptyMessage="왼쪽 목록에서 질문을 선택하면 스레드와 답변 작성이 열립니다."
+      emptyTitle="질문을 선택하세요"
+      master={master}
+      onCloseDetail={() => setSelectedQuestionId(null)}
+    />
   );
 }
 
 function StaffQuestionSheet({
+  inline = false,
   onAnswered,
   onClose,
   questionId,
 }: {
+  inline?: boolean;
   onAnswered: () => Promise<void>;
   onClose: () => void;
   questionId: string;
@@ -152,6 +173,7 @@ function StaffQuestionSheet({
   const student = data?.question.student;
   return (
     <FormSheet
+      inline={inline}
       onClose={onClose}
       subtitle={
         student
