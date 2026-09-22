@@ -30,6 +30,7 @@ interface Props {
 const TABS: { value: ExamType; label: string }[] = [
   { value: "OFFICIAL_MOCK", label: "모의고사" },
   { value: "PRIVATE_MOCK", label: "학력평가" },
+  { value: "DUFF", label: "더프" },
   { value: "SCHOOL_EXAM", label: "내신" },
 ];
 
@@ -40,6 +41,7 @@ export function ExamSessionsTabs({ sessions }: Props) {
     const m: Record<ExamType, SessionRow[]> = {
       OFFICIAL_MOCK: [],
       PRIVATE_MOCK: [],
+      DUFF: [],
       SCHOOL_EXAM: [],
     };
     for (const s of sessions) m[s.examType].push(s);

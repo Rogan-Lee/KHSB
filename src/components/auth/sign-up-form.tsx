@@ -15,7 +15,7 @@ type PublicInvitation = {
   email: string | null;
   expiresAt: string;
   name: string;
-  type: "STAFF" | "STUDENT";
+  type: "STAFF" | "STUDENT" | "PARENT";
 };
 
 export function SignUpForm({

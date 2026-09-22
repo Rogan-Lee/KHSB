@@ -25,6 +25,7 @@ type ViewMode = "all" | "rawScore" | "grade" | "percentile" | "table";
 
 const EXAM_TYPE_LABELS: Record<ExamType, string> = {
   OFFICIAL_MOCK: "공식 모의고사",
+  DUFF: "더프 모의고사",
   PRIVATE_MOCK: "사설 모의고사",
   SCHOOL_EXAM: "학교 내신",
 };
@@ -41,7 +42,7 @@ const SUBJECTS = [
   // 직업탐구 / 제2외국어
   "직업탐구", "제2외국어",
 ];
-const EXAM_TYPES: ExamType[] = ["OFFICIAL_MOCK", "PRIVATE_MOCK", "SCHOOL_EXAM"];
+const EXAM_TYPES: ExamType[] = ["OFFICIAL_MOCK", "PRIVATE_MOCK", "DUFF", "SCHOOL_EXAM"];
 
 function fmtDate(d: Date | string) {
   const dt = new Date(d);
