@@ -6,6 +6,7 @@ import {
   LineChart, Line, Legend,
 } from "recharts";
 import type { OverallAnalytics, StudentAnalytics } from "@/actions/analytics";
+import type { DailyStayAvg, WeekdayStayAvg } from "@/lib/attendance-stats";
 import { cn } from "@/lib/utils";
 
 // ─── 전체 성적 상승 바 차트 ──────────────────────────────
@@ -152,6 +153,64 @@ export function StudyHoursChart({ students }: { students: StudentAnalytics[] }) 
         <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-35} textAnchor="end" interval={0} />
         <YAxis tick={{ fontSize: 11 }} unit="h" />
         <Tooltip formatter={(v) => [`${v}시간`, "총 재원 시간"]} />
+        <Bar dataKey="hours" fill="#E9541C" radius={[4, 4, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ─── 일별 평균 재원시간 라인 차트 ──────────────────────
+export function DailyStayLineChart({ data }: { data: DailyStayAvg[] }) {
+  if (data.length === 0) return <EmptyState text="출퇴실 기록이 없습니다" />;
+
+  const chartData = data.map((d) => ({ ...d, label: d.date.slice(5).replace("-", "/") }));
+
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <LineChart data={chartData} margin={{ top: 4, right: 12, left: -20, bottom: 4 }}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EFEFEC" />
+        <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+        <YAxis tick={{ fontSize: 11 }} unit="h" />
+        <Tooltip
+          formatter={(v) => [`${v}시간`, "평균 재원"]}
+          labelFormatter={(_, payload) => {
+            const d = payload?.[0]?.payload;
+            return d ? `${d.date} · ${d.count}명` : "";
+          }}
+          labelStyle={{ fontSize: 12 }}
+        />
+        <Line type="monotone" dataKey="avgHours" stroke="#E9541C" strokeWidth={2} dot={{ r: 3 }} />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ─── 요일별 평균 재원시간 바 차트 ──────────────────────
+export function WeekdayStayBarChart({ data }: { data: WeekdayStayAvg[] }) {
+  if (data.every((d) => d.avgHours === null)) return <EmptyState text="출퇴실 기록이 없습니다" />;
+
+  const chartData = data.map((d) => ({ ...d, hours: d.avgHours ?? 0 }));
+
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 4 }}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EFEFEC" />
+        <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+        <YAxis tick={{ fontSize: 11 }} unit="h" />
+        <Tooltip
+          content={({ payload }) => {
+            if (!payload?.length) return null;
+            const d = payload[0]?.payload as WeekdayStayAvg;
+            return (
+              <div className="bg-white border border-border rounded-lg px-3 py-2 shadow text-xs">
+                <p className="font-medium">{d.label}요일</p>
+                <p>평균 재원 {d.avgHours !== null ? `${d.avgHours}시간` : "-"}</p>
+                <p>평균 입실 {d.avgCheckIn ?? "-"}</p>
+                <p className="text-muted-foreground">기록 {d.count}건</p>
+              </div>
+            );
+          }}
+        />
         <Bar dataKey="hours" fill="#E9541C" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
