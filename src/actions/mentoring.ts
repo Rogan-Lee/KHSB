@@ -510,7 +510,7 @@ export async function quickStartMentoring(studentId: string, mentorId: string): 
 
 // ──────────────────────────────────────────────────────
 // 멘토링 첨부 사진 — 사진관리(Photo)와 통합.
-// KDA(핵심 자료) / EXTRA(추가 자료) / FREE(자유) 3종 태그.
+// EXTRA(추가 자료) / FREE(자유) 태그. KDA 는 운영 종료 — 신규 첨부 차단, 과거 데이터만 표시.
 // 실제 파일 업로드는 /api/upload/mentoring 라우트에서 처리 후
 // 반환된 url/mimeType/fileName/sizeBytes 를 이 액션으로 Photo 에 기록한다.
 // Photo 로 만들기 때문에 사진관리 화면에 자동 노출되고, YYYY/MM 자동 폴더로 분류된다.
@@ -530,6 +530,7 @@ export async function attachMentoringPhoto(
 ) {
   const session = await auth();
   requireStaff(session?.user?.role);
+  if (data.tag === "KDA") throw new Error("KDA 태그는 더 이상 사용할 수 없습니다");
 
   const target = await prisma.mentoring.findUnique({
     where: { id: mentoringId },

@@ -69,3 +69,12 @@ export function formatMinutes(minutes: number) {
 export function formatCurrency(value: number) {
   return `${Math.max(0, value).toLocaleString('ko-KR')}원`;
 }
+
+export function formatKstTime(value: string) {
+  return new Date(value).toLocaleTimeString('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}

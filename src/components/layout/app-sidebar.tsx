@@ -45,9 +45,12 @@ import {
   Video,
   HelpCircle,
   ScanLine,
+  Smartphone,
   MessageSquarePlus,
   UserPlus,
   KeyRound,
+  Inbox,
+  Podcast,
 } from "lucide-react";
 
 type NavItem = {
@@ -66,6 +69,7 @@ const navSections: NavSection[] = [
     items: [
       { href: "/", label: "대시보드", icon: LayoutDashboard },
       { href: "/attendance", label: "입퇴실 관리", icon: ClipboardList, feature: "attendance" },
+      { href: "/phone-check", label: "휴대폰 검사", icon: Smartphone },
       { href: "/handover", label: "인수인계", icon: ArrowLeftRight, feature: "handover" },
       { href: "/todos", label: "투두리스트", icon: ListTodo, feature: "todos" },
     ],
@@ -80,6 +84,8 @@ const navSections: NavSection[] = [
       { href: "/vocab-test", label: "영단어 시험", icon: BookOpen, feature: "vocab-test" },
       { href: "/questions", label: "학생 질문", icon: HelpCircle },
       { href: "/suggestions", label: "학생 건의사항", icon: MessageSquarePlus },
+      // 쪽잠·네트워크 사용 신청 승인함
+      { href: "/approvals", label: "신청함", icon: Inbox },
       { href: "/online/inbox", label: "학생 메시지", icon: MessageSquare },
       { href: "/assignments", label: "과제 관리", icon: ClipboardCheck, feature: "assignments" },
       { href: "/online/performance", label: "수행평가", icon: ClipboardCheck },
@@ -108,6 +114,7 @@ const navSections: NavSection[] = [
       { href: "/calendar", label: "캘린더", icon: CalendarDays, feature: "calendar" },
       { href: "/meeting-minutes", label: "회의록", icon: NotebookText, feature: "meeting-minutes" },
       { href: "/messages", label: "카카오 메시지", icon: MessageCircle, feature: "kakao-messages" },
+      { href: "/contents", label: "콘텐츠", icon: Podcast, show: isStaff },
       { href: "/requests", label: "요청사항", icon: Megaphone, feature: "requests" },
     ],
   },

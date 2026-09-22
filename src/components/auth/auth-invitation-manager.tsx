@@ -6,6 +6,7 @@ import {
   Mail,
   RefreshCw,
   UserRoundPlus,
+  Users,
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -14,6 +15,7 @@ import { toast } from "sonner";
 
 import {
   createAuthInvitationsBulk,
+  createParentAuthInvitation,
   revokeAuthInvitation,
   sendPasswordResetForAccount,
 } from "@/actions/auth-invitations";
@@ -33,6 +35,13 @@ type StudentOption = {
   id: string;
   isOnlineManaged: boolean;
   name: string;
+};
+
+type ParentStudentOption = {
+  grade: string;
+  id: string;
+  name: string;
+  parentPhone: string;
 };
 
 type InviteStatus = "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED";
@@ -71,11 +80,13 @@ type PanelOption = {
 export function AuthInvitationManager({
   accounts,
   invitations,
+  parentStudents,
   staff,
   students,
 }: {
   accounts: AccountRow[];
   invitations: InvitationRow[];
+  parentStudents: ParentStudentOption[];
   staff: StaffOption[];
   students: StudentOption[];
 }) {
@@ -175,6 +186,16 @@ export function AuthInvitationManager({
           pending={isPending}
           onIssue={(ids) => issueBulk("STUDENT", ids)}
           title="학생 계정 일괄 초대"
+        />
+
+        <ParentInvitePanel
+          pending={isPending}
+          startTransition={startTransition}
+          students={parentStudents}
+          onIssued={(row) => {
+            setResults([row]);
+            router.refresh();
+          }}
         />
       </div>
 
@@ -406,6 +427,147 @@ function BulkInvitePanel({
             </Button>
           </>
         )}
+      </div>
+    </section>
+  );
+}
+
+function ParentInvitePanel({
+  onIssued,
+  pending,
+  startTransition,
+  students,
+}: {
+  onIssued: (row: BulkInvitationResult) => void;
+  pending: boolean;
+  startTransition: React.TransitionStartFunction;
+  students: ParentStudentOption[];
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [relation, setRelation] = useState("");
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return students;
+    return students.filter((s) =>
+      `${s.name} ${s.grade} ${s.parentPhone}`.toLowerCase().includes(q),
+    );
+  }, [query, students]);
+
+  const selectedPhone = useMemo(() => {
+    const first = students.find((s) => selected.has(s.id));
+    return first?.parentPhone ?? "";
+  }, [selected, students]);
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function issue() {
+    const ids = Array.from(selected);
+    if (ids.length === 0) {
+      toast.error("자녀 학생을 선택하세요");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const issued = await createParentAuthInvitation({
+          studentIds: ids,
+          relation: relation.trim() || undefined,
+        });
+        onIssued({
+          expiresAt: issued.expiresAt,
+          id: ids[0],
+          name: `${issued.name} (${issued.parentPhone})`,
+          ok: true,
+          url: issued.url,
+        });
+        setSelected(new Set());
+        toast.success("학부모 초대 링크를 발급했습니다");
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "초대 링크를 만들지 못했습니다",
+        );
+      }
+    });
+  }
+
+  return (
+    <section className="rounded-[8px] border border-line bg-panel p-4">
+      <div className="flex items-start gap-3">
+        <div className="grid h-9 w-9 place-items-center rounded-[8px] bg-brand-soft text-brand-2">
+          <Users className="h-4 w-4" />
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold text-ink">학부모 계정 초대</h2>
+          <p className="mt-1 text-xs leading-5 text-ink-4">
+            자녀 학생을 선택해 학부모용 초대 링크를 발급합니다. 형제·자매는 함께
+            선택하면 한 계정에 연결됩니다. 발급된 링크는 학생의 학부모
+            전화번호로 전달하세요.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        <input
+          type="search"
+          placeholder="학생 이름 · 학년 검색"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="w-full rounded-[8px] border border-line-2 bg-canvas-2 px-3 py-2 text-sm text-ink placeholder:text-ink-4"
+        />
+        <div className="max-h-64 space-y-1 overflow-y-auto rounded-[8px] border border-line-2 bg-canvas-2 p-1">
+          {filtered.length === 0 ? (
+            <p className="px-3 py-6 text-center text-sm text-ink-4">
+              초대 가능한 학생이 없습니다
+            </p>
+          ) : (
+            filtered.map((student) => (
+              <label
+                key={student.id}
+                className="flex cursor-pointer items-center gap-2 rounded-[6px] px-2 py-1.5 hover:bg-panel">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 shrink-0 accent-[var(--brand,#2563eb)]"
+                  checked={selected.has(student.id)}
+                  onChange={() => toggle(student.id)}
+                />
+                <span className="min-w-0 truncate text-sm text-ink">
+                  {student.name} · {student.grade} · {student.parentPhone}
+                </span>
+              </label>
+            ))
+          )}
+        </div>
+        <input
+          type="text"
+          placeholder="관계 (예: 모, 부) — 선택 입력"
+          value={relation}
+          onChange={(e) => setRelation(e.target.value)}
+          className="w-full rounded-[8px] border border-line-2 bg-canvas-2 px-3 py-2 text-sm text-ink placeholder:text-ink-4"
+        />
+        {selectedPhone ? (
+          <p className="text-xs text-ink-4">
+            전달 대상 학부모 전화번호: {selectedPhone}
+          </p>
+        ) : null}
+        <Button
+          className="w-full"
+          disabled={pending || selected.size === 0}
+          onClick={issue}>
+          {selected.size > 0
+            ? `자녀 ${selected.size}명 학부모 초대 발급`
+            : "학부모 초대 발급"}
+        </Button>
       </div>
     </section>
   );

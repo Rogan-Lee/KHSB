@@ -42,6 +42,7 @@ export function StudentsCardGrid({ students }: StudentsCardGridProps) {
           <Link key={s.id} href={`/students/${s.id}`}>
             <MemberCard
               name={s.name}
+              imageUrl={s.imageUrl}
               role={s.grade ? `${s.grade} · ${s.mentor?.name ?? "미배정"}` : s.mentor?.name ?? "미배정"}
               pill={pill}
               meta={[

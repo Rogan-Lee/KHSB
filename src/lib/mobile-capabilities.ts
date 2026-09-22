@@ -14,7 +14,8 @@ export type MobileNavRole =
   | "staff"
   | "mentor"
   | "director"
-  | "consultant";
+  | "consultant"
+  | "parent";
 
 export type StaffCapabilities = {
   navRole: MobileNavRole;
@@ -64,4 +65,12 @@ export function staffCapabilities(role: string): StaffCapabilities {
 
 export function studentCapabilities(isOnlineManaged: boolean): StudentCapabilities {
   return { navRole: "student", isOnlineManaged };
+}
+
+export type ParentCapabilities = {
+  navRole: "parent";
+};
+
+export function parentCapabilities(): ParentCapabilities {
+  return { navRole: "parent" };
 }

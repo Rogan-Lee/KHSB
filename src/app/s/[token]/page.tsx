@@ -15,6 +15,9 @@ import {
   Camera,
   Utensils,
   GraduationCap,
+  Moon,
+  Wifi,
+  Podcast,
 } from "lucide-react";
 import type { PerformanceTaskStatus } from "@/generated/prisma";
 import { todayKST } from "@/lib/utils";
@@ -59,7 +62,7 @@ export default async function StudentPortalHomePage({
   // 홈 카드는 온라인/오프라인 구분 없이 데이터 유무로 표시(완전 통일).
   // 오프라인 학생은 보통 빈 결과 → 해당 카드만 자연스럽게 숨겨짐.
   // 단, 초기 설문 카드는 온라인 온보딩 전용이라 isOnline 일 때만 노출.
-  const [openQuestions, survey, taskCounts, nextTask, upcomingSessions, lunchMenuCount, examApplyOpenCount] = await Promise.all([
+  const [openQuestions, survey, taskCounts, nextTask, upcomingSessions, lunchMenuCount, examApplyOpenCount, contentCount] = await Promise.all([
     prisma.studentQuestion.count({
       where: { studentId: student.id, status: { in: ["OPEN", "ANSWERED"] } },
     }),
@@ -102,6 +105,7 @@ export default async function StudentPortalHomePage({
     prisma.examSession.count({
       where: { applicationOpen: true, examDate: { gte: todayKST() } },
     }),
+    prisma.contentPost.count({ where: { visible: true } }),
   ]);
 
   const totalTasks = taskCounts.reduce((sum, c) => sum + c._count._all, 0);
@@ -176,6 +180,27 @@ export default async function StudentPortalHomePage({
               <p className="text-[15px] font-semibold text-ink">점심 도시락 신청</p>
               <p className="mt-0.5 text-[12px] text-ink-4">
                 먹을 날짜를 고르고 입금하면 신청이 확정돼요.
+              </p>
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" strokeWidth={2.5} />
+          </div>
+        </Link>
+      )}
+
+      {/* 콘텐츠 — 공개 콘텐츠가 있을 때만 */}
+      {contentCount > 0 && (
+        <Link
+          href={`/s/${token}/contents`}
+          className="block rounded-[14px] border border-brand/30 bg-panel p-4 ring-1 ring-brand/10 active:bg-canvas-2 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-white">
+              <Podcast className="h-5 w-5" strokeWidth={2.2} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-semibold text-ink">콘텐츠</p>
+              <p className="mt-0.5 text-[12px] text-ink-4">
+                강한선배의 팟캐스트·아티클 {contentCount}편을 만나보세요.
               </p>
             </div>
             <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" strokeWidth={2.5} />
@@ -331,6 +356,34 @@ export default async function StudentPortalHomePage({
           )}
         </section>
       )}
+
+      {/* 쪽잠 · 네트워크 사용 신청 */}
+      <section className="grid grid-cols-2 gap-3">
+        <Link
+          href={`/s/${token}/nap`}
+          className="rounded-[14px] border border-line bg-panel p-3.5 active:bg-canvas-2 transition-colors"
+        >
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-violet-soft text-violet-ink">
+            <Moon className="h-4 w-4" strokeWidth={2.5} />
+          </span>
+          <p className="mt-2 text-[13px] font-semibold text-ink">쪽잠 신청</p>
+          <p className="mt-0.5 text-[11px] leading-snug text-ink-4">
+            하루 2회 · 20~30분, 승인 후 이용
+          </p>
+        </Link>
+        <Link
+          href={`/s/${token}/network`}
+          className="rounded-[14px] border border-line bg-panel p-3.5 active:bg-canvas-2 transition-colors"
+        >
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-info-soft text-info-ink">
+            <Wifi className="h-4 w-4" strokeWidth={2.5} />
+          </span>
+          <p className="mt-2 text-[13px] font-semibold text-ink">네트워크 사용</p>
+          <p className="mt-0.5 text-[11px] leading-snug text-ink-4">
+            와이파이·사이트·앱 사용 신청
+          </p>
+        </Link>
+      </section>
 
       {/* 등원 스케줄 제출 */}
       <Link

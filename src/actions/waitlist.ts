@@ -109,13 +109,15 @@ export type WaitlistSubmitInput = {
   gender?: WaitGender | null;
   gradeType?: WaitGradeType | null;
   kind?: WaitlistKind;
+  entryPreference?: string | null; // "winter" | "immediate" | null
   note?: string;
   consentMarketing?: boolean;
 };
 
 /**
- * 대기 등록 — 본인인증(confirmPhoneVerification) 완료가 전제.
- * 최근 인증 완료 레코드가 없으면 거부. 성공 시 상태 페이지 토큰 반환.
+ * 대기 등록 — 대기 신청(WAITLIST)은 본인인증(confirmPhoneVerification) 완료가 전제.
+ * 단순 문의(INQUIRY)는 인증 없이도 접수 가능 (관리자 화면에 "미인증" 표시).
+ * 성공 시 상태 페이지 토큰 반환.
  */
 export async function submitWaitlist(
   input: WaitlistSubmitInput
@@ -129,12 +131,20 @@ export async function submitWaitlist(
     return { ok: false, error: "성별과 학년을 선택해주세요" };
   }
 
-  // 최근 인증 완료된 레코드 확인
+  // 입실 희망 옵션(선택) — 허용값 외에는 미선택 처리
+  const entryPreference =
+    input.entryPreference === "winter" || input.entryPreference === "immediate"
+      ? input.entryPreference
+      : null;
+
+  // 최근 인증 완료된 레코드 확인 — 대기 신청만 필수, 문의는 미인증 허용
   const verified = await prisma.phoneVerification.findFirst({
     where: { phone, verifiedAt: { gt: new Date(Date.now() - SUBMIT_WINDOW_MS) } },
     orderBy: { verifiedAt: "desc" },
   });
-  if (!verified) return { ok: false, error: "휴대폰 본인인증을 먼저 완료해주세요" };
+  if (!verified && kind === "WAITLIST") {
+    return { ok: false, error: "휴대폰 본인인증을 먼저 완료해주세요" };
+  }
 
   const branch = await prisma.branch.findFirst({
     where: { id: input.branchId, isActive: true },
@@ -156,9 +166,10 @@ export async function submitWaitlist(
       gender: kind === "WAITLIST" ? input.gender : null,
       gradeType: kind === "WAITLIST" ? input.gradeType : null,
       kind,
+      entryPreference: kind === "WAITLIST" ? entryPreference : null,
       note: input.note?.trim() || null,
       consentMarketing: Boolean(input.consentMarketing),
-      phoneVerifiedAt: verified.verifiedAt,
+      phoneVerifiedAt: verified?.verifiedAt ?? null,
     },
   });
 

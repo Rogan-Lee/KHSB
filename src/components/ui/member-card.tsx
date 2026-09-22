@@ -13,6 +13,7 @@ interface MemberCardProps {
   name: string;
   role?: string;
   initial?: string;
+  imageUrl?: string | null;
   tone?: AvatarTone;
   pill?: { tone: "ok" | "warn" | "bad" | "info" | "brand" | "violet" | "neutral"; label: string };
   meta?: MetaField[];          // up to 2 key/value pairs (Dept / Join, etc)
@@ -38,6 +39,7 @@ export function MemberCard({
   name,
   role,
   initial,
+  imageUrl,
   tone,
   pill,
   meta,
@@ -65,16 +67,25 @@ export function MemberCard({
         </div>
       )}
 
-      <div
-        className={cn(
-          "w-10 h-10 rounded-full grid place-items-center mb-3",
-          "text-[14px] font-bold text-white tracking-[-0.02em]",
-          "shadow-[inset_0_0_0_2px_rgba(255,255,255,0.6)]",
-          `av-tone-${resolvedTone}`
-        )}
-      >
-        {resolvedInitial}
-      </div>
+      {imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imageUrl}
+          alt={name}
+          className="w-10 h-10 rounded-full object-cover mb-3 shadow-[inset_0_0_0_2px_rgba(255,255,255,0.6)]"
+        />
+      ) : (
+        <div
+          className={cn(
+            "w-10 h-10 rounded-full grid place-items-center mb-3",
+            "text-[14px] font-bold text-white tracking-[-0.02em]",
+            "shadow-[inset_0_0_0_2px_rgba(255,255,255,0.6)]",
+            `av-tone-${resolvedTone}`
+          )}
+        >
+          {resolvedInitial}
+        </div>
+      )}
 
       <div className="text-[15px] font-[650] tracking-[-0.02em] text-ink mb-[1px] truncate">{name}</div>
       {role && <div className="text-[12.5px] text-ink-3 mb-3 truncate">{role}</div>}

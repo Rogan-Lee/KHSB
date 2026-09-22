@@ -46,10 +46,10 @@ export function ScheduleSubmitPanel({ token, history }: { token: string; history
   }
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-6 space-y-5">
+    <div className="space-y-5">
       <div className="flex items-center gap-2">
         <CalendarClock className="h-5 w-5 text-ink-3" />
-        <h1 className="text-lg font-bold">등원 스케줄 제출</h1>
+        <h2 className="text-lg font-bold">등원 스케줄 제출</h2>
       </div>
       <p className="text-sm text-ink-3">
         다음 주 등하원 시간과 학원·외출 일정을 입력해 제출해 주세요. 운영진 확인 후 학부모님 승인을 거쳐 입퇴실 일정에 반영됩니다.

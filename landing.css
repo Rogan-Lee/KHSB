@@ -517,3 +517,15 @@ footer { background: var(--ink); color: #fff; margin-top: 110px; border-radius: 
   .fab .lbl { display: none; } .fab { padding: 13px; }
   .foot-grid { grid-template-columns: 1fr; }
 }
+
+/* ── 콘텐츠 (팟캐스트·아티클) — landing.js 가 공개 API로 채우는 카드 그리드 ── */
+.content-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 36px; }
+.content-card { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; text-decoration: none; color: var(--ink); transition: transform .18s ease, box-shadow .18s ease; }
+.content-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.content-cover { width: 100%; height: 160px; object-fit: cover; background: var(--card-cream); }
+.content-body { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 6px; }
+.content-meta { font-size: 12.5px; color: var(--faint); font-weight: 600; }
+.content-title { font-size: 16px; font-weight: 700; letter-spacing: -.02em; line-height: 1.35; }
+.content-sum { font-size: 13.5px; color: var(--mute); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 920px) { .content-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .content-grid { grid-template-columns: 1fr; } }
