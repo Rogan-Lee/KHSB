@@ -7,6 +7,7 @@ import type { ImagePickerAsset } from 'expo-image-picker';
 import type { DocumentPickerAsset } from 'expo-document-picker';
 
 import { API_BASE_URL } from '@/lib/auth-client';
+import { uploadLargeFileDirect } from '@/lib/media-upload';
 import { authHeaders, authenticatedFetch } from '@/lib/session';
 
 type UploadFileLike = {
@@ -64,6 +65,12 @@ async function uploadMobileFile(
   if (Platform.OS === 'web') {
     const blob =
       fileLike.file ?? (await (await fetch(fileLike.uri)).blob());
+    // 4MB 초과 파일은 Vercel 함수 한도를 우회해 Blob 에 직접 업로드
+    const direct = await uploadLargeFileDirect(
+      { uri: fileLike.uri, name: fileLike.name, mimeType: type, blob },
+      params,
+    );
+    if (direct) return direct;
     const formData = new FormData();
     formData.append('file', blob, fileLike.name);
     for (const [key, value] of Object.entries(params)) {
@@ -86,6 +93,12 @@ async function uploadMobileFile(
   }
 
   const scaled = await downscaleImage(fileLike);
+  // 4MB 초과 파일(영상·큰 문서)은 Vercel 함수 한도를 우회해 Blob 에 직접 업로드
+  const direct = await uploadLargeFileDirect(
+    { uri: scaled.uri, name: scaled.name, mimeType: scaled.mimeType || type },
+    params,
+  );
+  if (direct) return direct;
   const headers = authHeaders();
   const result = await FileSystemLegacy.uploadAsync(
     `${API_BASE_URL}/api/mobile/v1/media`,
