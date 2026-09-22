@@ -10,7 +10,7 @@ function round2(n: number | null | undefined): number | null {
 }
 
 // ExamType — Prisma enum과 동일 (직렬화된 문자열만 받음)
-type ExamType = "OFFICIAL_MOCK" | "PRIVATE_MOCK" | "SCHOOL_EXAM";
+type ExamType = "OFFICIAL_MOCK" | "PRIVATE_MOCK" | "SCHOOL_EXAM" | "DUFF";
 
 interface Score {
   examDate: string;
@@ -41,9 +41,10 @@ const EXAM_TYPE_META: Record<ExamType, { label: string; color: string }> = {
   OFFICIAL_MOCK: { label: "공식 모의", color: "#3D6FD8" },
   PRIVATE_MOCK: { label: "사설 모의", color: "#C28327" },
   SCHOOL_EXAM: { label: "내신", color: "#2E9D6B" },
+  DUFF: { label: "더프", color: "#8B5CF6" },
 };
 
-const EXAM_TYPE_ORDER: ExamType[] = ["OFFICIAL_MOCK", "PRIVATE_MOCK", "SCHOOL_EXAM"];
+const EXAM_TYPE_ORDER: ExamType[] = ["OFFICIAL_MOCK", "PRIVATE_MOCK", "SCHOOL_EXAM", "DUFF"];
 
 type ViewMode = "byType" | "bySubject";
 
@@ -117,11 +118,12 @@ export function MonthlyExamTrendChart({ scores }: Props) {
           label: "",
           date: new Date(s.examDate).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" }),
           sortKey: s.examDate,
-          examNames: { OFFICIAL_MOCK: [], PRIVATE_MOCK: [], SCHOOL_EXAM: [] },
+          examNames: { OFFICIAL_MOCK: [], PRIVATE_MOCK: [], SCHOOL_EXAM: [], DUFF: [] },
           sums: {
             OFFICIAL_MOCK: { sum: 0, count: 0 },
             PRIVATE_MOCK: { sum: 0, count: 0 },
             SCHOOL_EXAM: { sum: 0, count: 0 },
+            DUFF: { sum: 0, count: 0 },
           },
         });
       }
@@ -191,6 +193,7 @@ export function MonthlyExamTrendChart({ scores }: Props) {
     OFFICIAL_MOCK: { value: null, prevValue: null },
     PRIVATE_MOCK: { value: null, prevValue: null },
     SCHOOL_EXAM: { value: null, prevValue: null },
+    DUFF: { value: null, prevValue: null },
   };
   for (const t of EXAM_TYPE_ORDER) {
     let latest: number | null = null;
