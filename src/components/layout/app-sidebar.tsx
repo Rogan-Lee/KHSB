@@ -45,6 +45,7 @@ import {
   Video,
   HelpCircle,
   ScanLine,
+  Smartphone,
   MessageSquarePlus,
   UserPlus,
   KeyRound,
@@ -66,6 +67,7 @@ const navSections: NavSection[] = [
     items: [
       { href: "/", label: "대시보드", icon: LayoutDashboard },
       { href: "/attendance", label: "입퇴실 관리", icon: ClipboardList, feature: "attendance" },
+      { href: "/phone-check", label: "휴대폰 검사", icon: Smartphone },
       { href: "/handover", label: "인수인계", icon: ArrowLeftRight, feature: "handover" },
       { href: "/todos", label: "투두리스트", icon: ListTodo, feature: "todos" },
     ],
