@@ -14,7 +14,7 @@ if (!devUrl) {
 }
 
 // 안전 가드: 프로덕션 project-ref 차단
-const PROD_PROJECT_REF = "ulefrypbhdgbtkjjlnco";
+const PROD_PROJECT_REF = "vrdzlviqepexwznwdmkf";
 if (devUrl.includes(PROD_PROJECT_REF)) {
   console.error(`❌ DATABASE_URL 에 프로덕션 project-ref(${PROD_PROJECT_REF}) 감지. 중단.`);
   process.exit(1);
