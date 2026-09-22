@@ -49,6 +49,7 @@ import {
   MessageSquarePlus,
   UserPlus,
   KeyRound,
+  Inbox,
 } from "lucide-react";
 
 type NavItem = {
@@ -82,6 +83,8 @@ const navSections: NavSection[] = [
       { href: "/vocab-test", label: "영단어 시험", icon: BookOpen, feature: "vocab-test" },
       { href: "/questions", label: "학생 질문", icon: HelpCircle },
       { href: "/suggestions", label: "학생 건의사항", icon: MessageSquarePlus },
+      // 쪽잠·네트워크 사용 신청 승인함
+      { href: "/approvals", label: "신청함", icon: Inbox },
       { href: "/online/inbox", label: "학생 메시지", icon: MessageSquare },
       { href: "/assignments", label: "과제 관리", icon: ClipboardCheck, feature: "assignments" },
       { href: "/online/performance", label: "수행평가", icon: ClipboardCheck },
