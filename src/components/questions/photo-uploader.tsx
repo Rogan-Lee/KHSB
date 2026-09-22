@@ -1,15 +1,19 @@
 "use client";
 
 import { useId, useState } from "react";
+import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
 import { ImagePlus, X, Loader2, FileText } from "lucide-react";
 import type { QuestionAttachment } from "@/actions/student-questions";
 
-const ALLOWED_EXT = /\.(pdf|png|jpe?g|webp|gif|heic|heif)$/i;
+const ALLOWED_EXT = /\.(pdf|png|jpe?g|webp|gif|heic|heif|mp4|mov|webm)$/i;
+const VIDEO_EXT = /\.(mp4|mov|webm)$/i;
 
-// Vercel serverless 요청 body 한도(4.5MB)에 걸리지 않도록 업로드 전 클라에서 축소.
-// (서버 라우트의 50MB 허용은 Vercel 앞단에서 무의미 — 근본 해결은 blob client upload로 예정)
-const VERCEL_BODY_LIMIT_BYTES = 4 * 1024 * 1024; // 여유분 두고 4MB
+const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+
+// blob client upload 라 서버 body 한도는 없지만, 전송량 절약을 위해 큰 이미지는 클라에서 축소.
+const COMPRESS_THRESHOLD_BYTES = 4 * 1024 * 1024;
 const RESIZE_MAX_SIDE = 2048;
 
 /** 이미지를 canvas 로 장변 2048px / JPEG 0.85 로 축소. 디코드 불가(heic 등)면 원본 반환. */
@@ -17,7 +21,7 @@ async function compressImage(file: File): Promise<File> {
   if (!file.type.startsWith("image/") || file.type === "image/gif") return file;
   const isHeic = file.type === "image/heic" || file.type === "image/heif";
   // 이미 충분히 작으면 재인코딩으로 화질만 깎지 않는다 (heic 은 표시 호환 위해 항상 변환 시도)
-  if (file.size <= VERCEL_BODY_LIMIT_BYTES && !isHeic) return file;
+  if (file.size <= COMPRESS_THRESHOLD_BYTES && !isHeic) return file;
   try {
     const bitmap = await createImageBitmap(file);
     const scale = Math.min(1, RESIZE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
@@ -33,14 +37,19 @@ async function compressImage(file: File): Promise<File> {
     const name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
     return new File([blob], name, { type: "image/jpeg" });
   } catch {
-    // heic 등 브라우저가 디코드 못 하는 포맷 — 원본 그대로 (아래 크기 검사에서 안내)
+    // heic 등 브라우저가 디코드 못 하는 포맷 — 원본 그대로 (blob 에서는 표시가 안 될 수 있음)
     return file;
   }
 }
 
+function safeName(filename: string): string {
+  return filename.replace(/[\\/]/g, "_").replace(/\.\./g, "_").slice(0, 200);
+}
+
 /**
- * 질문/답변용 사진(+PDF) 첨부 업로더. 컨트롤드 컴포넌트.
- * /api/online/upload 의 context=question 으로 업로드.
+ * 질문/답변용 사진·영상(+PDF) 첨부 업로더. 컨트롤드 컴포넌트.
+ * @vercel/blob client upload (/api/online/upload/client 토큰 발급) 로 blob 에 직접 업로드 —
+ * Vercel 함수 body 한도(4.5MB)를 우회한다.
  * 학생 측이면 studentToken 전달, 직원 측이면 생략(세션 인증).
  */
 export function PhotoUploader({
@@ -59,6 +68,7 @@ export function PhotoUploader({
   label?: string;
 }) {
   const [uploadingCount, setUploadingCount] = useState(0);
+  const [progress, setProgress] = useState<number | null>(null);
   const inputId = useId();
 
   const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -77,33 +87,51 @@ export function PhotoUploader({
     }
 
     for (const file of picked) {
-      if (!ALLOWED_EXT.test(file.name) && !file.type.startsWith("image/")) {
-        toast.error(`${file.name}: 사진 또는 PDF만 첨부할 수 있어요`);
+      const isVideo = VIDEO_EXT.test(file.name) || file.type.startsWith("video/");
+      if (!ALLOWED_EXT.test(file.name) && !file.type.startsWith("image/") && !isVideo) {
+        toast.error(`${file.name}: 사진·영상 또는 PDF만 첨부할 수 있어요`);
         continue;
       }
       setUploadingCount((c) => c + 1);
+      setProgress(null);
       try {
-        const upload = await compressImage(file);
-        if (upload.size > VERCEL_BODY_LIMIT_BYTES) {
+        // 영상은 리사이즈 없이 원본 그대로, 이미지는 전송량 절약을 위해 축소
+        const body = isVideo ? file : await compressImage(file);
+        const limit = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+        if (body.size > limit) {
           throw new Error(
-            `${file.name}: 파일이 너무 커요 (${(upload.size / 1024 / 1024).toFixed(1)}MB). 4MB 이하로 줄여서 올려주세요`
+            `${file.name}: 파일이 너무 커요 (${(body.size / 1024 / 1024).toFixed(1)}MB). ${
+              isVideo ? "영상은 200MB" : "사진·PDF는 20MB"
+            } 이하로 올려주세요`
           );
         }
-        const fd = new FormData();
-        fd.append("file", upload);
-        fd.append("context", "question");
-        if (studentToken) fd.append("studentToken", studentToken);
-        const res = await fetch("/api/online/upload", { method: "POST", body: fd });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "업로드 실패");
+        const random = Math.random().toString(36).slice(2, 10);
+        const blob = await upload(
+          `student-questions/incoming/${Date.now()}-${random}-${safeName(body.name)}`,
+          body,
+          {
+            access: "public",
+            handleUploadUrl: "/api/online/upload/client",
+            clientPayload: JSON.stringify({ context: "question", studentToken }),
+            contentType: body.type || undefined,
+            multipart: isVideo, // 대용량 영상은 분할 업로드 + 실패 파트 재시도
+            onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
+          }
+        );
         onChange([
           ...attachments,
-          { url: data.url, name: data.name, sizeBytes: data.sizeBytes, mimeType: data.mimeType },
+          {
+            url: blob.url,
+            name: body.name,
+            sizeBytes: body.size,
+            mimeType: body.type || blob.contentType || "application/octet-stream",
+          },
         ]);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "업로드 실패");
       } finally {
         setUploadingCount((c) => c - 1);
+        setProgress(null);
       }
     }
   };
@@ -146,9 +174,12 @@ export function PhotoUploader({
           {Array.from({ length: uploadingCount }).map((_, i) => (
             <li
               key={`u-${i}`}
-              className="flex h-20 w-20 items-center justify-center rounded-[10px] border border-dashed border-line bg-canvas-2 text-ink-4"
+              className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-line bg-canvas-2 text-ink-4"
             >
               <Loader2 className="h-5 w-5 animate-spin" />
+              {progress !== null && (
+                <span className="text-[10px] tabular-nums">{progress}%</span>
+              )}
             </li>
           ))}
         </ul>
@@ -167,7 +198,7 @@ export function PhotoUploader({
           <input
             id={inputId}
             type="file"
-            accept="image/*,.pdf,.heic,.heif"
+            accept="image/*,video/mp4,video/quicktime,video/webm,.pdf,.heic,.heif,.mp4,.mov,.webm"
             multiple
             onChange={handleFiles}
             disabled={disabled || busy}
