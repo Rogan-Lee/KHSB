@@ -97,7 +97,13 @@ async function issueStudentInvitation(
 
   await prisma.$transaction([
     prisma.authInvitation.updateMany({
-      where: { targetStudentId: target.id, acceptedAt: null, revokedAt: null },
+      // type 필터: 같은 학생을 대상으로 한 학부모(PARENT) 초대는 건드리지 않는다
+      where: {
+        type: "STUDENT",
+        targetStudentId: target.id,
+        acceptedAt: null,
+        revokedAt: null,
+      },
       data: { revokedAt: new Date() },
     }),
     prisma.authInvitation.create({
@@ -116,6 +122,86 @@ async function issueStudentInvitation(
     name: target.name,
     url: `${getAppUrl()}/sign-up?token=${encodeURIComponent(token)}`,
   };
+}
+
+async function issueParentInvitation(
+  targetStudentIds: string[],
+  relation: string | null,
+  invitedById: string,
+): Promise<IssuedInvitation & { parentPhone: string }> {
+  const ids = Array.from(new Set(targetStudentIds)).slice(0, 10);
+  const students = await prisma.student.findMany({
+    where: { id: { in: ids }, status: "ACTIVE" },
+    select: { id: true, name: true, parentPhone: true },
+  });
+  if (students.length === 0 || students.length !== ids.length) {
+    throw new Error("활성 학생을 찾을 수 없습니다");
+  }
+
+  const token = createOpaqueToken();
+  const tokenHash = hashAuthToken(token);
+  const expiresAt = new Date(Date.now() + INVITATION_TTL_MS);
+  const primary = students.find((s) => s.id === ids[0]) ?? students[0];
+
+  await prisma.$transaction([
+    prisma.authInvitation.updateMany({
+      where: {
+        type: "PARENT",
+        targetStudentId: { in: ids },
+        acceptedAt: null,
+        revokedAt: null,
+      },
+      data: { revokedAt: new Date() },
+    }),
+    prisma.authInvitation.create({
+      data: {
+        type: "PARENT",
+        tokenHash,
+        targetStudentId: primary.id,
+        invitedById,
+        expiresAt,
+      },
+    }),
+    // ponytail: AuthInvitation 에는 다중 자녀/관계 필드가 없어 초대 페이로드를
+    // AuthVerification(key-value) 행에 함께 실어 보낸다. 수락 시 auth-server.ts 가 읽는다.
+    prisma.authVerification.create({
+      data: {
+        identifier: `parent-invite:${tokenHash}`,
+        value: JSON.stringify({ relation, studentIds: ids }),
+        expiresAt,
+      },
+    }),
+  ]);
+
+  return {
+    expiresAt: expiresAt.toISOString(),
+    name: `${primary.name} 학부모`,
+    parentPhone: primary.parentPhone,
+    url: `${getAppUrl()}/sign-up?token=${encodeURIComponent(token)}`,
+  };
+}
+
+export async function createParentAuthInvitation(input: {
+  studentIds: string[];
+  relation?: string;
+}) {
+  const session = await auth();
+  if (!session) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
+
+  if (input.studentIds.length === 0) {
+    throw new Error("자녀 학생을 선택하세요");
+  }
+
+  const issued = await issueParentInvitation(
+    input.studentIds,
+    input.relation?.trim() || null,
+    session.user.id,
+  );
+
+  revalidatePath("/admin/auth");
+
+  return issued;
 }
 
 export async function createAuthInvitation(input: CreateInvitationInput) {
