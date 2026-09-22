@@ -32,6 +32,7 @@ import {
 import { MoreHorizontal, ArrowLeftRight, LogOut, LogIn, ChevronRight, Search, X } from "lucide-react";
 import { checkoutStudent, readmitStudent, moveStudentSeat, swapStudentSeats, updateStudentSeat } from "@/actions/students";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Student, User, AttendanceSchedule } from "@/generated/prisma";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 import { SortableHeader } from "@/components/ui/sortable-header";
@@ -491,7 +492,22 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
                   <TableCell className="font-mono text-xs whitespace-nowrap">
                     {student.seat || <span className="text-muted-foreground/50">-</span>}
                   </TableCell>
-                  <TableCell className="font-medium whitespace-nowrap">{student.name}</TableCell>
+                  <TableCell className="font-medium whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-7 w-7">
+                        {student.imageUrl && <AvatarImage src={student.imageUrl} alt={student.name} />}
+                        <AvatarFallback className="text-[11px] font-semibold">
+                          {student.name.trim().slice(0, 1) || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span>{student.name}</span>
+                      {student.seat && (
+                        <Badge variant="outline" className="px-1.5 py-0 font-mono text-[10px] text-muted-foreground">
+                          {student.seat}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-sm whitespace-nowrap">
                     <span>{[student.school, student.grade].filter(Boolean).join(" ") || "-"}</span>
                     {student.classGroup && (
