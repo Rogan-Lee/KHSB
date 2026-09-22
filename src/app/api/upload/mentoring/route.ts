@@ -17,7 +17,8 @@ const ALLOWED_MIME_TYPES = new Set<string>([
   "image/gif",
 ]);
 
-const ALLOWED_TAGS = new Set<string>(["KDA", "EXTRA", "FREE"]);
+// KDA 는 운영 종료 — 신규 업로드 차단 (과거 데이터는 표시 유지)
+const ALLOWED_TAGS = new Set<string>(["EXTRA", "FREE"]);
 
 function safeName(filename: string): string {
   return filename
@@ -32,7 +33,7 @@ function safeName(filename: string): string {
  * multipart/form-data:
  * - file: 이미지 파일 (≤10MB, png/jpg/jpeg/webp/gif)
  * - mentoringId: Mentoring.id
- * - tag: "KDA" | "EXTRA" | "FREE"
+ * - tag: "EXTRA" | "FREE"
  *
  * 응답: { url, mimeType, fileName, sizeBytes }
  *

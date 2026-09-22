@@ -56,7 +56,8 @@ const ALLOWED_DOCUMENT_EXTENSIONS = new Set([
   "xlsx",
   "zip",
 ]);
-const MENTORING_TAGS = new Set(["KDA", "EXTRA", "FREE"]);
+// KDA 는 운영 종료 — 신규 업로드 차단 (과거 데이터는 표시 유지)
+const MENTORING_TAGS = new Set(["EXTRA", "FREE"]);
 
 function safeName(filename: string) {
   return filename

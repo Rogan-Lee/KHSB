@@ -15,14 +15,14 @@ import type {
 
 const ALLOWED_EXT = /\.(png|jpe?g|webp|gif)$/i;
 
+// KDA 는 운영 종료 — 신규 업로드 존에서 제외. 과거 KDA 사진은 아래에서 읽기 전용으로 표시.
 const ZONES: { tag: MentoringPhotoTag; label: string; hint: string }[] = [
-  { tag: "KDA", label: "핵심 자료 (KDA)", hint: "학습 핵심·D·A 자료" },
   { tag: "EXTRA", label: "추가 자료", hint: "보조 풀이/참고 자료" },
   { tag: "FREE", label: "자유 첨부", hint: "기타 자유 첨부" },
 ];
 
 /**
- * 멘토링 세션 KDA / 추가 / 자유 첨부 업로더 (Sprint 5 PR 5.1).
+ * 멘토링 세션 추가 / 자유 첨부 업로더 (Sprint 5 PR 5.1).
  * `/api/upload/mentoring-session` 으로 파일 업로드 후
  * `attachSessionPhoto` 서버 액션으로 DB 기록.
  */
@@ -33,6 +33,7 @@ export function SessionPhotoUploader({
   sessionId: string;
   existing: MentoringSessionPhoto[];
 }) {
+  const legacyKda = existing.filter((p) => p.tag === "KDA");
   return (
     <div className="space-y-4">
       {ZONES.map((zone) => (
@@ -45,6 +46,16 @@ export function SessionPhotoUploader({
           photos={existing.filter((p) => p.tag === zone.tag)}
         />
       ))}
+      {legacyKda.length > 0 && (
+        <ZoneBlock
+          sessionId={sessionId}
+          tag="KDA"
+          label="핵심 자료 (KDA)"
+          hint="운영 종료 — 과거 자료만 표시 (신규 업로드 불가)"
+          photos={legacyKda}
+          readOnly
+        />
+      )}
     </div>
   );
 }
@@ -55,12 +66,14 @@ function ZoneBlock({
   label,
   hint,
   photos,
+  readOnly = false,
 }: {
   sessionId: string;
   tag: MentoringPhotoTag;
   label: string;
   hint: string;
   photos: MentoringSessionPhoto[];
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const inputId = useId();
@@ -178,6 +191,7 @@ function ZoneBlock({
         </ul>
       )}
 
+      {!readOnly && (
       <label
         htmlFor={inputId}
         onDragOver={(e) => {
@@ -208,6 +222,7 @@ function ZoneBlock({
           className="hidden"
         />
       </label>
+      )}
     </div>
   );
 }
