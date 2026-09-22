@@ -200,7 +200,7 @@ export const authServer = betterAuth({
 
       if (!invitation.targetStudent || invitation.targetStudent.status !== "ACTIVE") {
         throw new APIError("FORBIDDEN", {
-          message: "사용할 수 없는 학생 초대입니다",
+          message: "사용할 수 없는 초대입니다",
         });
       }
       if (!validateEmail(ctx.body?.email)) {
@@ -215,7 +215,10 @@ export const authServer = betterAuth({
           body: {
             ...ctx.body,
             email: String(ctx.body.email).trim().toLowerCase(),
-            name: invitation.targetStudent.name,
+            name:
+              invitation.type === "PARENT"
+                ? `${invitation.targetStudent.name} 학부모`
+                : invitation.targetStudent.name,
           },
         },
       };
@@ -247,10 +250,21 @@ export const authServer = betterAuth({
         after: async (user, ctx) => {
           const token = readInviteToken(ctx);
           if (!token) return;
+          const tokenHash = hashAuthToken(token);
+
+          const invitation = await prisma.authInvitation.findUnique({
+            where: { tokenHash },
+            select: {
+              acceptedAt: true,
+              revokedAt: true,
+              targetStudentId: true,
+              type: true,
+            },
+          });
 
           await prisma.authInvitation.updateMany({
             where: {
-              tokenHash: hashAuthToken(token),
+              tokenHash,
               acceptedAt: null,
               revokedAt: null,
             },
@@ -259,6 +273,51 @@ export const authServer = betterAuth({
               acceptedById: user.id,
             },
           });
+
+          // 학부모 초대: 초대에 실린 자녀 목록으로 ParentLink 생성.
+          // 페이로드는 발급 시 AuthVerification 행(parent-invite:<hash>)에 저장됨.
+          if (
+            invitation?.type === "PARENT" &&
+            !invitation.acceptedAt &&
+            !invitation.revokedAt
+          ) {
+            let studentIds = invitation.targetStudentId
+              ? [invitation.targetStudentId]
+              : [];
+            let relation: string | null = null;
+
+            const payloadRow = await prisma.authVerification.findFirst({
+              where: { identifier: `parent-invite:${tokenHash}` },
+            });
+            if (payloadRow) {
+              try {
+                const payload = JSON.parse(payloadRow.value) as {
+                  relation?: string | null;
+                  studentIds?: string[];
+                };
+                if (
+                  Array.isArray(payload.studentIds) &&
+                  payload.studentIds.length > 0
+                ) {
+                  studentIds = payload.studentIds;
+                }
+                relation = payload.relation ?? null;
+              } catch {
+                // 페이로드 파싱 실패 시 targetStudentId 폴백 유지
+              }
+            }
+
+            if (studentIds.length > 0) {
+              await prisma.parentLink.createMany({
+                data: studentIds.map((studentId) => ({
+                  authUserId: user.id,
+                  studentId,
+                  relation,
+                })),
+                skipDuplicates: true,
+              });
+            }
+          }
         },
       },
     },

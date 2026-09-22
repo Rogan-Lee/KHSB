@@ -19,7 +19,17 @@ export default function EntryScreen() {
     return <Redirect href="/(auth)" />;
   }
 
-  return <Redirect href={session.role === 'student' ? '/(student)' : '/(staff)'} />;
+  return (
+    <Redirect
+      href={
+        session.role === 'student'
+          ? '/(student)'
+          : session.role === 'parent'
+            ? '/(parent)'
+            : '/(staff)'
+      }
+    />
+  );
 }
 
 const styles = StyleSheet.create({

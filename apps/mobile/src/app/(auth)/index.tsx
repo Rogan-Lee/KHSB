@@ -23,8 +23,16 @@ type Invitation = {
   email: string | null;
   expiresAt: string;
   name: string;
-  type: 'STAFF' | 'STUDENT';
+  type: 'STAFF' | 'STUDENT' | 'PARENT';
 };
+
+function roleHome(role: string) {
+  return role === 'student'
+    ? '/(student)'
+    : role === 'parent'
+      ? '/(parent)'
+      : '/(staff)';
+}
 
 function extractToken(value: string) {
   const trimmed = value.trim();
@@ -52,7 +60,7 @@ export default function AuthScreen() {
   const inviteToken = useMemo(() => extractToken(inviteValue), [inviteValue]);
 
   if (status === 'authenticated' && session) {
-    return <Redirect href={session.role === 'student' ? '/(student)' : '/(staff)'} />;
+    return <Redirect href={roleHome(session.role)} />;
   }
 
   async function finishAuthentication() {
@@ -60,7 +68,7 @@ export default function AuthScreen() {
     if (!profile) {
       throw new Error('연결된 학생 또는 직원 정보를 찾을 수 없습니다');
     }
-    router.replace(profile.role === 'student' ? '/(student)' : '/(staff)');
+    router.replace(roleHome(profile.role));
   }
 
   async function signIn() {
@@ -213,7 +221,11 @@ export default function AuthScreen() {
                   <View style={styles.inviteInfo}>
                     <Text style={styles.inviteName}>{invitation.name}</Text>
                     <Text style={styles.inviteType}>
-                      {invitation.type === 'STAFF' ? '직원 계정' : '학생 계정'}
+                      {invitation.type === 'STAFF'
+                        ? '직원 계정'
+                        : invitation.type === 'PARENT'
+                          ? '학부모 계정'
+                          : '학생 계정'}
                     </Text>
                   </View>
                   <Field
@@ -225,7 +237,7 @@ export default function AuthScreen() {
                   />
                   <Field
                     autoCapitalize="none"
-                    editable={invitation.type === 'STUDENT'}
+                    editable={invitation.type !== 'STAFF'}
                     keyboardType="email-address"
                     label="복구 이메일"
                     onChangeText={setEmail}
