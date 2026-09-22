@@ -566,6 +566,9 @@ model AuthInvitation {
   targetUser      User?          @relation("AuthInviteTargetUser", fields: [targetUserId], references: [id], onDelete: Cascade)
   targetStudentId String?
   targetStudent   Student?       @relation("AuthInviteTargetStudent", fields: [targetStudentId], references: [id], onDelete: Cascade)
+  // PARENT 초대 전용: 다중 자녀 목록 + 관계(모/부 등). 다른 타입은 빈 배열/null.
+  targetStudentIds String[]      @default([])
+  parentRelation  String?
   invitedById     String
   invitedBy       User           @relation("AuthInviteIssuer", fields: [invitedById], references: [id], onDelete: Restrict)
   expiresAt       DateTime
