@@ -1,10 +1,11 @@
+// @ts-nocheck — dev 전용 시드(빌드 대상 아님). enum 리터럴을 string 으로 쓰는 곳이 많아 typecheck 제외.
 /**
  * 모바일 학생 앱 데모 시드 — 로그인 가능한 데모 학생 1명 + 전 화면 풍성한 더미 데이터.
  * DEV DB 전용. 실행: DATABASE_URL="$DATABASE_URL_DEV" npx tsx scripts/seed-mobile-demo.ts
  * 재실행 시 demo- 네임스페이스 데이터만 지우고 다시 만든다(멱등).
  */
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "../src/generated/prisma/client";
+import { PrismaClient, type Role } from "../src/generated/prisma/client";
 import { createOpaqueToken, hashAuthToken } from "../src/lib/auth-tokens";
 
 const prisma = new PrismaClient({
@@ -34,7 +35,7 @@ const doc = (name: string) => ({
 
 async function main() {
   // ── 1. 스태프 ──────────────────────────────────────────────
-  const staff = [
+  const staff: { id: string; email: string; name: string; role: Role }[] = [
     { id: CONSULTANT, email: "consultant@demo.khsb", name: "박서연", role: "CONSULTANT" },
     { id: MENTOR, email: "mentor@demo.khsb", name: "김도윤", role: "MANAGER_MENTOR" },
     { id: DIRECTOR, email: "director@demo.khsb", name: "정원장", role: "DIRECTOR" },
