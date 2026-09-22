@@ -6,10 +6,11 @@ export type MobileNavRole =
   | 'staff'
   | 'mentor'
   | 'director'
-  | 'consultant';
+  | 'consultant'
+  | 'parent';
 
 export type StaffCapabilities = {
-  navRole: Exclude<MobileNavRole, 'student'>;
+  navRole: Exclude<MobileNavRole, 'student' | 'parent'>;
   fullAccess: boolean;
   offlineOps: boolean;
   onlineModule: boolean;
@@ -24,8 +25,15 @@ export type StudentCapabilities = {
   isOnlineManaged: boolean;
 };
 
-export type Capabilities = StaffCapabilities | StudentCapabilities;
+export type ParentCapabilities = {
+  navRole: 'parent';
+};
+
+export type Capabilities =
+  | StaffCapabilities
+  | StudentCapabilities
+  | ParentCapabilities;
 
 export function isStaffCapabilities(c: Capabilities | undefined): c is StaffCapabilities {
-  return !!c && c.navRole !== 'student';
+  return !!c && c.navRole !== 'student' && c.navRole !== 'parent';
 }

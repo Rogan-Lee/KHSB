@@ -36,6 +36,7 @@ export default function StudentLayout() {
       <Tabs.Screen name="suggestions" options={{ href: null, title: '건의사항' }} />
       <Tabs.Screen name="survey" options={{ href: null, title: '초기 설문' }} />
       <Tabs.Screen name="more" options={{ href: null, title: '내 정보' }} />
+      <Tabs.Screen name="portal" options={{ href: null, title: '학생 포털' }} />
     </RoleTabs>
   );
 }

@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { getAuthIdentity } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { isOnlineStaff, isStaff } from "@/lib/roles";
 
 export class MobileApiError extends Error {
@@ -22,6 +23,40 @@ export async function requireMobileStudent(request: NextRequest) {
   }
 
   return student;
+}
+
+export async function requireMobileParent(request: NextRequest) {
+  const current = await getAuthIdentity(request.headers);
+  if (!current) throw new MobileApiError("로그인이 필요합니다", 401);
+
+  const links = await prisma.parentLink.findMany({
+    where: { authUserId: current.identity.id, student: { status: "ACTIVE" } },
+    include: {
+      student: { select: { grade: true, id: true, name: true, seat: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  if (links.length === 0) {
+    throw new MobileApiError("학부모 계정으로 이용할 수 없습니다", 403);
+  }
+
+  return {
+    authUserId: current.identity.id,
+    children: links.map((link) => link.student),
+  };
+}
+
+/** 요청 studentId 가 세션 학부모의 자녀인지 강제 검증 후 자녀 정보 반환 */
+export async function requireParentChild(
+  request: NextRequest,
+  studentId: string | null,
+) {
+  const parent = await requireMobileParent(request);
+  const child = parent.children.find((c) => c.id === studentId);
+  if (!child) {
+    throw new MobileApiError("자녀 정보에 접근할 수 없습니다", 403);
+  }
+  return child;
 }
 
 export async function requireMobileAccount(request: NextRequest) {

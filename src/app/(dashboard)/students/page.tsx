@@ -21,6 +21,7 @@ import { isFullAccess, isStaff } from "@/lib/roles";
 import { PortalLinksPanel } from "@/components/students/portal-links-panel";
 import { PreRegistrationPanel } from "@/components/students/pre-registration-panel";
 import { listPreRegistrations } from "@/actions/pre-registrations";
+import { GradePromotionDialog } from "@/components/students/grade-promotion-dialog";
 
 const VALID_TABS = ["list", "schedule", "pre-registration", "import", "scores-import", "sheets", "portal-links"] as const;
 type TabValue = (typeof VALID_TABS)[number];
@@ -94,12 +95,15 @@ export default async function StudentsPage({
             <TabsTrigger value="scores-import">성적 CSV 업로드</TabsTrigger>
             <TabsTrigger value="sheets">구글 시트 연동</TabsTrigger>
           </TabsList>
-          <Link href="/students/new">
-            <Button variant="ink" size="compact">
-              <Plus className="h-3.5 w-3.5" />
-              원생 등록
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            {canFormalize && <GradePromotionDialog />}
+            <Link href="/students/new">
+              <Button variant="ink" size="compact">
+                <Plus className="h-3.5 w-3.5" />
+                원생 등록
+              </Button>
+            </Link>
+          </div>
         </div>
 
         <TabsContent value="list" className="mt-3">

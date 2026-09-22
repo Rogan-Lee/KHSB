@@ -38,7 +38,15 @@ export type PatrolRosterStudent = {
   name: string;
   grade: string;
   seat: string | null;
+  checkInAt: string | null; // "HH:MM" KST
+  checkOutAt: string | null; // "HH:MM" KST
 };
+
+/** Date → KST "HH:MM" (nowKSTTimeString 과 동일한 +9h shift 방식). */
+function toKSTHHMM(d: Date | null): string | null {
+  if (!d) return null;
+  return new Date(d.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(11, 16);
+}
 
 export type PatrolRecordView = {
   id: string;
@@ -78,12 +86,22 @@ async function getTodayRoster(): Promise<PatrolRosterStudent[]> {
   const today = todayKST();
   const attendance = await prisma.attendanceRecord.findMany({
     where: { date: today, checkIn: { not: null } },
-    select: { student: { select: { id: true, name: true, grade: true, seat: true, status: true } } },
+    select: {
+      checkIn: true,
+      checkOut: true,
+      student: { select: { id: true, name: true, grade: true, seat: true, status: true } },
+    },
   });
   return attendance
-    .map((a) => a.student)
-    .filter((s) => s.status === "ACTIVE")
-    .map((s) => ({ id: s.id, name: s.name, grade: s.grade, seat: s.seat }))
+    .filter((a) => a.student.status === "ACTIVE")
+    .map((a) => ({
+      id: a.student.id,
+      name: a.student.name,
+      grade: a.student.grade,
+      seat: a.student.seat,
+      checkInAt: toKSTHHMM(a.checkIn),
+      checkOutAt: toKSTHHMM(a.checkOut),
+    }))
     .sort(compareSeat);
 }
 
@@ -140,7 +158,7 @@ export async function getPatrolPortalData(token?: string): Promise<PatrolPortalD
     patrollerName: patroller.name,
     roster,
     allStudents: allStudentRows
-      .map((s) => ({ id: s.id, name: s.name, grade: s.grade, seat: s.seat }))
+      .map((s) => ({ id: s.id, name: s.name, grade: s.grade, seat: s.seat, checkInAt: null, checkOutAt: null }))
       .sort(compareSeat),
     activeRound: activeRound
       ? { id: activeRound.id, label: activeRound.label, startedAt: activeRound.startedAt.toISOString() }

@@ -15,7 +15,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { QrScanner } from "./qr-scanner";
-import { decodeStudentQr, PATROL_NOTE_PRESETS } from "@/lib/patrol";
+import { decodeStudentQr, formatAttendanceSpan, seatRoom, PATROL_NOTE_PRESETS } from "@/lib/patrol";
 import {
   startPatrolRound,
   endPatrolRound,
@@ -69,6 +69,21 @@ export function PatrolPortal({
   const rosterCount = data.roster.length;
   const pct = rosterCount > 0 ? Math.min(100, Math.round((checkedCount / rosterCount) * 100)) : 0;
   const noteRecords = useMemo(() => data.records.filter((r) => r.status === "NOTE"), [data.records]);
+
+  // 룸 칩 필터 — 실데이터에 존재하는 그룹만, 1개 이하면 칩 숨김
+  const [roomFilter, setRoomFilter] = useState<string | null>(null);
+  const rooms = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of data.roster) {
+      const r = seatRoom(s.seat);
+      if (r) set.add(r);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, "ko", { numeric: true }));
+  }, [data.roster]);
+  const visibleRoster = useMemo(
+    () => (roomFilter ? data.roster.filter((s) => seatRoom(s.seat) === roomFilter) : data.roster),
+    [roomFilter, data.roster],
+  );
 
   const searchResults = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -259,12 +274,32 @@ export function PatrolPortal({
               <p className="border-b border-gray-100 px-4 py-2.5 text-[12px] font-semibold text-gray-500">
                 재실 명단 ({rosterCount})
               </p>
+              {/* 룸 칩 필터 */}
+              {rooms.length > 1 && (
+                <div className="flex flex-wrap gap-1.5 border-b border-gray-100 px-4 py-2">
+                  {[null, ...rooms].map((room) => (
+                    <button
+                      key={room ?? "__all"}
+                      type="button"
+                      onClick={() => setRoomFilter(room)}
+                      className={`rounded-full border px-3 py-1 text-[12px] font-medium ${
+                        roomFilter === room
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-gray-200 text-gray-600 active:bg-gray-50"
+                      }`}
+                    >
+                      {room ?? "전체"}
+                    </button>
+                  ))}
+                </div>
+              )}
               {rosterCount === 0 ? (
                 <p className="px-4 py-6 text-center text-[13px] text-gray-400">오늘 재실(체크인) 학생이 없어요</p>
               ) : (
                 <ul className="divide-y divide-gray-50">
-                  {data.roster.map((s) => {
+                  {visibleRoster.map((s) => {
                     const rec = checkedById.get(s.id);
+                    const span = formatAttendanceSpan(s.checkInAt, s.checkOutAt);
                     return (
                       <li key={s.id}>
                         <button
@@ -273,7 +308,10 @@ export function PatrolPortal({
                           className="flex w-full items-center gap-2 px-4 py-2.5 text-left active:bg-gray-50"
                         >
                           <span className="w-12 shrink-0 font-mono text-[12px] text-gray-400">{s.seat ?? "—"}</span>
-                          <span className="flex-1 text-[14px] font-medium text-gray-900">{s.name}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[14px] font-medium text-gray-900">{s.name}</span>
+                            {span && <span className="block text-[11px] tabular-nums text-gray-400">{span}</span>}
+                          </span>
                           <span className="text-[11px] text-gray-400">{s.grade}</span>
                           {rec && <StatusPill status={rec.status} />}
                         </button>

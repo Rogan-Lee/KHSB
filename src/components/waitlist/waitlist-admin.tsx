@@ -59,6 +59,8 @@ type Entry = {
   gender: WaitGender | null;
   gradeType: WaitGradeType | null;
   kind: "WAITLIST" | "INQUIRY";
+  entryPreference: string | null; // "winter" | "immediate" | null
+  phoneVerifiedAt: string | null;
   status: WaitlistStatus;
   studentId: string | null;
   matchedStudent: StudentLite | null;
@@ -210,20 +212,34 @@ function ShareApply() {
   );
 }
 
-type EntryFilter = WaitlistStatus | "ALL" | "INQUIRY";
+type EntryFilter = WaitlistStatus | "ALL" | "INQUIRY" | "WINTER" | "IMMEDIATE";
 const ENTRY_FILTERS: { key: EntryFilter; label: string }[] = [
   { key: "WAITING", label: "대기" },
   { key: "INVITED", label: "초대됨" },
   { key: "ENROLLED", label: "등원" },
   { key: "CANCELLED", label: "취소" },
   { key: "INQUIRY", label: "문의" },
+  { key: "WINTER", label: "윈터 희망" },
+  { key: "IMMEDIATE", label: "즉시 희망" },
   { key: "ALL", label: "전체" },
 ];
 
 function matchesFilter(e: Entry, f: EntryFilter): boolean {
   if (f === "ALL") return true;
   if (f === "INQUIRY") return e.kind === "INQUIRY";
+  if (f === "WINTER") return e.entryPreference === "winter";
+  if (f === "IMMEDIATE") return e.entryPreference === "immediate";
   return e.status === f;
+}
+
+/** 입실 희망 뱃지 — winter/immediate 외 값(과거 데이터)은 미표시 */
+function EntryPreferenceBadge({ value }: { value: string | null }) {
+  if (value !== "winter" && value !== "immediate") return <>-</>;
+  return value === "winter" ? (
+    <span className="rounded bg-sky-50 px-1.5 py-0.5 text-xs text-sky-600">윈터</span>
+  ) : (
+    <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-xs text-emerald-600">즉시</span>
+  );
 }
 
 function EntriesTab({
@@ -293,6 +309,7 @@ function EntriesTab({
                 <th className="px-3 py-2">연락처</th>
                 <th className="px-3 py-2">지점</th>
                 <th className="px-3 py-2">학년/성별</th>
+                <th className="px-3 py-2">입실 희망</th>
                 <th className="px-3 py-2">프로그램</th>
                 <th className="px-3 py-2">등록일시</th>
                 <th className="px-3 py-2">상태</th>
@@ -321,11 +338,21 @@ function EntriesTab({
                       )}
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-muted-foreground">{e.phone || "-"}</td>
+                  <td className="px-3 py-2 text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-1">
+                      {e.phone || "-"}
+                      {e.phone && !e.phoneVerifiedAt && (
+                        <span className="rounded bg-orange-50 px-1 py-0.5 text-[10px] text-orange-600">미인증</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-3 py-2">{e.branchName}</td>
                   <td className="px-3 py-2">
                     {e.gradeType ? (e.gradeType === "REPEAT" ? "N수생" : "재학생") : "-"} ·{" "}
                     {e.gender ? (e.gender === "MALE" ? "남" : "여") : "-"}
+                  </td>
+                  <td className="px-3 py-2">
+                    <EntryPreferenceBadge value={e.entryPreference} />
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">{e.programName ?? "-"}</td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">{formatDateTime(e.createdAt)}</td>

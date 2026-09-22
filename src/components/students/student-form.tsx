@@ -19,7 +19,8 @@ import { KOREAN_ELECTIVES, MATH_ELECTIVES, INQUIRY_SUBJECTS } from "@/lib/online
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ImagePlus, X } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Student, User } from "@/generated/prisma";
 
 const TOTAL_SEATS = 89;
@@ -140,6 +141,62 @@ function SchoolCombobox({ name, defaultValue, options }: { name: string; default
   );
 }
 
+function ProfileImageUploader({ defaultValue }: { defaultValue?: string }) {
+  const [url, setUrl] = useState(defaultValue ?? "");
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFile(file: File) {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      setUrl(json.url);
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : "이미지 업로드에 실패했습니다");
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      <input type="hidden" name="imageUrl" value={url} />
+      <Avatar className="h-14 w-14">
+        {url && <AvatarImage src={url} alt="프로필 이미지" />}
+        <AvatarFallback className="text-xs text-muted-foreground">
+          <ImagePlus className="h-4 w-4" />
+        </AvatarFallback>
+      </Avatar>
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+          }}
+        />
+        <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => inputRef.current?.click()}>
+          {uploading ? "업로드 중..." : url ? "이미지 변경" : "이미지 선택"}
+        </Button>
+        {url && (
+          <Button type="button" variant="ghost" size="sm" disabled={uploading} onClick={() => setUrl("")}>
+            <X className="h-3.5 w-3.5" />
+            제거
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function StudentForm({ student, mentors, schools = [], occupiedSeats = [] }: StudentFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -179,6 +236,11 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
 
   return (
     <form action={handleSubmit} ref={formRef} className="space-y-4">
+      <div className="space-y-2">
+        <Label>프로필 이미지</Label>
+        <ProfileImageUploader defaultValue={student?.imageUrl || ""} />
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="name">이름 *</Label>

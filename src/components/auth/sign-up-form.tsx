@@ -74,7 +74,12 @@ export function SignUpForm({
         return;
       }
 
-      router.replace(activeInvitation.type === "STAFF" ? "/" : "/student");
+      if (activeInvitation.type === "PARENT") {
+        toast.success("가입 완료! 모바일 앱에서 로그인하세요");
+        router.replace("/sign-in");
+      } else {
+        router.replace(activeInvitation.type === "STAFF" ? "/" : "/student");
+      }
       router.refresh();
     } catch {
       toast.error("계정 생성 중 오류가 발생했습니다");
@@ -89,7 +94,9 @@ export function SignUpForm({
       description={
         invitation.type === "STAFF"
           ? "직원용 로그인 아이디와 비밀번호를 설정하세요."
-          : "학생 앱에서 사용할 아이디와 복구 이메일을 설정하세요."
+          : invitation.type === "PARENT"
+            ? "자녀 조회용 모바일 앱에서 사용할 아이디와 복구 이메일을 설정하세요."
+            : "학생 앱에서 사용할 아이디와 복구 이메일을 설정하세요."
       }>
       <form className="space-y-4" onSubmit={submit}>
         <div className="space-y-2">

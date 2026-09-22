@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { todayKST } from "@/lib/utils";
+import { requireFullAccess } from "@/lib/roles";
+import { promoteGrade, type PromotionAction } from "@/lib/grade-promotion";
 
 const studentSchema = z.object({
   name: z.string().min(1, "이름을 입력하세요").max(50),
@@ -32,6 +34,7 @@ const studentSchema = z.object({
   inquiry2Subject: z.string().max(30).optional(),
   admissionType: z.string().max(100).optional(),
   onlineLectures: z.string().max(1000).optional(),
+  imageUrl: z.string().max(500).optional(),
 });
 
 export async function createStudent(formData: FormData) {
@@ -65,6 +68,7 @@ export async function createStudent(formData: FormData) {
       inquiry2Subject: data.inquiry2Subject && data.inquiry2Subject !== "none" ? data.inquiry2Subject : null,
       admissionType: data.admissionType || null,
       onlineLectures: data.onlineLectures || null,
+      imageUrl: data.imageUrl || null,
     },
   });
 
@@ -104,6 +108,7 @@ export async function updateStudent(id: string, formData: FormData) {
       inquiry2Subject: data.inquiry2Subject && data.inquiry2Subject !== "none" ? data.inquiry2Subject : null,
       admissionType: data.admissionType || null,
       onlineLectures: data.onlineLectures || null,
+      imageUrl: data.imageUrl || null,
     },
   });
 
@@ -299,6 +304,53 @@ export async function resetCheckDateForAll(key: CheckDateKey) {
     data: { [key]: null },
   });
   revalidatePath("/attendance");
+}
+
+// ── 학년 일괄 승급 (dry-run 프리뷰 → 확인 후 적용) ──────────────
+
+export interface GradePromotionPreviewRow {
+  studentId: string;
+  name: string;
+  before: string;
+  after: string;
+  action: PromotionAction;
+}
+
+export async function previewGradePromotion(): Promise<GradePromotionPreviewRow[]> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
+
+  const students = await prisma.student.findMany({
+    where: { status: "ACTIVE" },
+    select: { id: true, name: true, grade: true },
+    orderBy: { name: "asc" },
+  });
+
+  return students.map((s) => {
+    const { after, action } = promoteGrade(s.grade);
+    return { studentId: s.id, name: s.name, before: s.grade, after, action };
+  });
+}
+
+export async function applyGradePromotion(changes: { studentId: string; after: string }[]) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireFullAccess(session.user.role);
+
+  if (changes.length === 0) return { updated: 0 };
+
+  await prisma.$transaction(
+    changes.map((c) =>
+      prisma.student.update({
+        where: { id: c.studentId },
+        data: { grade: c.after },
+      })
+    )
+  );
+
+  revalidatePath("/students");
+  return { updated: changes.length };
 }
 
 export async function getStudents() {
