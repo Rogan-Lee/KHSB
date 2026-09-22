@@ -4,6 +4,20 @@
 
 export const PATROL_QR_PREFIX = "KHSB-STU:";
 
+/**
+ * 좌석 번호 정렬 비교기 — 숫자 인식(numeric)이라 "2" < "10" 이 올바로 정렬된다.
+ * (DB orderBy 는 문자열 정렬이라 "10" < "2" 가 되므로 fetch 후 이걸로 재정렬할 것)
+ */
+export function compareSeat(
+  a: { seat: string | null; name: string },
+  b: { seat: string | null; name: string },
+): number {
+  return (
+    (a.seat ?? "").localeCompare(b.seat ?? "", "ko", { numeric: true }) ||
+    a.name.localeCompare(b.name, "ko")
+  );
+}
+
 /** 학생 id → 좌석 QR 페이로드 문자열. */
 export function encodeStudentQr(studentId: string): string {
   return `${PATROL_QR_PREFIX}${studentId}`;
