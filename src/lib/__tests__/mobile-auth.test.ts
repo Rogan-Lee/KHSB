@@ -3,8 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/auth", () => ({
   getAuthIdentity: vi.fn(),
 }));
+vi.mock("@/lib/prisma", () => ({
+  prisma: { parentLink: { count: vi.fn() } },
+}));
 
 import { getAuthIdentity } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import {
   MobileApiError,
   requireMobileAccount,
@@ -45,6 +49,27 @@ describe("mobile auth guards", () => {
       authUserId: "auth-1",
       student: { id: "student-1" },
     });
+  });
+
+  it("allows a parent account (ParentLink only) and rejects orphan accounts", async () => {
+    vi.mocked(getAuthIdentity).mockResolvedValue({
+      identity: { appUser: null, id: "auth-parent", student: null },
+    } as never);
+
+    vi.mocked(prisma.parentLink.count).mockResolvedValueOnce(1);
+    await expect(requireMobileAccount(request)).resolves.toMatchObject({
+      appUser: null,
+      authUserId: "auth-parent",
+      student: null,
+    });
+
+    vi.mocked(prisma.parentLink.count).mockResolvedValueOnce(0);
+    await expect(requireMobileAccount(request)).rejects.toEqual(
+      expect.objectContaining<Partial<MobileApiError>>({
+        message: "사용할 수 없는 계정입니다",
+        status: 403,
+      }),
+    );
   });
 
   it("allows offline staff and rejects online-only roles", async () => {
