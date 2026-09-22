@@ -17,6 +17,7 @@ import {
   ActionRow,
   Badge,
   Card,
+  Columns,
   ErrorState,
   HubGrid,
   HubTile,
@@ -55,6 +56,8 @@ export default function StaffHomeScreen() {
             <StatCard caption="오늘 멘토링" tone="violet" value={`${data.stats.todayMentoring}`} />
           </View>
 
+          <Columns>
+          <View style={styles.colSection}>
           <SectionTitle>업무 바로가기</SectionTitle>
           <HubGrid>
             <HubTile
@@ -117,7 +120,9 @@ export default function StaffHomeScreen() {
               onPress={() => router.push('/more')}
             />
           </HubGrid>
+          </View>
 
+          <View style={styles.colSection}>
           <SectionTitle
             action={
               data.priorities.lateStudents + data.priorities.openQuestions > 0 ? (
@@ -145,6 +150,8 @@ export default function StaffHomeScreen() {
               tone={data.priorities.openQuestions > 0 ? 'warning' : 'primary'}
             />
           </Card>
+          </View>
+          </Columns>
         </>
       ) : null}
     </AppScreen>
@@ -153,5 +160,6 @@ export default function StaffHomeScreen() {
 
 const styles = StyleSheet.create({
   stats: { flexDirection: 'row', gap: spacing.sm },
+  colSection: { gap: spacing.lg },
   divider: { height: 1, backgroundColor: colors.lineAlt, marginLeft: 64 },
 });

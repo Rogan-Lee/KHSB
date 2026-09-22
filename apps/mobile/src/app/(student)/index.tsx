@@ -21,6 +21,7 @@ import {
   Badge,
   Banner,
   Card,
+  Columns,
   Divider,
   Dot,
   EmptyState,
@@ -119,26 +120,8 @@ function Content({ data }: { data: StudentOverviewResponse }) {
     <>
       <Banner icon={LockKeyhole} text="매직링크로 로그인 없이 이용 중" right="안전" tone="primary" />
 
-      <Card>
-        <Text style={styles.cardLabel}>오늘 할 일</Text>
-        {todos.length ? (
-          todos.map((t, i) => (
-            <View key={t.key}>
-              {i > 0 ? <Divider style={styles.tightDivider} /> : <View style={{ height: 11 }} />}
-              <View style={styles.todoRow}>
-                <Dot color={t.dot} />
-                <Text style={styles.todoLabel} numberOfLines={1}>
-                  {t.label}
-                </Text>
-                <Badge tone={t.badge.tone}>{t.badge.text}</Badge>
-              </View>
-            </View>
-          ))
-        ) : (
-          <Text style={styles.empty}>오늘 처리할 항목이 없어요. 잘하고 있어요 👏</Text>
-        )}
-      </Card>
-
+      <Columns>
+      <View style={styles.colSection}>
       <SectionTitle>빠른 메뉴</SectionTitle>
       <HubGrid>
         <HubTile icon={BookMarked} label="과제" tone="warning" badge={stats.openTasks}
@@ -160,6 +143,28 @@ function Content({ data }: { data: StudentOverviewResponse }) {
         <HubTile icon={UserRound} label="내 정보" tone="neutral"
           onPress={() => router.push(MORE_ROUTE)} />
       </HubGrid>
+      </View>
+
+      <View style={styles.colSection}>
+      <Card>
+        <Text style={styles.cardLabel}>오늘 할 일</Text>
+        {todos.length ? (
+          todos.map((t, i) => (
+            <View key={t.key}>
+              {i > 0 ? <Divider style={styles.tightDivider} /> : <View style={{ height: 11 }} />}
+              <View style={styles.todoRow}>
+                <Dot color={t.dot} />
+                <Text style={styles.todoLabel} numberOfLines={1}>
+                  {t.label}
+                </Text>
+                <Badge tone={t.badge.tone}>{t.badge.text}</Badge>
+              </View>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.empty}>오늘 처리할 항목이 없어요. 잘하고 있어요 👏</Text>
+        )}
+      </Card>
 
       <SectionTitle>다가오는 멘토링</SectionTitle>
       {nextSession ? (
@@ -200,12 +205,15 @@ function Content({ data }: { data: StudentOverviewResponse }) {
           />
         </Pressable>
       ) : null}
+      </View>
+      </Columns>
     </>
   );
 }
 
 const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', gap: 8 },
+  colSection: { gap: spacing.lg },
   iconBtn: {
     width: 42,
     height: 42,
