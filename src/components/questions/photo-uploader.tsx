@@ -7,6 +7,37 @@ import type { QuestionAttachment } from "@/actions/student-questions";
 
 const ALLOWED_EXT = /\.(pdf|png|jpe?g|webp|gif|heic|heif)$/i;
 
+// Vercel serverless 요청 body 한도(4.5MB)에 걸리지 않도록 업로드 전 클라에서 축소.
+// (서버 라우트의 50MB 허용은 Vercel 앞단에서 무의미 — 근본 해결은 blob client upload로 예정)
+const VERCEL_BODY_LIMIT_BYTES = 4 * 1024 * 1024; // 여유분 두고 4MB
+const RESIZE_MAX_SIDE = 2048;
+
+/** 이미지를 canvas 로 장변 2048px / JPEG 0.85 로 축소. 디코드 불가(heic 등)면 원본 반환. */
+async function compressImage(file: File): Promise<File> {
+  if (!file.type.startsWith("image/") || file.type === "image/gif") return file;
+  const isHeic = file.type === "image/heic" || file.type === "image/heif";
+  // 이미 충분히 작으면 재인코딩으로 화질만 깎지 않는다 (heic 은 표시 호환 위해 항상 변환 시도)
+  if (file.size <= VERCEL_BODY_LIMIT_BYTES && !isHeic) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, RESIZE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.85)
+    );
+    if (!blob) return file;
+    const name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], name, { type: "image/jpeg" });
+  } catch {
+    // heic 등 브라우저가 디코드 못 하는 포맷 — 원본 그대로 (아래 크기 검사에서 안내)
+    return file;
+  }
+}
+
 /**
  * 질문/답변용 사진(+PDF) 첨부 업로더. 컨트롤드 컴포넌트.
  * /api/online/upload 의 context=question 으로 업로드.
@@ -52,8 +83,14 @@ export function PhotoUploader({
       }
       setUploadingCount((c) => c + 1);
       try {
+        const upload = await compressImage(file);
+        if (upload.size > VERCEL_BODY_LIMIT_BYTES) {
+          throw new Error(
+            `${file.name}: 파일이 너무 커요 (${(upload.size / 1024 / 1024).toFixed(1)}MB). 4MB 이하로 줄여서 올려주세요`
+          );
+        }
         const fd = new FormData();
-        fd.append("file", file);
+        fd.append("file", upload);
         fd.append("context", "question");
         if (studentToken) fd.append("studentToken", studentToken);
         const res = await fetch("/api/online/upload", { method: "POST", body: fd });
