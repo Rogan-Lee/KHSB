@@ -12,9 +12,12 @@ import {
   StudyHoursChart,
   SubjectTrendChart,
   SubjectTable,
+  DailyStayLineChart,
+  WeekdayStayBarChart,
 } from "./analytics-charts";
 import { cn } from "@/lib/utils";
 import type { OverallAnalytics, StudentAnalytics } from "@/actions/analytics";
+import type { AttendanceTimeStats } from "@/lib/attendance-stats";
 
 function gradeColor(g: number) {
   if (g <= 2) return "text-emerald-700 bg-emerald-50";
@@ -23,11 +26,20 @@ function gradeColor(g: number) {
   return "text-red-700 bg-red-50";
 }
 
-export function AnalyticsDashboard({ data }: { data: OverallAnalytics }) {
+export function AnalyticsDashboard({
+  data,
+  attendanceStats,
+}: {
+  data: OverallAnalytics;
+  attendanceStats: { d7: AttendanceTimeStats; d30: AttendanceTimeStats };
+}) {
   const [tab, setTab] = useState<"overview" | "individual">("overview");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [comboOpen, setComboOpen] = useState(false);
+  const [rangeDays, setRangeDays] = useState<7 | 30>(30);
+
+  const stayStats = rangeDays === 7 ? attendanceStats.d7 : attendanceStats.d30;
 
   const studentsWithScores = useMemo(
     () => data.students.filter((s) => s.subjects.length > 0),
@@ -207,6 +219,56 @@ export function AnalyticsDashboard({ data }: { data: OverallAnalytics }) {
                 </div>
               </CardContent>
             </Card>
+          </div>
+
+          {/* 등원 시간 통계 — 기간 토글 + 카드 2개 */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold tracking-tight">등원 시간 통계</h3>
+              <div className="flex gap-1">
+                {([7, 30] as const).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setRangeDays(d)}
+                    className={cn(
+                      "px-3 py-1 text-xs font-medium rounded-full border transition-colors",
+                      rangeDays === d
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    최근 {d}일
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center gap-2 pb-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-base">일별 평균 재원시간</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-[11px] text-muted-foreground mb-3">
+                    완료된 출퇴실 기록 기준 · 외출 시간 차감
+                  </p>
+                  <DailyStayLineChart data={stayStats.daily} />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center gap-2 pb-2">
+                  <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="text-base">요일별 평균 재원시간</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-[11px] text-muted-foreground mb-3">
+                    막대에 마우스를 올리면 평균 입실 시각 표시
+                  </p>
+                  <WeekdayStayBarChart data={stayStats.weekday} />
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
           {/* 개인별 상세 테이블 — 현재 등급 포함 */}
