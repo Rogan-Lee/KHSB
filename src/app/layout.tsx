@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { Toaster } from "@/components/ui/sonner";
+import { AppToaster } from "@/components/app-toaster";
 import { KakaoSdkLoader } from "@/components/kakao-sdk-loader";
 import { Analytics } from "@vercel/analytics/react";
 
@@ -40,7 +40,7 @@ export default function RootLayout({
     <html lang="ko" suppressHydrationWarning>
       <body className="antialiased">
         {children}
-        <Toaster richColors position="top-right" />
+        <AppToaster />
         <KakaoSdkLoader />
         <Analytics />
       </body>
