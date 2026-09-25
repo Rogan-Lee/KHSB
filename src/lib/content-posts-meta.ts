@@ -35,15 +35,15 @@ export function contentTypeLabel(type: string): string {
 }
 
 export type AuthorPreset = {
-  /** mentors-data.js 의 MENTORS id 또는 "director" — 정적 사이트가 mentor.html?id= 프로필 링크에 사용 */
+  /** landing/mentors-data.js 의 MENTORS id 또는 "director" — 정적 사이트가 mentor.html?id= 프로필 링크에 사용 */
   key: string;
   name: string;
   role: string;
   group: "운영진" | "선배 멘토" | "관리팀";
 };
 
-// 루트의 mentors-data.js (정적 사이트 MENTORS · MENTOR_ORDER · STAFF_LEADERSHIP · STAFF_TEAM) 기준.
-// 멘토진이 바뀌면 여기와 mentors-data.js 를 함께 수정한다. key 는 반드시 mentors-data.js id 와 동일해야 함.
+// landing/mentors-data.js (정적 랜딩 MENTORS · MENTOR_ORDER · STAFF_LEADERSHIP · STAFF_TEAM) 기준.
+// 멘토진이 바뀌면 여기와 landing/mentors-data.js 를 함께 수정한다. key 는 반드시 mentors-data.js id 와 동일해야 함.
 export const AUTHOR_PRESETS: readonly AuthorPreset[] = [
   { key: "director", name: "강한지", role: "대표원장", group: "운영진" },
   { key: "jihoon", name: "정지훈", role: "전체 총괄", group: "운영진" },
