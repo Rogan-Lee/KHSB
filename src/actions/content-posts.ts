@@ -17,7 +17,7 @@ export type ContentPostInput = {
   body?: string;
   authorName?: string;
   authorRole?: string;
-  /** mentors-data.js 멘토 id 또는 "director" — 직접 입력이면 비움 */
+  /** landing/mentors-data.js 멘토 id 또는 "director" — 직접 입력이면 비움 */
   authorKey?: string;
   coverImageUrl?: string;
   /** "YYYY-MM-DD" (KST) */
