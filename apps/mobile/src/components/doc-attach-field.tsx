@@ -1,124 +1,174 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { FileText, Paperclip, X } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { colors, palette, radius, spacing, type } from '@/constants/theme';
+import { Button, IconTile, Press, Text, color, radius, space, toast } from '@/design';
+import { formatBytes } from '@/features/student-comm/format';
 import { MobileAttachment, uploadMobileQuestionFile } from '@/lib/mobile-api';
 
-function formatSize(bytes: number) {
-  if (!bytes) return '';
-  if (bytes < 1024) return `${bytes}B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
-}
-
-/** 문서 첨부(PDF/HWP/DOC/PPT/XLSX 등) — 선택 즉시 업로드하고 MobileAttachment 로 보관. */
+/**
+ * 문서 첨부(PDF·HWP·DOC·PPT·XLSX 등) — 고르는 즉시 업로드해 MobileAttachment 로 보관한다.
+ * SEED: 파일 행(아이콘·이름·크기·×) 목록 + [파일 추가] 버튼. 업로드 중엔 버튼이 로딩.
+ */
 export function DocAttachField({
   value,
   onChange,
   max = 5,
+  label = '파일 첨부',
+  indicator,
+  description,
+  disabled = false,
+  onUploadingChange,
 }: {
   value: MobileAttachment[];
   onChange: (next: MobileAttachment[]) => void;
   max?: number;
+  /** 위 라벨 (null 이면 숨김) */
+  label?: string | null;
+  /** 라벨 옆 보조 표시 (예: "선택") */
+  indicator?: string;
+  description?: string;
+  disabled?: boolean;
+  /** 업로드 중 여부 — 호출부가 제출 버튼을 잠글 때 */
+  onUploadingChange?: (uploading: boolean) => void;
 }) {
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState('');
+  const full = value.length >= max;
+
+  const setBusy = (busy: boolean) => {
+    setUploading(busy);
+    onUploadingChange?.(busy);
+  };
 
   async function pick() {
-    const res = await DocumentPicker.getDocumentAsync({
-      multiple: true,
-      copyToCacheDirectory: true,
-      type: '*/*',
-    });
-    if (res.canceled) return;
-    setError('');
-    setUploading(true);
-    try {
-      const uploaded = await Promise.all(
-        res.assets.map((a) =>
-          uploadMobileQuestionFile({
-            uri: a.uri,
-            name: a.name,
-            mimeType: a.mimeType ?? undefined,
-            file: a.file,
-          }),
-        ),
-      );
-      onChange([...value, ...uploaded].slice(0, max));
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '파일을 첨부하지 못했습니다.');
-    } finally {
-      setUploading(false);
+    if (full) {
+      toast(`파일은 ${max}개까지 첨부할 수 있어요`);
+      return;
     }
+    let res: DocumentPicker.DocumentPickerResult;
+    try {
+      res = await DocumentPicker.getDocumentAsync({
+        multiple: true,
+        copyToCacheDirectory: true,
+        type: '*/*',
+      });
+    } catch {
+      toast('파일을 불러오지 못했어요', 'error');
+      return;
+    }
+    if (res.canceled) return;
+    const room = max - value.length;
+    const picked = res.assets.slice(0, room);
+    if (picked.length < res.assets.length) toast(`파일은 ${max}개까지라 ${picked.length}개만 넣었어요`);
+
+    setBusy(true);
+    const results = await Promise.allSettled(
+      picked.map((a) =>
+        uploadMobileQuestionFile({
+          uri: a.uri,
+          name: a.name,
+          mimeType: a.mimeType ?? undefined,
+          file: a.file,
+        })
+      )
+    );
+    setBusy(false);
+    const uploaded = results
+      .filter((r): r is PromiseFulfilledResult<MobileAttachment> => r.status === 'fulfilled')
+      .map(({ value: up }) => ({ mimeType: up.mimeType, name: up.name, sizeBytes: up.sizeBytes, url: up.url }));
+    const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+    if (failed) {
+      toast(
+        failed.reason instanceof Error && failed.reason.message
+          ? failed.reason.message
+          : '파일을 첨부하지 못했어요',
+        'error'
+      );
+    }
+    if (uploaded.length > 0) onChange([...value, ...uploaded].slice(0, max));
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.labelRow}>
-        <Text style={styles.label}>파일 첨부</Text>
-        <Text style={styles.count}>
-          {value.length}/{max}
-        </Text>
-      </View>
-      <Pressable
-        disabled={uploading || value.length >= max}
-        onPress={() => void pick()}
-        style={({ pressed }) => [styles.pickBtn, pressed && { opacity: 0.7 }]}>
-        <Paperclip color={palette.blue50} size={16} />
-        <Text style={styles.pickText}>
-          {uploading ? '업로드 중…' : 'PDF·HWP·PPT·XLSX 등 첨부'}
-        </Text>
-      </Pressable>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+    <View style={{ gap: space.x2 }}>
+      {label != null && (
+        <View style={s.labelRow}>
+          <Text variant="t5-medium" style={{ flex: 1 }}>
+            {label}
+            {indicator != null && (
+              <Text variant="t4-regular" color="neutralSubtle">
+                {'  '}
+                {indicator}
+              </Text>
+            )}
+          </Text>
+          {value.length > 0 && (
+            <Text variant="t3-regular" color="neutralSubtle" tabular>
+              {value.length}/{max}
+            </Text>
+          )}
+        </View>
+      )}
+
       {value.map((att, i) => (
-        <View key={`${att.url}-${i}`} style={styles.chip}>
-          <FileText color={palette.blue50} size={16} />
-          <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={styles.name}>
+        <View key={`${att.url}-${i}`} style={s.file}>
+          <IconTile icon={FileText} tone="gray" size={40} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text variant="t4-medium" numberOfLines={1}>
               {att.name}
             </Text>
-            <Text style={styles.meta}>{formatSize(att.sizeBytes)}</Text>
+            {att.sizeBytes ? (
+              <Text variant="t3-regular" color="neutralSubtle" tabular>
+                {formatBytes(att.sizeBytes)}
+              </Text>
+            ) : null}
           </View>
-          <Pressable
-            hitSlop={8}
-            onPress={() => onChange(value.filter((_, j) => j !== i))}>
-            <X color={colors.textAssistive} size={15} />
-          </Pressable>
+          {!disabled && (
+            <Press
+              onPress={() => onChange(value.filter((_, j) => j !== i))}
+              scale={0}
+              pressedBg
+              hitSlop={4}
+              accessibilityLabel={`${att.name} 빼기`}
+              style={s.remove}>
+              <X color={color.fg.neutralSubtle} size={18} strokeWidth={2.2} />
+            </Press>
+          )}
         </View>
       ))}
+
+      <Button
+        variant="weak"
+        size="md"
+        icon={Paperclip}
+        loading={uploading}
+        disabled={disabled || full}
+        onPress={() => void pick()}
+        accessibilityLabel="파일 추가"
+        style={{ alignSelf: 'flex-start' }}>
+        파일 추가
+      </Button>
+
+      {description != null && (
+        <Text variant="t3-regular" color="neutralSubtle">
+          {description}
+        </Text>
+      )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { gap: 8 },
-  labelRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  label: { ...type.label2, color: colors.textNormal },
-  count: { ...type.caption2, color: colors.textAssistive },
-  pickBtn: {
-    alignItems: 'center',
-    borderColor: colors.lineStrong,
-    borderRadius: radius.lg,
-    borderStyle: 'dashed',
-    borderWidth: 1,
+const s = StyleSheet.create({
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: space.x2 },
+  file: {
     flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'center',
-    paddingVertical: 12,
-  },
-  pickText: { ...type.label2, color: palette.blue50 },
-  error: { ...type.caption1, color: palette.red50 },
-  chip: {
     alignItems: 'center',
-    backgroundColor: palette.blue5,
-    borderRadius: radius.lg,
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    gap: space.x3,
+    paddingLeft: space.x3,
+    paddingRight: space.x1,
+    paddingVertical: space.x2_5,
+    borderRadius: radius.r3,
+    backgroundColor: color.bg.layerFill,
   },
-  name: { ...type.caption1, color: colors.textNormal, fontWeight: '700' },
-  meta: { ...type.caption2, color: colors.textAssistive, marginTop: 1 },
+  remove: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
 });

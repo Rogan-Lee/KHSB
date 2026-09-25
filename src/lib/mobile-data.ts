@@ -2,11 +2,15 @@ import type {
   AttendanceType,
   MentoringStatus,
   PerformanceTaskStatus,
+  Prisma,
   Role,
 } from "@/generated/prisma";
 
+import { getAttentionStudents, type AttentionSeverity } from "@/lib/attention";
 import { MobileApiError } from "@/lib/mobile-auth";
+import { compareSeat } from "@/lib/patrol";
 import { prisma } from "@/lib/prisma";
+import { offlineStudentWhere } from "@/lib/student-filters";
 
 const ABSENT_TYPES = new Set<AttendanceType>([
   "ABSENT",
@@ -267,57 +271,105 @@ function resolveOutingStatus(
   return "예정";
 }
 
-export async function getStaffMobileAttendance(now = new Date()) {
+type KstDayContext = ReturnType<typeof getKstDayContext>;
+
+/** 입퇴실 항목 계산에 필요한 학생 필드 (목록·상세 공용) */
+function attendanceStudentSelect(context: KstDayContext) {
+  return {
+    attendances: {
+      where: { date: context.date },
+      take: 1,
+      select: {
+        checkIn: true,
+        checkOut: true,
+        outEnd: true,
+        outStart: true,
+        type: true,
+        notes: true,
+      },
+    },
+    attentionFlag: true,
+    attentionReason: true,
+    dailyNote: true,
+    dailyNoteDate: true,
+    grade: true,
+    id: true,
+    name: true,
+    parentPhone: true,
+    phone: true,
+    school: true,
+    schedules: {
+      where: { dayOfWeek: context.dayOfWeek },
+      orderBy: { startTime: "asc" },
+      take: 1,
+      select: { startTime: true, endTime: true },
+    },
+    // 정기 외출 예정 (요일 기준) — 당일 기록이 없을 때 fallback
+    outings: {
+      where: { dayOfWeek: context.dayOfWeek },
+      orderBy: { outStart: "asc" },
+      select: { outStart: true, outEnd: true, reason: true },
+    },
+    // 당일 외출 (실제/예정 placeholder, 다중)
+    dailyOutings: {
+      where: { date: context.date },
+      orderBy: { sequence: "asc" },
+      select: {
+        id: true,
+        sequence: true,
+        outStart: true,
+        outEnd: true,
+        reason: true,
+        isPlaceholder: true,
+      },
+    },
+    seat: true,
+    // 확인 안 한 학부모 요청 수
+    _count: {
+      select: {
+        communications: { where: { type: "PARENT_REQUEST", isChecked: false } },
+      },
+    },
+  } satisfies Prisma.StudentSelect;
+}
+
+/** 유의 관찰 표시 (수동 플래그 + 자동 신호) */
+export type MobileAttention = {
+  severity: AttentionSeverity;
+  manual: boolean;
+  reasons: string[];
+};
+
+/** 학생 id → 유의 관찰 (자동 신호 포함). rosterStudentIds 로 범위 제한 가능 */
+export async function loadAttentionMap(rosterStudentIds?: string[]) {
+  const list = await getAttentionStudents(
+    rosterStudentIds ? { rosterStudentIds } : undefined,
+  );
+  return new Map<string, MobileAttention>(
+    list.map((a) => [
+      a.studentId,
+      {
+        severity: a.severity,
+        manual: a.isManual,
+        reasons: a.reasons.map((r) => r.label),
+      },
+    ]),
+  );
+}
+
+/** 학생 조건(where)에 맞는 오늘 입퇴실 항목 — 좌석순 */
+async function loadAttendanceItems(
+  where: Prisma.StudentWhereInput,
+  now: Date,
+  attentionById?: Map<string, MobileAttention>,
+) {
   const context = getKstDayContext(now);
   const students = await prisma.student.findMany({
-    where: { status: "ACTIVE" },
-    orderBy: { name: "asc" },
-    select: {
-      attendances: {
-        where: { date: context.date },
-        take: 1,
-        select: {
-          checkIn: true,
-          checkOut: true,
-          outEnd: true,
-          outStart: true,
-          type: true,
-          notes: true,
-        },
-      },
-      grade: true,
-      id: true,
-      name: true,
-      schedules: {
-        where: { dayOfWeek: context.dayOfWeek },
-        orderBy: { startTime: "asc" },
-        take: 1,
-        select: { startTime: true, endTime: true },
-      },
-      // 정기 외출 예정 (요일 기준) — 당일 기록이 없을 때 fallback
-      outings: {
-        where: { dayOfWeek: context.dayOfWeek },
-        orderBy: { outStart: "asc" },
-        select: { outStart: true, outEnd: true, reason: true },
-      },
-      // 당일 외출 (실제/예정 placeholder, 다중)
-      dailyOutings: {
-        where: { date: context.date },
-        orderBy: { sequence: "asc" },
-        select: {
-          id: true,
-          sequence: true,
-          outStart: true,
-          outEnd: true,
-          reason: true,
-          isPlaceholder: true,
-        },
-      },
-      seat: true,
-    },
+    where,
+    select: attendanceStudentSelect(context),
   });
 
-  const items = students.map((student) => {
+  return students.sort(compareSeat).map((student) => {
     const attendance = student.attendances[0];
     const schedule = student.schedules[0] ?? null;
     const scheduleStart = schedule?.startTime ?? null;
@@ -360,11 +412,30 @@ export async function getStaffMobileAttendance(now = new Date()) {
           : formatKstTime(attendance?.checkIn ?? null);
     const isLate = isAttendanceLate(status, scheduleStart, context.nowTime);
 
+    // 유의 관찰: 자동 신호 맵이 있으면 그걸 쓰고, 없으면 수동 플래그만
+    const attention: MobileAttention | null = attentionById
+      ? (attentionById.get(student.id) ?? null)
+      : student.attentionFlag
+        ? {
+            severity: "medium",
+            manual: true,
+            reasons: [student.attentionReason?.trim() || "수동 지정"],
+          }
+        : null;
+
+    const dailyNote =
+      student.dailyNote &&
+      student.dailyNoteDate?.toISOString().slice(0, 10) === context.dateKey
+        ? student.dailyNote
+        : null;
+
     return {
       attendanceType: attendance?.type ?? null,
+      attention,
       // 실제 기록 시각 (HH:MM, KST) — 시트에서 직접 수정용 prefill
       checkIn: formatKstTime(attendance?.checkIn ?? null),
       checkOut: formatKstTime(attendance?.checkOut ?? null),
+      dailyNote,
       outStart: formatKstTime(attendance?.outStart ?? null),
       outEnd: formatKstTime(attendance?.outEnd ?? null),
       grade: student.grade,
@@ -374,13 +445,38 @@ export async function getStaffMobileAttendance(now = new Date()) {
       note: attendance?.notes ?? null,
       outingActive,
       outings,
+      parentPhone: student.parentPhone || null,
+      phone: student.phone,
       scheduleEnd,
       scheduleStart,
+      school: student.school,
       seat: student.seat,
       status,
       time: eventTime,
+      unreadRequests: student._count.communications,
     };
   });
+}
+
+export type StaffMobileAttendanceItem = Awaited<
+  ReturnType<typeof loadAttendanceItems>
+>[number];
+
+/**
+ * 오늘 입퇴실 현황 — 오프라인 자습실 ACTIVE 학생만(웹 /attendance 와 동일, 온라인 관리 학생 제외).
+ * withAttention=true 면 자동 유의 신호(과제·결석·지각·벌점·학부모 요청)까지 붙인다.
+ */
+export async function getStaffMobileAttendance(
+  now = new Date(),
+  opts: { withAttention?: boolean } = {},
+) {
+  const context = getKstDayContext(now);
+  const attentionById = opts.withAttention ? await loadAttentionMap() : undefined;
+  const items = await loadAttendanceItems(
+    offlineStudentWhere({ status: "ACTIVE" }),
+    now,
+    attentionById,
+  );
 
   return {
     date: context.dateKey,
@@ -388,15 +484,33 @@ export async function getStaffMobileAttendance(now = new Date()) {
     summary: {
       absent: items.filter((item) => item.status === "결석").length,
       away: items.filter((item) => item.status === "외출").length,
+      checkedOut: items.filter((item) => item.status === "퇴실").length,
+      inRoom: items.filter((item) => item.status === "입실").length,
       late: items.filter((item) => item.isLate).length,
+      notArrived: items.filter((item) => item.status === "미입실").length,
       outing: items.filter((item) => item.outingActive).length,
       present: items.filter((item) =>
         ["입실", "외출"].includes(item.status),
       ).length,
       total: items.length,
+      unreadRequests: items.reduce((sum, item) => sum + item.unreadRequests, 0),
       withNote: items.filter((item) => !!item.note).length,
     },
   };
+}
+
+/** 학생 1명의 오늘 입퇴실 항목 (ACTIVE 가 아니면 null) */
+export async function getStaffMobileAttendanceItem(
+  studentId: string,
+  now = new Date(),
+  attentionById?: Map<string, MobileAttention>,
+) {
+  const [item] = await loadAttendanceItems(
+    { id: studentId, status: "ACTIVE" },
+    now,
+    attentionById,
+  );
+  return item ?? null;
 }
 
 function mentoringOwnerWhere(userId: string, role: Role) {

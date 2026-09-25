@@ -7,6 +7,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AttendanceType } from "@/generated/prisma";
 import { todayKST } from "@/lib/utils";
+import {
+  queueParentAttendancePush,
+  queueParentAttendanceTransitionPush,
+} from "@/lib/mobile-push";
 
 const recordSchema = z.object({
   studentId: z.string(),
@@ -100,7 +104,7 @@ export async function saveAttendanceRecord(data: {
     return new Date(`${dateStr}T${timeStr}:00+09:00`);
   }
 
-  let targetDate = data.date;
+  const targetDate = data.date;
 
   // 자정 이후 퇴실 처리: 오늘 checkIn이 없고, 퇴실만 입력 중이면
   // 어제 레코드에 퇴실을 기록
@@ -127,11 +131,22 @@ export async function saveAttendanceRecord(data: {
           checkOut: toDateTime(yesterdayStr, data.checkOut),
         },
       });
+      // 학부모 앱 퇴실 알림 (fire-and-forget)
+      queueParentAttendanceTransitionPush(data.studentId, yesterdayRecord, {
+        checkIn: yesterdayRecord.checkIn,
+        checkOut: toDateTime(yesterdayStr, data.checkOut),
+      });
       revalidatePath("/attendance");
       revalidatePath(`/students/${data.studentId}`);
       return;
     }
   }
+
+  // 학부모 앱 입실/퇴실 알림용 — 저장 전 상태 (새로 생긴 입실·퇴실만 알린다)
+  const before = await prisma.attendanceRecord.findUnique({
+    where: { studentId_date: { studentId: data.studentId, date: new Date(targetDate) } },
+    select: { checkIn: true, checkOut: true },
+  });
 
   await prisma.attendanceRecord.upsert({
     where: {
@@ -154,6 +169,11 @@ export async function saveAttendanceRecord(data: {
       type: data.type,
       notes: data.notes || null,
     },
+  });
+
+  queueParentAttendanceTransitionPush(data.studentId, before, {
+    checkIn: toDateTime(targetDate, data.checkIn),
+    checkOut: toDateTime(targetDate, data.checkOut),
   });
 
   revalidatePath("/attendance");
@@ -313,6 +333,10 @@ export async function createDailyOuting(data: {
       reason: data.reason ?? null,
     },
   });
+  // 학부모 앱 외출 알림 (진행 중 외출이 새로 시작된 경우만)
+  if (record.outStart && !record.outEnd) {
+    queueParentAttendancePush(record.studentId, "OUTING", record.outStart);
+  }
 
   revalidatePath("/attendance");
   return record;
@@ -327,7 +351,12 @@ export async function updateDailyOuting(id: string, data: {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  await prisma.dailyOuting.update({
+  const before = await prisma.dailyOuting.findUnique({
+    where: { id },
+    select: { studentId: true, outEnd: true },
+  });
+
+  const updated = await prisma.dailyOuting.update({
     where: { id },
     data: {
       outStart: data.outStart ? toDateTimeLocal(data.date, data.outStart) : null,
@@ -335,6 +364,10 @@ export async function updateDailyOuting(id: string, data: {
       reason: data.reason ?? null,
     },
   });
+  // 학부모 앱 복귀 알림 (외출 중 → 복귀 시각이 새로 기록된 경우만)
+  if (before && !before.outEnd && updated.outEnd) {
+    queueParentAttendancePush(updated.studentId, "RETURN", updated.outEnd);
+  }
 
   revalidatePath("/attendance");
 }

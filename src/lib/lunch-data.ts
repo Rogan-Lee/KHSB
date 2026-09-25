@@ -42,6 +42,9 @@ export type LunchFormData = {
   form: LunchFormProps;
 };
 
+/** 토큰을 뺀 도시락 폼 상태 — 학부모 앱(ParentLink 인증)도 같은 모양을 쓴다. */
+export type LunchStudentState = Omit<LunchFormProps, "token">;
+
 /**
  * 매직링크 토큰으로 학생을 식별하고 도시락 신청 폼에 필요한 데이터를 로드.
  * 학생 포털(`/s/[token]/lunch`)과 학부모 전용(`/meal/[token]`) 양쪽에서 공용.
@@ -50,7 +53,12 @@ export type LunchFormData = {
 export async function loadLunchFormData(token: string): Promise<LunchFormData | null> {
   const session = await validateMagicLink(token);
   if (!session) return null;
-  const studentId = session.student.id;
+  const state = await loadLunchStateForStudent(session.student.id);
+  return { studentName: session.student.name, form: { token, ...state } };
+}
+
+/** 학생 ID 기준 도시락 상태 로드 (인증은 호출 측 책임 — 매직링크 또는 학부모 앱 ParentLink). */
+export async function loadLunchStateForStudent(studentId: string): Promise<LunchStudentState> {
   const today = todayKST();
   const now = new Date();
 
@@ -90,31 +98,27 @@ export async function loadLunchFormData(token: string): Promise<LunchFormData | 
   };
 
   return {
-    studentName: session.student.name,
-    form: {
-      token,
-      menus: menus.map((m) => ({
-        id: m.id,
-        date: ymd(m.date),
-        name: m.name,
-        price: m.price,
-        locked: isLunchLocked(m.date, now),
-      })),
-      pendingMenuIds: pendingOrder ? pendingOrder.items.map((i) => i.menuId) : [],
-      pendingMemo: pendingOrder?.memo ?? "",
-      paidMenuIds: [...paidMenuIds],
-      pending: pendingOrder ? toState(pendingOrder) : null,
-      confirmed: confirmedOrder ? toState(confirmedOrder) : null,
-      changeRequests: changeRequests.map((c) => ({
-        id: c.id,
-        message: c.message,
-        reply: c.reply,
-        repliedByName: c.repliedByName,
-        createdAt: c.createdAt.toISOString(),
-        repliedAt: c.repliedAt?.toISOString() ?? null,
-      })),
-      bankInfo: setting?.bankInfo ?? null,
-      guideText: setting?.guideText ?? null,
-    },
+    menus: menus.map((m) => ({
+      id: m.id,
+      date: ymd(m.date),
+      name: m.name,
+      price: m.price,
+      locked: isLunchLocked(m.date, now),
+    })),
+    pendingMenuIds: pendingOrder ? pendingOrder.items.map((i) => i.menuId) : [],
+    pendingMemo: pendingOrder?.memo ?? "",
+    paidMenuIds: [...paidMenuIds],
+    pending: pendingOrder ? toState(pendingOrder) : null,
+    confirmed: confirmedOrder ? toState(confirmedOrder) : null,
+    changeRequests: changeRequests.map((c) => ({
+      id: c.id,
+      message: c.message,
+      reply: c.reply,
+      repliedByName: c.repliedByName,
+      createdAt: c.createdAt.toISOString(),
+      repliedAt: c.repliedAt?.toISOString() ?? null,
+    })),
+    bankInfo: setting?.bankInfo ?? null,
+    guideText: setting?.guideText ?? null,
   };
 }

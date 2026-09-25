@@ -17,6 +17,8 @@ const PUBLIC_ROUTE_ROOTS = [
   "/apply",
   "/api/auth",
   "/api/mobile/v1/auth",
+  // 학부모 앱 WebView 1회용 핸드오프 (nonce 로 자체 인증, 세션 쿠키 없음)
+  "/api/parent-handoff",
   "/api/webhooks",
   "/api/cron",
   "/api/public", // 외부 정적 랜딩이 비로그인으로 fetch 하는 공개 콘텐츠 피드

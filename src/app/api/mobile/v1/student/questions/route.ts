@@ -6,14 +6,16 @@ import {
   mobileJson,
   requireMobileStudent,
 } from "@/lib/mobile-auth";
-import { getStudentMobileQuestions } from "@/lib/mobile-data";
 import { notifyAssignedStaffOfQuestion } from "@/lib/mobile-push";
-import { createMobileStudentQuestion } from "@/lib/mobile-workflows";
+import {
+  listMobileStudentQuestions,
+  submitMobileStudentQuestion,
+} from "@/lib/mobile-student-questions";
 
 export async function GET(request: NextRequest) {
   try {
     const student = await requireMobileStudent(request);
-    return mobileJson(await getStudentMobileQuestions(student.id));
+    return mobileJson(await listMobileStudentQuestions(student.id));
   } catch (error) {
     return mobileApiErrorResponse(error);
   }
@@ -25,7 +27,7 @@ export async function POST(request: NextRequest) {
       requireMobileStudent(request),
       request.json(),
     ]);
-    const question = await createMobileStudentQuestion(
+    const question = await submitMobileStudentQuestion(
       { grade: student.grade, id: student.id, name: student.name },
       body,
     );

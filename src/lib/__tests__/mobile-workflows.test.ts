@@ -10,11 +10,12 @@ vi.mock("@/lib/prisma", () => ({
     },
     // 다회 외출(seq≥2) 기록 — 출결 흐름이 현재 외출 여부를 판단할 때 조회한다
     dailyOuting: {
-      findMany: vi.fn(),
+      aggregate: vi.fn(),
       create: vi.fn(),
+      deleteMany: vi.fn(),
+      findMany: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
-      deleteMany: vi.fn(),
     },
     mentoring: {
       findUnique: vi.fn(),
@@ -35,8 +36,10 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("@/lib/slack", () => ({ notifySlack: vi.fn() }));
+vi.mock("@/lib/mobile-push", () => ({ queueParentAttendancePush: vi.fn() }));
 
 import { prisma } from "@/lib/prisma";
+import { queueParentAttendancePush } from "@/lib/mobile-push";
 import {
   answerMobileStudentQuestion,
   completeMobileMentoring,
@@ -173,6 +176,7 @@ describe("mobile attendance workflows", () => {
         }),
       }),
     );
+    expect(queueParentAttendancePush).toHaveBeenCalledWith("student-1", "CHECK_IN", now);
   });
 
   it("rejects checkout before check-in", async () => {
@@ -192,6 +196,7 @@ describe("mobile attendance workflows", () => {
       message: "현재 상태에서는 퇴실 처리할 수 없습니다",
       status: 409,
     });
+    expect(queueParentAttendancePush).not.toHaveBeenCalled();
   });
 
   it("rejects starting another outing while already away", async () => {

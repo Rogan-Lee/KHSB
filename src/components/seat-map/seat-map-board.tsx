@@ -15,6 +15,18 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Notice, StatusBadge } from "@/components/backoffice/ui";
+import {
+  H_COL_66,
+  H_COL_A,
+  H_COL_DEFS,
+  H_COL_H,
+  H_CORNER_SEAT,
+  H_FACILITY_ROW,
+  K_BOTTOM_SEATS,
+  K_COL_DEFS,
+  K_COL_H,
+  TOTAL_SEATS,
+} from "@/lib/seat-layout";
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
 
@@ -25,9 +37,7 @@ const SEAT_H = 44;    // px
 const COLS_GAP = 16;   // 같은 구역 내 열 간격 px
 const SECTION_GAP = 32; // 구역 간 구분 간격 px (벽↔내부, 내부↔벽)
 
-// 열 고정 높이 (justify-between 으로 공간 자동 분배)
-const K_COL_H = 700;
-const H_COL_H = 630;
+// 열 고정 높이(K_COL_H·H_COL_H)와 열 정의는 @/lib/seat-layout (모바일 좌석 현황과 공유)
 
 
 // ─── 좌석 배정 모달 ──────────────────────────────────────────────────────────
@@ -308,15 +318,7 @@ function JustifiedColumn({ height, children }: { height: number; children: React
 // Col 6: [12, 13-25]           14 cells → gap ≈ 5px (좁음)
 // 모든 열 K_COL_H=700px 로 상하 정렬
 
-// K룸 열 정의: null = 빈칸(spacer)
-const K_COL_DEFS: (number | null)[][] = [
-  [null, 7, 6, 5, 4, 3, 2, 1],
-  [8, 47, 48, 49, 50, 51, 52, 53],
-  [9, 46, 45, 44, 43, 42, 41, 40],
-  [10, 33, 34, 35, 36, 37, 38, 39],
-  [11, 32, 31, 30, 29, 28, 27, 26],
-  [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-];
+// K룸 열 정의(K_COL_DEFS): @/lib/seat-layout
 
 function KRoom({
   seatMap,
@@ -368,7 +370,7 @@ function KRoom({
         <div style={{ width: SECTION_GAP, flexShrink: 0 }} />
         <FacilityBlock label="조교 테이블" h={40} flex={2} />
         <div style={{ width: SECTION_GAP, flexShrink: 0 }} />
-        {[87, 88, 89].map((n) => (
+        {K_BOTTOM_SEATS.map((n) => (
           <div key={n} style={{ flex: 1 }}>
             <SeatCell num={n} student={seatMap.get(String(n))} onClick={() => onSeatClick(n)} />
           </div>
@@ -380,18 +382,7 @@ function KRoom({
 
 // ─── H룸 ────────────────────────────────────────────────────────────────────
 
-// H룸 열 정의 — 66을 별도 열로 분리하여 계단형 구현
-//   row0: [_,  _,  sep, 67, 68, 69, 70, 71]
-//   row1: [_, 66,  sep,  _,  _,  _,  _,  _]
-//   row2: [65, _,  sep, 82, 81, 72,  _,  _]
-const H_COL_A: (number | null)[] = [null, null, 65, 64, 63, 62, 61, 60, 59, 58];
-const H_COL_66: (number | null)[] = [null, 66, null, null, null, null, null, null, null, null];
-const H_COL_DEFS: (number | null)[][] = [
-  [67, null, 82, 83, 84, 85, 86, null, null, 57],         // Col B
-  [68, null, 81, 80, 79, 78, 77, null, null, 56],          // Col C
-  [69, null, 72, 73, 74, 75, 76, null, null, 55],          // Col D
-  [70, null, null, null, null, null, null, null, null, 54], // Col E
-];
+// H룸 열 정의(H_COL_A · H_COL_66 · H_COL_DEFS) — 66을 별도 열로 분리한 계단형: @/lib/seat-layout
 
 // 룸별 좌석 번호 목록 — 탭의 배정 현황(배정/전체) 표시용. 배치 정의(위 상수)에서 그대로 뽑는다.
 const ROOM_SEATS: Record<"K" | "H", number[]> = {
@@ -424,7 +415,7 @@ function HRoom({
   );
 
   // 조교 테이블 Y 위치: row 8 of 10 items (justify-between)
-  const facilityY = Math.round(8 * (H_COL_H - SEAT_H) / 9);
+  const facilityY = Math.round(H_FACILITY_ROW * (H_COL_H - SEAT_H) / 9);
 
   return (
     <div>
@@ -444,7 +435,11 @@ function HRoom({
 
         {/* Col F: 71번 (상단 모서리) */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <SeatCell num={71} student={seatMap.get("71")} onClick={() => onSeatClick(71)} />
+          <SeatCell
+            num={H_CORNER_SEAT}
+            student={seatMap.get(String(H_CORNER_SEAT))}
+            onClick={() => onSeatClick(H_CORNER_SEAT)}
+          />
         </div>
 
         {/* 조교 테이블: row 8 위치, 우측 ColE+ColF 영역 */}
@@ -516,7 +511,7 @@ export function SeatMapBoard({ students }: { students: StudentInfo[] }) {
   }
 
   const occupiedCount = optimisticStudents.filter((s) => s.seat?.trim()).length;
-  const totalSeats = 89;
+  const totalSeats = TOTAL_SEATS;
 
   function handleAssign(studentId: string | null) {
     if (dialogSeat === null) return;

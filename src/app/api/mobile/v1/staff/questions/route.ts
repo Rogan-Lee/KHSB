@@ -5,12 +5,14 @@ import {
   mobileJson,
   requireMobileStaff,
 } from "@/lib/mobile-auth";
-import { getStaffMobileQuestions } from "@/lib/mobile-data";
+import { getMobileStaffQuestionInbox } from "@/lib/mobile-staff-questions";
 
+/** 직원 질문 받은함 — ?filter=waiting(기본)|mine|all */
 export async function GET(request: NextRequest) {
   try {
-    await requireMobileStaff(request);
-    return mobileJson(await getStaffMobileQuestions());
+    const user = await requireMobileStaff(request);
+    const filter = request.nextUrl.searchParams.get("filter");
+    return mobileJson(await getMobileStaffQuestionInbox(user.id, filter));
   } catch (error) {
     return mobileApiErrorResponse(error);
   }
