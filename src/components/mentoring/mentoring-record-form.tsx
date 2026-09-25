@@ -206,6 +206,22 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
     });
   }
 
+  // 리포트는 DB 에 저장된 기록으로 만들어지므로, 작성 중인 내용을 먼저 저장(화면 이동 없이)한 뒤 연다.
+  // 초안(sessionStorage)은 저장된 내용과 같으므로 지우지 않는다 — clearDraft 는 편집기를 초기 props 로 되돌림.
+  function handleOpenReport() {
+    startTransition(async () => {
+      try {
+        if (formRef.current) {
+          await updateMentoring(mentoring.id, new FormData(formRef.current));
+        }
+        router.refresh();
+        setReportDialogOpen(true);
+      } catch {
+        toast.error("저장에 실패했습니다");
+      }
+    });
+  }
+
   function handleSendFeedback() {
     startTransition(async () => {
       try {
@@ -316,15 +332,6 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setReportDialogOpen(true)}
-            >
-              <Link2 />
-              학부모 리포트
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
               onClick={handleSendFeedback}
               disabled={isPending || !parentEmail}
               title={!parentEmail ? "학부모 이메일이 등록되지 않았습니다" : ""}
@@ -344,8 +351,19 @@ export function MentoringRecordForm({ mentoring, studentName, parentEmail, previ
           </div>
 
           <div className="flex items-center gap-x2 [&>*]:flex-1 sm:[&>*]:flex-none">
-            <Button type="submit" variant={mentoring.status === "SCHEDULED" ? "outline" : "default"} disabled={isPending}>
+            <Button type="submit" variant="outline" disabled={isPending}>
               {isPending ? "저장 중…" : "저장"}
+            </Button>
+            {/* 예정 상태에선 완료 처리가, 그 외엔 리포트 생성이 이 바의 주 버튼 */}
+            <Button
+              type="button"
+              variant={mentoring.status === "SCHEDULED" ? "outline" : "default"}
+              disabled={isPending}
+              onClick={handleOpenReport}
+              title="작성한 내용을 저장한 뒤 학부모 리포트를 만들어요"
+            >
+              <Link2 />
+              리포트 생성
             </Button>
             {mentoring.status === "SCHEDULED" && (
               <Button
