@@ -7,13 +7,12 @@ import { requireStaff, requireFullAccess } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
 import { CATEGORY_LABELS } from "@/lib/suggestions";
+import { replyToStudentSuggestion, updateSuggestionStatus } from "@/lib/suggestion-handling";
 import type { SuggestionCategory, SuggestionStatus } from "@/generated/prisma/enums";
 
 const MAX_TITLE_LEN = 120;
 const MAX_CONTENT_LEN = 2000;
-const MAX_REPLY_LEN = 2000;
 const CATEGORIES: SuggestionCategory[] = ["FACILITY", "CLASS", "OPERATION", "ETC"];
-const STATUSES: SuggestionStatus[] = ["RECEIVED", "REVIEWING", "REFLECTED", "DECLINED"];
 
 export type SuggestionView = {
   id: string;
@@ -173,17 +172,11 @@ export async function getStudentSuggestions(params?: {
 export async function setSuggestionStatus(params: { id: string; status: SuggestionStatus }) {
   const session = await auth();
   requireStaff(session?.user?.role);
-  if (!STATUSES.includes(params.status)) throw new Error("상태값이 올바르지 않습니다");
 
-  await prisma.studentSuggestion.update({
-    where: { id: params.id },
-    data: {
-      status: params.status,
-      handledById: session!.user!.id,
-      handledByName: session!.user!.name ?? "",
-      handledAt: new Date(),
-      statusUpdatedAt: new Date(),
-    },
+  // 핵심 로직은 @/lib/suggestion-handling (모바일 직원 API 와 공용)
+  await updateSuggestionStatus(params.id, params.status, {
+    id: session!.user!.id,
+    name: session!.user!.name ?? null,
   });
   revalidatePath("/suggestions");
   revalidatePath("/");
@@ -195,21 +188,9 @@ export async function replyToSuggestion(params: { id: string; reply: string; sta
   const session = await auth();
   requireStaff(session?.user?.role);
 
-  const reply = params.reply.trim();
-  if (!reply) throw new Error("답변 내용을 입력해 주세요");
-  if (reply.length > MAX_REPLY_LEN) throw new Error(`답변은 ${MAX_REPLY_LEN}자 이하로 작성해 주세요`);
-  if (params.status && !STATUSES.includes(params.status)) throw new Error("상태값이 올바르지 않습니다");
-
-  await prisma.studentSuggestion.update({
-    where: { id: params.id },
-    data: {
-      staffReply: reply,
-      ...(params.status ? { status: params.status } : {}),
-      handledById: session!.user!.id,
-      handledByName: session!.user!.name ?? "",
-      handledAt: new Date(),
-      statusUpdatedAt: new Date(),
-    },
+  await replyToStudentSuggestion(params.id, params.reply, params.status, {
+    id: session!.user!.id,
+    name: session!.user!.name ?? null,
   });
   revalidatePath("/suggestions");
   revalidatePath("/");

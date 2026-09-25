@@ -10,6 +10,7 @@ import { mulberry32, newShuffleSeed, seededShuffle } from "@/lib/vocab-shuffle";
 import { issueMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
 import { vocabExpiresAt } from "@/lib/token-auth";
+import { assignVocabExam, reissueVocabAttemptLink } from "@/lib/vocab-admin-core";
 import type { VocabExamDirection } from "@/generated/prisma";
 
 const ADMIN_PATH = "/vocab-test";
@@ -301,29 +302,10 @@ export async function createVocabExam(input: CreateVocabExamInput) {
 
 export async function assignExamToStudents(examId: string, studentIds: string[]) {
   const user = await requireStaffSession();
-  const exam = await prisma.vocabExam.findUnique({ where: { id: examId }, select: { id: true, questionCount: true } });
-  if (!exam) throw new Error("시험을 찾을 수 없습니다");
-  // 이미 응시본이 있는 학생은 건너뜀
-  const existing = await prisma.vocabAttempt.findMany({
-    where: { examId, studentId: { in: studentIds } },
-    select: { studentId: true },
-  });
-  const skip = new Set(existing.map((e) => e.studentId));
-  const targets = studentIds.filter((id) => !skip.has(id));
-  for (const studentId of targets) {
-    await prisma.vocabAttempt.create({
-      data: {
-        examId,
-        studentId,
-        assignedById: user.id,
-        totalQuestions: exam.questionCount,
-        expiresAt: vocabExpiresAt(),
-        shuffleSeed: newShuffleSeed(),
-      },
-    });
-  }
+  // 이미 응시본이 있는 학생은 건너뜀 (핵심 로직: src/lib/vocab-admin-core.ts — 모바일 API 와 공용)
+  const result = await assignVocabExam({ examId, studentIds, assignedById: user.id });
   revalidatePath(ADMIN_PATH);
-  return { added: targets.length, skipped: skip.size };
+  return result;
 }
 
 export async function cancelVocabAttempt(attemptId: string) {
@@ -337,20 +319,8 @@ export async function cancelVocabAttempt(attemptId: string) {
 
 export async function reissueAttemptLink(attemptId: string) {
   await requireStaffSession();
-  const updated = await prisma.vocabAttempt.update({
-    where: { id: attemptId },
-    data: {
-      token: crypto.randomUUID(),
-      status: "ASSIGNED",
-      startedAt: null,
-      expiresAt: vocabExpiresAt(),
-      // 재발급은 새 시도이므로 새 시드 발급 → 순서도 새로
-      shuffleSeed: newShuffleSeed(),
-    },
-    select: { token: true },
-  });
-  // 기존 응시 문항 폐기 (재시작)
-  await prisma.vocabAttemptItem.deleteMany({ where: { attemptId } });
+  // 새 토큰·시드 + 기존 응시 문항 폐기 (핵심 로직: src/lib/vocab-admin-core.ts — 모바일 API 와 공용)
+  const updated = await reissueVocabAttemptLink(attemptId);
   revalidatePath(ADMIN_PATH);
   return updated.token;
 }

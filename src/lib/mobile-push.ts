@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { z } from "zod";
 
 import type {
@@ -422,6 +423,205 @@ export async function notifyStudentOfTaskFeedback(input: {
     category: "TASK",
     data: { taskId: submission.task.id, url: "/student-tasks" },
     title: "수행평가 피드백",
+  });
+}
+
+// ─── 학부모 알림 ─────────────────────────────────────────────────────
+// 자녀(studentId)와 ParentLink 로 연결된 학부모 계정의 기기로 보낸다. 카테고리 SYSTEM —
+// 기기 알림이 켜져(enabled) 있으면 받는다(학부모 전용 세부 토글은 스키마 컬럼이 없어 아직 없음).
+// 모든 진입점은 fire-and-forget: 실패해도 throw 하지 않고, 응답 뒤(after)에 실행해
+// 입퇴실·상벌점·리포트 같은 비즈니스 로직을 절대 막지 않는다.
+
+/** 학부모 앱 알림 탭 시 이동 경로 — 앱 src/lib/notifications.ts 허용 목록과 맞춘다. */
+export const PARENT_PUSH_ROUTES = {
+  home: "/(parent)/(tabs)",
+  reports: "/(parent)/(tabs)/reports",
+  schedule: "/(parent)/schedule",
+} as const;
+
+type ParentPushMessage = {
+  title: string;
+  body: string;
+  data: PushData & { url: string };
+};
+
+/** 자녀의 학부모들에게 푸시. 절대 throw 하지 않는다 (결과는 발송 수). */
+export async function notifyParentsOfStudent(
+  studentId: string,
+  message: ParentPushMessage,
+) {
+  try {
+    const links = await prisma.parentLink.findMany({
+      where: { studentId, student: { status: "ACTIVE" } },
+      select: { authUserId: true },
+    });
+    if (links.length === 0) return { sent: 0 };
+    return await safelySend({
+      authUserIds: links.map((link) => link.authUserId),
+      body: message.body,
+      category: "SYSTEM",
+      data: { ...message.data, audience: "parent", studentId },
+      title: message.title,
+    });
+  } catch (error) {
+    console.error("[mobile-push:parent]", error);
+    return { sent: 0 };
+  }
+}
+
+/** 응답을 보낸 뒤 실행 (Vercel waitUntil). 요청 스코프 밖(스크립트·테스트)이면 그냥 비동기로. */
+function runAfterResponse(task: () => Promise<unknown>) {
+  const run = async () => {
+    try {
+      await task();
+    } catch (error) {
+      console.error("[mobile-push:parent]", error);
+    }
+  };
+  try {
+    after(run);
+  } catch {
+    void run();
+  }
+}
+
+async function studentName(studentId: string) {
+  const student = await prisma.student.findUnique({
+    where: { id: studentId },
+    select: { name: true },
+  });
+  return student?.name ?? null;
+}
+
+function kstHhmm(value: Date) {
+  return value.toLocaleTimeString("ko-KR", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+export type ParentAttendanceEvent = "CHECK_IN" | "OUTING" | "RETURN" | "CHECK_OUT";
+
+const ATTENDANCE_COPY: Record<ParentAttendanceEvent, { title: string; verb: string }> = {
+  CHECK_IN: { title: "입실 알림", verb: "입실했어요" },
+  OUTING: { title: "외출 알림", verb: "외출했어요" },
+  RETURN: { title: "복귀 알림", verb: "복귀했어요" },
+  CHECK_OUT: { title: "퇴실 알림", verb: "퇴실했어요" },
+};
+
+// 기록 시각이 지금과 이만큼 넘게 떨어져 있으면(지난 기록 정정) 알리지 않는다.
+const ATTENDANCE_FRESH_MS = 90 * 60 * 1000;
+
+/** 입실·외출·복귀·퇴실 알림 (fire-and-forget). at = 기록된 시각 */
+export function queueParentAttendancePush(
+  studentId: string,
+  event: ParentAttendanceEvent,
+  at: Date = new Date(),
+) {
+  if (Math.abs(Date.now() - at.getTime()) > ATTENDANCE_FRESH_MS) return;
+  runAfterResponse(async () => {
+    const name = await studentName(studentId);
+    if (!name) return;
+    const copy = ATTENDANCE_COPY[event];
+    await notifyParentsOfStudent(studentId, {
+      title: copy.title,
+      body: `${name} 학생이 ${kstHhmm(at)}에 ${copy.verb}.`,
+      data: { url: PARENT_PUSH_ROUTES.home, kind: "attendance", event },
+    });
+  });
+}
+
+/**
+ * 웹 입퇴실 저장(기록 전체 덮어쓰기) 전후를 비교해 새로 생긴 입실/퇴실만 알린다.
+ * 둘 다 새로 생기면(한 번에 정정 입력) 마지막 사건인 퇴실만.
+ */
+export function queueParentAttendanceTransitionPush(
+  studentId: string,
+  before: { checkIn: Date | null; checkOut: Date | null } | null,
+  next: { checkIn: Date | null; checkOut: Date | null },
+) {
+  if (next.checkOut && !before?.checkOut) {
+    queueParentAttendancePush(studentId, "CHECK_OUT", next.checkOut);
+  } else if (next.checkIn && !before?.checkIn) {
+    queueParentAttendancePush(studentId, "CHECK_IN", next.checkIn);
+  }
+}
+
+/** 학부모에게 보이는(visibleInReport) 벌점이 새로 기록됐을 때 (상점은 알리지 않음) */
+export function queueParentDemeritPush(record: {
+  studentId: string;
+  type: string;
+  points: number;
+  reason: string;
+  visibleInReport?: boolean;
+}) {
+  if (record.type !== "DEMERIT" || record.visibleInReport === false) return;
+  runAfterResponse(async () => {
+    const name = await studentName(record.studentId);
+    if (!name) return;
+    const reason = record.reason.trim();
+    const shortReason = reason.length > 40 ? `${reason.slice(0, 40)}…` : reason;
+    await notifyParentsOfStudent(record.studentId, {
+      title: "벌점 안내",
+      body: `${name} 학생에게 벌점 ${record.points}점이 기록됐어요.${shortReason ? ` 사유: ${shortReason}` : ""}`,
+      data: { url: PARENT_PUSH_ROUTES.home, kind: "demerit" },
+    });
+  });
+}
+
+export type ParentReportKind =
+  | "MENTORING"
+  | "MONTHLY"
+  | "ONLINE_WEEKLY"
+  | "ONLINE_MONTHLY"
+  | "ONLINE";
+
+const REPORT_LABEL: Record<ParentReportKind, string> = {
+  MENTORING: "멘토링 리포트",
+  MONTHLY: "월간 리포트",
+  ONLINE_WEEKLY: "주간 학습 리포트",
+  ONLINE_MONTHLY: "월간 학습 리포트",
+  ONLINE: "학습 리포트",
+};
+
+async function sendParentReportPush(studentId: string, kind: ParentReportKind) {
+  const name = await studentName(studentId);
+  if (!name) return;
+  await notifyParentsOfStudent(studentId, {
+    title: "새 리포트가 도착했어요",
+    body: `${name} 학생의 ${REPORT_LABEL[kind]}가 도착했어요. 지금 확인해 보세요.`,
+    data: { url: PARENT_PUSH_ROUTES.reports, kind: "report", reportKind: kind },
+  });
+}
+
+/** 새 리포트 발송 알림 (월간 리포트 발송·온라인 리포트 발송 등, 학생 ID 기준) */
+export function queueParentReportPush(studentId: string, kind: ParentReportKind) {
+  runAfterResponse(() => sendParentReportPush(studentId, kind));
+}
+
+/** 멘토링 리포트(ParentReport) 생성 알림 — 리포트 ID 만으로 (학생은 안에서 조회) */
+export function queueParentMentoringReportPush(reportId: string) {
+  runAfterResponse(async () => {
+    const report = await prisma.parentReport.findUnique({
+      where: { id: reportId },
+      select: { studentId: true },
+    });
+    if (report) await sendParentReportPush(report.studentId, "MENTORING");
+  });
+}
+
+/** 등원 스케줄 승인 요청 (운영진이 학부모에게 제안 전송) */
+export function queueParentScheduleProposalPush(studentId: string, proposalId: string) {
+  runAfterResponse(async () => {
+    const name = await studentName(studentId);
+    if (!name) return;
+    await notifyParentsOfStudent(studentId, {
+      title: "등원 스케줄 확인 요청",
+      body: `${name} 학생의 새 등원 스케줄이 도착했어요. 확인하고 승인해 주세요.`,
+      data: { url: PARENT_PUSH_ROUTES.schedule, kind: "schedule", proposalId },
+    });
   });
 }
 

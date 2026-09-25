@@ -5,6 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { reportExpiresAt, checkExpiry, getRequestMeta } from "@/lib/token-auth";
+import {
+  createParentReportRecord,
+  listStudentsForReportDispatch,
+} from "@/lib/parent-report-core";
+import { queueParentMentoringReportPush, queueParentReportPush } from "@/lib/mobile-push";
 
 export async function createParentReport(
   mentoringId: string,
@@ -16,23 +21,15 @@ export async function createParentReport(
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const mentoring = await prisma.mentoring.findUnique({
-    where: { id: mentoringId },
-    select: { studentId: true, notes: true },
+  // 핵심 로직: src/lib/parent-report-core.ts — 모바일 API 와 공용
+  const report = await createParentReportRecord({
+    mentoringId,
+    createdById: session.user.id,
+    studyPlanImages: data.studyPlanImages ?? [],
+    customNote: data.customNote,
   });
-  if (!mentoring) throw new Error("멘토링을 찾을 수 없습니다");
-
-  const report = await prisma.parentReport.create({
-    data: {
-      studentId: mentoring.studentId,
-      mentoringId,
-      studyPlanImages: data.studyPlanImages ?? [],
-      customNote: data.customNote || mentoring.notes || null,
-      createdById: session.user.id,
-      expiresAt: reportExpiresAt(),
-    },
-    select: { token: true },
-  });
+  // 학부모 앱 새 리포트 알림 (fire-and-forget)
+  queueParentMentoringReportPush(report.id);
 
   revalidatePath("/mentoring");
   return { token: report.token };
@@ -68,61 +65,30 @@ export async function getStudentsForReportDispatch(): Promise<StudentReportRow[]
   if (!session?.user) throw new Error("Unauthorized");
   requireStaff(session.user.role);
 
-  const students = await prisma.student.findMany({
-    where: { status: "ACTIVE" },
-    select: {
-      id: true,
-      name: true,
-      grade: true,
-      school: true,
-      mentorings: {
-        where: { status: "COMPLETED" },
-        orderBy: [{ actualDate: "desc" }, { scheduledAt: "desc" }],
-        take: 1,
-        select: {
-          id: true,
-          actualDate: true,
-          scheduledAt: true,
-          notes: true,
-          content: true,
-          mentor: { select: { name: true } },
-          parentReports: {
-            orderBy: { createdAt: "desc" },
-            take: 1,
-            select: { id: true, token: true, customNote: true, createdAt: true },
-          },
-        },
-      },
-    },
-    orderBy: [{ grade: "asc" }, { name: "asc" }],
-  });
-
-  return students.map((s) => {
-    const m = s.mentorings[0];
-    const pr = m?.parentReports[0];
-    return {
-      studentId: s.id,
-      studentName: s.name,
-      grade: s.grade,
-      school: s.school,
-      latestMentoring: m
-        ? {
-            id: m.id,
-            date: m.actualDate ?? m.scheduledAt,
-            mentorName: m.mentor.name,
-            hasNotes: !!(m.notes || m.content),
-          }
-        : null,
-      parentReport: pr
-        ? {
-            id: pr.id,
-            token: pr.token,
-            customNote: pr.customNote,
-            createdAt: pr.createdAt,
-          }
-        : null,
-    };
-  });
+  // 핵심 로직: src/lib/parent-report-core.ts — 모바일 API 와 공용 (웹 화면 shape 으로 축약)
+  const rows = await listStudentsForReportDispatch();
+  return rows.map((r) => ({
+    studentId: r.studentId,
+    studentName: r.studentName,
+    grade: r.grade,
+    school: r.school,
+    latestMentoring: r.latestMentoring
+      ? {
+          id: r.latestMentoring.id,
+          date: r.latestMentoring.date,
+          mentorName: r.latestMentoring.mentorName,
+          hasNotes: r.latestMentoring.hasNotes,
+        }
+      : null,
+    parentReport: r.parentReport
+      ? {
+          id: r.parentReport.id,
+          token: r.parentReport.token,
+          customNote: r.parentReport.customNote,
+          createdAt: r.parentReport.createdAt,
+        }
+      : null,
+  }));
 }
 
 export type BulkCreateByStudentResult = {
@@ -203,6 +169,7 @@ export async function createParentReportsForStudents(
         },
         select: { id: true, token: true },
       });
+      queueParentReportPush(sid, "MENTORING");
       results.push({
         studentId: sid,
         studentName: student.name,
@@ -283,6 +250,7 @@ export async function createParentReportsBulk(mentoringIds: string[]): Promise<B
         },
         select: { token: true },
       });
+      queueParentReportPush(mentoring.studentId, "MENTORING");
       results.push({
         mentoringId: mid,
         studentName: mentoring.student.name,

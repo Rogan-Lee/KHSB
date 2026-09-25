@@ -96,6 +96,19 @@ export async function requireMobileStaff(request: NextRequest) {
   return user;
 }
 
+/** 오프라인 운영진(isStaff) 또는 온라인 관리 역할(isOnlineStaff) — 역할별 기능은 capabilities 로 분기 */
+export async function requireMobileAnyStaff(request: NextRequest) {
+  const current = await getAuthIdentity(request.headers);
+  if (!current) throw new MobileApiError("로그인이 필요합니다", 401);
+
+  const user = current.identity.appUser;
+  if (!user || user.status !== "ACTIVE" || !(isStaff(user.role) || isOnlineStaff(user.role))) {
+    throw new MobileApiError("운영진 계정으로 이용할 수 없습니다", 403);
+  }
+
+  return user;
+}
+
 export async function requireMobileOnlineStaff(request: NextRequest) {
   const current = await getAuthIdentity(request.headers);
   if (!current) throw new MobileApiError("로그인이 필요합니다", 401);

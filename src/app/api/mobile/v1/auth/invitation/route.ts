@@ -1,13 +1,10 @@
 import { NextRequest } from "next/server";
 
-import {
-  findValidAuthInvitation,
-  toPublicInvitation,
-} from "@/lib/auth-invitations";
+import { getMobileInvitation } from "@/lib/mobile-invitation";
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token")?.trim() ?? "";
-  const invitation = await findValidAuthInvitation(token);
+  const invitation = await getMobileInvitation(token);
 
   if (!invitation) {
     return Response.json(
@@ -16,5 +13,5 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return Response.json(toPublicInvitation(invitation));
+  return Response.json(invitation);
 }

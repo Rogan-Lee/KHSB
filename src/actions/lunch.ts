@@ -5,11 +5,14 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireStaff, requireFullAccess } from "@/lib/roles";
 import { validateMagicLink, issueMagicLink } from "@/lib/student-auth";
-import { notifySlack } from "@/lib/slack";
-import { todayKST } from "@/lib/utils";
-import { isLunchLocked } from "@/lib/lunch-lock";
+import {
+  claimLunchDepositForStudent,
+  requestLunchChangeForStudent,
+  submitLunchOrderForStudent,
+} from "@/lib/lunch-order-core";
 
 // ─────────────────────────── 학부모 (매직링크 토큰 인증) ───────────────────────────
+// 핵심 로직은 src/lib/lunch-order-core.ts (학부모 앱과 공용). 여기서는 토큰 인증만.
 
 /**
  * 학생의 미결제 주문을 선택한 메뉴 목록으로 통째로 교체(신청/수정/취소).
@@ -24,96 +27,24 @@ export async function submitLunchOrder(input: {
 }) {
   const session = await validateMagicLink(input.token);
   if (!session) throw new Error("인증이 만료되었습니다");
-  const studentId = session.student.id;
-  const memo = input.memo?.trim() || null;
-
-  const today = todayKST();
-  const now = new Date();
-  const menus = await prisma.lunchMenu.findMany({
-    where: { id: { in: input.menuIds }, closed: false, date: { gte: today } },
+  return submitLunchOrderForStudent(session.student.id, {
+    menuIds: input.menuIds,
+    memo: input.memo,
   });
-
-  // 이미 결제완료된 주문에 포함된 날짜는 제외
-  const paidItems = await prisma.lunchOrderItem.findMany({
-    where: { order: { studentId, paidStatus: "PAID" } },
-    select: { menuId: true },
-  });
-  const paidMenuIds = new Set(paidItems.map((i) => i.menuId));
-
-  const pending = await prisma.lunchOrder.findFirst({
-    where: { studentId, paidStatus: "PENDING" },
-    orderBy: { createdAt: "desc" },
-    include: { items: { include: { menu: { select: { date: true } } } } },
-  });
-
-  // 이미 신청된 항목 중 마감(잠긴)된 주의 날짜는 변경 불가 → 그대로 보존
-  const lockedKeep = (pending?.items ?? []).filter((i) => isLunchLocked(i.menu.date, now));
-  const lockedMenuIds = new Set(lockedKeep.map((i) => i.menuId));
-
-  // 새로 선택한 메뉴는 미결제·마감 전 날짜만 반영 (결제완료·보존항목과 중복 제거)
-  const finalMenus = menus.filter(
-    (m) => !paidMenuIds.has(m.id) && !lockedMenuIds.has(m.id) && !isLunchLocked(m.date, now)
-  );
-
-  if (finalMenus.length === 0 && lockedKeep.length === 0) {
-    if (pending) await prisma.lunchOrder.delete({ where: { id: pending.id } });
-    revalidatePath("/lunch");
-    return { count: 0 };
-  }
-
-  const order = pending
-    ? // 수정 시 이전 "입금했어요" 알림은 무효화(내용이 바뀌었으므로 재확인 필요)
-      await prisma.lunchOrder.update({
-        where: { id: pending.id },
-        data: { memo, depositClaimedAt: null },
-      })
-    : await prisma.lunchOrder.create({ data: { studentId, memo } });
-
-  // 미결제 주문이라 항목 전체 교체가 안전 (단, 잠긴 항목은 스냅샷 가격으로 재생성해 보존)
-  await prisma.lunchOrderItem.deleteMany({ where: { orderId: order.id } });
-  await prisma.lunchOrderItem.createMany({
-    data: [
-      ...lockedKeep.map((i) => ({ orderId: order.id, menuId: i.menuId, price: i.price })),
-      ...finalMenus.map((m) => ({ orderId: order.id, menuId: m.id, price: m.price })),
-    ],
-  });
-
-  revalidatePath("/lunch");
-  return { count: finalMenus.length + lockedKeep.length };
 }
 
 /** 학부모가 "입금했어요" 알림 — 미결제 주문에 표식. 관리자는 이후 실제 확인. */
 export async function claimLunchDeposit(token: string) {
   const session = await validateMagicLink(token);
   if (!session) throw new Error("인증이 만료되었습니다");
-  const order = await prisma.lunchOrder.findFirst({
-    where: { studentId: session.student.id, paidStatus: "PENDING" },
-    orderBy: { createdAt: "desc" },
-  });
-  if (!order) throw new Error("신청 내역을 찾을 수 없습니다");
-  await prisma.lunchOrder.update({
-    where: { id: order.id },
-    data: { depositClaimedAt: new Date() },
-  });
-  notifySlack(
-    `💰 [도시락 입금알림] ${session.student.name} 학부모가 입금 완료를 알렸습니다. 확인 후 처리해 주세요.`
-  );
-  revalidatePath("/lunch");
-  return { ok: true };
+  return claimLunchDepositForStudent(session.student);
 }
 
 /** 학부모의 변경 요청 — 학생별 스레드에 누적. Slack 알림. */
 export async function requestLunchChange(token: string, message: string) {
   const session = await validateMagicLink(token);
   if (!session) throw new Error("인증이 만료되었습니다");
-  const msg = message.trim();
-  if (!msg) throw new Error("변경 요청 내용을 입력해 주세요");
-  await prisma.lunchChangeRequest.create({
-    data: { studentId: session.student.id, message: msg.slice(0, 1000) },
-  });
-  notifySlack(`✏️ [도시락 변경요청] ${session.student.name}: ${msg.slice(0, 300)}`);
-  revalidatePath("/lunch");
-  return { ok: true };
+  return requestLunchChangeForStudent(session.student, message);
 }
 
 // ─────────────────────────── 관리자 (requireStaff) ───────────────────────────

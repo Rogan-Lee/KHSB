@@ -8,6 +8,13 @@ vi.mock("@/lib/prisma", () => ({
       update: vi.fn(),
       upsert: vi.fn(),
     },
+    dailyOuting: {
+      aggregate: vi.fn(),
+      create: vi.fn(),
+      deleteMany: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+    },
     mentoring: {
       findUnique: vi.fn(),
       update: vi.fn(),
@@ -27,8 +34,10 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("@/lib/slack", () => ({ notifySlack: vi.fn() }));
+vi.mock("@/lib/mobile-push", () => ({ queueParentAttendancePush: vi.fn() }));
 
 import { prisma } from "@/lib/prisma";
+import { queueParentAttendancePush } from "@/lib/mobile-push";
 import {
   answerMobileStudentQuestion,
   completeMobileMentoring,
@@ -41,6 +50,7 @@ import {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(prisma.$transaction).mockResolvedValue([] as never);
+  vi.mocked(prisma.dailyOuting.findMany).mockResolvedValue([] as never);
 });
 
 describe("mobile question workflows", () => {
@@ -164,6 +174,7 @@ describe("mobile attendance workflows", () => {
         }),
       }),
     );
+    expect(queueParentAttendancePush).toHaveBeenCalledWith("student-1", "CHECK_IN", now);
   });
 
   it("rejects checkout before check-in", async () => {
@@ -183,6 +194,7 @@ describe("mobile attendance workflows", () => {
       message: "현재 상태에서는 퇴실 처리할 수 없습니다",
       status: 409,
     });
+    expect(queueParentAttendancePush).not.toHaveBeenCalled();
   });
 
   it("rejects starting another outing while already away", async () => {

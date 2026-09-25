@@ -10,7 +10,9 @@ import { getStaffMobileAttendance } from "@/lib/mobile-data";
 export async function GET(request: NextRequest) {
   try {
     await requireMobileStaff(request);
-    return mobileJson(await getStaffMobileAttendance());
+    return mobileJson(
+      await getStaffMobileAttendance(new Date(), { withAttention: true }),
+    );
   } catch (error) {
     return mobileApiErrorResponse(error);
   }

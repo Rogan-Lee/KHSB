@@ -1,11 +1,10 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { sendMobilePush } from "@/lib/mobile-push";
+import { broadcastPush, type BroadcastAudience } from "@/lib/broadcast-push";
 import { prisma } from "@/lib/prisma";
 import { requireAnyStaff, requireFullAccess } from "@/lib/roles";
-
-const MAX_CONTENT_LEN = 4000;
+import { getStaffThread, listStaffThreads, sendStaffThreadMessage } from "@/lib/staff-dm";
 
 // DM 상대 셀렉트(messages/page.tsx)는 STUDENT 외 전 직원을 보여주므로
 // 온라인 직원(CONSULTANT/MANAGER_MENTOR)도 포함하는 requireAnyStaff 로 판별.
@@ -15,67 +14,12 @@ async function requireStaffSession() {
   return session!.user;
 }
 
-/** aUserId < bUserId 정규화 (스키마 규약) */
-function normalizePair(userA: string, userB: string) {
-  return userA < userB
-    ? { aUserId: userA, bUserId: userB }
-    : { aUserId: userB, bUserId: userA };
-}
+// DM 핵심 로직은 @/lib/staff-dm (모바일 API 와 공용)
 
 /** 내 스레드 목록 — 상대 정보 + 마지막 메시지 + 안 읽음 수 */
 export async function listMyThreads() {
   const me = await requireStaffSession();
-
-  const threads = await prisma.staffThread.findMany({
-    where: { OR: [{ aUserId: me.id }, { bUserId: me.id }] },
-    orderBy: { lastMessageAt: "desc" },
-    include: {
-      messages: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { content: true, senderId: true, createdAt: true },
-      },
-    },
-  });
-
-  const otherIds = threads.map((t) => (t.aUserId === me.id ? t.bUserId : t.aUserId));
-  const [others, unreadCounts] = await Promise.all([
-    prisma.user.findMany({
-      where: { id: { in: otherIds } },
-      select: { id: true, name: true, role: true },
-    }),
-    Promise.all(
-      threads.map((t) =>
-        prisma.staffThreadMessage.count({
-          where: { threadId: t.id, senderId: { not: me.id }, readAt: null },
-        })
-      )
-    ),
-  ]);
-  const otherById = new Map(others.map((u) => [u.id, u]));
-
-  return threads.map((t, i) => {
-    const otherId = t.aUserId === me.id ? t.bUserId : t.aUserId;
-    const other = otherById.get(otherId);
-    const last = t.messages[0] ?? null;
-    return {
-      id: t.id,
-      other: {
-        id: otherId,
-        name: other?.name ?? "(알 수 없음)",
-        role: other?.role ?? null,
-      },
-      lastMessage: last
-        ? {
-            content: last.content,
-            mine: last.senderId === me.id,
-            createdAt: last.createdAt.toISOString(),
-          }
-        : null,
-      lastMessageAt: t.lastMessageAt.toISOString(),
-      unread: unreadCounts[i],
-    };
-  });
+  return listStaffThreads(me.id);
 }
 
 /**
@@ -84,90 +28,13 @@ export async function listMyThreads() {
  */
 export async function getThread(otherUserId: string) {
   const me = await requireStaffSession();
-  if (otherUserId === me.id) throw new Error("본인과는 대화할 수 없습니다");
-
-  const other = await prisma.user.findUnique({
-    where: { id: otherUserId },
-    select: { id: true, name: true, role: true },
-  });
-  if (!other) throw new Error("직원을 찾을 수 없습니다");
-
-  const pair = normalizePair(me.id, otherUserId);
-  const thread = await prisma.staffThread.upsert({
-    where: { aUserId_bUserId: pair },
-    update: {},
-    create: pair,
-  });
-
-  const [messages] = await Promise.all([
-    prisma.staffThreadMessage.findMany({
-      where: { threadId: thread.id },
-      orderBy: { createdAt: "asc" },
-      take: 200,
-    }),
-    prisma.staffThreadMessage.updateMany({
-      where: { threadId: thread.id, senderId: otherUserId, readAt: null },
-      data: { readAt: new Date() },
-    }),
-  ]);
-
-  return {
-    threadId: thread.id,
-    other,
-    messages: messages.map((m) => ({
-      id: m.id,
-      content: m.content,
-      mine: m.senderId === me.id,
-      createdAt: m.createdAt.toISOString(),
-    })),
-  };
+  return getStaffThread(me.id, otherUserId);
 }
 
 /** 메시지 전송 + 상대에게 푸시 (fire-and-forget) */
 export async function sendStaffMessage(otherUserId: string, content: string) {
   const me = await requireStaffSession();
-  if (otherUserId === me.id) throw new Error("본인과는 대화할 수 없습니다");
-
-  const trimmed = content.trim();
-  if (!trimmed) throw new Error("내용을 입력해 주세요");
-  if (trimmed.length > MAX_CONTENT_LEN) {
-    throw new Error(`메시지는 ${MAX_CONTENT_LEN}자 이하로 작성해 주세요`);
-  }
-
-  const other = await prisma.user.findUnique({
-    where: { id: otherUserId },
-    select: { id: true },
-  });
-  if (!other) throw new Error("직원을 찾을 수 없습니다");
-
-  const pair = normalizePair(me.id, otherUserId);
-  const now = new Date();
-  const thread = await prisma.staffThread.upsert({
-    where: { aUserId_bUserId: pair },
-    update: { lastMessageAt: now },
-    create: { ...pair, lastMessageAt: now },
-  });
-  await prisma.staffThreadMessage.create({
-    data: { threadId: thread.id, senderId: me.id, content: trimmed },
-  });
-
-  // 상대 푸시 — fire-and-forget, 실패 무시
-  void (async () => {
-    const authUser = await prisma.authUser.findUnique({
-      where: { appUserId: otherUserId },
-      select: { id: true },
-    });
-    if (!authUser) return;
-    await sendMobilePush({
-      authUserIds: [authUser.id],
-      body: trimmed.slice(0, 150),
-      category: "SYSTEM",
-      data: { threadOtherUserId: me.id, url: "/messages" },
-      title: `${me.name}님의 메시지`,
-    });
-  })().catch((error) => console.error("[staff-dm push]", error));
-
-  return { ok: true };
+  return sendStaffThreadMessage({ id: me.id, name: me.name }, otherUserId, content);
 }
 
 /** 사이드바 뱃지용 — 내가 안 읽은 직원 메시지 수 */
@@ -183,52 +50,16 @@ export async function getUnreadStaffDmCount() {
 }
 
 /**
- * 단체 푸시 발송 (원장 전용).
- * 발송 이력 저장은 이번엔 생략.
- * // ponytail: 이력 테이블 없음 — 감사/재발송 필요해지면 BroadcastPushLog 모델 추가
+ * 단체 푸시 발송 (원장 전용). 핵심 로직은 @/lib/broadcast-push (모바일 라우트와 공용).
  */
 // ponytail: 학부모 대상 자동 푸시(리포트 발행·질문 답변 등 이벤트 트리거)는 미연결 —
 // 필요해지면 해당 액션에서 ParentLink 로 authUserId 조회 후 sendMobilePush 호출 추가
 export async function sendBroadcastPush(params: {
-  audience: "ALL" | "PARENTS" | "STUDENTS" | "STAFF";
+  audience: BroadcastAudience;
   title: string;
   body: string;
 }) {
   const session = await auth();
   requireFullAccess(session?.user?.role);
-
-  const title = params.title.trim();
-  const body = params.body.trim();
-  if (!title || !body) throw new Error("제목과 내용을 입력해 주세요");
-  if (title.length > 100) throw new Error("제목은 100자 이하로 작성해 주세요");
-  if (body.length > 1000) throw new Error("내용은 1000자 이하로 작성해 주세요");
-
-  // AuthUser 구분: 학생 = studentId 有, 직원 = appUserId 有, 학부모 = ParentLink 有.
-  // ALL = 필터 없음 — 푸시 토큰을 등록한 모든 계정(학생 + 직원 + 학부모).
-  const audienceFilter =
-    params.audience === "STUDENTS"
-      ? { studentId: { not: null } }
-      : params.audience === "STAFF"
-        ? { appUserId: { not: null } }
-        : params.audience === "PARENTS"
-          ? { parentLinks: { some: { student: { status: "ACTIVE" as const } } } }
-          : {};
-
-  const targets = await prisma.authUser.findMany({
-    where: {
-      ...audienceFilter,
-      pushTokens: { some: { enabled: true } },
-    },
-    select: { id: true },
-  });
-  if (targets.length === 0) return { targets: 0, sent: 0 };
-
-  const { sent } = await sendMobilePush({
-    authUserIds: targets.map((t) => t.id),
-    body,
-    category: "SYSTEM",
-    data: { broadcast: true },
-    title,
-  });
-  return { targets: targets.length, sent };
+  return broadcastPush(params);
 }

@@ -37,6 +37,14 @@ const file = {
   url: "https://example.public.blob.vercel-storage.com/report.pdf",
 };
 
+// 컨설턴트가 담당하는 학생 (피드백 작성은 담당 학생에게만)
+const consultantStudent = {
+  assignedConsultantId: "consultant-1",
+  assignedMentorId: null,
+  assignedStaffId: null,
+  mentorId: null,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -102,17 +110,26 @@ describe("submitMobileStudentTask", () => {
 });
 
 describe("createMobileTaskFeedback", () => {
-  it("rejects feedback from a manager mentor", async () => {
+  it("rejects feedback on a student the manager mentor is not assigned to", async () => {
+    // 웹(createFeedback: requireAnyStaff + assertCanManageStudent)과 같이 역할보다 담당 여부로 막는다
+    vi.mocked(prisma.taskSubmission.findUnique).mockResolvedValue({
+      files: [],
+      id: "submission-1",
+      task: {
+        id: "task-1",
+        status: "SUBMITTED",
+        student: consultantStudent,
+        studentId: "student-1",
+        submissions: [{ id: "submission-1" }],
+      },
+    } as never);
     await expect(
       createMobileTaskFeedback(
         { id: "manager-1", role: "MANAGER_MENTOR" },
         "submission-1",
         { content: "확인했습니다", status: "COMMENT" },
       ),
-    ).rejects.toMatchObject({
-      message: "수행평가 피드백 권한이 필요합니다",
-      status: 403,
-    });
+    ).rejects.toMatchObject({ status: 403 });
   });
 
   it("approves the latest submission and finalizes its files", async () => {
@@ -122,6 +139,7 @@ describe("createMobileTaskFeedback", () => {
       task: {
         id: "task-1",
         status: "SUBMITTED",
+        student: consultantStudent,
         studentId: "student-1",
         submissions: [{ id: "submission-1" }],
       },
@@ -155,6 +173,7 @@ describe("createMobileTaskFeedback", () => {
       task: {
         id: "task-1",
         status: "SUBMITTED",
+        student: consultantStudent,
         studentId: "student-1",
         submissions: [{ id: "submission-2" }],
       },
@@ -171,5 +190,49 @@ describe("createMobileTaskFeedback", () => {
       status: 409,
     });
     expect(prisma.taskFeedback.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects feedback on a student the consultant is not assigned to", async () => {
+    vi.mocked(prisma.taskSubmission.findUnique).mockResolvedValue({
+      files: [file],
+      id: "submission-1",
+      task: {
+        id: "task-1",
+        status: "SUBMITTED",
+        student: { ...consultantStudent, assignedConsultantId: "consultant-2" },
+        studentId: "student-1",
+        submissions: [{ id: "submission-1" }],
+      },
+    } as never);
+
+    await expect(
+      createMobileTaskFeedback(
+        { id: "consultant-1", role: "CONSULTANT" },
+        "submission-1",
+        { content: "확인했습니다", status: "COMMENT" },
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(prisma.taskFeedback.create).not.toHaveBeenCalled();
+  });
+
+  it("lets a director give feedback on any student", async () => {
+    vi.mocked(prisma.taskSubmission.findUnique).mockResolvedValue({
+      files: [file],
+      id: "submission-1",
+      task: {
+        id: "task-1",
+        status: "SUBMITTED",
+        student: { ...consultantStudent, assignedConsultantId: "someone-else" },
+        studentId: "student-1",
+        submissions: [{ id: "submission-1" }],
+      },
+    } as never);
+
+    const result = await createMobileTaskFeedback(
+      { id: "director-1", role: "DIRECTOR" },
+      "submission-1",
+      { content: "좋아요", status: "COMMENT" },
+    );
+    expect(result).toMatchObject({ ok: true, status: "COMMENT", taskId: "task-1" });
   });
 });

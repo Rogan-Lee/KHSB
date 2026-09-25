@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 
 import type { getAuthIdentity } from "@/lib/auth";
-import { isStaff } from "@/lib/roles";
+import { isAnyStaff, isStaff } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 
 // 모바일 미디어 업로드 공용 규칙 — route.ts(서버 경유 업로드)와
@@ -197,7 +197,8 @@ export async function authorizeMediaUpload(
 
   if (context === "chat") {
     const validStudent = student?.status === "ACTIVE";
-    const validStaff = appUser?.status === "ACTIVE" && isStaff(appUser.role);
+    // 채팅 상대는 온라인 담당자(컨설턴트·관리 멘토)도 포함 — 방 소유권으로 최종 판정
+    const validStaff = appUser?.status === "ACTIVE" && isAnyStaff(appUser.role);
     if (!validStudent && !validStaff) {
       return { ok: false, status: 403, error: "권한이 없습니다" };
     }

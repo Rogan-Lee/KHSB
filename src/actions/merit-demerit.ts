@@ -4,17 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
-import { MeritType } from "@/generated/prisma";
-
-const meritSchema = z.object({
-  studentId: z.string(),
-  date: z.string(),
-  type: z.nativeEnum(MeritType),
-  points: z.coerce.number().min(1).max(100),
-  reason: z.string().min(1, "사유를 입력하세요"),
-  category: z.string().optional(),
-});
+import {
+  createMeritRecord,
+  deleteMeritRecord,
+  meritSchema,
+  meritUpdateSchema,
+  updateMeritRecord,
+} from "@/lib/merit-demerit-core";
+import { queueParentDemeritPush } from "@/lib/mobile-push";
 
 export async function createMeritDemerit(formData: FormData) {
   const session = await auth();
@@ -23,17 +20,9 @@ export async function createMeritDemerit(formData: FormData) {
   const raw = Object.fromEntries(formData.entries());
   const data = meritSchema.parse(raw);
 
-  await prisma.meritDemerit.create({
-    data: {
-      studentId: data.studentId,
-      date: new Date(data.date),
-      type: data.type,
-      points: data.points,
-      reason: data.reason,
-      category: data.category || null,
-      createdById: session.user.id,
-    },
-  });
+  const created = await createMeritRecord(data, session.user.id);
+  // 학부모 앱 벌점 알림 — 학부모에게 보이는(visibleInReport) 벌점만, fire-and-forget
+  queueParentDemeritPush(created);
 
   revalidatePath("/merit-demerit");
   revalidatePath(`/students/${data.studentId}`);
@@ -44,21 +33,10 @@ export async function updateMeritDemerit(id: string, formData: FormData) {
   if (!session?.user) throw new Error("Unauthorized");
 
   const raw = Object.fromEntries(formData.entries());
-  const data = meritSchema.omit({ studentId: true }).parse(raw);
+  const data = meritUpdateSchema.parse(raw);
 
-  const record = await prisma.meritDemerit.findUnique({ where: { id } });
+  const record = await updateMeritRecord(id, data);
   if (!record) throw new Error("Not found");
-
-  await prisma.meritDemerit.update({
-    where: { id },
-    data: {
-      date: new Date(data.date),
-      type: data.type,
-      points: data.points,
-      reason: data.reason,
-      category: data.category || null,
-    },
-  });
 
   revalidatePath("/merit-demerit");
   revalidatePath(`/students/${record.studentId}`);
@@ -68,10 +46,9 @@ export async function deleteMeritDemerit(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const record = await prisma.meritDemerit.findUnique({ where: { id } });
+  const record = await deleteMeritRecord(id);
   if (!record) throw new Error("Not found");
 
-  await prisma.meritDemerit.delete({ where: { id } });
   revalidatePath("/merit-demerit");
   revalidatePath(`/students/${record.studentId}`);
 }

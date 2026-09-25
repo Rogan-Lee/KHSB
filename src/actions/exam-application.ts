@@ -10,8 +10,15 @@ import { todayKST } from "@/lib/utils";
 import { normalizeMobile, phonesMatch } from "@/lib/phone";
 import { ExamApplicationStatus } from "@/generated/prisma";
 import { assignExamSeatsRandomly } from "@/actions/exam-sessions";
+import {
+  cancelExamApplicationForStudent,
+  submitExamApplicationForStudent,
+} from "@/lib/exam-application-core";
+import { updateExamApplicationStatus } from "@/lib/request-decisions";
 
 // ─────────────────────────── 학생/학부모 (매직링크 토큰 인증) ───────────────────────────
+
+// 핵심 로직은 src/lib/exam-application-core.ts (학부모 앱과 공용). 여기서는 토큰 인증만.
 
 /**
  * 모의고사 신청(또는 재신청). 세션이 신청 접수중(applicationOpen)이고 시험일이 지나지 않아야 함.
@@ -20,35 +27,14 @@ import { assignExamSeatsRandomly } from "@/actions/exam-sessions";
 export async function submitExamApplication(token: string, sessionId: string, memo?: string) {
   const session = await validateMagicLink(token);
   if (!session) throw new Error("인증이 만료되었습니다");
-  const studentId = session.student.id;
-
-  const exam = await prisma.examSession.findUnique({ where: { id: sessionId } });
-  if (!exam) throw new Error("시험을 찾을 수 없습니다");
-  if (!exam.applicationOpen || exam.examDate < todayKST()) {
-    throw new Error("신청이 마감된 시험입니다");
-  }
-
-  const trimmed = memo?.trim() || null;
-  await prisma.examApplication.upsert({
-    where: { sessionId_studentId: { sessionId, studentId } },
-    update: { status: "PENDING", memo: trimmed, confirmedAt: null, confirmedById: null },
-    create: { sessionId, studentId, memo: trimmed },
-  });
-
-  notifySlack(`📝 [모의고사 신청] ${session.student.name} 학생이 "${exam.title}" 신청했습니다.`);
-  revalidatePath(`/exams/${sessionId}`);
-  return { ok: true };
+  return submitExamApplicationForStudent(session.student, sessionId, memo);
 }
 
 /** 학생/학부모 본인 신청 철회 — 행 삭제(재신청 가능). */
 export async function cancelExamApplication(token: string, sessionId: string) {
   const session = await validateMagicLink(token);
   if (!session) throw new Error("인증이 만료되었습니다");
-  await prisma.examApplication.deleteMany({
-    where: { sessionId, studentId: session.student.id },
-  });
-  revalidatePath(`/exams/${sessionId}`);
-  return { ok: true };
+  return cancelExamApplicationForStudent(session.student.id, sessionId);
 }
 
 // ─────────────────────── 공개 신청 링크 (전화 본인인증, 계정 불필요) ───────────────────────
@@ -171,15 +157,7 @@ export async function toggleExamApplicationOpen(sessionId: string, open: boolean
 export async function setExamApplicationStatus(id: string, status: ExamApplicationStatus) {
   const s = await auth();
   requireStaff(s?.user?.role);
-  const app = await prisma.examApplication.update({
-    where: { id },
-    data: {
-      status,
-      confirmedAt: status === "CONFIRMED" ? new Date() : null,
-      confirmedById: status === "CONFIRMED" ? s!.user.id : null,
-    },
-    select: { sessionId: true },
-  });
+  const app = await updateExamApplicationStatus(id, status, s!.user.id);
   revalidatePath(`/exams/${app.sessionId}`);
 }
 
