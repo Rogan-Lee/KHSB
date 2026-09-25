@@ -1,142 +1,353 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Eye, EyeOff, KeyRound, UserX } from 'lucide-react-native';
+import { forwardRef, useRef, useState } from 'react';
+import { type TextInput } from 'react-native';
 
-import { PrimaryButton } from '@/components/mobile-ui';
-import { colors, spacing } from '@/constants/theme';
+import {
+  BottomSheet,
+  Button,
+  IconTile,
+  ListRow,
+  Notice,
+  Press,
+  Section,
+  Text,
+  TextField,
+  color,
+  confirm,
+  radius,
+  toast,
+  type TextFieldProps,
+} from '@/design';
 import { authClient } from '@/lib/auth-client';
-import { useSession } from '@/lib/session';
+import { useSession, type AppRole } from '@/lib/session';
 
-export function AccountSecurity() {
-  const { signOut } = useSession();
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [message, setMessage] = useState('');
+// 계정 보안 — 비밀번호 변경·계정 삭제. 계정 화면(/account)과 예전 메뉴 화면이 같이 쓴다.
+
+export const PASSWORD_MIN_LENGTH = 10;
+export const PASSWORD_MAX_LENGTH = 128;
+
+type AuthErrorLike = { code?: string; message?: string; status?: number } | null | undefined;
+
+// ─── 비밀번호 입력 (보기/숨기기) ─────────────────────────────────────
+
+export const PasswordField = forwardRef<TextInput, Omit<TextFieldProps, 'secureTextEntry' | 'suffix'>>(
+  function PasswordField(props, ref) {
+    const [visible, setVisible] = useState(false);
+    const Icon = visible ? EyeOff : Eye;
+    return (
+      <TextField
+        ref={ref}
+        autoCapitalize="none"
+        autoCorrect={false}
+        spellCheck={false}
+        maxLength={PASSWORD_MAX_LENGTH}
+        {...props}
+        secureTextEntry={!visible}
+        suffix={
+          <Press
+            onPress={() => setVisible((v) => !v)}
+            scale={0}
+            pressedBg
+            hitSlop={10}
+            accessibilityLabel={visible ? '비밀번호 숨기기' : '비밀번호 보기'}
+            style={{
+              width: 32,
+              height: 32,
+              marginRight: -4,
+              borderRadius: radius.full,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            <Icon color={color.fg.neutralSubtle} size={20} strokeWidth={2} />
+          </Press>
+        }
+      />
+    );
+  },
+);
+
+// ─── 비밀번호 변경 ──────────────────────────────────────────────────
+
+export function PasswordChangeSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [again, setAgain] = useState('');
+  const [touched, setTouched] = useState({ next: false, again: false });
+  const [currentError, setCurrentError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const busy = useRef(false);
+  const nextRef = useRef<TextInput>(null);
+  const againRef = useRef<TextInput>(null);
 
-  async function changePassword() {
-    setMessage('');
-    if (newPassword.length < 10) {
-      setMessage('새 비밀번호는 10자 이상이어야 합니다.');
-      return;
-    }
+  const nextError =
+    touched.next && next.length > 0 && next.length < PASSWORD_MIN_LENGTH
+      ? `${PASSWORD_MIN_LENGTH}자 이상 입력해 주세요`
+      : touched.next && next.length > 0 && next === current
+        ? '지금 비밀번호와 다르게 정해 주세요'
+        : null;
+  const againError =
+    touched.again && again.length > 0 && again !== next ? '새 비밀번호가 서로 달라요' : null;
+  const canSubmit =
+    current.length > 0 && next.length >= PASSWORD_MIN_LENGTH && next !== current && again === next;
 
+  const reset = () => {
+    setCurrent('');
+    setNext('');
+    setAgain('');
+    setTouched({ next: false, again: false });
+    setCurrentError(null);
+    setFormError(null);
+  };
+
+  const close = () => {
+    if (busy.current) return;
+    reset();
+    onClose();
+  };
+
+  async function submit() {
+    setTouched({ next: true, again: true });
+    if (!canSubmit || busy.current) return;
+    busy.current = true;
     setPending(true);
+    setCurrentError(null);
+    setFormError(null);
     try {
       const result = await authClient.changePassword({
-        currentPassword,
-        newPassword,
+        currentPassword: current,
+        newPassword: next,
         revokeOtherSessions: true,
       });
-      if (result.error) {
-        setMessage('현재 비밀번호를 확인하세요.');
+      const error = result.error as AuthErrorLike;
+      if (error) {
+        if (error.code === 'INVALID_PASSWORD') setCurrentError('지금 비밀번호가 맞지 않아요');
+        else if (error.status === 429) setFormError('시도가 너무 많았어요. 잠시 후 다시 해 주세요.');
+        else if (error.code === 'PASSWORD_TOO_SHORT') setFormError(`새 비밀번호는 ${PASSWORD_MIN_LENGTH}자 이상이어야 해요.`);
+        else setFormError('비밀번호를 바꾸지 못했어요. 잠시 후 다시 시도해 주세요.');
         return;
       }
-      setCurrentPassword('');
-      setNewPassword('');
-      setMessage('비밀번호를 변경했습니다.');
+      reset();
+      onClose();
+      toast('비밀번호를 바꿨어요. 다른 기기에서는 로그아웃됐어요', 'success');
     } catch {
-      setMessage('비밀번호를 변경하지 못했습니다.');
+      setFormError('네트워크 연결을 확인하고 다시 시도해 주세요.');
     } finally {
+      busy.current = false;
       setPending(false);
     }
   }
 
-  function confirmDelete() {
-    if (!currentPassword) {
-      setMessage('계정 삭제를 위해 현재 비밀번호를 입력하세요.');
-      return;
-    }
-
-    Alert.alert(
-      '로그인 계정 삭제',
-      '로그인 계정과 모든 기기 세션이 삭제됩니다. 학습·출결 기록은 보존됩니다.',
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '계정 삭제',
-          style: 'destructive',
-          onPress: async () => {
-            setPending(true);
-            try {
-              const result = await authClient.deleteUser({
-                password: currentPassword,
-              });
-              if (result.error) {
-                setMessage('현재 비밀번호를 확인하세요.');
-                return;
-              }
-              await signOut();
-              router.replace('/(auth)');
-            } catch {
-              setMessage('계정을 삭제하지 못했습니다.');
-            } finally {
-              setPending(false);
-            }
-          },
-        },
-      ],
-    );
-  }
-
   return (
-    <View style={styles.panel}>
-      <Text style={styles.title}>계정 보안</Text>
-      <TextInput
+    <BottomSheet
+      open={open}
+      onClose={close}
+      dismissible={!pending}
+      title="비밀번호 변경"
+      description="바꾸면 이 기기를 뺀 다른 기기에서는 모두 로그아웃돼요."
+      footer={
+        <>
+          <Button variant="gray" size="lg" onPress={close} disabled={pending} style={{ flex: 1 }}>
+            취소
+          </Button>
+          <Button
+            size="lg"
+            onPress={() => void submit()}
+            loading={pending}
+            disabled={!canSubmit}
+            style={{ flex: 1 }}>
+            변경하기
+          </Button>
+        </>
+      }>
+      <PasswordField
+        label="지금 비밀번호"
+        value={current}
+        onChangeText={(v) => {
+          setCurrent(v);
+          setCurrentError(null);
+        }}
         autoComplete="current-password"
-        onChangeText={setCurrentPassword}
-        placeholder="현재 비밀번호"
-        placeholderTextColor="#9AA49F"
-        secureTextEntry
-        style={styles.input}
-        value={currentPassword}
+        textContentType="password"
+        returnKeyType="next"
+        onSubmitEditing={() => nextRef.current?.focus()}
+        submitBehavior="submit"
+        errorMessage={currentError}
       />
-      <TextInput
+      <PasswordField
+        ref={nextRef}
+        label="새 비밀번호"
+        value={next}
+        onChangeText={setNext}
+        onBlur={() => setTouched((t) => ({ ...t, next: true }))}
         autoComplete="new-password"
-        onChangeText={setNewPassword}
-        placeholder="새 비밀번호 10자 이상"
-        placeholderTextColor="#9AA49F"
-        secureTextEntry
-        style={styles.input}
-        value={newPassword}
+        textContentType="newPassword"
+        returnKeyType="next"
+        onSubmitEditing={() => againRef.current?.focus()}
+        submitBehavior="submit"
+        description={`${PASSWORD_MIN_LENGTH}자 이상`}
+        errorMessage={nextError}
       />
-      {message ? <Text style={styles.message}>{message}</Text> : null}
-      <PrimaryButton disabled={pending} onPress={changePassword} variant="secondary">
-        비밀번호 변경
-      </PrimaryButton>
-      <PrimaryButton disabled={pending} onPress={confirmDelete} variant="danger">
-        로그인 계정 삭제
-      </PrimaryButton>
-    </View>
+      <PasswordField
+        ref={againRef}
+        label="새 비밀번호 확인"
+        value={again}
+        onChangeText={(v) => {
+          setAgain(v);
+          if (v.length >= next.length) setTouched((t) => ({ ...t, again: true }));
+        }}
+        onBlur={() => setTouched((t) => ({ ...t, again: true }))}
+        autoComplete="new-password"
+        textContentType="newPassword"
+        returnKeyType="done"
+        onSubmitEditing={() => void submit()}
+        errorMessage={againError}
+      />
+      {formError != null && <Notice tone="bad">{formError}</Notice>}
+    </BottomSheet>
   );
 }
 
-const styles = StyleSheet.create({
-  panel: {
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: spacing.md,
-    padding: spacing.lg,
-  },
-  title: {
-    color: colors.ink,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  input: {
-    borderColor: colors.line,
-    borderRadius: 8,
-    borderWidth: 1,
-    color: colors.ink,
-    fontSize: 15,
-    minHeight: 48,
-    paddingHorizontal: spacing.md,
-  },
-  message: {
-    color: colors.muted,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-});
+// ─── 계정 삭제 ──────────────────────────────────────────────────────
+
+const DELETE_NOTE: Record<AppRole, string> = {
+  student: '학습·출결 기록은 독서실에 그대로 남아요.',
+  staff: '근무·상담 기록은 독서실에 그대로 남아요.',
+  parent: '자녀 연결도 함께 해제돼요. 자녀의 기록은 독서실에 그대로 남아요.',
+};
+
+/**
+ * 계정 삭제 흐름: 확인 대화상자(destructive) → 비밀번호 확인 시트 → 삭제 → 로그아웃.
+ * 로그아웃 뒤 로그인 화면 이동은 역할 레이아웃의 Redirect 가 맡는다. 다른 이동이 필요하면 options.signOut 으로 바꾼다.
+ * const del = useDeleteAccount(); <ListRow onPress={del.start} /> {del.sheet}
+ */
+export function useDeleteAccount(options: { signOut?: () => Promise<void> } = {}) {
+  const { session, signOut } = useSession();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const busy = useRef(false);
+  const role = session?.role ?? 'student';
+
+  const start = async () => {
+    const ok = await confirm({
+      title: '계정을 삭제할까요?',
+      message: `로그인 계정이 삭제되고 모든 기기에서 로그아웃돼요. ${DELETE_NOTE[role]} 다시 쓰려면 독서실에서 새 초대를 받아야 해요.`,
+      confirmText: '삭제 진행',
+      destructive: true,
+    });
+    // 확인 창이 닫히는 애니메이션이 끝난 뒤 시트를 연다 (iOS 모달 겹침 방지)
+    if (ok) setTimeout(() => setOpen(true), 350);
+  };
+
+  const close = () => {
+    if (busy.current) return;
+    setOpen(false);
+    setPassword('');
+    setError(null);
+  };
+
+  async function submit() {
+    if (!password || busy.current) return;
+    busy.current = true;
+    setPending(true);
+    setError(null);
+    try {
+      const result = await authClient.deleteUser({ password });
+      const authError = result.error as AuthErrorLike;
+      if (authError) {
+        setError(
+          authError.code === 'INVALID_PASSWORD'
+            ? '비밀번호가 맞지 않아요'
+            : authError.status === 429
+              ? '시도가 너무 많았어요. 잠시 후 다시 해 주세요.'
+              : '계정을 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.',
+        );
+        return;
+      }
+      setOpen(false);
+      setPassword('');
+      toast('계정을 삭제했어요');
+      try {
+        await (options.signOut ?? signOut)();
+      } catch {
+        // 계정이 이미 지워져 서버 로그아웃이 실패해도 로컬 세션은 정리된다
+      }
+    } catch {
+      setError('네트워크 연결을 확인하고 다시 시도해 주세요.');
+    } finally {
+      busy.current = false;
+      setPending(false);
+    }
+  }
+
+  const sheet = (
+    <BottomSheet
+      open={open}
+      onClose={close}
+      dismissible={!pending}
+      title="비밀번호를 확인할게요"
+      description="계정을 삭제하려면 비밀번호를 한 번 더 입력해 주세요."
+      footer={
+        <>
+          <Button variant="gray" size="lg" onPress={close} disabled={pending} style={{ flex: 1 }}>
+            취소
+          </Button>
+          <Button
+            variant="danger"
+            size="lg"
+            onPress={() => void submit()}
+            loading={pending}
+            disabled={!password}
+            style={{ flex: 1 }}>
+            계정 삭제
+          </Button>
+        </>
+      }>
+      <PasswordField
+        label="비밀번호"
+        value={password}
+        onChangeText={(v) => {
+          setPassword(v);
+          setError(null);
+        }}
+        autoComplete="current-password"
+        textContentType="password"
+        returnKeyType="done"
+        onSubmitEditing={() => void submit()}
+        errorMessage={error}
+      />
+    </BottomSheet>
+  );
+
+  return { start: () => void start(), sheet };
+}
+
+// ─── 예전 메뉴 화면용 묶음 ───────────────────────────────────────────
+
+/** 비밀번호 변경·계정 삭제 행 묶음 (흰 카드). 새 화면은 /account 로 연결하는 것을 권장. */
+export function AccountSecurity() {
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const del = useDeleteAccount();
+  return (
+    <Section title="계정 보안" flush>
+      <ListRow
+        leading={<IconTile icon={KeyRound} size={40} />}
+        title="비밀번호 변경"
+        onPress={() => setPasswordOpen(true)}
+      />
+      <ListRow
+        leading={<IconTile icon={UserX} tone="bad" size={40} />}
+        title={
+          <Text variant="t5-medium" color="critical">
+            계정 삭제
+          </Text>
+        }
+        onPress={del.start}
+      />
+      <PasswordChangeSheet open={passwordOpen} onClose={() => setPasswordOpen(false)} />
+      {del.sheet}
+    </Section>
+  );
+}

@@ -1,10 +1,10 @@
-import { Redirect, Tabs } from 'expo-router';
-import { CalendarCheck, FileText, Home } from 'lucide-react-native';
+import { Redirect, Stack } from 'expo-router';
 
-import { RoleTabs, tabIcon } from '@/components/role-tabs';
+import { color } from '@/design';
 import { useSession } from '@/lib/session';
 
-export default function ParentLayout() {
+/** parent — 탭 루트((tabs)) 위에 하위 화면을 쌓는 스택. 하위 화면은 탭바 없이 뒤로가기 헤더(Screen kind="push"). */
+export default function RoleLayout() {
   const { session, status } = useSession();
 
   if (status !== 'loading' && session?.role !== 'parent') {
@@ -12,19 +12,13 @@ export default function ParentLayout() {
   }
 
   return (
-    <RoleTabs>
-      <Tabs.Screen
-        name="index"
-        options={{ tabBarIcon: tabIcon(Home), tabBarLabel: '홈', title: '홈' }}
-      />
-      <Tabs.Screen
-        name="attendance"
-        options={{ tabBarIcon: tabIcon(CalendarCheck), tabBarLabel: '출결', title: '출결' }}
-      />
-      <Tabs.Screen
-        name="reports"
-        options={{ tabBarIcon: tabIcon(FileText), tabBarLabel: '리포트', title: '리포트' }}
-      />
-    </RoleTabs>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: color.bg.layerBasement },
+        animation: 'slide_from_right',
+      }}>
+      <Stack.Screen name="(tabs)" />
+    </Stack>
   );
 }

@@ -710,6 +710,8 @@ export type ParentOverviewChild = {
   };
   monthPoints: { merit: number; demerit: number };
   latestReportAt: string | null;
+  /** 5종 리포트 전체 기준 최신일 (구버전 앱 호환용 latestReportAt 은 멘토링 리포트 기준) */
+  latestAnyReportAt?: string | null;
 };
 
 export type ParentOverviewResponse = {
@@ -758,12 +760,12 @@ export async function requestMobileApi<T>(
 
 export function mutateMobileApi<T>(
   path: string,
-  method: 'PATCH' | 'POST',
-  body: unknown,
+  method: 'PATCH' | 'POST' | 'PUT' | 'DELETE',
+  body?: unknown,
 ) {
   return requestMobileApi<T>(path, {
-    body: JSON.stringify(body),
-    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     method,
   });
 }
