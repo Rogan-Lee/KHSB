@@ -31,6 +31,7 @@ const AUDIENCE_SHORT: Record<Audience, string> = {
   ALL: "전체",
   STUDENTS: "학생",
   STAFF: "직원",
+  PARENTS: "학부모",
 };
 
 export function BroadcastPushPanel() {
