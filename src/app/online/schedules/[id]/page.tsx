@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { getUser } from "@/lib/auth";
 import { isStaff } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
+import { PageHeader, StatusBadge } from "@/components/backoffice/ui";
 import { ScheduleReviewPanel } from "./review-panel";
+import { proposalStatus } from "../_lib/status";
 import type { AttendanceSlot, OutingSlot } from "@/components/online/schedule-slots-editor";
 
 export const dynamic = "force-dynamic";
@@ -33,14 +33,21 @@ export default async function ScheduleReviewPage({
     select: { id: true, version: true, status: true, committedAt: true },
   });
 
+  const st = proposalStatus(proposal.status);
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Link href="/online/schedules" className="text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <h1 className="text-xl font-bold">{proposal.student.name} · 등원 스케줄 v{proposal.version}</h1>
-      </div>
+    <div>
+      <PageHeader
+        back={{ href: "/online/schedules", label: "등원 스케줄" }}
+        title={`${proposal.student.name} 등원 스케줄`}
+        meta={
+          <>
+            <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
+            <StatusBadge tone="gray">v{proposal.version}</StatusBadge>
+          </>
+        }
+        description={`${proposal.student.grade} · 학생 제출안을 검토해 제안하고, 학부모 승인을 받아 반영해요.`}
+      />
 
       <ScheduleReviewPanel
         id={proposal.id}

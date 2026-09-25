@@ -1,25 +1,33 @@
-import { ShieldAlert } from "lucide-react";
+import { Link2Off, ShieldCheck } from "lucide-react";
+import { IconTile } from "@/components/portal/ui";
 
+/** 매직링크 안내 화면(없음·만료·무효화) — 흰 화면 가운데 안내 + 아래 안전 안내 */
 export function TokenNotice({ title, body }: { title: string; body: string }) {
   return (
     <div
-      className="grid min-h-[100svh] place-items-center bg-[#f5f6fa] px-4"
+      data-portal
+      data-seed-color-mode="light-only"
+      className="min-h-[100svh] bg-bg-layer-default"
       style={{
         paddingTop: "env(safe-area-inset-top)",
         paddingBottom: "env(safe-area-inset-bottom)",
       }}
     >
-      <div className="w-full max-w-[420px] rounded-2xl border border-gray-100 bg-white p-6 text-center shadow-sm">
-        <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 text-rose-600">
-          <ShieldAlert className="h-6 w-6" strokeWidth={2.2} />
+      <div className="mx-auto flex min-h-[calc(100svh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] max-w-[420px] flex-col px-x5">
+        <div className="flex flex-1 flex-col items-center justify-center pb-x16 pt-x12 text-center">
+          <IconTile icon={Link2Off} tone="gray" size={64} round />
+          <h1 className="mt-x5 t8-bold text-fg-neutral">{title}</h1>
+          <p className="mt-x2 whitespace-pre-line t5-regular text-fg-neutral-subtle">{body}</p>
         </div>
-        <h1 className="mt-4 text-[17px] font-bold tracking-[-0.01em] text-gray-900">{title}</h1>
-        <p className="mt-2 text-[13px] leading-relaxed text-gray-500 whitespace-pre-line">{body}</p>
-        <div className="mt-4 rounded-xl bg-gray-50 p-3 text-left">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">안전 안내</p>
-          <p className="mt-1 text-[11.5px] leading-relaxed text-gray-600">
-            링크가 외부에 노출된 것이 의심되면 즉시 담당 원장님께 알려 주세요.
-          </p>
+
+        <div className="mb-x6 flex items-start gap-x2_5 rounded-r4 bg-bg-layer-fill p-x4">
+          <ShieldCheck className="mt-x0_5 h-4 w-4 shrink-0 text-fg-neutral-subtle" strokeWidth={2.2} aria-hidden />
+          <div className="min-w-0">
+            <p className="t4-bold text-fg-neutral-muted">안전 안내</p>
+            <p className="mt-x0_5 t4-regular text-fg-neutral-subtle">
+              링크가 외부에 노출된 것이 의심되면 즉시 담당 원장님께 알려 주세요.
+            </p>
+          </div>
         </div>
       </div>
     </div>

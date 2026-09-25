@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="393" height="54" viewBox="0 0 393 54" fill="#000">
+  <!-- iOS 17 status bar, iPhone 15 Pro (393pt wide, 54pt tall, light content).
+       Dynamic Island (126 x 37.33 at y=11, centered) is drawn by CSS (.pf::before), not here.
+       Everything below is vertically centered on the island (y = 29.67). -->
+
+  <!-- Time -->
+  <text x="64" y="35.7" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', system-ui, 'Helvetica Neue', 'Segoe UI', Roboto, Arial, sans-serif" font-size="17" font-weight="600" letter-spacing="-0.4">9:41</text>
+
+  <!-- Cellular signal: 4 bars, 17 x 10.67 -->
+  <g transform="translate(293.7 24.33)">
+    <rect x="0" y="6.67" width="3" height="4" rx="1"/>
+    <rect x="4.67" y="4.47" width="3" height="6.2" rx="1"/>
+    <rect x="9.33" y="2.27" width="3" height="8.4" rx="1"/>
+    <rect x="14" y="0" width="3" height="10.67" rx="1"/>
+  </g>
+
+  <!-- Wi-Fi: 15.4 x 10.9, fan of +/-45 deg, apex at the bottom -->
+  <g transform="translate(323.9 35.2)">
+    <path d="M-7.707-7.707A10.9 10.9 0 0 1 7.707-7.707L6.152-6.152A8.7 8.7 0 0 0-6.152-6.152Z"/>
+    <path d="M-5.268-5.268A7.45 7.45 0 0 1 5.268-5.268L3.712-3.712A5.25 5.25 0 0 0-3.712-3.712Z"/>
+    <path d="M-0.75-0.75L-2.828-2.828A4 4 0 0 1 2.828-2.828L0.75-0.75Q0 0-0.75-0.75Z"/>
+  </g>
+
+  <!-- Battery (full): 27.33 x 13 -->
+  <g transform="translate(337 23.17)">
+    <rect x="0.5" y="0.5" width="24" height="12" rx="3.8" fill="none" stroke="#000" stroke-opacity="0.35"/>
+    <rect x="2" y="2" width="21" height="9" rx="2.5"/>
+    <path d="M26 4.6v3.8c.8-.34 1.33-1.1 1.33-1.9S26.8 4.94 26 4.6z" fill-opacity="0.4"/>
+  </g>
+</svg>

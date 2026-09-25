@@ -6,14 +6,17 @@ interface StatLineProps {
   className?: string;
 }
 
+// 라벨·값 한 줄 — 옅은 구분선, 값은 tabular-nums
 export function StatLine({ label, value, className }: StatLineProps) {
   return (
-    <div className={cn(
-      "flex items-center justify-between py-[7px] border-b border-line-2 last:border-b-0 text-[12.5px]",
-      className
-    )}>
-      <span className="text-ink-3">{label}</span>
-      <span className="text-ink font-semibold tabular-nums font-mono tracking-[-0.01em]">{value}</span>
+    <div
+      className={cn(
+        "flex items-center justify-between gap-x3 border-b border-stroke-neutral-muted py-x2 t4-regular last:border-b-0",
+        className
+      )}
+    >
+      <span className="text-fg-neutral-muted">{label}</span>
+      <span className="t4-bold tabular-nums text-fg-neutral">{value}</span>
     </div>
   );
 }

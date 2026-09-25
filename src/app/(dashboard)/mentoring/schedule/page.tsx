@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { MentorScheduleEditor } from "@/components/mentoring/mentor-schedule-editor";
 import { isFullAccess } from "@/lib/roles";
+import { PageHeader } from "@/components/backoffice/ui";
 
 export default async function MentorSchedulePage() {
   const session = await auth();
@@ -25,14 +26,18 @@ export default async function MentorSchedulePage() {
   });
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-bold">멘토 주간 스케줄</h1>
+    <>
+      <PageHeader
+        back={{ href: "/mentoring", label: "멘토링" }}
+        title="멘토 주간 스케줄"
+        description="요일별 멘토링 가능 시간을 등록하면 오늘의 추천과 주간 계획에 반영돼요"
+      />
       <MentorScheduleEditor
         mentors={mentors}
         schedules={schedules}
         defaultMentorId={session!.user!.id}
         isDirector={canManageAll}
       />
-    </div>
+    </>
   );
 }

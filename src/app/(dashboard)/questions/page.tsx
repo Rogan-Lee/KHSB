@@ -2,11 +2,22 @@ export const revalidate = 15;
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { HelpCircle, Paperclip, UserCheck, Link2 } from "lucide-react";
+import { MessageCircleQuestion, Paperclip, UserCheck, Link2 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { isStaff } from "@/lib/roles";
 import { listStaffQuestionInbox } from "@/actions/student-questions";
 import type { StudentQuestionStatus } from "@/generated/prisma";
+import { Button } from "@/components/ui/button";
+import {
+  Avatar,
+  CountBadge,
+  EmptyState,
+  LinkTabs,
+  PageHeader,
+  StatusBadge,
+  type Tone,
+} from "@/components/backoffice/ui";
+import { cn } from "@/lib/utils";
 
 const STATUS_LABEL: Record<StudentQuestionStatus, string> = {
   OPEN: "미답변",
@@ -14,11 +25,11 @@ const STATUS_LABEL: Record<StudentQuestionStatus, string> = {
   RESOLVED: "해결됨",
   ARCHIVED: "보관",
 };
-const STATUS_TONE: Record<StudentQuestionStatus, string> = {
-  OPEN: "bg-amber-100 text-amber-800",
-  ANSWERED: "bg-emerald-100 text-emerald-800",
-  RESOLVED: "bg-slate-100 text-slate-600",
-  ARCHIVED: "bg-slate-100 text-slate-500",
+const STATUS_TONE: Record<StudentQuestionStatus, Tone> = {
+  OPEN: "warn",
+  ANSWERED: "ok",
+  RESOLVED: "gray",
+  ARCHIVED: "gray",
 };
 
 type Filter = "open" | "mine" | "all";
@@ -27,6 +38,12 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "mine", label: "내가 담당" },
   { key: "all", label: "전체" },
 ];
+
+const EMPTY_TEXT: Record<Filter, { title: string; description: string }> = {
+  open: { title: "미답변 질문이 없어요", description: "학생이 새 질문을 올리면 여기에 먼저 보여요." },
+  mine: { title: "내가 담당한 질문이 없어요", description: "질문을 열고 ‘담당하기’를 누르면 여기에 모여요." },
+  all: { title: "아직 질문이 없어요", description: "학생 포털 링크로 질문을 받을 수 있어요." },
+};
 
 function fmt(iso: string): string {
   return new Date(iso).toLocaleString("ko-KR", {
@@ -52,115 +69,96 @@ export default async function StaffQuestionsPage({
   const filter: Filter =
     sp.filter === "mine" ? "mine" : sp.filter === "all" ? "all" : "open";
   const questions = await listStaffQuestionInbox({ filter });
+  const empty = EMPTY_TEXT[filter];
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-      <div className="mb-1 flex items-center gap-2">
-        <HelpCircle className="h-5 w-5 text-brand" />
-        <h1 className="text-xl font-bold tracking-tight">학생 질문</h1>
-        <Link
-          href="/students?tab=portal-links"
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-medium hover:bg-accent"
-        >
-          <Link2 className="h-3.5 w-3.5" />
-          학생 링크 관리
-        </Link>
-      </div>
-      <p className="mb-5 text-sm text-muted-foreground">
-        재원생이 올린 문제 질문 — 당일 근무 멘토가 풀이를 답해주세요. (공용 받은함)
-      </p>
+    <>
+      <PageHeader
+        title="학생 질문"
+        description="재원생이 올린 문제 질문이에요. 당일 근무 멘토가 풀이를 답해 주세요. (공용 받은함)"
+        actions={
+          <Button asChild variant="outline" size="sm">
+            <Link href="/students?tab=portal-links">
+              <Link2 />
+              학생 링크 관리
+            </Link>
+          </Button>
+        }
+      />
 
-      <div className="mb-4 flex gap-1.5">
-        {FILTERS.map((f) => (
-          <Link
-            key={f.key}
-            href={`/questions${f.key === "open" ? "" : `?filter=${f.key}`}`}
-            className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-              filter === f.key
-                ? "bg-brand text-white"
-                : "border bg-background text-muted-foreground hover:bg-accent"
-            }`}
-          >
-            {f.label}
-          </Link>
-        ))}
-      </div>
+      <LinkTabs
+        current={filter}
+        items={FILTERS.map((f) => ({
+          value: f.key,
+          label: f.label,
+          href: `/questions${f.key === "open" ? "" : `?filter=${f.key}`}`,
+          count: f.key === filter ? questions.length : undefined,
+        }))}
+      />
 
       {questions.length === 0 ? (
-        <div className="rounded-xl border border-dashed bg-muted/30 px-6 py-16 text-center">
-          <HelpCircle className="mx-auto h-8 w-8 text-muted-foreground/60" />
-          <p className="mt-3 text-sm font-medium">
-            {filter === "open"
-              ? "미답변 질문이 없어요"
-              : filter === "mine"
-                ? "내가 담당한 질문이 없어요"
-                : "질문이 없어요"}
-          </p>
+        <div className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
+          <EmptyState icon={MessageCircleQuestion} title={empty.title} description={empty.description} />
         </div>
       ) : (
-        <ul className="space-y-2">
-          {questions.map((q) => (
-            <li key={q.id}>
-              <Link
-                href={`/questions/${q.id}`}
-                className="block rounded-xl border bg-card p-4 transition-colors hover:bg-accent/40"
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS_TONE[q.status]}`}
-                  >
-                    {STATUS_LABEL[q.status]}
-                  </span>
-                  {q.subject && (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                      {q.subject}
-                    </span>
-                  )}
-                  <span className="text-[13px] font-medium text-foreground">
-                    {q.student.name}
-                  </span>
-                  <span className="text-[12px] text-muted-foreground">
-                    {q.student.grade}
-                    {q.student.school ? ` · ${q.student.school}` : ""}
-                  </span>
-                  {q.lastMessage?.hasAttachments && (
-                    <Paperclip className="h-3.5 w-3.5 text-muted-foreground" />
-                  )}
-                  <div className="ml-auto flex items-center gap-2">
-                    {q.claimedBy && (
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                          q.claimedByMe
-                            ? "bg-brand/10 text-brand"
-                            : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        <UserCheck className="h-3 w-3" />
-                        {q.claimedByMe ? "내 담당" : q.claimedBy.name}
+        <ul className="divide-y divide-stroke-neutral-muted overflow-hidden rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
+          {questions.map((q) => {
+            const unread = q.unread > 0;
+            return (
+              <li key={q.id}>
+                <Link
+                  href={`/questions/${q.id}`}
+                  className="flex items-start gap-x3 px-x5 py-x4 transition-colors hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring"
+                >
+                  <Avatar name={q.student.name} size={40} className="mt-x0_5" />
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x1_5">
+                      <StatusBadge tone={STATUS_TONE[q.status]}>{STATUS_LABEL[q.status]}</StatusBadge>
+                      {q.subject && <StatusBadge tone="gray">{q.subject}</StatusBadge>}
+                      <span className="t4-medium text-fg-neutral">{q.student.name}</span>
+                      <span className="t3-regular text-fg-neutral-subtle">
+                        {q.student.grade}
+                        {q.student.school ? ` · ${q.student.school}` : ""}
                       </span>
-                    )}
-                    {q.unread > 0 && (
-                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-[11px] font-semibold text-white">
-                        {q.unread}
-                      </span>
+                    </div>
+
+                    <p className={cn("mt-x1_5 truncate t5-medium text-fg-neutral", unread && "t5-bold")}>{q.title}</p>
+
+                    {q.lastMessage && (
+                      <p className="mt-x0_5 flex min-w-0 items-center gap-x1 t4-regular text-fg-neutral-subtle">
+                        {q.lastMessage.hasAttachments && <Paperclip className="size-3.5 shrink-0" aria-label="첨부 있음" />}
+                        <span className="truncate">
+                          <span className="text-fg-neutral-muted">
+                            {q.lastMessage.senderType === "STAFF" ? "나/멘토" : "학생"}
+                          </span>
+                          {" · "}
+                          {q.lastMessage.content || (q.lastMessage.hasAttachments ? "사진" : "")}
+                        </span>
+                      </p>
                     )}
                   </div>
-                </div>
-                <p className="mt-2 text-[15px] font-semibold leading-snug">{q.title}</p>
-                {q.lastMessage && (
-                  <p className="mt-1 line-clamp-1 text-[13px] text-muted-foreground">
-                    {q.lastMessage.senderType === "STAFF" ? "나/멘토: " : "학생: "}
-                    {q.lastMessage.content || (q.lastMessage.hasAttachments ? "📷 사진" : "")}
-                  </p>
-                )}
-                <p className="mt-2 text-[12px] tabular-nums text-muted-foreground">
-                  {fmt(q.lastMessageAt)}
-                </p>
-              </Link>
-            </li>
-          ))}
+
+                  <div className="flex shrink-0 flex-col items-end gap-x1_5">
+                    <span className={cn("t3-regular tabular-nums", unread ? "text-fg-brand" : "text-fg-neutral-subtle")}>
+                      {fmt(q.lastMessageAt)}
+                    </span>
+                    <div className="flex items-center gap-x1_5">
+                      {q.claimedBy && (
+                        <StatusBadge tone={q.claimedByMe ? "brand" : "gray"}>
+                          <UserCheck />
+                          {q.claimedByMe ? "내 담당" : q.claimedBy.name}
+                        </StatusBadge>
+                      )}
+                      {unread && <CountBadge count={q.unread} />}
+                    </div>
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
-    </div>
+    </>
   );
 }

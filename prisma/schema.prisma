@@ -2552,10 +2552,14 @@ model ParentLink {
 
 model ContentPost {
   id            String   @id @default(cuid())
-  type          String // "podcast" | "article"
+  type          String // "podcast" | "article" | "review" | "mentor" | "director"
   title         String
   summary       String?
-  url           String // 외부 링크 (유튜브/블로그 등)
+  url           String? // 외부 링크 (유튜브/블로그 등) — podcast/article 필수, 자체 글은 선택
+  body          String? @db.Text // 자체 작성 본문 (markdown) — review/mentor/director
+  authorName    String?
+  authorRole    String?
+  authorKey     String? // mentors-data.js 의 멘토 id 또는 "director"
   coverImageUrl String?
   publishedAt   DateTime @default(now())
   visible       Boolean  @default(true)

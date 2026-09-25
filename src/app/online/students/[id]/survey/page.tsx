@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 import { getSurveyForReview } from "@/actions/online/onboarding-survey";
 import { prisma } from "@/lib/prisma";
+import { formatDateTime } from "@/lib/utils";
 import {
   SURVEY_SECTIONS,
   normalizePerformanceAnswer,
@@ -12,11 +12,14 @@ import {
   normalizeStrengthsWeaknessesAnswer,
   parseGradeNumber,
 } from "@/lib/online/survey-template";
+import { EmptyState, Section, StatusBadge } from "@/components/backoffice/ui";
+import { SurveyEmpty } from "@/components/online/survey-answer-ui";
 import { PerformanceSurveyDisplay } from "@/components/online/performance-survey-display";
 import { HistorySurveyDisplay } from "@/components/online/history-survey-display";
 import { GoalsSurveyDisplay } from "@/components/online/goals-survey-display";
 import { AdmissionTypeSurveyDisplay } from "@/components/online/admission-type-survey-display";
 import { StrengthsWeaknessesSurveyDisplay } from "@/components/online/strengths-weaknesses-survey-display";
+import { StudentDetailHeader } from "../_components/student-detail-header";
 
 export default async function StudentSurveyReviewPage({
   params,
@@ -35,100 +38,91 @@ export default async function StudentSurveyReviewPage({
   const { student, survey } = data;
   const sections = (survey?.sections as Record<string, unknown> | null) ?? {};
 
-  // admissionType 학기 노출 판단용 학년
+  // admissionType 학기 노출 판단용 학년 (+ 머리 상태 배지용 재원 상태)
   const gradeRow = await prisma.student.findUnique({
     where: { id: student.id },
-    select: { grade: true },
+    select: { grade: true, status: true },
   });
   const gradeNumber = parseGradeNumber(gradeRow?.grade ?? null);
 
-  return (
-    <div className="space-y-5">
-      <div>
-        <Link
-          href={`/online/students/${id}`}
-          className="inline-flex items-center gap-1 text-[12px] text-ink-4 hover:text-ink"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          학생 상세
-        </Link>
-      </div>
+  const submitState = survey?.submittedAt
+    ? { label: "제출 완료", tone: "ok" as const }
+    : survey
+      ? { label: "작성 중", tone: "warn" as const }
+      : { label: "미작성", tone: "gray" as const };
 
-      <header>
-        <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
-          {student.name} — 초기 설문
-        </h1>
-        <p className="mt-1 text-[13px] text-ink-4">
-          {survey?.submittedAt
-            ? `제출됨: ${survey.submittedAt.toLocaleString("ko-KR")} · version ${survey.version}`
-            : survey
-              ? "작성 중 (미제출)"
-              : "아직 작성 시작하지 않음"}
-        </p>
-      </header>
+  return (
+    <div>
+      <StudentDetailHeader
+        student={{ id: student.id, name: student.name, status: gradeRow?.status }}
+        current="survey"
+        description={
+          <span className="inline-flex flex-wrap items-center gap-x-x2 gap-y-x1">
+            <StatusBadge tone={submitState.tone}>{submitState.label}</StatusBadge>
+            <span className="tabular-nums">
+              {survey?.submittedAt
+                ? `${formatDateTime(survey.submittedAt)} 제출 · 버전 ${survey.version}`
+                : survey
+                  ? "아직 제출하지 않았어요"
+                  : "아직 작성을 시작하지 않았어요"}
+            </span>
+          </span>
+        }
+      />
 
       {!survey && (
-        <div className="rounded-[12px] border border-dashed border-line bg-canvas-2/50 p-8 text-center text-[13px] text-ink-4">
-          학생이 아직 설문 작성을 시작하지 않았습니다.
-          <br />
-          매직링크로 설문 페이지에 접속하면 답변이 이곳에 표시됩니다.
-        </div>
+        <Section>
+          <EmptyState
+            icon={ClipboardList}
+            title="학생이 아직 설문을 시작하지 않았어요"
+            description="매직링크로 설문 페이지에 들어오면 답변이 이곳에 표시돼요."
+          />
+        </Section>
       )}
 
       {survey && (
-        <div className="space-y-3">
+        <div className="flex flex-col gap-x6">
           {SURVEY_SECTIONS.map((section) => {
             const raw = sections[section.key];
             return (
-              <section
-                key={section.key}
-                className="rounded-[12px] border border-line bg-panel p-4"
-              >
-                <h3 className="text-[13px] font-semibold text-ink">
-                  {section.title}
-                </h3>
-                <p className="mt-1 text-[11.5px] text-ink-5 leading-relaxed">
-                  {section.description}
-                </p>
-                <div className="mt-3">
-                  {section.kind === "text" ? (
-                    <TextAnswerDisplay raw={raw} />
-                  ) : section.kind === "performance" ? (
-                    <PerformanceSurveyDisplay value={normalizePerformanceAnswer(
+              <Section key={section.key} title={section.title} description={section.description}>
+                {section.kind === "text" ? (
+                  <TextAnswerDisplay raw={raw} />
+                ) : section.kind === "performance" ? (
+                  <PerformanceSurveyDisplay value={normalizePerformanceAnswer(
+                    raw && typeof raw === "object" && "answer" in raw
+                      ? (raw as { answer: unknown }).answer
+                      : raw,
+                  )} />
+                ) : section.kind === "history" ? (
+                  <HistorySurveyDisplay value={normalizeHistoryAnswer(
+                    raw && typeof raw === "object" && "answer" in raw
+                      ? (raw as { answer: unknown }).answer
+                      : raw,
+                  )} />
+                ) : section.kind === "goals" ? (
+                  <GoalsSurveyDisplay value={normalizeGoalsAnswer(
+                    raw && typeof raw === "object" && "answer" in raw
+                      ? (raw as { answer: unknown }).answer
+                      : raw,
+                  )} />
+                ) : section.kind === "admissionType" ? (
+                  <AdmissionTypeSurveyDisplay
+                    value={normalizeAdmissionTypeAnswer(
                       raw && typeof raw === "object" && "answer" in raw
                         ? (raw as { answer: unknown }).answer
                         : raw,
-                    )} />
-                  ) : section.kind === "history" ? (
-                    <HistorySurveyDisplay value={normalizeHistoryAnswer(
-                      raw && typeof raw === "object" && "answer" in raw
-                        ? (raw as { answer: unknown }).answer
-                        : raw,
-                    )} />
-                  ) : section.kind === "goals" ? (
-                    <GoalsSurveyDisplay value={normalizeGoalsAnswer(
-                      raw && typeof raw === "object" && "answer" in raw
-                        ? (raw as { answer: unknown }).answer
-                        : raw,
-                    )} />
-                  ) : section.kind === "admissionType" ? (
-                    <AdmissionTypeSurveyDisplay
-                      value={normalizeAdmissionTypeAnswer(
-                        raw && typeof raw === "object" && "answer" in raw
-                          ? (raw as { answer: unknown }).answer
-                          : raw,
-                      )}
-                      gradeNumber={gradeNumber}
-                    />
-                  ) : (
-                    <StrengthsWeaknessesSurveyDisplay value={normalizeStrengthsWeaknessesAnswer(
-                      raw && typeof raw === "object" && "answer" in raw
-                        ? (raw as { answer: unknown }).answer
-                        : raw,
-                    )} />
-                  )}
-                </div>
-              </section>
+                    )}
+                    gradeNumber={gradeNumber}
+                  />
+                ) : (
+                  <StrengthsWeaknessesSurveyDisplay value={normalizeStrengthsWeaknessesAnswer(
+                    raw && typeof raw === "object" && "answer" in raw
+                      ? (raw as { answer: unknown }).answer
+                      : raw,
+                  )} />
+                )}
+              </Section>
             );
           })}
         </div>
@@ -145,9 +139,6 @@ function TextAnswerDisplay({ raw }: { raw: unknown }) {
         ? raw
         : "";
   const trimmed = answer.trim();
-  return (
-    <div className="rounded-[8px] border border-line-2 bg-canvas px-3 py-2.5 text-[12.5px] text-ink whitespace-pre-wrap leading-relaxed min-h-[2.5em]">
-      {trimmed || <span className="text-ink-5">(비어 있음)</span>}
-    </div>
-  );
+  if (!trimmed) return <SurveyEmpty />;
+  return <p className="whitespace-pre-wrap break-words t4-regular text-fg-neutral">{trimmed}</p>;
 }

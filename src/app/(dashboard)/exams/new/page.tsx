@@ -1,21 +1,17 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { PageIntro } from "@/components/ui/page-intro";
+import { PageHeader, Section } from "@/components/backoffice/ui";
 import { ExamSessionForm } from "@/components/exams/exam-session-form";
 
 export default function NewExamSessionPage() {
   return (
-    <div className="space-y-4">
-      <PageIntro
-        tag="EXAMS · NEW"
+    <div>
+      <PageHeader
+        back={{ href: "/exams", label: "시험 관리" }}
         title="시험 세션 생성"
-        description="시험 정보를 입력하면 이어서 응시자 선택 및 좌석 배치가 가능합니다"
-        accent="text-info"
+        description="시험 정보를 입력하면 이어서 응시자 선택과 좌석 배치를 할 수 있어요"
       />
-      <Card>
-        <CardContent className="pt-4">
-          <ExamSessionForm mode="create" />
-        </CardContent>
-      </Card>
+      <Section className="max-w-3xl">
+        <ExamSessionForm mode="create" />
+      </Section>
     </div>
   );
 }

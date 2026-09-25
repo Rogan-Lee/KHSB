@@ -3,10 +3,11 @@ import { Check } from "lucide-react";
 
 type SessionPriority = "p1" | "p2" | "p3";
 
-const stripeColor: Record<SessionPriority, string> = {
-  p1: "bg-bad",
-  p2: "bg-warn",
-  p3: "bg-ok",
+// 우선순위 점 — 위험(p1)·주의(p2)·보통(p3)
+const dotColor: Record<SessionPriority, string> = {
+  p1: "bg-bg-critical-solid",
+  p2: "bg-bg-warning-solid",
+  p3: "bg-bg-positive-solid",
 };
 
 interface SessionCardProps {
@@ -20,7 +21,7 @@ interface SessionCardProps {
   onClick?: () => void;
 }
 
-// Mentoring session card. 2px left priority stripe, done → strike-through + check.
+// 멘토링 세션 카드 — 흰 표면 + 옅은 선 + r2. 우선순위는 제목 앞 작은 점, 완료는 체크 + 취소선.
 export function SessionCard({
   priority = "p3",
   done = false,
@@ -36,32 +37,29 @@ export function SessionCard({
       type="button"
       onClick={onClick}
       className={cn(
-        "relative w-full text-left pl-[10px] pr-2 py-[6px] rounded-[7px]",
-        "bg-panel border border-line",
-        "hover:border-line-strong transition-colors",
-        done && "opacity-55",
+        "relative w-full rounded-r2 border border-stroke-neutral-muted bg-bg-layer-default px-x2_5 py-x1_5 text-left",
+        "outline-none transition-colors hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+        done && "opacity-60",
         className
       )}
     >
-      <span
-        className={cn(
-          "absolute left-[2px] top-1 bottom-1 w-[2px] rounded-[2px]",
-          stripeColor[priority]
+      <span className="flex items-center gap-x1_5 t3-medium text-fg-neutral">
+        {done ? (
+          <Check className="size-3.5 shrink-0 text-fg-positive" aria-label="완료" />
+        ) : (
+          <span className={cn("size-1.5 shrink-0 rounded-full", dotColor[priority])} aria-hidden />
         )}
-      />
-      <span className="flex items-center gap-1 text-[11.5px] font-semibold text-ink tracking-[-0.01em]">
-        {done && <Check className="h-3 w-3 text-ok shrink-0" />}
-        <span className={cn("truncate", done && "line-through")}>{title}</span>
+        <span className={cn("min-w-0 truncate", done && "line-through")}>{title}</span>
         {live && (
-          <span className="ml-auto font-mono text-[9px] font-semibold uppercase tracking-[0.06em] text-brand bg-brand-softer px-1 py-0.5 rounded-[3px]">
-            LIVE
+          <span className="ml-auto shrink-0 rounded-r1 bg-bg-brand-weak px-x1 t1-bold text-fg-brand">
+            진행 중
           </span>
         )}
       </span>
       {(time || sub) && (
-        <span className="mt-0.5 flex items-center gap-1.5 text-[10.5px] text-ink-4 font-mono tabular-nums">
-          {time && <span>{time}</span>}
-          {sub && <span className="font-sans truncate">{sub}</span>}
+        <span className="mt-x0_5 flex items-center gap-x1_5 t2-regular tabular-nums text-fg-neutral-subtle">
+          {time && <span className="shrink-0">{time}</span>}
+          {sub && <span className="min-w-0 truncate">{sub}</span>}
         </span>
       )}
     </button>

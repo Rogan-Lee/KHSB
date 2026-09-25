@@ -1,32 +1,41 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Plus, ChevronRight, Camera, HelpCircle } from "lucide-react";
+import { Camera } from "lucide-react";
+import { IconPlusFill } from "@karrotmarket/react-monochrome-icon";
+import { PrefixIcon } from "@seed-design/react";
 import { validateMagicLink } from "@/lib/student-auth";
 import { listStudentQuestions } from "@/actions/student-questions";
-import type { StudentQuestionStatus } from "@/generated/prisma";
+import {
+  Badge,
+  ButtonLink,
+  CountBadge,
+  EmptyState,
+  IconTile,
+  ListRow,
+  Section,
+} from "@/components/portal/ui";
+import { QUESTION_STATUS } from "@/components/portal/status";
+import { cn } from "@/lib/utils";
 
-const STATUS_LABEL: Record<StudentQuestionStatus, string> = {
-  OPEN: "답변 대기",
-  ANSWERED: "답변 완료",
-  RESOLVED: "해결됨",
-  ARCHIVED: "보관됨",
-};
-const STATUS_TONE: Record<StudentQuestionStatus, string> = {
-  OPEN: "bg-warn-soft text-warn-ink",
-  ANSWERED: "bg-ok-soft text-ok-ink",
-  RESOLVED: "bg-canvas-2 text-ink-3",
-  ARCHIVED: "bg-canvas-2 text-ink-4",
-};
+const KST_OFFSET = 9 * 60 * 60 * 1000;
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleString("ko-KR", {
-    timeZone: "Asia/Seoul",
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+/** 오늘이면 시각, 올해면 월·일, 그 외 연도까지 */
+function fmtWhen(iso: string): string {
+  const d = new Date(iso);
+  const k = new Date(d.getTime() + KST_OFFSET);
+  const now = new Date(Date.now() + KST_OFFSET);
+  if (
+    k.getUTCFullYear() === now.getUTCFullYear() &&
+    k.getUTCMonth() === now.getUTCMonth() &&
+    k.getUTCDate() === now.getUTCDate()
+  ) {
+    const h = k.getUTCHours();
+    const m = k.getUTCMinutes().toString().padStart(2, "0");
+    return `${h < 12 ? "오전" : "오후"} ${h % 12 === 0 ? 12 : h % 12}:${m}`;
+  }
+  if (k.getUTCFullYear() === now.getUTCFullYear()) {
+    return `${k.getUTCMonth() + 1}월 ${k.getUTCDate()}일`;
+  }
+  return `${k.getUTCFullYear()}. ${k.getUTCMonth() + 1}. ${k.getUTCDate()}.`;
 }
 
 export default async function StudentQnaListPage({
@@ -39,83 +48,98 @@ export default async function StudentQnaListPage({
   if (!session) redirect("/s/expired");
 
   const questions = await listStudentQuestions({ studentToken: token });
+  const newHref = `/s/${token}/qna/new`;
+
+  if (questions.length === 0) {
+    return (
+      <Section>
+        <EmptyState
+          icon={Camera}
+          tone="brand"
+          title="모르는 문제, 사진 찍어 물어보세요"
+          description={"문제 사진을 올리면\n당일 근무 멘토가 풀이를 답해드려요."}
+          action={
+            <ButtonLink href={newHref} variant="primary" size="lg">
+              첫 질문 올리기
+            </ButtonLink>
+          }
+        />
+      </Section>
+    );
+  }
+
+  const unreadTotal = questions.reduce((sum, q) => sum + q.unread, 0);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-[18px] font-bold tracking-[-0.02em] text-ink">질문</h1>
-        <Link
-          href={`/s/${token}/qna/new`}
-          className="inline-flex items-center gap-1 rounded-full bg-brand px-3.5 py-2 text-[13px] font-semibold text-white active:scale-[0.98] transition-transform"
-        >
-          <Plus className="h-4 w-4" strokeWidth={2.8} />
-          질문하기
-        </Link>
-      </div>
-
-      {questions.length === 0 ? (
-        <div className="rounded-[14px] border border-dashed border-line bg-canvas-2/40 px-5 py-12 text-center">
-          <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-panel text-ink-4">
-            <HelpCircle className="h-6 w-6" />
-          </span>
-          <p className="mt-3 text-[13.5px] font-semibold text-ink-2">아직 질문이 없어요</p>
-          <p className="mt-1 text-[12px] leading-relaxed text-ink-4">
-            모르는 문제를 사진으로 찍어 올리면
-            <br />
-            근무 멘토가 풀이를 답해드려요.
-          </p>
-          <Link
-            href={`/s/${token}/qna/new`}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-[10px] bg-brand px-4 py-2.5 text-[13px] font-semibold text-white active:scale-[0.98] transition-transform"
-          >
-            <Camera className="h-4 w-4" strokeWidth={2.4} />
-            첫 질문 올리기
-          </Link>
+    <div className="flex flex-col gap-x3">
+      <Section>
+        <div className="flex items-center gap-x3_5">
+          <IconTile icon={Camera} tone="brand" solid size={48} />
+          <div className="min-w-0 flex-1">
+            <p className="t6-bold text-fg-neutral">
+              모르는 문제, 사진 찍어 물어보세요
+            </p>
+            <p className="mt-x0_5 t4-regular text-fg-neutral-subtle">
+              당일 근무 멘토가 풀이를 답해드려요
+            </p>
+          </div>
         </div>
-      ) : (
-        <ul className="space-y-2.5">
-          {questions.map((q) => (
-            <li key={q.id}>
-              <Link
-                href={`/s/${token}/qna/${q.id}`}
-                className="block rounded-[14px] border border-line bg-panel p-4 active:bg-canvas-2 transition-colors"
-              >
-                <div className="flex items-center gap-1.5">
-                  {q.subject && (
-                    <span className="rounded-full bg-canvas-2 px-2 py-0.5 text-[10.5px] font-medium text-ink-3">
-                      {q.subject}
-                    </span>
-                  )}
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10.5px] font-medium ${STATUS_TONE[q.status]}`}
-                  >
-                    {STATUS_LABEL[q.status]}
+        <ButtonLink href={newHref} variant="primary" size="lg" block className="mt-x4">
+          <PrefixIcon svg={<IconPlusFill />} />
+          질문하기
+        </ButtonLink>
+      </Section>
+
+      <Section
+        flush
+        title="내 질문"
+        description={unreadTotal > 0 ? `새 답변 ${unreadTotal}개가 도착했어요` : undefined}
+        action={
+          <span className="t4-medium tabular-nums text-fg-neutral-subtle">
+            {questions.length}개
+          </span>
+        }
+      >
+        {questions.map((q) => {
+          const status = QUESTION_STATUS[q.status];
+          const last = q.lastMessage;
+          const previewText = last ? last.content || (last.hasAttachments ? "사진" : "") : "";
+          const preview = last && previewText
+            ? `${last.senderType === "STAFF" ? "멘토: " : ""}${previewText}`
+            : null;
+          const hasNew = q.unread > 0;
+          return (
+            <ListRow
+              key={q.id}
+              href={`/s/${token}/qna/${q.id}`}
+              chevron={false}
+              className="items-start"
+              meta={
+                <>
+                  {q.subject && <Badge>{q.subject}</Badge>}
+                  <Badge tone={status.tone}>{status.label}</Badge>
+                </>
+              }
+              title={<span className="line-clamp-2">{q.title}</span>}
+              description={
+                preview ? (
+                  <span className={cn("line-clamp-1", hasNew && "t4-medium text-fg-neutral-muted")}>
+                    {preview}
                   </span>
-                  {q.unread > 0 && (
-                    <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold text-white">
-                      새 답변 {q.unread}
-                    </span>
-                  )}
-                </div>
-                <p className="mt-2 text-[15px] font-semibold leading-snug text-ink">{q.title}</p>
-                {q.lastMessage && (
-                  <p className="mt-1 line-clamp-1 text-[12.5px] text-ink-4">
-                    {q.lastMessage.senderType === "STAFF" ? "멘토: " : ""}
-                    {q.lastMessage.content ||
-                      (q.lastMessage.hasAttachments ? "📷 사진" : "")}
-                  </p>
-                )}
-                <div className="mt-2.5 flex items-center justify-between border-t border-line pt-2.5">
-                  <span className="text-[11.5px] tabular-nums text-ink-4">
-                    {fmtDate(q.lastMessageAt)}
+                ) : undefined
+              }
+              trailing={
+                <div className="flex flex-col items-end gap-x1_5 pt-x0_5">
+                  <span className="t3-regular tabular-nums text-fg-placeholder">
+                    {fmtWhen(q.lastMessageAt)}
                   </span>
-                  <ChevronRight className="h-3.5 w-3.5 text-ink-4" strokeWidth={2.5} />
+                  <CountBadge count={q.unread} />
                 </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+              }
+            />
+          );
+        })}
+      </Section>
     </div>
   );
 }

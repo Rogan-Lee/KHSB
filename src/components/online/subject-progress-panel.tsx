@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2, History } from "lucide-react";
@@ -8,6 +8,17 @@ import {
   recordSubjectProgress,
   deleteSubjectProgressEntry,
 } from "@/actions/online/subject-progress";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  EmptyState,
+  FormActions,
+  FormField,
+  ProgressBar,
+  Section,
+} from "@/components/backoffice/ui";
+import { ConfirmDialog } from "@/components/online/online-confirm-dialog";
 
 export type ProgressEntry = {
   id: string;
@@ -32,7 +43,7 @@ export function SubjectProgressPanel({
   canEdit: boolean;
 }) {
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-1 items-start gap-x4 lg:grid-cols-2">
       {subjects.map((subject) => (
         <SubjectCard
           key={subject}
@@ -61,38 +72,46 @@ function SubjectCard({
   const [showHistory, setShowHistory] = useState(false);
   const latest = entries[0];
 
-  return (
-    <section className="rounded-[12px] border border-line bg-panel p-4">
-      <header className="flex items-center justify-between mb-2">
-        <h3 className="text-[13px] font-semibold text-ink">{subject}</h3>
-        <div className="flex items-center gap-1">
-          {entries.length > 1 && (
-            <button
-              type="button"
-              onClick={() => setShowHistory((v) => !v)}
-              className="inline-flex items-center gap-1 rounded-[6px] px-2 py-1 text-[11.5px] text-ink-4 hover:text-ink hover:bg-canvas-2"
-            >
-              <History className="h-3 w-3" />
-              기록 {entries.length}개
-            </button>
-          )}
-          {canEdit && !showForm && (
-            <button
-              type="button"
-              onClick={() => setShowForm(true)}
-              className="inline-flex items-center gap-1 rounded-[6px] border border-dashed border-line hover:border-line-strong px-2 py-1 text-[11.5px] text-ink-3 hover:text-ink"
-            >
-              <Plus className="h-3 w-3" />
-              업데이트
-            </button>
-          )}
-        </div>
-      </header>
+  const hasHistory = entries.length > 1;
+  const canAdd = canEdit && !showForm;
 
+  return (
+    <Section
+      title={subject}
+      actions={
+        hasHistory || canAdd ? (
+          <>
+            {hasHistory && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowHistory((v) => !v)}
+                aria-expanded={showHistory}
+              >
+                <History />
+                기록 {entries.length}개
+              </Button>
+            )}
+            {canAdd && (
+              <Button type="button" size="sm" variant="outline" onClick={() => setShowForm(true)}>
+                <Plus />
+                업데이트
+              </Button>
+            )}
+          </>
+        ) : undefined
+      }
+      bodyClassName="flex flex-col gap-x4"
+    >
       {latest ? (
         <LatestView entry={latest} />
       ) : (
-        <p className="text-[12px] text-ink-5">아직 기록이 없습니다.</p>
+        <EmptyState
+          compact
+          title="아직 기록이 없어요"
+          description={canEdit ? "업데이트를 눌러 첫 진도를 기록해 보세요." : undefined}
+        />
       )}
 
       {showForm && canEdit && (
@@ -104,51 +123,47 @@ function SubjectCard({
         />
       )}
 
-      {showHistory && entries.length > 1 && (
-        <div className="mt-3 space-y-2 border-t border-line-2 pt-3">
-          <p className="text-[11px] text-ink-4">이전 기록</p>
-          {entries.slice(1).map((e) => (
-            <HistoryItem
-              key={e.id}
-              entry={e}
-              canDelete={canEdit}
-              studentId={studentId}
-            />
-          ))}
+      {showHistory && hasHistory && (
+        <div className="border-t border-stroke-neutral-muted pt-x4">
+          <p className="t3-medium text-fg-neutral-subtle">이전 기록</p>
+          <ul className="divide-y divide-stroke-neutral-muted">
+            {entries.slice(1).map((e) => (
+              <HistoryItem
+                key={e.id}
+                entry={e}
+                canDelete={canEdit}
+                studentId={studentId}
+              />
+            ))}
+          </ul>
         </div>
       )}
-    </section>
+    </Section>
   );
 }
 
 function LatestView({ entry }: { entry: ProgressEntry }) {
   return (
-    <div className="space-y-1.5 text-[12.5px]">
-      <div className="flex items-baseline gap-2">
-        <span className="text-ink font-medium">{entry.currentTopic}</span>
+    <div className="flex flex-col gap-x2">
+      <div className="flex flex-wrap items-baseline gap-x-x2 gap-y-x0_5">
+        <span className="t5-bold text-fg-neutral">{entry.currentTopic}</span>
         {entry.textbookPage && (
-          <span className="text-ink-4 text-[11.5px]">{entry.textbookPage}</span>
+          <span className="t3-regular text-fg-neutral-subtle">{entry.textbookPage}</span>
         )}
       </div>
       {entry.weeklyProgress != null && (
-        <div className="flex items-center gap-2">
-          <div className="h-1.5 flex-1 rounded bg-canvas-2 overflow-hidden">
-            <div
-              className="h-full bg-ink"
-              style={{ width: `${entry.weeklyProgress}%` }}
-            />
-          </div>
-          <span className="text-[11px] text-ink-4 tabular-nums">
+        <div className="flex items-center gap-x3">
+          <span className="shrink-0 t3-regular text-fg-neutral-subtle">주간 진행률</span>
+          <ProgressBar value={entry.weeklyProgress / 100} tone="brand" className="flex-1" />
+          <span className="w-x10 shrink-0 text-right t3-medium tabular-nums text-fg-neutral-muted">
             {entry.weeklyProgress}%
           </span>
         </div>
       )}
       {entry.notes && (
-        <p className="text-[12px] text-ink-3 leading-relaxed whitespace-pre-wrap">
-          {entry.notes}
-        </p>
+        <p className="whitespace-pre-wrap t4-regular text-fg-neutral-muted">{entry.notes}</p>
       )}
-      <p className="text-[10.5px] text-ink-5">
+      <p className="t3-regular text-fg-neutral-subtle">
         {entry.authorName} · {new Date(entry.recordedAt).toLocaleString("ko-KR")}
       </p>
     </div>
@@ -166,9 +181,9 @@ function HistoryItem({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const onDelete = () => {
-    if (!confirm("이 기록을 삭제합니다.")) return;
     startTransition(async () => {
       try {
         await deleteSubjectProgressEntry(entry.id);
@@ -184,42 +199,53 @@ function HistoryItem({
   void studentId;
 
   return (
-    <div className="rounded-[8px] bg-canvas-2/50 px-3 py-2 text-[11.5px]">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1">
-          <div className="flex items-baseline gap-2">
-            <span className="text-ink">{entry.currentTopic}</span>
-            {entry.textbookPage && (
-              <span className="text-ink-5 text-[10.5px]">{entry.textbookPage}</span>
-            )}
-            {entry.weeklyProgress != null && (
-              <span className="text-ink-4 text-[10.5px] tabular-nums">
-                {entry.weeklyProgress}%
-              </span>
-            )}
-          </div>
-          {entry.notes && (
-            <p className="mt-0.5 text-ink-4 leading-relaxed whitespace-pre-wrap">
-              {entry.notes}
-            </p>
+    <li className="flex items-start gap-x3 py-x3">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-x2 gap-y-x0_5">
+          <span className="t4-medium text-fg-neutral">{entry.currentTopic}</span>
+          {entry.textbookPage && (
+            <span className="t3-regular text-fg-neutral-subtle">{entry.textbookPage}</span>
           )}
-          <p className="mt-0.5 text-[10px] text-ink-5">
-            {entry.authorName} · {new Date(entry.recordedAt).toLocaleString("ko-KR")}
-          </p>
+          {entry.weeklyProgress != null && (
+            <span className="t3-medium tabular-nums text-fg-neutral-muted">{entry.weeklyProgress}%</span>
+          )}
         </div>
-        {canDelete && (
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={isPending}
-            title="삭제"
-            className="p-1 rounded text-red-400 hover:text-red-600 disabled:opacity-50"
-          >
-            <Trash2 className="h-3 w-3" />
-          </button>
+        {entry.notes && (
+          <p className="mt-x1 whitespace-pre-wrap t3-regular text-fg-neutral-muted">{entry.notes}</p>
         )}
+        <p className="mt-x1 t2-regular text-fg-neutral-subtle">
+          {entry.authorName} · {new Date(entry.recordedAt).toLocaleString("ko-KR")}
+        </p>
       </div>
-    </div>
+      {canDelete && (
+        <>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={() => setConfirmOpen(true)}
+            disabled={isPending}
+            aria-label="기록 삭제"
+            className="text-fg-neutral-subtle hover:text-fg-critical"
+          >
+            <Trash2 />
+          </Button>
+          <ConfirmDialog
+            open={confirmOpen}
+            onOpenChange={setConfirmOpen}
+            title="이 기록을 삭제할까요?"
+            description="삭제한 진도 기록은 되돌릴 수 없어요."
+            confirmLabel="삭제"
+            destructive
+            pending={isPending}
+            onConfirm={() => {
+              setConfirmOpen(false);
+              onDelete();
+            }}
+          />
+        </>
+      )}
+    </li>
   );
 }
 
@@ -240,6 +266,7 @@ function ProgressForm({
   const [textbookPage, setTextbookPage] = useState("");
   const [weeklyProgress, setWeeklyProgress] = useState("");
   const [notes, setNotes] = useState("");
+  const fieldId = useId();
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -267,55 +294,56 @@ function ProgressForm({
   };
 
   return (
-    <form onSubmit={onSubmit} className="mt-3 space-y-2 rounded-[10px] border border-line-2 bg-canvas p-3">
-      <input
-        value={currentTopic}
-        onChange={(e) => setCurrentTopic(e.target.value)}
-        placeholder="현재 단원 · 위치 (필수)"
-        className="w-full rounded-[6px] border border-line bg-panel px-2.5 py-1.5 text-[12.5px]"
-        autoFocus
-      />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <input
-          value={textbookPage}
-          onChange={(e) => setTextbookPage(e.target.value)}
-          placeholder="교재 · 페이지"
-          className="rounded-[6px] border border-line bg-panel px-2.5 py-1.5 text-[12.5px]"
+    <form onSubmit={onSubmit} className="flex flex-col gap-x4 rounded-r3 bg-bg-layer-fill p-x4">
+      <FormField label="현재 단원 · 위치" required htmlFor={`${fieldId}-topic`}>
+        <Input
+          id={`${fieldId}-topic`}
+          value={currentTopic}
+          onChange={(e) => setCurrentTopic(e.target.value)}
+          placeholder="지금 공부 중인 단원이나 위치"
+          autoFocus
         />
-        <input
-          type="number"
-          min={0}
-          max={100}
-          value={weeklyProgress}
-          onChange={(e) => setWeeklyProgress(e.target.value)}
-          placeholder="주간 진행률 (0~100)"
-          className="rounded-[6px] border border-line bg-panel px-2.5 py-1.5 text-[12.5px]"
-        />
+      </FormField>
+      <div className="grid grid-cols-1 gap-x4 md:grid-cols-2">
+        <FormField label="교재 · 페이지" htmlFor={`${fieldId}-page`}>
+          <Input
+            id={`${fieldId}-page`}
+            value={textbookPage}
+            onChange={(e) => setTextbookPage(e.target.value)}
+            placeholder="교재명과 페이지"
+          />
+        </FormField>
+        <FormField label="주간 진행률 (%)" htmlFor={`${fieldId}-progress`}>
+          <Input
+            id={`${fieldId}-progress`}
+            type="number"
+            min={0}
+            max={100}
+            value={weeklyProgress}
+            onChange={(e) => setWeeklyProgress(e.target.value)}
+            placeholder="0~100"
+            className="tabular-nums"
+          />
+        </FormField>
       </div>
-      <textarea
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
-        placeholder="이슈 · 특이사항 (선택)"
-        rows={2}
-        className="w-full rounded-[6px] border border-line bg-panel px-2.5 py-1.5 text-[12.5px] resize-y"
-      />
-      <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={isPending}
-          className="rounded-[6px] border border-line bg-panel px-2.5 py-1 text-[12px] text-ink-3"
-        >
+      <FormField label="이슈 · 특이사항" htmlFor={`${fieldId}-notes`}>
+        <Textarea
+          id={`${fieldId}-notes`}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="필요할 때만 적어 주세요"
+          rows={2}
+          className="resize-y"
+        />
+      </FormField>
+      <FormActions className="pt-0">
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={isPending}>
           취소
-        </button>
-        <button
-          type="submit"
-          disabled={isPending || !currentTopic.trim()}
-          className="rounded-[6px] bg-ink text-white px-3 py-1 text-[12px] font-semibold disabled:opacity-50"
-        >
-          {isPending ? "기록 중..." : "기록"}
-        </button>
-      </div>
+        </Button>
+        <Button type="submit" variant="brand" disabled={isPending || !currentTopic.trim()}>
+          {isPending ? "기록 중…" : "기록"}
+        </Button>
+      </FormActions>
     </form>
   );
 }

@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
+import { Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+
+const noopSubscribe = () => () => {};
 
 const DEFAULT_MSG = "📢 모의고사 신청 안내\n아래 링크에서 휴대폰 본인인증 후 신청해주세요 👇";
 
@@ -11,8 +16,12 @@ const DEFAULT_MSG = "📢 모의고사 신청 안내\n아래 링크에서 휴대
  * (대기신청 ShareApply 패턴)
  */
 export function ExamApplyLinkShare({ sessionId }: { sessionId: string }) {
-  const [origin, setOrigin] = useState("");
-  useEffect(() => setOrigin(window.location.origin), []);
+  // 서버 렌더에선 빈 값, 브라우저에선 현재 origin
+  const origin = useSyncExternalStore(
+    noopSubscribe,
+    () => window.location.origin,
+    () => ""
+  );
   const link = origin ? `${origin}/exam-apply/${sessionId}` : "";
   const [msg, setMsg] = useState(DEFAULT_MSG);
 
@@ -26,38 +35,40 @@ export function ExamApplyLinkShare({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <div className="space-y-2 rounded-lg border border-line bg-muted/30 p-3">
-      <p className="text-xs text-muted-foreground">
-        보낼 메시지는 자유롭게 수정하세요. 링크는 자동으로 붙습니다.
+    <div className="flex flex-col gap-x3 rounded-r3 bg-bg-layer-fill p-x4">
+      <p className="t3-regular text-fg-neutral-subtle">
+        보낼 메시지는 자유롭게 고칠 수 있어요. 링크는 자동으로 붙어요.
       </p>
-      <textarea
+      <Textarea
         value={msg}
         onChange={(e) => setMsg(e.target.value)}
         rows={3}
-        className="w-full resize-none rounded-md border border-line bg-background px-3 py-2 text-sm"
+        className="min-h-0 resize-none"
         placeholder="안내 메시지"
+        aria-label="안내 메시지"
       />
-      <div className="flex items-center gap-2">
-        <input
-          readOnly
-          value={link}
-          className="min-w-0 flex-1 rounded-md border border-line bg-background px-2 py-1.5 text-xs text-muted-foreground"
-        />
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={!link}
-          onClick={() => copy(link, "링크가 복사되었습니다")}
-        >
-          링크만
-        </Button>
-        <Button
-          size="sm"
-          disabled={!link}
-          onClick={() => copy(`${msg}\n${link}`, "메시지 + 링크가 복사되었습니다")}
-        >
-          메시지+링크
-        </Button>
+      <div className="flex flex-col gap-x2 sm:flex-row sm:items-center">
+        <Input readOnly value={link} aria-label="신청 링크" className="min-w-0 flex-1 text-fg-neutral-muted" />
+        <div className="flex gap-x2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 sm:flex-none"
+            disabled={!link}
+            onClick={() => copy(link, "링크가 복사되었습니다")}
+          >
+            링크만 복사
+          </Button>
+          <Button
+            size="sm"
+            className="flex-1 sm:flex-none"
+            disabled={!link}
+            onClick={() => copy(`${msg}\n${link}`, "메시지 + 링크가 복사되었습니다")}
+          >
+            <Copy />
+            메시지+링크 복사
+          </Button>
+        </div>
       </div>
     </div>
   );

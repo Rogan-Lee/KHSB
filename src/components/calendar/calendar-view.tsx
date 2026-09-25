@@ -5,11 +5,18 @@ import { useRouter } from "next/navigation";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "@/actions/calendar";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "seed-design/ui/switch";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, ChevronRight, Plus, Pencil, Trash2, X, Calendar, LayoutGrid, RefreshCw } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight, Plus, Pencil, Trash2, X, RefreshCw } from "lucide-react";
 import type { CalendarEvent, CalendarEventType } from "@/generated/prisma";
 import type { GoogleCalendarEvent } from "@/actions/google-calendar";
 import { updateGoogleCalendarEvent, deleteGoogleCalendarEvent, fetchGoogleCalendarEventsForMonth } from "@/actions/google-calendar";
+import { EmptyState, FilterChip, FormActions, FormField, Section, Segmented, StatusBadge } from "@/components/backoffice/ui";
+import { ConfirmDialog } from "./confirm-dialog";
+import { EVENT_COLOR_OPTIONS, eventTone, eventToneByKey, normalizeEventColor, weekdayTextClass } from "./event-tones";
 
 type EventWithStudent = CalendarEvent & {
   student: { id: string; name: string } | null;
@@ -30,25 +37,41 @@ const EVENT_TYPE_CONFIG: Record<CalendarEventType, { label: string }> = {
   PLATFORM:     { label: "플랫폼" },
 };
 
-// 노션 태그 컬러 팔레트
-const NOTION_COLORS: Record<string, { label: string; bg: string; border: string; text: string; dot: string }> = {
-  google: { label: "Google", bg: "bg-[#e8f0fe]", border: "border-[#c5d8fd]", text: "text-[#1a73e8]", dot: "bg-[#4285f4]" },
-  gray:   { label: "회색", bg: "bg-gray-100",   border: "border-gray-200",   text: "text-gray-700",   dot: "bg-gray-400"   },
-  red:    { label: "빨강", bg: "bg-red-100",    border: "border-red-200",    text: "text-red-700",    dot: "bg-red-400"    },
-  orange: { label: "주황", bg: "bg-orange-100", border: "border-orange-200", text: "text-orange-700", dot: "bg-orange-400" },
-  yellow: { label: "노랑", bg: "bg-yellow-100", border: "border-yellow-200", text: "text-yellow-700", dot: "bg-yellow-400" },
-  green:  { label: "초록", bg: "bg-green-100",  border: "border-green-200",  text: "text-green-700",  dot: "bg-green-400"  },
-  blue:   { label: "파랑", bg: "bg-blue-100",   border: "border-blue-200",   text: "text-blue-700",   dot: "bg-blue-400"   },
-  purple: { label: "보라", bg: "bg-purple-100", border: "border-purple-200", text: "text-purple-700", dot: "bg-purple-400" },
-  pink:   { label: "분홍", bg: "bg-pink-100",   border: "border-pink-200",   text: "text-pink-700",   dot: "bg-pink-400"   },
-  brown:  { label: "갈색", bg: "bg-amber-100",  border: "border-amber-200",  text: "text-amber-800",  dot: "bg-amber-600"  },
-};
-
 const DEFAULT_COLOR = "blue";
 
 function getEventStyle(event: EventWithStudent) {
-  const key = event.color && NOTION_COLORS[event.color] ? event.color : DEFAULT_COLOR;
-  return NOTION_COLORS[key];
+  return eventTone(event.color, DEFAULT_COLOR);
+}
+
+/** 원형 아이콘 버튼 (이전·다음·닫기 등) */
+function IconButton({
+  label,
+  onClick,
+  children,
+  className,
+  disabled,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+  className?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      className={cn(
+        "grid size-x8 shrink-0 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral disabled:text-fg-disabled",
+        className
+      )}
+    >
+      {children}
+    </button>
+  );
 }
 
 const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
@@ -412,139 +435,67 @@ export function CalendarView({ initialEvents, schools = [], students = [], googl
   // ── 이벤트 상세 팝오버 ──
   const [hoveredEvent, setHoveredEvent] = useState<EventWithStudent | null>(null);
 
+  const [confirmDelete, setConfirmDelete] = useState<EventWithStudent | null>(null);
+
+  // 달력 칸 — 마지막 줄을 7칸으로 채워 격자를 닫는다(표시용)
+  const monthCells: (number | null)[] = [...cells, ...Array((7 - (cells.length % 7)) % 7).fill(null)];
+
+  const monthEvents = events.filter((e) => {
+    const start = new Date(e.startDate);
+    return start.getFullYear() === year && start.getMonth() === month;
+  });
+
+  function openAddForm(startDate: string, extra?: Partial<typeof form>) {
+    setForm((f) => ({ ...f, startDate, ...extra }));
+    setEditingId(null);
+    setShowForm(true);
+  }
+
+  const eventForm = (
+    <EventForm
+      form={form}
+      setForm={setForm}
+      editingId={editingId}
+      isPending={isPending}
+      allSchools={allSchools}
+      students={students}
+      onSubmit={editingId ? handleUpdate : handleAdd}
+      onClose={closeForm}
+      googleCalendarConfigured={googleCalendarConfigured}
+    />
+  );
+
   return (
-    <div className="space-y-4">
-      {/* 상단 컨트롤 */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2">
-          {/* 탐색 */}
-          <button
-            onClick={viewMode === "month" ? prevMonth : prevWeek}
-            className="p-1.5 rounded hover:bg-accent transition-colors"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <h2 className="text-base font-bold min-w-[200px] text-center">
+    <div className="flex flex-col gap-x4">
+      {/* 상단 — 기간 이동 · 보기 전환 · 일정 추가 */}
+      <div className="flex flex-wrap items-center justify-between gap-x3">
+        <div className="flex min-w-0 items-center gap-x0_5">
+          <IconButton label={viewMode === "month" ? "이전 달" : "이전 주"} onClick={viewMode === "month" ? prevMonth : prevWeek}>
+            <ChevronLeft className="size-5" aria-hidden />
+          </IconButton>
+          <IconButton label={viewMode === "month" ? "다음 달" : "다음 주"} onClick={viewMode === "month" ? nextMonth : nextWeek}>
+            <ChevronRight className="size-5" aria-hidden />
+          </IconButton>
+          <h2 className="ml-x1 truncate t7-bold tabular-nums text-fg-neutral">
             {viewMode === "month" ? `${year}년 ${month + 1}월` : weekLabel}
           </h2>
-          <button
-            onClick={viewMode === "month" ? nextMonth : nextWeek}
-            className="p-1.5 rounded hover:bg-accent transition-colors"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-          <button
-            onClick={goToday}
-            className="text-xs px-2 py-1 border rounded hover:bg-accent transition-colors text-muted-foreground"
-          >
+          <Button variant="outline" size="xs" onClick={goToday} className="ml-x2">
             오늘
-          </button>
-
-          {/* 뷰 토글 */}
-          <div className="flex rounded-md border overflow-hidden ml-1">
-            <button
-              onClick={() => setViewMode("month")}
-              className={cn(
-                "flex items-center gap-1 px-2.5 py-1 text-xs transition-colors",
-                viewMode === "month" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-              )}
-            >
-              <LayoutGrid className="h-3 w-3" />
-              월간
-            </button>
-            <button
-              onClick={() => setViewMode("week")}
-              className={cn(
-                "flex items-center gap-1 px-2.5 py-1 text-xs transition-colors border-l",
-                viewMode === "week" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-              )}
-            >
-              <Calendar className="h-3 w-3" />
-              학교별 주간
-            </button>
-          </div>
+          </Button>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* 유형 필터 */}
-          <div className="flex gap-1">
-            <button
-              onClick={() => setFilterType("ALL")}
-              className={cn("px-2 py-1 text-xs rounded border transition-colors", filterType === "ALL" ? "bg-primary/10 text-primary border-primary/30" : "border-border text-muted-foreground hover:bg-muted")}
-            >
-              전체
-            </button>
-            {(Object.keys(EVENT_TYPE_CONFIG) as CalendarEventType[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => setFilterType(t)}
-                className={cn("px-2 py-1 text-xs rounded border transition-colors", filterType === t ? "bg-primary/10 text-primary border-primary/30" : "border-border text-muted-foreground hover:bg-muted")}
-              >
-                {EVENT_TYPE_CONFIG[t].label}
-              </button>
-            ))}
-          </div>
-
-          {/* 학교 필터 (월간 뷰에서만) */}
-          {viewMode === "month" && allSchools.length > 0 && (
-            <select
-              value={filterSchool}
-              onChange={(e) => setFilterSchool(e.target.value)}
-              className="text-xs border rounded px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="ALL">모든 학교</option>
-              {allSchools.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          )}
-
-          {/* 원생 필터 */}
-          {students.length > 0 && (
-            <select
-              value={filterStudent}
-              onChange={(e) => setFilterStudent(e.target.value)}
-              className="text-xs border rounded px-2 py-1 bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="ALL">모든 원생</option>
-              {students.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} · {s.grade}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {googleCalendarConfigured && (
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setShowGoogleEvents((v) => !v)}
-                className={cn(
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded border text-xs transition-colors",
-                  showGoogleEvents
-                    ? "bg-[#e8f0fe] border-[#c5d8fd] text-[#1a73e8]"
-                    : "border-border text-muted-foreground hover:bg-muted"
-                )}
-              >
-                <span className="font-bold tracking-tight">G</span>
-                Google
-              </button>
-              <button
-                onClick={() => {
-                  setIsRefreshing(true);
-                  router.refresh();
-                  setTimeout(() => setIsRefreshing(false), 1000);
-                }}
-                disabled={isRefreshing}
-                title="Google Calendar 새로고침"
-                className="p-1.5 rounded border border-border text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={cn("h-3 w-3", isRefreshing && "animate-spin")} />
-              </button>
-            </div>
-          )}
-
+        <div className="flex flex-wrap items-center gap-x2">
+          <Segmented
+            aria-label="보기 전환"
+            value={viewMode}
+            onChange={setViewMode}
+            options={[
+              { value: "month", label: "월간" },
+              { value: "week", label: "학교별 주간" },
+            ]}
+            className="w-64 whitespace-nowrap"
+          />
           <Button
-            size="sm"
-            className="h-7 text-xs gap-1"
             onClick={() => {
               setForm((f) => ({
                 ...f,
@@ -556,26 +507,94 @@ export function CalendarView({ initialEvents, schools = [], students = [], googl
               setShowForm(true);
             }}
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus aria-hidden />
             일정 추가
           </Button>
         </div>
       </div>
 
+      {/* 필터 */}
+      <div className="flex flex-wrap items-center gap-x2">
+        <div className="flex flex-wrap items-center gap-x1_5" role="group" aria-label="일정 유형">
+          <FilterChip selected={filterType === "ALL"} onClick={() => setFilterType("ALL")}>
+            전체
+          </FilterChip>
+          {(Object.keys(EVENT_TYPE_CONFIG) as CalendarEventType[]).map((t) => (
+            <FilterChip key={t} selected={filterType === t} onClick={() => setFilterType(t)}>
+              {EVENT_TYPE_CONFIG[t].label}
+            </FilterChip>
+          ))}
+        </div>
+
+        <div className="flex w-full flex-wrap items-center gap-x2 lg:ml-auto lg:w-auto">
+          {/* 학교 필터 (월간 뷰에서만) */}
+          {viewMode === "month" && allSchools.length > 0 && (
+            <Select value={filterSchool} onValueChange={setFilterSchool}>
+              <SelectTrigger className="w-40" aria-label="학교 필터">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">모든 학교</SelectItem>
+                {allSchools.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* 원생 필터 */}
+          {students.length > 0 && (
+            <Select value={filterStudent} onValueChange={setFilterStudent}>
+              <SelectTrigger className="w-44" aria-label="원생 필터">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">모든 원생</SelectItem>
+                {students.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name} · {s.grade}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {googleCalendarConfigured && (
+            <div className="flex items-center gap-x1">
+              <FilterChip selected={showGoogleEvents} onClick={() => setShowGoogleEvents((v) => !v)}>
+                Google 일정
+              </FilterChip>
+              <IconButton
+                label="Google Calendar 새로고침"
+                onClick={() => {
+                  setIsRefreshing(true);
+                  router.refresh();
+                  setTimeout(() => setIsRefreshing(false), 1000);
+                }}
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={cn("size-4", isRefreshing && "animate-spin")} aria-hidden />
+              </IconButton>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* ── 월간 뷰 ── */}
       {viewMode === "month" && (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
-          <div className="rounded-lg border overflow-hidden">
-            <div className="grid grid-cols-7 text-center text-xs font-medium bg-muted/50">
+        <div className="grid grid-cols-1 gap-x4 lg:grid-cols-[1fr_300px] lg:items-start">
+          <div className="overflow-hidden rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
+            <div className="grid grid-cols-7 border-b border-stroke-neutral-muted bg-bg-layer-fill">
               {DAY_NAMES.map((d, i) => (
-                <div key={d} className={cn("py-2", i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-muted-foreground")}>
+                <div key={d} className={cn("py-x2 text-center t3-medium", weekdayTextClass(i))}>
                   {d}
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-7 border-t">
-              {cells.map((day, idx) => {
-                if (!day) return <div key={`empty-${idx}`} className="border-b border-r min-h-[90px] bg-muted/10" />;
+            <div className="grid grid-cols-7">
+              {monthCells.map((day, idx) => {
+                const lastCol = (idx + 1) % 7 === 0;
+                const lastRow = idx >= monthCells.length - 7;
+                const edge = cn("border-stroke-neutral-muted", !lastCol && "border-r", !lastRow && "border-b");
+                if (!day) return <div key={`empty-${idx}`} className={cn("min-h-24 bg-bg-layer-fill", edge)} />;
 
                 const ds = dateStr(day);
                 const dayEvents = eventsOnDay(day);
@@ -584,185 +603,183 @@ export function CalendarView({ initialEvents, schools = [], students = [], googl
                 const dayOfWeek = (firstDay + day - 1) % 7;
 
                 return (
-                  <div
+                  <button
                     key={day}
+                    type="button"
                     onClick={() => setSelectedDate(isSelected ? null : ds)}
+                    aria-pressed={isSelected}
+                    aria-label={`${month + 1}월 ${day}일${dayEvents.length > 0 ? `, 일정 ${dayEvents.length}개` : ""}`}
                     className={cn(
-                      "border-b border-r min-h-[90px] p-1 cursor-pointer transition-colors",
-                      isSelected ? "bg-primary/5" : "hover:bg-accent/40",
-                      (idx + 1) % 7 === 0 && "border-r-0"
+                      "flex min-h-24 min-w-0 flex-col gap-x1 p-x1_5 text-left transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring",
+                      edge,
+                      isSelected ? "bg-bg-brand-weak" : "hover:bg-bg-layer-default-pressed"
                     )}
                   >
-                    <div className={cn(
-                      "w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium mb-1",
-                      isToday ? "bg-primary text-primary-foreground" : "",
-                      !isToday && dayOfWeek === 0 ? "text-red-500" : "",
-                      !isToday && dayOfWeek === 6 ? "text-blue-500" : "",
-                    )}>
-                      {day}
-                    </div>
-                    <div className="space-y-0.5">
-                      {dayEvents.slice(0, 3).map((e) => {
-                        const style = getEventStyle(e);
-                        return (
-                          <div
-                            key={e.id}
-                            className={cn(
-                              "text-[10px] px-1.5 py-0.5 rounded truncate border",
-                              style.bg, style.border, style.text
-                            )}
-                          >
-                            {e.type === "PERSONAL" && e.student ? `${e.student.name}: ` : ""}{e.title}
-                          </div>
-                        );
-                      })}
-                      {dayEvents.length > 3 && (
-                        <div className="text-[10px] text-muted-foreground px-1">+{dayEvents.length - 3}개</div>
+                    <span
+                      className={cn(
+                        "grid size-x6 shrink-0 place-items-center rounded-full tabular-nums",
+                        isToday
+                          ? "bg-bg-brand-solid t3-bold text-palette-static-white"
+                          : cn(
+                              "t3-medium",
+                              dayOfWeek === 0 ? "text-fg-critical" : dayOfWeek === 6 ? "text-fg-informative" : "text-fg-neutral"
+                            )
                       )}
-                    </div>
-                  </div>
+                    >
+                      {day}
+                    </span>
+                    <span className="flex min-w-0 flex-col gap-x0_5">
+                      {dayEvents.slice(0, 3).map((e) => (
+                        <span
+                          key={e.id}
+                          className={cn("block truncate rounded-r1 px-x1_5 py-x0_5 t2-medium", getEventStyle(e).chip)}
+                        >
+                          {e.type === "PERSONAL" && e.student ? `${e.student.name}: ` : ""}{e.title}
+                        </span>
+                      ))}
+                      {dayEvents.length > 3 && (
+                        <span className="px-x1 t2-medium text-fg-neutral-subtle">+{dayEvents.length - 3}개</span>
+                      )}
+                    </span>
+                  </button>
                 );
               })}
             </div>
           </div>
 
           {/* 우측 패널 (월간) */}
-          <div className="space-y-3">
+          <div className="flex flex-col gap-x3">
             {showForm ? (
-              <EventForm
-                form={form}
-                setForm={setForm}
-                editingId={editingId}
-                isPending={isPending}
-                allSchools={allSchools}
-                students={students}
-                onSubmit={editingId ? handleUpdate : handleAdd}
-                onClose={closeForm}
-                googleCalendarConfigured={googleCalendarConfigured}
-              />
+              <Section>{eventForm}</Section>
             ) : selectedDate ? (
-              <div className="rounded-lg border p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">
-                    {new Date(selectedDate + "T00:00:00").toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
-                  </p>
-                  <button onClick={() => setSelectedDate(null)} className="text-muted-foreground hover:text-foreground transition-colors">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
+              <Section
+                title={new Date(selectedDate + "T00:00:00").toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
+                actions={
+                  <IconButton label="닫기" onClick={() => setSelectedDate(null)} className="-mr-x2">
+                    <X className="size-5" aria-hidden />
+                  </IconButton>
+                }
+              >
                 {selectedEvents.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-4">일정이 없습니다</p>
+                  <EmptyState compact icon={CalendarDays} title="이 날은 일정이 없어요" className="py-x6" />
                 ) : (
-                  <div className="space-y-2">
+                  <ul className="flex flex-col gap-x2">
                     {selectedEvents.map((e) => {
                       const style = getEventStyle(e);
                       return (
-                        <div key={e.id} className={cn("p-2.5 rounded-lg border", style.bg, style.border)}>
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className={cn("text-sm font-medium truncate", style.text)}>{e.title}</p>
-                              {e.schoolName && <p className="text-xs text-muted-foreground">{e.schoolName}</p>}
-                              {e.type === "PERSONAL" && e.student && (
-                                <p className="text-xs text-muted-foreground">{e.student.name}</p>
-                              )}
-                              {e.description && <p className="text-xs text-muted-foreground mt-0.5">{e.description}</p>}
-                              <p className="text-[10px] text-muted-foreground/70 mt-1">{EVENT_TYPE_CONFIG[e.type].label}</p>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              {isGoogleEvent(e) && (
-                                <span className="text-[10px] font-bold text-[#1a73e8] bg-[#e8f0fe] px-1.5 py-0.5 rounded">G</span>
-                              )}
-                              <>
-                                <button onClick={() => handleEdit(e)} disabled={isPending} className="text-muted-foreground hover:text-primary transition-colors">
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </button>
-                                <button onClick={() => handleDelete(e.id)} disabled={isPending} className="text-muted-foreground hover:text-destructive transition-colors">
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </>
+                        <li key={e.id} className="flex items-start gap-x3 rounded-r3 bg-bg-layer-fill p-x3">
+                          <span className={cn("mt-x1_5 size-2.5 shrink-0 rounded-full", style.swatch)} aria-hidden />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate t4-medium text-fg-neutral">{e.title}</p>
+                            {(e.schoolName || (e.type === "PERSONAL" && e.student)) && (
+                              <p className="mt-x0_5 truncate t3-regular text-fg-neutral-subtle">
+                                {[e.schoolName, e.type === "PERSONAL" ? e.student?.name : null].filter(Boolean).join(" · ")}
+                              </p>
+                            )}
+                            {e.description && (
+                              <p className="mt-x1 whitespace-pre-wrap t3-regular text-fg-neutral-muted">{e.description}</p>
+                            )}
+                            <div className="mt-x1_5 flex flex-wrap items-center gap-x1">
+                              <StatusBadge tone="gray">{EVENT_TYPE_CONFIG[e.type].label}</StatusBadge>
+                              {isGoogleEvent(e) && <StatusBadge tone="info">Google</StatusBadge>}
                             </div>
                           </div>
-                        </div>
+                          <div className="-mr-x1 -mt-x1 flex shrink-0 items-center">
+                            <IconButton label="일정 수정" onClick={() => handleEdit(e)} disabled={isPending}>
+                              <Pencil className="size-4" aria-hidden />
+                            </IconButton>
+                            <IconButton
+                              label="일정 삭제"
+                              onClick={() => setConfirmDelete(e)}
+                              disabled={isPending}
+                              className="hover:text-fg-critical"
+                            >
+                              <Trash2 className="size-4" aria-hidden />
+                            </IconButton>
+                          </div>
+                        </li>
                       );
                     })}
-                  </div>
+                  </ul>
                 )}
-                <button
-                  onClick={() => {
-                    setForm((f) => ({ ...f, startDate: selectedDate }));
-                    setEditingId(null);
-                    setShowForm(true);
-                  }}
-                  className="w-full text-xs text-primary hover:underline text-center"
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-x3 w-full"
+                  onClick={() => openAddForm(selectedDate)}
                 >
-                  + 이 날에 일정 추가
-                </button>
-              </div>
+                  <Plus aria-hidden />
+                  이 날에 일정 추가
+                </Button>
+              </Section>
             ) : (
-              <div className="rounded-lg border p-4 text-center">
-                <p className="text-xs text-muted-foreground">날짜를 클릭하면 일정을 확인할 수 있습니다</p>
-              </div>
+              <Section>
+                <EmptyState
+                  compact
+                  icon={CalendarDays}
+                  title="날짜를 선택해 주세요"
+                  description="달력에서 날짜를 누르면 그날 일정을 볼 수 있어요"
+                  className="py-x6"
+                />
+              </Section>
             )}
 
             {/* 이번 달 일정 요약 */}
-            <div className="rounded-lg border p-4 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">이번 달 일정</p>
-              {(() => {
-                const monthEvents = events.filter((e) => {
-                  const start = new Date(e.startDate);
-                  return start.getFullYear() === year && start.getMonth() === month;
-                });
-                if (monthEvents.length === 0) return <p className="text-xs text-muted-foreground">일정 없음</p>;
-                return monthEvents.slice(0, 8).map((e) => {
-                  const style = getEventStyle(e);
-                  return (
-                    <div key={e.id} className="flex items-start gap-2">
-                      <span className="text-xs text-muted-foreground whitespace-nowrap mt-0.5">
+            <Section title="이번 달 일정" count={monthEvents.length} flush>
+              {monthEvents.length === 0 ? (
+                <EmptyState compact title="이번 달 일정이 없어요" className="py-x6" />
+              ) : (
+                <ul className="flex flex-col pb-x3">
+                  {monthEvents.slice(0, 8).map((e) => (
+                    <li key={e.id} className="flex items-center gap-x2 px-x5 py-x1_5">
+                      <span className="w-8 shrink-0 t3-medium tabular-nums text-fg-neutral-subtle">
                         {new Date(e.startDate).getDate()}일
                       </span>
-                      <span className={cn("text-[10px] px-1.5 py-0.5 rounded border shrink-0", style.bg, style.border, style.text)}>
-                        {EVENT_TYPE_CONFIG[e.type].label}
-                      </span>
-                      <span className="text-xs truncate">
+                      <span className={cn("size-2 shrink-0 rounded-full", getEventStyle(e).swatch)} aria-hidden />
+                      <span className="min-w-0 flex-1 truncate t4-regular text-fg-neutral">
                         {e.type === "PERSONAL" && e.student ? `${e.student.name}: ` : ""}{e.title}
                       </span>
-                    </div>
-                  );
-                });
-              })()}
-            </div>
+                      <span className="shrink-0 t2-regular text-fg-neutral-subtle">{EVENT_TYPE_CONFIG[e.type].label}</span>
+                    </li>
+                  ))}
+                  {monthEvents.length > 8 && (
+                    <li className="px-x5 pt-x1 t3-regular text-fg-neutral-subtle">외 {monthEvents.length - 8}건</li>
+                  )}
+                </ul>
+              )}
+            </Section>
           </div>
         </div>
       )}
 
       {/* ── 학교별 주간 뷰 ── */}
       {viewMode === "week" && (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 items-start">
+        <div className="grid grid-cols-1 items-start gap-x4 lg:grid-cols-[1fr_280px]">
           {/* 주간 그리드 */}
-          <div className="rounded-lg border overflow-auto max-h-[calc(100vh-220px)]">
-            <table className="w-full border-collapse min-w-[640px]">
+          <div className="max-h-[calc(100vh-220px)] overflow-auto rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
+            <table className="w-full min-w-[640px] border-collapse">
               <thead>
-                <tr className="bg-muted/40 sticky top-0 z-20">
+                <tr className="sticky top-0 z-20 bg-bg-layer-fill">
                   {/* 학교 헤더 셀 */}
-                  <th className="text-xs font-medium text-muted-foreground text-left px-3 py-2.5 border-b border-r w-[110px] sticky left-0 bg-muted/40 z-30">
+                  <th className="sticky left-0 z-30 w-28 border-b border-r border-stroke-neutral-muted bg-bg-layer-fill px-x3 py-x2_5 text-left t3-medium text-fg-neutral-subtle">
                     학교
                   </th>
-                  {weekDays.map((d, i) => {
+                  {weekDays.map((d) => {
                     const ds = toDateStr(d);
                     const isToday = ds === todayStr;
                     const dow = d.getDay();
                     return (
-                      <th key={ds} className="border-b border-r last:border-r-0 px-2 py-2 text-center min-w-[120px] bg-muted/40">
-                        <div className={cn(
-                          "text-[10px] font-medium",
-                          dow === 0 ? "text-red-500" : dow === 6 ? "text-blue-500" : "text-muted-foreground"
-                        )}>
-                          {DAY_NAMES[dow]}
-                        </div>
-                        <div className={cn(
-                          "mx-auto mt-0.5 w-7 h-7 flex items-center justify-center rounded-full text-sm font-semibold",
-                          isToday ? "bg-primary text-primary-foreground" : "text-foreground"
-                        )}>
+                      <th
+                        key={ds}
+                        className="min-w-[120px] border-b border-r border-stroke-neutral-muted bg-bg-layer-fill px-x2 py-x2 text-center last:border-r-0"
+                      >
+                        <div className={cn("t2-medium", weekdayTextClass(dow))}>{DAY_NAMES[dow]}</div>
+                        <div
+                          className={cn(
+                            "mx-auto mt-x0_5 grid size-x7 place-items-center rounded-full t4-bold tabular-nums",
+                            isToday ? "bg-bg-brand-solid text-palette-static-white" : "text-fg-neutral"
+                          )}
+                        >
                           {d.getDate()}
                         </div>
                       </th>
@@ -776,9 +793,9 @@ export function CalendarView({ initialEvents, schools = [], students = [], googl
                   const hasCommon = weekDays.some((d) => eventsForSchoolDay(null, toDateStr(d)).length > 0);
                   if (!hasCommon) return null;
                   return (
-                    <tr className="border-b hover:bg-muted/20 transition-colors">
-                      <td className="px-3 py-2 border-r sticky left-0 bg-card z-10">
-                        <span className="text-xs font-medium text-muted-foreground">공통</span>
+                    <tr className="border-b border-stroke-neutral-muted">
+                      <td className="sticky left-0 z-10 border-r border-stroke-neutral-muted bg-bg-layer-default px-x3 py-x2 align-top">
+                        <span className="t3-medium text-fg-neutral-subtle">공통</span>
                       </td>
                       {weekDays.map((d) => {
                         const ds = toDateStr(d);
@@ -803,9 +820,9 @@ export function CalendarView({ initialEvents, schools = [], students = [], googl
 
                 {/* 학교별 행 */}
                 {getWeekSchoolRows().map((school) => (
-                  <tr key={school} className="border-b last:border-b-0 hover:bg-muted/20 transition-colors">
-                    <td className="px-3 py-2 border-r sticky left-0 bg-card z-10">
-                      <span className="text-xs font-semibold text-foreground">{school}</span>
+                  <tr key={school} className="border-b border-stroke-neutral-muted last:border-b-0">
+                    <td className="sticky left-0 z-10 border-r border-stroke-neutral-muted bg-bg-layer-default px-x3 py-x2 align-top">
+                      <span className="t3-bold text-fg-neutral">{school}</span>
                     </td>
                     {weekDays.map((d) => {
                       const ds = toDateStr(d);
@@ -830,8 +847,13 @@ export function CalendarView({ initialEvents, schools = [], students = [], googl
                 {/* 학교 행이 없을 때 */}
                 {getWeekSchoolRows().length === 0 && !weekDays.some((d) => eventsForSchoolDay(null, toDateStr(d)).length > 0) && (
                   <tr>
-                    <td colSpan={8} className="text-center py-10 text-sm text-muted-foreground">
-                      이번 주 등록된 일정이 없습니다
+                    <td colSpan={8}>
+                      <EmptyState
+                        compact
+                        icon={CalendarDays}
+                        title="이번 주 등록된 일정이 없어요"
+                        description="위의 일정 추가 버튼으로 등록할 수 있어요"
+                      />
                     </td>
                   </tr>
                 )}
@@ -840,86 +862,94 @@ export function CalendarView({ initialEvents, schools = [], students = [], googl
           </div>
 
           {/* 우측 패널 (주간) */}
-          <div className="space-y-3">
+          <div className="flex flex-col gap-x3">
             {showForm ? (
-              <div className="rounded-lg border p-4">
-                <EventForm
-                  form={form}
-                  setForm={setForm}
-                  editingId={editingId}
-                  isPending={isPending}
-                  allSchools={allSchools}
-                  students={students}
-                  onSubmit={editingId ? handleUpdate : handleAdd}
-                  onClose={closeForm}
-                  googleCalendarConfigured={googleCalendarConfigured}
-                />
-              </div>
+              <Section>{eventForm}</Section>
             ) : hoveredEvent ? (
-              <div className="rounded-lg border p-4 space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    {(() => {
-                      const style = getEventStyle(hoveredEvent);
-                      return (
-                        <span className={cn("inline-flex text-[10px] px-1.5 py-0.5 rounded border mb-1.5", style.bg, style.border, style.text)}>
-                          {EVENT_TYPE_CONFIG[hoveredEvent.type].label}
-                        </span>
-                      );
-                    })()}
-                    <p className="text-sm font-semibold">{hoveredEvent.title}</p>
-                    {hoveredEvent.schoolName && (
-                      <p className="text-xs text-muted-foreground mt-0.5">{hoveredEvent.schoolName}</p>
-                    )}
-                    {hoveredEvent.type === "PERSONAL" && hoveredEvent.student && (
-                      <p className="text-xs text-muted-foreground mt-0.5">{hoveredEvent.student.name}</p>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(hoveredEvent.startDate).toLocaleDateString("ko-KR", { month: "long", day: "numeric" })}
-                      {hoveredEvent.endDate && ` – ${new Date(hoveredEvent.endDate).toLocaleDateString("ko-KR", { month: "long", day: "numeric" })}`}
-                    </p>
-                    {hoveredEvent.description && (
-                      <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{hoveredEvent.description}</p>
-                    )}
+              <Section>
+                <div className="flex items-start justify-between gap-x2">
+                  <div className="flex flex-wrap items-center gap-x1">
+                    <span className={cn("inline-flex rounded-r1 px-x1_5 py-x0_5 t2-medium", getEventStyle(hoveredEvent).chip)}>
+                      {EVENT_TYPE_CONFIG[hoveredEvent.type].label}
+                    </span>
+                    {isGoogleEvent(hoveredEvent) && <StatusBadge tone="info">Google</StatusBadge>}
                   </div>
-                  <button onClick={() => setHoveredEvent(null)} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
-                    <X className="h-4 w-4" />
-                  </button>
+                  <IconButton label="닫기" onClick={() => setHoveredEvent(null)} className="-mr-x2 -mt-x1">
+                    <X className="size-5" aria-hidden />
+                  </IconButton>
                 </div>
-                <div className="flex gap-2 pt-1 border-t">
-                  {isGoogleEvent(hoveredEvent) && (
-                    <span className="text-[10px] font-bold text-[#1a73e8] bg-[#e8f0fe] px-1.5 py-0.5 rounded self-center">G</span>
-                  )}
+                <p className="mt-x2 t5-bold text-fg-neutral">{hoveredEvent.title}</p>
+                {hoveredEvent.schoolName && (
+                  <p className="mt-x0_5 t4-regular text-fg-neutral-subtle">{hoveredEvent.schoolName}</p>
+                )}
+                {hoveredEvent.type === "PERSONAL" && hoveredEvent.student && (
+                  <p className="mt-x0_5 t4-regular text-fg-neutral-subtle">{hoveredEvent.student.name}</p>
+                )}
+                <p className="mt-x1 t4-regular tabular-nums text-fg-neutral-muted">
+                  {new Date(hoveredEvent.startDate).toLocaleDateString("ko-KR", { month: "long", day: "numeric" })}
+                  {hoveredEvent.endDate && ` – ${new Date(hoveredEvent.endDate).toLocaleDateString("ko-KR", { month: "long", day: "numeric" })}`}
+                </p>
+                {hoveredEvent.description && (
+                  <p className="mt-x3 whitespace-pre-wrap t4-regular text-fg-neutral-muted">{hoveredEvent.description}</p>
+                )}
+                <div className="mt-x4 flex gap-x2 border-t border-stroke-neutral-muted pt-x4">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 text-xs flex-1 gap-1"
+                    className="flex-1"
                     onClick={() => { handleEdit(hoveredEvent); setHoveredEvent(null); }}
                     disabled={isPending}
                   >
-                    <Pencil className="h-3 w-3" />
+                    <Pencil aria-hidden />
                     수정
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="h-7 text-xs flex-1 gap-1 text-destructive hover:text-destructive border-destructive/30 hover:bg-destructive/5"
-                    onClick={() => { handleDelete(hoveredEvent.id); setHoveredEvent(null); }}
+                    className="flex-1 text-fg-critical"
+                    onClick={() => setConfirmDelete(hoveredEvent)}
                     disabled={isPending}
                   >
-                    <Trash2 className="h-3 w-3" />
+                    <Trash2 aria-hidden />
                     삭제
                   </Button>
                 </div>
-              </div>
+              </Section>
             ) : (
-              <div className="rounded-lg border p-4 text-center">
-                <p className="text-xs text-muted-foreground">일정을 클릭하면<br />상세 내용을 확인할 수 있습니다</p>
-              </div>
+              <Section>
+                <EmptyState
+                  compact
+                  icon={CalendarDays}
+                  title="일정을 선택해 주세요"
+                  description={"표에서 일정을 누르면\n자세한 내용을 볼 수 있어요"}
+                  className="py-x6"
+                />
+              </Section>
             )}
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        onOpenChange={(o) => { if (!o) setConfirmDelete(null); }}
+        title="이 일정을 삭제할까요?"
+        description={
+          confirmDelete
+            ? isGoogleEvent(confirmDelete)
+              ? `'${confirmDelete.title}' 일정이 Google Calendar에서도 삭제돼요.`
+              : `'${confirmDelete.title}' 일정이 캘린더에서 사라져요.`
+            : undefined
+        }
+        pending={isPending}
+        onConfirm={() => {
+          if (confirmDelete) {
+            handleDelete(confirmDelete.id);
+            if (hoveredEvent?.id === confirmDelete.id) setHoveredEvent(null);
+          }
+          setConfirmDelete(null);
+        }}
+      />
     </div>
   );
 }
@@ -936,30 +966,32 @@ function WeekCell({
 }) {
   return (
     <td
-      className="border-r last:border-r-0 px-1.5 py-1.5 align-top min-h-[56px] group cursor-pointer"
+      className="group cursor-pointer border-r border-stroke-neutral-muted px-x1_5 py-x1_5 align-top last:border-r-0"
       onClick={() => { if (events.length === 0) onAddClick(); }}
     >
-      <div className="space-y-0.5 min-h-[44px]">
-        {events.map((e) => {
-          const style = getEventStyle(e);
-          return (
-            <button
-              key={e.id}
-              type="button"
-              onClick={(ev) => { ev.stopPropagation(); onEventClick(e); }}
-              className={cn(
-                "w-full text-left text-[11px] px-1.5 py-1 rounded border leading-tight truncate transition-opacity hover:opacity-80",
-                style.bg, style.border, style.text
-              )}
-            >
-              {e.title}
-            </button>
-          );
-        })}
+      <div className="flex min-h-11 flex-col gap-x0_5">
+        {events.map((e) => (
+          <button
+            key={e.id}
+            type="button"
+            onClick={(ev) => { ev.stopPropagation(); onEventClick(e); }}
+            className={cn(
+              "w-full truncate rounded-r1 px-x1_5 py-x1 text-left t2-medium transition-[filter] hover:brightness-95",
+              getEventStyle(e).chip
+            )}
+          >
+            {e.title}
+          </button>
+        ))}
         {events.length === 0 && (
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center h-10">
-            <Plus className="h-3.5 w-3.5 text-muted-foreground" />
-          </div>
+          <button
+            type="button"
+            onClick={(ev) => { ev.stopPropagation(); onAddClick(); }}
+            aria-label="이 칸에 일정 추가"
+            className="grid h-10 w-full place-items-center rounded-r1 text-fg-placeholder opacity-0 transition-opacity hover:bg-bg-transparent-pressed focus-visible:opacity-100 group-hover:opacity-100"
+          >
+            <Plus className="size-4" aria-hidden />
+          </button>
         )}
       </div>
     </td>
@@ -1033,64 +1065,73 @@ function InlineDateRangePicker({
     return `${y}.${m}.${d}`;
   }
 
+  const rangeBox = (active: boolean, filled: boolean) =>
+    cn(
+      "flex-1 rounded-r2 px-x3 py-x2 text-center t3-medium tabular-nums transition-shadow",
+      active
+        ? "bg-bg-layer-default shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)]"
+        : "bg-bg-layer-fill",
+      filled ? "text-fg-neutral" : "text-fg-placeholder"
+    );
+
   return (
-    <div className="space-y-2">
+    <div className="flex flex-col gap-x2">
       {/* 선택된 범위 표시 */}
-      <div className="flex items-center gap-1.5 text-xs">
-        <div className={cn(
-          "flex-1 rounded border px-2 py-1.5 text-center font-mono transition-colors",
-          step === "start" ? "border-primary ring-1 ring-primary bg-primary/5" : "border-border",
-          !startDate && "text-muted-foreground"
-        )}>
+      <div className="flex items-center gap-x1_5">
+        <div className={rangeBox(step === "start", !!startDate)}>
           {startDate ? formatDs(startDate) : "시작일"}
         </div>
-        <span className="text-muted-foreground">→</span>
-        <div className={cn(
-          "flex-1 rounded border px-2 py-1.5 text-center font-mono transition-colors",
-          step === "end" ? "border-primary ring-1 ring-primary bg-primary/5" : "border-border",
-          !endDate && "text-muted-foreground"
-        )}>
+        <span className="t3-regular text-fg-neutral-subtle" aria-hidden>→</span>
+        <div className={rangeBox(step === "end", !!endDate)}>
           {endDate ? formatDs(endDate) : "종료일"}
         </div>
         {startDate && (
           <button
             type="button"
             onClick={() => { onChange("", ""); setStep("start"); }}
-            className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-accent transition-colors"
+            className="grid size-x8 shrink-0 place-items-center rounded-full text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral"
             title="초기화"
+            aria-label="날짜 초기화"
           >
-            <X className="h-3 w-3" />
+            <X className="size-4" aria-hidden />
           </button>
         )}
       </div>
 
       {/* 캘린더 */}
-      <div className="rounded-lg border overflow-hidden select-none">
+      <div className="select-none overflow-hidden rounded-r3 border border-stroke-neutral-muted">
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-3 py-2 bg-muted/30 border-b">
-          <button type="button" onClick={prevMonth} className="p-1 rounded hover:bg-accent transition-colors">
-            <ChevronLeft className="h-3.5 w-3.5" />
+        <div className="flex items-center justify-between border-b border-stroke-neutral-muted px-x1_5 py-x1">
+          <button
+            type="button"
+            onClick={prevMonth}
+            aria-label="이전 달"
+            className="grid size-x8 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed"
+          >
+            <ChevronLeft className="size-4" aria-hidden />
           </button>
-          <span className="text-xs font-semibold">{pickerYear}년 {pickerMonth + 1}월</span>
-          <button type="button" onClick={nextMonth} className="p-1 rounded hover:bg-accent transition-colors">
-            <ChevronRight className="h-3.5 w-3.5" />
+          <span className="t4-bold tabular-nums text-fg-neutral">{pickerYear}년 {pickerMonth + 1}월</span>
+          <button
+            type="button"
+            onClick={nextMonth}
+            aria-label="다음 달"
+            className="grid size-x8 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed"
+          >
+            <ChevronRight className="size-4" aria-hidden />
           </button>
         </div>
 
         {/* 요일 헤더 */}
-        <div className="grid grid-cols-7 bg-muted/10">
+        <div className="grid grid-cols-7 bg-bg-layer-fill">
           {["일", "월", "화", "수", "목", "금", "토"].map((d, i) => (
-            <div key={d} className={cn(
-              "text-center py-1.5 text-[10px] font-medium",
-              i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-muted-foreground"
-            )}>{d}</div>
+            <div key={d} className={cn("py-x1_5 text-center t2-medium", weekdayTextClass(i))}>{d}</div>
           ))}
         </div>
 
         {/* 날짜 그리드 */}
-        <div className="grid grid-cols-7">
+        <div className="grid grid-cols-7 py-x1">
           {cells.map((day, idx) => {
-            if (!day) return <div key={`e-${idx}`} className="h-8" />;
+            if (!day) return <div key={`e-${idx}`} className="h-9" />;
             const ds = toDs(pickerYear, pickerMonth, day);
             const dow = idx % 7;
             const isStart = ds === startDate;
@@ -1100,37 +1141,43 @@ function InlineDateRangePicker({
             const isToday = ds === todayDs;
 
             return (
-              <div
+              <button
                 key={day}
-                className={cn(
-                  "relative h-8 flex items-center justify-center cursor-pointer",
-                  // 범위 배경
-                  (inRange || inPreview) && "bg-primary/10",
-                  isStart && (endDate || (previewEnd)) && "bg-gradient-to-r from-transparent to-primary/10",
-                  isEnd && startDate && "bg-gradient-to-l from-transparent to-primary/10",
-                )}
+                type="button"
+                className="relative flex h-9 items-center justify-center"
                 onClick={() => handleDayClick(ds)}
                 onMouseEnter={() => setHoverDate(ds)}
                 onMouseLeave={() => setHoverDate(null)}
+                aria-label={`${pickerMonth + 1}월 ${day}일`}
+                aria-pressed={isStart || isEnd}
               >
-                <span className={cn(
-                  "w-7 h-7 flex items-center justify-center rounded-full text-[11px] font-medium transition-colors z-10 relative",
-                  (isStart || isEnd) ? "bg-primary text-primary-foreground shadow-sm" :
-                  isToday ? "ring-1 ring-primary text-primary" :
-                  dow === 0 ? "text-red-500 hover:bg-red-50" :
-                  dow === 6 ? "text-blue-500 hover:bg-blue-50" :
-                  "hover:bg-accent"
-                )}>
+                {/* 범위 배경 */}
+                {(inRange || inPreview) && <span className="absolute inset-x-0 inset-y-1 bg-bg-brand-weak" aria-hidden />}
+                {isStart && (endDate || previewEnd) && <span className="absolute inset-y-1 left-1/2 right-0 bg-bg-brand-weak" aria-hidden />}
+                {isEnd && startDate && <span className="absolute inset-y-1 left-0 right-1/2 bg-bg-brand-weak" aria-hidden />}
+                <span
+                  className={cn(
+                    "relative z-10 grid size-x7 place-items-center rounded-full tabular-nums transition-colors",
+                    (isStart || isEnd)
+                      ? "bg-bg-brand-solid t3-bold text-palette-static-white"
+                      : isToday
+                        ? "t3-bold text-fg-brand ring-1 ring-inset ring-stroke-brand-solid"
+                        : cn(
+                            "t3-medium hover:bg-bg-transparent-pressed",
+                            dow === 0 ? "text-fg-critical" : dow === 6 ? "text-fg-informative" : "text-fg-neutral"
+                          )
+                  )}
+                >
                   {day}
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
       </div>
 
-      <p className="text-[10px] text-muted-foreground">
-        {step === "start" ? "시작일을 클릭하세요" : "종료일을 클릭하세요 (없으면 시작일만 저장)"}
+      <p className="t2-regular text-fg-neutral-subtle">
+        {step === "start" ? "시작일을 눌러 주세요" : "종료일을 눌러 주세요 (없으면 시작일만 저장돼요)"}
       </p>
     </div>
   );
@@ -1169,131 +1216,158 @@ function EventForm({
   onClose: () => void;
   googleCalendarConfigured?: boolean;
 }) {
+  const NONE = "__none__";
+  const selectedColor = normalizeEventColor(form.color, DEFAULT_COLOR);
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">{editingId ? "일정 수정" : "일정 등록"}</p>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
-          <X className="h-4 w-4" />
-        </button>
+    <div className="flex flex-col gap-x4">
+      <div className="flex items-center justify-between gap-x2">
+        <h3 className="t6-bold text-fg-neutral">{editingId ? "일정 수정" : "일정 등록"}</h3>
+        <IconButton label="닫기" onClick={onClose} className="-mr-x2">
+          <X className="size-5" aria-hidden />
+        </IconButton>
       </div>
-      <div className="space-y-2.5">
-        <input
+
+      <FormField label="제목" required htmlFor="event-title">
+        <Input
+          id="event-title"
           type="text"
-          placeholder="제목 *"
+          placeholder="일정 제목"
           value={form.title}
           onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-          className="w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
         />
+      </FormField>
+
+      <FormField label="기간" required>
         <InlineDateRangePicker
           startDate={form.startDate}
           endDate={form.endDate}
           onChange={(start, end) => setForm((f) => ({ ...f, startDate: start, endDate: end }))}
         />
-        {!editingId?.startsWith("g_") && (
-          <>
-            <select
+      </FormField>
+
+      {!editingId?.startsWith("g_") && (
+        <>
+          <FormField label="유형">
+            <Select
               value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as CalendarEventType, studentId: "", schoolName: "" }))}
-              className="w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+              onValueChange={(v) => setForm((f) => ({ ...f, type: v as CalendarEventType, studentId: "", schoolName: "" }))}
             >
-              {(Object.keys(EVENT_TYPE_CONFIG) as CalendarEventType[]).map((t) => (
-                <option key={t} value={t}>{EVENT_TYPE_CONFIG[t].label}</option>
-              ))}
-            </select>
+              <SelectTrigger aria-label="일정 유형">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(EVENT_TYPE_CONFIG) as CalendarEventType[]).map((t) => (
+                  <SelectItem key={t} value={t}>{EVENT_TYPE_CONFIG[t].label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
 
-            {/* 학교 일정이면 학교명, 개인 일정이면 원생 선택 */}
-            {form.type === "PERSONAL" ? (
-              <select
-                value={form.studentId}
-                onChange={(e) => setForm((f) => ({ ...f, studentId: e.target.value }))}
-                className="w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+          {/* 학교 일정이면 학교명, 개인 일정이면 원생 선택 */}
+          {form.type === "PERSONAL" ? (
+            <FormField label="원생" hint="선택하지 않아도 돼요">
+              <Select
+                value={form.studentId || NONE}
+                onValueChange={(v) => setForm((f) => ({ ...f, studentId: v === NONE ? "" : v }))}
               >
-                <option value="">원생 선택 (선택)</option>
-                {students.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name} · {s.grade}</option>
-                ))}
-              </select>
-            ) : (
-              <>
-                <input
-                  type="text"
-                  placeholder="학교명 (선택)"
-                  value={form.schoolName}
-                  onChange={(e) => setForm((f) => ({ ...f, schoolName: e.target.value }))}
-                  className="w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-                  list="school-list-form"
-                />
-                <datalist id="school-list-form">
-                  {allSchools.map((s) => <option key={s} value={s} />)}
-                </datalist>
-              </>
-            )}
+                <SelectTrigger aria-label="원생 선택">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>선택 안 함</SelectItem>
+                  {students.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name} · {s.grade}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+          ) : (
+            <FormField label="학교명" htmlFor="event-school" hint="선택하지 않아도 돼요">
+              <Input
+                id="event-school"
+                type="text"
+                placeholder="학교명"
+                value={form.schoolName}
+                onChange={(e) => setForm((f) => ({ ...f, schoolName: e.target.value }))}
+                list="school-list-form"
+              />
+              <datalist id="school-list-form">
+                {allSchools.map((s) => <option key={s} value={s} />)}
+              </datalist>
+            </FormField>
+          )}
 
-            {/* 컬러 선택 */}
-            <div className="space-y-1.5">
-              <label className="text-xs text-muted-foreground">카드 색상</label>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {Object.entries(NOTION_COLORS).map(([key, c]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    title={c.label}
-                    onClick={() => setForm((f) => ({ ...f, color: key }))}
-                    className={cn(
-                      "w-5 h-5 rounded-full transition-all duration-150 border-2",
-                      c.dot,
-                      form.color === key
-                        ? "border-foreground scale-125 shadow-sm"
-                        : "border-transparent hover:scale-110 opacity-70 hover:opacity-100"
-                    )}
-                  />
-                ))}
+          {/* 컬러 선택 */}
+          <FormField label="카드 색상">
+            <div className="flex flex-col gap-x2">
+              <div role="radiogroup" aria-label="카드 색상" className="flex flex-wrap items-center gap-x2">
+                {EVENT_COLOR_OPTIONS.map((key) => {
+                  const c = eventToneByKey(key);
+                  const selected = selectedColor === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      aria-label={c.label}
+                      title={c.label}
+                      onClick={() => setForm((f) => ({ ...f, color: key }))}
+                      className={cn(
+                        "grid size-x7 place-items-center rounded-full transition-transform focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+                        c.swatch,
+                        selected ? "scale-100" : "scale-90 hover:scale-100"
+                      )}
+                    >
+                      {selected && <Check className="size-3.5 text-palette-static-white" strokeWidth={3} aria-hidden />}
+                    </button>
+                  );
+                })}
               </div>
-              <div className={cn(
-                "inline-flex text-xs px-2 py-0.5 rounded border",
-                NOTION_COLORS[form.color]?.bg ?? "bg-blue-100",
-                NOTION_COLORS[form.color]?.border ?? "border-blue-200",
-                NOTION_COLORS[form.color]?.text ?? "text-blue-700"
-              )}>
+              <span
+                className={cn(
+                  "inline-flex max-w-full self-start truncate rounded-r1 px-x2 py-x0_5 t3-medium",
+                  eventTone(form.color, DEFAULT_COLOR).chip
+                )}
+              >
                 {form.title || "미리보기"}
-              </div>
+              </span>
             </div>
-          </>
-        )}
+          </FormField>
+        </>
+      )}
 
-        <textarea
+      <FormField label="설명" htmlFor="event-description">
+        <Textarea
+          id="event-description"
           placeholder="설명 (선택)"
           value={form.description}
           onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-          className="w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background resize-none min-h-[56px]"
+          rows={3}
+          className="min-h-0 resize-none"
         />
-      </div>
+      </FormField>
+
       {/* Google Calendar 동기화 토글 (새 이벤트에서만, Google 설정된 경우만) */}
       {!editingId && googleCalendarConfigured && (
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <div
-            onClick={() => setForm((f) => ({ ...f, syncToGoogle: !f.syncToGoogle }))}
-            className={cn(
-              "relative w-8 h-4.5 rounded-full transition-colors",
-              form.syncToGoogle ? "bg-[#1a73e8]" : "bg-muted-foreground/30"
-            )}
-          >
-            <span className={cn(
-              "absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow transition-transform",
-              form.syncToGoogle ? "translate-x-4" : "translate-x-0.5"
-            )} />
-          </div>
-          <span className="text-xs text-muted-foreground">Google Calendar에 동기화</span>
-        </label>
+        <div className="flex items-center justify-between gap-x3 rounded-r2 bg-bg-layer-fill px-x3 py-x2_5">
+          <span className="t4-medium text-fg-neutral">Google Calendar에 동기화</span>
+          <Switch
+            size="24"
+            checked={form.syncToGoogle}
+            onCheckedChange={(v) => setForm((f) => ({ ...f, syncToGoogle: v }))}
+            inputProps={{ "aria-label": "Google Calendar에 동기화" }}
+          />
+        </div>
       )}
 
-      <div className="flex justify-end gap-2">
-        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onClose}>취소</Button>
-        <Button size="sm" className="h-7 text-xs" onClick={onSubmit} disabled={isPending}>
-          {editingId ? "저장" : "등록"}
+      <FormActions>
+        <Button variant="ghost" onClick={onClose}>취소</Button>
+        <Button onClick={onSubmit} disabled={isPending}>
+          {isPending ? "저장 중…" : editingId ? "저장" : "등록"}
         </Button>
-      </div>
+      </FormActions>
     </div>
   );
 }

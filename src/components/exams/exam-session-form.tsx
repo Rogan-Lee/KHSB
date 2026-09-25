@@ -2,16 +2,18 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { FormActions, FormField } from "@/components/backoffice/ui";
 import { createExamSession, updateExamSession } from "@/actions/exam-sessions";
 import { DEFAULT_SUBJECTS, SUBJECT_PRESETS, SUBJECT_CATALOG } from "@/lib/exam-seats";
 import { X, Plus, ChevronsUpDown, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { ExamType } from "@/generated/prisma";
 import { EXAM_TYPE_LABELS } from "./exam-type-label";
 import { ExamNameAutocomplete } from "./exam-name-autocomplete";
@@ -42,18 +44,27 @@ export function ExamSessionForm({
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [customSubject, setCustomSubject] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [errors, setErrors] = useState<{ title?: string; subjects?: string }>({});
 
   function addCustomSubject() {
     const trimmed = customSubject.trim();
     if (!trimmed) return;
     if (!subjects.includes(trimmed)) setSubjects((prev) => [...prev, trimmed]);
     setCustomSubject("");
+    setErrors((e) => ({ ...e, subjects: undefined }));
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) return alert("시험명을 입력하세요");
-    if (subjects.length === 0) return alert("최소 1개 이상의 과목을 선택하세요");
+    if (!title.trim()) {
+      setErrors({ title: "시험명을 입력하세요" });
+      return;
+    }
+    if (subjects.length === 0) {
+      setErrors({ subjects: "최소 1개 이상의 과목을 선택하세요" });
+      return;
+    }
+    setErrors({});
 
     startTransition(async () => {
       try {
@@ -77,19 +88,23 @@ export function ExamSessionForm({
           router.push(`/exams/${initial.id}`);
         }
       } catch (err) {
-        alert(err instanceof Error ? err.message : "저장에 실패했습니다");
+        toast.error(err instanceof Error ? err.message : "저장에 실패했습니다");
       }
     });
   }
 
   function applyPreset(id: string) {
     const preset = SUBJECT_PRESETS.find((p) => p.id === id);
-    if (preset) setSubjects([...preset.subjects]);
+    if (preset) {
+      setSubjects([...preset.subjects]);
+      setErrors((e) => ({ ...e, subjects: undefined }));
+    }
   }
 
   function addSubject(s: string) {
     if (!s) return;
     if (!subjects.includes(s)) setSubjects((prev) => [...prev, s]);
+    setErrors((e) => ({ ...e, subjects: undefined }));
   }
 
   function removeSubject(s: string) {
@@ -97,29 +112,34 @@ export function ExamSessionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-2xl">
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label>시험명</Label>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-x6">
+      {/* 기본 정보 */}
+      <div className="grid grid-cols-1 gap-x5 sm:grid-cols-2">
+        <FormField label="시험명" htmlFor="exam-title" required error={errors.title}>
           <ExamNameAutocomplete
+            id="exam-title"
             value={title}
-            onChange={setTitle}
+            onChange={(v) => {
+              setTitle(v);
+              if (errors.title) setErrors((e) => ({ ...e, title: undefined }));
+            }}
             examType={examType}
             placeholder="예: 2026년 4월 시스모의고사"
             required
           />
-        </div>
-        <div>
-          <Label>시험일</Label>
-          <Input type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} required />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label>시험 종류</Label>
+        </FormField>
+        <FormField label="시험일" htmlFor="exam-date" required>
+          <Input
+            id="exam-date"
+            type="date"
+            value={examDate}
+            onChange={(e) => setExamDate(e.target.value)}
+            required
+          />
+        </FormField>
+        <FormField label="시험 종류" htmlFor="exam-type">
           <Select value={examType} onValueChange={(v) => setExamType(v as ExamType)}>
-            <SelectTrigger>
+            <SelectTrigger id="exam-type">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -130,23 +150,22 @@ export function ExamSessionForm({
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div>
-          <Label>대상 룸</Label>
-          <Input value="H룸 (고정)" disabled />
-        </div>
+        </FormField>
+        <FormField label="대상 룸" htmlFor="exam-room" hint="시험 좌석은 H룸에만 배치돼요">
+          <Input id="exam-room" value="H룸 (고정)" disabled />
+        </FormField>
       </div>
 
-      <div className="space-y-3">
-        {/* 1) 학년별 프리셋 (상단) */}
-        <div>
-          <Label>시험 과목 프리셋 선택</Label>
-          <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
-            학년/시험 유형에 맞춰 한 번에 세팅할 수 있습니다. 선택 시 아래 과목 목록이 교체됩니다.
-          </p>
+      {/* 과목 */}
+      <div className="flex flex-col gap-x5 border-t border-stroke-neutral-muted pt-x6">
+        <FormField
+          label="과목 프리셋"
+          htmlFor="exam-preset"
+          hint="학년·시험 유형에 맞춰 한 번에 채워요. 고르면 아래 과목 목록이 바뀌어요."
+        >
           <Select onValueChange={applyPreset}>
-            <SelectTrigger>
-              <SelectValue placeholder="프리셋을 선택하세요 (선택 사항)" />
+            <SelectTrigger id="exam-preset">
+              <SelectValue placeholder="프리셋 선택 (선택 사항)" />
             </SelectTrigger>
             <SelectContent>
               {SUBJECT_PRESETS.map((p) => (
@@ -156,49 +175,50 @@ export function ExamSessionForm({
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </FormField>
 
-        {/* 2) 선택된 과목 — 프리셋 바로 아래 */}
-        <div>
-          <Label>선택된 과목 ({subjects.length}개)</Label>
-          <div className="flex flex-wrap gap-1.5 mt-1.5 min-h-[40px] p-2 border rounded-md bg-muted/30">
+        <FormField label={`선택된 과목 ${subjects.length}개`} required error={errors.subjects}>
+          <div
+            className={cn(
+              "flex min-h-12 flex-wrap items-center gap-x1_5 rounded-r3 bg-bg-layer-fill p-x2",
+              errors.subjects && "shadow-[inset_0_0_0_1px_var(--seed-color-stroke-critical-solid)]"
+            )}
+          >
             {subjects.length === 0 ? (
-              <span className="text-xs text-muted-foreground self-center">아직 추가된 과목이 없습니다.</span>
+              <span className="px-x2 t4-regular text-fg-placeholder">아직 추가된 과목이 없어요</span>
             ) : (
               subjects.map((s) => (
                 <span
                   key={s}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border bg-primary/10 border-primary/30 text-primary text-xs"
+                  className="inline-flex h-8 items-center gap-x0_5 rounded-full bg-bg-layer-default pl-x3 pr-x1 t3-medium text-fg-neutral shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-muted)]"
                 >
                   {s}
                   <button
                     type="button"
                     onClick={() => removeSubject(s)}
-                    className="ml-0.5 opacity-70 hover:opacity-100"
+                    className="grid size-6 place-items-center rounded-full text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral"
                     aria-label={`${s} 제거`}
                   >
-                    <X className="h-3 w-3" />
+                    <X className="size-3.5" />
                   </button>
                 </span>
               ))
             )}
           </div>
-        </div>
+        </FormField>
 
-        {/* 3) 개별 과목 추가 — 하단 · 검색 가능 콤보박스 */}
-        <div>
-          <Label>개별 과목 추가</Label>
-          <div className="flex gap-2 mt-1 flex-wrap">
+        <FormField label="과목 추가" hint="목록에 없는 과목은 직접 입력해 추가하세요">
+          <div className="flex flex-col gap-x2 sm:flex-row">
             <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
               <PopoverTrigger asChild>
                 <Button
                   type="button"
                   variant="outline"
                   role="combobox"
-                  className="w-64 justify-between font-normal"
+                  className="justify-between sm:w-64"
                 >
                   과목 검색 후 추가
-                  <ChevronsUpDown className="h-4 w-4 opacity-50" />
+                  <ChevronsUpDown className="text-fg-neutral-subtle" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[320px] p-0" align="start">
@@ -219,9 +239,9 @@ export function ExamSessionForm({
                                 setPickerOpen(false);
                               }}
                             >
-                              <Check className={"mr-2 h-4 w-4 " + (added ? "opacity-100" : "opacity-0")} />
+                              <Check className={cn("mr-x2 size-4", added ? "opacity-100" : "opacity-0")} />
                               {s}
-                              {added && <span className="ml-auto text-[10px] text-muted-foreground">추가됨</span>}
+                              {added && <span className="ml-auto t2-regular text-fg-neutral-subtle">추가됨</span>}
                             </CommandItem>
                           );
                         })}
@@ -231,12 +251,13 @@ export function ExamSessionForm({
                 </Command>
               </PopoverContent>
             </Popover>
-            <div className="flex gap-1">
+            <div className="flex flex-1 gap-x2">
               <Input
                 value={customSubject}
                 onChange={(e) => setCustomSubject(e.target.value)}
                 placeholder="직접 입력 (카탈로그에 없는 과목)"
-                className="w-56"
+                aria-label="과목 직접 입력"
+                className="min-w-0 flex-1"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -244,32 +265,38 @@ export function ExamSessionForm({
                   }
                 }}
               />
-              <Button type="button" variant="outline" size="sm" onClick={addCustomSubject}>
-                <Plus className="h-3.5 w-3.5" />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={addCustomSubject}
+                disabled={!customSubject.trim()}
+              >
+                <Plus />
+                추가
               </Button>
             </div>
           </div>
-        </div>
+        </FormField>
       </div>
 
-      <div>
-        <Label>메모 (선택)</Label>
+      <FormField label="메모" htmlFor="exam-notes" className="border-t border-stroke-neutral-muted pt-x6">
         <Textarea
+          id="exam-notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="시험 운영 관련 메모"
+          placeholder="시험 운영 관련 메모 (선택)"
           rows={3}
         />
-      </div>
+      </FormField>
 
-      <div className="flex gap-2 pt-2">
+      <FormActions className="[&>button]:flex-1 sm:[&>button]:flex-none">
+        <Button type="button" variant="secondary" onClick={() => router.back()}>
+          취소
+        </Button>
         <Button type="submit" disabled={pending}>
           {pending ? "저장 중…" : mode === "create" ? "생성 후 좌석 배치로" : "저장"}
         </Button>
-        <Button type="button" variant="outline" onClick={() => router.back()}>
-          취소
-        </Button>
-      </div>
+      </FormActions>
     </form>
   );
 }

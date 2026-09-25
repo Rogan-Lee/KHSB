@@ -8,38 +8,47 @@ interface KpiTileProps {
   delta?: string | number | null;
   dir?: "up" | "down" | null;
   spark?: number[];
-  accent?: string; // hex color for the dot next to the label
+  /** @deprecated 장식용 색 점 — SEED 규칙(색은 의미가 있을 때만)에 따라 더 이상 그리지 않는다 */
+  accent?: string;
   ago?: string;    // e.g. "7일"
 }
 
-export function KpiTile({ label, value, unit, delta, dir, spark, accent, ago = "7일" }: KpiTileProps) {
+// 요약 지표 타일 — backoffice StatCard 와 같은 모양(회색 채움 · 라벨 위 · 큰 숫자 아래).
+export function KpiTile({ label, value, unit, delta, dir, spark, ago = "7일" }: KpiTileProps) {
   return (
-    <div className="relative px-[18px] py-4 border-r border-line-2 last:border-r-0">
-      <div className="flex items-center gap-1.5 text-[11.5px] text-ink-4 font-medium mb-1.5">
-        {accent && <span className="w-1.5 h-1.5 rounded-full" style={{ background: accent }} />}
+    <div className="relative min-w-0 rounded-r4 bg-bg-layer-fill px-x5 py-x4">
+      <div className={cn("truncate t4-medium text-fg-neutral-subtle", spark && spark.length > 0 && "pr-x14")}>
         {label}
       </div>
-      <div className="flex items-baseline gap-1 text-[26px] font-[650] tracking-[-0.03em] leading-none tabular-nums text-ink">
-        {value}
-        {unit && <span className="text-xs font-medium text-ink-4 tracking-[-0.01em]">{unit}</span>}
+      <div className="mt-x2 flex items-baseline gap-x1">
+        <span className="t10-bold tabular-nums text-fg-neutral">{value}</span>
+        {unit && <span className="t5-medium tabular-nums text-fg-neutral-subtle">{unit}</span>}
       </div>
       {(delta != null || dir) && (
-        <div className="flex items-center gap-1.5 mt-1 text-[11px] text-ink-4 tabular-nums">
+        <div className="mt-x1 flex items-center gap-x1_5 t3-regular tabular-nums text-fg-neutral-subtle">
           {delta != null && (
-            <span className={cn(
-              "inline-flex items-center gap-0.5 font-semibold tabular-nums",
-              dir === "up" ? "text-ok" : dir === "down" ? "text-bad" : "text-ink-3"
-            )}>
-              {dir === "up" && <TrendingUp className="h-2.5 w-2.5" />}
-              {dir === "down" && <TrendingDown className="h-2.5 w-2.5" />}
+            <span
+              className={cn(
+                "inline-flex items-center gap-x0_5 t3-bold",
+                dir === "up" ? "text-fg-positive" : dir === "down" ? "text-fg-critical" : "text-fg-neutral-muted"
+              )}
+            >
+              {dir === "up" && <TrendingUp className="size-3.5" aria-hidden />}
+              {dir === "down" && <TrendingDown className="size-3.5" aria-hidden />}
               {typeof delta === "number" ? (delta > 0 ? `+${delta}` : delta) : delta}
             </span>
           )}
-          <span className="text-ink-4">{ago}</span>
+          <span>{ago}</span>
         </div>
       )}
       {spark && spark.length > 0 && (
-        <svg className="absolute right-3.5 top-3.5 text-brand" width="52" height="18" viewBox="0 0 52 18">
+        <svg
+          className="absolute right-4 top-4 text-fg-brand"
+          width="52"
+          height="18"
+          viewBox="0 0 52 18"
+          aria-hidden
+        >
           <polyline
             points={spark.map((y, i) => `${i * 8 + 2},${18 - y * 2}`).join(" ")}
             fill="none"
@@ -53,13 +62,7 @@ export function KpiTile({ label, value, unit, delta, dir, spark, accent, ago = "
   );
 }
 
+/** 지표 타일 줄 — 기본 모바일 2열(열 수는 className 의 grid-cols-* 로 지정) */
 export function KpiStrip({ children, className }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={cn(
-      "grid border border-line rounded-[12px] overflow-hidden bg-panel shadow-[var(--shadow-xs)]",
-      className
-    )}>
-      {children}
-    </div>
-  );
+  return <div className={cn("grid grid-cols-2 gap-x3", className)}>{children}</div>;
 }

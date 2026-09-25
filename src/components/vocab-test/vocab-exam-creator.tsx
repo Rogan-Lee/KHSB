@@ -3,14 +3,13 @@
 import { useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { EmptyState, FormField, SearchField, Section, StatusBadge } from "@/components/backoffice/ui";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Copy, Send, ClipboardCheck, Check } from "lucide-react";
+import { BookOpen, Copy, Send, ClipboardCheck, Check } from "lucide-react";
 import { createVocabExam } from "@/actions/vocab-online";
 import type { VocabBookSummary } from "./vocab-book-manager";
 import type { VocabExamDirection } from "@/generated/prisma";
@@ -115,171 +114,199 @@ export function VocabExamCreator({ books, students }: { books: VocabBookSummary[
     });
   };
 
-  return (
-    <div className="space-y-4">
-      {activeBooks.length === 0 ? (
-        <p className="text-sm text-muted-foreground">먼저 「단어장」 탭에서 단어장을 만들고 단어를 등록하세요.</p>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card>
-            <CardHeader className="pb-3"><CardTitle className="text-base">시험 설정</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <Label>단어장</Label>
-                <Select value={bookId} onValueChange={(v) => { setBookId(v); setSelectedUnits([]); }}>
-                  <SelectTrigger><SelectValue placeholder="단어장 선택" /></SelectTrigger>
-                  <SelectContent>
-                    {activeBooks.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>{b.name} ({b.entryCount}개)</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+  const bookUnits = book?.units ?? [];
 
-              {book && book.units.length > 0 && (
-                <div className="space-y-2">
-                  {/* 헤더 — 라벨 + 선택 요약 + 전체 선택/해제 */}
-                  <div className="flex items-center justify-between gap-2">
-                    <Label className="shrink-0">출제 범위 (단원)</Label>
-                    <span className="text-xs text-muted-foreground">
+  if (activeBooks.length === 0) {
+    return (
+      <Section>
+        <EmptyState
+          icon={BookOpen}
+          title="먼저 단어장을 만들어 주세요"
+          description={"「단어장」 탭에서 단어장을 만들고 단어를 등록하면\n여기서 시험을 낼 수 있어요."}
+        />
+        {result && <ResultDialog examTitle={result.examTitle} rows={result.rows} onClose={() => setResult(null)} />}
+      </Section>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-x5">
+      <div className="grid grid-cols-1 items-start gap-x5 lg:grid-cols-2">
+        <Section title="시험 설정">
+          <div className="flex flex-col gap-x5">
+            <FormField label="단어장" required>
+              <Select value={bookId} onValueChange={(v) => { setBookId(v); setSelectedUnits([]); }}>
+                <SelectTrigger><SelectValue placeholder="단어장 선택" /></SelectTrigger>
+                <SelectContent>
+                  {activeBooks.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>{b.name} ({b.entryCount}개)</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            {book && bookUnits.length > 0 && (
+              <div className="flex flex-col gap-x2">
+                {/* 헤더 — 라벨 + 선택 요약 + 전체 선택/해제 */}
+                <div className="flex flex-wrap items-center justify-between gap-x2">
+                  <span className="t4-medium text-fg-neutral">출제 범위 (단원)</span>
+                  <div className="flex items-center gap-x1">
+                    <span className="mr-x1 t3-regular tabular-nums text-fg-neutral-subtle">
                       {selectedUnits.length > 0
                         ? `${selectedUnits.length}단원 · 단어 ${poolCount}개`
                         : "선택 안 하면 단어장 전체"}
                     </span>
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={selectAllUnits}>
+                    <Button type="button" variant="ghost" size="xs" onClick={selectAllUnits}>
                       전체 선택
                     </Button>
-                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={clearUnits}>
+                    <Button type="button" variant="ghost" size="xs" onClick={clearUnits}>
                       전체 해제
                     </Button>
                   </div>
-
-                  {/* 범위 빠른 선택 (연속 Day) */}
-                  <div className="flex flex-wrap items-center gap-1.5 rounded-md border bg-muted/20 p-2">
-                    <span className="text-xs text-muted-foreground">범위</span>
-                    <Select value={rangeStart} onValueChange={setRangeStart}>
-                      <SelectTrigger className="h-8 w-[112px] text-xs"><SelectValue placeholder="시작" /></SelectTrigger>
-                      <SelectContent>
-                        {book.units.map((u) => <SelectItem key={u.unit} value={u.unit}>{u.unit}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <span className="text-xs text-muted-foreground">~</span>
-                    <Select value={rangeEnd} onValueChange={setRangeEnd}>
-                      <SelectTrigger className="h-8 w-[112px] text-xs"><SelectValue placeholder="끝" /></SelectTrigger>
-                      <SelectContent>
-                        {book.units.map((u) => <SelectItem key={u.unit} value={u.unit}>{u.unit}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Button type="button" variant="outline" size="sm" className="h-8 px-3 text-xs" onClick={applyRange}>
-                      범위 선택
-                    </Button>
-                  </div>
-
-                  {/* 큰 칩 그리드 */}
-                  <div className="grid max-h-56 grid-cols-2 gap-1.5 overflow-auto rounded-md border bg-muted/30 p-2 sm:grid-cols-3 md:grid-cols-4">
-                    {book.units.map((u) => {
-                      const on = selectedUnits.includes(u.unit);
-                      return (
-                        <button
-                          key={u.unit}
-                          type="button"
-                          onClick={() => toggleUnit(u.unit)}
-                          aria-pressed={on}
-                          className={`flex min-h-9 w-full items-center justify-between gap-1 rounded-md border px-3 py-1.5 text-[13px] transition-colors ${
-                            on
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-input bg-background hover:border-primary/50 hover:bg-muted"
-                          }`}
-                        >
-                          <span className="flex items-center gap-1 truncate">
-                            {on && <Check className="h-3.5 w-3.5 shrink-0" />}
-                            <span className="truncate">{u.unit}</span>
-                          </span>
-                          <span className={on ? "text-primary-foreground/70" : "text-muted-foreground"}>{u.count}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
                 </div>
-              )}
 
-              <div>
-                <Label>출제 유형</Label>
-                <Select value={direction} onValueChange={(v) => setDirection(v as VocabExamDirection)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {DIRECTION_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>문항 수</Label>
-                  <Input type="number" min={0} max={poolCount || 1} value={questionCount}
-                    onChange={(e) => setQuestionCount(e.target.value)} />
-                  <p className="text-xs text-muted-foreground mt-0.5">선택 범위 단어 {poolCount}개</p>
+                {/* 범위 빠른 선택 (연속 Day) */}
+                <div className="flex flex-wrap items-center gap-x2 rounded-r3 bg-bg-layer-fill p-x3">
+                  <span className="t3-medium text-fg-neutral-muted">범위</span>
+                  <Select value={rangeStart} onValueChange={setRangeStart}>
+                    <SelectTrigger className="h-9 w-28" aria-label="시작 단원"><SelectValue placeholder="시작" /></SelectTrigger>
+                    <SelectContent>
+                      {bookUnits.map((u) => <SelectItem key={u.unit} value={u.unit}>{u.unit}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <span className="t4-regular text-fg-neutral-subtle">~</span>
+                  <Select value={rangeEnd} onValueChange={setRangeEnd}>
+                    <SelectTrigger className="h-9 w-28" aria-label="끝 단원"><SelectValue placeholder="끝" /></SelectTrigger>
+                    <SelectContent>
+                      {bookUnits.map((u) => <SelectItem key={u.unit} value={u.unit}>{u.unit}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="outline" size="sm" onClick={applyRange}>
+                    범위 선택
+                  </Button>
                 </div>
-                <div>
-                  <Label>문항당 제한시간(초)</Label>
-                  <Input type="number" min={0} max={600} value={perQuestionSeconds}
-                    onChange={(e) => setPerQuestionSeconds(e.target.value)} />
-                  <p className="text-xs text-muted-foreground mt-0.5">0 = 무제한</p>
+
+                {/* 단원 칩 그리드 */}
+                <div className="grid max-h-56 grid-cols-2 gap-x1_5 overflow-auto rounded-r3 border border-stroke-neutral-muted p-x2 sm:grid-cols-3 md:grid-cols-4">
+                  {bookUnits.map((u) => {
+                    const on = selectedUnits.includes(u.unit);
+                    return (
+                      <button
+                        key={u.unit}
+                        type="button"
+                        onClick={() => toggleUnit(u.unit)}
+                        aria-pressed={on}
+                        className={cn(
+                          "flex min-h-9 w-full items-center justify-between gap-x1 rounded-r2 px-x3 py-x1_5 t3-medium transition-colors",
+                          on
+                            ? "bg-bg-neutral-inverted text-fg-neutral-inverted"
+                            : "bg-bg-layer-default text-fg-neutral shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] hover:bg-bg-layer-default-pressed",
+                        )}
+                      >
+                        <span className="flex items-center gap-x1 truncate">
+                          {on && <Check className="size-3.5 shrink-0" aria-hidden />}
+                          <span className="truncate">{u.unit}</span>
+                        </span>
+                        <span className={cn("tabular-nums", on ? "opacity-70" : "text-fg-neutral-subtle")}>{u.count}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
+            )}
 
-              <div>
-                <Label>시험 이름 (선택)</Label>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예: 워드마스터 Day 12~13" />
-              </div>
+            <FormField label="출제 유형" required>
+              <Select value={direction} onValueChange={(v) => setDirection(v as VocabExamDirection)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {DIRECTION_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </FormField>
 
-              <div className="flex items-center gap-2">
+            <div className="grid grid-cols-2 gap-x3">
+              <FormField label="문항 수" htmlFor="vocab-question-count" required hint={`선택 범위 단어 ${poolCount}개`}>
+                <Input id="vocab-question-count" type="number" min={0} max={poolCount || 1} value={questionCount}
+                  onChange={(e) => setQuestionCount(e.target.value)} className="tabular-nums" />
+              </FormField>
+              <FormField label="문항당 제한시간(초)" htmlFor="vocab-per-seconds" hint="0 = 무제한">
+                <Input id="vocab-per-seconds" type="number" min={0} max={600} value={perQuestionSeconds}
+                  onChange={(e) => setPerQuestionSeconds(e.target.value)} className="tabular-nums" />
+              </FormField>
+            </div>
+
+            <FormField label="시험 이름" htmlFor="vocab-exam-title" hint="비워 두면 단어장·단원 이름으로 자동으로 지어요.">
+              <Input id="vocab-exam-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예: 워드마스터 Day 12~13" />
+            </FormField>
+
+            <div className="flex flex-col gap-x3">
+              <label htmlFor="shuffle" className="flex cursor-pointer items-center gap-x2_5 t4-regular text-fg-neutral">
                 <Checkbox id="shuffle" checked={shuffle} onCheckedChange={(c) => setShuffle(!!c)} />
-                <Label htmlFor="shuffle" className="font-normal">단어 순서 섞기</Label>
-              </div>
-              <div className="flex items-center gap-2">
+                단어 순서 섞기
+              </label>
+              <label htmlFor="slack" className="flex cursor-pointer items-center gap-x2_5 t4-regular text-fg-neutral">
                 <Checkbox id="slack" checked={notifyOnSlack} onCheckedChange={(c) => setNotifyOnSlack(!!c)} />
-                <Label htmlFor="slack" className="font-normal">Slack 알림 보내기</Label>
-              </div>
-            </CardContent>
-          </Card>
+                Slack 알림 보내기
+              </label>
+            </div>
+          </div>
+        </Section>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center justify-between">
-                <span>대상 학생 ({selectedStudentIds.length}명 선택)</span>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedStudentIds(selectedStudentIds.length === filteredStudents.length ? [] : filteredStudents.map((s) => s.id))}>
-                  {selectedStudentIds.length === filteredStudents.length ? "전체 해제" : "보이는 전체 선택"}
-                </Button>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Input placeholder="학생 이름 검색" value={studentQuery} onChange={(e) => setStudentQuery(e.target.value)} />
-              <div className="max-h-[360px] overflow-auto rounded-md border divide-y">
-                {filteredStudents.map((s) => (
-                  <label key={s.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/40">
-                    <Checkbox checked={selectedStudentIds.includes(s.id)} onCheckedChange={() => toggleStudent(s.id)} />
-                    <span className="flex-1">{s.name} <span className="text-xs text-muted-foreground">{s.grade}{s.school ? ` · ${s.school}` : ""}</span></span>
-                    {s.isOnlineManaged && <Badge variant="secondary" className="text-[10px]">온라인</Badge>}
-                  </label>
-                ))}
-                {filteredStudents.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground">검색 결과 없음</p>}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+        <Section
+          title="대상 학생"
+          count={selectedStudentIds.length}
+          description="선택한 학생마다 전용 응시 링크가 만들어져요."
+          actions={
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => setSelectedStudentIds(selectedStudentIds.length === filteredStudents.length ? [] : filteredStudents.map((s) => s.id))}
+            >
+              {selectedStudentIds.length === filteredStudents.length ? "전체 해제" : "보이는 전체 선택"}
+            </Button>
+          }
+        >
+          <div className="flex flex-col gap-x3">
+            <SearchField
+              placeholder="학생 이름 검색"
+              value={studentQuery}
+              onChange={(e) => setStudentQuery(e.target.value)}
+              className="sm:w-full"
+              aria-label="학생 이름 검색"
+            />
+            <div className="max-h-[420px] divide-y divide-stroke-neutral-muted overflow-auto rounded-r3 border border-stroke-neutral-muted">
+              {filteredStudents.map((s) => (
+                <label
+                  key={s.id}
+                  className="flex cursor-pointer items-center gap-x3 px-x4 py-x2_5 transition-colors hover:bg-bg-layer-default-pressed"
+                >
+                  <Checkbox checked={selectedStudentIds.includes(s.id)} onCheckedChange={() => toggleStudent(s.id)} />
+                  <span className="min-w-0 flex-1 truncate">
+                    <span className="t4-medium text-fg-neutral">{s.name}</span>
+                    <span className="ml-x1_5 t3-regular text-fg-neutral-subtle">
+                      {s.grade}{s.school ? ` · ${s.school}` : ""}
+                    </span>
+                  </span>
+                  {s.isOnlineManaged && <StatusBadge tone="info">온라인</StatusBadge>}
+                </label>
+              ))}
+              {filteredStudents.length === 0 && (
+                <p className="px-x4 py-x6 text-center t4-regular text-fg-neutral-subtle">검색 결과가 없어요</p>
+              )}
+            </div>
+          </div>
+        </Section>
+      </div>
 
-      {activeBooks.length > 0 && (
-        <div className="flex justify-end">
-          <Button onClick={onSubmit} disabled={isPending} size="lg">
-            <Send className="h-4 w-4 mr-2" /> 시험 출제 & 링크 생성
-          </Button>
-        </div>
-      )}
+      <div className="flex flex-col gap-x3 rounded-r4 bg-bg-layer-fill px-x5 py-x4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="t4-regular tabular-nums text-fg-neutral-muted">
+          {book ? <span className="t4-medium text-fg-neutral">{book.name}</span> : "단어장 미선택"}
+          {` · 단어 ${poolCount}개에서 ${questionCount || 0}문항 · 학생 ${selectedStudentIds.length}명`}
+        </p>
+        <Button onClick={onSubmit} disabled={isPending} size="lg" className="w-full sm:w-auto">
+          <Send /> {isPending ? "출제 중…" : "시험 출제하고 링크 만들기"}
+        </Button>
+      </div>
 
       {result && <ResultDialog examTitle={result.examTitle} rows={result.rows} onClose={() => setResult(null)} />}
     </div>
@@ -303,29 +330,31 @@ function ResultDialog({ examTitle, rows, onClose }: { examTitle: string; rows: R
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>출제 완료 — {examTitle}</DialogTitle>
-          <DialogDescription>학생에게 아래 응시 링크를 전송하세요. (각 학생 전용 링크)</DialogDescription>
+          <DialogTitle>출제 완료</DialogTitle>
+          <DialogDescription>
+            {examTitle} · 학생마다 전용 응시 링크가 만들어졌어요. 카톡이나 문자로 보내 주세요.
+          </DialogDescription>
         </DialogHeader>
-        <div className="space-y-2 max-h-[420px] overflow-auto">
+        <ul className="max-h-[420px] divide-y divide-stroke-neutral-muted overflow-auto rounded-r3 border border-stroke-neutral-muted">
           {rows.map((r) => (
-            <div key={r.studentId} className="flex items-center gap-2 rounded-md border p-2 text-sm">
-              <span className="w-24 shrink-0 font-medium truncate">{r.name}</span>
-              <code className="flex-1 truncate text-xs text-muted-foreground">{takeUrl(r.token)}</code>
-              <Button variant="outline" size="sm" onClick={() => copy(takeUrl(r.token), `${r.name} 응시 링크`)}>
-                <Copy className="h-3.5 w-3.5 mr-1" /> 응시 링크
+            <li key={r.studentId} className="flex flex-wrap items-center gap-x2 px-x4 py-x3">
+              <span className="w-24 shrink-0 truncate t4-medium text-fg-neutral">{r.name}</span>
+              <span className="min-w-0 flex-1 truncate t3-regular text-fg-neutral-subtle">{takeUrl(r.token)}</span>
+              <Button variant="secondary" size="xs" onClick={() => copy(takeUrl(r.token), `${r.name} 응시 링크`)}>
+                <Copy /> 응시 링크
               </Button>
               {r.magicLinkToken && (
-                <Button variant="ghost" size="sm" onClick={() => copy(portalUrl(r.magicLinkToken!), `${r.name} 포털 링크`)}>
+                <Button variant="ghost" size="xs" onClick={() => copy(portalUrl(r.magicLinkToken!), `${r.name} 포털 링크`)}>
                   포털
                 </Button>
               )}
-            </div>
+            </li>
           ))}
-        </div>
-        <div className="flex justify-between">
-          <Button variant="outline" onClick={copyAll}><ClipboardCheck className="h-4 w-4 mr-1" /> 전체 링크 복사</Button>
+        </ul>
+        <DialogFooter className="sm:justify-between">
+          <Button variant="outline" onClick={copyAll}><ClipboardCheck /> 전체 링크 복사</Button>
           <Button onClick={onClose}>닫기</Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

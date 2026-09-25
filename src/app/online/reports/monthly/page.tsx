@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft, ChevronRight, Sparkles, CalendarClock } from "lucide-react";
+import { ChevronLeft, ChevronRight, MessageCircle, UsersRound } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
@@ -12,25 +12,22 @@ import {
 import { ReportsTypeNav } from "@/components/online/reports-type-nav";
 import { MonthlyBatchButton } from "@/components/online/monthly-batch-button";
 import { MonthlyEnqueueButton } from "@/components/online/monthly-enqueue-button";
-import type { OnlineReportStatus } from "@/generated/prisma";
-
-const STATUS_LABEL: Record<OnlineReportStatus, string> = {
-  QUEUED: "대기열",
-  DRAFT: "초안",
-  DRAFT_FAILED: "생성 실패",
-  REVIEW: "편집 중",
-  APPROVED: "승인 완료",
-  SENT: "발송 완료",
-};
-
-const STATUS_COLORS: Record<OnlineReportStatus, string> = {
-  QUEUED: "bg-violet-100 text-violet-800",
-  DRAFT: "bg-slate-100 text-slate-700",
-  DRAFT_FAILED: "bg-red-100 text-red-800",
-  REVIEW: "bg-amber-100 text-amber-800",
-  APPROVED: "bg-blue-100 text-blue-800",
-  SENT: "bg-emerald-100 text-emerald-800",
-};
+import { ReportStatusBadge } from "@/components/online/report-status";
+import {
+  EmptyState,
+  PageHeader,
+  StatCard,
+  StatCards,
+  TableCard,
+} from "@/components/backoffice/ui";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default async function MonthlyReportsPage({
   searchParams,
@@ -68,146 +65,169 @@ export default async function MonthlyReportsPage({
   const reportByStudent = new Map(existingReports.map((r) => [r.studentId, r]));
   const createdCount = existingReports.length;
 
+  const sentCount = existingReports.filter((r) => r.status === "SENT").length;
+  const reviewCount = existingReports.filter(
+    (r) => r.status === "DRAFT" || r.status === "REVIEW"
+  ).length;
+  const unreadFeedbackTotal = existingReports.reduce(
+    (sum, r) => sum + (r._count?.feedbacks ?? 0),
+    0
+  );
+
   return (
-    <div className="space-y-5">
-      <header className="space-y-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
-            학부모 보고서
-          </h1>
-          <p className="mt-1 text-[13px] text-ink-4">
-            월간 보고서는 매월 1일 새벽 자동 생성 · 편집은 상세 페이지에서.
-          </p>
-        </div>
-        <ReportsTypeNav current="MONTHLY" />
-      </header>
+    <div>
+      <PageHeader
+        title="학부모 보고서"
+        description="월간 보고서는 매월 1일 새벽에 자동으로 만들어져요. 편집은 상세 화면에서 해요."
+        actions={
+          <>
+            <MonthlyEnqueueButton yearMonth={yearMonth} />
+            <MonthlyBatchButton yearMonth={yearMonth} />
+          </>
+        }
+      />
+      <ReportsTypeNav current="MONTHLY" />
 
-      <section className="flex items-center justify-between rounded-[12px] border border-line bg-panel px-3 py-2">
-        <Link
-          href={`/online/reports/monthly?month=${shiftMonth(yearMonth, -1)}`}
-          className="p-1.5 rounded-[6px] text-ink-3 hover:text-ink hover:bg-canvas-2"
-          title="이전 달"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Link>
-        <div className="text-[13px] font-semibold text-ink tabular-nums">
-          {formatYearMonth(yearMonth)}
+      <div className="flex flex-col gap-x5">
+        {/* 월 이동 */}
+        <div className="flex flex-wrap items-center gap-x3">
+          <div className="inline-flex items-center gap-x0_5 rounded-full bg-bg-neutral-weak p-x0_5">
+            <Link
+              href={`/online/reports/monthly?month=${shiftMonth(yearMonth, -1)}`}
+              aria-label="이전 달"
+              title="이전 달"
+              className="grid size-x8 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-layer-default hover:text-fg-neutral"
+            >
+              <ChevronLeft className="size-4" />
+            </Link>
+            <span className="px-x2 t4-bold tabular-nums text-fg-neutral">
+              {formatYearMonth(yearMonth)}
+            </span>
+            <Link
+              href={`/online/reports/monthly?month=${shiftMonth(yearMonth, 1)}`}
+              aria-label="다음 달"
+              title="다음 달"
+              className="grid size-x8 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-layer-default hover:text-fg-neutral"
+            >
+              <ChevronRight className="size-4" />
+            </Link>
+          </div>
         </div>
-        <Link
-          href={`/online/reports/monthly?month=${shiftMonth(yearMonth, 1)}`}
-          className="p-1.5 rounded-[6px] text-ink-3 hover:text-ink hover:bg-canvas-2"
-          title="다음 달"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Link>
-      </section>
 
-      <section className="flex items-center justify-between gap-2 flex-wrap">
-        <span className="text-xs text-muted-foreground">
-          총 <b className="text-foreground">{students.length}</b>명 · 생성{" "}
-          <b className="text-foreground">{createdCount}</b>건
-        </span>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/online/reports/queue"
-            className="inline-flex items-center gap-1 text-[12px] text-ink-4 hover:text-ink"
-          >
-            <CalendarClock className="h-3.5 w-3.5" />
-            예약 대기열
-          </Link>
-          <MonthlyEnqueueButton yearMonth={yearMonth} />
-          <MonthlyBatchButton yearMonth={yearMonth} />
-        </div>
-      </section>
+        <StatCards cols={4}>
+          <StatCard label="대상 학생" value={students.length} unit="명" />
+          <StatCard
+            label="생성된 보고서"
+            value={createdCount}
+            unit="건"
+            sub={reviewCount > 0 ? `검토 필요 ${reviewCount}건` : undefined}
+          />
+          <StatCard
+            label="발송 완료"
+            value={sentCount}
+            unit="건"
+            tone={sentCount > 0 ? "ok" : "gray"}
+          />
+          <StatCard
+            label="새 학부모 피드백"
+            value={unreadFeedbackTotal}
+            unit="건"
+            tone={unreadFeedbackTotal > 0 ? "warn" : "gray"}
+          />
+        </StatCards>
 
-      {students.length === 0 ? (
-        <div className="rounded-[12px] border border-line bg-panel p-8 text-center text-[13px] text-ink-4">
-          온라인 관리 학생이 없습니다.
-        </div>
-      ) : (
-        <div className="rounded-[12px] border border-line bg-panel overflow-hidden">
-          <table className="w-full text-[12.5px]">
-            <thead className="bg-canvas-2 text-ink-4 text-[11px] uppercase tracking-wide">
-              <tr>
-                <th className="text-left px-3 py-2 font-semibold">학생</th>
-                <th className="text-left px-3 py-2 font-semibold">관리 멘토</th>
-                <th className="text-left px-3 py-2 font-semibold">상태</th>
-                <th className="text-left px-3 py-2 font-semibold">최근 갱신</th>
-                <th className="text-left px-3 py-2 font-semibold">열람</th>
-                <th className="w-16" />
-              </tr>
-            </thead>
-            <tbody>
-              {students.map((s) => {
-                const report = reportByStudent.get(s.id);
-                return (
-                  <tr
-                    key={s.id}
-                    className="border-t border-line hover:bg-canvas-2/50"
-                  >
-                    <td className="px-3 py-2 font-medium text-ink">
-                      <span className="inline-flex items-center gap-1.5">
-                        {s.name}
-                        <span className="text-[11px] text-ink-5">
-                          ({s.grade})
+        <TableCard>
+          {students.length === 0 ? (
+            <EmptyState
+              icon={UsersRound}
+              title="온라인 관리 학생이 없어요"
+              description="학생을 온라인 관리로 등록하면 월간 보고서 대상이 돼요."
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>학생</TableHead>
+                  <TableHead>관리 멘토</TableHead>
+                  <TableHead>상태</TableHead>
+                  <TableHead className="text-right">최근 갱신</TableHead>
+                  <TableHead className="text-right">열람</TableHead>
+                  <TableHead className="w-24 text-right">
+                    <span className="sr-only">작업</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {students.map((s) => {
+                  const report = reportByStudent.get(s.id);
+                  const unread = report?._count?.feedbacks ?? 0;
+                  return (
+                    <TableRow key={s.id} className={report ? "relative cursor-pointer" : undefined}>
+                      <TableCell>
+                        <span className="inline-flex items-center gap-x1_5 whitespace-nowrap">
+                          {report ? (
+                            // 행 전체를 누르면 상세로 — 링크 영역을 행 크기로 늘린다
+                            <Link
+                              href={`/online/reports/${report.id}`}
+                              className="t4-medium text-fg-neutral after:absolute after:inset-0 after:content-['']"
+                            >
+                              {s.name}
+                            </Link>
+                          ) : (
+                            <span className="t4-medium text-fg-neutral">{s.name}</span>
+                          )}
+                          <span className="t3-regular text-fg-neutral-subtle">{s.grade}</span>
+                          {unread > 0 && (
+                            <span
+                              title={`학부모 의견 ${unread}건 미확인`}
+                              className="inline-flex h-x5 items-center gap-x0_5 rounded-full bg-bg-warning-weak px-x1_5 t1-bold tabular-nums text-fg-warning"
+                            >
+                              <MessageCircle className="size-3" aria-hidden />
+                              {unread}
+                            </span>
+                          )}
                         </span>
-                        {(report?._count?.feedbacks ?? 0) > 0 && (
-                          <span
-                            title={`학부모 의견 ${report?._count.feedbacks}건 미확인`}
-                            className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 px-1.5 py-px text-[10px] font-bold"
-                          >
-                            💬 {report?._count.feedbacks}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-fg-neutral-muted">
+                        {s.assignedMentor?.name ?? (
+                          <span className="text-fg-placeholder">미배정</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {report ? (
+                          <ReportStatusBadge status={report.status} />
+                        ) : (
+                          <span className="t3-regular text-fg-placeholder">없음</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-right text-fg-neutral-muted">
+                        {report?.updatedAt
+                          ? report.updatedAt.toLocaleDateString("ko-KR")
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-right text-fg-neutral-muted">
+                        {report?.status === "SENT" ? `${report.viewCount}회` : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {report ? (
+                          <span className="inline-flex items-center t3-medium text-fg-neutral-subtle">
+                            열기
+                            <ChevronRight className="size-4" aria-hidden />
+                          </span>
+                        ) : (
+                          <span className="whitespace-nowrap t3-regular text-fg-placeholder">
+                            배치 대기
                           </span>
                         )}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-ink-3">
-                      {s.assignedMentor?.name ?? (
-                        <span className="text-ink-5">미배정</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {report ? (
-                        <span
-                          className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${STATUS_COLORS[report.status]}`}
-                        >
-                          {STATUS_LABEL[report.status]}
-                        </span>
-                      ) : (
-                        <span className="text-[11px] text-ink-5">없음</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 tabular-nums text-ink-3">
-                      {report?.updatedAt
-                        ? report.updatedAt.toLocaleDateString("ko-KR")
-                        : "—"}
-                    </td>
-                    <td className="px-3 py-2 tabular-nums text-ink-3">
-                      {report?.status === "SENT"
-                        ? `${report.viewCount}회`
-                        : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      {report ? (
-                        <Link
-                          href={`/online/reports/${report.id}`}
-                          className="text-[12px] text-ink-3 hover:text-ink hover:underline"
-                        >
-                          열기
-                        </Link>
-                      ) : (
-                        <span className="text-[11px] text-ink-5">
-                          <Sparkles className="inline h-3 w-3" /> 배치 대기
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </TableCard>
+      </div>
     </div>
   );
 }

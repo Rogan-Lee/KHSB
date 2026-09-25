@@ -8,6 +8,7 @@ import {
 } from "@/lib/roles";
 import { todayKST } from "@/lib/utils";
 import { DailyLogPanel, type DailyLogRow } from "@/components/online/daily-log-panel";
+import { PageHeader } from "@/components/backoffice/ui";
 
 export default async function DailyLogBoardPage({
   searchParams,
@@ -61,16 +62,24 @@ export default async function DailyLogBoardPage({
     };
   });
 
+  const dateLabel = today.toLocaleDateString("ko-KR", {
+    timeZone: "UTC",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  });
+
   return (
-    <div className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
-          카톡 일일 보고
-        </h1>
-        <p className="mt-1 text-[13px] text-ink-4">
-          {todayIso} · 담당 학생별로 오늘의 카톡 대화 요약을 기록합니다.
-        </p>
-      </header>
+    <div>
+      <PageHeader
+        title="카톡 일일 보고"
+        description={
+          <>
+            <span className="tabular-nums">{dateLabel}</span> ·{" "}
+            {viewAll ? "전체 학생" : "담당 학생"}별로 오늘 카톡 대화 요약을 기록해요
+          </>
+        }
+      />
 
       <DailyLogPanel
         rows={rows}

@@ -19,6 +19,7 @@ const PUBLIC_ROUTE_ROOTS = [
   "/api/mobile/v1/auth",
   "/api/webhooks",
   "/api/cron",
+  "/api/public", // 외부 정적 랜딩이 비로그인으로 fetch 하는 공개 콘텐츠 피드
 ];
 
 export function isPublicPath(pathname: string) {

@@ -1,10 +1,22 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { bulkImportExamScores, type ExamScoreCSVRow } from "@/actions/exam-scores";
 import { toast } from "sonner";
-import { Upload, FileText, AlertCircle, CheckCircle2, X } from "lucide-react";
+import { CheckCircle2, Download, RotateCcw } from "lucide-react";
+import { FormActions, Notice, Section, StatusBadge } from "@/components/backoffice/ui";
+import {
+  ColumnGuide,
+  ColumnName,
+  FileDropZone,
+  ImportErrors,
+  ImportSteps,
+  PREVIEW_TD,
+  PREVIEW_TH,
+  PreviewTable,
+} from "./import-ui";
+import { cn } from "@/lib/utils";
 
 // CSV 텍스트 파싱 (BOM, 따옴표, CRLF 처리)
 function parseCSV(text: string): string[][] {
@@ -110,8 +122,25 @@ const SAMPLE_CSV = `이름,시험종류,시험명,날짜,과목,원점수,등급
 이수연,사설모의고사,메가 전국모의고사,2024-05-20,영어,78,3,72.0,기초 문법 보완 필요
 박민준,학교내신,2024-1학기 중간고사,2024-04-15,수학,95,1,,`;
 
+const STEPS = [
+  { title: "샘플 파일 받기", description: "한 행에 과목 하나씩 성적을 채워요" },
+  { title: "파일 올리기", description: "완성한 CSV 파일을 끌어 놓거나 선택해요" },
+  { title: "확인 후 저장", description: "인식된 성적을 확인하고 저장해요" },
+];
+
+const COLUMNS = [
+  { name: "이름", description: "학생 이름 (등록된 이름과 같아야 해요)", required: true },
+  { name: "시험종류", description: "공식모의고사 / 사설모의고사 / 학교내신" },
+  { name: "시험명", description: "예: 2024년 6월 모의고사", required: true },
+  { name: "날짜", description: "YYYY-MM-DD 형식", required: true },
+  { name: "과목", description: "예: 국어, 수학, 영어", required: true },
+  { name: "원점수", description: "숫자" },
+  { name: "등급", description: "1~9" },
+  { name: "백분위", description: "소수점 포함 숫자" },
+  { name: "메모", description: "비고" },
+];
+
 export function CsvImportScores() {
-  const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<ExamScoreCSVRow[] | null>(null);
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{ created: number; errors: { row: number; studentName: string; reason: string }[] } | null>(null);
@@ -122,7 +151,7 @@ export function CsvImportScores() {
       reader.onload = (e) => {
         try {
           const text = e.target?.result as string;
-          if (encoding === "utf-8" && (text.match(/\uFFFD/g) ?? []).length > 3) {
+          if (encoding === "utf-8" && (text.match(/�/g) ?? []).length > 3) {
             tryRead("euc-kr");
             return;
           }
@@ -140,12 +169,6 @@ export function CsvImportScores() {
       reader.readAsText(file, encoding);
     };
     tryRead("utf-8");
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
   }
 
   function handleImport() {
@@ -168,7 +191,7 @@ export function CsvImportScores() {
   }
 
   function downloadSample() {
-    const blob = new Blob(["\uFEFF" + SAMPLE_CSV], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["﻿" + SAMPLE_CSV], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -178,143 +201,108 @@ export function CsvImportScores() {
   }
 
   const validCount = preview?.filter((r) => r.studentName && r.examName && r.examDate && r.subject).length ?? 0;
+  const invalidCount = (preview?.length ?? 0) - validCount;
+  const step = result ? 3 : preview ? 2 : 1;
+  const missingCell = <span className="text-fg-critical">없음</span>;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          CSV 파일로 학생 성적(모의고사·내신)을 일괄 등록합니다. 한 행이 과목 하나입니다.
-        </p>
-        <Button variant="outline" size="sm" onClick={downloadSample}>
-          <FileText className="h-3.5 w-3.5 mr-1.5" />
-          샘플 CSV 다운로드
-        </Button>
-      </div>
+    <div className="flex flex-col gap-x6">
+      <Section
+        title="성적 CSV 업로드"
+        description="모의고사·내신 성적을 CSV 파일로 한 번에 등록해요. 한 행이 과목 하나예요."
+        actions={
+          <Button variant="outline" size="sm" onClick={downloadSample}>
+            <Download />
+            샘플 CSV 다운로드
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-x6">
+          <ImportSteps steps={STEPS} current={step} />
 
-      {/* 파일 업로드 영역 */}
-      {!preview && (
-        <div
-          className="border-2 border-dashed rounded-xl p-10 text-center cursor-pointer hover:border-primary/50 hover:bg-accent/30 transition-colors"
-          onDrop={handleDrop}
-          onDragOver={(e) => e.preventDefault()}
-          onClick={() => fileRef.current?.click()}
-        >
-          <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
-          <p className="text-sm font-medium">CSV 파일을 드래그하거나 클릭해서 업로드</p>
-          <p className="text-xs text-muted-foreground mt-1">UTF-8 또는 CP949 인코딩 CSV 지원</p>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFile(file);
-            }}
-          />
-        </div>
-      )}
+          {/* 1) 파일 업로드 */}
+          {!preview && !result && <FileDropZone onFile={handleFile} />}
 
-      {/* 미리보기 */}
-      {preview && !result && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">
-              미리보기 — <span className="text-primary">{validCount}건</span> 인식됨
-            </p>
-            <button onClick={() => setPreview(null)} className="text-muted-foreground hover:text-foreground">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="rounded-lg border overflow-x-auto max-h-72 overflow-y-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead className="sticky top-0 bg-muted/80">
-                <tr className="border-b text-muted-foreground">
-                  <th className="px-2 py-1.5 text-left">학생</th>
-                  <th className="px-2 py-1.5 text-left">시험종류</th>
-                  <th className="px-2 py-1.5 text-left">시험명</th>
-                  <th className="px-2 py-1.5 text-left">날짜</th>
-                  <th className="px-2 py-1.5 text-left">과목</th>
-                  <th className="px-2 py-1.5 text-right">원점수</th>
-                  <th className="px-2 py-1.5 text-right">등급</th>
-                  <th className="px-2 py-1.5 text-right">백분위</th>
-                  <th className="px-2 py-1.5 text-left">메모</th>
-                </tr>
-              </thead>
-              <tbody>
-                {preview.map((row, i) => {
-                  const missing = !row.studentName || !row.examName || !row.examDate || !row.subject;
-                  return (
-                    <tr key={i} className={`border-b ${missing ? "bg-red-50" : ""}`}>
-                      <td className="px-2 py-1.5 font-medium">
-                        {row.studentName || <span className="text-red-500">없음</span>}
-                      </td>
-                      <td className="px-2 py-1.5 text-muted-foreground">
-                        {(EXAM_TYPE_DISPLAY[row.examType] ?? row.examType) || <span className="text-red-500">없음</span>}
-                      </td>
-                      <td className="px-2 py-1.5">{row.examName || <span className="text-red-500">없음</span>}</td>
-                      <td className="px-2 py-1.5 font-mono text-muted-foreground">{row.examDate}</td>
-                      <td className="px-2 py-1.5">{row.subject || <span className="text-red-500">없음</span>}</td>
-                      <td className="px-2 py-1.5 text-right">{row.rawScore ?? "-"}</td>
-                      <td className="px-2 py-1.5 text-right">{row.grade ?? "-"}</td>
-                      <td className="px-2 py-1.5 text-right">{row.percentile ?? "-"}</td>
-                      <td className="px-2 py-1.5 text-muted-foreground max-w-[120px] truncate">{row.notes ?? "-"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={handleImport} disabled={isPending || validCount === 0} size="sm">
-              {isPending ? "처리 중..." : `${validCount}건 저장`}
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setPreview(null)}>취소</Button>
-          </div>
-        </div>
-      )}
-
-      {/* 결과 */}
-      {result && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-3 text-sm">
-            <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-            <span className="font-medium">{result.created}건 등록 완료</span>
-          </div>
-          {result.errors.length > 0 && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-1">
-              <p className="text-xs font-medium text-red-700 flex items-center gap-1.5">
-                <AlertCircle className="h-3.5 w-3.5" />
-                {result.errors.length}건 오류
-              </p>
-              {result.errors.map((e, i) => (
-                <p key={i} className="text-xs text-red-600">
-                  {e.row}행 ({e.studentName}): {e.reason}
+          {/* 2) 미리보기 */}
+          {preview && !result && (
+            <div className="flex flex-col gap-x3">
+              <div className="flex flex-wrap items-center gap-x2">
+                <p className="t5-bold text-fg-neutral">
+                  <span className="tabular-nums text-fg-brand">{validCount}건</span> 인식됐어요
                 </p>
-              ))}
+                {invalidCount > 0 && <StatusBadge tone="bad">{invalidCount}행 필수 항목 없음</StatusBadge>}
+              </div>
+              <PreviewTable>
+                <thead>
+                  <tr>
+                    {["학생", "시험종류", "시험명", "날짜", "과목", "원점수", "등급", "백분위", "메모"].map((h) => (
+                      <th key={h} className={cn(PREVIEW_TH, ["원점수", "등급", "백분위"].includes(h) && "text-right")}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.map((row, i) => {
+                    const missing = !row.studentName || !row.examName || !row.examDate || !row.subject;
+                    return (
+                      <tr key={i} className={cn(missing && "bg-bg-critical-weak")}>
+                        <td className={cn(PREVIEW_TD, "t3-medium")}>{row.studentName || missingCell}</td>
+                        <td className={cn(PREVIEW_TD, "text-fg-neutral-muted")}>
+                          {(EXAM_TYPE_DISPLAY[row.examType] ?? row.examType) || missingCell}
+                        </td>
+                        <td className={PREVIEW_TD}>{row.examName || missingCell}</td>
+                        <td className={cn(PREVIEW_TD, "text-fg-neutral-muted")}>{row.examDate}</td>
+                        <td className={PREVIEW_TD}>{row.subject || missingCell}</td>
+                        <td className={cn(PREVIEW_TD, "text-right")}>{row.rawScore ?? "-"}</td>
+                        <td className={cn(PREVIEW_TD, "text-right")}>{row.grade ?? "-"}</td>
+                        <td className={cn(PREVIEW_TD, "text-right")}>{row.percentile ?? "-"}</td>
+                        <td className={cn(PREVIEW_TD, "max-w-[140px] truncate text-fg-neutral-muted")}>{row.notes ?? "-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </PreviewTable>
+              <FormActions>
+                <Button variant="ghost" onClick={() => setPreview(null)} disabled={isPending}>
+                  취소
+                </Button>
+                <Button onClick={handleImport} disabled={isPending || validCount === 0}>
+                  {isPending ? "저장 중…" : `${validCount}건 저장`}
+                </Button>
+              </FormActions>
             </div>
           )}
-          <Button variant="outline" size="sm" onClick={() => setResult(null)}>다시 업로드</Button>
+
+          {/* 3) 결과 */}
+          {result && (
+            <div className="flex flex-col gap-x3">
+              <Notice tone="ok" icon={CheckCircle2} title="가져오기를 마쳤어요">
+                {`${result.created}건 등록 완료`}
+              </Notice>
+              <ImportErrors errors={result.errors.map((e) => ({ row: e.row, name: e.studentName, reason: e.reason }))} />
+              <FormActions className="justify-start">
+                <Button variant="outline" size="sm" onClick={() => setResult(null)}>
+                  <RotateCcw />
+                  다시 업로드
+                </Button>
+              </FormActions>
+            </div>
+          )}
         </div>
-      )}
+      </Section>
 
       {/* 컬럼 설명 */}
-      <div className="rounded-lg bg-muted/40 border p-4 text-xs text-muted-foreground space-y-2">
-        <p className="font-medium text-foreground text-[13px]">CSV 컬럼 형식</p>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-          <div><span className="font-mono bg-muted px-1 rounded">이름</span> 학생 이름 (필수, DB에 등록된 이름과 일치)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">시험종류</span> 공식모의고사 / 사설모의고사 / 학교내신</div>
-          <div><span className="font-mono bg-muted px-1 rounded">시험명</span> 예: 2024년 6월 모의고사 (필수)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">날짜</span> YYYY-MM-DD 형식 (필수)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">과목</span> 예: 국어, 수학, 영어 (필수)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">원점수</span> 숫자 (선택)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">등급</span> 1~9 (선택)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">백분위</span> 소수점 포함 숫자 (선택)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">메모</span> 비고 (선택)</div>
-        </div>
-        <p>• 한 행이 과목 하나입니다. 같은 시험의 여러 과목은 여러 행으로 입력하세요.</p>
-        <p>• 시험종류: <span className="font-mono">공식모의고사</span>, <span className="font-mono">평가원</span>, <span className="font-mono">수능</span>, <span className="font-mono">OFFICIAL_MOCK</span> 모두 인식</p>
-      </div>
+      <Section title="CSV 컬럼 형식" description="첫 줄(헤더)의 이름으로 항목을 알아봐요.">
+        <ColumnGuide
+          columns={COLUMNS}
+          notes={[
+            <>한 행이 과목 하나예요. 같은 시험의 여러 과목은 여러 행으로 입력하세요.</>,
+            <>
+              시험종류는 <ColumnName>공식모의고사</ColumnName>, <ColumnName>평가원</ColumnName>, <ColumnName>수능</ColumnName>,{" "}
+              <ColumnName>OFFICIAL_MOCK</ColumnName> 모두 인식해요.
+            </>,
+          ]}
+        />
+      </Section>
     </div>
   );
 }

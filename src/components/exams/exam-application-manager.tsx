@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Share2, ChevronRight } from "lucide-react";
+import { ChevronRight, Inbox, Share2 } from "lucide-react";
 import { toggleExamApplicationOpen } from "@/actions/exam-application";
+import { EmptyState, StatusBadge, TableCard } from "@/components/backoffice/ui";
 import { ExamApplyLinkShare } from "@/components/exams/exam-apply-link-share";
 import { EXAM_TYPE_LABELS } from "@/components/exams/exam-type-label";
 import type { ExamType } from "@/generated/prisma";
@@ -40,56 +41,74 @@ export function ExamApplicationManager({ sessions }: { sessions: ManagerSession[
 
   if (sessions.length === 0) {
     return (
-      <div className="py-12 text-center text-sm text-muted-foreground">
-        신청 대상 시험(모의고사·학력평가)이 없습니다.
-      </div>
+      <TableCard>
+        <EmptyState
+          icon={Inbox}
+          title="신청을 받을 시험이 없어요"
+          description="모의고사·학력평가 세션을 만들면 여기서 학생 신청을 열고 닫을 수 있어요."
+        />
+      </TableCard>
     );
   }
 
   return (
-    <ul className="divide-y divide-line rounded-lg border border-line">
-      {sessions.map((s) => (
-        <li key={s.id} className="space-y-2 px-3 py-3">
-          <div className="flex items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <Link href={`/exams/${s.id}`} className="text-sm font-medium hover:underline">
-                {s.title}
-              </Link>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {EXAM_TYPE_LABELS[s.examType]} · {s.examDate.slice(0, 10)} ·{" "}
-                <span className={s.applicationOpen ? "font-medium text-ok-ink" : ""}>
-                  신청 {s.applicationOpen ? "열림" : "닫힘"}
-                </span>{" "}
-                · 신청자 {s.applicationsCount}명
-              </p>
-            </div>
-            <Button
-              size="sm"
-              variant={s.applicationOpen ? "outline" : "default"}
-              disabled={busy}
-              onClick={() => toggle(s)}
-            >
-              {s.applicationOpen ? "신청 닫기" : "신청 열기"}
-            </Button>
-            {s.applicationOpen && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShareId((cur) => (cur === s.id ? null : s.id))}
-                aria-label="신청 링크 공유"
-              >
-                <Share2 className="h-4 w-4" />
-              </Button>
-            )}
-            <Link href={`/exams/${s.id}`} aria-label="상세">
-              <Button size="sm" variant="ghost">
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </Link>
-          </div>
-          {s.applicationOpen && shareId === s.id && <ExamApplyLinkShare sessionId={s.id} />}
-        </li>
-      ))}
-    </ul>
+    <TableCard>
+      <ul className="divide-y divide-stroke-neutral-muted">
+        {sessions.map((s) => {
+          const sharing = s.applicationOpen && shareId === s.id;
+          return (
+            <li key={s.id} className="px-x5 py-x4">
+              <div className="flex flex-wrap items-center gap-x3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x2">
+                    <Link href={`/exams/${s.id}`} className="t5-bold text-fg-neutral hover:underline">
+                      {s.title}
+                    </Link>
+                    <StatusBadge tone={s.applicationOpen ? "ok" : "gray"}>
+                      {s.applicationOpen ? "신청 열림" : "신청 닫힘"}
+                    </StatusBadge>
+                  </div>
+                  <p className="mt-x1 t3-regular tabular-nums text-fg-neutral-subtle">
+                    {EXAM_TYPE_LABELS[s.examType]} · {s.examDate.slice(0, 10).replaceAll("-", ".")} · 신청자{" "}
+                    <span className="t3-medium text-fg-neutral-muted">{s.applicationsCount}명</span>
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-x1_5">
+                  {s.applicationOpen && (
+                    <Button
+                      size="sm"
+                      variant={sharing ? "secondary" : "outline"}
+                      onClick={() => setShareId((cur) => (cur === s.id ? null : s.id))}
+                      aria-expanded={sharing}
+                    >
+                      <Share2 />
+                      링크 공유
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant={s.applicationOpen ? "secondary" : "default"}
+                    disabled={busy}
+                    onClick={() => toggle(s)}
+                  >
+                    {s.applicationOpen ? "신청 닫기" : "신청 열기"}
+                  </Button>
+                  <Button variant="ghost" size="icon" className="size-x9" asChild>
+                    <Link href={`/exams/${s.id}`} aria-label={`${s.title} 상세`}>
+                      <ChevronRight />
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+              {sharing && (
+                <div className="mt-x3">
+                  <ExamApplyLinkShare sessionId={s.id} />
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </TableCard>
   );
 }

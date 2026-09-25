@@ -54,7 +54,7 @@ export async function getSidebarBadges(
       isFullAccess(role)
         ? prisma.onlineParentFeedback.count({ where: { readAt: null } })
         : Promise.resolve(0),
-      // /messages — 직원 DM 중 내가 안 읽은 메시지 수
+      // /staff-messages — 직원 DM 중 내가 안 읽은 메시지 수
       prisma.staffThreadMessage.count({
         where: {
           readAt: null,
@@ -91,7 +91,7 @@ export async function getSidebarBadges(
   set("/exams", examApps);
   set("/lunch", lunchRequests);
   set("/online/reports", parentFeedback);
-  set("/messages", staffDm);
+  set("/staff-messages", staffDm);
 
   return badges;
 }

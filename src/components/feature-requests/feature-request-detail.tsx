@@ -2,18 +2,18 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
+import {
+  Avatar, DescriptionList, EmptyState, PageHeader, Section, StatusBadge, type Tone,
+} from "@/components/backoffice/ui";
 import {
   updateRequestStatus, deleteFeatureRequest,
   createFeatureRequestComment, deleteFeatureRequestComment,
@@ -22,25 +22,29 @@ import {
   CATEGORY_OPTIONS, PRIORITY_OPTIONS, RELATED_PAGE_OPTIONS, ROLE_LABEL,
 } from "@/lib/feature-request-constants";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import {
-  ArrowLeft, MoreHorizontal, Clock, Loader2, CheckCircle2, Pause,
-  Trash2, Send, MessageSquare,
+  CheckCircle2, ChevronDown, CirclePause, CirclePlay, Clock, FileText, MessageSquare, Trash2,
+  type LucideIcon,
 } from "lucide-react";
-import Link from "next/link";
 import type { RequestStatus, FeatureRequestComment } from "@/generated/prisma";
 
-const STATUS_CONFIG: Record<RequestStatus, {
-  label: string; icon: React.ElementType; style: string;
-  badgeVariant: "default" | "secondary" | "outline" | "destructive";
-}> = {
-  PENDING: { label: "대기", icon: Clock, style: "text-amber-600", badgeVariant: "outline" },
-  IN_PROGRESS: { label: "진행중", icon: Loader2, style: "text-white", badgeVariant: "default" },
-  DONE: { label: "완료", icon: CheckCircle2, style: "text-green-600", badgeVariant: "secondary" },
-  ON_HOLD: { label: "보류", icon: Pause, style: "text-gray-500", badgeVariant: "outline" },
+const STATUS_CONFIG: Record<RequestStatus, { label: string; tone: Tone; icon: LucideIcon }> = {
+  PENDING: { label: "대기", tone: "warn", icon: Clock },
+  IN_PROGRESS: { label: "진행중", tone: "info", icon: CirclePlay },
+  DONE: { label: "완료", tone: "ok", icon: CheckCircle2 },
+  ON_HOLD: { label: "보류", tone: "gray", icon: CirclePause },
 };
 
 const STATUS_ORDER: RequestStatus[] = ["PENDING", "IN_PROGRESS", "DONE", "ON_HOLD"];
+
+/** 분류 배지 색 — 버그만 위험색, 나머지는 정보 계열 */
+const CATEGORY_TONE: Record<string, Tone> = {
+  BUG: "bad",
+  FEATURE: "violet",
+  IMPROVEMENT: "info",
+};
+// kit StatusBadge 는 violet 을 informative(파랑)로 그려 '개선'과 겹친다 → SEED 보라 팔레트로 구분
+const VIOLET_BADGE = "bg-palette-purple-100 text-palette-purple-700";
 
 type Request = {
   id: string;
@@ -76,7 +80,9 @@ function CommentSection({
 }) {
   const [content, setContent] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [isDeleting, startDeleteTransition] = useTransition();
   const router = useRouter();
+  const busy = isPending || isDeleting;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -94,7 +100,7 @@ function CommentSection({
   }
 
   function handleDelete(commentId: string) {
-    startTransition(async () => {
+    startDeleteTransition(async () => {
       try {
         await deleteFeatureRequestComment(commentId);
         toast.success("댓글이 삭제되었습니다");
@@ -109,55 +115,55 @@ function CommentSection({
     c.authorId === currentUserId || currentUserRole === "SUPER_ADMIN" || currentUserRole === "DIRECTOR";
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <MessageSquare className="h-4 w-4" />
-          댓글 {comments.length > 0 && <span className="text-muted-foreground text-sm font-normal">{comments.length}</span>}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {comments.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-4">아직 댓글이 없습니다</p>
-        )}
-        {comments.map((c) => (
-          <div key={c.id} className="flex gap-3 group">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-sm font-medium">{c.authorName}</span>
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                  {ROLE_LABEL[c.authorRole] ?? c.authorRole}
-                </Badge>
-                <span className="text-[11px] text-muted-foreground">{formatDate(c.createdAt)}</span>
-                {canDelete(c) && (
-                  <button
-                    onClick={() => handleDelete(c.id)}
-                    disabled={isPending}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500 ml-auto"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                )}
+    <Section title="댓글" count={comments.length} flush>
+      {comments.length === 0 ? (
+        <EmptyState compact icon={MessageSquare} title="아직 댓글이 없어요" description="진행 상황이나 확인할 점을 남겨 주세요." />
+      ) : (
+        <ul className="divide-y divide-stroke-neutral-muted">
+          {comments.map((c) => (
+            <li key={c.id} className="group flex gap-x3 px-x5 py-x4">
+              <Avatar name={c.authorName} size={32} />
+              <div className="min-w-0 flex-1">
+                <div className="flex min-h-8 flex-wrap items-center gap-x-x2 gap-y-x0_5">
+                  <span className="t4-bold text-fg-neutral">{c.authorName}</span>
+                  <StatusBadge tone="gray">{ROLE_LABEL[c.authorRole] ?? c.authorRole}</StatusBadge>
+                  <span className="t3-regular text-fg-neutral-subtle tabular-nums">{formatDate(c.createdAt)}</span>
+                  {canDelete(c) && (
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(c.id)}
+                      disabled={busy}
+                      aria-label="댓글 삭제"
+                      className="ml-auto grid size-x8 place-items-center rounded-full text-fg-neutral-subtle outline-none transition-[opacity,color,background-color] hover:bg-bg-transparent-pressed hover:text-fg-critical focus-visible:ring-2 focus-visible:ring-stroke-focus-ring disabled:pointer-events-none disabled:text-fg-disabled sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 sm:focus-visible:opacity-100"
+                    >
+                      <Trash2 className="size-4" aria-hidden />
+                    </button>
+                  )}
+                </div>
+                <p className="mt-x0_5 whitespace-pre-wrap break-words t4-regular text-fg-neutral">{c.content}</p>
               </div>
-              <p className="text-sm whitespace-pre-wrap">{c.content}</p>
-            </div>
-          </div>
-        ))}
+            </li>
+          ))}
+        </ul>
+      )}
 
-        <form onSubmit={handleSubmit} className="flex gap-2 pt-2 border-t">
-          <Textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="댓글을 입력하세요..."
-            rows={2}
-            className="resize-none text-sm"
-          />
-          <Button type="submit" size="icon" disabled={isPending || !content.trim()} className="shrink-0 self-end">
-            <Send className="h-4 w-4" />
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-x2 border-t border-stroke-neutral-muted p-x5 sm:flex-row sm:items-end"
+      >
+        <Textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="댓글을 입력하세요..."
+          aria-label="댓글 입력"
+          rows={2}
+          className="flex-1 resize-none"
+        />
+        <Button type="submit" disabled={busy || !content.trim()} className="w-full sm:w-auto">
+          {isPending ? "등록 중…" : "등록"}
+        </Button>
+      </form>
+    </Section>
   );
 }
 
@@ -173,7 +179,6 @@ export function FeatureRequestDetail({
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const statusCfg = STATUS_CONFIG[request.status];
-  const StatusIcon = statusCfg.icon;
   const categoryCfg = CATEGORY_OPTIONS.find((c) => c.value === request.category);
   const priorityCfg = PRIORITY_OPTIONS.find((p) => p.value === request.priority);
   const relatedPageCfg = RELATED_PAGE_OPTIONS.find((p) => p.value === request.relatedPage);
@@ -203,102 +208,106 @@ export function FeatureRequestDetail({
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Link href="/requests" className="text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <h1 className="text-xl font-bold flex-1">{request.title}</h1>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="icon" className="h-8 w-8" disabled={isPending}>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {STATUS_ORDER.filter((s) => s !== request.status).map((s) => {
-              const cfg = STATUS_CONFIG[s];
-              const Icon = cfg.icon;
-              return (
-                <DropdownMenuItem key={s} onClick={() => handleStatusChange(s)}>
-                  <Icon className={cn("h-3.5 w-3.5 mr-2", cfg.style)} />
-                  {cfg.label}로 변경
-                </DropdownMenuItem>
-              );
-            })}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-red-600 focus:text-red-600"
+    <div className="max-w-3xl">
+      <PageHeader
+        back={{ href: "/requests", label: "요청 목록" }}
+        title={<span className="break-words">{request.title}</span>}
+        meta={
+          <span className="flex flex-wrap items-center gap-x1">
+            <StatusBadge tone={statusCfg.tone} size="large">{statusCfg.label}</StatusBadge>
+            {categoryCfg && (
+              <StatusBadge
+                tone={CATEGORY_TONE[categoryCfg.value] ?? "gray"}
+                className={CATEGORY_TONE[categoryCfg.value] === "violet" ? VIOLET_BADGE : undefined}
+                size="large"
+              >
+                {categoryCfg.label}
+              </StatusBadge>
+            )}
+            {priorityCfg && request.priority === "URGENT" && (
+              <StatusBadge tone="bad" size="large">{priorityCfg.label}</StatusBadge>
+            )}
+          </span>
+        }
+        actions={
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={isPending}>
+                  상태 변경
+                  <ChevronDown aria-hidden />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {STATUS_ORDER.filter((s) => s !== request.status).map((s) => {
+                  const cfg = STATUS_CONFIG[s];
+                  const Icon = cfg.icon;
+                  return (
+                    <DropdownMenuItem key={s} onClick={() => handleStatusChange(s)}>
+                      <Icon className="text-fg-neutral-subtle" aria-hidden />
+                      {cfg.label}로 변경
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant="ghost"
+              className="text-fg-critical"
+              disabled={isPending}
               onClick={() => setDeleteOpen(true)}
             >
-              <Trash2 className="h-3.5 w-3.5 mr-2" />삭제
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+              <Trash2 aria-hidden />
+              삭제
+            </Button>
+          </>
+        }
+      />
 
-      {/* Badges */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Badge variant={statusCfg.badgeVariant} className={cn("gap-1", statusCfg.style)}>
-          <StatusIcon className={cn("h-3 w-3", request.status === "IN_PROGRESS" && "animate-spin")} />
-          {statusCfg.label}
-        </Badge>
-        {categoryCfg && (
-          <Badge variant="outline" className={cn("border", categoryCfg.bg, categoryCfg.color)}>
-            {categoryCfg.label}
-          </Badge>
-        )}
-        {priorityCfg && request.priority === "URGENT" && (
-          <Badge variant="outline" className="border-red-200 bg-red-50 text-red-600">
-            {priorityCfg.label}
-          </Badge>
-        )}
-        {relatedPageCfg && (
-          <Badge variant="secondary">{relatedPageCfg.label}</Badge>
-        )}
-      </div>
+      <div className="flex flex-col gap-x4">
+        {/* 요청 정보 */}
+        <Section>
+          <DescriptionList
+            items={[
+              { label: "작성자", value: request.authorName },
+              { label: "등록일", value: <span className="tabular-nums">{formatDate(request.createdAt)}</span> },
+              { label: "요청자", value: request.requester || "—" },
+              { label: "관련 페이지", value: relatedPageCfg?.label ?? "—" },
+            ]}
+          />
+        </Section>
 
-      {/* Meta */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-        <span>{request.authorName}</span>
-        <span>{formatDate(request.createdAt)}</span>
-        {request.requester && <span>요청자: {request.requester}</span>}
-      </div>
-
-      {/* Description */}
-      <Card>
-        <CardContent className="pt-4">
+        {/* 상세 설명 */}
+        <Section title="상세 설명">
           {request.description ? (
             <MarkdownViewer source={request.description} />
           ) : (
-            <p className="text-sm text-muted-foreground text-center py-6">상세 설명이 없습니다</p>
+            <EmptyState compact icon={FileText} title="상세 설명이 없어요" />
           )}
-        </CardContent>
-      </Card>
+        </Section>
 
-      {/* Comments */}
-      <CommentSection
-        comments={request.comments}
-        requestId={request.id}
-        currentUserId={currentUser.id}
-        currentUserRole={currentUser.role}
-      />
+        {/* 댓글 */}
+        <CommentSection
+          comments={request.comments}
+          requestId={request.id}
+          currentUserId={currentUser.id}
+          currentUserRole={currentUser.role}
+        />
+      </div>
 
       {/* Delete dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>요청 삭제</DialogTitle>
+            <DialogDescription>
+              이 요청을 삭제하시겠습니까? 댓글도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+            </DialogDescription>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            이 요청을 삭제하시겠습니까? 댓글도 함께 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
-          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>취소</Button>
             <Button variant="destructive" disabled={isPending} onClick={handleDelete}>
-              {isPending ? "삭제 중..." : "삭제"}
+              {isPending ? "삭제 중…" : "삭제"}
             </Button>
           </DialogFooter>
         </DialogContent>

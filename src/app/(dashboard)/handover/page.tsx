@@ -7,6 +7,10 @@ import { prisma } from "@/lib/prisma";
 import { HandoverBoard } from "@/components/handover/handover-board";
 import { MonthlyNotesPanel } from "@/components/handover/monthly-notes-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/backoffice/ui";
+import { Plus } from "lucide-react";
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { resolveDateRange, toIsoDate } from "@/lib/date-range";
 import { todayKST } from "@/lib/utils";
@@ -58,42 +62,56 @@ export default async function HandoverPage({
   ]);
 
   return (
-    <Tabs defaultValue="daily" className="space-y-4">
-      <TabsList>
-        <TabsTrigger value="daily">일일 인수인계</TabsTrigger>
-        <TabsTrigger value="monthly">
-          월간 노트
-          <span className="ml-1.5 text-[10px] bg-muted-foreground/10 text-muted-foreground px-1.5 py-0.5 rounded-full">
-            {year}.{String(month).padStart(2, "0")}
-          </span>
-        </TabsTrigger>
-      </TabsList>
+    <>
+      <PageHeader
+        title="인수인계"
+        description="근무를 마치며 남긴 내용과 다음 근무자의 할 일을 한곳에서 확인해요."
+        actions={
+          <Button asChild>
+            <Link href="/handover/new">
+              <Plus />
+              작성하기
+            </Link>
+          </Button>
+        }
+      />
+      <Tabs defaultValue="daily">
+        <TabsList>
+          <TabsTrigger value="daily">일일 인수인계</TabsTrigger>
+          <TabsTrigger value="monthly">
+            월간 노트
+            <span className="t4-bold tabular-nums text-fg-placeholder">
+              {year}.{String(month).padStart(2, "0")}
+            </span>
+          </TabsTrigger>
+        </TabsList>
 
-      <TabsContent value="daily">
-        <HandoverBoard
-          initialHandovers={handovers as Parameters<typeof HandoverBoard>[0]["initialHandovers"]}
-          staffList={staffList}
-          currentUserId={session?.user?.id ?? ""}
-          currentUserName={session?.user?.name ?? ""}
-          currentUserRole={session?.user?.role ?? ""}
-          templates={templates}
-          completedToday={completedToday}
-          todayIso={todayIso}
-          initialDateFrom={initialFrom}
-          initialDateTo={initialTo}
-        />
-      </TabsContent>
+        <TabsContent value="daily">
+          <HandoverBoard
+            initialHandovers={handovers as Parameters<typeof HandoverBoard>[0]["initialHandovers"]}
+            staffList={staffList}
+            currentUserId={session?.user?.id ?? ""}
+            currentUserName={session?.user?.name ?? ""}
+            currentUserRole={session?.user?.role ?? ""}
+            templates={templates}
+            completedToday={completedToday}
+            todayIso={todayIso}
+            initialDateFrom={initialFrom}
+            initialDateTo={initialTo}
+          />
+        </TabsContent>
 
-      <TabsContent value="monthly">
-        <MonthlyNotesPanel
-          initialNotes={monthlyNotes}
-          students={students}
-          year={year}
-          month={month}
-          currentUserId={session?.user?.id ?? ""}
-          currentUserRole={session?.user?.role ?? ""}
-        />
-      </TabsContent>
-    </Tabs>
+        <TabsContent value="monthly">
+          <MonthlyNotesPanel
+            initialNotes={monthlyNotes}
+            students={students}
+            year={year}
+            month={month}
+            currentUserId={session?.user?.id ?? ""}
+            currentUserRole={session?.user?.role ?? ""}
+          />
+        </TabsContent>
+      </Tabs>
+    </>
   );
 }

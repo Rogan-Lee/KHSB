@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { generateMonthlyReport, markReportSent } from "@/actions/reports";
+import { generateMonthlyReport } from "@/actions/reports";
 import { sendBulkMessages } from "@/actions/messages";
 import { toast } from "sonner";
 import { FileText, Send } from "lucide-react";
@@ -75,56 +75,52 @@ export function ReportGeneratorPanel({ students, year, month }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        선택한 원생의 {year}년 {month}월 출결·상벌점·멘토링 통계를 집계합니다.
+    <div className="flex flex-col gap-x4">
+      <p className="t4-regular text-fg-neutral-muted">
+        선택한 원생의 {year}년 {month}월 출결·상벌점·멘토링 통계를 모아요.
       </p>
 
-      <div className="space-y-2">
+      <div className="flex flex-col gap-x2">
         <div className="flex items-center justify-between">
           <Label>원생 선택</Label>
-          <button
-            type="button"
-            onClick={toggleAll}
-            className="text-xs text-primary hover:underline"
-          >
+          <Button type="button" variant="link" onClick={toggleAll}>
             {selectedIds.length === students.length ? "전체 해제" : "전체 선택"}
-          </button>
+          </Button>
         </div>
-        <div className="border rounded-lg max-h-64 overflow-y-auto divide-y">
+        <div className="max-h-64 divide-y divide-stroke-neutral-muted overflow-y-auto rounded-r3 border border-stroke-neutral-muted">
           {students.map((s) => (
             <label
               key={s.id}
-              className="flex items-center gap-3 px-3 py-2 hover:bg-accent cursor-pointer"
+              className="flex cursor-pointer items-center gap-x3 px-x4 py-x2_5 transition-colors hover:bg-bg-layer-default-pressed"
             >
               <Checkbox
                 checked={selectedIds.includes(s.id)}
                 onCheckedChange={() => toggleStudent(s.id)}
               />
-              <span className="text-sm font-medium">{s.name}</span>
-              <span className="text-xs text-muted-foreground">{s.grade}</span>
+              <span className="t4-medium text-fg-neutral">{s.name}</span>
+              <span className="t3-regular text-fg-neutral-subtle">{s.grade}</span>
             </label>
           ))}
         </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-x2">
         <Button
           onClick={handleGenerate}
           disabled={isPending || selectedIds.length === 0}
           variant="outline"
           className="flex-1"
         >
-          <FileText className="h-4 w-4 mr-2" />
-          {isPending ? "생성 중..." : "리포트 생성"}
+          <FileText />
+          {isPending ? "생성 중…" : "리포트 생성"}
         </Button>
         <Button
           onClick={handleSend}
           disabled={isPending || selectedIds.length === 0}
           className="flex-1"
         >
-          <Send className="h-4 w-4 mr-2" />
-          {isPending ? "발송 중..." : "카카오 발송"}
+          <Send />
+          {isPending ? "발송 중…" : "카카오 발송"}
         </Button>
       </div>
     </div>

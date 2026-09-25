@@ -26,6 +26,8 @@ src/
 ├── components/       # React 컴포넌트 (페이지별 하위 디렉토리)
 ├── generated/prisma/ # Prisma 생성 코드 (직접 수정 금지)
 └── lib/              # 유틸리티, 인증, Prisma 클라이언트
+landing/              # 강한선배 정적 랜딩 (www.kanghanseonbae.com)
+                      # 별도 Vercel 프로젝트 khsb-landing(Root Directory=landing), landing/ 변경 시에만 배포
 ```
 
 ## Key Patterns

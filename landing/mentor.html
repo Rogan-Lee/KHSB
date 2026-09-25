@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="pageTitle">멘토 소개 | 강한선배</title>
+  <meta name="description" content="강한선배 선배 멘토의 이력과 인터뷰.">
+  <meta name="theme-color" content="#0b0c0f">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="landing.css?v=seed3">
+  <link rel="stylesheet" href="bx-core.css?v=bx20">
+  <style>
+    .mh-wrap { max-width: 1236px; margin: 0 auto; padding: calc(var(--gnb-h) + 48px) 28px 0; }
+    .mh-back { display: inline-flex; font-size: 14.5px; font-weight: 700; color: var(--dim); margin-bottom: 22px; }
+    .mh-back:hover { color: var(--ink); }
+    .m-hero { display: grid; grid-template-columns: 360px 1fr; gap: 56px; align-items: center; border-radius: 36px; padding: 44px; overflow: hidden; animation: bx-fade .8s both; }
+    .m-hero-ava { aspect-ratio: 4 / 5; border-radius: 28px; overflow: hidden; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 96px; box-shadow: var(--sh-md); }
+    .m-hero-ava img { border-radius: 0 !important; object-position: center 18%; }
+    .m-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+    .m-badge { font-size: 12.5px; font-weight: 800; background: rgba(255, 255, 255, .72); border-radius: 999px; padding: 7px 13px; }
+    .m-name { font-size: clamp(36px, 5vw, 64px); font-weight: 800; letter-spacing: -.05em; line-height: 1.08; }
+    .m-role { font-size: 16px; color: rgba(24, 19, 13, .6); margin-top: 10px; }
+    .m-oneliner { font-size: clamp(19px, 2.2vw, 26px); font-weight: 700; letter-spacing: -.035em; line-height: 1.55; margin-top: 26px; color: rgba(24, 19, 13, .88); }
+    .m-body { max-width: 1236px; margin: 0 auto; padding: 96px 28px 0; display: grid; grid-template-columns: 1fr 340px; gap: 72px; align-items: start; }
+    .m-h3 { font-size: 24px; font-weight: 800; letter-spacing: -.04em; margin-bottom: 20px; }
+    .m-bio { font-size: 17px; line-height: 1.95; color: var(--ink-2); margin-bottom: 56px; white-space: pre-line; }
+    .m-timeline { list-style: none; margin-bottom: 56px; }
+    .m-timeline li { position: relative; padding: 0 0 24px 28px; border-left: 2px solid var(--hair); }
+    .m-timeline li:last-child { padding-bottom: 0; }
+    .m-timeline li::before { content: ""; position: absolute; left: -7px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 4px #fff; }
+    .m-tl-year { font-size: 13px; font-weight: 800; color: var(--brand); }
+    .m-tl-text { font-size: 16px; color: var(--ink); margin-top: 4px; line-height: 1.6; }
+    .m-aside { position: sticky; top: calc(var(--gnb-h) + 24px); border-radius: 28px; background: var(--paper-2); padding: 30px; }
+    .m-aside h4 { font-size: 13px; font-weight: 800; color: var(--dim); letter-spacing: .04em; margin-bottom: 14px; }
+    .m-subj { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 26px; }
+    .m-subj span { font-size: 13.5px; font-weight: 700; background: #fff; color: var(--ink-2); padding: 7px 12px; border-radius: 999px; }
+    .m-aside .btn { width: 100%; }
+    .m-aside p { font-size: 12.5px; color: var(--faint); text-align: center; margin-top: 12px; }
+    @media (max-width: 860px) {
+      .m-hero { grid-template-columns: 1fr; padding: 24px; gap: 28px; border-radius: 28px; }
+      .m-hero-ava { max-width: 320px; }
+      .m-body { grid-template-columns: 1fr; gap: 40px; padding-top: 64px; }
+      .m-aside { position: static; }
+    }
+  </style>
+</head>
+<body class="bx" data-page="mentors">
+<script src="bx-data.js?v=bx20"></script>
+<script src="bx-shell.js?v=bx20"></script>
+
+<main id="main">
+  <div class="mh-wrap">
+    <a class="mh-back" href="mentors.html">← 선배 멘토진 전체 보기</a>
+    <section class="m-hero" id="mHero">
+      <div class="m-hero-ava" id="mAva"></div>
+      <div>
+        <div class="m-badges" id="mBadges"></div>
+        <h1 class="m-name" id="mName"></h1>
+        <p class="m-role" id="mRole"></p>
+        <p class="m-oneliner" id="mOneliner"></p>
+      </div>
+    </section>
+  </div>
+  <div class="m-body">
+    <div>
+      <h3 class="m-h3">멘토 소개</h3>
+      <p class="m-bio" id="mBio"></p>
+      <h3 class="m-h3">이력 · 합격</h3>
+      <ul class="m-timeline" id="mTimeline"></ul>
+      <h3 class="m-h3">멘토 인터뷰</h3>
+      <div id="mInterview" class="faq-list"></div>
+    </div>
+    <aside class="m-aside">
+      <h4>강점 분야</h4>
+      <div class="m-subj" id="mSubjects"></div>
+      <a class="btn btn-brand" href="https://khsb.vercel.app/apply" target="_blank" rel="noopener">담임 멘토 배정 상담</a>
+      <p>상담 후 성적과 성향에 맞는 담임 멘토를 배정해 드려요</p>
+    </aside>
+  </div>
+
+  <!-- 이 멘토가 쓴 글 (없으면 숨김) -->
+  <section class="bx-sec" id="mPosts" hidden>
+    <div class="bx-head left"><p class="eyebrow">선배 아티클</p><h2 class="bx-h2" id="mPostsTitle">멘토가 쓴 글</h2></div>
+    <div class="stg" id="mPostsGrid"></div>
+  </section>
+</main>
+
+<script src="mentors-data.js?v=seed4"></script>
+<script src="mentor.js"></script>
+<script src="bx-core.js?v=bx20"></script>
+<script>
+  // 이 멘토(authorKey)가 쓴 선배 아티클·후기
+  (() => {
+    const key = new URLSearchParams(location.search).get('id');
+    if (!key) return;
+    KHSB.api('/api/public/content?type=mentor,review&limit=50').then(d => {
+      const mine = ((d && d.posts) || []).filter(p => p.authorKey === key).slice(0, 3);
+      if (!mine.length) return;
+      const m = MENTORS[key];
+      if (m) document.getElementById('mPostsTitle').textContent = `${m.name}의 글`;
+      const grid = document.getElementById('mPostsGrid');
+      grid.innerHTML = mine.map(p => KHSB.storyCard(p)).join('');
+      document.getElementById('mPosts').hidden = false;
+      KHSB.observeNew(grid);
+    }).catch(() => {});
+  })();
+</script>
+</body>
+</html>

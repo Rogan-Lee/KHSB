@@ -24,9 +24,9 @@ export function ConfirmButton({ handoverId }: { handoverId: string }) {
   }
 
   return (
-    <Button onClick={handleConfirm} disabled={isPending} size="lg">
-      <CheckCircle2 className="h-4 w-4" />
-      {isPending ? "처리 중..." : "확인"}
+    <Button onClick={handleConfirm} disabled={isPending} size="lg" className="max-sm:w-full">
+      <CheckCircle2 />
+      {isPending ? "확인하는 중…" : "확인"}
     </Button>
   );
 }

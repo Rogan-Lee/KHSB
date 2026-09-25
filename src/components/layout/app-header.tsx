@@ -1,126 +1,69 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { LogOut, Menu, User, Bell, Monitor, Smartphone } from "lucide-react";
-import type { Role } from "@/generated/prisma";
-import { authClient } from "@/lib/auth-client";
+import { usePathname } from "next/navigation";
+import { ChevronRight, Menu, Search } from "lucide-react";
+import { useModKey } from "@/lib/nav-shortcuts";
+import { cn } from "@/lib/utils";
+import { locateNav } from "./nav-config";
 
-const ROLE_LABELS: Record<Role, string> = {
-  SUPER_ADMIN: "시스템 관리자",
-  ADMIN: "(구) 어드민",
-  DIRECTOR: "원장",
-  HEAD_MENTOR: "총괄 멘토",
-  MENTOR: "멘토",
-  STAFF: "운영조교",
-  STUDENT: "원생",
-  CONSULTANT: "컨설턴트",
-  MANAGER_MENTOR: "관리 멘토",
-};
-
-interface AppHeaderProps {
-  user: {
-    name: string;
-    email: string;
-    role: Role;
-  };
-  title?: string;
-  onMenuClick?: () => void;
-  viewMode?: "web" | "mobile";
-  onToggleViewMode?: () => void;
+export function openCommandPalette() {
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
 }
 
-export function AppHeader({ user, title, onMenuClick, viewMode, onToggleViewMode }: AppHeaderProps) {
-  const router = useRouter();
-
-  async function signOut() {
-    await authClient.signOut();
-    router.replace("/sign-in");
-    router.refresh();
-  }
+/**
+ * 상단 바 — 현재 위치(그룹 › 메뉴)와 빠른 이동 검색.
+ * 페이지 제목·설명·주요 버튼은 각 페이지의 PageHeader 가 담당한다.
+ */
+export function AppHeader({ onMenuClick }: { onMenuClick?: () => void }) {
+  const pathname = usePathname();
+  const { group, item } = locateNav(pathname);
+  const mod = useModKey();
 
   return (
-    <header className="h-12 bg-panel flex items-center justify-between px-4 md:px-5 sticky top-0 z-10">
-      <div className="flex items-center gap-2">
-        <button
-          className="md:hidden p-1.5 rounded-[8px] hover:bg-canvas-2 text-ink-3 transition-colors"
-          onClick={onMenuClick}
-          aria-label="메뉴 열기"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
-        {/* 관리자 계정 식별용 컬러 칩 */}
-        <span className="inline-flex items-center gap-1 rounded-full bg-info-soft px-2 py-0.5 text-[10.5px] font-semibold text-info-ink">
-          관리자 · {ROLE_LABELS[user.role]}
-        </span>
-        {title && (
-          <span className="text-[12.5px] font-medium text-ink-3 tracking-[-0.01em] md:hidden">
-            {title}
-          </span>
+    <header
+      data-print-hide
+      className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-x2 border-b border-stroke-neutral-muted bg-bg-layer-default/90 px-x4 backdrop-blur-md md:px-x8"
+    >
+      <button
+        type="button"
+        onClick={onMenuClick}
+        aria-label="메뉴 열기"
+        className="-ml-2 grid size-10 place-items-center rounded-r2 text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed md:hidden"
+      >
+        <Menu className="size-5" />
+      </button>
+
+      <nav aria-label="현재 위치" className="flex min-w-0 items-center gap-x1 t4-medium">
+        {group && (
+          <>
+            <span className="hidden shrink-0 text-fg-neutral-subtle sm:inline">{group.label}</span>
+            <ChevronRight className="hidden size-4 shrink-0 text-fg-placeholder sm:block" aria-hidden />
+          </>
         )}
-      </div>
-      <div className="flex items-center gap-1">
-        {/* 모바일/웹 뷰 전환 (데스크탑에서 모바일 레이아웃 미리보기) */}
-        {onToggleViewMode && (
-          <button
-            type="button"
-            onClick={onToggleViewMode}
-            className="hidden md:grid place-items-center w-[32px] h-[32px] rounded-[8px] text-ink-3 hover:text-ink hover:bg-canvas-2 transition-colors"
-            aria-label="뷰 전환"
-            title={viewMode === "mobile" ? "웹 뷰로 전환" : "모바일 뷰로 전환"}
-          >
-            {viewMode === "mobile" ? <Monitor className="h-4 w-4" /> : <Smartphone className="h-4 w-4" />}
-          </button>
-        )}
+        <span className="truncate text-fg-neutral">{item?.label ?? "BackOffice"}</span>
+      </nav>
+
+      <div className="ml-auto flex items-center gap-x1">
         <button
           type="button"
-          className="grid place-items-center w-[32px] h-[32px] rounded-[8px] text-ink-3 hover:text-ink hover:bg-canvas-2 transition-colors"
-          aria-label="알림"
+          onClick={openCommandPalette}
+          className={cn(
+            "hidden h-9 w-[260px] items-center gap-x2 rounded-r2 bg-bg-neutral-weak px-x3 text-left transition-colors md:flex",
+            "hover:bg-bg-neutral-weak-pressed",
+          )}
         >
-          <Bell className="h-4 w-4" />
+          <Search className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
+          <span className="flex-1 truncate t4-regular text-fg-placeholder">메뉴 검색</span>
+          <kbd className="rounded-r1 bg-bg-layer-default px-x1_5 t2-medium text-fg-neutral-subtle">{mod} K</kbd>
         </button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              suppressHydrationWarning
-              className="flex items-center gap-2.5 rounded-[8px] px-2 py-1 hover:bg-canvas-2 transition-colors"
-            >
-              <Avatar className="h-7 w-7">
-                <AvatarFallback className="text-[11px] bg-brand-soft text-brand-2 font-semibold">
-                  {user.name.slice(0, 2)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="text-left hidden sm:block">
-                <p className="text-[12.5px] font-medium text-ink leading-none tracking-[-0.01em]">{user.name}</p>
-                <p className="text-[11px] text-ink-4 mt-0.5">{ROLE_LABELS[user.role]}</p>
-              </div>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel className="text-[12.5px]">내 계정</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem disabled className="text-[12.5px]">
-              <User className="mr-2 h-3.5 w-3.5" />
-              프로필 설정
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-[12.5px] text-destructive focus:text-destructive"
-              onClick={signOut}
-            >
-              <LogOut className="mr-2 h-3.5 w-3.5" />
-              로그아웃
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <button
+          type="button"
+          onClick={openCommandPalette}
+          aria-label="메뉴 검색"
+          className="grid size-10 place-items-center rounded-r2 text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed md:hidden"
+        >
+          <Search className="size-5" />
+        </button>
       </div>
     </header>
   );

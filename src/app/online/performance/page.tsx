@@ -9,6 +9,7 @@ import {
   type PanelTaskRow,
 } from "@/components/online/performance-panel";
 import type { UploadedFile } from "@/actions/online/task-submissions";
+import { PageHeader } from "@/components/backoffice/ui";
 
 export default async function PerformanceOverviewPage() {
   const user = await getUser();
@@ -88,15 +89,11 @@ export default async function PerformanceOverviewPage() {
   }));
 
   return (
-    <div className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
-          수행평가 대시보드
-        </h1>
-        <p className="mt-1 text-[13px] text-ink-4">
-          학생을 선택하면 우측에서 과제 등록·상태 변경·피드백 작성까지 모두 진행할 수 있어요.
-        </p>
-      </header>
+    <div>
+      <PageHeader
+        title="수행평가"
+        description="학생을 고르면 과제 등록·상태 변경·피드백 작성까지 한 화면에서 할 수 있어요."
+      />
 
       <PerformancePanel rows={rows} canManage={canManage} />
     </div>

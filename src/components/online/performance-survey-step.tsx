@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Plus, Trash2, BookOpen, Beaker, Compass, Package } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  IconCheckmarkLine,
+  IconExclamationmarkCircleLine,
+  IconLockLine,
+  IconPlusLine,
+  IconTrashcanLine,
+} from "@karrotmarket/react-monochrome-icon";
+import { Fieldset, PrefixIcon } from "@seed-design/react";
 import { upsertSurveySection } from "@/actions/online/onboarding-survey";
 import {
   CAREER_LEVELS,
@@ -14,10 +21,16 @@ import {
   type PerformanceBook,
   type PerformanceSubject,
 } from "@/lib/online/survey-template";
+import { Button, Chip, Notice, Segmented } from "@/components/portal/ui";
+import { ProgressCircle } from "seed-design/ui/progress-circle";
+import { TextField, TextFieldInput, TextFieldTextarea } from "seed-design/ui/text-field";
 
 const AUTOSAVE_DELAY_MS = 800;
 
 type SaveState = "idle" | "saving" | "saved" | "error";
+
+// 회색 블록(bg-layer-fill) 안의 입력칸은 흰 채움으로 띄운다 (SEED text-input 은 기본 투명)
+const ON_FILL = "bg-bg-layer-default";
 
 export function PerformanceSurveyStep({
   studentToken,
@@ -116,278 +129,303 @@ export function PerformanceSurveyStep({
     });
   }
 
-  const inputBase = "w-full rounded-[8px] border border-line bg-canvas px-3 py-2 text-[12.5px] text-ink focus:outline-none focus:border-line-strong";
-
   return (
-    <div className="space-y-5">
-      {/* 자동 저장 상태 */}
-      <div className="text-[11px] text-ink-5 text-right h-3">
-        {status === "saving" && "저장 중…"}
-        {status === "saved" && "저장됨"}
-        {status === "error" && <span className="text-red-600">저장 실패</span>}
-      </div>
+    // disabled fieldset — 제출 후에는 모든 입력이 함께 잠긴다 (SEED 컨트롤엔 disabled 도 직접 전달)
+    <fieldset disabled={isSubmitted} className="-mt-3 min-w-0">
+      <SaveStatus status={status} locked={isSubmitted} />
 
-      {/* 레거시 답변 표시 */}
-      {value.legacyText && (
-        <div className="rounded-[10px] border border-amber-200 bg-amber-50 p-3">
-          <p className="text-[11px] font-semibold text-amber-900 mb-1">이전 자유 기술 답변</p>
-          <p className="text-[12px] text-amber-900 whitespace-pre-wrap">{value.legacyText}</p>
-          <p className="text-[10.5px] text-amber-800 mt-2">
-            참고용으로만 보입니다. 아래 항목별로 다시 작성해 주세요.
-          </p>
-        </div>
-      )}
+      <div className="flex flex-col gap-x10">
+        {/* 레거시 답변 표시 */}
+        {value.legacyText && (
+          <Notice tone="warn" title="이전에 적은 답변">
+            <p className="whitespace-pre-wrap">{value.legacyText}</p>
+            <p className="mt-x2 t3-regular">참고용으로만 보여요. 아래 항목에 맞춰 다시 적어 주세요.</p>
+          </Notice>
+        )}
 
-      {/* 과목별 탐구 */}
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Beaker className="h-3.5 w-3.5 text-ink-3" />
-          <h3 className="text-[13px] font-semibold text-ink">과목별 탐구 경험</h3>
-          <span className="text-[10.5px] text-ink-5">(과목명 + 탐구 주제 + 방식 + 본인 주도 부분)</span>
-        </div>
-        {value.subjects.map((s, i) => (
-          <div key={i} className="rounded-[10px] border border-line bg-panel p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-ink-4">과목 {i + 1}</span>
-              {value.subjects.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeSubject(i)}
-                  disabled={isSubmitted}
-                  className="text-ink-5 hover:text-red-600 disabled:opacity-40"
-                  title="삭제"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <input
-                type="text"
+        {/* 과목별 탐구 */}
+        <FormSection
+          title="과목별 탐구 경험"
+          description="과목마다 탐구 주제와 방식, 내가 주도한 부분을 적어 주세요."
+        >
+          {value.subjects.map((s, i) => (
+            <EntryBlock
+              key={i}
+              title={`과목 ${i + 1}`}
+              onRemove={value.subjects.length > 1 ? () => removeSubject(i) : undefined}
+              removeDisabled={isSubmitted}
+            >
+              <TextField
+                label="과목명"
                 value={s.subject}
-                onChange={(e) => updateSubject(i, { subject: e.target.value })}
+                onValueChange={({ value: text }) => updateSubject(i, { subject: text })}
                 disabled={isSubmitted}
-                placeholder="과목명 (예: 생명과학Ⅰ)"
-                className={inputBase}
-              />
-              <input
-                type="text"
+                className={ON_FILL}
+              >
+                <TextFieldInput placeholder="예: 생명과학Ⅰ" />
+              </TextField>
+              <TextField
+                label="탐구 주제"
                 value={s.topic}
-                onChange={(e) => updateSubject(i, { topic: e.target.value })}
+                onValueChange={({ value: text }) => updateSubject(i, { topic: text })}
                 disabled={isSubmitted}
-                placeholder="탐구 주제"
-                className={inputBase}
-              />
-            </div>
-            <div>
-              <p className="text-[11px] text-ink-4 mb-1.5">탐구 방식 (해당 항목 모두 체크)</p>
-              <div className="flex flex-wrap gap-1.5">
-                {PERFORMANCE_METHOD_OPTIONS.map((m) => {
-                  const checked = s.methods.includes(m);
-                  return (
-                    <label
+                className={ON_FILL}
+              >
+                <TextFieldInput placeholder="어떤 주제로 탐구했나요?" />
+              </TextField>
+              <MultiChoiceField label="탐구 방식">
+                <div className="flex flex-wrap gap-x2">
+                  {PERFORMANCE_METHOD_OPTIONS.map((m) => (
+                    <Chip
                       key={m}
-                      className={`cursor-pointer inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11.5px] ${
-                        checked ? "border-ink bg-ink text-white" : "border-line text-ink-3 hover:border-line-strong"
-                      } ${isSubmitted ? "pointer-events-none opacity-50" : ""}`}
+                      selected={s.methods.includes(m)}
+                      onClick={() => toggleSubjectMethod(i, m)}
+                      disabled={isSubmitted}
                     >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleSubjectMethod(i, m)}
-                        disabled={isSubmitted}
-                        className="sr-only"
-                      />
                       {m}
-                    </label>
-                  );
-                })}
-              </div>
-              {s.methods.includes("기타") && (
-                <input
-                  type="text"
-                  value={s.methodOther ?? ""}
-                  onChange={(e) => updateSubject(i, { methodOther: e.target.value })}
-                  disabled={isSubmitted}
-                  placeholder="기타 방식 직접 입력"
-                  className={`${inputBase} mt-2`}
-                />
-              )}
-            </div>
-            <textarea
-              value={s.selfRole}
-              onChange={(e) => updateSubject(i, { selfRole: e.target.value })}
-              disabled={isSubmitted}
-              placeholder="본인이 주도한 부분 (탐구 설계, 데이터 수집·분석, 발표 등 구체적으로)"
-              rows={3}
-              className={`${inputBase} resize-y`}
-            />
-          </div>
-        ))}
-        {!isSubmitted && (
-          <button
-            type="button"
-            onClick={addSubject}
-            className="inline-flex items-center gap-1 rounded-md border border-dashed border-line px-3 py-1.5 text-[11.5px] text-ink-3 hover:border-line-strong hover:text-ink"
-          >
-            <Plus className="h-3 w-3" />
-            과목 추가
-          </button>
-        )}
-      </section>
+                    </Chip>
+                  ))}
+                </div>
+                {s.methods.includes("기타") && (
+                  <TextField
+                    value={s.methodOther ?? ""}
+                    onValueChange={({ value: text }) => updateSubject(i, { methodOther: text })}
+                    disabled={isSubmitted}
+                    className={ON_FILL}
+                  >
+                    <TextFieldInput placeholder="기타 방식을 적어 주세요" aria-label="기타 탐구 방식" />
+                  </TextField>
+                )}
+              </MultiChoiceField>
+              <TextField
+                label="내가 주도한 부분"
+                value={s.selfRole}
+                onValueChange={({ value: text }) => updateSubject(i, { selfRole: text })}
+                disabled={isSubmitted}
+                className={ON_FILL}
+              >
+                <TextFieldTextarea placeholder="탐구 설계, 데이터 수집·분석, 발표 등 구체적으로 적어 주세요" />
+              </TextField>
+            </EntryBlock>
+          ))}
+          {!isSubmitted && (
+            <Button variant="weak" size="md" block onClick={addSubject}>
+              <PrefixIcon svg={<IconPlusLine />} />
+              과목 추가
+            </Button>
+          )}
+        </FormSection>
 
-      {/* 교과 연계 독서 */}
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <BookOpen className="h-3.5 w-3.5 text-ink-3" />
-          <h3 className="text-[13px] font-semibold text-ink">교과 연계 독서</h3>
-          <span className="text-[10.5px] text-ink-5">(책 제목 / 읽은 이유 / 연결 교과 / 확장 탐구)</span>
-        </div>
-        {value.books.map((b, i) => (
-          <div key={i} className="rounded-[10px] border border-line bg-panel p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-ink-4">도서 {i + 1}</span>
-              {value.books.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeBook(i)}
-                  disabled={isSubmitted}
-                  className="text-ink-5 hover:text-red-600 disabled:opacity-40"
-                  title="삭제"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              <input
-                type="text"
+        {/* 교과 연계 독서 */}
+        <FormSection
+          title="교과 연계 독서"
+          description="읽은 책과 이유, 연결 교과, 확장 탐구를 적어 주세요."
+        >
+          {value.books.map((b, i) => (
+            <EntryBlock
+              key={i}
+              title={`도서 ${i + 1}`}
+              onRemove={value.books.length > 1 ? () => removeBook(i) : undefined}
+              removeDisabled={isSubmitted}
+            >
+              <TextField
+                label="책 제목"
                 value={b.title}
-                onChange={(e) => updateBook(i, { title: e.target.value })}
+                onValueChange={({ value: text }) => updateBook(i, { title: text })}
                 disabled={isSubmitted}
-                placeholder="책 제목"
-                className={inputBase}
-              />
-              <input
-                type="text"
+                className={ON_FILL}
+              >
+                <TextFieldInput placeholder="책 제목을 적어 주세요" />
+              </TextField>
+              <TextField
+                label="연결 교과"
                 value={b.linkedSubject}
-                onChange={(e) => updateBook(i, { linkedSubject: e.target.value })}
+                onValueChange={({ value: text }) => updateBook(i, { linkedSubject: text })}
                 disabled={isSubmitted}
-                placeholder="연결 교과 (예: 생명과학Ⅰ)"
-                className={inputBase}
-              />
+                className={ON_FILL}
+              >
+                <TextFieldInput placeholder="예: 생명과학Ⅰ" />
+              </TextField>
+              <TextField
+                label="읽은 이유"
+                value={b.reason}
+                onValueChange={({ value: text }) => updateBook(i, { reason: text })}
+                disabled={isSubmitted}
+                className={ON_FILL}
+              >
+                <TextFieldTextarea placeholder="이 책을 고른 이유를 적어 주세요" />
+              </TextField>
+              <TextField
+                label="인상 깊은 개념 · 확장 탐구"
+                value={b.expansion}
+                onValueChange={({ value: text }) => updateBook(i, { expansion: text })}
+                disabled={isSubmitted}
+                className={ON_FILL}
+              >
+                <TextFieldTextarea placeholder="책에서 발전시킨 탐구나 적용 사례를 적어 주세요" />
+              </TextField>
+            </EntryBlock>
+          ))}
+          {!isSubmitted && (
+            <Button variant="weak" size="md" block onClick={addBook}>
+              <PrefixIcon svg={<IconPlusLine />} />
+              도서 추가
+            </Button>
+          )}
+        </FormSection>
+
+        {/* 진로 탐색 */}
+        <FormSection title="진로 탐색 수준" description="지금 진로를 어느 정도 정했나요?">
+          <Segmented<PerformanceAnswer["careerLevel"]>
+            aria-label="진로 탐색 수준"
+            options={[...CAREER_LEVELS]}
+            value={value.careerLevel}
+            onChange={(level) => setValue((v) => ({ ...v, careerLevel: level }))}
+            disabled={isSubmitted}
+          />
+          {value.careerLevel === "specified" && (
+            <div className="pt-x3">
+              <TextField
+                label="희망 진로 · 전공"
+                value={value.careerDetail}
+                onValueChange={({ value: text }) => setValue((v) => ({ ...v, careerDetail: text }))}
+                disabled={isSubmitted}
+              >
+                <TextFieldInput placeholder="예: 약학과 — 신약 개발 연구원" />
+              </TextField>
             </div>
-            <textarea
-              value={b.reason}
-              onChange={(e) => updateBook(i, { reason: e.target.value })}
-              disabled={isSubmitted}
-              placeholder="읽은 이유 (이 책을 선택한 이유)"
-              rows={2}
-              className={`${inputBase} resize-y`}
-            />
-            <textarea
-              value={b.expansion}
-              onChange={(e) => updateBook(i, { expansion: e.target.value })}
-              disabled={isSubmitted}
-              placeholder="인상 깊은 개념 / 확장 탐구 (책에서 발전시킨 탐구나 적용 사례)"
-              rows={2}
-              className={`${inputBase} resize-y`}
-            />
-          </div>
-        ))}
-        {!isSubmitted && (
-          <button
-            type="button"
-            onClick={addBook}
-            className="inline-flex items-center gap-1 rounded-md border border-dashed border-line px-3 py-1.5 text-[11.5px] text-ink-3 hover:border-line-strong hover:text-ink"
-          >
-            <Plus className="h-3 w-3" />
-            도서 추가
-          </button>
-        )}
-      </section>
+          )}
+        </FormSection>
 
-      {/* 진로 탐색 */}
-      <section className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Compass className="h-3.5 w-3.5 text-ink-3" />
-          <h3 className="text-[13px] font-semibold text-ink">진로 탐색 수준</h3>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {CAREER_LEVELS.map((opt) => {
-            const checked = value.careerLevel === opt.value;
-            return (
-              <label
-                key={opt.value}
-                className={`cursor-pointer inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-[12px] ${
-                  checked ? "border-ink bg-ink text-white" : "border-line text-ink-3 hover:border-line-strong"
-                } ${isSubmitted ? "pointer-events-none opacity-50" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="careerLevel"
-                  checked={checked}
-                  onChange={() => setValue((v) => ({ ...v, careerLevel: opt.value }))}
-                  disabled={isSubmitted}
-                  className="sr-only"
-                />
-                {opt.label}
-              </label>
-            );
-          })}
-        </div>
-        {value.careerLevel === "specified" && (
-          <input
-            type="text"
-            value={value.careerDetail}
-            onChange={(e) => setValue((v) => ({ ...v, careerDetail: e.target.value }))}
-            disabled={isSubmitted}
-            placeholder="희망 진로 / 전공 (예: 약학과 — 신약 개발 연구원)"
-            className={inputBase}
-          />
-        )}
-      </section>
-
-      {/* 활동 결과물 */}
-      <section className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Package className="h-3.5 w-3.5 text-ink-3" />
-          <h3 className="text-[13px] font-semibold text-ink">활동 결과물</h3>
-          <span className="text-[10.5px] text-ink-5">(해당 항목 모두 체크)</span>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {PERFORMANCE_OUTPUT_OPTIONS.map((opt) => {
-            const checked = value.outputs.includes(opt);
-            return (
-              <label
+        {/* 활동 결과물 */}
+        <FormSection title="활동 결과물" description="해당하는 걸 모두 골라 주세요.">
+          <div className="flex flex-wrap gap-x2">
+            {PERFORMANCE_OUTPUT_OPTIONS.map((opt) => (
+              <Chip
                 key={opt}
-                className={`cursor-pointer inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11.5px] ${
-                  checked ? "border-ink bg-ink text-white" : "border-line text-ink-3 hover:border-line-strong"
-                } ${isSubmitted ? "pointer-events-none opacity-50" : ""}`}
+                selected={value.outputs.includes(opt)}
+                onClick={() => toggleOutput(opt)}
+                disabled={isSubmitted}
               >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggleOutput(opt)}
-                  disabled={isSubmitted}
-                  className="sr-only"
-                />
                 {opt}
-              </label>
-            );
-          })}
-        </div>
-        {value.outputs.includes("기타") && (
-          <input
-            type="text"
-            value={value.outputOther ?? ""}
-            onChange={(e) => setValue((v) => ({ ...v, outputOther: e.target.value }))}
-            disabled={isSubmitted}
-            placeholder="기타 결과물 형태 직접 입력"
-            className={inputBase}
+              </Chip>
+            ))}
+          </div>
+          {value.outputs.includes("기타") && (
+            <TextField
+              value={value.outputOther ?? ""}
+              onValueChange={({ value: text }) => setValue((v) => ({ ...v, outputOther: text }))}
+              disabled={isSubmitted}
+            >
+              <TextFieldInput placeholder="기타 결과물 형태를 적어 주세요" aria-label="기타 결과물 형태" />
+            </TextField>
+          )}
+        </FormSection>
+      </div>
+    </fieldset>
+  );
+}
+
+// ─── 로컬 폼 조각 ─────────────────────────────────────────────────────
+
+function SaveStatus({ status, locked }: { status: SaveState; locked: boolean }) {
+  return (
+    <div aria-live="polite" className="mb-x3 flex h-x5 items-center justify-end t3-medium">
+      {locked ? (
+        <span className="inline-flex items-center gap-x1 text-fg-neutral-subtle">
+          <IconLockLine size={14} aria-hidden />
+          제출 후 잠김
+        </span>
+      ) : status === "saving" ? (
+        <span className="inline-flex items-center gap-x1 text-fg-neutral-subtle">
+          <ProgressCircle
+            size="inherit"
+            tone="neutral"
+            aria-hidden
+            className="[--size:var(--seed-dimension-x3_5)] [--thickness:2px]"
           />
-        )}
-      </section>
+          저장 중
+        </span>
+      ) : status === "saved" ? (
+        <span className="inline-flex items-center gap-x1 text-fg-positive">
+          <IconCheckmarkLine size={14} aria-hidden />
+          저장됨
+        </span>
+      ) : status === "error" ? (
+        <span className="inline-flex items-center gap-x1 text-fg-critical">
+          <IconExclamationmarkCircleLine size={14} aria-hidden />
+          저장 실패
+        </span>
+      ) : null}
     </div>
+  );
+}
+
+function FormSection({
+  title,
+  description,
+  children,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section>
+      <h3 className="t6-bold text-fg-neutral">{title}</h3>
+      {description != null && (
+        <p className="mt-x1 t4-regular text-fg-neutral-subtle">{description}</p>
+      )}
+      <div className="mt-x4 flex flex-col gap-x3">{children}</div>
+    </section>
+  );
+}
+
+/** 반복 입력 묶음 (과목·도서) — 흰 화면 위 회색(bg-layer-fill) 블록 */
+function EntryBlock({
+  title,
+  onRemove,
+  removeDisabled,
+  children,
+}: {
+  title: ReactNode;
+  onRemove?: () => void;
+  removeDisabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-r4 bg-bg-layer-fill px-x4 pb-x5 pt-x3">
+      <div className="mb-x3 flex min-h-9 items-center justify-between gap-x2">
+        <p className="t5-bold text-fg-neutral">{title}</p>
+        {onRemove && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onRemove}
+            disabled={removeDisabled}
+            className="-mr-2"
+          >
+            <PrefixIcon svg={<IconTrashcanLine />} />
+            삭제
+          </Button>
+        )}
+      </div>
+      <div className="flex flex-col gap-x5">{children}</div>
+    </div>
+  );
+}
+
+/** 여러 개 고르는 칩 묶음 — SEED Fieldset 라벨 + 보조 표시 */
+function MultiChoiceField({ label, children }: { label: ReactNode; children: ReactNode }) {
+  return (
+    <Fieldset.Root>
+      <Fieldset.Header>
+        <Fieldset.Label>
+          {label}
+          <Fieldset.IndicatorText>여러 개 고를 수 있어요</Fieldset.IndicatorText>
+        </Fieldset.Label>
+      </Fieldset.Header>
+      {children}
+    </Fieldset.Root>
   );
 }

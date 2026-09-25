@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { EmptyState, SearchField, Skeleton, StatusBadge, type Tone } from "@/components/backoffice/ui";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Copy, RefreshCw, RotateCcw, XCircle, UserPlus, Trash2, Pencil } from "lucide-react";
+import { ClipboardList, Copy, FileQuestion, MousePointerClick, Pencil, RefreshCw, RotateCcw, Trash2, UserPlus, Users, XCircle } from "lucide-react";
+import { useConfirmDialog } from "@/components/suggestions/use-confirm-dialog";
 import {
   getVocabAttemptDetail, createRetakeFromAttempt, cancelVocabAttempt, reissueAttemptLink, assignExamToStudents,
   deleteVocabExam, overrideVocabItemCorrectness,
@@ -39,12 +40,17 @@ export type ExamSummary = {
   attempts: AttemptRow[];
 };
 
-const STATUS_META: Record<VocabAttemptStatus, { label: string; cls: string }> = {
-  ASSIGNED: { label: "미응시", cls: "bg-gray-100 text-gray-700" },
-  IN_PROGRESS: { label: "응시 중", cls: "bg-blue-100 text-blue-700" },
-  SUBMITTED: { label: "제출 완료", cls: "bg-green-100 text-green-700" },
-  EXPIRED: { label: "취소/만료", cls: "bg-red-100 text-red-700" },
+const STATUS_META: Record<VocabAttemptStatus, { label: string; tone: Tone }> = {
+  ASSIGNED: { label: "미응시", tone: "gray" },
+  IN_PROGRESS: { label: "응시 중", tone: "info" },
+  SUBMITTED: { label: "제출 완료", tone: "ok" },
+  EXPIRED: { label: "취소/만료", tone: "bad" },
 };
+
+const PANE = "flex flex-col overflow-hidden rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default";
+const PANE_HEAD = "flex items-center justify-between gap-x2 border-b border-stroke-neutral-muted px-x4 py-x3 t3-medium text-fg-neutral-subtle";
+const PANE_ITEM =
+  "block w-full px-x4 py-x3 text-left transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring";
 const DIR_LABEL: Record<VocabExamDirection, string> = { EN_TO_KO: "영→한", KO_TO_EN: "한→영", MIXED: "혼합" };
 
 function fmt(iso: string | null) {
@@ -60,6 +66,7 @@ export function VocabResultsBoard({ exams, students, canDelete = false }: { exam
   const [attemptId, setAttemptId] = useState<string | null>(() => firstAttemptId(exams[0]));
   const [assignFor, setAssignFor] = useState<ExamSummary | null>(null);
   const [isPending, startTransition] = useTransition();
+  const { confirm, dialog } = useConfirmDialog();
   const origin = typeof window !== "undefined" ? window.location.origin : "";
 
   // 선택 시험이 갱신(revalidate)으로 사라지면 첫 항목으로 폴백 (렌더 파생, effect 불필요)
@@ -81,7 +88,17 @@ export function VocabResultsBoard({ exams, students, canDelete = false }: { exam
       catch (e) { toast.error(e instanceof Error ? e.message : "실패"); }
     });
 
-  if (exams.length === 0) return <p className="text-sm text-muted-foreground">아직 출제한 시험이 없습니다.</p>;
+  if (exams.length === 0) {
+    return (
+      <div className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
+        <EmptyState
+          icon={ClipboardList}
+          title="아직 출제한 시험이 없어요"
+          description="「시험 출제」 탭에서 시험을 내면 여기서 응시 결과를 볼 수 있어요."
+        />
+      </div>
+    );
+  }
 
   const submittedOf = (ex: ExamSummary) => ex.attempts.filter((a) => a.status === "SUBMITTED");
   const avgOf = (ex: ExamSummary) => {
@@ -91,33 +108,39 @@ export function VocabResultsBoard({ exams, students, canDelete = false }: { exam
 
   return (
     <>
-      <div className="grid grid-cols-1 lg:grid-cols-[260px_300px_1fr] gap-3 min-h-[600px] lg:h-[calc(100dvh-15rem)]">
+      <div className="grid min-h-[600px] grid-cols-1 gap-x3 lg:h-[calc(100dvh-15rem)] lg:grid-cols-[260px_300px_minmax(0,1fr)]">
         {/* ── 1) 시험 ── */}
-        <aside className="border rounded-lg overflow-hidden flex flex-col">
-          <div className="px-3 py-2 border-b bg-muted/40 text-[11px] text-muted-foreground flex items-center justify-between">
-            <span>시험 선택</span>
+        <aside className={PANE} aria-label="시험 목록">
+          <div className={PANE_HEAD}>
+            <span>시험</span>
             <span className="tabular-nums">총 {exams.length}건</span>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto divide-y">
+          <div className="min-h-0 flex-1 divide-y divide-stroke-neutral-muted overflow-y-auto">
             {exams.map((ex) => {
               const active = ex.id === exam?.id;
               const avg = avgOf(ex);
               return (
-                <button key={ex.id} onClick={() => selectExam(ex.id)}
-                  className={`w-full text-left px-3 py-2.5 border-l-2 transition-colors block ${active ? "bg-primary/5 border-primary" : "hover:bg-muted/40 border-transparent"}`}>
-                  <div className="flex items-center gap-1.5">
-                    <span className="min-w-0 font-medium text-[13px] truncate">{ex.title}</span>
+                <button
+                  key={ex.id}
+                  type="button"
+                  onClick={() => selectExam(ex.id)}
+                  aria-current={active ? "true" : undefined}
+                  className={cn(PANE_ITEM, active ? "bg-bg-neutral-weak" : "hover:bg-bg-layer-default-pressed")}
+                >
+                  <div className="flex items-center gap-x1_5">
+                    <span className={cn("min-w-0 truncate t4-medium text-fg-neutral", active && "t4-bold")}>{ex.title}</span>
                     {ex.isRetake && (
-                      <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0 text-[10px] font-medium leading-4 text-amber-700">
-                        <RotateCcw className="h-2.5 w-2.5 shrink-0" />재시험
-                      </span>
+                      <StatusBadge tone="warn" className="shrink-0">
+                        <RotateCcw />재시험
+                      </StatusBadge>
                     )}
                   </div>
-                  <div className="mt-0.5 text-[10.5px] text-muted-foreground truncate">
+                  <div className="mt-x0_5 truncate t3-regular text-fg-neutral-subtle">
                     {ex.bookName} · {DIR_LABEL[ex.direction]} · {ex.questionCount}문항
                   </div>
-                  <div className="mt-0.5 text-[10.5px] text-muted-foreground">
-                    대상 {ex.attempts.length} · 제출 {submittedOf(ex).length}{avg !== null ? ` · 평균 ${avg}점` : ""}
+                  <div className="mt-x0_5 t3-regular tabular-nums text-fg-neutral-subtle">
+                    대상 {ex.attempts.length} · 제출 {submittedOf(ex).length}
+                    {avg !== null && <> · 평균 <span className="t3-medium text-fg-neutral">{avg}점</span></>}
                   </div>
                 </button>
               );
@@ -126,43 +149,67 @@ export function VocabResultsBoard({ exams, students, canDelete = false }: { exam
         </aside>
 
         {/* ── 2) 학생 ── */}
-        <aside className="border rounded-lg overflow-hidden flex flex-col">
-          <div className="px-3 py-2 border-b bg-muted/40 flex items-center justify-between gap-2">
-            <span className="text-[11px] text-muted-foreground truncate">{exam ? exam.title : "학생"}</span>
-            {exam && <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">{submittedOf(exam).length}/{exam.attempts.length} 제출</span>}
+        <aside className={PANE} aria-label="응시 학생">
+          <div className={PANE_HEAD}>
+            <span className="truncate">{exam ? exam.title : "학생"}</span>
+            {exam && <span className="shrink-0 tabular-nums">{submittedOf(exam).length}/{exam.attempts.length} 제출</span>}
           </div>
           {exam && (
-            <div className="flex items-center gap-1 border-b px-2 py-1.5">
-              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAssignFor(exam)}><UserPlus className="h-3.5 w-3.5 mr-1" />배정</Button>
+            <div className="flex items-center gap-x1_5 border-b border-stroke-neutral-muted px-x3 py-x2">
+              <Button variant="secondary" size="xs" onClick={() => setAssignFor(exam)}>
+                <UserPlus />학생 배정
+              </Button>
               {canDelete && (
-                <Button variant="outline" size="sm" className="h-7 text-xs text-destructive" disabled={isPending}
-                  onClick={() => {
-                    if (!confirm(`"${exam.title}" 출제 이력을 삭제할까요?\n응시 기록 ${exam.attempts.length}건(점수·답안 포함)이 영구 삭제되며 되돌릴 수 없습니다.`)) return;
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="ml-auto text-fg-critical"
+                  disabled={isPending}
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: "출제 이력을 삭제할까요?",
+                      description: `"${exam.title}"\n응시 기록 ${exam.attempts.length}건(점수·답안 포함)이 영구 삭제되며 되돌릴 수 없어요.`,
+                      confirmLabel: "삭제",
+                      destructive: true,
+                    });
+                    if (!ok) return;
                     act(() => deleteVocabExam(exam.id), "출제 이력을 삭제했습니다");
-                  }}>
-                  <Trash2 className="h-3.5 w-3.5 mr-1" />삭제
+                  }}
+                >
+                  <Trash2 />삭제
                 </Button>
               )}
             </div>
           )}
-          <div className="flex-1 min-h-0 overflow-y-auto divide-y">
+          <div className="min-h-0 flex-1 divide-y divide-stroke-neutral-muted overflow-y-auto">
             {!exam ? (
-              <p className="px-3 py-8 text-center text-sm text-muted-foreground">좌측에서 시험을 선택하세요</p>
+              <EmptyState compact icon={MousePointerClick} title="왼쪽에서 시험을 골라 주세요" />
             ) : exam.attempts.length === 0 ? (
-              <p className="px-3 py-8 text-center text-sm text-muted-foreground">배정된 학생이 없습니다</p>
+              <EmptyState compact icon={Users} title="배정된 학생이 없어요" description="학생 배정으로 응시자를 추가해 보세요." />
             ) : (
               exam.attempts.map((a) => {
                 const active = a.id === attemptId;
                 return (
-                  <button key={a.id} onClick={() => setAttemptId(a.id)}
-                    className={`w-full text-left px-3 py-2.5 border-l-2 transition-colors block ${active ? "bg-primary/5 border-primary" : "hover:bg-muted/40 border-transparent"}`}>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-[13px] truncate">{a.student.name}</span>
-                      <span className="text-[10.5px] text-muted-foreground">{a.student.grade}</span>
-                      <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] ${STATUS_META[a.status].cls}`}>{STATUS_META[a.status].label}</span>
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => setAttemptId(a.id)}
+                    aria-current={active ? "true" : undefined}
+                    className={cn(PANE_ITEM, active ? "bg-bg-neutral-weak" : "hover:bg-bg-layer-default-pressed")}
+                  >
+                    <div className="flex items-center gap-x1_5">
+                      <span className={cn("truncate t4-medium text-fg-neutral", active && "t4-bold")}>{a.student.name}</span>
+                      <span className="t3-regular text-fg-neutral-subtle">{a.student.grade}</span>
+                      <StatusBadge tone={STATUS_META[a.status].tone} className="ml-auto shrink-0">
+                        {STATUS_META[a.status].label}
+                      </StatusBadge>
                     </div>
-                    <div className="mt-0.5 text-[10.5px] text-muted-foreground">
-                      {a.status === "SUBMITTED" ? <span className="font-semibold tabular-nums text-foreground">{a.score}점 ({a.correctCount}/{a.totalQuestions})</span> : "—"}
+                    <div className="mt-x0_5 t3-regular tabular-nums text-fg-neutral-subtle">
+                      {a.status === "SUBMITTED" ? (
+                        <>
+                          <span className="t3-bold text-fg-neutral">{a.score}점</span> ({a.correctCount}/{a.totalQuestions})
+                        </>
+                      ) : "—"}
                     </div>
                   </button>
                 );
@@ -172,18 +219,36 @@ export function VocabResultsBoard({ exams, students, canDelete = false }: { exam
         </aside>
 
         {/* ── 3) 내역 ── */}
-        <main className="border rounded-lg flex flex-col min-h-[600px] lg:min-h-0 overflow-hidden">
+        <main className={cn(PANE, "min-h-[600px] lg:min-h-0")}>
           {!attempt ? (
-            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">학생을 선택하면 응시 내역이 표시됩니다</div>
+            <div className="flex flex-1 items-center justify-center">
+              <EmptyState compact icon={MousePointerClick} title="학생을 고르면 응시 내역이 보여요" />
+            </div>
           ) : (
             <AttemptDetailPane
               key={attempt.id}
               attempt={attempt}
               isPending={isPending}
               onCopy={() => copyLink(attempt.token, attempt.student.name)}
-              onRetake={() => { if (confirm(`${attempt.student.name} 의 오답 단어로 재시험을 만들까요?`)) act(() => createRetakeFromAttempt(attempt.id), "재시험을 만들었습니다"); }}
+              onRetake={async () => {
+                const ok = await confirm({
+                  title: "재시험을 만들까요?",
+                  description: `${attempt.student.name} 학생의 오답 단어로 새 시험을 만들어요.`,
+                  confirmLabel: "재시험 만들기",
+                });
+                if (ok) act(() => createRetakeFromAttempt(attempt.id), "재시험을 만들었습니다");
+              }}
               onReissue={() => act(() => reissueAttemptLink(attempt.id), "링크를 재발급했습니다")}
-              onCancel={() => { if (confirm(`${attempt.student.name} 의 응시를 취소할까요?`)) act(() => cancelVocabAttempt(attempt.id), "취소했습니다"); }}
+              onCancel={async () => {
+                const ok = await confirm({
+                  title: "응시를 취소할까요?",
+                  description: `${attempt.student.name} 학생의 응시 링크가 더 이상 열리지 않아요.`,
+                  confirmLabel: "응시 취소",
+                  cancelLabel: "닫기",
+                  destructive: true,
+                });
+                if (ok) act(() => cancelVocabAttempt(attempt.id), "취소했습니다");
+              }}
             />
           )}
         </main>
@@ -197,6 +262,7 @@ export function VocabResultsBoard({ exams, students, canDelete = false }: { exam
           onAssigned={() => setAssignFor(null)}
         />
       )}
+      {dialog}
     </>
   );
 }
@@ -224,6 +290,7 @@ function AttemptDetailPane({ attempt, isPending, onCopy, onRetake, onReissue, on
   const [score, setScore] = useState<number | null>(attempt.score);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const { prompt, dialog } = useConfirmDialog();
 
   const load = async () => {
     const d = await getVocabAttemptDetail(attempt.id);
@@ -241,7 +308,13 @@ function AttemptDetailPane({ attempt, isPending, onCopy, onRetake, onReissue, on
 
   const toggleItem = async (it: DetailItem) => {
     const next = !it.isCorrect;
-    const reason = window.prompt(`${it.prompt}: ${it.isCorrect ? "O→X" : "X→O"} 로 수정합니다.\n사유(선택, 비워도 됨):`);
+    const reason = await prompt({
+      title: `${it.isCorrect ? "오답(X)" : "정답(O)"}으로 바꿀까요?`,
+      description: `${it.prompt} · ${it.isCorrect ? "O → X" : "X → O"} 로 수정하고 점수를 다시 계산해요.`,
+      label: "수정 사유 (선택)",
+      placeholder: "비워 둬도 돼요",
+      confirmLabel: "수정",
+    });
     if (reason === null) return; // 취소
     setSaving(it.id);
     try {
@@ -258,90 +331,113 @@ function AttemptDetailPane({ attempt, isPending, onCopy, onRetake, onReissue, on
   const total = items?.length ?? attempt.totalQuestions;
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* header */}
-      <div className="px-5 py-3 border-b flex items-center gap-3 flex-wrap">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-bold text-base">{attempt.student.name}</h3>
-            <span className="text-xs text-muted-foreground">{attempt.student.grade}</span>
-            <span className={`rounded-full px-2 py-0.5 text-[11px] ${STATUS_META[attempt.status].cls}`}>{STATUS_META[attempt.status].label}</span>
+      <div className="flex flex-wrap items-center gap-x3 border-b border-stroke-neutral-muted px-x5 py-x4">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x2">
+            <h3 className="t6-bold text-fg-neutral">{attempt.student.name}</h3>
+            <span className="t3-regular text-fg-neutral-subtle">{attempt.student.grade}</span>
+            <StatusBadge tone={STATUS_META[attempt.status].tone}>{STATUS_META[attempt.status].label}</StatusBadge>
           </div>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
+          <p className="mt-x1 t3-regular tabular-nums text-fg-neutral-subtle">
             {attempt.status === "SUBMITTED"
-              ? <>점수 <b className="text-foreground">{score}점</b> · 정답 {correctCount}/{total} · 제출 {fmt(attempt.submittedAt)}</>
-              : "아직 제출되지 않았습니다"}
+              ? <>점수 <span className="t3-bold text-fg-neutral">{score}점</span> · 정답 {correctCount}/{total} · 제출 {fmt(attempt.submittedAt)}</>
+              : "아직 제출하지 않았어요"}
           </p>
         </div>
-        <div className="flex flex-wrap gap-1 shrink-0">
+        <div className="flex shrink-0 flex-wrap gap-x1_5">
           {attempt.status !== "EXPIRED" && (
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onCopy}><Copy className="h-3.5 w-3.5 mr-1" />링크</Button>
+            <Button variant="secondary" size="xs" onClick={onCopy}><Copy />링크 복사</Button>
           )}
           {attempt.status === "SUBMITTED" && (
-            <Button variant="outline" size="sm" className="h-7 text-xs" disabled={isPending} onClick={onRetake}><RotateCcw className="h-3.5 w-3.5 mr-1" />재시험</Button>
+            <Button variant="secondary" size="xs" disabled={isPending} onClick={onRetake}><RotateCcw />재시험</Button>
           )}
           {attempt.status !== "SUBMITTED" && attempt.status !== "EXPIRED" && (
             <>
-              <Button variant="outline" size="sm" className="h-7 text-xs" disabled={isPending} onClick={onReissue}><RefreshCw className="h-3.5 w-3.5 mr-1" />재발급</Button>
-              <Button variant="outline" size="sm" className="h-7 text-xs text-destructive" disabled={isPending} onClick={onCancel}><XCircle className="h-3.5 w-3.5 mr-1" />취소</Button>
+              <Button variant="secondary" size="xs" disabled={isPending} onClick={onReissue}><RefreshCw />재발급</Button>
+              <Button variant="ghost" size="xs" className="text-fg-critical" disabled={isPending} onClick={onCancel}><XCircle />응시 취소</Button>
             </>
           )}
         </div>
       </div>
 
       {/* body */}
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto">
         {loading ? (
-          <p className="p-5 text-sm text-muted-foreground">불러오는 중…</p>
+          <div className="flex flex-col gap-x3 p-x5" aria-label="불러오는 중">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-9 w-full" />
+            ))}
+          </div>
         ) : !items || items.length === 0 ? (
-          <p className="p-8 text-center text-sm text-muted-foreground">
-            {attempt.status === "SUBMITTED" ? "문항 데이터가 없습니다." : "응시 후 문항별 결과가 표시됩니다."}
-          </p>
+          <EmptyState
+            compact
+            icon={FileQuestion}
+            title={attempt.status === "SUBMITTED" ? "문항 데이터가 없어요" : "응시 후 문항별 결과가 보여요"}
+          />
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-8">#</TableHead>
-                <TableHead className="w-24">정/오 <span className="text-[10px] font-normal text-muted-foreground">(클릭 수정)</span></TableHead>
+                <TableHead className="w-12 text-right">#</TableHead>
+                <TableHead className="w-28">
+                  정/오 <span className="t2-regular text-fg-placeholder">눌러서 수정</span>
+                </TableHead>
                 <TableHead>문제</TableHead>
                 <TableHead>학생 답</TableHead>
                 <TableHead>정답</TableHead>
-                <TableHead className="w-16">시간</TableHead>
+                <TableHead className="w-20 text-right">시간</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((it) => (
-                <TableRow key={it.id} className={it.isCorrect ? "" : "bg-red-50/50"}>
-                  <TableCell className="text-xs text-muted-foreground">{it.order + 1}</TableCell>
+                <TableRow key={it.id} className={it.isCorrect ? undefined : "bg-bg-critical-weak hover:bg-bg-critical-weak-pressed"}>
+                  <TableCell className="text-right t3-regular text-fg-neutral-subtle">{it.order + 1}</TableCell>
                   <TableCell>
-                    <button type="button" onClick={() => toggleItem(it)} disabled={saving === it.id}
+                    <button
+                      type="button"
+                      onClick={() => toggleItem(it)}
+                      disabled={saving === it.id}
                       title="클릭하여 정/오답 수정"
-                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-sm font-bold cursor-pointer transition-colors hover:bg-muted disabled:opacity-40 ${it.isCorrect ? "border-green-300 text-green-700" : "border-red-300 text-red-700"}`}>
+                      aria-label={`${it.prompt} ${it.isCorrect ? "정답" : "오답"} — 눌러서 수정`}
+                      className={cn(
+                        "inline-flex h-8 items-center gap-x1 rounded-r2 bg-bg-layer-default px-x2_5 t4-bold transition-colors hover:bg-bg-layer-default-pressed disabled:text-fg-disabled",
+                        it.isCorrect
+                          ? "text-fg-positive shadow-[inset_0_0_0_1px_var(--seed-color-stroke-positive-weak)]"
+                          : "text-fg-critical shadow-[inset_0_0_0_1px_var(--seed-color-stroke-critical-weak)]",
+                      )}
+                    >
                       {it.isCorrect ? "O" : "X"}
-                      <Pencil className="w-3 h-3 opacity-50" />
+                      <Pencil className="size-3 text-fg-neutral-subtle" aria-hidden />
                     </button>
                   </TableCell>
-                  <TableCell className="font-medium whitespace-nowrap">
-                    {it.prompt}<span className="ml-1 text-[10px] text-muted-foreground">{DIR_LABEL[it.direction]}</span>
+                  <TableCell className="whitespace-nowrap">
+                    <span className="t4-medium">{it.prompt}</span>
+                    <span className="ml-x1 t2-regular text-fg-neutral-subtle">{DIR_LABEL[it.direction]}</span>
                     {it.overrides?.length > 0 && (
-                      <ul className="mt-0.5 space-y-0.5 text-[10px] font-normal text-muted-foreground">
+                      <ul className="mt-x1 flex flex-col gap-x0_5 t2-regular text-fg-neutral-subtle">
                         {it.overrides.map((o) => (
-                          <li key={o.id}>
-                            ✏ {o.changedByName} · {new Date(o.createdAt).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} · {o.previousCorrect ? "O" : "X"}→{o.newCorrect ? "O" : "X"}{o.reason ? ` · ${o.reason}` : ""}
+                          <li key={o.id} className="flex items-center gap-x1">
+                            <Pencil className="size-3 shrink-0" aria-hidden />
+                            {o.changedByName} · {new Date(o.createdAt).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} · {o.previousCorrect ? "O" : "X"}→{o.newCorrect ? "O" : "X"}{o.reason ? ` · ${o.reason}` : ""}
                           </li>
                         ))}
                       </ul>
                     )}
                   </TableCell>
-                  <TableCell className={`whitespace-nowrap ${it.isCorrect ? "" : "text-red-700"}`}>{it.studentAnswer || <span className="text-muted-foreground">(미입력)</span>}</TableCell>
-                  <TableCell className="text-xs whitespace-nowrap">{it.direction === "EN_TO_KO" ? it.meanings.join(" / ") : it.word}</TableCell>
-                  <TableCell className="text-xs tabular-nums">{it.timeMs != null ? `${(it.timeMs / 1000).toFixed(1)}s` : "—"}</TableCell>
+                  <TableCell className={cn("whitespace-nowrap", !it.isCorrect && "text-fg-critical")}>
+                    {it.studentAnswer || <span className="text-fg-placeholder">(미입력)</span>}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap t3-regular">{it.direction === "EN_TO_KO" ? it.meanings.join(" / ") : it.word}</TableCell>
+                  <TableCell className="text-right t3-regular tabular-nums text-fg-neutral-muted">{it.timeMs != null ? `${(it.timeMs / 1000).toFixed(1)}s` : "—"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
       </div>
+      {dialog}
     </div>
   );
 }
@@ -356,28 +452,31 @@ function AssignDialog({ exam, students, onClose, onAssigned }: { exam: ExamSumma
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>학생 추가 배정 — {exam.title}</DialogTitle>
-          <DialogDescription>이미 배정된 학생은 목록에서 제외됩니다.</DialogDescription>
+          <DialogTitle>학생 추가 배정</DialogTitle>
+          <DialogDescription>{exam.title} · 이미 배정된 학생은 목록에서 빠져 있어요.</DialogDescription>
         </DialogHeader>
-        <Input placeholder="학생 이름 검색" value={q} onChange={(e) => setQ(e.target.value)} />
-        <div className="max-h-[300px] overflow-auto rounded-md border divide-y">
+        <SearchField placeholder="학생 이름 검색" value={q} onChange={(e) => setQ(e.target.value)} className="sm:w-full" aria-label="학생 이름 검색" />
+        <div className="max-h-[300px] divide-y divide-stroke-neutral-muted overflow-auto rounded-r3 border border-stroke-neutral-muted">
           {list.map((s) => (
-            <label key={s.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/40">
+            <label key={s.id} className="flex cursor-pointer items-center gap-x3 px-x4 py-x2_5 transition-colors hover:bg-bg-layer-default-pressed">
               <Checkbox checked={picked.includes(s.id)} onCheckedChange={() => setPicked((p) => p.includes(s.id) ? p.filter((x) => x !== s.id) : [...p, s.id])} />
-              <span className="flex-1">{s.name} <span className="text-xs text-muted-foreground">{s.grade}</span></span>
-              {s.isOnlineManaged && <Badge variant="secondary" className="text-[10px]">온라인</Badge>}
+              <span className="flex-1">
+                <span className="t4-medium text-fg-neutral">{s.name}</span>
+                <span className="ml-x1_5 t3-regular text-fg-neutral-subtle">{s.grade}</span>
+              </span>
+              {s.isOnlineManaged && <StatusBadge tone="info">온라인</StatusBadge>}
             </label>
           ))}
-          {list.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground">추가할 학생이 없습니다.</p>}
+          {list.length === 0 && <p className="px-x4 py-x6 text-center t4-regular text-fg-neutral-subtle">추가할 학생이 없어요</p>}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>취소</Button>
+          <Button variant="secondary" onClick={onClose}>취소</Button>
           <Button disabled={isPending || picked.length === 0}
             onClick={() => startTransition(async () => {
               try { const r = await assignExamToStudents(exam.id, picked); toast.success(`${r.added}명 배정${r.skipped ? ` (${r.skipped}명 이미 배정됨)` : ""}`); onAssigned(); }
               catch (e) { toast.error(e instanceof Error ? e.message : "배정 실패"); }
             })}>
-            {picked.length}명 배정
+            {isPending ? "배정 중…" : `${picked.length}명 배정`}
           </Button>
         </DialogFooter>
       </DialogContent>

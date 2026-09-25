@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState, useTransition } from "react";
+import { Fragment, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { saveAttendanceRecord, createDailyOuting, updateDailyOuting, deleteDailyOuting, addOuting, deleteOuting } from "@/actions/attendance";
 import { patchStudentTextFields, patchStudentCheckDate, patchStudentAnalysisExempt, resetWeeklyCheckDates, resetCheckDateForAll } from "@/actions/students";
@@ -9,10 +9,12 @@ import { createStudyPlanReport } from "@/actions/study-plan-reports";
 import { toast } from "sonner";
 import { cn, MERIT_CATEGORIES } from "@/lib/utils";
 import type { Assignment, AttendanceRecord, AttendanceSchedule, AttendanceType, Communication, DailyOuting, OutingSchedule, Student } from "@/generated/prisma";
-import { ArrowRightLeft, Check, ChevronDown, ChevronUp, ClipboardList, LogIn, LogOut, MessageSquare, PanelRightOpen, Pin, Plus, Save, Search, Star, StickyNote, Trash2, X } from "lucide-react";
+import { ArrowRightLeft, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, ImagePlus, LogIn, LogOut, MessageSquare, PanelRightOpen, Pin, Plus, Save, Search, SearchX, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { KakaoButton } from "@/components/ui/kakao-button";
+import { Input, inputBaseClass } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TimePickerInput } from "@/components/ui/time-picker";
@@ -21,6 +23,8 @@ import { AssignmentPanel } from "@/components/assignments/assignment-panel";
 import { StudentCalendarPanel } from "@/components/calendar/student-calendar-panel";
 import { useColumnWidths } from "@/hooks/use-column-widths";
 import { ColResizeHandle } from "@/components/ui/col-resize-handle";
+import { Avatar, CountBadge, EmptyState, FilterChip, FormField, Segmented, StatusBadge, TONE_SOFT } from "@/components/backoffice/ui";
+import { ACTIVITY_TONE, AttendanceStateBadge, attendanceStateMeta } from "@/components/attendance/attendance-status";
 
 // 입퇴실 표 열 너비 기본값(px). 고정(좌측 sticky) 열은 sticky 오프셋과 맞물려 있어 조절 대상에서 제외.
 const ATTENDANCE_COL_DEFAULTS: Record<string, number> = {
@@ -48,32 +52,75 @@ const TYPE_OPTIONS: { value: AttendanceType; label: string }[] = [
   { value: "NOTIFIED_ABSENT", label: "미입실" },
 ];
 
-const TYPE_BADGE: Record<string, string> = {
-  NORMAL: "bg-green-100 text-green-800 border-green-200",
-  ABSENT: "bg-red-100 text-red-800 border-red-200",
-  TARDY: "bg-orange-100 text-orange-800 border-orange-200",
-  APPROVED_ABSENT: "bg-gray-100 text-gray-600 border-gray-200",
-  NOTIFIED_ABSENT: "bg-purple-100 text-purple-700 border-purple-200",
-  UNRECORDED: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  NO_SCHEDULE: "bg-gray-50 text-gray-400 border-gray-100",
-  FLEXIBLE: "bg-violet-50 text-violet-600 border-violet-200",
-  OUTING: "bg-orange-100 text-orange-700 border-orange-200",
+// 상태 → 역할색(라벨·배지·행 배경)은 ./attendance-status 의 ATTENDANCE_STATE 한 곳에서 정의한다.
+
+// 표 안 시각 입력(TimePickerInput) — SEED TextInput 모양(작은 높이)으로 덮어쓴다.
+const TIME_INPUT =
+  "h-8 w-[5.5rem] rounded-r2 border-stroke-neutral-weak bg-bg-layer-default px-x2 py-0 t4-medium text-fg-neutral " +
+  "focus:border-stroke-neutral-contrast focus:ring-1 focus:ring-stroke-neutral-contrast placeholder:text-fg-placeholder";
+
+// 표 안 아주 작은 보조 동작(오늘·제출·정시·지금 등) — SEED Chip(small) 모양
+type CellTone = "neutral" | "warning" | "positive" | "violet" | "informative";
+const CELL_TONE: Record<CellTone, string> = {
+  neutral:
+    "bg-bg-layer-default text-fg-neutral-muted shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] hover:bg-bg-layer-default-pressed",
+  warning: "bg-bg-warning-weak text-fg-warning hover:bg-bg-warning-weak-pressed",
+  positive: "bg-bg-positive-weak text-fg-positive hover:bg-bg-positive-weak-pressed",
+  violet:
+    "bg-bg-layer-default text-palette-purple-700 shadow-[inset_0_0_0_1px_var(--seed-color-palette-purple-300)] hover:bg-palette-purple-100",
+  informative: "bg-bg-informative-weak text-fg-informative hover:bg-bg-informative-weak-pressed",
 };
 
-// 출결 상태별 행 배경색 (TYPE_BADGE 색상과 톤 통일). 좌측 고정 셀도 같은 rowBg를
-// 쓰므로 불투명(alpha 없는) 색만 사용. hover는 한 단계 진한 변형.
-function stateRowBg(state: string): string {
-  switch (state) {
-    case "NORMAL":          return "bg-green-50 group-hover:bg-green-100";   // 정상 입실
-    case "TARDY":           return "bg-orange-50 group-hover:bg-orange-100"; // 지각
-    case "OUTING":          return "bg-sky-50 group-hover:bg-sky-100";       // 외출 중
-    case "NOTIFIED_ABSENT": return "bg-purple-50 group-hover:bg-purple-100"; // 미입실
-    case "ABSENT":          return "bg-red-50 group-hover:bg-red-100";       // 결석
-    case "APPROVED_ABSENT": return "bg-slate-100 group-hover:bg-slate-200";  // 공결
-    case "FLEXIBLE":        return "bg-violet-50 group-hover:bg-violet-100"; // 자율(미정)
-    default:                return "bg-background group-hover:bg-accent";    // 비등원일 등
-  }
+function CellButton({
+  tone = "neutral",
+  className,
+  children,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: CellTone }) {
+  return (
+    <button
+      type="button"
+      {...props}
+      className={cn(
+        "inline-flex h-7 shrink-0 items-center justify-center gap-x1 rounded-full px-x2_5 t3-medium transition-colors disabled:pointer-events-none disabled:opacity-40",
+        CELL_TONE[tone],
+        className,
+      )}
+    >
+      {children}
+    </button>
+  );
 }
+
+/** 아이콘만 있는 작은 버튼(취소·삭제 등) — aria-label 필수 */
+function IconAction({
+  danger = false,
+  className,
+  children,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { danger?: boolean; "aria-label": string }) {
+  return (
+    <button
+      type="button"
+      {...props}
+      className={cn(
+        "inline-grid size-7 shrink-0 place-items-center rounded-r2 text-fg-neutral-subtle transition-colors disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-3.5",
+        danger ? "hover:bg-bg-critical-weak hover:text-fg-critical" : "hover:bg-bg-transparent-pressed hover:text-fg-neutral",
+        className,
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+// 일괄 초기화 대상(표 머리 「초기화」 버튼)
+type ResetTarget = "weeklyPlanDate" | "mockAnalysisDate" | "schoolAnalysisDate";
+const RESET_LABEL: Record<ResetTarget, string> = {
+  weeklyPlanDate: "공부계획",
+  mockAnalysisDate: "모의고사 분석지",
+  schoolAnalysisDate: "내신 분석지",
+};
 
 function toTimeString(dt: Date | null | undefined): string {
   if (!dt) return "";
@@ -122,9 +169,11 @@ type PanelTab = "attendance" | "assignments" | "communications" | "merit" | "sch
 interface Props {
   students: StudentWithAttendance[];
   today: string;
+  /** 검색줄 왼쪽에 놓을 요소(페이지의 URL 필터 칩 등) */
+  toolbarStart?: ReactNode;
 }
 
-export function AttendanceTable({ students, today }: Props) {
+export function AttendanceTable({ students, today, toolbarStart }: Props) {
   const todayDate = new Date(today).toISOString().split("T")[0];
   const scrollRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -677,14 +726,52 @@ export function AttendanceTable({ students, today }: Props) {
   const pendingAssignments = selected?.assignments.filter((a) => !a.isCompleted).length ?? 0;
   const pendingComms = selected?.communications.filter((c) => !c.isChecked).length ?? 0;
 
-  const TABS: { key: PanelTab; label: string; badge?: number; badgeColor?: string }[] = [
+  const TABS: { key: PanelTab; label: string; badge?: number }[] = [
     { key: "attendance", label: "입퇴실" },
     { key: "merit", label: "상벌점" },
     { key: "studyplan", label: "공부계획" },
-    { key: "assignments", label: "과제", badge: pendingAssignments, badgeColor: "bg-orange-500" },
-    { key: "communications", label: "요청/전달", badge: pendingComms, badgeColor: "bg-red-500" },
+    { key: "assignments", label: "과제", badge: pendingAssignments },
+    { key: "communications", label: "요청/전달", badge: pendingComms },
     { key: "schedule", label: "일정" },
   ];
+
+  // 표 머리 「초기화」 — 확인 다이얼로그를 거쳐 전체 원생의 해당 체크를 비운다.
+  const [resetTarget, setResetTarget] = useState<ResetTarget | null>(null);
+  const [resetPending, setResetPending] = useState(false);
+
+  async function runReset(target: ResetTarget) {
+    setResetPending(true);
+    try {
+      if (target === "weeklyPlanDate") {
+        await resetWeeklyCheckDates();
+        setLocalCheckDates((prev) => {
+          const m = new Map(prev);
+          for (const [id, dates] of m) m.set(id, { ...dates, weeklyPlanDate: null });
+          return m;
+        });
+        toast.success("공부계획이 초기화되었습니다");
+      } else if (target === "mockAnalysisDate") {
+        await resetCheckDateForAll("mockAnalysisDate");
+        setLocalCheckDates((prev) => {
+          const m = new Map(prev);
+          for (const [id, dates] of m) m.set(id, { ...dates, mockAnalysisDate: null });
+          return m;
+        });
+        toast.success("모의고사 분석지가 초기화되었습니다");
+      } else {
+        await resetCheckDateForAll("schoolAnalysisDate");
+        setLocalCheckDates((prev) => {
+          const m = new Map(prev);
+          for (const [id, dates] of m) m.set(id, { ...dates, schoolAnalysisDate: null });
+          return m;
+        });
+        toast.success("내신 분석지가 초기화되었습니다");
+      }
+      setResetTarget(null);
+    } finally {
+      setResetPending(false);
+    }
+  }
 
   // 곧 입실/퇴실 예정 (30분 이내) — nowMinutes(60초 갱신) 기준. 검색 필터와 무관하게 전체 대상.
   const imminentIn: { name: string; time: string; mins: number }[] = [];
@@ -711,93 +798,129 @@ export function AttendanceTable({ students, today }: Props) {
   imminentOut.sort((a, b) => a.mins - b.mins);
   const hasImminent = imminentIn.length > 0 || imminentOut.length > 0;
 
+  // 표 머리 셀 공통 — ui/table TableHead 규격(t3 medium · subtle · h-10)
+  const TH = "h-10 whitespace-nowrap px-x3 text-left align-middle t3-medium text-fg-neutral-subtle";
+
   return (
     <>
       {/* 곧 입실/퇴실 예정 (30분 이내) — 둘 다 비면 렌더 안 함 */}
       {hasImminent && (
-        <div className="mb-3 rounded-lg border bg-card p-3">
-          <p className="text-xs font-semibold text-muted-foreground mb-2">곧 입실/퇴실 예정 (30분 이내)</p>
-          <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
-            {imminentIn.length > 0 && (
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1 text-[11px] font-medium text-green-700 mb-1">
-                  <LogIn className="h-3 w-3" /> 입실 예정 {imminentIn.length}명
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {imminentIn.map((i, idx) => (
-                    <span key={`in-${idx}`} className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[11px] text-green-800">
-                      <span className="font-medium">{i.name}</span>
-                      <span className="font-mono tabular-nums">{i.time}</span>
-                      <span className="text-green-600">{i.mins}분 후</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {imminentOut.length > 0 && (
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1 text-[11px] font-medium text-blue-700 mb-1">
-                  <LogOut className="h-3 w-3" /> 퇴실 예정 {imminentOut.length}명
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {imminentOut.map((i, idx) => (
-                    <span key={`out-${idx}`} className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">
-                      <span className="font-medium">{i.name}</span>
-                      <span className="font-mono tabular-nums">{i.time}</span>
-                      <span className="text-blue-600">{i.mins}분 후</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      {/* 검색 */}
-      <div className="flex items-center gap-2 mb-2">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="이름, 학교, 학년, 좌석 검색..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="pl-8 h-8 w-60 text-sm"
-          />
-          {query && (
-            <button onClick={() => setQuery("")} className="absolute right-2 top-2 text-muted-foreground hover:text-foreground">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-        {q && (
-          <span className="text-xs text-muted-foreground">{displayStudents.length}명 검색됨</span>
-        )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="ml-auto h-8 px-2 text-xs text-muted-foreground"
-          onClick={resetColW}
-          title="열 너비를 기본값으로 되돌립니다"
+        <section
+          aria-label="곧 입실·퇴실 예정"
+          className="mb-x4 flex flex-col gap-x4 rounded-r4 bg-bg-layer-fill px-x5 py-x4 sm:flex-row sm:gap-x8"
         >
-          <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
-          열 너비 초기화
-        </Button>
+          {imminentIn.length > 0 && (
+            <div className="min-w-0 flex-1">
+              <p className="mb-x2 flex items-center gap-x1_5 t4-bold text-fg-neutral">
+                <LogIn className="size-4 text-fg-positive" aria-hidden />
+                곧 입실
+                <span className="tabular-nums text-fg-positive">{imminentIn.length}명</span>
+                <span className="t3-regular text-fg-neutral-subtle">30분 이내</span>
+              </p>
+              <div className="flex flex-wrap gap-x1_5">
+                {imminentIn.map((i, idx) => (
+                  <span
+                    key={`in-${idx}`}
+                    className={cn("inline-flex h-8 items-center gap-x1_5 rounded-full px-x3 t3-regular", TONE_SOFT[ACTIVITY_TONE.checkIn])}
+                  >
+                    <span className="t3-bold">{i.name}</span>
+                    <span className="tabular-nums">{i.time}</span>
+                    <span className="tabular-nums opacity-80">{i.mins}분 후</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {imminentOut.length > 0 && (
+            <div className="min-w-0 flex-1">
+              <p className="mb-x2 flex items-center gap-x1_5 t4-bold text-fg-neutral">
+                <LogOut className="size-4 text-fg-neutral-muted" aria-hidden />
+                곧 퇴실
+                <span className="tabular-nums text-fg-neutral-muted">{imminentOut.length}명</span>
+                <span className="t3-regular text-fg-neutral-subtle">30분 이내</span>
+              </p>
+              <div className="flex flex-wrap gap-x1_5">
+                {imminentOut.map((i, idx) => (
+                  <span
+                    key={`out-${idx}`}
+                    className={cn("inline-flex h-8 items-center gap-x1_5 rounded-full px-x3 t3-regular", TONE_SOFT[ACTIVITY_TONE.checkOut])}
+                  >
+                    <span className="t3-bold text-fg-neutral">{i.name}</span>
+                    <span className="tabular-nums">{i.time}</span>
+                    <span className="tabular-nums opacity-80">{i.mins}분 후</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* 도구 줄 — 필터 칩 · 검색 · 열 너비 초기화. 스크롤해도 상단(앱 헤더 아래)에 붙어 있다 */}
+      <div className="sticky top-14 z-10 flex flex-wrap items-center gap-x2 bg-bg-layer-default py-x3">
+        {toolbarStart}
+        <div className="flex w-full flex-wrap items-center gap-x2 sm:ml-auto sm:w-auto">
+          {q && (
+            <span className="t3-regular tabular-nums text-fg-neutral-subtle">{displayStudents.length}명 검색됨</span>
+          )}
+          <TableSearch value={query} onChange={setQuery} placeholder="이름, 학교, 학년, 좌석 검색" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={resetColW}
+            title="열 너비를 기본값으로 되돌립니다"
+            className="text-fg-neutral-muted"
+          >
+            <ArrowRightLeft />
+            열 너비 초기화
+          </Button>
+        </div>
       </div>
+
+      {/* 행 왼쪽 표시 안내 */}
+      <div className="mb-x2 flex flex-wrap items-center justify-end gap-x4 t2-regular text-fg-neutral-subtle">
+        <span className="inline-flex items-center gap-x1_5">
+          <span aria-hidden className="h-3 w-1 rounded-full bg-bg-critical-solid" /> 10분 안에 입실 예정
+        </span>
+        <span className="inline-flex items-center gap-x1_5">
+          <span aria-hidden className="h-3 w-1 rounded-full bg-bg-warning-solid" /> 영단어 시험 대상(미응시)
+        </span>
+      </div>
+
       {/* 테이블 — 가로 스크롤 */}
       <div className="relative">
-        <div className="absolute inset-y-0 left-0 flex flex-col pointer-events-none z-10">
-          <button onClick={() => scrollBy(-240)} style={{ position: "sticky", top: "calc(50vh - 16px)" }} className="pointer-events-auto h-8 w-6 flex items-center justify-center bg-background/80 border border-border rounded-r shadow-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">‹</button>
+        <div className="pointer-events-none absolute inset-y-0 left-0 z-[4] flex flex-col">
+          <button
+            type="button"
+            onClick={() => scrollBy(-240)}
+            aria-label="표 왼쪽으로 스크롤"
+            style={{ position: "sticky", top: "calc(50vh - 20px)" }}
+            className="pointer-events-auto grid h-10 w-6 place-items-center rounded-full bg-bg-layer-floating text-fg-neutral-muted shadow-[var(--seed-shadow-s2)] transition-colors hover:text-fg-neutral"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
         </div>
-        <div className="absolute inset-y-0 right-0 flex flex-col pointer-events-none z-10">
-          <button onClick={() => scrollBy(240)} style={{ position: "sticky", top: "calc(50vh - 16px)" }} className="pointer-events-auto h-8 w-6 flex items-center justify-center bg-background/80 border border-border rounded-l shadow-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">›</button>
+        <div className="pointer-events-none absolute inset-y-0 right-0 z-[4] flex flex-col">
+          <button
+            type="button"
+            onClick={() => scrollBy(240)}
+            aria-label="표 오른쪽으로 스크롤"
+            style={{ position: "sticky", top: "calc(50vh - 20px)" }}
+            className="pointer-events-auto grid h-10 w-6 place-items-center rounded-full bg-bg-layer-floating text-fg-neutral-muted shadow-[var(--seed-shadow-s2)] transition-colors hover:text-fg-neutral"
+          >
+            <ChevronRight className="size-4" />
+          </button>
         </div>
-        <div ref={scrollRef} className="rounded-lg border overflow-hidden overflow-x-auto mx-6">
-        <table className="text-sm border-collapse min-w-max w-full">
+        <div
+          ref={scrollRef}
+          className="mx-x6 overflow-x-auto rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default"
+        >
+        <table className="w-full min-w-max border-collapse t4-regular text-fg-neutral">
           <colgroup>
-            <col style={{ width: 32 }} />
-            <col style={{ width: 48 }} />
-            <col style={{ width: 112 }} />
+            <col style={{ width: 40 }} />
+            <col style={{ width: 56 }} />
+            <col style={{ width: 184 }} />
             <col style={{ width: colW.notes }} />
             <col style={{ width: colW.schoolGrade }} />
             <col style={{ width: colW.classGroup }} />
@@ -813,89 +936,72 @@ export function AttendanceTable({ students, today }: Props) {
             <col style={{ width: colW.vocab }} />
           </colgroup>
           <thead>
-            <tr className="border-b bg-muted text-muted-foreground text-xs font-medium">
-              <th className="w-8 shrink-0 sticky left-0 bg-muted z-[3]" />
-              <th className="px-3 py-2.5 text-center w-12 sticky left-8 bg-muted z-[3]">좌석</th>
-              <th className="px-3 py-2.5 text-left w-28 sticky left-20 bg-muted z-[3] border-r border-border">이름</th>
-              <th className="relative px-3 py-2.5 text-left hidden lg:table-cell">특이사항<ColResizeHandle current={colW.notes} onResize={(w) => setColW("notes", w)} /></th>
-              <th className="relative px-3 py-2.5 text-left hidden md:table-cell">학교·학년<ColResizeHandle current={colW.schoolGrade} onResize={(w) => setColW("schoolGrade", w)} /></th>
-              <th className="relative px-3 py-2.5 text-left hidden lg:table-cell">반<ColResizeHandle current={colW.classGroup} onResize={(w) => setColW("classGroup", w)} /></th>
-              <th className="relative px-3 py-2.5 text-left">입퇴실<ColResizeHandle current={colW.inout} onResize={(w) => setColW("inout", w)} /></th>
-              <th className="relative px-3 py-2.5 text-left">외출<ColResizeHandle current={colW.outing} onResize={(w) => setColW("outing", w)} /></th>
-              <th className="relative px-3 py-2.5 text-left hidden lg:table-cell">메모<ColResizeHandle current={colW.memo} onResize={(w) => setColW("memo", w)} /></th>
-              <th className="relative px-3 py-2.5 text-left hidden lg:table-cell">당일변동<ColResizeHandle current={colW.dailyChange} onResize={(w) => setColW("dailyChange", w)} /></th>
-              <th className="relative px-3 py-2.5 text-left hidden xl:table-cell">변동예정<ColResizeHandle current={colW.plannedChange} onResize={(w) => setColW("plannedChange", w)} /></th>
-              <th className="relative px-3 py-2.5 text-center hidden md:table-cell">플래너 전송<ColResizeHandle current={colW.planner} onResize={(w) => setColW("planner", w)} /></th>
-              <th className="relative px-2 py-2.5 text-center hidden md:table-cell">
-                <ColResizeHandle current={colW.studyPlan} onResize={(w) => setColW("studyPlan", w)} />
-                <div className="flex flex-col items-center gap-0.5">
-                  <span>공부계획</span>
-                  <button
-                    onClick={async () => {
-                      if (!confirm("공부계획 체크를 모두 초기화하시겠습니까?")) return;
-                      await resetWeeklyCheckDates();
-                      setLocalCheckDates((prev) => {
-                        const m = new Map(prev);
-                        for (const [id, dates] of m) m.set(id, { ...dates, weeklyPlanDate: null });
-                        return m;
-                      });
-                      toast.success("공부계획이 초기화되었습니다");
-                    }}
-                    className="px-1.5 py-0.5 text-[9px] rounded border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                  >
-                    초기화
-                  </button>
-                </div>
+            <tr className="border-b border-stroke-neutral-muted bg-bg-layer-fill">
+              <th className="sticky left-0 z-[3] bg-bg-layer-fill">
+                <span className="sr-only">일과 펼치기</span>
               </th>
-              <th className="relative px-2 py-2.5 text-center hidden md:table-cell">
-                <ColResizeHandle current={colW.mockAnalysis} onResize={(w) => setColW("mockAnalysis", w)} />
-                <div className="flex flex-col items-center gap-0.5">
-                  <span>모의 분석</span>
-                  <button
-                    onClick={async () => {
-                      if (!confirm("모의고사 분석지 체크를 모두 초기화하시겠습니까?")) return;
-                      await resetCheckDateForAll("mockAnalysisDate");
-                      setLocalCheckDates((prev) => {
-                        const m = new Map(prev);
-                        for (const [id, dates] of m) m.set(id, { ...dates, mockAnalysisDate: null });
-                        return m;
-                      });
-                      toast.success("모의고사 분석지가 초기화되었습니다");
-                    }}
-                    className="px-1.5 py-0.5 text-[9px] rounded border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                  >
-                    초기화
-                  </button>
-                </div>
+              <th className={cn(TH, "sticky left-10 z-[3] bg-bg-layer-fill px-x2 text-center")}>좌석</th>
+              <th className={cn(TH, "sticky left-24 z-[3] bg-bg-layer-fill shadow-[inset_-1px_0_0_var(--seed-color-stroke-neutral-muted)]")}>
+                이름 · 상태
               </th>
-              <th className="relative px-2 py-2.5 text-center hidden md:table-cell">
-                <ColResizeHandle current={colW.schoolAnalysis} onResize={(w) => setColW("schoolAnalysis", w)} />
-                <div className="flex flex-col items-center gap-0.5">
-                  <span>내신 분석</span>
-                  <button
-                    onClick={async () => {
-                      if (!confirm("내신 분석지 체크를 모두 초기화하시겠습니까?")) return;
-                      await resetCheckDateForAll("schoolAnalysisDate");
-                      setLocalCheckDates((prev) => {
-                        const m = new Map(prev);
-                        for (const [id, dates] of m) m.set(id, { ...dates, schoolAnalysisDate: null });
-                        return m;
-                      });
-                      toast.success("내신 분석지가 초기화되었습니다");
-                    }}
-                    className="px-1.5 py-0.5 text-[9px] rounded border border-red-200 text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                  >
-                    초기화
-                  </button>
-                </div>
-              </th>
-              <th className="relative px-2 py-2.5 text-center">
+              <th className={cn(TH, "relative hidden lg:table-cell")}>특이사항<ColResizeHandle current={colW.notes} onResize={(w) => setColW("notes", w)} /></th>
+              <th className={cn(TH, "relative hidden md:table-cell")}>학교·학년<ColResizeHandle current={colW.schoolGrade} onResize={(w) => setColW("schoolGrade", w)} /></th>
+              <th className={cn(TH, "relative hidden lg:table-cell")}>반<ColResizeHandle current={colW.classGroup} onResize={(w) => setColW("classGroup", w)} /></th>
+              <th className={cn(TH, "relative")}>입퇴실<ColResizeHandle current={colW.inout} onResize={(w) => setColW("inout", w)} /></th>
+              <th className={cn(TH, "relative")}>외출<ColResizeHandle current={colW.outing} onResize={(w) => setColW("outing", w)} /></th>
+              <th className={cn(TH, "relative hidden lg:table-cell")}>메모<ColResizeHandle current={colW.memo} onResize={(w) => setColW("memo", w)} /></th>
+              <th className={cn(TH, "relative hidden lg:table-cell")}>당일변동<ColResizeHandle current={colW.dailyChange} onResize={(w) => setColW("dailyChange", w)} /></th>
+              <th className={cn(TH, "relative hidden xl:table-cell")}>변동예정<ColResizeHandle current={colW.plannedChange} onResize={(w) => setColW("plannedChange", w)} /></th>
+              <th className={cn(TH, "relative hidden text-center md:table-cell")}>플래너 전송<ColResizeHandle current={colW.planner} onResize={(w) => setColW("planner", w)} /></th>
+              {(
+                [
+                  { key: "weeklyPlanDate", label: "공부계획", w: colW.studyPlan, col: "studyPlan" },
+                  { key: "mockAnalysisDate", label: "모의 분석", w: colW.mockAnalysis, col: "mockAnalysis" },
+                  { key: "schoolAnalysisDate", label: "내신 분석", w: colW.schoolAnalysis, col: "schoolAnalysis" },
+                ] as const
+              ).map((h) => (
+                <th key={h.key} className={cn(TH, "relative hidden px-x2 text-center md:table-cell")}>
+                  <ColResizeHandle current={h.w} onResize={(w) => setColW(h.col, w)} />
+                  <div className="flex flex-col items-center gap-x0_5 py-x1">
+                    <span>{h.label}</span>
+                    <button
+                      type="button"
+                      onClick={() => setResetTarget(h.key)}
+                      className="rounded-r1_5 px-x1_5 t2-medium text-fg-critical transition-colors hover:bg-bg-critical-weak"
+                    >
+                      초기화
+                    </button>
+                  </div>
+                </th>
+              ))}
+              <th className={cn(TH, "relative px-x2 text-center")}>
                 <ColResizeHandle current={colW.vocab} onResize={(w) => setColW("vocab", w)} />
                 영단어
               </th>
             </tr>
           </thead>
           <tbody>
+            {displayStudents.length === 0 && (
+              <tr>
+                <td colSpan={16} className="p-0">
+                  <div className="sticky left-0" style={{ width: stickyWidth }}>
+                    <EmptyState
+                      compact
+                      icon={SearchX}
+                      title={q ? "검색 결과가 없어요" : "표시할 원생이 없어요"}
+                      description={q ? "이름·학교·학년·좌석으로 다시 찾아보세요." : "필터를 바꾸거나 전체 보기로 돌아가 보세요."}
+                      action={
+                        q ? (
+                          <Button variant="outline" size="sm" onClick={() => setQuery("")}>
+                            검색어 지우기
+                          </Button>
+                        ) : undefined
+                      }
+                    />
+                  </div>
+                </td>
+              </tr>
+            )}
             {displayStudents.map((student) => {
               const state = getState(student);
               const isSelected = selectedId === student.id;
@@ -911,9 +1017,6 @@ export function AttendanceTable({ students, today }: Props) {
               const commCount = student.communications.filter((c) => !c.isChecked).length;
               const assignCount = student.assignments.filter((a) => !a.isCompleted).length;
               const schoolGrade = [student.school, student.grade].filter(Boolean).join(" ");
-              // 당일 상벌점만 집계 (서버에서 오늘 데이터만 전달됨)
-              const meritBalance = student.merits
-                .reduce((sum, m) => sum + (m.type === "MERIT" ? m.points : -m.points), 0);
               const attNotes = student.attendances[0]?.notes ?? "";
               const isExpanded = expandedTimelines.has(student.id);
               // 입실 임박: 아직 미입실 + 예정 입실 0~10분 이내
@@ -935,112 +1038,133 @@ export function AttendanceTable({ students, today }: Props) {
               const vocabChecks = localCheckDates.get(student.id);
               const vocabDone = vocabChecks ? isDoneThisWeek("vocabTestDate", vocabChecks.vocabTestDate) : false;
 
-              // 좌측 고정 컬럼(chevron/좌석/이름)에도 동일한 행 배경을 적용해
-              // 가로 스크롤 시 하이라이트 일관성 유지. hover는 group-hover 로.
-              // sticky 셀은 불투명(alpha 없음)이어야 뒤에 스크롤되는 내용이 비치지 않음.
-              // 행 배경 = 출결 상태색. 선택/펼침(상호작용 피드백)이 최상위.
-              // 영단어 대상·입실임박은 배경 대신 좌측 보더로 분리(아래 tr className).
+              // 행 배경 = 출결 상태색(ATTENDANCE_STATE). 선택/펼침(상호작용 피드백)이 최상위.
+              // 좌측 고정 셀(펼침/좌석/이름)에도 같은 배경을 깔아 가로 스크롤 시에도 일관되게 보이게 한다
+              // (sticky 셀은 불투명해야 뒤로 스크롤되는 내용이 비치지 않음 — SEED *-weak 는 불투명).
               const rowBg = isSelected
-                ? "bg-blue-50"
+                ? "bg-bg-brand-weak"
                 : isExpanded
-                ? "bg-muted"
-                : stateRowBg(state);
+                ? "bg-bg-neutral-weak"
+                : attendanceStateMeta(state).row;
+              // 행 왼쪽 표시(첫 sticky 셀 안쪽 3px): 선택 > 입실 임박 > 영단어 시험 대상(미응시)
+              const rowMark = isSelected
+                ? "shadow-[inset_3px_0_0_var(--seed-color-stroke-brand-solid)]"
+                : isCheckInImminent
+                ? "shadow-[inset_3px_0_0_var(--seed-color-bg-critical-solid)]"
+                : isVocabTarget && !vocabDone
+                ? "shadow-[inset_3px_0_0_var(--seed-color-bg-warning-solid)]"
+                : null;
+              const noSchedule = state === "NO_SCHEDULE";
 
               return (
                 <Fragment key={student.id}>
                 <tr
                   onClick={(e) => toggleTimeline(student.id, e)}
-                  className={cn(
-                    "group border-b border-l-2 border-l-transparent transition-colors cursor-pointer",
-                    rowBg,
-                    isSelected
-                      ? "border-l-blue-500"
-                      : isCheckInImminent
-                      ? "border-l-red-500"     // 입실 임박
-                      : isVocabTarget && !vocabDone
-                      ? "border-l-amber-400"   // 영단어 시험 대상
-                      : null,
-                    state === "NO_SCHEDULE" && "opacity-50"
-                  )}
+                  className={cn("group cursor-pointer border-b border-stroke-neutral-muted transition-colors", rowBg)}
                 >
                   {/* 타임라인 토글 */}
-                  <td className={cn("pl-2 py-3 text-center sticky left-0 z-[2]", rowBg)} onClick={(e) => e.stopPropagation()}>
+                  <td className={cn("sticky left-0 z-[2] px-x1 py-x2 text-center", rowBg, rowMark)} onClick={(e) => e.stopPropagation()}>
                     <button
+                      type="button"
                       onClick={(e) => toggleTimeline(student.id, e)}
-                      className="p-1 rounded hover:bg-accent text-muted-foreground transition-colors"
+                      aria-expanded={isExpanded}
+                      aria-label={isExpanded ? `${student.name} 일과 접기` : `${student.name} 일과 펼치기`}
                       title="일과 타임라인"
+                      className="inline-grid size-8 place-items-center rounded-r2 text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral"
                     >
-                      {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      {isExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
                     </button>
                   </td>
                   {/* 좌석 */}
-                  <td className={cn("px-3 py-3 text-center text-sm text-muted-foreground font-mono font-medium sticky left-8 z-[2]", rowBg)}>
+                  <td
+                    className={cn(
+                      "sticky left-10 z-[2] px-x2 py-x2 text-center t5-bold tabular-nums",
+                      noSchedule ? "text-fg-neutral-subtle" : "text-fg-neutral",
+                      rowBg,
+                    )}
+                  >
                     {student.seat ?? "—"}
                   </td>
 
-                  {/* 이름 + 배지 */}
-                  <td className={cn("px-3 py-3 sticky left-20 z-[2] border-r border-border", rowBg)}>
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <p className="font-semibold text-sm truncate">{student.name}</p>
+                  {/* 이름 + 상태 + 배지 */}
+                  <td className={cn("sticky left-24 z-[2] px-x3 py-x2 shadow-[inset_-1px_0_0_var(--seed-color-stroke-neutral-muted)]", rowBg)}>
+                    <div className="flex min-w-0 items-center gap-x1">
+                      <p className={cn("truncate t5-bold", noSchedule ? "text-fg-neutral-subtle" : "text-fg-neutral")}>
+                        {student.name}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); selectStudent(student); }}
+                        aria-pressed={isSelected}
+                        aria-label={`${student.name} 상세 보기`}
+                        title="상세 보기"
+                        className={cn(
+                          "ml-auto inline-grid size-7 shrink-0 place-items-center rounded-r2 transition-colors",
+                          isSelected
+                            ? "bg-bg-brand-solid text-palette-static-white"
+                            : "text-fg-neutral-subtle hover:bg-bg-transparent-pressed hover:text-fg-neutral",
+                        )}
+                      >
+                        <PanelRightOpen className="size-4" />
+                      </button>
+                    </div>
+                    <div className="mt-x1 flex flex-wrap items-center gap-x1">
+                      <AttendanceStateBadge state={state} label={getStateLabel(state)} />
                       {commCount > 0 && (
-                        <span className="flex items-center gap-0.5 bg-orange-100 text-orange-700 text-[10px] px-1.5 py-0.5 rounded-full border border-orange-200 font-medium shrink-0">
-                          <MessageSquare className="h-2.5 w-2.5" />{commCount}
+                        <span title={`확인하지 않은 요청/전달 ${commCount}건`}>
+                          <StatusBadge tone="brand">
+                            <MessageSquare aria-hidden />
+                            {commCount}
+                          </StatusBadge>
                         </span>
                       )}
                       {assignCount > 0 && (
-                        <span className="flex items-center gap-0.5 bg-blue-100 text-blue-700 text-[10px] px-1.5 py-0.5 rounded-full border border-blue-200 font-medium shrink-0">
-                          <ClipboardList className="h-2.5 w-2.5" />{assignCount}
+                        <span title={`진행 중인 과제 ${assignCount}건`}>
+                          <StatusBadge tone="info">
+                            <ClipboardList aria-hidden />
+                            {assignCount}
+                          </StatusBadge>
                         </span>
                       )}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); selectStudent(student); }}
-                        className={cn(
-                          "shrink-0 p-1 rounded transition-colors",
-                          isSelected ? "text-blue-600 bg-blue-100" : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                        )}
-                        title="상세 보기"
-                      >
-                        <PanelRightOpen className="h-3.5 w-3.5" />
-                      </button>
                     </div>
                   </td>
 
                   {/* 특이사항 */}
                   <td
-                    className="px-3 py-3 cursor-pointer group/info hidden lg:table-cell"
+                    className="group/info hidden cursor-pointer px-x3 py-x2 lg:table-cell"
                     onClick={(e) => { e.stopPropagation(); setInfoModalId(student.id); setInfoModalText(student.studentInfo ?? ""); }}
                   >
                     {student.studentInfo ? (
-                      <div className="flex items-center gap-1">
-                        <Pin className="h-3 w-3 text-violet-500 shrink-0" />
-                        <span className="text-xs text-foreground truncate block max-w-[130px]">{student.studentInfo}</span>
+                      <div className="flex items-center gap-x1">
+                        <Pin className="size-3.5 shrink-0 text-fg-neutral-subtle" aria-hidden />
+                        <span className="block max-w-[130px] truncate t3-regular text-fg-neutral">{student.studentInfo}</span>
                       </div>
                     ) : (
-                      <span className="text-gray-300 group-hover/info:text-violet-400 transition-colors text-xs">메모 추가</span>
+                      <span className="t3-regular text-fg-placeholder transition-colors group-hover/info:text-fg-neutral-muted">메모 추가</span>
                     )}
                   </td>
 
                   {/* 학교·학년 */}
-                  <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap hidden md:table-cell">
+                  <td className="hidden whitespace-nowrap px-x3 py-x2 t3-regular text-fg-neutral-muted md:table-cell">
                     {schoolGrade || "—"}
                   </td>
 
                   {/* 반 */}
-                  <td className="px-3 py-3 text-xs text-muted-foreground whitespace-nowrap hidden lg:table-cell">
+                  <td className="hidden whitespace-nowrap px-x3 py-x2 t3-regular text-fg-neutral-muted lg:table-cell">
                     {student.classGroup || "—"}
                   </td>
 
                   {/* 입퇴실 — 입실/퇴실 세로 배치 */}
-                  <td className="px-2 py-1.5 align-top" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex flex-col gap-1 text-xs">
+                  <td className="px-x2 py-x2 align-top" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex flex-col gap-x1">
                       {/* 입실 */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">입실</span>
-                        <span className={cn("text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
-                          !schedIn ? "text-transparent" :
-                          schedIn === "FLEXIBLE" ? "text-violet-600" :
-                          !checkInTime ? "text-red-500" :
-                          lt?.type === "TARDY" ? "text-amber-600" : "text-muted-foreground"
+                      <div className="flex items-center gap-x1_5">
+                        <span className="w-6 shrink-0 t2-medium text-fg-neutral-subtle">입실</span>
+                        <span className={cn("w-10 shrink-0 text-right t2-regular tabular-nums",
+                          !schedIn ? "invisible" :
+                          schedIn === "FLEXIBLE" ? "text-palette-purple-700" :
+                          !checkInTime ? "text-fg-critical" :
+                          lt?.type === "TARDY" ? "text-fg-warning" : "text-fg-neutral-subtle"
                         )}>{schedIn === "FLEXIBLE" ? "자율" : schedIn ?? "00:00"}</span>
                         <TimePickerInput
                           value={checkInTime}
@@ -1053,19 +1177,16 @@ export function AttendanceTable({ students, today }: Props) {
                             setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "checkIn" ? null : prev), 200);
                           }}
                           size="sm"
-                          className={cn(
-                            "w-28 px-2 focus:ring-green-400 focus:border-green-400",
-                            checkInTime ? "text-foreground font-semibold" : "text-gray-400"
-                          )}
+                          className={cn(TIME_INPUT, checkInTime ? "t4-bold text-fg-neutral" : "text-fg-placeholder")}
                         />
                       </div>
 
                       {/* 퇴실 */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">퇴실</span>
-                        <span className={cn("text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
-                          !schedOut ? "text-transparent" :
-                          schedOut === "FLEXIBLE" ? "text-violet-600" : "text-muted-foreground"
+                      <div className="flex items-center gap-x1_5">
+                        <span className="w-6 shrink-0 t2-medium text-fg-neutral-subtle">퇴실</span>
+                        <span className={cn("w-10 shrink-0 text-right t2-regular tabular-nums",
+                          !schedOut ? "invisible" :
+                          schedOut === "FLEXIBLE" ? "text-palette-purple-700" : "text-fg-neutral-subtle"
                         )}>{schedOut === "FLEXIBLE" ? "자율" : schedOut ?? "00:00"}</span>
                         <TimePickerInput
                           value={checkOutTime}
@@ -1078,17 +1199,11 @@ export function AttendanceTable({ students, today }: Props) {
                             setTimeout(() => setActiveTimeInput((prev) => prev?.studentId === student.id && prev?.field === "checkOut" ? null : prev), 200);
                           }}
                           size="sm"
-                          className={cn(
-                            "w-28 px-2 focus:ring-blue-400 focus:border-blue-400",
-                            checkOutTime ? "text-foreground font-semibold" : "text-gray-400"
-                          )}
+                          className={cn(TIME_INPUT, checkOutTime ? "t4-bold text-fg-neutral" : "text-fg-placeholder")}
                         />
                         {student.attendances[0]?.isAutoClosed && (
-                          <span
-                            className="text-[10px] text-gray-400 border border-gray-200 rounded px-1 py-0.5 shrink-0"
-                            title="자정 크론에 의해 자동 퇴실 처리됨"
-                          >
-                            자동
+                          <span title="자정 크론에 의해 자동 퇴실 처리됨">
+                            <StatusBadge tone="gray">자동</StatusBadge>
                           </span>
                         )}
                       </div>
@@ -1096,14 +1211,14 @@ export function AttendanceTable({ students, today }: Props) {
                   </td>
 
                   {/* 외출 — 전용 열: 좌(시작/복귀 입력 + 추가) · 우(기록된 외출 목록) */}
-                  <td className="px-2 py-1.5 align-top" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-start gap-3">
-                      <div className="flex flex-col gap-1 text-xs shrink-0">
+                  <td className="px-x2 py-x2 align-top" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-start gap-x3">
+                      <div className="flex shrink-0 flex-col gap-x1">
                       {/* 외출 (진행 중 / 새 외출 시작) */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">외출</span>
-                        <span className={cn("text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
-                          outSch?.outStart ? "text-muted-foreground" : "text-transparent"
+                      <div className="flex items-center gap-x1_5">
+                        <span className="w-6 shrink-0 t2-medium text-fg-neutral-subtle">외출</span>
+                        <span className={cn("w-10 shrink-0 text-right t2-regular tabular-nums",
+                          outSch?.outStart ? "text-fg-neutral-subtle" : "invisible"
                         )}>{outSch?.outStart ?? "00:00"}</span>
                         <TimePickerInput
                           value={activeOuting ? toTimeString(activeOuting.outStart) ?? "" : ""}
@@ -1125,28 +1240,25 @@ export function AttendanceTable({ students, today }: Props) {
                             }
                           }}
                           size="sm"
-                          className={cn(
-                            "w-28 px-2 focus:ring-orange-400 focus:border-orange-400",
-                            activeOuting ? "text-orange-600 font-semibold" : "text-gray-400"
-                          )}
+                          className={cn(TIME_INPUT, activeOuting ? "t4-bold text-fg-informative" : "text-fg-placeholder")}
                           placeholder="—"
                         />
                         {!activeOuting && checkInTime && (
-                          <button
-                            type="button"
+                          <CellButton
+                            tone="informative"
                             onClick={(e) => { e.stopPropagation(); quickStartOuting(student); }}
                             disabled={!!quickPending}
-                            className="px-1.5 py-1 text-[10px] rounded bg-orange-500 text-white hover:bg-orange-600 font-medium disabled:opacity-50 shrink-0"
+                            className="h-8"
                             title="현재 시각으로 외출 시작"
-                          >지금</button>
+                          >지금</CellButton>
                         )}
                       </div>
 
                       {/* 복귀 */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-muted-foreground w-6 shrink-0 text-[11px]">복귀</span>
-                        <span className={cn("text-[10px] font-mono w-11 text-right shrink-0 tabular-nums",
-                          outSch?.outEnd ? "text-muted-foreground" : "text-transparent"
+                      <div className="flex items-center gap-x1_5">
+                        <span className="w-6 shrink-0 t2-medium text-fg-neutral-subtle">복귀</span>
+                        <span className={cn("w-10 shrink-0 text-right t2-regular tabular-nums",
+                          outSch?.outEnd ? "text-fg-neutral-subtle" : "invisible"
                         )}>{outSch?.outEnd ?? "00:00"}</span>
                         <TimePickerInput
                           value=""
@@ -1157,20 +1269,17 @@ export function AttendanceTable({ students, today }: Props) {
                             }
                           }}
                           size="sm"
-                          className={cn(
-                            "w-28 px-2 focus:ring-orange-400 focus:border-orange-400",
-                            activeOuting ? "bg-background text-gray-600" : "bg-muted/40 text-gray-300"
-                          )}
+                          className={cn(TIME_INPUT, activeOuting ? "text-fg-neutral-muted" : "bg-bg-layer-fill text-fg-placeholder")}
                           placeholder={activeOuting ? "복귀 시각" : "—"}
                         />
                         {activeOuting && (
-                          <button
-                            type="button"
+                          <CellButton
+                            tone="informative"
                             onClick={(e) => { e.stopPropagation(); quickEndOuting(student); }}
                             disabled={!!quickPending}
-                            className="px-1.5 py-1 text-[10px] rounded bg-orange-500 text-white hover:bg-orange-600 font-medium disabled:opacity-50 shrink-0"
+                            className="h-8"
                             title="현재 시각으로 복귀"
-                          >지금</button>
+                          >지금</CellButton>
                         )}
                       </div>
                       {/* 외출 추가 — 시작·복귀·사유 한 번에 */}
@@ -1179,22 +1288,22 @@ export function AttendanceTable({ students, today }: Props) {
                         const isAddPending = addOutingPending === student.id;
                         const hasCheckIn = !!checkInTime;
                         return (
-                          <div className="mt-0.5">
+                          <div className="mt-x0_5">
                             {isAdding ? (
-                              <div className="flex flex-wrap items-center gap-1 pt-1" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex flex-wrap items-center gap-x1 pt-x1" onClick={(e) => e.stopPropagation()}>
                                 <TimePickerInput
                                   value={addOutingDraft!.outStart}
                                   onChange={(v) => setAddOutingDraft((d) => d && { ...d, outStart: v })}
                                   size="sm"
-                                  className="w-24 py-0.5 text-[11px] focus:ring-orange-400"
+                                  className={cn(TIME_INPUT, "w-20")}
                                   placeholder="시작"
                                 />
-                                <span className="text-muted-foreground text-[11px]">-</span>
+                                <span className="t3-regular text-fg-neutral-subtle">–</span>
                                 <TimePickerInput
                                   value={addOutingDraft!.outEnd}
                                   onChange={(v) => setAddOutingDraft((d) => d && { ...d, outEnd: v })}
                                   size="sm"
-                                  className="w-24 py-0.5 text-[11px] focus:ring-orange-400"
+                                  className={cn(TIME_INPUT, "w-20")}
                                   placeholder="복귀"
                                 />
                                 <input
@@ -1202,32 +1311,32 @@ export function AttendanceTable({ students, today }: Props) {
                                   value={addOutingDraft!.reason}
                                   onChange={(e) => setAddOutingDraft((d) => d && { ...d, reason: e.target.value })}
                                   placeholder="사유"
-                                  className="flex-1 min-w-0 max-w-[140px] border rounded px-1.5 py-0.5 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-orange-400"
+                                  aria-label="외출 사유"
+                                  className={cn(inputBaseClass, "h-8 min-w-0 max-w-[140px] flex-1 px-x2 t3-regular")}
                                 />
-                                <button
+                                <CellButton
+                                  tone="informative"
                                   onClick={() => submitAddOuting(student)}
                                   disabled={isAddPending}
-                                  className="px-1.5 py-0.5 text-[10px] rounded bg-orange-500 text-white hover:bg-orange-600 font-medium disabled:opacity-50"
+                                  className="h-8"
                                 >
-                                  {isAddPending ? "..." : "저장"}
-                                </button>
-                                <button
-                                  onClick={() => setAddOutingDraft(null)}
-                                  className="px-1.5 py-0.5 text-[10px] rounded bg-muted text-muted-foreground hover:bg-accent"
-                                >
+                                  {isAddPending ? "저장 중…" : "저장"}
+                                </CellButton>
+                                <CellButton onClick={() => setAddOutingDraft(null)} className="h-8">
                                   취소
-                                </button>
+                                </CellButton>
                               </div>
                             ) : (
                               (localOut.length > 0 || hasCheckIn) && (
                                 <button
+                                  type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setAddOutingDraft({ studentId: student.id, outStart: nowHHMM(), outEnd: "", reason: "" });
                                   }}
-                                  className="flex items-center gap-0.5 text-[11px] text-orange-600 hover:text-orange-700 hover:underline"
+                                  className="inline-flex items-center gap-x0_5 rounded-r1_5 py-x0_5 t3-medium text-fg-informative hover:underline"
                                 >
-                                  <Plus className="h-3 w-3" /> 외출 추가
+                                  <Plus className="size-3.5" aria-hidden /> 외출 추가
                                 </button>
                               )
                             )}
@@ -1243,13 +1352,21 @@ export function AttendanceTable({ students, today }: Props) {
                           .sort((a, b) => (a.outStart ? toMinutes(toTimeString(a.outStart)) : 0) - (b.outStart ? toMinutes(toTimeString(b.outStart)) : 0));
                         if (recorded.length === 0) return null;
                         return (
-                          <div className="flex flex-col gap-0.5 min-w-0 border-l border-border/60 pl-2 pt-0.5">
+                          <div className="flex min-w-0 flex-col gap-x0_5 border-l border-stroke-neutral-muted pl-x2">
                             {recorded.map((o, i) => (
-                              <div key={o.id} className="flex items-center gap-1 text-[11px] font-mono text-muted-foreground">
-                                <span className="text-orange-600 font-semibold shrink-0">{i + 1}차</span>
-                                <span className="tabular-nums">{toTimeString(o.outStart) || "—"}-{toTimeString(o.outEnd) || "—"}</span>
-                                {o.reason && <span className="text-foreground/70 font-sans truncate max-w-[72px]">({o.reason})</span>}
-                                <button onClick={(e) => { e.stopPropagation(); if (o.id) removeOuting(student, o.id); }} title="외출 삭제" className="ml-auto p-0.5 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-3 w-3" /></button>
+                              <div key={o.id} className="flex items-center gap-x1 t3-regular text-fg-neutral-muted">
+                                <span className="shrink-0 t3-bold text-fg-informative">{i + 1}차</span>
+                                <span className="tabular-nums">{toTimeString(o.outStart) || "—"}–{toTimeString(o.outEnd) || "—"}</span>
+                                {o.reason && <span className="max-w-[72px] truncate text-fg-neutral-subtle">({o.reason})</span>}
+                                <IconAction
+                                  danger
+                                  aria-label="외출 삭제"
+                                  title="외출 삭제"
+                                  className="ml-auto size-6"
+                                  onClick={(e) => { e.stopPropagation(); if (o.id) removeOuting(student, o.id); }}
+                                >
+                                  <Trash2 />
+                                </IconAction>
                               </div>
                             ))}
                           </div>
@@ -1260,15 +1377,15 @@ export function AttendanceTable({ students, today }: Props) {
 
                   {/* 입퇴실 메모 */}
                   <td
-                    className="px-3 py-3 cursor-pointer hidden lg:table-cell"
+                    className="hidden cursor-pointer px-x3 py-x2 lg:table-cell"
                     onClick={(e) => expandAndFocus(student.id, "notes", e)}
                     onMouseEnter={(e) => showTooltip(e, attNotes)}
                     onMouseLeave={() => setTooltip(null)}
                   >
                     {attNotes ? (
-                      <span className="text-xs text-foreground truncate block max-w-[130px]">{attNotes}</span>
+                      <span className="block max-w-[130px] truncate t3-regular text-fg-neutral">{attNotes}</span>
                     ) : (
-                      <span className="text-gray-300">—</span>
+                      <span className="t3-regular text-fg-placeholder">—</span>
                     )}
                   </td>
 
@@ -1281,15 +1398,15 @@ export function AttendanceTable({ students, today }: Props) {
                     const showDailyNote = noteDateISO === todayISO && student.dailyNote;
                     return (
                       <td
-                        className="px-3 py-3 cursor-pointer hidden lg:table-cell"
+                        className="hidden cursor-pointer px-x3 py-x2 lg:table-cell"
                         onClick={(e) => expandAndFocus(student.id, "dailyNote", e)}
                         onMouseEnter={(e) => showTooltip(e, showDailyNote ? student.dailyNote ?? "" : "")}
                         onMouseLeave={() => setTooltip(null)}
                       >
                         {showDailyNote ? (
-                          <span className="text-xs text-rose-700 font-medium truncate block max-w-[130px]">{student.dailyNote}</span>
+                          <span className="block max-w-[130px] truncate t3-medium text-fg-critical">{student.dailyNote}</span>
                         ) : (
-                          <span className="text-gray-300">—</span>
+                          <span className="t3-regular text-fg-placeholder">—</span>
                         )}
                       </td>
                     );
@@ -1297,83 +1414,84 @@ export function AttendanceTable({ students, today }: Props) {
 
                   {/* 추후 변동 예정 */}
                   <td
-                    className="px-3 py-3 cursor-pointer hidden xl:table-cell"
+                    className="hidden cursor-pointer px-x3 py-x2 xl:table-cell"
                     onClick={(e) => expandAndFocus(student.id, "changeNote", e)}
                     onMouseEnter={(e) => showTooltip(e, student.changeNote ?? "")}
                     onMouseLeave={() => setTooltip(null)}
                   >
                     {student.changeNote ? (
-                      <span className="text-xs text-amber-700 truncate block max-w-[130px]">{student.changeNote}</span>
+                      <span className="block max-w-[130px] truncate t3-regular text-fg-warning">{student.changeNote}</span>
                     ) : (
-                      <span className="text-gray-300">—</span>
+                      <span className="t3-regular text-fg-placeholder">—</span>
                     )}
                   </td>
 
                   {/* 플래너 전송 */}
-                  <td className="px-3 py-3 text-center hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
+                  <td className="hidden px-x3 py-x2 text-center md:table-cell" onClick={(e) => e.stopPropagation()}>
                     {plannerHasDate ? (
-                      <div className="inline-flex items-center gap-1">
+                      <div className="inline-flex items-center gap-x1">
                         <DatePicker
                           value={plannerDate}
                           onChange={(d) => saveCheckDate(student.id, "plannerSentDate", d)}
                           disabled={plannerPending}
-                          className={!plannerCurrentWeek ? "!text-amber-600 !bg-amber-50 !border-amber-200" : undefined}
+                          className={
+                            plannerCurrentWeek
+                              ? "!rounded-full !border-stroke-positive-weak !bg-bg-positive-weak !text-fg-positive"
+                              : "!rounded-full !border-stroke-warning-weak !bg-bg-warning-weak !text-fg-warning"
+                          }
                         />
-                        <button
+                        <IconAction
+                          aria-label="플래너 전송 취소"
+                          title="취소"
+                          danger
                           onClick={() => saveCheckDate(student.id, "plannerSentDate", null)}
                           disabled={plannerPending}
-                          title="취소"
-                          className="p-0.5 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-40"
                         >
-                          <X className="h-3 w-3" />
-                        </button>
+                          <X />
+                        </IconAction>
                       </div>
                     ) : (
-                      <div className="inline-flex items-center gap-1">
-                        <button
+                      <div className="inline-flex items-center gap-x1">
+                        <CellButton
                           onClick={() => saveCheckDate(student.id, "plannerSentDate", new Date().toISOString().split("T")[0])}
                           disabled={plannerPending}
-                          className="px-2 py-0.5 text-[10px] rounded border border-border bg-background hover:bg-accent text-muted-foreground font-medium transition-colors disabled:opacity-40"
                         >
-                          {plannerPending ? "..." : "오늘"}
-                        </button>
+                          {plannerPending ? "…" : "오늘"}
+                        </CellButton>
                         <DatePicker
                           value={null}
                           onChange={(d) => { if (d) saveCheckDate(student.id, "plannerSentDate", d); }}
                           disabled={plannerPending}
                           compact
+                          className="size-7 rounded-r2 border-stroke-neutral-weak bg-bg-layer-default text-fg-neutral-subtle hover:bg-bg-layer-default-pressed"
                         />
                       </div>
                     )}
                   </td>
 
                   {/* 주간 공부계획 체크 */}
-                  <td className="px-2 py-3 text-center hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
+                  <td className="hidden px-x2 py-x2 text-center md:table-cell" onClick={(e) => e.stopPropagation()}>
                     {(() => {
                       const wpDate = localCheckDates.get(student.id)?.weeklyPlanDate ?? null;
                       const wpDone = wpDate && isDoneThisWeek("weeklyPlanDate", wpDate);
                       const wpPending = checkDatePending === `${student.id}:weeklyPlanDate`;
                       return wpDone ? (
-                        <div className="inline-flex items-center gap-0.5">
-                          <span className="text-green-600"><Check className="h-4 w-4" /></span>
-                          <button
+                        <div className="inline-flex items-center gap-x0_5">
+                          <Check className="size-4 text-fg-positive" aria-label="제출함" />
+                          <IconAction
+                            aria-label="공부계획 제출 취소"
+                            title="취소"
+                            danger
                             onClick={() => saveCheckDate(student.id, "weeklyPlanDate", null)}
                             disabled={wpPending}
-                            title="취소"
-                            className="p-0.5 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-40"
-                          ><X className="h-3 w-3" /></button>
+                          ><X /></IconAction>
                         </div>
                       ) : (
-                        <button
+                        <CellButton
+                          tone={wpDate && !wpDone ? "warning" : "neutral"}
                           onClick={() => saveCheckDate(student.id, "weeklyPlanDate", new Date().toISOString().split("T")[0])}
                           disabled={wpPending}
-                          className={cn(
-                            "px-2 py-0.5 text-[10px] rounded border font-medium transition-colors disabled:opacity-40",
-                            wpDate && !wpDone
-                              ? "border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100"
-                              : "border-border bg-background text-muted-foreground hover:bg-accent"
-                          )}
-                        >{wpPending ? "..." : "제출"}</button>
+                        >{wpPending ? "…" : "제출"}</CellButton>
                       );
                     })()}
                   </td>
@@ -1388,44 +1506,45 @@ export function AttendanceTable({ students, today }: Props) {
                     const isExempt = supportsExempt && (localExempt.get(student.id)?.[exemptKey] ?? false);
                     const ePending = exemptPending === `${student.id}:${exemptKey}`;
                     return (
-                      <td key={analysisKey} className="px-2 py-3 text-center hidden md:table-cell" onClick={(e) => e.stopPropagation()}>
+                      <td key={analysisKey} className="hidden px-x2 py-x2 text-center md:table-cell" onClick={(e) => e.stopPropagation()}>
                         {isExempt ? (
-                          <div className="inline-flex items-center gap-0.5">
-                            <span className="px-1.5 py-0.5 text-[10px] rounded border border-violet-200 bg-violet-50 text-violet-700 font-medium">정시</span>
-                            <button
+                          <div className="inline-flex items-center gap-x0_5">
+                            <StatusBadge tone="violet" className="bg-palette-purple-100 text-palette-purple-700">정시</StatusBadge>
+                            <IconAction
+                              aria-label="정시 해제"
+                              title="정시 해제"
+                              danger
                               onClick={() => toggleAnalysisExempt(student.id, exemptKey, false)}
                               disabled={ePending}
-                              title="정시 해제"
-                              className="p-0.5 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-40"
-                            ><X className="h-3 w-3" /></button>
+                            ><X /></IconAction>
                           </div>
                         ) : aDate ? (
-                          <div className="inline-flex items-center gap-0.5">
-                            <span className="text-green-600 inline-flex items-center gap-1">
-                              <Check className="h-4 w-4" />
-                              <span className="text-[10px] text-muted-foreground font-mono">{fmtCheckDate(aDate)}</span>
+                          <div className="inline-flex items-center gap-x0_5">
+                            <span className="inline-flex items-center gap-x1 text-fg-positive">
+                              <Check className="size-4" aria-label="제출함" />
+                              <span className="t2-regular tabular-nums text-fg-neutral-subtle">{fmtCheckDate(aDate)}</span>
                             </span>
-                            <button
+                            <IconAction
+                              aria-label="분석지 제출 취소"
+                              title="취소"
+                              danger
                               onClick={() => saveCheckDate(student.id, analysisKey, null)}
                               disabled={aPending}
-                              title="취소"
-                              className="p-0.5 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-40"
-                            ><X className="h-3 w-3" /></button>
+                            ><X /></IconAction>
                           </div>
                         ) : (
-                          <div className="inline-flex items-center gap-0.5">
-                            <button
+                          <div className="inline-flex items-center gap-x1">
+                            <CellButton
                               onClick={() => saveCheckDate(student.id, analysisKey, new Date().toISOString().split("T")[0])}
                               disabled={aPending || ePending}
-                              className="px-2 py-0.5 text-[10px] rounded border border-border bg-background text-muted-foreground hover:bg-accent font-medium transition-colors disabled:opacity-40"
-                            >{aPending ? "..." : "제출"}</button>
+                            >{aPending ? "…" : "제출"}</CellButton>
                             {supportsExempt && (
-                              <button
+                              <CellButton
+                                tone="violet"
                                 onClick={() => toggleAnalysisExempt(student.id, exemptKey, true)}
                                 disabled={aPending || ePending}
                                 title="이 학생은 정시 지원이라 내신 분석지 제출 면제"
-                                className="px-2 py-0.5 text-[10px] rounded border border-violet-200 bg-background text-violet-600 hover:bg-violet-50 font-medium transition-colors disabled:opacity-40"
-                              >{ePending ? "..." : "정시"}</button>
+                              >{ePending ? "…" : "정시"}</CellButton>
                             )}
                           </div>
                         )}
@@ -1434,34 +1553,28 @@ export function AttendanceTable({ students, today }: Props) {
                   })}
 
                   {/* 영단어 시험 상태 (이번 주) — 미대상/미응시/완료. 클릭 시 완료 토글(vocabTestDate). 추후 온라인 시험 상태와 연동. */}
-                  <td className="px-2 py-3 text-center align-middle">
+                  <td className="px-x2 py-x2 text-center align-middle">
                     {!isVocabTarget ? (
-                      <span className="text-[11px] text-muted-foreground">—</span>
+                      <span className="t3-regular text-fg-placeholder">—</span>
                     ) : (
-                      <button
-                        type="button"
+                      <CellButton
+                        tone={vocabDone ? "positive" : "warning"}
                         onClick={(e) => { e.stopPropagation(); saveCheckDate(student.id, "vocabTestDate", vocabDone ? null : new Date().toISOString().split("T")[0]); }}
                         disabled={checkDatePending === `${student.id}:vocabTestDate`}
                         title={vocabDone ? "완료 해제" : "완료로 표시"}
-                        className={cn(
-                          "px-2 py-0.5 text-[11px] rounded-full border font-medium transition-colors disabled:opacity-40",
-                          vocabDone
-                            ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                            : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                        )}
                       >
-                        {checkDatePending === `${student.id}:vocabTestDate` ? "..." : vocabDone ? "완료" : "미응시"}
-                      </button>
+                        {checkDatePending === `${student.id}:vocabTestDate` ? "…" : vocabDone ? "완료" : "미응시"}
+                      </CellButton>
                     )}
                   </td>
                 </tr>
 
                 {/* 타임라인 + 인라인 편집 확장 행 */}
                 {isExpanded && (
-                  <tr className={cn("border-b", isSelected ? "bg-blue-50/60" : "bg-muted/20")}>
+                  <tr className="border-b border-stroke-neutral-muted bg-bg-layer-fill">
                     <td colSpan={16} className="p-0">
                       {/* 보이는 영역 폭에 고정 → 14열 가로 스크롤과 무관하게 패널은 좌우 스크롤 불요 */}
-                      <div className="sticky left-0 px-4 py-4" style={{ width: stickyWidth }}>
+                      <div className="sticky left-0 px-x4 py-x4" style={{ width: stickyWidth }}>
                       {(() => {
                         const focus = expandFocus.get(student.id);
                         const focusLabel: Record<EditFocus, string> = {
@@ -1469,15 +1582,15 @@ export function AttendanceTable({ students, today }: Props) {
                           changeNote: "추후 변동 예정", dailyNote: "당일 변동",
                         };
                         return (
-                          <div className="pt-3 border-t" onClick={(e) => e.stopPropagation()}>
+                          <div onClick={(e) => e.stopPropagation()}>
                             {focus && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5 mb-2 w-fit">
-                                <span className="opacity-60">편집 중:</span> {focusLabel[focus]}
-                              </span>
+                              <StatusBadge tone="brand" className="mb-x3">
+                                편집 중: {focusLabel[focus]}
+                              </StatusBadge>
                             )}
-                            <div className="flex flex-wrap items-stretch gap-3 w-full">
+                            <div className="flex w-full flex-wrap items-stretch gap-x3">
                               {/* 왼쪽: 체크 항목 (주간 공부계획/플래너 전송 제외) */}
-                              <div className="flex flex-col justify-center gap-2 rounded-md border border-border bg-muted/30 px-4 py-3">
+                              <div className="flex flex-col justify-center gap-x2 rounded-r3 bg-bg-layer-default px-x4 py-x3">
                                 {CHECK_ITEMS.filter(({ key }) => key !== "weeklyPlanDate" && key !== "plannerSentDate" && key !== "mockAnalysisDate" && key !== "schoolAnalysisDate").map(({ key, label, permanent }) => {
                                   const dateVal = localCheckDates.get(student.id)?.[key] ?? null;
                                   const isPending = checkDatePending === `${student.id}:${key}`;
@@ -1485,44 +1598,49 @@ export function AttendanceTable({ students, today }: Props) {
                                   const hasDate = !!dateVal;
                                   const isCurrentWeek = hasDate && isDoneThisWeek(key, dateVal);
                                   return (
-                                    <div key={key} className="flex items-center gap-2">
-                                      <span className="text-xs text-muted-foreground w-24 shrink-0">{label}</span>
+                                    <div key={key} className="flex items-center gap-x2">
+                                      <span className="w-24 shrink-0 t3-medium text-fg-neutral-muted">{label}</span>
                                       {hasDate ? (
-                                        <div className="inline-flex items-center gap-1">
+                                        <div className="inline-flex items-center gap-x1">
                                           <DatePicker
                                             value={dateVal}
                                             onChange={(d) => saveCheckDate(student.id, key, d)}
                                             disabled={isPending || !!permanent}
-                                            className={!isCurrentWeek && WEEKLY_KEYS.has(key) ? "!text-amber-600 !bg-amber-50 !border-amber-200" : undefined}
+                                            className={
+                                              !isCurrentWeek && WEEKLY_KEYS.has(key)
+                                                ? "!rounded-full !border-stroke-warning-weak !bg-bg-warning-weak !text-fg-warning"
+                                                : "!rounded-full !border-stroke-positive-weak !bg-bg-positive-weak !text-fg-positive"
+                                            }
                                           />
                                           {!isCurrentWeek && WEEKLY_KEYS.has(key) && (
-                                            <span className="text-[10px] text-amber-500">지난주</span>
+                                            <span className="t2-medium text-fg-warning">지난주</span>
                                           )}
                                           {!permanent && (
-                                            <button
+                                            <IconAction
+                                              aria-label={`${label} 취소`}
+                                              title="취소"
+                                              danger
                                               onClick={() => saveCheckDate(student.id, key, null)}
                                               disabled={isPending}
-                                              title="취소"
-                                              className="p-0.5 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-40"
                                             >
-                                              <X className="h-3 w-3" />
-                                            </button>
+                                              <X />
+                                            </IconAction>
                                           )}
                                         </div>
                                       ) : (
-                                        <div className="inline-flex items-center gap-1">
-                                          <button
+                                        <div className="inline-flex items-center gap-x1">
+                                          <CellButton
                                             onClick={() => saveCheckDate(student.id, key, todayISO)}
                                             disabled={isPending}
-                                            className="px-2 py-0.5 text-[10px] rounded border border-border bg-background hover:bg-accent text-muted-foreground font-medium transition-colors disabled:opacity-40"
                                           >
-                                            {isPending ? "..." : "오늘"}
-                                          </button>
+                                            {isPending ? "…" : "오늘"}
+                                          </CellButton>
                                           <DatePicker
                                             value={null}
                                             onChange={(d) => { if (d) saveCheckDate(student.id, key, d); }}
                                             disabled={isPending}
                                             compact
+                                            className="size-7 rounded-r2 border-stroke-neutral-weak bg-bg-layer-default text-fg-neutral-subtle hover:bg-bg-layer-default-pressed"
                                           />
                                         </div>
                                       )}
@@ -1532,7 +1650,7 @@ export function AttendanceTable({ students, today }: Props) {
                               </div>
 
                               {/* 요청/전달 */}
-                              <div className="w-full sm:w-72 shrink-0 rounded-md border border-border bg-muted/30 px-3 py-3 overflow-y-auto max-h-56">
+                              <div className="max-h-56 w-full shrink-0 overflow-y-auto rounded-r3 bg-bg-layer-default px-x3 py-x3 sm:w-72">
                                 <CommunicationPanel
                                   studentId={student.id}
                                   initialItems={student.communications}
@@ -1541,34 +1659,39 @@ export function AttendanceTable({ students, today }: Props) {
                               </div>
 
                               {/* 오른쪽: 당일 변동 + 추후 변동 예정 */}
-                              <div className="flex-1 basis-[320px] min-w-0 flex flex-col gap-2">
+                              <div className="flex min-w-0 flex-1 basis-[320px] flex-col gap-x2">
                                 {(
                                   [
                                     { key: "dailyNote", label: "당일 변동 (00시 자동 초기화)", ph: "오늘 학원 때문에 늦어요 등 당일 변동사항", af: focus === "dailyNote" },
                                     { key: "changeNote", label: "추후 변동 예정", ph: "추후 변동 예정", af: focus === "changeNote" },
                                   ] as { key: keyof StudentTextField; label: string; ph: string; af: boolean }[]
                                 ).map(({ key, label, ph, af }) => (
-                                  <div key={key} className={cn(
-                                    "flex flex-col gap-1 rounded-md border px-3 py-2 flex-1 transition-colors",
-                                    af ? "border-primary/30 bg-primary/[0.04]" : "border-border bg-muted/30"
-                                  )}>
-                                    <span className="text-[10px] text-muted-foreground font-medium">{label}</span>
-                                    <textarea
+                                  <label
+                                    key={key}
+                                    className={cn(
+                                      "flex flex-1 flex-col gap-x1 rounded-r3 bg-bg-layer-default px-x3 py-x2 transition-shadow",
+                                      af && "shadow-[inset_0_0_0_2px_var(--seed-color-stroke-brand-solid)]",
+                                    )}
+                                  >
+                                    <span className={cn("t2-medium", af ? "text-fg-brand" : "text-fg-neutral-subtle")}>{label}</span>
+                                    <Textarea
                                       value={localStudentFields.get(student.id)?.[key] ?? ""}
                                       onChange={(e) => setLocalStudentFields((prev) => { const m = new Map(prev); m.set(student.id, { ...(m.get(student.id) ?? { studentInfo: "", changeNote: "", dailyNote: "" }), [key]: e.target.value }); return m; })}
                                       autoFocus={isExpanded && af}
                                       placeholder={ph}
                                       rows={2}
-                                      className={cn(
-                                        "w-full flex-1 border rounded-md px-2 py-1.5 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none",
-                                        af && "ring-2 ring-primary"
-                                      )}
+                                      className="min-h-16 flex-1 resize-none t3-regular"
                                     />
-                                  </div>
+                                  </label>
                                 ))}
-                                <button onClick={() => saveStudentFields(student)} disabled={studentFieldPending === student.id} className="flex items-center justify-center gap-1 px-3 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 font-medium disabled:opacity-50 transition-colors shrink-0">
-                                  <Save className="h-3 w-3" />{studentFieldPending === student.id ? "저장 중..." : "저장"}
-                                </button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => saveStudentFields(student)}
+                                  disabled={studentFieldPending === student.id}
+                                  className="self-end"
+                                >
+                                  <Save />{studentFieldPending === student.id ? "저장 중…" : "저장"}
+                                </Button>
                               </div>
                             </div>
                           </div>
@@ -1597,12 +1720,29 @@ export function AttendanceTable({ students, today }: Props) {
             zIndex: 9999,
             pointerEvents: "none",
           }}
-          className="bg-popover border rounded-md shadow-lg px-2.5 py-1.5 text-xs text-popover-foreground max-w-xs whitespace-pre-wrap break-words"
+          className="max-w-xs whitespace-pre-wrap break-words rounded-r2 bg-bg-neutral-inverted px-x3 py-x2 t3-regular text-fg-neutral-inverted shadow-[var(--seed-shadow-s2)]"
         >
           {tooltip.text}
         </div>
       )}
 
+      {/* 일괄 초기화 확인 */}
+      <Dialog open={!!resetTarget} onOpenChange={(open) => { if (!open && !resetPending) setResetTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{resetTarget ? RESET_LABEL[resetTarget] : ""} 체크를 초기화할까요?</DialogTitle>
+            <DialogDescription>모든 원생의 {resetTarget ? RESET_LABEL[resetTarget] : ""} 체크가 지워져요. 되돌릴 수 없어요.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetTarget(null)} disabled={resetPending}>
+              취소
+            </Button>
+            <Button variant="destructive" onClick={() => resetTarget && runReset(resetTarget)} disabled={resetPending}>
+              {resetPending ? "초기화 중…" : "초기화"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 미입실 사유 모달 */}
       <Dialog
@@ -1614,19 +1754,20 @@ export function AttendanceTable({ students, today }: Props) {
             <DialogTitle>
               {students.find((s) => s.id === notifiedAbsentId)?.name} 미입실 처리
             </DialogTitle>
+            <DialogDescription>사유를 남기면 미입실(사전 연락)로 기록돼요.</DialogDescription>
           </DialogHeader>
           <Textarea
             value={notifiedAbsentReason}
             onChange={(e) => setNotifiedAbsentReason(e.target.value)}
             placeholder="미입실 사유를 입력하세요 (예: 학교 시험, 병원 등)"
             rows={3}
+            aria-label="미입실 사유"
           />
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setNotifiedAbsentId(null)}>
+            <Button variant="outline" onClick={() => setNotifiedAbsentId(null)}>
               취소
             </Button>
             <Button
-              size="sm"
               disabled={isPending || !notifiedAbsentReason.trim()}
               onClick={() => {
                 if (!notifiedAbsentId) return;
@@ -1651,7 +1792,7 @@ export function AttendanceTable({ students, today }: Props) {
                 });
               }}
             >
-              {isPending ? "저장 중..." : "미입실 처리"}
+              {isPending ? "저장 중…" : "미입실 처리"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1663,18 +1804,26 @@ export function AttendanceTable({ students, today }: Props) {
         if (!infoStudent) return null;
         return (
           <div className="fixed inset-0 z-50" onClick={() => setInfoModalId(null)}>
-            <div className="absolute inset-0 bg-black/20 animate-in fade-in duration-150" />
+            <div className="absolute inset-0 bg-bg-overlay animate-in fade-in duration-150" />
             <div
-              className="absolute bottom-0 left-0 right-0 bg-background border-t rounded-t-xl shadow-2xl p-5 animate-in slide-in-from-bottom duration-200 max-w-lg mx-auto"
+              role="dialog"
+              aria-label={`${infoStudent.name} 특이사항`}
+              className="absolute inset-x-0 bottom-0 mx-auto max-w-lg rounded-t-r5 bg-bg-layer-floating p-x5 shadow-[var(--seed-shadow-s3)] animate-in slide-in-from-bottom duration-200"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Pin className="h-4 w-4 text-violet-500" />
-                  <span className="font-semibold text-sm">{infoStudent.name}</span>
-                  <span className="text-xs text-muted-foreground">특이사항</span>
+              <div className="mb-x3 flex items-center justify-between">
+                <div className="flex items-center gap-x2">
+                  <span className="t6-bold text-fg-neutral">{infoStudent.name}</span>
+                  <span className="t4-regular text-fg-neutral-subtle">특이사항</span>
                 </div>
-                <button onClick={() => setInfoModalId(null)} className="p-1 rounded hover:bg-accent text-muted-foreground"><X className="h-4 w-4" /></button>
+                <button
+                  type="button"
+                  onClick={() => setInfoModalId(null)}
+                  aria-label="닫기"
+                  className="grid size-9 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed"
+                >
+                  <X className="size-5" />
+                </button>
               </div>
               <Textarea
                 autoFocus
@@ -1682,7 +1831,7 @@ export function AttendanceTable({ students, today }: Props) {
                 onChange={(e) => setInfoModalText(e.target.value)}
                 placeholder="학생 특이사항, 성향, 주의사항 등..."
                 rows={4}
-                className="text-sm"
+                aria-label="특이사항"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault();
@@ -1696,10 +1845,9 @@ export function AttendanceTable({ students, today }: Props) {
                   }
                 }}
               />
-              <div className="flex items-center justify-between mt-3">
-                <span className="text-[11px] text-muted-foreground">⌘+Enter로 저장</span>
+              <div className="mt-x3 flex items-center justify-between gap-x3">
+                <span className="t3-regular text-fg-neutral-subtle">⌘+Enter로 저장</span>
                 <Button
-                  size="sm"
                   onClick={() => {
                     startTransition(async () => {
                       try {
@@ -1711,7 +1859,7 @@ export function AttendanceTable({ students, today }: Props) {
                   }}
                   disabled={isPending}
                 >
-                  {isPending ? "저장 중..." : "저장"}
+                  {isPending ? "저장 중…" : "저장"}
                 </Button>
               </div>
             </div>
@@ -1727,30 +1875,34 @@ export function AttendanceTable({ students, today }: Props) {
         const fieldLabels = { checkIn: "입실", checkOut: "퇴실", outing: "외출", return: "복귀" } as const;
         const lo = localOutings.get(s.id) ?? [];
         const hasActiveOuting = lo.some((o) => o.outStart && !o.outEnd);
+        const deleteCls = "text-fg-critical";
 
         return (
-          <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-center px-4 py-3 bg-background/95 backdrop-blur border-t shadow-lg animate-in slide-in-from-bottom-2 duration-150">
-            <div className="flex items-center gap-3 text-sm">
-              <span className="text-muted-foreground">{activeTimeInput.studentName} · {fieldLabels[f]}</span>
+          <div className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-center border-t border-stroke-neutral-muted bg-bg-layer-floating px-x4 py-x3 shadow-[var(--seed-shadow-s3)] animate-in slide-in-from-bottom-2 duration-150">
+            <div className="flex flex-wrap items-center justify-center gap-x2">
+              <span className="mr-x1 t4-medium text-fg-neutral">
+                {activeTimeInput.studentName}
+                <span className="text-fg-neutral-subtle"> · {fieldLabels[f]}</span>
+              </span>
 
               {/* 입실 */}
               {f === "checkIn" && (
                 <>
-                  <button
+                  <Button
                     onMouseDown={(e) => { e.preventDefault(); quickSaveField(s, "checkIn", nowHHMM()); setActiveTimeInput(null); }}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-green-600 hover:bg-green-700 text-white transition-colors"
-                  ><LogIn className="h-3 w-3" />입실 지금 ({nowHHMM()})</button>
+                  ><LogIn />입실 지금 <span className="tabular-nums">({nowHHMM()})</span></Button>
                   {(localTimes.get(s.id)?.checkIn ?? "") && (
-                    <button
+                    <Button
+                      variant="soft"
+                      className={deleteCls}
                       onMouseDown={(e) => { e.preventDefault(); clearField(s, "checkIn"); setActiveTimeInput(null); }}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition-colors"
-                    ><Trash2 className="h-3 w-3" />삭제</button>
+                    ><Trash2 />삭제</Button>
                   )}
                   {!(localTimes.get(s.id)?.checkIn) && s.schedules.length > 0 && (
-                    <button
+                    <Button
+                      variant="outline"
                       onMouseDown={(e) => { e.preventDefault(); setNotifiedAbsentId(s.id); setNotifiedAbsentReason(""); setActiveTimeInput(null); }}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 transition-colors"
-                    >미입실 처리</button>
+                    >미입실 처리</Button>
                   )}
                 </>
               )}
@@ -1758,15 +1910,15 @@ export function AttendanceTable({ students, today }: Props) {
               {/* 퇴실 */}
               {f === "checkOut" && (
                 <>
-                  <button
+                  <Button
                     onMouseDown={(e) => { e.preventDefault(); quickSaveField(s, "checkOut", nowHHMM()); setActiveTimeInput(null); }}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-                  ><LogOut className="h-3 w-3" />퇴실 지금 ({nowHHMM()})</button>
+                  ><LogOut />퇴실 지금 <span className="tabular-nums">({nowHHMM()})</span></Button>
                   {(localTimes.get(s.id)?.checkOut ?? "") && (
-                    <button
+                    <Button
+                      variant="soft"
+                      className={deleteCls}
                       onMouseDown={(e) => { e.preventDefault(); clearField(s, "checkOut"); setActiveTimeInput(null); }}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition-colors"
-                    ><Trash2 className="h-3 w-3" />삭제</button>
+                    ><Trash2 />삭제</Button>
                   )}
                 </>
               )}
@@ -1775,16 +1927,17 @@ export function AttendanceTable({ students, today }: Props) {
               {f === "outing" && (
                 <>
                   {!hasActiveOuting && lo.length === 0 && (localTimes.get(s.id)?.checkIn ?? "") && (
-                    <button
+                    <Button
                       onMouseDown={(e) => { e.preventDefault(); quickStartOuting(s); setActiveTimeInput(null); }}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-orange-500 hover:bg-orange-600 text-white transition-colors"
-                    ><ArrowRightLeft className="h-3 w-3" />외출 시작 ({nowHHMM()})</button>
+                    ><ArrowRightLeft />외출 시작 <span className="tabular-nums">({nowHHMM()})</span></Button>
                   )}
                   {(hasActiveOuting || lo.length > 0) && (
-                    <span className="text-xs text-muted-foreground">시간을 직접 수정할 수 있습니다</span>
+                    <span className="t3-regular text-fg-neutral-subtle">시간을 직접 수정할 수 있습니다</span>
                   )}
                   {lo.length > 0 && (
-                    <button
+                    <Button
+                      variant="soft"
+                      className={deleteCls}
                       onMouseDown={(e) => {
                         e.preventDefault();
                         const last = lo[lo.length - 1];
@@ -1799,11 +1952,10 @@ export function AttendanceTable({ students, today }: Props) {
                         }
                         setActiveTimeInput(null);
                       }}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition-colors"
-                    ><Trash2 className="h-3 w-3" />외출 삭제</button>
+                    ><Trash2 />외출 삭제</Button>
                   )}
                   {!(localTimes.get(s.id)?.checkIn ?? "") && lo.length === 0 && (
-                    <span className="text-xs text-muted-foreground">입실 기록 후 외출 가능</span>
+                    <span className="t3-regular text-fg-neutral-subtle">입실 기록 후 외출 가능</span>
                   )}
                 </>
               )}
@@ -1812,15 +1964,16 @@ export function AttendanceTable({ students, today }: Props) {
               {f === "return" && (
                 <>
                   {hasActiveOuting && (
-                    <button
+                    <Button
                       onMouseDown={(e) => { e.preventDefault(); quickEndOuting(s); setActiveTimeInput(null); }}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-orange-500 hover:bg-orange-600 text-white transition-colors"
-                    ><LogIn className="h-3 w-3" />복귀 완료 ({nowHHMM()})</button>
+                    ><LogIn />복귀 완료 <span className="tabular-nums">({nowHHMM()})</span></Button>
                   )}
                   {!hasActiveOuting && lo.length > 0 && (
                     <>
-                      <span className="text-xs text-muted-foreground">시간을 직접 수정할 수 있습니다</span>
-                      <button
+                      <span className="t3-regular text-fg-neutral-subtle">시간을 직접 수정할 수 있습니다</span>
+                      <Button
+                        variant="soft"
+                        className={deleteCls}
                         onMouseDown={(e) => {
                           e.preventDefault();
                           const last = lo[lo.length - 1];
@@ -1837,12 +1990,11 @@ export function AttendanceTable({ students, today }: Props) {
                           }
                           setActiveTimeInput(null);
                         }}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-md font-medium text-xs bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition-colors"
-                      ><Trash2 className="h-3 w-3" />복귀 삭제</button>
+                      ><Trash2 />복귀 삭제</Button>
                     </>
                   )}
                   {!hasActiveOuting && lo.length === 0 && (
-                    <span className="text-xs text-muted-foreground">외출 기록이 없습니다</span>
+                    <span className="t3-regular text-fg-neutral-subtle">외출 기록이 없습니다</span>
                   )}
                 </>
               )}
@@ -1851,62 +2003,54 @@ export function AttendanceTable({ students, today }: Props) {
         );
       })()}
 
-      {/* 오버레이 패널 */}
-      <div
+      {/* 오버레이 패널 — 원생 상세 */}
+      <aside
+        aria-label="원생 상세"
+        aria-hidden={!selected}
         className={cn(
-          "fixed top-0 right-0 h-full bg-background border-l shadow-2xl z-50 flex flex-col transition-transform duration-200",
-          "w-[460px]",
-          selected ? "translate-x-0" : "translate-x-full"
+          "fixed right-0 top-0 z-50 flex h-full w-full flex-col border-l border-stroke-neutral-muted bg-bg-layer-floating transition-transform duration-200 sm:w-[460px]",
+          selected ? "translate-x-0 shadow-[var(--seed-shadow-s3)]" : "translate-x-full"
         )}
       >
         {selected && (
           <>
             {/* 헤더 */}
-            <div className="flex items-center justify-between px-5 py-4 border-b bg-muted/20 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold shrink-0">
-                  {selected.name[0]}
-                </div>
-                <div>
-                  <p className="font-semibold">{selected.name}</p>
-                  <p className="text-xs text-muted-foreground">
+            <div className="flex shrink-0 items-center justify-between gap-x3 border-b border-stroke-neutral-muted px-x5 py-x4">
+              <div className="flex min-w-0 items-center gap-x3">
+                <Avatar name={selected.name} size={40} />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-x2">
+                    <p className="truncate t6-bold text-fg-neutral">{selected.name}</p>
+                    <AttendanceStateBadge state={getState(selected)} label={getStateLabel(getState(selected))} />
+                  </div>
+                  <p className="truncate t3-regular text-fg-neutral-subtle">
                     {[selected.school, selected.grade, selected.seat ? `${selected.seat}번 좌석` : ""].filter(Boolean).join(" · ")}
                   </p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setSelectedId(null)}
-                className="text-muted-foreground hover:text-foreground p-1.5 rounded-md hover:bg-accent transition-colors"
+                aria-label="상세 닫기"
+                className="grid size-9 shrink-0 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed"
               >
-                <X className="h-4 w-4" />
+                <X className="size-5" />
               </button>
             </div>
 
-            {/* 탭 */}
-            <div className="flex border-b shrink-0">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setPanelTab(tab.key)}
-                  className={cn(
-                    "flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium transition-colors border-b-2",
-                    panelTab === tab.key
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {tab.label}
-                  {tab.badge ? (
-                    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none text-white", tab.badgeColor)}>
-                      {tab.badge}
-                    </span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
+            <Tabs value={panelTab} onValueChange={(v) => setPanelTab(v as PanelTab)} className="flex min-h-0 flex-1 flex-col">
+              {/* 탭 */}
+              <TabsList className="shrink-0 px-x3">
+                {TABS.map((tab) => (
+                  <TabsTrigger key={tab.key} value={tab.key} className="px-x2 t4-bold">
+                    {tab.label}
+                    {tab.badge ? <CountBadge count={tab.badge} /> : null}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
 
-            {/* 탭 내용 */}
-            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {/* 탭 내용 */}
+              <div className="flex-1 overflow-y-auto px-x5 py-x5">
               {panelTab === "attendance" && (() => {
                 const schedIn = selected.schedules[0]?.startTime;
                 const schedOut = selected.schedules[0]?.endTime;
@@ -1922,14 +2066,15 @@ export function AttendanceTable({ students, today }: Props) {
                   });
 
                 return (
-                  <div className="space-y-4">
+                  <div className="flex flex-col gap-x5">
                     {/* 출결 상태 */}
-                    <div className="flex items-center justify-between py-1 border-b pb-3">
-                      <span className="text-sm text-muted-foreground">출결 상태</span>
+                    <div className="flex items-center justify-between gap-x3 border-b border-stroke-neutral-muted pb-x4">
+                      <label htmlFor="att-panel-type" className="t4-medium text-fg-neutral-muted">출결 상태</label>
                       <select
+                        id="att-panel-type"
                         value={editValues.type}
                         onChange={(e) => setEditValues((v) => ({ ...v, type: e.target.value as AttendanceType }))}
-                        className="border rounded-md px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                        className={cn(inputBaseClass, "h-10 w-auto min-w-32")}
                       >
                         {TYPE_OPTIONS.map((o) => (
                           <option key={o.value} value={o.value}>{o.label}</option>
@@ -1938,30 +2083,28 @@ export function AttendanceTable({ students, today }: Props) {
                     </div>
 
                     {/* 타임라인 로그 */}
-                    <div className="relative pl-10">
+                    <ol className="relative flex flex-col gap-x4 pl-x14">
                       {/* 수직선 */}
-                      <div className="absolute left-[18px] top-4 bottom-4 w-px bg-border" />
+                      <span aria-hidden className="absolute bottom-5 left-5 top-5 w-px bg-stroke-neutral-muted" />
 
                       {/* ── 입실 ── */}
-                      <div className="relative mb-4">
-                        <div className="absolute -left-10 top-1 w-8 h-8 rounded-full bg-green-100 border border-green-200 flex items-center justify-center shrink-0">
-                          <LogIn className="h-4 w-4 text-green-600" />
-                        </div>
-                        <div className="border rounded-lg p-3 bg-background space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-semibold">입실</span>
-                              {isLate && (
-                                <span className="text-[11px] bg-orange-100 text-orange-700 border border-orange-200 rounded-full px-2 py-0.5 font-medium">지각</span>
-                              )}
+                      <li className="relative">
+                        <span aria-hidden className={cn("absolute -left-14 top-x2 grid size-x10 place-items-center rounded-full", TONE_SOFT[ACTIVITY_TONE.checkIn])}>
+                          <LogIn className="size-5" />
+                        </span>
+                        <div className="flex flex-col gap-x3 rounded-r3 border border-stroke-neutral-muted bg-bg-layer-default p-x4">
+                          <div className="flex items-center justify-between gap-x2">
+                            <div className="flex items-center gap-x2">
+                              <span className="t5-bold text-fg-neutral">입실</span>
+                              {isLate && <AttendanceStateBadge state="TARDY" />}
                             </div>
                             {schedIn && (
-                              <span className="text-xs text-muted-foreground font-mono">
+                              <span className="t3-regular tabular-nums text-fg-neutral-subtle">
                                 예정 {schedIn === "FLEXIBLE" ? "자율(미정)" : schedIn}
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-x2">
                             <TimePickerInput
                               value={editValues.checkIn}
                               onChange={(v) => {
@@ -1969,47 +2112,51 @@ export function AttendanceTable({ students, today }: Props) {
                                 setEditValues((prev) => ({ ...prev, checkIn: v, type: newType }));
                                 setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(selected.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(selected.id, { ...c, checkIn: v, type: newType }); return m; });
                               }}
+                              className={cn(TIME_INPUT, "h-10 w-28 t5-bold")}
                             />
-                            <button
+                            <Button
+                              variant="soft"
+                              size="sm"
                               onClick={() => {
                                 const t = nowHHMM();
                                 const newType = calcAutoType(t, editValues.checkOut, schedIn, schedOut, editValues.type);
                                 setEditValues((v) => ({ ...v, checkIn: t, type: newType }));
                                 setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(selected.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(selected.id, { ...c, checkIn: t, type: newType }); return m; });
                               }}
-                              className="px-2.5 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md shrink-0 font-medium"
                             >
                               지금
-                            </button>
+                            </Button>
                             {editValues.checkIn && (
-                              <button
+                              <IconAction
+                                danger
+                                aria-label="입실 기록 삭제"
+                                title="입실 기록 삭제"
+                                className="size-9 [&_svg]:size-4"
                                 onClick={() => {
                                   setEditValues((v) => ({ ...v, checkIn: "", type: "NORMAL" as AttendanceType }));
                                   setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(selected.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(selected.id, { ...c, checkIn: "", type: "NORMAL" as AttendanceType }); return m; });
                                 }}
-                                className="p-1.5 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md shrink-0 transition-colors"
-                                title="입실 기록 삭제"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                                <Trash2 />
+                              </IconAction>
                             )}
                           </div>
                         </div>
-                      </div>
+                      </li>
 
                       {/* ── 외출 / 복귀 ── */}
-                      <div className="relative mb-4">
-                        <div className="absolute -left-10 top-1 w-8 h-8 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center shrink-0">
-                          <ArrowRightLeft className="h-4 w-4 text-orange-600" />
-                        </div>
-                        <div className="border rounded-lg bg-background overflow-hidden">
-                          <div className="flex items-center justify-between px-3 py-2.5 border-b bg-muted/30">
-                            <span className="text-sm font-semibold">외출 / 복귀</span>
+                      <li className="relative">
+                        <span aria-hidden className={cn("absolute -left-14 top-x2 grid size-x10 place-items-center rounded-full", TONE_SOFT[ACTIVITY_TONE.outing])}>
+                          <ArrowRightLeft className="size-5" />
+                        </span>
+                        <div className="overflow-hidden rounded-r3 border border-stroke-neutral-muted bg-bg-layer-default">
+                          <div className="flex items-center justify-between gap-x2 border-b border-stroke-neutral-muted px-x4 py-x3">
+                            <span className="t5-bold text-fg-neutral">외출 / 복귀</span>
                             {outSch && (
-                              <span className="text-xs text-muted-foreground font-mono">예정 {outSch.outStart} ~ {outSch.outEnd}</span>
+                              <span className="t3-regular tabular-nums text-fg-neutral-subtle">예정 {outSch.outStart} ~ {outSch.outEnd}</span>
                             )}
                           </div>
-                          <div className="p-2">
+                          <div className="p-x3">
                             <OutingTablePanel
                               key={panelLocalOut.map((o) => o.id).join(",")}
                               studentId={selected.id}
@@ -2034,23 +2181,21 @@ export function AttendanceTable({ students, today }: Props) {
                             />
                           </div>
                         </div>
-                      </div>
+                      </li>
 
                       {/* ── 퇴실 ── */}
-                      <div className="relative">
-                        <div className="absolute -left-10 top-1 w-8 h-8 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center shrink-0">
-                          <LogOut className="h-4 w-4 text-blue-600" />
-                        </div>
-                        <div className="border rounded-lg p-3 bg-background space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-semibold">퇴실</span>
-                            </div>
+                      <li className="relative">
+                        <span aria-hidden className={cn("absolute -left-14 top-x2 grid size-x10 place-items-center rounded-full", TONE_SOFT[ACTIVITY_TONE.checkOut])}>
+                          <LogOut className="size-5" />
+                        </span>
+                        <div className="flex flex-col gap-x3 rounded-r3 border border-stroke-neutral-muted bg-bg-layer-default p-x4">
+                          <div className="flex items-center justify-between gap-x2">
+                            <span className="t5-bold text-fg-neutral">퇴실</span>
                             {schedOut && (
-                              <span className="text-xs text-muted-foreground font-mono">예정 {schedOut}</span>
+                              <span className="t3-regular tabular-nums text-fg-neutral-subtle">예정 {schedOut}</span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-x2">
                             <TimePickerInput
                               value={editValues.checkOut}
                               onChange={(v) => {
@@ -2058,52 +2203,53 @@ export function AttendanceTable({ students, today }: Props) {
                                 setEditValues((prev) => ({ ...prev, checkOut: v, type: newType }));
                                 setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(selected.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(selected.id, { ...c, checkOut: v, type: newType }); return m; });
                               }}
+                              className={cn(TIME_INPUT, "h-10 w-28 t5-bold")}
                             />
-                            <button
+                            <Button
+                              variant="soft"
+                              size="sm"
                               onClick={() => {
                                 const t = nowHHMM();
                                 const newType = calcAutoType(editValues.checkIn, t, schedIn, schedOut, editValues.type);
                                 setEditValues((v) => ({ ...v, checkOut: t, type: newType }));
                                 setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(selected.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(selected.id, { ...c, checkOut: t, type: newType }); return m; });
                               }}
-                              className="px-2.5 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-md shrink-0 font-medium"
                             >
                               지금
-                            </button>
+                            </Button>
                             {editValues.checkOut && (
-                              <button
+                              <IconAction
+                                danger
+                                aria-label="퇴실 기록 삭제"
+                                title="퇴실 기록 삭제"
+                                className="size-9 [&_svg]:size-4"
                                 onClick={() => {
                                   setEditValues((v) => ({ ...v, checkOut: "" }));
                                   setLocalTimes((prev) => { const m = new Map(prev); const c = m.get(selected.id) ?? { checkIn: "", checkOut: "", type: "NORMAL" as AttendanceType }; m.set(selected.id, { ...c, checkOut: "" }); return m; });
                                 }}
-                                className="p-1.5 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md shrink-0 transition-colors"
-                                title="퇴실 기록 삭제"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                                <Trash2 />
+                              </IconAction>
                             )}
                           </div>
                         </div>
-                      </div>
-                    </div>
+                      </li>
+                    </ol>
 
                     {/* 비고 */}
-                    <div className="space-y-1.5">
-                      <label className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
-                        <StickyNote className="h-3.5 w-3.5" /> 비고
-                      </label>
-                      <input
+                    <FormField label="비고" htmlFor="att-panel-notes">
+                      <Input
+                        id="att-panel-notes"
                         type="text"
                         value={editValues.notes}
                         onChange={(e) => setEditValues((v) => ({ ...v, notes: e.target.value }))}
                         onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); }}
                         placeholder="특이사항 메모"
-                        className="w-full border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
                       />
-                    </div>
+                    </FormField>
 
-                    <Button onClick={saveEdit} disabled={isPending} className="w-full">
-                      {isPending ? "저장 중..." : "저장"}
+                    <Button size="lg" onClick={saveEdit} disabled={isPending} className="w-full">
+                      {isPending ? "저장 중…" : "저장"}
                     </Button>
                   </div>
                 );
@@ -2142,11 +2288,47 @@ export function AttendanceTable({ students, today }: Props) {
                   school={selected.school ?? null}
                 />
               )}
-            </div>
+              </div>
+            </Tabs>
           </>
         )}
-      </div>
+      </aside>
     </>
+  );
+}
+
+/** 표 위 검색 — backoffice SearchField 모양 + 지우기 버튼 */
+function TableSearch({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <label className="flex h-10 w-full min-w-0 items-center gap-x2 rounded-r2 bg-bg-neutral-weak px-x3 transition-shadow focus-within:bg-bg-layer-default focus-within:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)] sm:w-72">
+      <Search className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label="원생 검색"
+        className="h-full min-w-0 flex-1 bg-transparent t4-regular text-fg-neutral outline-none placeholder:text-fg-placeholder [&::-webkit-search-cancel-button]:hidden"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          aria-label="검색어 지우기"
+          className="grid size-6 shrink-0 place-items-center rounded-full text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral"
+        >
+          <X className="size-4" />
+        </button>
+      )}
+    </label>
   );
 }
 
@@ -2239,33 +2421,32 @@ function OutingTablePanel({
     });
   }
 
+  const cellInput = cn(TIME_INPUT, "w-[4.75rem]");
+
   return (
-    <div className="space-y-2">
+    <div className="flex flex-col gap-x2">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">외출</p>
-        <button
-          onClick={addRow}
-          className="flex items-center gap-1 text-xs text-primary hover:underline"
-        >
-          <Plus className="h-3.5 w-3.5" /> 추가
-        </button>
+        <p className="t4-medium text-fg-neutral-muted">오늘 외출</p>
+        <Button variant="ghost" size="xs" onClick={addRow}>
+          <Plus /> 추가
+        </Button>
       </div>
 
       {numRows === 0 ? (
-        <p className="text-xs text-muted-foreground text-center py-3 rounded-md border border-dashed">
-          오늘 외출 기록 없음
+        <p className="rounded-r2 bg-bg-layer-fill py-x4 text-center t3-regular text-fg-neutral-subtle">
+          오늘 외출 기록이 없어요
         </p>
       ) : (
-        <div className="rounded-md border overflow-hidden">
-          <table className="w-full border-collapse text-xs">
+        <div className="overflow-x-auto rounded-r2 border border-stroke-neutral-muted">
+          <table className="w-full border-collapse t3-regular">
             <thead>
-              <tr className="bg-muted/40 text-muted-foreground">
-                <th className="px-2 py-1.5 text-center font-medium w-5">#</th>
-                <th className="px-2 py-1.5 text-center font-medium">예정 외출</th>
-                <th className="px-2 py-1.5 text-center font-medium">예정 복귀</th>
-                <th className="px-2 py-1.5 text-center font-medium">실제 외출</th>
-                <th className="px-2 py-1.5 text-center font-medium">실제 복귀</th>
-                <th className="w-10"></th>
+              <tr className="bg-bg-layer-fill">
+                <th className="w-5 px-x2 py-x1_5 text-center t2-medium text-fg-neutral-subtle">#</th>
+                <th className="px-x2 py-x1_5 text-center t2-medium text-fg-neutral-subtle">예정 외출</th>
+                <th className="px-x2 py-x1_5 text-center t2-medium text-fg-neutral-subtle">예정 복귀</th>
+                <th className="px-x2 py-x1_5 text-center t2-medium text-fg-neutral-subtle">실제 외출</th>
+                <th className="px-x2 py-x1_5 text-center t2-medium text-fg-neutral-subtle">실제 복귀</th>
+                <th className="w-10"><span className="sr-only">동작</span></th>
               </tr>
             </thead>
             <tbody>
@@ -2274,93 +2455,88 @@ function OutingTablePanel({
                 const row = rows[i];
                 return (
                   <Fragment key={i}>
-                    <tr className="border-t">
-                      <td className="px-2 py-2 text-center text-muted-foreground">{i + 1}</td>
-                      <td className="px-2 py-2 text-center font-mono text-muted-foreground">
-                        {sched?.outStart ?? <span className="text-gray-300">—</span>}
+                    <tr className="border-t border-stroke-neutral-muted">
+                      <td className="px-x2 py-x2 text-center tabular-nums text-fg-neutral-subtle">{i + 1}</td>
+                      <td className="px-x2 py-x2 text-center tabular-nums text-fg-neutral-muted">
+                        {sched?.outStart ?? <span className="text-fg-placeholder">—</span>}
                       </td>
-                      <td className="px-2 py-2 text-center font-mono text-muted-foreground">
-                        {sched?.outEnd ?? <span className="text-gray-300">—</span>}
+                      <td className="px-x2 py-x2 text-center tabular-nums text-fg-neutral-muted">
+                        {sched?.outEnd ?? <span className="text-fg-placeholder">—</span>}
                       </td>
                       {/* 실제 외출 */}
-                      <td className="px-1 py-1">
+                      <td className="px-x1 py-x1">
                         {row ? (
-                          <div className="flex gap-0.5 items-center">
+                          <div className="flex items-center gap-x0_5">
                             <TimePickerInput
                               value={row.outStart}
                               onChange={(v) => updateRow(i, { outStart: v })}
                               size="sm"
+                              className={cellInput}
                             />
-                            <button
-                              onClick={() => updateRow(i, { outStart: nowHHMM() })}
-                              className="shrink-0 px-1 py-1 text-[9px] bg-orange-50 text-orange-700 rounded border border-orange-200 leading-none"
-                            >
+                            <CellButton tone="informative" onClick={() => updateRow(i, { outStart: nowHHMM() })} className="h-7 px-x2 t2-medium">
                               지금
-                            </button>
+                            </CellButton>
                           </div>
                         ) : (
-                          <span className="text-gray-300 px-2">—</span>
+                          <span className="px-x2 text-fg-placeholder">—</span>
                         )}
                       </td>
                       {/* 실제 복귀 */}
-                      <td className="px-1 py-1">
+                      <td className="px-x1 py-x1">
                         {row ? (
-                          <div className="flex gap-0.5 items-center">
+                          <div className="flex items-center gap-x0_5">
                             <TimePickerInput
                               value={row.outEnd}
                               onChange={(v) => updateRow(i, { outEnd: v })}
                               size="sm"
+                              className={cellInput}
                             />
-                            <button
-                              onClick={() => updateRow(i, { outEnd: nowHHMM() })}
-                              className="shrink-0 px-1 py-1 text-[9px] bg-orange-50 text-orange-700 rounded border border-orange-200 leading-none"
-                            >
+                            <CellButton tone="informative" onClick={() => updateRow(i, { outEnd: nowHHMM() })} className="h-7 px-x2 t2-medium">
                               지금
-                            </button>
+                            </CellButton>
                           </div>
                         ) : (
-                          <span className="text-gray-300 px-2">—</span>
+                          <span className="px-x2 text-fg-placeholder">—</span>
                         )}
                       </td>
                       {/* actions */}
-                      <td className="px-1 py-1">
+                      <td className="px-x1 py-x1">
                         {row && (
-                          <div className="flex items-center gap-1 justify-center">
+                          <div className="flex items-center justify-center gap-x1">
                             {row.dirty && (
-                              <button
+                              <IconAction
+                                aria-label="저장"
+                                title="저장"
                                 onClick={() => saveRow(i)}
                                 disabled={isPending}
-                                title="저장"
-                                className="text-primary hover:text-primary/70 transition-colors"
+                                className="text-fg-brand hover:text-fg-brand"
                               >
-                                <Check className="h-3.5 w-3.5" />
-                              </button>
+                                <Check />
+                              </IconAction>
                             )}
                             {deleteConfirmIdx === i ? (
                               <>
-                                <button
+                                <CellButton
                                   onClick={() => { deleteRow(i); setDeleteConfirmIdx(null); }}
                                   disabled={isPending}
-                                  className="text-[10px] px-1.5 py-0.5 bg-destructive text-white rounded"
+                                  className="bg-bg-critical-solid text-palette-static-white shadow-none hover:bg-bg-critical-solid-pressed"
                                 >
                                   삭제
-                                </button>
-                                <button
-                                  onClick={() => setDeleteConfirmIdx(null)}
-                                  className="text-[10px] px-1.5 py-0.5 bg-muted rounded"
-                                >
+                                </CellButton>
+                                <CellButton onClick={() => setDeleteConfirmIdx(null)}>
                                   취소
-                                </button>
+                                </CellButton>
                               </>
                             ) : (
-                              <button
+                              <IconAction
+                                danger
+                                aria-label="외출 기록 삭제"
+                                title="삭제"
                                 onClick={() => setDeleteConfirmIdx(i)}
                                 disabled={isPending}
-                                title="삭제"
-                                className="text-muted-foreground hover:text-destructive transition-colors"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                                <Trash2 />
+                              </IconAction>
                             )}
                           </div>
                         )}
@@ -2368,14 +2544,15 @@ function OutingTablePanel({
                     </tr>
                     {/* 사유 행 */}
                     {row && (
-                      <tr className="bg-muted/10">
-                        <td colSpan={6} className="px-2 pb-1.5 pt-0">
+                      <tr>
+                        <td colSpan={6} className="px-x2 pb-x2 pt-0">
                           <input
                             type="text"
                             placeholder="사유 (예: 수학학원)"
                             value={row.reason}
                             onChange={(e) => updateRow(i, { reason: e.target.value })}
-                            className="w-full border rounded px-2 py-1 text-[11px] bg-background focus:outline-none focus:ring-1 focus:ring-primary text-muted-foreground placeholder:text-gray-300"
+                            aria-label="외출 사유"
+                            className={cn(inputBaseClass, "h-8 px-x2 t3-regular")}
                           />
                         </td>
                       </tr>
@@ -2442,123 +2619,84 @@ function MeritPanel({ studentId, studentName }: { studentId: string; studentName
   const QUICK_POINTS = [1, 2, 3, 5, 10];
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-x5">
       {/* 상점 / 벌점 토글 */}
-      <div className="flex rounded-lg border overflow-hidden">
-        <button
-          onClick={() => setType("MERIT")}
-          className={cn(
-            "flex-1 py-2.5 text-sm font-medium transition-colors",
-            type === "MERIT"
-              ? "bg-green-500 text-white"
-              : "text-muted-foreground hover:bg-muted"
-          )}
-        >
-          상점
-        </button>
-        <button
-          onClick={() => setType("DEMERIT")}
-          className={cn(
-            "flex-1 py-2.5 text-sm font-medium transition-colors border-l",
-            type === "DEMERIT"
-              ? "bg-red-500 text-white"
-              : "text-muted-foreground hover:bg-muted"
-          )}
-        >
-          벌점
-        </button>
-      </div>
+      <Segmented
+        aria-label="상점 또는 벌점"
+        options={[
+          { value: "MERIT", label: "상점" },
+          { value: "DEMERIT", label: "벌점" },
+        ]}
+        value={type}
+        onChange={setType}
+      />
 
       {/* 점수 */}
-      <div className="space-y-2">
-        <label className="flex items-center gap-1.5 text-sm font-medium">
-          <Star className="h-3.5 w-3.5 text-muted-foreground" />
-          점수
-        </label>
-        <div className="flex items-center gap-2">
-          <input
+      <FormField label="점수" htmlFor="merit-points">
+        <div className="flex flex-wrap items-center gap-x2">
+          <Input
+            id="merit-points"
             type="number"
             min={1}
             max={100}
             value={points}
             onChange={(e) => setPoints(Math.max(1, Math.min(100, Number(e.target.value))))}
-            className="w-20 border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary text-center font-mono"
+            className="w-20 text-center tabular-nums"
           />
-          <div className="flex gap-1">
-            {QUICK_POINTS.map((p) => (
-              <button
-                key={p}
-                onClick={() => setPoints(p)}
-                className={cn(
-                  "px-2.5 py-1.5 text-xs rounded-md border transition-colors",
-                  points === p
-                    ? type === "MERIT"
-                      ? "bg-green-500 text-white border-green-500"
-                      : "bg-red-500 text-white border-red-500"
-                    : "text-muted-foreground hover:bg-muted"
-                )}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
+          {QUICK_POINTS.map((p) => (
+            <FilterChip key={p} selected={points === p} onClick={() => setPoints(p)} className="h-9 min-w-10 justify-center tabular-nums">
+              {p}
+            </FilterChip>
+          ))}
         </div>
-      </div>
+      </FormField>
 
       {/* 카테고리 */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">카테고리 (선택)</label>
+      <FormField label="카테고리 (선택)" htmlFor="merit-category">
         <select
+          id="merit-category"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="w-full border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+          className={cn(inputBaseClass, "h-10")}
         >
           <option value="">카테고리 없음</option>
           {MERIT_CATEGORIES.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
-      </div>
+      </FormField>
 
       {/* 사유 */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">사유 *</label>
-        <input
+      <FormField label="사유" required htmlFor="merit-reason">
+        <Input
+          id="merit-reason"
           type="text"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
           placeholder="사유를 입력하세요"
-          className="w-full border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
         />
-      </div>
+      </FormField>
 
       <Button
+        size="lg"
+        variant={type === "MERIT" ? "default" : "destructive"}
         onClick={handleSubmit}
         disabled={isPending || !reason.trim()}
-        className={cn(
-          "w-full",
-          type === "MERIT"
-            ? "bg-green-500 hover:bg-green-600 text-white"
-            : "bg-red-500 hover:bg-red-600 text-white"
-        )}
+        className="w-full"
       >
-        {isPending ? "저장 중..." : `${type === "MERIT" ? "상점" : "벌점"} ${points}점 부여`}
+        {isPending ? "저장 중…" : `${type === "MERIT" ? "상점" : "벌점"} ${points}점 부여`}
       </Button>
 
       {lastSaved && (
-        <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
-          <div className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
-            <Check className="h-3.5 w-3.5" />
+        <div className="flex flex-col gap-x3 rounded-r3 bg-bg-positive-weak p-x4">
+          <p className="flex items-center gap-x1_5 t4-bold text-fg-positive">
+            <Check className="size-4" aria-hidden />
             {lastSaved.type === "MERIT" ? "상점" : "벌점"} {lastSaved.points}점 부여 완료
-          </div>
-          <Button
-            size="sm"
-            className="w-full gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold"
-            onClick={handleShare}
-          >
+          </p>
+          <KakaoButton className="w-full" onClick={handleShare}>
             카카오톡으로 학부모에게 알리기
-          </Button>
+          </KakaoButton>
         </div>
       )}
     </div>
@@ -2614,9 +2752,9 @@ function StudyPlanSharePanel({ studentId, studentName }: { studentId: string; st
   }
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        공부 계획 이미지를 업로드하고 카카오톡으로 학부모에게 전송합니다.
+    <div className="flex flex-col gap-x4">
+      <p className="t4-regular text-fg-neutral-muted">
+        공부 계획 이미지를 올리면 학부모에게 카카오톡으로 보낼 수 있어요.
       </p>
 
       <input
@@ -2631,36 +2769,39 @@ function StudyPlanSharePanel({ studentId, studentName }: { studentId: string; st
       <button
         type="button"
         onClick={() => fileInputRef.current?.click()}
-        className="w-full flex items-center justify-center gap-2 border-2 border-dashed rounded-lg py-4 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+        className="flex w-full flex-col items-center justify-center gap-x1_5 rounded-r3 border border-dashed border-stroke-neutral-weak py-x6 t4-medium text-fg-neutral-muted transition-colors hover:bg-bg-layer-default-pressed hover:text-fg-neutral"
       >
-        이미지 선택 (복수 선택 가능)
+        <ImagePlus className="size-5" aria-hidden />
+        이미지 선택 (여러 장 가능)
       </button>
 
       {imageItems.length > 0 && (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-x2">
           {imageItems.map((item, idx) => (
-            <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border">
+            <div key={idx} className="relative aspect-square overflow-hidden rounded-r3 border border-stroke-neutral-muted">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={item.previewUrl} alt="" className="w-full h-full object-cover" />
+              <img src={item.previewUrl} alt="" className="h-full w-full object-cover" />
               <button
                 type="button"
                 onClick={() => removeImage(idx)}
-                className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label="이미지 빼기"
+                className="absolute right-1 top-1 grid size-6 place-items-center rounded-full bg-bg-overlay text-palette-static-white"
               >
-                <X className="h-3 w-3 text-white" />
+                <X className="size-3.5" />
               </button>
             </div>
           ))}
         </div>
       )}
 
-      <Button
+      <KakaoButton
+        size="lg"
         onClick={handleShare}
         disabled={isUploading || imageItems.length === 0}
-        className="w-full gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold"
+        className="w-full"
       >
-        {isUploading ? "업로드 중..." : "카카오톡으로 보내기"}
-      </Button>
+        {isUploading ? "업로드 중…" : "카카오톡으로 보내기"}
+      </KakaoButton>
     </div>
   );
 }
