@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent,
   DropdownMenuSubTrigger, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Trash2, X, Link2, ExternalLink, CheckCircle2, ChevronDown, ChevronRight, Send, Loader2, Camera, ChevronLeft, ChevronsLeft, ChevronsRight, RefreshCw, ClipboardList } from "lucide-react";
+import { MoreHorizontal, Trash2, X, Link2, ExternalLink, CheckCircle2, ChevronRight, Send, Loader2, Camera, ChevronLeft, ChevronsLeft, ChevronsRight, RefreshCw, ClipboardList } from "lucide-react";
 import { ParentReportInlinePanel } from "./parent-report-inline-panel";
 import { DatePicker } from "@/components/ui/date-picker";
 import { updateMentoringStatus, updateMentoringNotes, deleteMentoring, bulkDeleteMentorings } from "@/actions/mentoring";
@@ -67,6 +67,11 @@ type Props = {
 };
 
 const PAGE_SIZE = 20;
+
+// 리포트·기록 버튼 열 — 표가 본문보다 넓어져도 가로 스크롤 없이 보이도록 오른쪽에 고정(sm 이상).
+// 배경은 행 상태(기본·호버·선택)와 같은 불투명 색으로 맞추고, 왼쪽 1px 선으로 밑으로 지나가는 열과 구분한다.
+const ACTION_COL_CLASS =
+  "relative z-[1] before:absolute before:inset-y-0 before:left-0 before:w-px before:bg-stroke-neutral-muted sm:sticky sm:right-0";
 
 /** 이달 상벌점 임계값을 넘으면 표시 (§2.17). 임계값: 상점 10↑ / 벌점 15↑ */
 function MeritBadge({ positive, negative }: { positive: number; negative: number }) {
@@ -451,7 +456,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
     }
   }
 
-  const colCount = mentors.length > 0 ? 11 : 10;
+  const colCount = mentors.length > 0 ? 10 : 9;
   const isTodayRange = initialDateFrom === today && initialDateTo === today;
 
   return (
@@ -570,6 +575,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
       )}
 
       <TableCard
+        className="@container"
         footer={
           totalCount > PAGE_SIZE ? (
             <>
@@ -625,8 +631,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
               </SortableHeader>
               <TableHead>메모</TableHead>
               <TableHead className="text-center">KDA 사진</TableHead>
-              <TableHead>학부모 리포트</TableHead>
-              <TableHead><span className="sr-only">작업</span></TableHead>
+              <TableHead className={cn(ACTION_COL_CLASS, "bg-bg-layer-fill")}>학부모 리포트 · 기록</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -659,6 +664,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                 return (
                 <Fragment key={m.id}>
                 <TableRow
+                  className="group"
                   data-state={selected.has(m.id) ? "selected" : undefined}
                   title={vocabMissed ? "영단어 시험 미응시" : undefined}
                 >
@@ -792,82 +798,85 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                       );
                     })()}
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">
+                  <TableCell
+                    className={cn(
+                      ACTION_COL_CLASS,
+                      "whitespace-nowrap bg-bg-layer-default group-hover:bg-bg-layer-default-pressed group-data-[state=selected]:bg-bg-brand-weak"
+                    )}
+                  >
                     {(() => {
                       const pr = m.parentReports?.[0];
                       const isOpen = parentReportOpenId === m.id;
                       const bulk = bulkResults[m.id];
                       return (
-                        <div className="flex flex-nowrap items-center gap-x1_5">
-                          {bulk === "pending" && (
-                            <StatusBadge tone="info">
-                              <Loader2 className="animate-spin" />
-                              생성 중
-                            </StatusBadge>
-                          )}
-                          {bulk === "failed" && <StatusBadge tone="bad">실패</StatusBadge>}
-                          {!bulk && pr && (
-                            <StatusBadge tone="ok">
-                              <CheckCircle2 />
-                              생성됨
-                            </StatusBadge>
-                          )}
-                          {bulk === "created" && (
-                            <StatusBadge tone="ok" solid>
-                              <CheckCircle2 />
-                              방금 생성
-                            </StatusBadge>
-                          )}
-                          {bulk === "existing" && <StatusBadge tone="gray">기존</StatusBadge>}
-                          <Button
-                            size="xs"
-                            variant={isOpen ? "ink" : "outline"}
-                            onClick={() => setParentReportOpenId(isOpen ? null : m.id)}
-                            aria-expanded={isOpen}
-                          >
-                            {isOpen ? <ChevronDown /> : <ChevronRight />}
-                            {pr ? "관리" : "생성"}
-                          </Button>
-                          {pr && (
-                            <a
-                              href={`/r/${pr.token}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="grid size-8 place-items-center rounded-full text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral"
-                              title="학부모 화면 열기"
-                              aria-label="학부모 화면 열기"
+                        <div className="flex flex-nowrap items-center justify-between gap-x3">
+                          {/* 학부모 리포트 — 있으면 초록 체크 + 관리, 없으면 생성 */}
+                          <div className="flex flex-nowrap items-center gap-x1_5">
+                            {bulk === "pending" && (
+                              <StatusBadge tone="info">
+                                <Loader2 className="animate-spin" />
+                                생성 중
+                              </StatusBadge>
+                            )}
+                            {bulk === "failed" && <StatusBadge tone="bad">실패</StatusBadge>}
+                            {bulk === "created" && (
+                              <StatusBadge tone="ok" solid>
+                                <CheckCircle2 />
+                                방금 생성
+                              </StatusBadge>
+                            )}
+                            {bulk === "existing" && <StatusBadge tone="gray">기존</StatusBadge>}
+                            <Button
+                              size="xs"
+                              variant={isOpen ? "ink" : "outline"}
+                              onClick={() => setParentReportOpenId(isOpen ? null : m.id)}
+                              aria-expanded={isOpen}
                             >
-                              <ExternalLink className="size-4" />
-                            </a>
-                          )}
+                              {pr ? <CheckCircle2 className={cn(!isOpen && "text-fg-positive")} /> : <Link2 />}
+                              {pr ? "리포트 관리" : "리포트 생성"}
+                            </Button>
+                            {pr && (
+                              <a
+                                href={`/r/${pr.token}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="grid size-8 place-items-center rounded-full text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral"
+                                title="학부모 화면 열기"
+                                aria-label="학부모 화면 열기"
+                              >
+                                <ExternalLink className="size-4" />
+                              </a>
+                            )}
+                          </div>
+                          <div className="flex flex-nowrap items-center gap-x1">
+                            <Button asChild size="xs" variant={m.status === "SCHEDULED" ? "default" : "soft"}>
+                              <Link href={`/mentoring/${m.id}`}>
+                                {m.status === "SCHEDULED" ? "기록 작성" : "기록 보기"}
+                              </Link>
+                            </Button>
+                            <KebabMenu
+                              mentoring={m}
+                              onDelete={() => setDeleteTarget(m)}
+                            />
+                          </div>
                         </div>
                       );
                     })()}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-x1">
-                      <Button asChild size="xs" variant={m.status === "SCHEDULED" ? "default" : "soft"}>
-                        <Link href={`/mentoring/${m.id}`}>
-                          {m.status === "SCHEDULED" ? "기록 작성" : "기록 보기"}
-                        </Link>
-                      </Button>
-                      <KebabMenu
-                        mentoring={m}
-                        onDelete={() => setDeleteTarget(m)}
-                      />
-                    </div>
                   </TableCell>
                 </TableRow>
                 {parentReportOpenId === m.id && (
                   <TableRow className="bg-bg-layer-fill hover:bg-bg-layer-fill">
                     <TableCell colSpan={colCount} className="p-x4">
-                      <ParentReportInlinePanel
-                        mentoringId={m.id}
-                        studentName={m.student.name}
-                        mentoringDate={formatDate(m.scheduledAt)}
-                        existingToken={m.parentReports?.[0]?.token ?? null}
-                        onClose={() => setParentReportOpenId(null)}
-                      />
+                      {/* 행은 표 전체 폭으로 펼쳐지므로, 패널은 보이는 영역 폭(TableCard @container)에 맞춰 왼쪽에 고정 */}
+                      <div className="sticky left-4 w-[calc(100cqw-2rem)]">
+                        <ParentReportInlinePanel
+                          mentoringId={m.id}
+                          studentName={m.student.name}
+                          mentoringDate={formatDate(m.scheduledAt)}
+                          existingToken={m.parentReports?.[0]?.token ?? null}
+                          onClose={() => setParentReportOpenId(null)}
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 )}
