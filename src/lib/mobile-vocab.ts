@@ -51,7 +51,15 @@ function statusLabel(status: string): string {
   );
 }
 
-/** 학생의 단어시험 목록(만료 제외, 최신순). */
+/** 제출 전인데 응시 기한이 지났는지 (EXPIRED 로 아직 전이되지 않은 응시 걸러내기용) */
+function isPastDue(status: string, expiresAt: Date | null, now = Date.now()): boolean {
+  return status !== "SUBMITTED" && !!expiresAt && expiresAt.getTime() <= now;
+}
+
+/**
+ * 학생의 단어시험 목록(최신 배정순).
+ * 웹 포털(/s/[token]/vocab)과 같게 — 만료·취소(EXPIRED)와 기한이 지난 미제출 응시는 뺀다.
+ */
 export async function getMobileVocabList(studentId: string) {
   const attempts = await prisma.vocabAttempt.findMany({
     where: { studentId, status: { not: "EXPIRED" } },
@@ -65,25 +73,30 @@ export async function getMobileVocabList(studentId: string) {
       totalQuestions: true,
       assignedAt: true,
       submittedAt: true,
+      expiresAt: true,
       exam: {
         select: { title: true, questionCount: true, perQuestionSeconds: true },
       },
     },
   });
 
-  const items = attempts.map((a) => ({
-    id: a.id,
-    title: a.exam.title,
-    status: a.status,
-    statusLabel: statusLabel(a.status),
-    questionCount: a.exam.questionCount,
-    perQuestionSeconds: a.exam.perQuestionSeconds,
-    score: a.score,
-    correctCount: a.correctCount,
-    totalQuestions: a.totalQuestions,
-    assignedAt: a.assignedAt.toISOString(),
-    submittedAt: a.submittedAt ? a.submittedAt.toISOString() : null,
-  }));
+  const now = Date.now();
+  const items = attempts
+    .filter((a) => !isPastDue(a.status, a.expiresAt, now))
+    .map((a) => ({
+      id: a.id,
+      title: a.exam.title,
+      status: a.status,
+      statusLabel: statusLabel(a.status),
+      questionCount: a.exam.questionCount,
+      perQuestionSeconds: a.exam.perQuestionSeconds,
+      score: a.score,
+      correctCount: a.correctCount,
+      totalQuestions: a.totalQuestions,
+      assignedAt: a.assignedAt.toISOString(),
+      submittedAt: a.submittedAt ? a.submittedAt.toISOString() : null,
+      expiresAt: a.expiresAt ? a.expiresAt.toISOString() : null,
+    }));
 
   return {
     items,
@@ -127,7 +140,11 @@ export async function finalizeMobileVocab(
   return { attemptId, ...result };
 }
 
-/** 제출 완료 응시의 결과 상세(문항별 정답/오답 + 내 답). */
+/**
+ * 응시 하나 — 인트로(시험 정보)와 결과를 한 번에.
+ * 문항별 정답·내 답(items)은 제출 완료(SUBMITTED)일 때만 채운다(응시 중 정답 노출 방지).
+ * 기한이 지난 미제출 응시는 status 를 EXPIRED 로 내려준다(실제 전이는 응시 시작 시 기존 로직이 처리).
+ */
 export async function getMobileVocabResult(
   studentId: string,
   attemptId: string,
@@ -140,10 +157,26 @@ export async function getMobileVocabResult(
       score: true,
       correctCount: true,
       totalQuestions: true,
+      assignedAt: true,
       submittedAt: true,
+      expiresAt: true,
       durationMs: true,
-      exam: { select: { title: true, direction: true } },
-      items: {
+      student: { select: { name: true } },
+      exam: {
+        select: { title: true, questionCount: true, perQuestionSeconds: true },
+      },
+    },
+  });
+  if (!attempt) throw new MobileApiError("시험을 찾을 수 없습니다", 404);
+
+  const status = isPastDue(attempt.status, attempt.expiresAt)
+    ? "EXPIRED"
+    : attempt.status;
+  const submitted = status === "SUBMITTED";
+
+  const items = submitted
+    ? await prisma.vocabAttemptItem.findMany({
+        where: { attemptId: attempt.id },
         orderBy: { order: "asc" },
         select: {
           id: true,
@@ -155,24 +188,28 @@ export async function getMobileVocabResult(
           studentAnswer: true,
           isCorrect: true,
         },
-      },
-    },
-  });
-  if (!attempt) throw new MobileApiError("시험을 찾을 수 없습니다", 404);
+      })
+    : [];
 
   return {
     id: attempt.id,
     title: attempt.exam.title,
-    status: attempt.status,
+    status,
+    statusLabel: statusLabel(status),
+    studentName: attempt.student.name,
+    questionCount: attempt.exam.questionCount,
+    perQuestionSeconds: attempt.exam.perQuestionSeconds,
+    assignedAt: attempt.assignedAt.toISOString(),
+    expiresAt: attempt.expiresAt ? attempt.expiresAt.toISOString() : null,
     score: attempt.score,
     correctCount: attempt.correctCount,
     totalQuestions: attempt.totalQuestions,
     submittedAt: attempt.submittedAt ? attempt.submittedAt.toISOString() : null,
     durationMs: attempt.durationMs,
-    items: attempt.items.map((item) => ({
+    items: items.map((item) => ({
       id: item.id,
       order: item.order,
-      direction: item.direction,
+      direction: item.direction === "KO_TO_EN" ? "KO_TO_EN" : "EN_TO_KO",
       prompt: item.prompt,
       word: item.word,
       meanings: item.meanings,

@@ -1,179 +1,224 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, Images, Trash2 } from 'lucide-react-native';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Camera, ImagePlus, Play, X } from 'lucide-react-native';
+import type { ReactNode } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
-import { colors, spacing } from '@/constants/theme';
+import { Press, Text, color, radius, space, toast } from '@/design';
 
+const TILE = 76;
+
+function assetKey(asset: ImagePicker.ImagePickerAsset) {
+  return `${asset.assetId ?? asset.uri}-${asset.fileName ?? ''}`;
+}
+
+function formatDuration(ms?: number | null) {
+  if (!ms) return '';
+  const total = Math.round(ms / 1000);
+  return `${Math.floor(total / 60)}:${(total % 60).toString().padStart(2, '0')}`;
+}
+
+/**
+ * 사진(·영상) 첨부 — 웹 학생 포털 PhotoUploader(portal) 와 같은 SEED 썸네일 줄.
+ * [촬영] [앨범 n/max] + 고른 사진 썸네일(× 로 빼기). 기기에서 고르기만 하고 업로드는 호출부가 한다
+ * (전송 버튼을 누른 뒤 검증 → 업로드).
+ */
 export function AttachmentPicker({
   assets,
   max = 5,
   onChange,
+  label = '사진 첨부',
+  indicator,
+  description,
+  allowVideo = false,
+  disabled = false,
 }: {
   assets: ImagePicker.ImagePickerAsset[];
   max?: number;
   onChange: (assets: ImagePicker.ImagePickerAsset[]) => void;
+  /** 위 라벨 (null 이면 숨김) */
+  label?: string | null;
+  /** 라벨 옆 보조 표시 (예: "선택") */
+  indicator?: string;
+  /** 아래 설명 */
+  description?: string;
+  /** 영상도 고를 수 있게 (질문 등 document 컨텍스트 전용 — 멘토링 사진엔 쓰지 말 것) */
+  allowVideo?: boolean;
+  disabled?: boolean;
 }) {
-  const [error, setError] = useState('');
+  const full = assets.length >= max;
+  const mediaTypes: ImagePicker.MediaType[] = allowVideo ? ['images', 'videos'] : ['images'];
 
   async function pickFromLibrary() {
-    setError('');
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsMultipleSelection: true,
-      mediaTypes: ['images'],
-      quality: 0.6,
-      selectionLimit: Math.max(1, max - assets.length),
-    });
-    if (!result.canceled) {
-      onChange([...assets, ...result.assets].slice(0, max));
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsMultipleSelection: true,
+        mediaTypes,
+        quality: 0.6,
+        selectionLimit: Math.max(1, max - assets.length),
+      });
+      if (result.canceled) return;
+      const merged = [...assets, ...result.assets];
+      if (merged.length > max) toast(`최대 ${max}개까지 첨부할 수 있어요`);
+      onChange(merged.slice(0, max));
+    } catch {
+      toast('사진을 불러오지 못했어요', 'error');
     }
   }
 
   async function takePhoto() {
-    setError('');
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      setError('카메라 권한을 허용해야 사진을 촬영할 수 있습니다.');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      quality: 0.6,
-    });
-    if (!result.canceled) {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        toast('카메라 권한을 허용하면 바로 찍어서 올릴 수 있어요', 'error');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes, quality: 0.6 });
+      if (result.canceled || !result.assets[0]) return;
       onChange([...assets, result.assets[0]].slice(0, max));
+    } catch {
+      toast('카메라를 열지 못했어요', 'error');
     }
   }
 
+  const addDisabled = disabled || full;
+
   return (
-    <View style={styles.container}>
-      <View style={styles.labelRow}>
-        <Text style={styles.label}>사진 첨부</Text>
-        <Text style={styles.count}>
-          {assets.length}/{max}
+    <View style={{ gap: space.x2 }}>
+      {label != null && (
+        <Text variant="t5-medium">
+          {label}
+          {indicator != null && (
+            <Text variant="t4-regular" color="neutralSubtle">
+              {'  '}
+              {indicator}
+            </Text>
+          )}
         </Text>
-      </View>
-      <View style={styles.actions}>
-        <PickerButton icon={Camera} label="촬영" onPress={() => void takePhoto()} />
-        <PickerButton
-          icon={Images}
-          label="사진 선택"
-          onPress={() => void pickFromLibrary()}
+      )}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        style={s.scroller}
+        contentContainerStyle={s.row}>
+        <AddTile
+          icon={Camera}
+          label="촬영"
+          onPress={() => void takePhoto()}
+          disabled={addDisabled}
+          a11y={allowVideo ? '카메라로 찍기' : '사진 찍기'}
         />
-      </View>
-      {assets.length > 0 ? (
-        <View style={styles.previews}>
-          {assets.map((asset) => (
-            <View key={`${asset.assetId ?? asset.uri}-${asset.fileName ?? ''}`} style={styles.preview}>
-              <Image contentFit="cover" source={{ uri: asset.uri }} style={styles.image} />
-              <Pressable
-                accessibilityLabel="첨부 사진 삭제"
-                accessibilityRole="button"
-                hitSlop={8}
-                onPress={() => onChange(assets.filter((item) => item !== asset))}
-                style={({ pressed }) => [styles.remove, pressed && styles.pressed]}>
-                <Trash2 color={colors.surface} size={14} />
-              </Pressable>
+        <AddTile
+          icon={ImagePlus}
+          label={
+            <Text variant="t3-medium" color="neutralSubtle" tabular>
+              <Text variant="t3-bold" color={assets.length > 0 ? 'brand' : 'neutralSubtle'}>
+                {assets.length}
+              </Text>
+              /{max}
+            </Text>
+          }
+          onPress={() => void pickFromLibrary()}
+          disabled={addDisabled}
+          a11y={`앨범에서 고르기, ${assets.length}/${max}`}
+        />
+        {assets.map((asset) => {
+          const video = asset.type === 'video' || (asset.mimeType ?? '').startsWith('video/');
+          return (
+            <View key={assetKey(asset)} style={s.tile}>
+              {video ? (
+                <View style={[StyleSheet.absoluteFill, s.video]}>
+                  <Play color={color.palette.staticWhite} size={20} fill={color.palette.staticWhite} />
+                  {asset.duration ? (
+                    <Text variant="t1-medium" color="staticWhite" tabular style={s.duration}>
+                      {formatDuration(asset.duration)}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : (
+                <Image contentFit="cover" source={{ uri: asset.uri }} style={StyleSheet.absoluteFill} />
+              )}
+              {!disabled && (
+                <Press
+                  accessibilityLabel={video ? '첨부 영상 빼기' : '첨부 사진 빼기'}
+                  hitSlop={8}
+                  scale={0}
+                  onPress={() => onChange(assets.filter((item) => item !== asset))}
+                  style={s.remove}>
+                  <X color={color.palette.staticWhite} size={12} strokeWidth={3} />
+                </Press>
+              )}
             </View>
-          ))}
-        </View>
-      ) : null}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+          );
+        })}
+      </ScrollView>
+      {description != null && (
+        <Text variant="t3-regular" color="neutralSubtle">
+          {description}
+        </Text>
+      )}
     </View>
   );
 }
 
-function PickerButton({
+function AddTile({
   icon: Icon,
   label,
   onPress,
+  disabled,
+  a11y,
 }: {
   icon: typeof Camera;
-  label: string;
+  label: ReactNode;
   onPress: () => void;
+  disabled: boolean;
+  a11y: string;
 }) {
   return (
-    <Pressable
-      accessibilityRole="button"
+    <Press
       onPress={onPress}
-      style={({ pressed }) => [styles.pickerButton, pressed && styles.pressed]}>
-      <Icon color={colors.primary} size={18} />
-      <Text style={styles.pickerButtonText}>{label}</Text>
-    </Pressable>
+      disabled={disabled}
+      scale={0.96}
+      pressedBg={color.bg.neutralWeakPressed}
+      accessibilityLabel={a11y}
+      accessibilityState={{ disabled }}
+      style={[s.tile, s.add, disabled && { opacity: 0.5 }]}>
+      <Icon color={color.fg.neutralMuted} size={24} strokeWidth={2} />
+      {typeof label === 'string' ? (
+        <Text variant="t3-medium" color="neutralSubtle">
+          {label}
+        </Text>
+      ) : (
+        label
+      )}
+    </Press>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: spacing.sm,
-  },
-  labelRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  label: {
-    color: colors.ink,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  count: {
-    color: colors.muted,
-    fontSize: 11,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  pickerButton: {
-    alignItems: 'center',
-    backgroundColor: colors.primarySoft,
-    borderRadius: 8,
-    flex: 1,
-    flexDirection: 'row',
-    gap: spacing.sm,
-    justifyContent: 'center',
-    minHeight: 46,
-    paddingHorizontal: spacing.md,
-  },
-  pickerButtonText: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  previews: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  preview: {
-    borderRadius: 8,
-    height: 76,
+const s = StyleSheet.create({
+  // 카드 패딩 밖까지 가로 스크롤 되도록 (웹 -mx-4 px-x4)
+  scroller: { marginHorizontal: -space.x4 },
+  row: { gap: space.x2, paddingHorizontal: space.x4, paddingVertical: space.x0_5 },
+  tile: {
+    width: TILE,
+    height: TILE,
+    borderRadius: radius.r3_5,
     overflow: 'hidden',
-    position: 'relative',
-    width: 76,
+    backgroundColor: color.bg.neutralWeak,
   },
-  image: {
-    height: '100%',
-    width: '100%',
-  },
+  add: { alignItems: 'center', justifyContent: 'center', gap: space.x1 },
+  video: { alignItems: 'center', justifyContent: 'center', backgroundColor: color.bg.neutralSolid },
+  duration: { position: 'absolute', left: space.x1_5, bottom: space.x1 },
   remove: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(23, 33, 29, 0.82)',
-    borderRadius: 8,
-    height: 26,
-    justifyContent: 'center',
     position: 'absolute',
-    right: 4,
     top: 4,
-    width: 26,
-  },
-  error: {
-    color: colors.red,
-    fontSize: 12,
-  },
-  pressed: {
-    opacity: 0.72,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: color.bg.overlay,
   },
 });

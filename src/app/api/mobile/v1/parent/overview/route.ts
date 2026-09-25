@@ -5,6 +5,7 @@ import {
   mobileJson,
   requireMobileParent,
 } from "@/lib/mobile-auth";
+import { latestParentReportDates } from "@/lib/mobile-parent-reports";
 import { prisma } from "@/lib/prisma";
 import { todayKST } from "@/lib/utils";
 
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
       Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1),
     );
 
-    const [attendance, points, reports] = await Promise.all([
+    const [attendance, points, legacyReports, reports] = await Promise.all([
       prisma.attendanceRecord.findMany({
         where: { studentId: { in: ids }, date: today },
         select: { checkIn: true, checkOut: true, studentId: true, type: true },
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest) {
         },
         _sum: { points: true },
       }),
+      // 구버전 앱 호환: latestReportAt 은 예전 기준(취소·만료 안 된 멘토링 리포트) 그대로
       prisma.parentReport.findMany({
         where: {
           studentId: { in: ids },
@@ -58,6 +60,8 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: "desc" },
         select: { createdAt: true, studentId: true },
       }),
+      // 새 앱: 5종 리포트 모두 (공유 링크 만료와 무관 — 리포트함과 같은 기준)
+      latestParentReportDates(ids),
     ]);
 
     return mobileJson({
@@ -67,8 +71,9 @@ export async function GET(request: NextRequest) {
         const sumOf = (type: "MERIT" | "DEMERIT") =>
           points.find((p) => p.studentId === child.id && p.type === type)?._sum
             .points ?? 0;
-        const latestReport =
-          reports.find((report) => report.studentId === child.id) ?? null;
+        const latestReportAt =
+          legacyReports.find((report) => report.studentId === child.id)?.createdAt ?? null;
+        const latestAnyReportAt = reports.get(child.id) ?? null;
 
         return {
           ...child,
@@ -78,7 +83,8 @@ export async function GET(request: NextRequest) {
             checkOut: record?.checkOut?.toISOString() ?? null,
           },
           monthPoints: { merit: sumOf("MERIT"), demerit: sumOf("DEMERIT") },
-          latestReportAt: latestReport?.createdAt.toISOString() ?? null,
+          latestReportAt: latestReportAt?.toISOString() ?? null,
+          latestAnyReportAt: latestAnyReportAt?.toISOString() ?? null,
         };
       }),
     });
