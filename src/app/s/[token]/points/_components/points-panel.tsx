@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Coins, Gift, TrendingUp, TrendingDown, X } from "lucide-react";
+import { Coins, Gift, TrendingUp, TrendingDown, type LucideIcon } from "lucide-react";
 import {
   requestRedemption,
   type PointHistoryEntry,
@@ -11,33 +11,32 @@ import {
   type RedemptionView,
 } from "@/actions/rewards";
 import { pointsToKrw } from "@/lib/points";
-import type { RedemptionStatus } from "@/generated/prisma/enums";
-
-const STATUS_LABELS: Record<RedemptionStatus, string> = {
-  PENDING: "대기중",
-  APPROVED: "승인됨",
-  REJECTED: "거절됨",
-  FULFILLED: "지급완료",
-};
-
-const STATUS_BADGE: Record<RedemptionStatus, string> = {
-  PENDING: "bg-amber-100 text-amber-700 border-amber-200",
-  APPROVED: "bg-blue-100 text-blue-700 border-blue-200",
-  REJECTED: "bg-gray-100 text-gray-600 border-gray-200",
-  FULFILLED: "bg-emerald-100 text-emerald-700 border-emerald-200",
-};
+import { cn } from "@/lib/utils";
+import { Badge, Button, EmptyState, IconTile, ListRow, Section, type Tone } from "@/components/portal/ui";
+import { BottomSheet } from "@/components/portal/bottom-sheet";
+import { REDEMPTION_STATUS } from "@/components/portal/status";
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("ko-KR", {
     timeZone: "Asia/Seoul",
-    month: "numeric",
+    month: "long",
     day: "numeric",
   });
+}
+
+function fmtPoints(points: number): string {
+  return `${points.toLocaleString("ko-KR")}점`;
 }
 
 function fmtKrw(points: number): string {
   return `약 ${pointsToKrw(points).toLocaleString("ko-KR")}원`;
 }
+
+const HISTORY_ICON: Record<PointHistoryEntry["kind"], { icon: LucideIcon; tone: Tone }> = {
+  MERIT: { icon: TrendingUp, tone: "brand" },
+  DEMERIT: { icon: TrendingDown, tone: "gray" },
+  REDEMPTION: { icon: Gift, tone: "gray" },
+};
 
 export function PointsPanel({
   token,
@@ -53,14 +52,21 @@ export function PointsPanel({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  // 시트가 닫히는 애니메이션 동안 내용이 비지 않도록 선택 상품과 열림 상태를 분리
   const [confirmItem, setConfirmItem] = useState<RewardItemView | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  function openConfirm(item: RewardItemView) {
+    setConfirmItem(item);
+    setSheetOpen(true);
+  }
 
   function submit(item: RewardItemView) {
     startTransition(async () => {
       try {
         await requestRedemption(token, item.id);
         toast.success(`"${item.name}" 교환을 신청했어요`);
-        setConfirmItem(null);
+        setSheetOpen(false);
         router.refresh();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "신청 실패");
@@ -69,165 +75,155 @@ export function PointsPanel({
   }
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-[18px] font-bold tracking-[-0.02em] text-ink">포인트</h1>
-
-      {/* 잔액 카드 */}
-      <div className="rounded-[14px] border border-line bg-panel p-4">
-        <div className="flex items-center gap-2 text-ink-3">
-          <Coins className="h-4 w-4" />
-          <span className="text-[12px] font-medium">내 포인트</span>
+    <div className="flex flex-col gap-x3">
+      {/* 잔액 */}
+      <Section>
+        <div className="flex items-start justify-between gap-x3">
+          <div className="min-w-0">
+            <p className="t4-medium text-fg-neutral-muted">내 포인트</p>
+            <p className="mt-x1 t12-bold text-fg-neutral tabular-nums">{fmtPoints(data.balance)}</p>
+            <p className="mt-x1 t4-regular text-fg-neutral-subtle tabular-nums">{fmtKrw(data.balance)} 상당</p>
+          </div>
+          <IconTile icon={Coins} tone="brand" size={48} round />
         </div>
-        <p className="mt-1 text-[28px] font-bold tracking-[-0.02em] text-ink">
-          {data.balance.toLocaleString("ko-KR")}점
-        </p>
-        <p className="text-[13px] text-ink-4">{fmtKrw(data.balance)} 상당</p>
-      </div>
+      </Section>
 
       {/* 상점 */}
-      <section>
-        <h2 className="mb-2 text-[14px] font-semibold text-ink">기프티콘 상점</h2>
+      <Section title="기프티콘 상점" description="모은 포인트로 기프티콘을 받을 수 있어요">
         {data.items.length === 0 ? (
-          <div className="rounded-[14px] border border-dashed border-line bg-canvas-2/40 px-5 py-8 text-center text-[13px] text-ink-4">
-            아직 등록된 상품이 없어요
-          </div>
+          <EmptyState icon={Gift} title="아직 등록된 상품이 없어요" className="py-x6" />
         ) : (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-x2">
             {data.items.map((item) => {
               const affordable = data.balance >= item.points;
               return (
-                <div key={item.id} className="flex flex-col rounded-[14px] border border-line bg-panel p-3.5">
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-canvas-2 text-ink-3">
-                    <Gift className="h-4.5 w-4.5" />
-                  </span>
-                  <p className="mt-2 text-[14px] font-semibold leading-tight text-ink">{item.name}</p>
-                  <p className="mt-0.5 text-[12px] text-ink-4">
-                    {item.points}점 · {fmtKrw(item.points)}
-                  </p>
-                  <button
-                    type="button"
-                    disabled={!affordable || pending}
-                    onClick={() => setConfirmItem(item)}
-                    className="mt-2.5 inline-flex h-9 items-center justify-center rounded-lg bg-brand text-[13px] font-semibold text-white disabled:bg-canvas-2 disabled:text-ink-4"
-                  >
-                    {affordable ? "신청하기" : "포인트 부족"}
-                  </button>
+                <div key={item.id} className="flex flex-col rounded-r4 bg-bg-layer-fill p-x4">
+                  <IconTile icon={Gift} tone="brand" size={40} className="bg-bg-layer-default" />
+                  <p className="mt-x3 line-clamp-2 t5-medium text-fg-neutral">{item.name}</p>
+                  <p className="mt-x1 t5-bold text-fg-neutral-muted tabular-nums">{fmtPoints(item.points)}</p>
+                  <p className="t2-regular text-fg-neutral-subtle tabular-nums">{fmtKrw(item.points)}</p>
+                  <div className="mt-auto pt-x3">
+                    <Button
+                      size="sm"
+                      variant="weak"
+                      block
+                      disabled={!affordable || pending}
+                      onClick={() => openConfirm(item)}
+                    >
+                      {affordable ? "교환하기" : "포인트 부족"}
+                    </Button>
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
-      </section>
-
-      {/* 신청 확인 */}
-      {confirmItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
-          <div className="w-full max-w-[360px] rounded-[14px] border border-line bg-panel p-4">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-[15px] font-semibold text-ink">교환 신청</p>
-              <button type="button" onClick={() => setConfirmItem(null)} className="rounded-lg p-1 text-ink-4">
-                <X className="h-4.5 w-4.5" />
-              </button>
-            </div>
-            <p className="text-[14px] text-ink-2">
-              <span className="font-semibold">{confirmItem.name}</span>을(를) {confirmItem.points}점으로
-              교환 신청할까요?
-            </p>
-            <p className="mt-1 text-[12px] text-ink-4">선생님 승인 후 지급됩니다.</p>
-            <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmItem(null)}
-                className="h-10 flex-1 rounded-xl border border-line bg-panel text-[14px] font-medium text-ink-2"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => submit(confirmItem)}
-                className="h-10 flex-1 rounded-xl bg-brand text-[14px] font-semibold text-white disabled:opacity-50"
-              >
-                신청하기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </Section>
 
       {/* 내 신청 현황 */}
       {data.myRedemptions.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-[14px] font-semibold text-ink">내 신청 현황</h2>
-          <ul className="divide-y divide-line rounded-[14px] border border-line bg-panel">
-            {data.myRedemptions.map((r) => (
-              <li key={r.id} className="flex items-center gap-2 px-3.5 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-[14px] font-medium text-ink">{r.itemName}</p>
-                  <p className="text-[12px] text-ink-4">
-                    {fmtDate(r.createdAt)} · {r.points}점
-                    {r.status === "REJECTED" && r.note ? ` · ${r.note}` : ""}
-                  </p>
-                </div>
-                <span
-                  className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${STATUS_BADGE[r.status]}`}
-                >
-                  {STATUS_LABELS[r.status]}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <Section title="내 신청 현황" flush>
+          {data.myRedemptions.map((r) => {
+            const st = REDEMPTION_STATUS[r.status];
+            return (
+              <ListRow
+                key={r.id}
+                leading={<IconTile icon={Gift} tone="gray" />}
+                title={<span className="block truncate">{r.itemName}</span>}
+                description={
+                  <>
+                    <span className="tabular-nums">
+                      {fmtDate(r.createdAt)} · {fmtPoints(r.points)}
+                    </span>
+                    {r.status === "REJECTED" && r.note && (
+                      <span className="mt-x0_5 block text-fg-neutral-muted">{r.note}</span>
+                    )}
+                  </>
+                }
+                trailing={<Badge tone={st.tone}>{st.label}</Badge>}
+              />
+            );
+          })}
+        </Section>
       )}
 
       {/* 포인트 내역 */}
-      <section>
-        <h2 className="mb-2 text-[14px] font-semibold text-ink">포인트 내역</h2>
+      <Section title="포인트 내역" flush>
         {data.history.length === 0 ? (
-          <div className="rounded-[14px] border border-dashed border-line bg-canvas-2/40 px-5 py-8 text-center text-[13px] text-ink-4">
-            아직 포인트 내역이 없어요
-          </div>
+          <EmptyState icon={Coins} title="아직 포인트 내역이 없어요" className="py-x8" />
         ) : (
-          <ul className="divide-y divide-line rounded-[14px] border border-line bg-panel">
-            {data.history.map((h, i) => {
-              const plus = h.kind === "MERIT";
-              const isRedemption = h.kind === "REDEMPTION";
-              return (
-                <li key={i} className="flex items-center gap-2.5 px-3.5 py-3">
-                  <span
-                    className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                      plus ? "bg-emerald-50 text-emerald-600" : isRedemption ? "bg-blue-50 text-blue-600" : "bg-red-50 text-red-500"
-                    }`}
-                  >
-                    {plus ? (
-                      <TrendingUp className="h-4 w-4" />
-                    ) : isRedemption ? (
-                      <Gift className="h-4 w-4" />
-                    ) : (
-                      <TrendingDown className="h-4 w-4" />
-                    )}
+          data.history.map((h, i) => {
+            const plus = h.kind === "MERIT";
+            const isRedemption = h.kind === "REDEMPTION";
+            // 승인 전 교환은 아직 차감 전이라 흐리게
+            const waiting = isRedemption && h.status === "PENDING";
+            const icon = HISTORY_ICON[h.kind];
+            return (
+              <ListRow
+                key={i}
+                leading={<IconTile icon={icon.icon} tone={icon.tone} />}
+                title={<span className="block truncate">{h.label}</span>}
+                description={
+                  <span className="tabular-nums">
+                    {fmtDate(h.date)}
+                    {isRedemption && h.status ? ` · ${REDEMPTION_STATUS[h.status].label}` : ""}
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13.5px] text-ink">{h.label}</p>
-                    <p className="text-[11.5px] text-ink-4">
-                      {fmtDate(h.date)}
-                      {isRedemption && h.status ? ` · ${STATUS_LABELS[h.status]}` : ""}
-                    </p>
-                  </div>
+                }
+                trailing={
                   <span
-                    className={`shrink-0 text-[13.5px] font-semibold tabular-nums ${
-                      plus ? "text-emerald-600" : "text-red-500"
-                    }`}
+                    className={cn(
+                      "t5-bold tabular-nums",
+                      plus ? "text-fg-brand" : waiting ? "text-fg-neutral-subtle" : "text-fg-neutral"
+                    )}
                   >
                     {plus ? "+" : "−"}
-                    {h.points}점
+                    {fmtPoints(h.points)}
                   </span>
-                </li>
-              );
-            })}
-          </ul>
+                }
+              />
+            );
+          })
         )}
-      </section>
+      </Section>
+
+      {/* 교환 확인 */}
+      <BottomSheet
+        open={sheetOpen}
+        onOpenChange={(o) => {
+          if (!pending) setSheetOpen(o);
+        }}
+        title={confirmItem ? `${confirmItem.name} 교환할까요?` : "교환할까요?"}
+        description={
+          confirmItem ? (
+            <>
+              <span className="font-bold text-fg-neutral tabular-nums">{fmtPoints(confirmItem.points)}</span>
+              을 사용해요. 선생님 승인 후 지급돼요.
+            </>
+          ) : undefined
+        }
+        footer={
+          <>
+            <Button
+              variant="gray"
+              size="xl"
+              className="flex-1"
+              disabled={pending}
+              onClick={() => setSheetOpen(false)}
+            >
+              취소
+            </Button>
+            <Button
+              variant="primary"
+              size="xl"
+              className="flex-1"
+              loading={pending}
+              onClick={() => confirmItem && submit(confirmItem)}
+            >
+              교환 신청
+            </Button>
+          </>
+        }
+      />
     </div>
   );
 }

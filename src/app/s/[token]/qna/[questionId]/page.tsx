@@ -1,23 +1,18 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
 import { validateMagicLink } from "@/lib/student-auth";
 import { getStudentQuestionThread } from "@/actions/student-questions";
+import { Badge } from "@/components/portal/ui";
+import { QUESTION_STATUS } from "@/components/portal/status";
 import { StudentQuestionThread } from "../_components/student-question-thread";
-import type { StudentQuestionStatus } from "@/generated/prisma";
 
-const STATUS_LABEL: Record<StudentQuestionStatus, string> = {
-  OPEN: "답변 대기",
-  ANSWERED: "답변 완료",
-  RESOLVED: "해결됨",
-  ARCHIVED: "보관됨",
-};
-const STATUS_TONE: Record<StudentQuestionStatus, string> = {
-  OPEN: "bg-warn-soft text-warn-ink",
-  ANSWERED: "bg-ok-soft text-ok-ink",
-  RESOLVED: "bg-canvas-2 text-ink-3",
-  ARCHIVED: "bg-canvas-2 text-ink-4",
-};
+function fmtAsked(iso: string): string {
+  const k = new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000);
+  const h = k.getUTCHours();
+  const m = k.getUTCMinutes().toString().padStart(2, "0");
+  return `${k.getUTCMonth() + 1}월 ${k.getUTCDate()}일 ${h < 12 ? "오전" : "오후"} ${
+    h % 12 === 0 ? 12 : h % 12
+  }:${m}`;
+}
 
 export default async function StudentQuestionDetailPage({
   params,
@@ -35,34 +30,20 @@ export default async function StudentQuestionDetailPage({
     notFound();
   }
   const { question, messages, hasUnread } = thread;
+  const status = QUESTION_STATUS[question.status];
 
   return (
-    <div className="space-y-4">
-      <Link
-        href={`/s/${token}/qna`}
-        className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-4 active:text-ink-2"
-      >
-        <ChevronLeft className="h-4 w-4" strokeWidth={2.5} />
-        질문 목록
-      </Link>
-
-      <div>
-        <div className="flex items-center gap-1.5">
-          {question.subject && (
-            <span className="rounded-full bg-canvas-2 px-2 py-0.5 text-[10.5px] font-medium text-ink-3">
-              {question.subject}
-            </span>
-          )}
-          <span
-            className={`rounded-full px-2 py-0.5 text-[10.5px] font-medium ${STATUS_TONE[question.status]}`}
-          >
-            {STATUS_LABEL[question.status]}
-          </span>
+    <div className="flex flex-col gap-x6">
+      <header className="px-x1 pt-x3">
+        <div className="flex flex-wrap items-center gap-x1">
+          {question.subject && <Badge>{question.subject}</Badge>}
+          <Badge tone={status.tone}>{status.label}</Badge>
         </div>
-        <h1 className="mt-1.5 text-[18px] font-bold leading-snug tracking-[-0.01em] text-ink">
-          {question.title}
-        </h1>
-      </div>
+        <h1 className="mt-x2_5 break-words t8-bold text-fg-neutral">{question.title}</h1>
+        <p className="mt-x1_5 t3-regular tabular-nums text-fg-neutral-subtle">
+          {fmtAsked(question.createdAt)} 질문
+        </p>
+      </header>
 
       <StudentQuestionThread
         token={token}

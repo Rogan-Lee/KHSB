@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Plus, Trash2, GraduationCap, PieChart, MapPin, Lightbulb } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  IconCheckmarkLine,
+  IconExclamationmarkCircleLine,
+  IconLockLine,
+  IconPlusLine,
+  IconTrashcanLine,
+} from "@karrotmarket/react-monochrome-icon";
+import { Fieldset, PrefixIcon, RadioGroupField, Slider } from "@seed-design/react";
 import { upsertSurveySection } from "@/actions/online/onboarding-survey";
 import {
   HISTORY_SUBJECT_OPTIONS,
@@ -16,10 +23,29 @@ import {
   type StudyMix,
   type PriorConsulting,
 } from "@/lib/online/survey-template";
+import { Badge, Button, Chip, Notice, Segmented } from "@/components/portal/ui";
+import { Chip as SeedChip } from "seed-design/ui/chip";
+import { ProgressCircle } from "seed-design/ui/progress-circle";
+import { TextField, TextFieldInput } from "seed-design/ui/text-field";
 
 const AUTOSAVE_DELAY_MS = 800;
 
 type SaveState = "idle" | "saving" | "saved" | "error";
+
+const YES_NO_OPTIONS: { value: "yes" | "no"; label: string }[] = [
+  { value: "yes", label: "있어요" },
+  { value: "no", label: "없어요" },
+];
+
+const SATISFACTION_SCALE = [1, 2, 3, 4, 5] as const;
+
+// 회색 블록(bg-layer-fill) 안의 입력칸은 흰 채움으로 띄운다 (SEED text-input 은 기본 투명)
+const ON_FILL = "bg-bg-layer-default";
+// iOS 월 선택 입력의 가운데 정렬·고유 스타일 제거
+const MONTH_INPUT = "min-w-0 appearance-none text-left [&::-webkit-date-and-time-value]:text-left";
+// 숫자 입력의 스핀 버튼 제거
+const NUMBER_INPUT =
+  "text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
 export function HistorySurveyStep({
   studentToken,
@@ -123,357 +149,432 @@ export function HistorySurveyStep({
     );
   }
 
-  const inputBase =
-    "w-full rounded-[8px] border border-line bg-canvas px-3 py-2 text-[12.5px] text-ink focus:outline-none focus:border-line-strong disabled:opacity-60";
-
   return (
-    <div className="space-y-5">
-      {/* 자동 저장 상태 */}
-      <div className="text-[11px] text-ink-5 text-right h-3">
-        {status === "saving" && "저장 중…"}
-        {status === "saved" && "저장됨"}
-        {status === "error" && <span className="text-red-600">저장 실패</span>}
-      </div>
+    // disabled fieldset — 제출 후에는 모든 입력이 함께 잠긴다 (SEED 컨트롤엔 disabled 도 직접 전달)
+    <fieldset disabled={isSubmitted} className="-mt-3 min-w-0">
+      <SaveStatus status={status} locked={isSubmitted} />
 
-      {/* 레거시 답변 */}
-      {value.legacyText && (
-        <div className="rounded-[10px] border border-amber-200 bg-amber-50 p-3">
-          <p className="text-[11px] font-semibold text-amber-900 mb-1">이전 자유 기술 답변</p>
-          <p className="text-[12px] text-amber-900 whitespace-pre-wrap">{value.legacyText}</p>
-          <p className="text-[10.5px] text-amber-800 mt-2">
-            참고용으로만 보입니다. 아래 항목별로 다시 작성해 주세요.
-          </p>
-        </div>
-      )}
+      <div className="flex flex-col gap-x10">
+        {/* 레거시 답변 */}
+        {value.legacyText && (
+          <Notice tone="warn" title="이전에 적은 답변">
+            <p className="whitespace-pre-wrap">{value.legacyText}</p>
+            <p className="mt-x2 t3-regular">참고용으로만 보여요. 아래 항목에 맞춰 다시 적어 주세요.</p>
+          </Notice>
+        )}
 
-      {/* 1. 이전 학습 경험 */}
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <GraduationCap className="h-3.5 w-3.5 text-ink-3" />
-          <h3 className="text-[13px] font-semibold text-ink">이전 학습 경험</h3>
-          <span className="text-[10.5px] text-ink-5">(학원·과외·인강·관리형 등)</span>
-        </div>
+        {/* 1. 이전 학습 경험 */}
+        <FormSection
+          title="이전 학습 경험"
+          description="학원·과외·인강·관리형 등 다녀 본 곳이 있나요?"
+        >
+          <Segmented<HistoryAnswer["hasPriorEducation"]>
+            aria-label="이전 학습 경험"
+            options={YES_NO_OPTIONS}
+            value={value.hasPriorEducation}
+            onChange={(had) =>
+              setValue((v) => ({ ...v, hasPriorEducation: had as "yes" | "no" }))
+            }
+            disabled={isSubmitted}
+          />
 
-        <div className="flex flex-wrap gap-1.5">
-          {[
-            { value: "yes", label: "있음" },
-            { value: "no", label: "없음" },
-          ].map((opt) => {
-            const checked = value.hasPriorEducation === opt.value;
-            return (
-              <label
-                key={opt.value}
-                className={`cursor-pointer inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-[12px] ${
-                  checked ? "border-ink bg-ink text-white" : "border-line text-ink-3 hover:border-line-strong"
-                } ${isSubmitted ? "pointer-events-none opacity-50" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="hasPriorEducation"
-                  checked={checked}
-                  onChange={() =>
-                    setValue((v) => ({ ...v, hasPriorEducation: opt.value as "yes" | "no" }))
-                  }
-                  disabled={isSubmitted}
-                  className="sr-only"
-                />
-                {opt.label}
-              </label>
-            );
-          })}
-        </div>
-
-        {value.hasPriorEducation === "yes" && (
-          <>
-            {value.priorEducation.map((p, i) => (
-              <div key={i} className="rounded-[10px] border border-line bg-panel p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold text-ink-4">기관 {i + 1}</span>
-                  {value.priorEducation.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removePrior(i)}
-                      disabled={isSubmitted}
-                      className="text-ink-5 hover:text-red-600 disabled:opacity-40"
-                      title="삭제"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  value={p.institution}
-                  onChange={(e) => updatePrior(i, { institution: e.target.value })}
-                  disabled={isSubmitted}
-                  placeholder="기관명 (예: 메가스터디 / 김선생 과외)"
-                  className={inputBase}
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="space-y-1">
-                    <span className="text-[10.5px] text-ink-4">시작 (년월)</span>
-                    <input
-                      type="month"
-                      value={p.periodFrom}
-                      onChange={(e) => updatePrior(i, { periodFrom: e.target.value })}
-                      disabled={isSubmitted}
-                      className={inputBase}
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <span className="text-[10.5px] text-ink-4">종료 (년월)</span>
-                    <input
-                      type="month"
-                      value={p.periodTo}
-                      onChange={(e) => updatePrior(i, { periodTo: e.target.value })}
-                      disabled={isSubmitted}
-                      className={inputBase}
-                    />
-                  </label>
-                </div>
-                <div>
-                  <p className="text-[11px] text-ink-4 mb-1.5">과목 (해당 항목 모두 체크)</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {HISTORY_SUBJECT_OPTIONS.map((s) => {
-                      const checked = p.subjects.includes(s);
-                      return (
-                        <label
+          {value.hasPriorEducation === "yes" && (
+            <div className="flex flex-col gap-x3 pt-x3">
+              {value.priorEducation.map((p, i) => (
+                <EntryBlock
+                  key={i}
+                  title={`기관 ${i + 1}`}
+                  onRemove={value.priorEducation.length > 1 ? () => removePrior(i) : undefined}
+                  removeDisabled={isSubmitted}
+                >
+                  <TextField
+                    label="기관명"
+                    value={p.institution}
+                    onValueChange={({ value: text }) => updatePrior(i, { institution: text })}
+                    disabled={isSubmitted}
+                    className={ON_FILL}
+                  >
+                    <TextFieldInput placeholder="예: 메가스터디, 김선생 과외" />
+                  </TextField>
+                  <div className="grid grid-cols-2 gap-x2">
+                    <div className="min-w-0">
+                      <TextField
+                        label="시작 월"
+                        value={p.periodFrom}
+                        onValueChange={({ value: text }) => updatePrior(i, { periodFrom: text })}
+                        disabled={isSubmitted}
+                        className={ON_FILL}
+                      >
+                        <TextFieldInput type="month" className={MONTH_INPUT} />
+                      </TextField>
+                    </div>
+                    <div className="min-w-0">
+                      <TextField
+                        label="종료 월"
+                        value={p.periodTo}
+                        onValueChange={({ value: text }) => updatePrior(i, { periodTo: text })}
+                        disabled={isSubmitted}
+                        className={ON_FILL}
+                      >
+                        <TextFieldInput type="month" className={MONTH_INPUT} />
+                      </TextField>
+                    </div>
+                  </div>
+                  <MultiChoiceField label="과목">
+                    <div className="flex flex-wrap gap-x2">
+                      {HISTORY_SUBJECT_OPTIONS.map((s) => (
+                        <Chip
                           key={s}
-                          className={`cursor-pointer inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11.5px] ${
-                            checked ? "border-ink bg-ink text-white" : "border-line text-ink-3 hover:border-line-strong"
-                          } ${isSubmitted ? "pointer-events-none opacity-50" : ""}`}
+                          selected={p.subjects.includes(s)}
+                          onClick={() => togglePriorSubject(i, s)}
+                          disabled={isSubmitted}
                         >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => togglePriorSubject(i, s)}
-                            disabled={isSubmitted}
-                            className="sr-only"
-                          />
                           {s}
-                        </label>
-                      );
-                    })}
-                  </div>
-                  {p.subjects.includes("기타") && (
-                    <input
-                      type="text"
-                      value={p.subjectOther ?? ""}
-                      onChange={(e) => updatePrior(i, { subjectOther: e.target.value })}
-                      disabled={isSubmitted}
-                      placeholder="기타 과목 직접 입력"
-                      className={`${inputBase} mt-2`}
-                    />
-                  )}
-                </div>
-                <div>
-                  <p className="text-[11px] text-ink-4 mb-1.5">형태</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {HISTORY_FORMAT_OPTIONS.map((f) => {
-                      const checked = p.format === f.value;
-                      return (
-                        <label
-                          key={f.value}
-                          className={`cursor-pointer inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11.5px] ${
-                            checked ? "border-ink bg-ink text-white" : "border-line text-ink-3 hover:border-line-strong"
-                          } ${isSubmitted ? "pointer-events-none opacity-50" : ""}`}
-                        >
-                          <input
-                            type="radio"
-                            name={`format-${i}`}
-                            checked={checked}
-                            onChange={() => updatePrior(i, { format: f.value })}
-                            disabled={isSubmitted}
-                            className="sr-only"
-                          />
-                          {f.label}
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-                <input
-                  type="text"
-                  value={p.quitReason}
-                  onChange={(e) => updatePrior(i, { quitReason: e.target.value })}
+                        </Chip>
+                      ))}
+                    </div>
+                    {p.subjects.includes("기타") && (
+                      <TextField
+                        value={p.subjectOther ?? ""}
+                        onValueChange={({ value: text }) => updatePrior(i, { subjectOther: text })}
+                        disabled={isSubmitted}
+                        className={ON_FILL}
+                      >
+                        <TextFieldInput placeholder="기타 과목을 적어 주세요" aria-label="기타 과목" />
+                      </TextField>
+                    )}
+                  </MultiChoiceField>
+                  <RadioChipField<PriorEducation["format"]>
+                    label="형태"
+                    options={HISTORY_FORMAT_OPTIONS}
+                    value={p.format}
+                    onValueChange={(format) => updatePrior(i, { format })}
+                    disabled={isSubmitted}
+                  />
+                  <TextField
+                    label="그만둔 이유"
+                    value={p.quitReason}
+                    onValueChange={({ value: text }) => updatePrior(i, { quitReason: text })}
+                    disabled={isSubmitted}
+                    className={ON_FILL}
+                  >
+                    <TextFieldInput placeholder="한 줄로 적어 주세요 (예: 효율이 낮았어요)" />
+                  </TextField>
+                </EntryBlock>
+              ))}
+              {!isSubmitted && (
+                <Button variant="weak" size="md" block onClick={addPrior}>
+                  <PrefixIcon svg={<IconPlusLine />} />
+                  기관 추가
+                </Button>
+              )}
+            </div>
+          )}
+        </FormSection>
+
+        {/* 2. 현재 학습 시간 분배 */}
+        <FormSection
+          title="현재 학습 시간 분배"
+          description="전체 공부 시간을 100%로 보고 나눠 주세요."
+          aside={
+            <Badge size="md" tone={mixSum === 100 ? "ok" : "warn"}>
+              합계 {mixSum}%
+            </Badge>
+          }
+        >
+          <div className="flex flex-col gap-x2">
+            {HISTORY_MIX_KEYS.map((k) => (
+              <div key={k} className="flex items-center gap-x3">
+                <span className="w-x16 shrink-0 t4-medium text-fg-neutral-muted">
+                  {HISTORY_MIX_LABELS[k]}
+                </span>
+                <Slider.Root
+                  min={0}
+                  max={100}
+                  step={5}
+                  values={[value.currentMix[k]]}
+                  onValuesChange={([n]) => updateMix(k, n)}
                   disabled={isSubmitted}
-                  placeholder="그만둔 이유 (1줄 — 예: 효율 낮음 / 시간 안 맞음)"
-                  className={inputBase}
-                />
+                  getAriaLabel={() => `${HISTORY_MIX_LABELS[k]} 비율`}
+                  className="min-w-0 flex-1"
+                >
+                  <Slider.Control>
+                    <Slider.Track>
+                      <Slider.Range />
+                    </Slider.Track>
+                    <Slider.Thumb thumbIndex={0} />
+                    <Slider.HiddenInput thumbIndex={0} />
+                  </Slider.Control>
+                </Slider.Root>
+                <div className="w-[92px] shrink-0">
+                  <TextField
+                    value={String(value.currentMix[k])}
+                    onValueChange={({ value: text }) => updateMix(k, Number(text))}
+                    disabled={isSubmitted}
+                    suffix="%"
+                  >
+                    <TextFieldInput
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={100}
+                      aria-label={`${HISTORY_MIX_LABELS[k]} 비율 (%)`}
+                      className={NUMBER_INPUT}
+                    />
+                  </TextField>
+                </div>
               </div>
             ))}
-            {!isSubmitted && (
-              <button
-                type="button"
-                onClick={addPrior}
-                className="inline-flex items-center gap-1 rounded-md border border-dashed border-line px-3 py-1.5 text-[11.5px] text-ink-3 hover:border-line-strong hover:text-ink"
-              >
-                <Plus className="h-3 w-3" />
-                기관 추가
-              </button>
-            )}
-          </>
-        )}
-      </section>
+          </div>
+          {mixSum !== 100 && (
+            <p className="t3-regular text-fg-warning-contrast">
+              네 영역의 합이 정확히 100%가 되어야 다음 단계로 넘어갈 수 있어요.
+            </p>
+          )}
+        </FormSection>
 
-      {/* 2. 현재 학습 시간 분배 */}
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <PieChart className="h-3.5 w-3.5 text-ink-3" />
-          <h3 className="text-[13px] font-semibold text-ink">현재 학습 시간 분배</h3>
-          <span className={`ml-auto text-[11px] font-semibold tabular-nums ${mixSum === 100 ? "text-emerald-600" : "text-amber-600"}`}>
-            합계 {mixSum} / 100%
-          </span>
-        </div>
-        {mixSum !== 100 && (
-          <p className="text-[10.5px] text-amber-700">
-            네 영역의 합이 정확히 100% 가 되어야 다음 단계로 넘어갈 수 있어요.
-          </p>
-        )}
-        <div className="space-y-2">
-          {HISTORY_MIX_KEYS.map((k) => (
-            <div key={k} className="flex items-center gap-3">
-              <span className="w-16 text-[12px] text-ink-3">{HISTORY_MIX_LABELS[k]}</span>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={5}
-                value={value.currentMix[k]}
-                onChange={(e) => updateMix(k, Number(e.target.value))}
-                disabled={isSubmitted}
-                className="flex-1"
-              />
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={value.currentMix[k]}
-                onChange={(e) => updateMix(k, Number(e.target.value))}
-                disabled={isSubmitted}
-                className="w-16 rounded-md border border-line bg-canvas px-2 py-1 text-[12px] text-right tabular-nums disabled:opacity-60"
-              />
-              <span className="text-[11px] text-ink-5">%</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* 3. 주 학습 장소 */}
-      <section className="space-y-2">
-        <div className="flex items-center gap-2">
-          <MapPin className="h-3.5 w-3.5 text-ink-3" />
-          <h3 className="text-[13px] font-semibold text-ink">주 학습 장소</h3>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {HISTORY_PLACE_OPTIONS.map((opt) => {
-            const checked = value.studyPlace === opt;
-            return (
-              <label
-                key={opt}
-                className={`cursor-pointer inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-[12px] ${
-                  checked ? "border-ink bg-ink text-white" : "border-line text-ink-3 hover:border-line-strong"
-                } ${isSubmitted ? "pointer-events-none opacity-50" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="studyPlace"
-                  checked={checked}
-                  onChange={() => setValue((v) => ({ ...v, studyPlace: opt }))}
-                  disabled={isSubmitted}
-                  className="sr-only"
-                />
-                {opt}
-              </label>
-            );
-          })}
-        </div>
-        {value.studyPlace === "기타" && (
-          <input
-            type="text"
-            value={value.studyPlaceOther ?? ""}
-            onChange={(e) => setValue((v) => ({ ...v, studyPlaceOther: e.target.value }))}
+        {/* 3. 주 학습 장소 */}
+        <FormSection title="주로 공부하는 곳">
+          <SeedChip.RadioRoot
+            aria-label="주로 공부하는 곳"
+            value={value.studyPlace}
+            onValueChange={(place) =>
+              setValue((v) => ({ ...v, studyPlace: place as HistoryAnswer["studyPlace"] }))
+            }
             disabled={isSubmitted}
-            placeholder="기타 장소 직접 입력"
-            className={inputBase}
-          />
-        )}
-      </section>
+            className="flex flex-wrap gap-x2"
+          >
+            {HISTORY_PLACE_OPTIONS.map((opt) => (
+              <SeedChip.RadioItem key={opt} value={opt} variant="outlineStrong" size="medium">
+                <SeedChip.Label>{opt}</SeedChip.Label>
+              </SeedChip.RadioItem>
+            ))}
+          </SeedChip.RadioRoot>
+          {value.studyPlace === "기타" && (
+            <TextField
+              value={value.studyPlaceOther ?? ""}
+              onValueChange={({ value: text }) => setValue((v) => ({ ...v, studyPlaceOther: text }))}
+              disabled={isSubmitted}
+            >
+              <TextFieldInput placeholder="기타 장소를 적어 주세요" aria-label="기타 학습 장소" />
+            </TextField>
+          )}
+        </FormSection>
 
-      {/* 4. 입시 컨설팅 경험 */}
-      <section className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Lightbulb className="h-3.5 w-3.5 text-ink-3" />
-          <h3 className="text-[13px] font-semibold text-ink">이전 입시 컨설팅 경험</h3>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {[
-            { value: "yes", label: "있음" },
-            { value: "no", label: "없음" },
-          ].map((opt) => {
-            const checked = value.priorConsulting.had === opt.value;
-            return (
-              <label
-                key={opt.value}
-                className={`cursor-pointer inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-[12px] ${
-                  checked ? "border-ink bg-ink text-white" : "border-line text-ink-3 hover:border-line-strong"
-                } ${isSubmitted ? "pointer-events-none opacity-50" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="priorConsulting"
-                  checked={checked}
-                  onChange={() => setConsultingHad(opt.value as "yes" | "no")}
+        {/* 4. 입시 컨설팅 경험 */}
+        <FormSection
+          title="이전 입시 컨설팅 경험"
+          description="입시 컨설팅을 받아 본 적이 있나요?"
+        >
+          <Segmented<PriorConsulting["had"]>
+            aria-label="이전 입시 컨설팅 경험"
+            options={YES_NO_OPTIONS}
+            value={value.priorConsulting.had}
+            onChange={(had) => setConsultingHad(had)}
+            disabled={isSubmitted}
+          />
+          {value.priorConsulting.had === "yes" && (
+            <div className="pt-x3">
+              <div className="flex flex-col gap-x5 rounded-r4 bg-bg-layer-fill px-x4 py-x5">
+                <TextField
+                  label="기관 · 컨설턴트"
+                  value={value.priorConsulting.institution}
+                  onValueChange={({ value: text }) => updateConsulting({ institution: text })}
                   disabled={isSubmitted}
-                  className="sr-only"
-                />
-                {opt.label}
-              </label>
-            );
-          })}
-        </div>
-        {value.priorConsulting.had === "yes" && (
-          <div className="space-y-2 rounded-[10px] border border-line bg-panel p-3">
-            <input
-              type="text"
-              value={value.priorConsulting.institution}
-              onChange={(e) => updateConsulting({ institution: e.target.value })}
-              disabled={isSubmitted}
-              placeholder="컨설팅 기관 / 컨설턴트 이름"
-              className={inputBase}
-            />
-            <input
-              type="text"
-              value={value.priorConsulting.period}
-              onChange={(e) => updateConsulting({ period: e.target.value })}
-              disabled={isSubmitted}
-              placeholder="이용 시기 (예: 2025년 6월~9월)"
-              className={inputBase}
-            />
-            <div>
-              <p className="text-[11px] text-ink-4 mb-1.5">만족도 (1=낮음, 5=높음)</p>
-              <div className="flex gap-1.5">
-                {[1, 2, 3, 4, 5].map((n) => {
-                  const active = value.priorConsulting.had === "yes" && value.priorConsulting.satisfaction === n;
-                  return (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => updateConsulting({ satisfaction: n })}
-                      disabled={isSubmitted}
-                      className={`h-9 w-9 rounded-md border text-[13px] font-semibold tabular-nums ${
-                        active ? "border-ink bg-ink text-white" : "border-line text-ink-3 hover:border-line-strong"
-                      } disabled:opacity-50`}
-                    >
-                      {n}
-                    </button>
-                  );
-                })}
+                  className={ON_FILL}
+                >
+                  <TextFieldInput placeholder="컨설팅 기관이나 컨설턴트 이름" />
+                </TextField>
+                <TextField
+                  label="이용 시기"
+                  value={value.priorConsulting.period}
+                  onValueChange={({ value: text }) => updateConsulting({ period: text })}
+                  disabled={isSubmitted}
+                  className={ON_FILL}
+                >
+                  <TextFieldInput placeholder="예: 2025년 6월~9월" />
+                </TextField>
+                <RadioGroupField.Root
+                  value={
+                    value.priorConsulting.had === "yes"
+                      ? String(value.priorConsulting.satisfaction)
+                      : ""
+                  }
+                  onValueChange={(n) => updateConsulting({ satisfaction: Number(n) })}
+                  disabled={isSubmitted}
+                >
+                  <RadioGroupField.Header>
+                    <RadioGroupField.Label>만족도</RadioGroupField.Label>
+                  </RadioGroupField.Header>
+                  <div className="grid grid-cols-5 gap-x2">
+                    {SATISFACTION_SCALE.map((n) => (
+                      <SeedChip.RadioItem
+                        key={n}
+                        value={String(n)}
+                        variant="outlineStrong"
+                        size="large"
+                        className="w-full"
+                        inputProps={{ "aria-label": `만족도 ${n}점` }}
+                      >
+                        <SeedChip.Label className="tabular-nums">{n}</SeedChip.Label>
+                      </SeedChip.RadioItem>
+                    ))}
+                  </div>
+                  <div className="flex justify-between px-x1 t2-regular text-fg-neutral-subtle">
+                    <span>낮음</span>
+                    <span>높음</span>
+                  </div>
+                </RadioGroupField.Root>
               </div>
             </div>
-          </div>
-        )}
-      </section>
+          )}
+        </FormSection>
+      </div>
+    </fieldset>
+  );
+}
+
+// ─── 로컬 폼 조각 ─────────────────────────────────────────────────────
+
+function SaveStatus({ status, locked }: { status: SaveState; locked: boolean }) {
+  return (
+    <div aria-live="polite" className="mb-x3 flex h-x5 items-center justify-end t3-medium">
+      {locked ? (
+        <span className="inline-flex items-center gap-x1 text-fg-neutral-subtle">
+          <IconLockLine size={14} aria-hidden />
+          제출 후 잠김
+        </span>
+      ) : status === "saving" ? (
+        <span className="inline-flex items-center gap-x1 text-fg-neutral-subtle">
+          <ProgressCircle
+            size="inherit"
+            tone="neutral"
+            aria-hidden
+            className="[--size:var(--seed-dimension-x3_5)] [--thickness:2px]"
+          />
+          저장 중
+        </span>
+      ) : status === "saved" ? (
+        <span className="inline-flex items-center gap-x1 text-fg-positive">
+          <IconCheckmarkLine size={14} aria-hidden />
+          저장됨
+        </span>
+      ) : status === "error" ? (
+        <span className="inline-flex items-center gap-x1 text-fg-critical">
+          <IconExclamationmarkCircleLine size={14} aria-hidden />
+          저장 실패
+        </span>
+      ) : null}
     </div>
+  );
+}
+
+function FormSection({
+  title,
+  description,
+  aside,
+  children,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  aside?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section>
+      <div className="flex items-start justify-between gap-x3">
+        <div className="min-w-0">
+          <h3 className="t6-bold text-fg-neutral">{title}</h3>
+          {description != null && (
+            <p className="mt-x1 t4-regular text-fg-neutral-subtle">{description}</p>
+          )}
+        </div>
+        {aside != null && <div className="shrink-0 pt-x0_5">{aside}</div>}
+      </div>
+      <div className="mt-x4 flex flex-col gap-x3">{children}</div>
+    </section>
+  );
+}
+
+/** 반복 입력 묶음 (기관) — 흰 화면 위 회색(bg-layer-fill) 블록 */
+function EntryBlock({
+  title,
+  onRemove,
+  removeDisabled,
+  children,
+}: {
+  title: ReactNode;
+  onRemove?: () => void;
+  removeDisabled?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-r4 bg-bg-layer-fill px-x4 pb-x5 pt-x3">
+      <div className="mb-x3 flex min-h-9 items-center justify-between gap-x2">
+        <p className="t5-bold text-fg-neutral">{title}</p>
+        {onRemove && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onRemove}
+            disabled={removeDisabled}
+            className="-mr-2"
+          >
+            <PrefixIcon svg={<IconTrashcanLine />} />
+            삭제
+          </Button>
+        )}
+      </div>
+      <div className="flex flex-col gap-x5">{children}</div>
+    </div>
+  );
+}
+
+/** 여러 개 고르는 칩 묶음 — SEED Fieldset 라벨 + 보조 표시 */
+function MultiChoiceField({ label, children }: { label: ReactNode; children: ReactNode }) {
+  return (
+    <Fieldset.Root>
+      <Fieldset.Header>
+        <Fieldset.Label>
+          {label}
+          <Fieldset.IndicatorText>여러 개 고를 수 있어요</Fieldset.IndicatorText>
+        </Fieldset.Label>
+      </Fieldset.Header>
+      {children}
+    </Fieldset.Root>
+  );
+}
+
+/** 하나만 고르는 칩 묶음 — SEED RadioGroupField 라벨 + Chip.RadioItem */
+function RadioChipField<T extends string>({
+  label,
+  options,
+  value,
+  onValueChange,
+  disabled,
+}: {
+  label: ReactNode;
+  options: readonly { value: T; label: ReactNode }[];
+  value: T;
+  onValueChange: (value: T) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <RadioGroupField.Root
+      value={value}
+      onValueChange={(v) => onValueChange(v as T)}
+      disabled={disabled}
+    >
+      <RadioGroupField.Header>
+        <RadioGroupField.Label>{label}</RadioGroupField.Label>
+      </RadioGroupField.Header>
+      <div className="flex flex-wrap gap-x2">
+        {options.map((o) => (
+          <SeedChip.RadioItem key={o.value} value={o.value} variant="outlineStrong" size="medium">
+            <SeedChip.Label>{o.label}</SeedChip.Label>
+          </SeedChip.RadioItem>
+        ))}
+      </div>
+    </RadioGroupField.Root>
   );
 }
