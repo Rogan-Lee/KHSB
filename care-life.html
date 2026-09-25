@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>생활 관리 | 강한선배</title>
+  <meta name="description" content="출결과 등원 스케줄, 좌석 QR 순찰, 상벌점과 기프티콘 보상, 휴대폰 제출과 네트워크 신청, 쪽잠, 교시제. 강한선배가 아이의 하루를 어떻게 기록하고 월간 리포트로 전하는지 소개합니다.">
+  <meta name="theme-color" content="#0b0c0f">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="생활 관리 | 강한선배">
+  <meta property="og:description" content="입실부터 하원까지 하루 생활을 기록합니다.">
+  <meta property="og:image" content="photos/bx/hall.jpg">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="landing.css?v=seed3">
+  <link rel="stylesheet" href="bx-core.css?v=bx20">
+  <style>
+    /* 실제 스크린샷이 없으면 HTML 예시 카드로 대체 */
+    .visual.noshot .pf, .fx-stage.noshot .pf { display: none; }
+    .visual:not(.noshot) .vcard-fb, .fx-stage:not(.noshot) .vcard-fb { display: none; }
+    .lf-vis { padding-bottom: 60px; }
+    .lf-vnote { position: absolute; left: 16px; right: 16px; bottom: 20px; text-align: center; font-size: 12.5px; color: var(--faint); }
+    .lf-v-warm { background: #fff4ec; }
+    .lf-v-cool { background: #f1f5ff; }
+    .lf-v-night { background: radial-gradient(120% 80% at 80% 0%, #2a2f5a 0%, #14162c 55%, #0b0c0f 100%); }
+    .lf-v-night .lf-vnote { color: rgba(255, 255, 255, .5); }
+
+    /* 기능 탐색기 */
+    .fx-stage .pf-cap { font-size: 14.5px; font-weight: 600; color: var(--ink-2); line-height: 1.55; max-width: 300px; }
+    .fx-stage .vcard-fb { width: 320px; max-width: 100%; }
+
+    /* 예시 카드 공통 */
+    .lf-mk { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
+    .lf-mk b { font-size: 15.5px; font-weight: 800; letter-spacing: -.03em; color: var(--ink); }
+    .lf-mk > span { font-size: 12.5px; font-weight: 700; color: var(--faint); white-space: nowrap; }
+    .lf-mk .lf-live { color: var(--brand); background: var(--brand-soft); border-radius: 999px; padding: 5px 10px; }
+    .lf-pill { font-size: 12px; font-weight: 700; color: var(--dim); background: var(--paper-2); border-radius: 999px; padding: 5px 10px; }
+    .lf-sub-h { font-size: 12.5px; font-weight: 700; color: var(--dim); margin: 18px 0 10px; }
+    .lf-sub-h.top { margin-top: 0; }
+    .lf-log { gap: 10px; }
+    .lf-log .log-row p { font-size: 14px; color: var(--ink-2); }
+    .lf-log .log-row p b { font-weight: 800; color: var(--ink); margin-right: 3px; font-variant-numeric: tabular-nums; }
+    .lf-log .log-tag { min-width: 42px; text-align: center; }
+    .log-tag.lf-in { background: #dcfce7; color: #15803d; }
+    .log-tag.lf-out { background: #f1f3f5; color: #495057; }
+    .log-tag.lf-minus { background: #fdecec; color: #c92a2a; }
+
+    /* 등원 스케줄 흐름 */
+    .lf-flow { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--hair); }
+    .lf-flow ol { list-style: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .lf-flow li { position: relative; padding-top: 22px; text-align: center; font-size: 11.5px; font-weight: 700; line-height: 1.4; color: var(--faint); }
+    .lf-flow li i { position: absolute; top: 0; left: 50%; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; border: 2px solid var(--hair); background: #fff; }
+    .lf-flow li + li::before { content: ""; position: absolute; top: 6px; right: calc(50% + 10px); width: calc(100% - 14px); height: 2px; border-radius: 2px; background: var(--hair); }
+    .lf-flow li.done { color: var(--ink); }
+    .lf-flow li.done i { border-color: var(--brand); background: var(--brand); }
+    .lf-flow li.done + li.done::before { background: var(--brand); }
+
+    /* 순찰 */
+    .lf-seat { display: flex; align-items: center; gap: 14px; background: var(--paper-2); border-radius: 16px; padding: 14px; }
+    .lf-qr { width: 48px; height: 48px; border-radius: 12px; background: #fff; display: grid; place-items: center; color: var(--ink); flex-shrink: 0; box-shadow: 0 1px 3px rgba(0, 0, 0, .06); }
+    .lf-qr svg { width: 28px; height: 28px; }
+    .lf-seat > div b { display: block; font-size: 15px; font-weight: 800; letter-spacing: -.03em; color: var(--ink); }
+    .lf-seat > div span { display: block; font-size: 12.5px; color: var(--dim); margin-top: 2px; }
+    .lf-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 14px; }
+    .lf-seg.two { grid-template-columns: 1fr 1fr; margin-top: 0; }
+    .lf-seg span { text-align: center; font-size: 13.5px; font-weight: 700; padding: 11px 4px; border-radius: 12px; background: var(--paper-2); color: var(--dim); }
+    .lf-seg span.on { background: var(--brand-soft); color: var(--brand); box-shadow: inset 0 0 0 1.5px rgba(255, 102, 0, .45); }
+    .lf-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .lf-tags span { font-size: 12.5px; font-weight: 700; padding: 7px 11px; border-radius: 999px; border: 1px solid var(--hair); color: var(--ink-2); background: #fff; }
+    .lf-tags span.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+    .lf-tags span.lf-warn { background: #fffbeb; border-color: #fde68a; color: #b45309; }
+    .lf-note-row { font-size: 13.5px; line-height: 1.55; background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 10px 12px; margin-top: 10px; color: var(--ink-2); }
+    .lf-note-row b { color: #b45309; margin-right: 3px; font-variant-numeric: tabular-nums; }
+
+    /* 명단 · 버튼 · 포인트 */
+    .lf-roll { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .lf-roll li { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--paper-2); border-radius: 14px; padding: 11px 14px; }
+    .lf-who b { display: block; font-size: 14.5px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .lf-who em { display: block; font-style: normal; font-size: 12px; color: var(--dim); margin-top: 1px; }
+    .lf-st { flex-shrink: 0; font-size: 12px; font-weight: 700; border-radius: 999px; padding: 5px 10px; background: #eceef1; color: var(--dim); }
+    .lf-st.ok { background: #dcfce7; color: #15803d; }
+    .lf-st.ex { background: #eef2ff; color: #3b5bdb; }
+    .lf-st.no { background: #fdecec; color: #c92a2a; }
+    .lf-btn { display: block; text-align: center; margin-top: 14px; border-radius: 14px; background: var(--brand); color: #fff; font-size: 14px; font-weight: 700; padding: 12px; }
+    .lf-btn.dark { background: var(--ink); }
+    .lf-hint { text-align: center; font-size: 12px; color: var(--faint); margin: 8px 0 16px; }
+    .lf-bal { display: flex; align-items: baseline; gap: 8px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--hair); }
+    .lf-bal span { font-size: 13px; font-weight: 600; color: var(--dim); }
+    .lf-bal b { font-size: 22px; font-weight: 800; letter-spacing: -.04em; color: var(--ink); }
+    .lf-bal em { font-style: normal; font-size: 12.5px; color: var(--faint); margin-left: auto; }
+    .lf-menu { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .lf-menu li { background: var(--paper-2); border-radius: 14px; padding: 12px 14px; }
+    .lf-menu b { display: block; font-size: 14.5px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); }
+    .lf-menu span { display: block; font-size: 12.5px; color: var(--dim); margin-top: 2px; line-height: 1.5; }
+
+    /* 본문 보조 */
+    .lf-aside { font-size: 14.5px; color: var(--dim); line-height: 1.7; margin-top: 18px; padding-left: 14px; border-left: 2px solid var(--brand); }
+    .lf-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 32px; }
+
+    /* 교시제 */
+    .lf-tt { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; max-width: 1000px; margin: 0 auto; }
+    .lf-tt-card { border-radius: 28px; background: var(--paper-2); padding: 30px 30px 24px; }
+    .lf-tt-h { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid var(--hair); }
+    .lf-tt-h b { font-size: 20px; font-weight: 800; letter-spacing: -.035em; color: var(--ink); }
+    .lf-tt-h span { font-size: 14px; font-weight: 700; color: var(--brand); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .lf-tt-list { list-style: none; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(4, auto); grid-auto-flow: column; column-gap: 28px; margin-top: 8px; }
+    .lf-tt-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 0; border-bottom: 1px solid rgba(22, 24, 29, .06); font-size: 14.5px; }
+    .lf-tt-list b { font-weight: 800; color: var(--ink); white-space: nowrap; }
+    .lf-tt-list span { color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .lf-tt-list li.meal b, .lf-tt-list li.meal span { color: var(--brand); }
+    .lf-tt-foot { font-size: 13.5px; color: var(--dim); margin-top: 14px; }
+
+    /* 리포트 · 전달 표 */
+    .lf-tbl { margin-top: 96px; }
+    .lf-tbl-h { font-size: clamp(20px, 2vw, 24px); font-weight: 800; letter-spacing: -.04em; color: var(--ink); margin-bottom: 18px; }
+
+    /* 후기: 3장 한 줄 배치 */
+    .lf-rv.rvg .rvc.feat { grid-row: auto; }
+
+    @media (max-width: 1000px) {
+      .lf-tt { grid-template-columns: 1fr; max-width: 620px; }
+    }
+    @media (max-width: 860px) {
+      .lf-tbl { margin-top: 72px; }
+    }
+    @media (max-width: 600px) {
+      .lf-tt-card { padding: 24px 22px 20px; }
+      .lf-tt-list { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-flow: row; }
+      .lf-tbl .ntable, .lf-tbl .ntable tbody { display: block; }
+      .lf-tbl .ntable thead { display: none; }
+      .lf-tbl .ntable tr { display: block; padding: 14px 16px; border-top: 1px solid var(--hair); }
+      .lf-tbl .ntable tbody tr:first-child { border-top: 0; }
+      .lf-tbl .ntable td { display: block; border-top: 0; padding: 2px 0; }
+      .lf-tbl .ntable td:first-child { font-size: 15px; margin-bottom: 2px; }
+    }
+  </style>
+</head>
+<body class="bx" data-page="program" data-chapter="life">
+<script src="bx-data.js?v=bx20"></script>
+<script src="bx-shell.js?v=bx20"></script>
+
+<main id="main">
+  <header class="ph">
+    <p class="eyebrow">관리 시스템 · 01 생활 관리</p>
+    <h1 class="ph-title"><span class="ln"><span>입실부터 하원까지</span></span><span class="ln"><span>하루 <em>생활</em>을 기록합니다.</span></span></h1>
+    <p class="ph-lead">몇 시에 와서 어떻게 지냈는지, 짐작하지 않으셔도 됩니다. 출결과 순찰, 상벌점과 휴대폰 제출까지 운영진이 매일 기록하고, 상벌점과 순찰 기록은 매달 월간 리포트로 정리해 보내드립니다.</p>
+  </header>
+
+  <div class="chap-nav" data-chap-nav></div>
+
+  <div class="xmedia" data-expand>
+    <img src="photos/bx/hall.jpg" alt="강한선배 정자세 자습실 전경" fetchpriority="high">
+    <p class="xm-cap">정자세 자습실 · 전 좌석 지정 좌석제</p>
+  </div>
+
+  <!-- 한눈에 보기 -->
+  <section class="bx-sec">
+    <div class="bx-head r">
+      <p class="eyebrow">생활 관리의 기준</p>
+      <h2 class="bx-h2">상벌점 규정은<br>분 단위까지 촘촘합니다.</h2>
+      <p class="bx-sub">지각은 예정 시각에서 5분만 늦어도 기록되고, 순찰은 양호·특이사항·자리비움 3단계로 남깁니다. 선생님마다 판단이 달라지지 않도록 기준을 세세하게 정해 두고, 모든 학생에게 똑같이 적용합니다.</p>
+    </div>
+    <div class="kpis">
+      <div class="kpi dark r"><p class="k-label">순찰 기록</p><b>3<i>단계</i></b><p class="k-sub">양호 · 특이사항 · 자리비움. 좌석 QR을 스캔해 학생마다 남깁니다.</p></div>
+      <div class="kpi r d1"><p class="k-label">지각 판정</p><b>5<i>분</i></b><p class="k-sub">예정 입실 시각보다 5분 이상 늦으면 '지각'으로 자동 표시됩니다.</p></div>
+      <div class="kpi brand r d2"><p class="k-label">기프티콘 환산</p><b>25<i>점</i></b><p class="k-sub">포인트 25점이면 1만원 상당. 모은 포인트로 기프티콘을 신청합니다.</p></div>
+      <div class="kpi r d3"><p class="k-label">쪽잠 신청</p><b>2<i>회</i></b><p class="k-sub">하루 2회, 20분 또는 30분. 선생님이 승인하면 쉬어 갑니다.</p></div>
+    </div>
+  </section>
+
+  <!-- 실제 화면 탐색기 -->
+  <section class="bx-sec">
+    <div class="bx-head r">
+      <p class="eyebrow">실제 앱 화면</p>
+      <h2 class="bx-h2">쪽잠도 네트워크도<br>앱으로 신청합니다.</h2>
+      <p class="bx-sub">등원 스케줄 제출과 포인트 확인도 강한선배 앱에서 합니다. 학생이 올린 신청은 선생님이 확인한 뒤 승인합니다.</p>
+    </div>
+    <div class="fx" data-fx>
+      <div class="fx-list r">
+        <button type="button" class="fx-item" data-shot="photos/ui/portal-home-2.png?v=ui3" data-alt="강한선배 앱 학생 홈 화면의 신청 바로가기" data-cap="앱 홈 — 쪽잠 · 네트워크 · 등원 스케줄 바로가기">
+          <b>앱 홈 <em>학생</em></b>
+          <p>쪽잠 · 네트워크 사용 · 등원 스케줄 제출이 앱 홈에 카드로 모여 있어요. 누르면 바로 신청 화면으로 이어져요.</p>
+        </button>
+        <button type="button" class="fx-item" data-shot="photos/ui/portal-network.png?v=ui3" data-alt="네트워크 사용 신청 화면" data-cap="네트워크 사용 신청 — 와이파이 해제 · 사이트 허용 · 앱 사용">
+          <b>네트워크 사용 신청 <em>학생</em></b>
+          <p>인강처럼 꼭 필요한 사이트나 앱은 사유와 시간을 적어 신청해요. 선생님이 확인하고 승인하거나 거절해요.</p>
+        </button>
+        <button type="button" class="fx-item" data-shot="photos/ui/portal-points.png?v=ui3" data-alt="포인트와 기프티콘 상점 화면" data-cap="포인트 상점 — 모은 포인트를 기프티콘으로">
+          <b>포인트 · 기프티콘 <em>학생</em></b>
+          <p>상점에서 벌점을 뺀 만큼 포인트가 쌓이고, 기프티콘으로 바꿀 수 있어요. 25점이 1만원 상당이고, 선생님 승인 후 지급돼요.</p>
+        </button>
+        <button type="button" class="fx-item" data-shot="photos/ui/portal-schedule.png?v=ui3" data-alt="내 일정과 공부 계획 화면" data-cap="내 일정 — 옆 탭 '등원 스케줄'에서 다음 주 일정을 제출합니다">
+          <b>내 일정 · 등원 스케줄 <em>학생</em></b>
+          <p>오늘 일정과 공부 계획을 체크하고, '등원 스케줄' 탭에서 다음 주 등하원 · 학원 일정을 제출해요.</p>
+        </button>
+        <button type="button" class="fx-item" data-shot="photos/ui/parent-monthly-5.png?v=ui3" data-alt="월간 리포트의 이달의 시상 화면" data-cap="학부모 월간 리포트 — 이달의 시상">
+          <b>이달의 시상 <em>학부모</em></b>
+          <p>학습 태도 우수자 · 멘토 선정 우수자 · 진보상. 한 달을 잘 보낸 아이는 월간 리포트에서 함께 축하해요.</p>
+        </button>
+      </div>
+      <div class="fx-stage r d1">
+        <figure class="pf"><img src="photos/ui/portal-home-2.png?v=ui3" alt="강한선배 앱 학생 홈 화면의 신청 바로가기" onload="this.closest('.fx-stage').classList.remove('noshot')" onerror="this.closest('.fx-stage').classList.add('noshot')"></figure>
+        <div class="vcard vcard-fb" role="img" aria-label="강한선배 앱 학생 화면의 생활 메뉴 예시: 쪽잠 신청, 네트워크 사용, 등원 스케줄 제출, 포인트">
+          <div class="lf-mk"><b>학생 화면 · 생활 메뉴</b><span>예시</span></div>
+          <ul class="lf-menu">
+            <li><b>쪽잠 신청</b><span>하루 2회 · 20분 또는 30분, 승인 후 이용</span></li>
+            <li><b>네트워크 사용</b><span>와이파이 해제 · 사이트 허용 · 앱 사용 신청</span></li>
+            <li><b>등원 스케줄 제출</b><span>다음 주 등하원 · 학원 일정, 학부모 승인 후 반영</span></li>
+            <li><b>포인트</b><span>상벌점 내역 · 기프티콘 교환 신청</span></li>
+          </ul>
+        </div>
+        <p class="pf-cap" data-fx-cap>앱 홈 — 쪽잠 · 네트워크 · 등원 스케줄 바로가기</p>
+      </div>
+    </div>
+    <p class="ui-note">화면 속 이름과 기록은 예시 데이터입니다.</p>
+  </section>
+
+  <!-- 하루의 흐름대로 -->
+  <section class="bx-sec">
+    <div class="bx-head r">
+      <p class="eyebrow">하루의 흐름대로</p>
+      <h2 class="bx-h2">들어와서 나갈 때까지<br>이렇게 관리합니다.</h2>
+    </div>
+
+    <!-- 01 출결 -->
+    <div class="split r">
+      <div>
+        <span class="chap-sec-no">01 · 출결과 등원 스케줄</span>
+        <h3>몇 시에 와서,<br>언제 나갔는지.</h3>
+        <p class="lead">입실 · 외출 · 복귀 · 퇴실 시각을 운영진이 매일 기록합니다. 예정 입실 시각보다 5분 이상 늦으면 '지각'으로 자동 표시됩니다. 학원처럼 정해진 외출은 미리 등록해 두고, 다음 주 등원 스케줄은 학부모님 승인을 거쳐 예정일 00시에 자동으로 반영됩니다.</p>
+        <ul class="chips"><li>입실 · 외출 · 복귀 · 퇴실 기록</li><li>5분 지각 자동 판정</li><li>정기 외출 사전 등록</li><li>등원 스케줄 학부모 승인</li></ul>
+      </div>
+      <div class="visual lf-vis">
+        <div class="vcard" role="img" aria-label="출결 기록 예시: 16시 3분 입실, 18시 학원 외출, 20시 10분 복귀, 23시 58분 퇴실. 다음 주 등원 스케줄은 학부모 승인까지 완료">
+          <div class="lf-mk"><b>오늘의 출결 · 김민준</b><span>9월 24일 (목)</span></div>
+          <div class="log lf-log">
+            <div class="log-row"><span class="log-tag lf-in">입실</span><p><b>16:03</b> 예정 16:00 · 정상</p></div>
+            <div class="log-row"><span class="log-tag lf-out">외출</span><p><b>18:00</b> 영어 학원 · 정기 외출</p></div>
+            <div class="log-row"><span class="log-tag lf-in">복귀</span><p><b>20:10</b> 학원 마치고 복귀</p></div>
+            <div class="log-row"><span class="log-tag lf-out">퇴실</span><p><b>23:58</b> 퇴실</p></div>
+          </div>
+          <div class="lf-flow">
+            <p class="lf-sub-h top">다음 주 등원 스케줄</p>
+            <ol>
+              <li class="done"><i></i>학생 제출</li>
+              <li class="done"><i></i>선생님 검토</li>
+              <li class="done"><i></i>학부모 승인</li>
+              <li><i></i>00시 반영</li>
+            </ol>
+          </div>
+        </div>
+        <p class="lf-vnote">이해를 돕기 위한 예시 화면입니다</p>
+      </div>
+    </div>
+
+    <!-- 02 순찰 -->
+    <div class="split flip r">
+      <div>
+        <span class="chap-sec-no">02 · 좌석 QR 순찰</span>
+        <h3>앉아 있어도<br>졸고 있으면 기록합니다.</h3>
+        <p class="lead">운영진이 20분 단위로 자습실을 돌며 좌석마다 붙은 QR을 스캔하고, 학생별로 양호 · 특이사항 · 자리비움을 남깁니다. 졸음, 휴대폰 사용, 자리 이탈, 잡담/소음, 취식, 이어폰 사용 같은 특이사항은 버튼 한 번으로 기록됩니다. 쌓인 순찰 기록은 월간 리포트에 날짜별 사유와 함께 담깁니다.</p>
+        <ul class="chips"><li>좌석별 QR 스티커</li><li>양호 · 특이사항 · 자리비움</li><li>특이사항 6가지 빠른 기록</li><li>월간 리포트 반영</li></ul>
+      </div>
+      <div class="visual lf-vis lf-v-cool">
+        <div class="vcard" role="img" aria-label="순찰 화면 예시: 23번 좌석 QR을 스캔하고 특이사항 중 졸음을 선택">
+          <div class="lf-mk"><b>순찰 3회차</b><span class="lf-live">진행 중</span></div>
+          <div class="lf-seat">
+            <span class="lf-qr" aria-hidden="true"><svg viewBox="0 0 21 21" fill="currentColor" fill-rule="evenodd"><path d="M0 0h7v7H0zM1 1v5h5V1zM2 2h3v3H2zM14 0h7v7h-7zM15 1v5h5V1zM16 2h3v3h-3zM0 14h7v7H0zM1 15v5h5v-5zM2 16h3v3H2zM9 0h2v2H9zM9 4h3v3H9zM8 9h3v2H8zM13 9h2v3h-2zM17 9h4v2h-4zM9 13h2v2H9zM12 15h3v2h-3zM16 13h2v4h-2zM19 16h2v5h-2zM13 19h4v2h-4zM9 18h2v3H9z"/></svg></span>
+            <div><b>23번 좌석 · 김민준</b><span>좌석 QR 스캔 완료 · 19:42</span></div>
+          </div>
+          <div class="lf-seg"><span>양호</span><span class="on">특이사항</span><span>자리비움</span></div>
+          <p class="lf-sub-h">특이사항 빠른 선택</p>
+          <div class="lf-tags"><span class="on">졸음</span><span>휴대폰 사용</span><span>자리 이탈</span><span>잡담/소음</span><span>취식</span><span>이어폰 사용</span></div>
+        </div>
+        <p class="lf-vnote">직원용 순찰 화면을 단순화한 예시입니다</p>
+      </div>
+    </div>
+
+    <!-- 03 상벌점 -->
+    <div class="split r">
+      <div>
+        <span class="chap-sec-no">03 · 상벌점과 보상</span>
+        <h3>상점이 쌓이면<br>기프티콘이 됩니다.</h3>
+        <p class="lead">상점과 벌점에는 항상 사유와 날짜가 붙습니다. 아이도 강한선배 앱에서 같은 내역을 보니까 왜 받았는지 본인이 압니다. 상점에서 벌점을 뺀 포인트는 기프티콘으로 바꿀 수 있고, 한 달을 잘 보낸 아이는 이달의 시상으로 칭찬합니다.</p>
+        <ul class="chips"><li>사유 · 분류와 함께 기록</li><li>앱에서 내역 확인</li><li>25점 = 1만원 기프티콘</li><li>이달의 시상 3개 부문</li></ul>
+        <p class="lf-aside">상점 · 벌점 소식은 필요할 때 담당 선생님이 카카오톡으로 바로 전해 드립니다.</p>
+      </div>
+      <div class="visual lf-vis lf-v-warm">
+        <figure class="pf"><img src="photos/ui/portal-points-history.png?v=ui3" alt="강한선배 앱 학생 화면의 상벌점 · 포인트 내역" loading="lazy" onerror="this.closest('.visual').classList.add('noshot')"></figure>
+        <div class="vcard vcard-fb" role="img" aria-label="포인트 내역 예시: 상점과 벌점이 사유와 함께 기록되고, 현재 포인트는 20점">
+          <div class="lf-mk"><b>포인트 내역 · 김민준</b><span>9월</span></div>
+          <div class="log lf-log">
+            <div class="log-row"><span class="log-tag merit">+3</span><p>멘토링 과제 100% 완료</p></div>
+            <div class="log-row"><span class="log-tag merit">+2</span><p>영단어 테스트 만점 (40/40)</p></div>
+            <div class="log-row"><span class="log-tag lf-minus">−1</span><p>지각 (17:42 입실)</p></div>
+            <div class="log-row"><span class="log-tag merit">+5</span><p>9월 모의평가 수학 2등급 달성</p></div>
+          </div>
+          <div class="lf-bal"><span>내 포인트</span><b>20점</b><em>약 8,000원 상당</em></div>
+        </div>
+        <p class="lf-vnote">화면 속 이름과 기록은 예시 데이터입니다</p>
+      </div>
+    </div>
+
+    <!-- 04 휴대폰 · 네트워크 -->
+    <div class="split flip r">
+      <div>
+        <span class="chap-sec-no">04 · 휴대폰과 네트워크</span>
+        <h3>휴대폰은 맡기고<br>필요한 건 신청해서 씁니다.</h3>
+        <p class="lead">입실하면 휴대폰부터 제출합니다. 운영진은 매일 학생마다 제출 · 미제출 · 미입실 · 면제(사전 허가)를 입실 여부와 함께 확인합니다. 인강처럼 꼭 필요한 사이트나 앱은 학생이 사유와 시간을 적어 신청하고, 선생님이 확인한 뒤 승인합니다.</p>
+        <ul class="chips"><li>매일 휴대폰 제출 확인</li><li>제출 · 미제출 · 미입실 · 면제</li><li>네트워크 사용 신청 · 승인</li></ul>
+      </div>
+      <div class="visual lf-vis">
+        <div class="vcard" role="img" aria-label="휴대폰 제출 확인 예시: 학생별로 제출, 미입실, 면제 상태를 기록">
+          <div class="lf-mk"><b>휴대폰 제출 확인</b><span>9월 24일 (목)</span></div>
+          <ul class="lf-roll">
+            <li><span class="lf-who"><b>김민준</b><em>23번 · 입실</em></span><span class="lf-st ok">제출</span></li>
+            <li><span class="lf-who"><b>이서연</b><em>24번 · 입실</em></span><span class="lf-st ok">제출</span></li>
+            <li><span class="lf-who"><b>박지호</b><em>25번 · 아직 입실 전</em></span><span class="lf-st">미입실</span></li>
+            <li><span class="lf-who"><b>최유나</b><em>26번 · 입실</em></span><span class="lf-st ex">면제 · 사전 허가</span></li>
+          </ul>
+          <span class="lf-btn dark">입실한 학생 모두 제출 처리</span>
+        </div>
+        <p class="lf-vnote">직원용 화면을 단순화한 예시입니다</p>
+      </div>
+    </div>
+
+    <!-- 05 쪽잠 -->
+    <div class="split r">
+      <div>
+        <span class="chap-sec-no">05 · 쪽잠 · 컨디션 관리</span>
+        <h3>졸릴 땐 버티지 말고,<br>짧게 자고 돌아옵니다.</h3>
+        <p class="lead">졸음을 참으며 앉아 있는 시간은 공부가 되지 않습니다. 하루 2회, 20분 또는 30분 쪽잠을 신청하고, 선생님이 승인하면 쉬었다가 다시 자리로 돌아옵니다. 승인 결과는 앱에서 바로 확인합니다.</p>
+        <ul class="chips"><li>하루 2회</li><li>20분 · 30분 선택</li><li>선생님 승인 후 이용</li></ul>
+      </div>
+      <div class="visual lf-vis lf-v-night">
+        <figure class="pf"><img src="photos/ui/portal-nap.png?v=ui3" alt="강한선배 앱 학생 화면의 쪽잠 신청" loading="lazy" onerror="this.closest('.visual').classList.add('noshot')"></figure>
+        <div class="vcard vcard-fb" role="img" aria-label="쪽잠 신청 예시: 20분 또는 30분을 골라 신청하고, 승인 내역을 확인">
+          <div class="lf-mk"><b>쪽잠 신청</b><span class="lf-pill">오늘 1/2회</span></div>
+          <div class="lf-seg two"><span class="on">20분</span><span>30분</span></div>
+          <span class="lf-btn">쪽잠 신청하기</span>
+          <p class="lf-hint">직원 승인 후 이용할 수 있어요</p>
+          <ul class="lf-roll">
+            <li><span class="lf-who"><b>13:30 · 20분</b><em>09/24</em></span><span class="lf-st ok">승인</span></li>
+            <li><span class="lf-who"><b>21:00 · 20분</b><em>09/22</em></span><span class="lf-st ok">승인</span></li>
+          </ul>
+        </div>
+        <p class="lf-vnote">화면 속 이름과 기록은 예시 데이터입니다</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 교시제 -->
+  <section class="bx-sec">
+    <div class="bx-head r">
+      <p class="eyebrow">하루의 리듬 · 교시제</p>
+      <h2 class="bx-h2">언제 공부하고 언제 쉴지<br>시간표가 정해 줍니다.</h2>
+      <p class="bx-sub">혼자서는 지키기 어려운 루틴을 교시제로 잡습니다. 교시가 시작되면 운영진이 자리에 앉았는지 확인합니다.</p>
+    </div>
+    <div class="lf-tt">
+      <div class="lf-tt-card r">
+        <div class="lf-tt-h"><b>방학</b><span>09:00 – 24:00</span></div>
+        <ol class="lf-tt-list">
+          <li><b>1교시</b><span>09:00 – 10:30</span></li>
+          <li><b>2교시</b><span>10:40 – 12:10</span></li>
+          <li class="meal"><b>점심</b><span>12:10 – 13:20</span></li>
+          <li><b>3교시</b><span>13:20 – 14:50</span></li>
+          <li><b>4교시</b><span>15:00 – 16:30</span></li>
+          <li><b>5교시</b><span>16:40 – 18:10</span></li>
+          <li class="meal"><b>저녁</b><span>18:10 – 19:20</span></li>
+          <li><b>6–9교시</b><span>19:20 – 24:00</span></li>
+        </ol>
+      </div>
+      <div class="lf-tt-card r d1">
+        <div class="lf-tt-h"><b>학기 중 평일</b><span>16:00 – 24:00</span></div>
+        <ol class="lf-tt-list">
+          <li><b>1교시</b><span>16:00 – 16:50</span></li>
+          <li><b>2교시</b><span>17:00 – 17:50</span></li>
+          <li><b>3교시</b><span>18:00 – 18:50</span></li>
+          <li><b>4교시</b><span>19:00 – 19:50</span></li>
+          <li><b>5교시</b><span>20:00 – 20:50</span></li>
+          <li><b>6교시</b><span>21:00 – 21:50</span></li>
+          <li><b>7교시</b><span>22:00 – 22:50</span></li>
+          <li><b>8교시</b><span>23:00 – 24:00</span></li>
+        </ol>
+        <p class="lf-tt-foot">하교 후 매시 정각에 교시가 시작됩니다.</p>
+      </div>
+    </div>
+    <p class="ui-note">시즌과 학년에 따라 시간표가 달라질 수 있어요. 상담 때 정확히 안내해 드립니다.</p>
+  </section>
+
+  <!-- 월간 리포트 -->
+  <section class="bx-sec">
+    <div class="split">
+      <div>
+        <p class="eyebrow r">학부모님께</p>
+        <h2 class="bx-h2 r">모든 생활 관리는<br>리포트에 기록됩니다.</h2>
+        <p class="bx-sub r">상벌점 내역, 순찰 점검, 이달의 시상, 운영진이 쓴 원생 기록이 들어갑니다. 담당 선생님이 검토한 뒤 카카오톡으로 보내드리고, 학부모님 본인 확인을 거쳐야 열립니다. 오늘 출결과 이번 달 상벌점은 강한선배 앱 학부모님 화면에서 언제든 보실 수 있습니다.</p>
+        <div class="lf-actions r">
+          <a class="btn btn-dark" href="care-ops.html">리포트 자세히 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        </div>
+      </div>
+      <div class="visual lf-vis lf-v-cool r d1">
+        <figure class="pf"><img src="photos/ui/parent-monthly-3.png?v=ui3" alt="학부모 월간 리포트의 원생 기록 · 상벌점 · 순찰 점검 화면" loading="lazy" onerror="this.closest('.visual').classList.add('noshot')"></figure>
+        <div class="vcard vcard-fb" role="img" aria-label="월간 리포트 예시: 상벌점 내역과 순찰 점검 특이사항 1회, 자리비움 1회">
+          <div class="lf-mk"><b>월간 리포트 · 8월</b><span>김민준</span></div>
+          <p class="lf-sub-h top">상벌점</p>
+          <div class="log lf-log">
+            <div class="log-row"><span class="log-tag merit">+3</span><p>[출결] 여름방학 특강 전 일정 출석</p></div>
+            <div class="log-row"><span class="log-tag merit">+2</span><p>[학습] 영단어 테스트 만점</p></div>
+            <div class="log-row"><span class="log-tag lf-minus">−1</span><p>[생활] 자습실 내 잡담</p></div>
+          </div>
+          <p class="lf-sub-h">순찰 점검</p>
+          <div class="lf-tags"><span class="lf-warn">특이사항 1회</span><span>자리비움 1회</span></div>
+          <p class="lf-note-row"><b>8/14</b> 엎드려 수면 — 깨워서 스트레칭 후 복귀</p>
+        </div>
+        <p class="lf-vnote">화면 속 이름과 기록은 예시 데이터입니다</p>
+      </div>
+    </div>
+
+    <div class="lf-tbl r">
+      <p class="lf-tbl-h">생활 기록은 이렇게 전해집니다</p>
+      <table class="ntable">
+        <thead><tr><th scope="col">생활 기록</th><th scope="col">학부모님이 보시는 내용</th><th scope="col">전달 방법</th></tr></thead>
+        <tbody>
+          <tr><td>출결</td><td>날짜별 입실 · 퇴실 시각과 결석 여부</td><td>학부모님 화면. 홈에서 오늘 출결, 출결 탭에서 월별 기록</td></tr>
+          <tr><td>상벌점</td><td>상점 · 벌점 내역을 사유 · 분류 · 날짜와 함께</td><td>월간 리포트. 이번 달 상점 · 벌점 합계는 학부모님 화면 홈에서도 보여요. 필요할 때는 부여 직후 카카오톡으로도 알려드립니다.</td></tr>
+          <tr><td>순찰 점검</td><td>특이사항 · 자리비움 횟수와 날짜별 사유. 없으면 '특이사항 없음'으로 표시</td><td>월간 리포트</td></tr>
+          <tr><td>이달의 시상</td><td>학습 태도 우수자 · 멘토 선정 우수자 · 진보상</td><td>월간 리포트</td></tr>
+          <tr><td>원생 기록</td><td>운영진이 정리한 한 달의 생활 코멘트</td><td>월간 리포트</td></tr>
+          <tr><td>등원 스케줄</td><td>다음 주 요일별 등하원 · 학원 일정</td><td>학부모님 승인. 승인하시면 예정일 00시에 반영됩니다.<span class="tag auto">자동 반영</span></td></tr>
+        </tbody>
+      </table>
+      <p class="ui-note">모든 리포트는 담당 선생님이 내용을 확인한 뒤 보내드립니다.</p>
+    </div>
+  </section>
+
+  <!-- 후기 -->
+  <section class="bx-sec">
+    <div class="bx-head r">
+      <p class="eyebrow">후기</p>
+      <h2 class="bx-h2">다녀 본 학생과<br>학부모님 이야기입니다.</h2>
+    </div>
+    <div class="rvg lf-rv">
+      <figure class="rvc feat r"><blockquote class="rv-q">매달 오는 리포트로 아이가 뭘 하는지 다 보여요. 잔소리가 줄고 응원이 늘었습니다. 그게 의외로 큰 힘이 됐어요.</blockquote><figcaption class="rv-by"><span>고2 학부모 · 김OO님</span><span class="rv-tag">월간 리포트</span></figcaption></figure>
+      <figure class="rvc r d1"><blockquote class="rv-q">잘한 것도 못한 것도 점수로 다 보여서 믿음이 갑니다. 막연히 "열심히 한대요"가 아니라 기록이 남아요.</blockquote><figcaption class="rv-by"><span>고3 학부모 · 최OO님</span><span class="rv-tag">상벌점 관리</span></figcaption></figure>
+      <figure class="rvc r d2"><blockquote class="rv-q">교시제로 하루가 칼같이 굴러가요. 혼자선 절대 못 지켰을 루틴을 매일 지키게 되니 공부량 자체가 달라졌습니다.</blockquote><figcaption class="rv-by"><span>재수생 · 정OO</span><span class="rv-tag">교시제 학습</span></figcaption></figure>
+    </div>
+  </section>
+
+  <nav class="chap-next" data-chap-next aria-label="다른 관리 보기"></nav>
+
+  <section class="ctab r">
+    <div class="ctab-media"><img src="photos/bx/hall-2.jpg" alt="" loading="lazy"></div>
+    <div class="ctab-in">
+      <p class="eyebrow">무료 입회 상담</p>
+      <h2>아이의 하루를<br>기록으로 확인해 보세요.</h2>
+      <p>지금 공부 상황을 같이 살펴보고, 자리와 관리 방식을 직접 보여드립니다. 상담은 무료입니다.</p>
+      <div class="ctab-actions">
+        <a class="btn btn-brand" href="https://khsb.vercel.app/apply" target="_blank" rel="noopener">무료 입회 상담<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a class="btn btn-glass" href="program.html">관리 시스템 전체 보기</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="bx-core.js?v=bx20"></script>
+</body>
+</html>
