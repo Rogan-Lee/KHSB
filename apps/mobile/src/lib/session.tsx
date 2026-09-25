@@ -154,11 +154,24 @@ export function SessionProvider({ children }: PropsWithChildren) {
     if (!authUserId) return;
 
     let active = true;
-    void fetchProfile().then((nextSession) => {
-      if (active) setProfile({ authUserId, session: nextSession });
-    });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // 네트워크 오류면 1.5s → 3s → 6s 간격으로 재시도. 끝내 실패하면 세션 없음으로 확정해
+    // 진입 화면이 'loading' 에 영원히 머물지 않게 한다.
+    const attempt = (n: number) => {
+      fetchProfile()
+        .then((nextSession) => {
+          if (active) setProfile({ authUserId, session: nextSession });
+        })
+        .catch(() => {
+          if (!active) return;
+          if (n < 3) timer = setTimeout(() => attempt(n + 1), 1500 * 2 ** n);
+          else setProfile({ authUserId, session: null });
+        });
+    };
+    attempt(0);
     return () => {
       active = false;
+      if (timer) clearTimeout(timer);
     };
   }, [authSession.data?.user.id]);
 

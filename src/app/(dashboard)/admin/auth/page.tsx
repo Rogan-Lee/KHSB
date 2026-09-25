@@ -94,7 +94,13 @@ export default async function AuthAdminPage() {
           expiresAt: invitation.expiresAt.toISOString(),
           id: invitation.id,
           name:
-            invitation.type === "PARENT" ? `${baseName} 학부모` : baseName,
+            invitation.type === "PARENT"
+              ? `${baseName}${
+                  invitation.targetStudentIds.length > 1
+                    ? ` 외 ${invitation.targetStudentIds.length - 1}명`
+                    : ""
+                } 학부모`
+              : baseName,
           status: invitation.revokedAt
             ? "REVOKED"
             : invitation.acceptedAt

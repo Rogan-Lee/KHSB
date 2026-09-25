@@ -9,7 +9,7 @@ import {
 } from 'react-native-safe-area-context';
 
 import { RemotePushRegistration } from '@/components/remote-push-registration';
-import { colors } from '@/constants/theme';
+import { color, FeedbackProvider } from '@/design';
 import { useNotificationRouting } from '@/lib/notifications';
 import { SessionProvider } from '@/lib/session';
 
@@ -23,11 +23,11 @@ const navigationTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    background: colors.canvas,
-    border: colors.line,
-    card: colors.surface,
-    primary: colors.primary,
-    text: colors.ink,
+    background: color.bg.layerBasement,
+    border: color.stroke.neutralSubtle,
+    card: color.bg.layerDefault,
+    primary: color.bg.brandSolid,
+    text: color.fg.neutral,
   },
 };
 
@@ -47,14 +47,22 @@ export default function RootLayout() {
         <SessionProvider>
           <RemotePushRegistration />
           <ThemeProvider value={navigationTheme}>
-            <StatusBar style="dark" />
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="index" />
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(student)" />
-              <Stack.Screen name="(staff)" />
-              <Stack.Screen name="notifications" />
-            </Stack>
+            <FeedbackProvider>
+              <StatusBar style="dark" />
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: color.bg.layerBasement },
+                }}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="(student)" />
+                <Stack.Screen name="(staff)" />
+                <Stack.Screen name="(parent)" />
+                <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
+                <Stack.Screen name="account" options={{ animation: 'slide_from_right' }} />
+              </Stack>
+            </FeedbackProvider>
           </ThemeProvider>
         </SessionProvider>
       </SafeAreaProvider>

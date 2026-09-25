@@ -1,102 +1,127 @@
-import { Image } from 'expo-image';
-import { FileText } from 'lucide-react-native';
-import {
-  Linking,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  TextInputProps,
-  View,
-} from 'react-native';
+import { CircleAlert } from 'lucide-react-native';
+import { StyleSheet, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 
-import { colors, palette, spacing, type as typeScale } from '@/constants/theme';
-import { formatShortDateTime } from '@/lib/format';
+import { Avatar, Notice, Text, TextField, color, radius, space } from '@/design';
+import { formatBubbleTime } from '@/features/student-comm/format';
+import { BubbleAttachments } from '@/features/student-comm/message-parts';
 import type { QuestionThreadResponse } from '@/lib/mobile-api';
 
-function attIsImage(att: { mimeType: string; name: string }) {
-  return (
-    att.mimeType.startsWith('image/') ||
-    /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(att.name)
-  );
-}
-
+/**
+ * @deprecated 새 화면은 `TextField`(@/design) 를 직접 쓴다. 기존 화면 호환용 — SEED TextField 로 그린다.
+ */
 export function FormInput({
   label,
   multiline,
-  style,
+  maxLength,
+  style: _style,
   ...props
 }: TextInputProps & { label: string }) {
   return (
-    <View style={styles.field}>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput
-        {...props}
-        multiline={multiline}
-        placeholderTextColor="#9AA49F"
-        style={[styles.input, multiline && styles.multilineInput, style]}
-        textAlignVertical={multiline ? 'top' : 'center'}
-      />
-    </View>
+    <TextField
+      {...props}
+      label={label}
+      multiline={multiline}
+      maxLength={maxLength}
+      showCount={!!multiline && maxLength != null}
+    />
   );
 }
 
+/** 폼 에러 안내 (SEED Callout critical). 빈 문자열이면 아무것도 그리지 않는다. */
 export function FormError({ message }: { message: string }) {
   if (!message) return null;
-  return <Text style={styles.error}>{message}</Text>;
+  return (
+    <Notice tone="bad" icon={CircleAlert}>
+      {message}
+    </Notice>
+  );
 }
 
+type ThreadMessage = QuestionThreadResponse['messages'][number];
+
+/**
+ * 질문 스레드 말풍선 목록 — 웹 QuestionThread(portal) 와 같은 SEED 모양.
+ *  · 내 메시지: 브랜드색 오른쪽, 아래 시각
+ *  · 상대: 아바타 + 이름(멘토면 "○○ 멘토") + 말풍선, 아래 시각
+ *  · 사진(1장 크게 / 여러 장 2열, 누르면 크게 보기)·영상·파일
+ * surface: 회색 캔버스 위(canvas)면 상대 말풍선이 흰색, 흰 패널 위(panel, 기본)면 회색.
+ */
 export function MessageThread({
   messages,
   viewer,
+  surface = 'panel',
+  emptyHint,
+  style,
 }: {
-  messages: QuestionThreadResponse['messages'];
+  messages: ThreadMessage[];
   viewer: 'STUDENT' | 'STAFF';
+  surface?: 'canvas' | 'panel';
+  /** 메시지가 없을 때 안내 */
+  emptyHint?: string;
+  style?: StyleProp<ViewStyle>;
 }) {
+  const onCanvas = surface === 'canvas';
+  if (messages.length === 0) {
+    return emptyHint ? (
+      <Text variant="t4-regular" color="neutralSubtle" align="center" style={s.empty}>
+        {emptyHint}
+      </Text>
+    ) : null;
+  }
   return (
-    <View style={styles.thread}>
-      {messages.map((message) => {
-        const mine = message.senderType === viewer;
+    <View style={[s.list, style]} accessibilityRole="list">
+      {messages.map((m) => {
+        const mine = m.senderType === viewer;
+        const hasBody = m.content.length > 0;
+        const time = (
+          <Text variant="t2-regular" color="placeholder" tabular style={s.time}>
+            {formatBubbleTime(m.createdAt)}
+          </Text>
+        );
+        if (mine) {
+          return (
+            <View key={m.id} style={s.mineRow}>
+              <View style={s.mineCol}>
+                <BubbleAttachments attachments={m.attachments} mine onCanvas={onCanvas} />
+                {hasBody && (
+                  <View style={[s.bubble, s.bubbleMine]}>
+                    <Text variant="t5-regular" color="staticWhite" selectable>
+                      {m.content}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {time}
+            </View>
+          );
+        }
+        const name =
+          m.senderType === 'STAFF' && m.senderName && !m.senderName.endsWith('멘토')
+            ? `${m.senderName} 멘토`
+            : m.senderName || '멘토';
         return (
-          <View
-            key={message.id}
-            style={[styles.messageRow, mine ? styles.messageRowMine : styles.messageRowOther]}>
-            <View style={[styles.message, mine ? styles.messageMine : styles.messageOther]}>
-              <Text style={styles.sender}>{message.senderName}</Text>
-              <Text style={styles.messageText}>{message.content}</Text>
-              {message.attachments.length > 0 ? (
-                <View style={styles.attachments}>
-                  {message.attachments.map((attachment) =>
-                    attIsImage(attachment) ? (
-                      <Pressable
-                        accessibilityLabel={`${attachment.name} 사진 열기`}
-                        accessibilityRole="link"
-                        key={attachment.url}
-                        onPress={() => void Linking.openURL(attachment.url)}
-                        style={({ pressed }) => pressed && styles.pressed}>
-                        <Image
-                          contentFit="cover"
-                          source={{ uri: attachment.url }}
-                          style={styles.attachmentImage}
-                        />
-                      </Pressable>
-                    ) : (
-                      <Pressable
-                        accessibilityLabel={`${attachment.name} 파일 열기`}
-                        accessibilityRole="link"
-                        key={attachment.url}
-                        onPress={() => void Linking.openURL(attachment.url)}
-                        style={({ pressed }) => [styles.fileChip, pressed && styles.pressed]}>
-                        <FileText color={palette.blue50} size={16} />
-                        <Text numberOfLines={1} style={styles.fileChipText}>
-                          {attachment.name}
-                        </Text>
-                      </Pressable>
-                    ),
-                  )}
-                </View>
-              ) : null}
-              <Text style={styles.messageTime}>{formatShortDateTime(message.createdAt)}</Text>
+          <View key={m.id} style={s.theirsRow}>
+            <Avatar name={m.senderName || '?'} size={32} />
+            <View style={s.theirsCol}>
+              <Text variant="t3-medium" color="neutralMuted" style={s.name} numberOfLines={1}>
+                {name}
+              </Text>
+              <View style={s.theirsBody}>
+                <BubbleAttachments attachments={m.attachments} mine={false} onCanvas={onCanvas} />
+                {hasBody && (
+                  <View
+                    style={[
+                      s.bubble,
+                      s.bubbleTheirs,
+                      { backgroundColor: onCanvas ? color.bg.layerDefault : color.bg.neutralWeak },
+                    ]}>
+                    <Text variant="t5-regular" selectable>
+                      {m.content}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              {time}
             </View>
           </View>
         );
@@ -105,101 +130,22 @@ export function MessageThread({
   );
 }
 
-const styles = StyleSheet.create({
-  field: {
-    gap: spacing.sm,
+const s = StyleSheet.create({
+  list: { gap: space.x4 },
+  empty: { paddingVertical: space.x10 },
+  mineRow: { alignItems: 'flex-end' },
+  mineCol: { maxWidth: '82%', alignItems: 'flex-end', gap: space.x1_5 },
+  theirsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.x2 },
+  theirsCol: { maxWidth: '80%', flexShrink: 1, alignItems: 'flex-start' },
+  theirsBody: { maxWidth: '100%', alignItems: 'flex-start', gap: space.x1_5 },
+  name: { marginBottom: space.x1, paddingHorizontal: space.x1 },
+  time: { marginTop: space.x1, paddingHorizontal: space.x1 },
+  bubble: {
+    maxWidth: '100%',
+    borderRadius: radius.r5,
+    paddingHorizontal: space.x4,
+    paddingVertical: space.x2_5,
   },
-  label: {
-    color: colors.ink,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  input: {
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderRadius: 8,
-    borderWidth: 1,
-    color: colors.ink,
-    fontSize: 15,
-    minHeight: 48,
-    paddingHorizontal: spacing.md,
-  },
-  multilineInput: {
-    minHeight: 132,
-    paddingTop: spacing.md,
-  },
-  error: {
-    color: colors.red,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  thread: {
-    gap: spacing.md,
-  },
-  messageRow: {
-    flexDirection: 'row',
-  },
-  messageRowMine: {
-    justifyContent: 'flex-end',
-  },
-  messageRowOther: {
-    justifyContent: 'flex-start',
-  },
-  message: {
-    borderRadius: 8,
-    gap: spacing.xs,
-    maxWidth: '88%',
-    padding: spacing.md,
-  },
-  messageMine: {
-    backgroundColor: colors.primarySoft,
-  },
-  messageOther: {
-    backgroundColor: colors.surface,
-    borderColor: colors.line,
-    borderWidth: 1,
-  },
-  sender: {
-    color: colors.muted,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  messageText: {
-    color: colors.ink,
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  messageTime: {
-    color: colors.muted,
-    fontSize: 10,
-  },
-  attachments: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-  },
-  attachmentImage: {
-    borderRadius: 8,
-    height: 112,
-    width: 112,
-  },
-  fileChip: {
-    alignItems: 'center',
-    backgroundColor: palette.blue5,
-    borderRadius: 10,
-    flexDirection: 'row',
-    gap: 6,
-    maxWidth: 220,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  fileChipText: {
-    ...typeScale.caption1,
-    color: palette.blue50,
-    flexShrink: 1,
-    fontWeight: '700',
-  },
-  pressed: {
-    opacity: 0.72,
-  },
+  bubbleMine: { backgroundColor: color.bg.brandSolid, borderBottomRightRadius: radius.r1_5 },
+  bubbleTheirs: { borderTopLeftRadius: radius.r1_5 },
 });

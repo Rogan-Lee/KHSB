@@ -1,10 +1,10 @@
-import { Redirect, Tabs } from 'expo-router';
-import { BookA, Bookmark, Home, MessagesSquare } from 'lucide-react-native';
+import { Redirect, Stack } from 'expo-router';
 
-import { RoleTabs, tabIcon } from '@/components/role-tabs';
+import { color } from '@/design';
 import { useSession } from '@/lib/session';
 
-export default function StudentLayout() {
+/** student — 탭 루트((tabs)) 위에 하위 화면을 쌓는 스택. 하위 화면은 탭바 없이 뒤로가기 헤더(Screen kind="push"). */
+export default function RoleLayout() {
   const { session, status } = useSession();
 
   if (status !== 'loading' && session?.role !== 'student') {
@@ -12,31 +12,13 @@ export default function StudentLayout() {
   }
 
   return (
-    <RoleTabs>
-      <Tabs.Screen
-        name="index"
-        options={{ tabBarIcon: tabIcon(Home), tabBarLabel: '홈', title: '홈' }}
-      />
-      <Tabs.Screen
-        name="student-tasks"
-        options={{ tabBarIcon: tabIcon(Bookmark), tabBarLabel: '과제', title: '과제·수행평가' }}
-      />
-      <Tabs.Screen
-        name="vocab"
-        options={{ tabBarIcon: tabIcon(BookA), tabBarLabel: '단어', title: '단어' }}
-      />
-      <Tabs.Screen
-        name="chat"
-        options={{ tabBarIcon: tabIcon(MessagesSquare), tabBarLabel: '소통', title: '멘토 채팅' }}
-      />
-      {/* 보조 라우트 — 탭바에는 노출하지 않음 */}
-      <Tabs.Screen name="programs" options={{ href: null, title: '프로그램' }} />
-      <Tabs.Screen name="qna" options={{ href: null, title: '질의응답' }} />
-      <Tabs.Screen name="feedback" options={{ href: null, title: '받은 피드백' }} />
-      <Tabs.Screen name="suggestions" options={{ href: null, title: '건의사항' }} />
-      <Tabs.Screen name="survey" options={{ href: null, title: '초기 설문' }} />
-      <Tabs.Screen name="more" options={{ href: null, title: '내 정보' }} />
-      <Tabs.Screen name="portal" options={{ href: null, title: '학생 포털' }} />
-    </RoleTabs>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: color.bg.layerBasement },
+        animation: 'slide_from_right',
+      }}>
+      <Stack.Screen name="(tabs)" />
+    </Stack>
   );
 }

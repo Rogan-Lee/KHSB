@@ -17,7 +17,14 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            apps/mobile/package-lock.json
 
       - run: npm ci
+
+      # 루트 테스트 일부가 apps/mobile/src/lib 를 불러오고, 그 tsconfig 가 expo/tsconfig.base 를 확장한다
+      - run: npm ci --ignore-scripts
+        working-directory: apps/mobile
 
       - run: npm test

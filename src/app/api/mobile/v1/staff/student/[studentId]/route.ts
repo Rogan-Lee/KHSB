@@ -5,18 +5,19 @@ import {
   mobileJson,
   requireMobileStaff,
 } from "@/lib/mobile-auth";
-import { getStaffMobileStudentDetail } from "@/lib/mobile-data";
+import { getStaffStudentProfile } from "@/lib/mobile-staff-ops";
 
+// 기존 필드(info·assignments·scores) 유지 + today·attendance14·merits·communications·mentorings 확장
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ studentId: string }> },
 ) {
   try {
-    const [, { studentId }] = await Promise.all([
+    const [user, { studentId }] = await Promise.all([
       requireMobileStaff(request),
       context.params,
     ]);
-    return mobileJson(await getStaffMobileStudentDetail(studentId));
+    return mobileJson(await getStaffStudentProfile(studentId, user.id));
   } catch (error) {
     return mobileApiErrorResponse(error);
   }

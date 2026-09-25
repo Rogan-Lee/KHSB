@@ -56,7 +56,8 @@ export function staffCapabilities(role: string): StaffCapabilities {
     fullAccess,
     offlineOps: isStaff(role),
     onlineModule: isOnlineStaff(role),
-    writeFeedback: fullAccess || role === "CONSULTANT",
+    // 웹과 같게: 담당 학생의 수행평가에는 운영진 누구나 피드백 (담당 여부는 서버 mobile-tasks 가 확인)
+    writeFeedback: isStaff(role) || isOnlineStaff(role),
     payroll: fullAccess,
     issueCodes: isStaff(role),
     kakaoRaw: canViewKakaoRaw(role),

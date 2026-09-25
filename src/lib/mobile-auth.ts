@@ -68,7 +68,13 @@ export async function requireMobileAccount(request: NextRequest) {
   const activeAppUser = appUser?.status === "ACTIVE" ? appUser : null;
   const activeStudent = student?.status === "ACTIVE" ? student : null;
   if (!activeAppUser && !activeStudent) {
-    throw new MobileApiError("사용할 수 없는 계정입니다", 403);
+    // 학부모 계정: appUser/student 없이 ParentLink 로만 연결됨 — 푸시 토큰 등록 등 공용 API 허용
+    const parentLinkCount = await prisma.parentLink.count({
+      where: { authUserId: current.identity.id, student: { status: "ACTIVE" } },
+    });
+    if (parentLinkCount === 0) {
+      throw new MobileApiError("사용할 수 없는 계정입니다", 403);
+    }
   }
 
   return {
@@ -84,6 +90,19 @@ export async function requireMobileStaff(request: NextRequest) {
 
   const user = current.identity.appUser;
   if (!user || user.status !== "ACTIVE" || !isStaff(user.role)) {
+    throw new MobileApiError("운영진 계정으로 이용할 수 없습니다", 403);
+  }
+
+  return user;
+}
+
+/** 오프라인 운영진(isStaff) 또는 온라인 관리 역할(isOnlineStaff) — 역할별 기능은 capabilities 로 분기 */
+export async function requireMobileAnyStaff(request: NextRequest) {
+  const current = await getAuthIdentity(request.headers);
+  if (!current) throw new MobileApiError("로그인이 필요합니다", 401);
+
+  const user = current.identity.appUser;
+  if (!user || user.status !== "ACTIVE" || !(isStaff(user.role) || isOnlineStaff(user.role))) {
     throw new MobileApiError("운영진 계정으로 이용할 수 없습니다", 403);
   }
 
