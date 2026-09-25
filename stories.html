@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>강한 이야기 | 강한선배</title>
+  <meta name="description" content="합격생과 학부모님 후기, 선배 멘토의 공부법, 원장 칼럼을 모았습니다. 강한선배 이야기.">
+  <meta name="theme-color" content="#0b0c0f">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="강한 이야기 | 강한선배">
+  <meta property="og:description" content="공부법부터 입시 전략까지, 강한선배 인사이트. 선배 아티클, 원장 칼럼, 후기.">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="landing.css?v=seed3">
+  <link rel="stylesheet" href="bx-core.css?v=bx20">
+  <style>
+    .sy-bar { position: sticky; top: calc(var(--gnb-h) + 12px); z-index: 20; display: flex; justify-content: center; margin: 64px 0 44px; transition: top .45s var(--ease-out); }
+    .gnb.hide ~ main .sy-bar, body:has(.gnb.hide) .sy-bar { top: 14px; }
+    .sy-bar .seg { box-shadow: 0 10px 30px -14px rgba(16, 24, 40, .3); background: rgba(246, 247, 249, .92); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+    .sy-intro { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 64px; }
+    .sy-intro div { border-radius: 24px; background: var(--paper-2); padding: 24px 26px; }
+    .sy-intro b { display: block; font-size: 17px; font-weight: 800; letter-spacing: -.03em; }
+    .sy-intro span { display: block; font-size: 14.5px; color: var(--dim); line-height: 1.6; margin-top: 6px; }
+    .sy-more { text-align: center; margin-top: 48px; }
+    .sy-rv { margin-top: 20px; }
+    @media (max-width: 860px) { .sy-intro { grid-template-columns: 1fr; } .sy-bar { margin: 40px -28px 32px; padding: 0 16px; overflow-x: auto; justify-content: flex-start; } }
+  </style>
+</head>
+<body class="bx" data-page="stories">
+<script src="bx-data.js?v=bx20"></script>
+<script src="bx-shell.js?v=bx20"></script>
+
+<main id="main">
+  <header class="ph">
+    <p class="eyebrow">강한 이야기</p>
+    <h1 class="ph-title"><span class="ln"><span>공부법부터 입시 전략까지,</span></span><span class="ln"><span>강한선배 <em>인사이트</em>.</span></span></h1>
+    <p class="ph-lead">최상위권 대학 재학생 멘토의 과목별 공부법, 원장이 현장에서 정리한 입시 전략, 합격생과 학부모님의 실제 후기까지. 입시를 준비하며 알아 두면 좋은 이야기를 한곳에 모았습니다.</p>
+    <div class="sy-intro">
+      <div class="r"><b>후기</b><span>재원생, 합격생, 학부모님이 들려주는 강한선배에서의 하루</span></div>
+      <div class="r d1"><b>선배 아티클</b><span>명문대 선배 멘토가 쓰는 과목별 공부법과 입시 전략</span></div>
+      <div class="r d2"><b>원장 칼럼</b><span>관리형 독서실을 운영하면서 원장이 보고 느낀 것들</span></div>
+    </div>
+  </header>
+
+  <section class="bx-sec" style="padding-top:0">
+    <div class="sy-bar">
+      <div class="seg" role="tablist" aria-label="이야기 분류" id="syTabs">
+        <button role="tab" data-type="" aria-selected="true">전체</button>
+        <button role="tab" data-type="review" aria-selected="false">후기</button>
+        <button role="tab" data-type="mentor" aria-selected="false">선배 아티클</button>
+        <button role="tab" data-type="director" aria-selected="false">원장 칼럼</button>
+        <button role="tab" data-type="podcast,article" aria-selected="false">팟캐스트 · 링크</button>
+      </div>
+    </div>
+    <div class="stg" id="syGrid" aria-live="polite"></div>
+    <div class="rvg sy-rv" id="syFallback" hidden></div>
+    <div class="sy-more"><button class="btn btn-line" id="syMore" hidden>더 보기</button></div>
+  </section>
+
+  <section class="ctab r">
+    <div class="ctab-media"><img src="photos/bx/hall-2.jpg" alt="" loading="lazy"></div>
+    <div class="ctab-in">
+      <p class="eyebrow">방문 상담</p>
+      <h2>글로 읽은 그 하루,<br>무료 상담에서 확인하세요.</h2>
+      <p>지금 공부 상황을 같이 살펴보고, 자리와 관리 방식을 직접 보여드립니다. 담임 멘토 배정도 이때 안내해 드립니다. 상담은 무료입니다.</p>
+      <div class="ctab-actions">
+        <a class="btn btn-brand" href="https://khsb.vercel.app/apply" target="_blank" rel="noopener">무료 입회 상담<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a class="btn btn-glass" href="mentors.html">선배 멘토진 보기</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="bx-core.js?v=bx20"></script>
+<script>
+  // 강한 이야기 목록 — 공개 콘텐츠 API. ?type=review|mentor|director 로 탭 진입 가능.
+  (() => {
+    const grid = document.getElementById('syGrid');
+    const fallback = document.getElementById('syFallback');
+    const more = document.getElementById('syMore');
+    const tabs = [...document.querySelectorAll('#syTabs button')];
+    const PAGE = 9;
+    let all = null, shown = 0, type = new URLSearchParams(location.search).get('type') || '';
+    if (!tabs.some(t => t.dataset.type === type)) type = '';
+
+    const skeleton = () => Array.from({ length: 6 }, () => '<div class="stc st-skel"><div class="stc-cover"></div><p class="stc-title"></p></div>').join('');
+    const matches = p => !type || type.split(',').includes(p.type);
+
+    function paint(reset) {
+      const list = all.filter(matches);
+      if (reset) { grid.innerHTML = ''; shown = 0; }
+      if (!list.length) {
+        const label = tabs.find(t => t.dataset.type === type)?.textContent || '이야기';
+        grid.innerHTML = `<div class="st-empty"><b>아직 발행된 ${label}${label === '전체' ? ' 이야기가' : '가'} 없습니다</b>곧 새로운 이야기로 찾아뵐게요.</div>`;
+        more.hidden = true;
+        return;
+      }
+      const next = list.slice(shown, shown + PAGE);
+      grid.insertAdjacentHTML('beforeend', next.map((p, i) => KHSB.storyCard(p, reset && i === 0 && !type)).join(''));
+      shown += next.length;
+      more.hidden = shown >= list.length;
+      KHSB.observeNew(grid);
+    }
+    function select(t, push) {
+      type = t;
+      tabs.forEach(b => b.setAttribute('aria-selected', String(b.dataset.type === t)));
+      if (push) history.replaceState(null, '', t ? `?type=${encodeURIComponent(t)}` : location.pathname);
+      if (all) paint(true);
+      fallback.hidden = !(all === false && (!t || t === 'review'));
+    }
+    tabs.forEach(b => b.addEventListener('click', () => select(b.dataset.type, true)));
+    more.addEventListener('click', () => paint(false));
+
+    grid.innerHTML = skeleton();
+    select(type, false);
+    KHSB.api('/api/public/content?limit=50')
+      .then(d => { all = (d && d.posts) || []; paint(true); })
+      .catch(() => {
+        // API 연결 실패 → 기본 후기만 보여줌
+        all = false;
+        grid.innerHTML = `<div class="st-empty"><b>이야기를 불러오지 못했습니다</b>잠시 후 다시 시도해 주세요. 아래는 강한선배 후기입니다.</div>`;
+        fallback.innerHTML = REVIEWS.map((r, i) => KHSB.reviewCard(r, i === 0)).join('');
+        fallback.hidden = false;
+        KHSB.observeNew(fallback);
+      });
+  })();
+</script>
+</body>
+</html>
