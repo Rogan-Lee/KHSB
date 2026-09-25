@@ -6,18 +6,28 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Pager } from "@/components/ui/pager";
 import {
-  Pin, PinOff, CheckCircle2, Clock, Trash2, AlertTriangle,
-  Eye, ListChecks, Users, User, CheckSquare, Square, Plus,
-  ChevronLeft, ChevronRight,
+  Pin, PinOff, CheckCircle2, Trash2, Eye, ListChecks, Users, CheckSquare,
+  ChevronLeft, ChevronRight, Inbox, CalendarCheck,
 } from "lucide-react";
 import { cn, DAY_NAMES, todayKST } from "@/lib/utils";
 import { deleteHandover, markHandoverRead, togglePin, toggleHandoverTask, recordHandoverView } from "@/actions/handover";
 import { toggleRoutineCompletion } from "@/actions/checklist-templates";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TodoForm } from "@/components/todos/todo-manager";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
-import Link from "next/link";
 import { DateRangeToolbar } from "@/components/ui/date-range-toolbar";
+import {
+  Avatar,
+  EmptyState,
+  ListItem,
+  Section,
+  StatCard,
+  StatCards,
+  StatusBadge,
+  Toolbar,
+} from "@/components/backoffice/ui";
+import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
+import { CheckRow, ShiftBadge, stripMarkdownPreview } from "@/components/handover/handover-ui";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type HandoverTask = { id: string; title: string; content: string; assigneeId: string | null; assigneeName: string | null; order: number; isCompleted: boolean; completedAt: Date | null };
@@ -27,12 +37,6 @@ type Handover = { id: string; date: Date; content: string; priority: "URGENT" | 
 type Staff = { id: string; name: string; role: string };
 type RoutineTemplate = { id: string; title: string; shiftType: string; days: string; isActive: boolean; order: number };
 
-const SHIFT_LABEL: Record<string, string> = { OPEN: "오픈", CLOSE: "마감", ALL: "공통" };
-const SHIFT_COLOR: Record<string, string> = {
-  OPEN: "bg-blue-50 text-blue-700 border-blue-200",
-  CLOSE: "bg-purple-50 text-purple-700 border-purple-200",
-  ALL: "bg-gray-50 text-gray-600 border-gray-200",
-};
 const SHIFT_ORDER = ["ALL", "OPEN", "CLOSE"];
 
 interface Props {
@@ -67,14 +71,14 @@ function ReadersPopover({ reads, onClose }: { reads: HandoverRead[]; onClose: ()
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => { const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); }; document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h); }, [onClose]);
   return (
-    <div ref={ref} className="absolute right-0 top-full mt-1 z-50 w-52 rounded-xl border bg-popover shadow-lg p-3 space-y-2">
-      <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5"><Users className="h-3 w-3" />확인한 사람</p>
-      {reads.length === 0 ? <p className="text-xs text-muted-foreground">아직 없습니다</p> : (
-        <ul className="space-y-1.5">
+    <div ref={ref} className="absolute left-0 top-full z-50 mt-x1 w-56 rounded-r3 bg-bg-layer-floating p-x3 shadow-[var(--seed-shadow-s2)]">
+      <p className="mb-x2 t3-bold text-fg-neutral">확인한 사람</p>
+      {reads.length === 0 ? <p className="t3-regular text-fg-neutral-subtle">아직 없어요</p> : (
+        <ul className="flex flex-col gap-x1_5">
           {reads.map((r) => (
-            <li key={r.userId} className="flex items-center justify-between text-xs">
-              <span className="font-medium">{r.userName}</span>
-              <span className="text-muted-foreground">{new Date(r.readAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+            <li key={r.userId} className="flex items-center justify-between gap-x2 t3-regular">
+              <span className="t3-medium text-fg-neutral">{r.userName}</span>
+              <span className="tabular-nums text-fg-neutral-subtle">{new Date(r.readAt).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
             </li>
           ))}
         </ul>
@@ -84,23 +88,7 @@ function ReadersPopover({ reads, onClose }: { reads: HandoverRead[]; onClose: ()
 }
 
 // ── Summary card (슬랙/노션 스타일) ──────────────────────────────────────────
-// content에서 Markdown 서식(**, *, #, -)을 제거한 평문 미리보기를 만든다 (최대 N글자).
-function stripMarkdownPreview(src: string, max = 140): string {
-  const flat = src
-    .replace(/```[\s\S]*?```/g, " ")          // 코드 블록
-    .replace(/`[^`]*`/g, " ")                  // 인라인 코드
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")    // 이미지
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")  // 링크
-    .replace(/^#{1,6}\s+/gm, "")              // 헤더
-    .replace(/^[-*+]\s+/gm, "• ")             // 리스트
-    .replace(/\*\*([^*]+)\*\*/g, "$1")        // bold
-    .replace(/\*([^*]+)\*/g, "$1")            // italic
-    .replace(/\s+/g, " ")
-    .trim();
-  return flat.length > max ? flat.slice(0, max) + "…" : flat;
-}
-
-function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRead, onTogglePin, isPending, defaultExpanded = false }: {
+function HandoverSummaryCard({ h, currentUserId, onDelete, onRead, onTogglePin, isPending, defaultExpanded = false }: {
   h: Handover; currentUserId: string; currentUserName: string; onDelete: (id: string) => void; onRead: (h: Handover) => void; onTogglePin: (h: Handover) => void; isPending: boolean; defaultExpanded?: boolean;
 }) {
   const router = useRouter();
@@ -128,55 +116,41 @@ function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRe
     router.push(`/handover/${h.id}`);
   }
 
-  // 아바타 이니셜
-  const initial = h.authorName.slice(0, 1);
-
   return (
-    <div
-      onClick={handleCardClick}
-      className={cn(
-        "flex gap-2.5 py-2 px-2 rounded-lg cursor-pointer transition-colors group",
-        needsMyConfirm ? "bg-blue-50/60 hover:bg-blue-50" :
-        !isRead && !isAuthor ? "bg-muted/30 hover:bg-muted/50" :
-        "hover:bg-muted/30",
-      )}
-    >
+    <div onClick={handleCardClick} className="flex cursor-pointer gap-x3">
       {/* 아바타 */}
-      <div className={cn(
-        "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
-        isUrgent ? "bg-red-100 text-red-700" : "bg-[#FBE9DE] text-[#C5461A]"
-      )}>
-        {initial}
-      </div>
+      <Avatar name={h.authorName} size={40} />
 
       {/* 메시지 본문 */}
-      <div className="flex-1 min-w-0 space-y-1">
-        {/* 이름 + 시간 + 뱃지 */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-bold text-foreground">{h.authorName}</span>
-          <span className="text-xs text-muted-foreground">{fmtTime(h.createdAt)}</span>
-          {h.isPinned && <Pin className="h-3 w-3 text-amber-500" />}
-          {isUrgent && <span className="text-[10px] font-semibold bg-red-100 text-red-700 rounded px-1.5 py-0.5">긴급</span>}
-          {h.category && <span className="text-[10px] bg-muted text-muted-foreground rounded px-1.5 py-0.5">{h.category}</span>}
-          {!isRead && !isAuthor && <span className="text-[10px] font-semibold bg-blue-500 text-white rounded px-1.5 py-0.5">NEW</span>}
+      <div className="min-w-0 flex-1">
+        {/* 이름 + 시간 + 배지 */}
+        <div className="flex flex-wrap items-center gap-x1_5">
+          <span className="t5-bold text-fg-neutral">{h.authorName}</span>
+          <span className="t3-regular tabular-nums text-fg-neutral-subtle">{fmtTime(h.createdAt)}</span>
+          {h.isPinned && <StatusBadge tone="warn"><Pin />고정</StatusBadge>}
+          {isUrgent && <StatusBadge tone="bad">긴급</StatusBadge>}
+          {h.category && <StatusBadge>{h.category}</StatusBadge>}
+          {!isRead && !isAuthor && <StatusBadge tone="brand" solid>새 글</StatusBadge>}
+          {needsMyConfirm && <StatusBadge tone="info">나에게 전달됨</StatusBadge>}
         </div>
 
         {/* 본문 — 카드에서 가장 눈에 띄는 요소. 펼치면 Markdown 원본을 인라인 렌더 */}
         {h.content && (
-          <div className="space-y-0.5">
+          <div className="mt-x2">
             {expanded ? (
-              <div onClick={(e) => e.stopPropagation()} className="text-sm text-foreground max-h-[26rem] overflow-y-auto pr-1">
+              <div onClick={(e) => e.stopPropagation()} className="max-h-[26rem] cursor-auto overflow-y-auto pr-x1 t5-regular text-fg-neutral">
                 <MarkdownViewer source={h.content} />
               </div>
             ) : (
-              <p className="text-sm text-foreground line-clamp-4 leading-relaxed whitespace-pre-wrap">
+              <p className="line-clamp-4 whitespace-pre-wrap t5-regular text-fg-neutral">
                 {stripMarkdownPreview(h.content, 280)}
               </p>
             )}
             {isLong && (
               <button
+                type="button"
                 onClick={(e) => { e.stopPropagation(); setExpanded((p) => !p); }}
-                className="text-xs font-medium text-blue-600 hover:underline"
+                className="mt-x1 t4-medium text-fg-neutral-muted underline-offset-4 hover:text-fg-neutral hover:underline"
               >
                 {expanded ? "접기" : "더보기"}
               </button>
@@ -185,40 +159,46 @@ function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRe
         )}
 
         {/* 하단 정보 */}
-        <div className="flex items-center gap-3 flex-wrap text-xs text-muted-foreground">
+        <div className="mt-x3 flex flex-wrap items-center gap-x-x3 gap-y-x1_5 t3-regular text-fg-neutral-subtle">
           {h.tasks.length > 0 && (
-            <span className="flex items-center gap-1">
-              <ListChecks className="h-3 w-3" />할 일 {completedTasks}/{h.tasks.length}
+            <span className="inline-flex items-center gap-x1 tabular-nums">
+              <ListChecks className="size-3.5" aria-hidden />할 일 {completedTasks}/{h.tasks.length}
             </span>
           )}
           {h.checklist.length > 0 && (
-            <span className="flex items-center gap-1">
-              <CheckSquare className="h-3 w-3" />루틴 {checkedCount}/{h.checklist.length}
+            <span className="inline-flex items-center gap-x1 tabular-nums">
+              <CheckSquare className="size-3.5" aria-hidden />루틴 {checkedCount}/{h.checklist.length}
             </span>
           )}
           {recipientNames.length > 0 && (
-            <span className="flex items-center gap-1">
-              <Users className="h-3 w-3" />
+            <span className="inline-flex items-center gap-x1 tabular-nums">
+              <Users className="size-3.5" aria-hidden />
               {confirmedCount}/{recipientNames.length}명 확인
             </span>
           )}
           <div className="relative">
-            <button onClick={() => setShowReaders((p) => !p)} className="flex items-center gap-1 hover:text-foreground transition-colors">
-              <Eye className="h-3 w-3" />{confirmedReads.length}
+            <button
+              type="button"
+              onClick={() => setShowReaders((p) => !p)}
+              aria-expanded={showReaders}
+              aria-label={`확인한 사람 ${confirmedReads.length}명 보기`}
+              className="inline-flex items-center gap-x1 rounded-r2 px-x1 py-x0_5 tabular-nums transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral"
+            >
+              <Eye className="size-3.5" aria-hidden />{confirmedReads.length}
             </button>
             {showReaders && <ReadersPopover reads={confirmedReads} onClose={() => setShowReaders(false)} />}
           </div>
 
           {/* 수신자 확인 현황 */}
           {recipientNames.length > 0 && (
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-x1">
               {recipientNames.map((name, idx) => {
                 const rid = recipientIds[idx];
                 const rRead = rid ? h.reads.find((r) => r.userId === rid && r.confirmedAt != null) : null;
                 return (
-                  <span key={idx} className={cn("text-[10px] rounded px-1.5 py-0.5 font-medium", rRead ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500")}>
+                  <StatusBadge key={idx} tone={rRead ? "ok" : "gray"}>
                     {name}{rRead ? " ✓" : ""}
-                  </span>
+                  </StatusBadge>
                 );
               })}
             </div>
@@ -227,45 +207,40 @@ function HandoverSummaryCard({ h, currentUserId, currentUserName, onDelete, onRe
       </div>
 
       {/* 오른쪽 액션 */}
-      <div className="flex flex-col items-end gap-1.5 shrink-0">
+      <div className="flex shrink-0 flex-col items-end gap-x1_5">
         {isAuthor ? (
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={() => onTogglePin(h)} disabled={isPending} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
-              {h.isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
-            </button>
-            <button onClick={() => onDelete(h.id)} className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600">
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+          <div className="flex items-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onTogglePin(h)}
+              disabled={isPending}
+              aria-label={h.isPinned ? "고정 해제" : "상단 고정"}
+              title={h.isPinned ? "고정 해제" : "상단 고정"}
+              className="size-8"
+            >
+              {h.isPinned ? <PinOff /> : <Pin />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onDelete(h.id)}
+              aria-label="삭제"
+              title="삭제"
+              className="size-8 hover:text-fg-critical"
+            >
+              <Trash2 />
+            </Button>
           </div>
         ) : isRead ? (
-          <span className="flex items-center gap-0.5 text-xs text-green-600 font-medium"><CheckCircle2 className="h-3.5 w-3.5" /></span>
+          <span className="inline-flex items-center gap-x1 t3-medium text-fg-positive">
+            <CheckCircle2 className="size-4" aria-hidden />확인함
+          </span>
         ) : (
-          <button
-            onClick={() => onRead(h)}
-            disabled={isPending}
-            className={cn(
-              "flex items-center gap-1 text-xs rounded-md px-3 py-1.5 font-medium transition-colors",
-              needsMyConfirm
-                ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
-                : "bg-primary text-primary-foreground hover:opacity-90"
-            )}
-          >
+          <Button size="sm" onClick={() => onRead(h)} disabled={isPending}>
             확인
-          </button>
+          </Button>
         )}
-      </div>
-    </div>
-  );
-}
-
-// ── Delete confirm ────────────────────────────────────────────────────────────
-function DeleteConfirm({ onConfirm, onCancel, isPending }: { onConfirm: () => void; onCancel: () => void; isPending: boolean }) {
-  return (
-    <div className="rounded-xl border border-red-200 bg-red-50/60 p-3 flex items-center justify-between gap-2">
-      <p className="text-sm text-red-700">삭제하시겠습니까?</p>
-      <div className="flex gap-2">
-        <Button variant="destructive" size="sm" onClick={onConfirm} disabled={isPending} className="h-7 text-xs">삭제</Button>
-        <Button variant="outline" size="sm" onClick={onCancel} className="h-7 text-xs">취소</Button>
       </div>
     </div>
   );
@@ -397,124 +372,133 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
 
   const hasAny = ordered.length > 0;
 
+  // 나에게 배정된 인수인계 할 일
+  type MyTask = HandoverTask & { handoverAuthorName: string; handoverDate: Date };
+  const myTasks: MyTask[] = handovers
+    .flatMap((h) => h.tasks.filter((t) => t.assigneeId === currentUserId).map((t) => ({ ...t, handoverAuthorName: h.authorName, handoverDate: h.date })));
+  const myTasksDone = myTasks.filter((t) => t.isCompleted).length;
+
+  // 오늘의 루틴
+  const todayDow = todayKST().getUTCDay();
+  const todays = templates
+    .filter((t) => t.isActive && (t.days === "" || t.days.split(",").map(Number).includes(todayDow)))
+    .sort((a, b) => SHIFT_ORDER.indexOf(a.shiftType) - SHIFT_ORDER.indexOf(b.shiftType));
+  const todaysDone = todays.filter((t) => completed.has(t.id)).length;
+
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-4">
-      {/* Top bar: KPI + 작성하기 */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <KpiChip value={unreadCount} label="미확인" color={unreadCount > 0 ? "red" : "muted"} icon={<AlertTriangle className="h-3.5 w-3.5" />} />
-        <KpiChip value={handovers.length} label="인수인계" color="blue" icon={<Clock className="h-3.5 w-3.5" />} />
-        <KpiChip value={handovers.reduce((n, h) => n + h.checklist.length, 0)} label="루틴 항목" color="green" icon={<CheckCircle2 className="h-3.5 w-3.5" />} />
-
-        {/* 조회 기간 (서버측 범위) */}
+    <div className="flex flex-col gap-x6">
+      {/* 조회 기간 (서버측 범위) — 아래 요약·목록이 모두 이 기간 기준 */}
+      <Toolbar className="mb-0">
         <DateRangeToolbar
           initialFrom={initialDateFrom}
           initialTo={initialDateTo}
           basePath="/handover"
-          className="ml-2 flex-wrap"
+          className="flex-wrap"
         />
+      </Toolbar>
 
-        <Link href="/handover/new" className="ml-auto">
-          <Button size="sm" className="gap-1.5">
-            <Plus className="h-4 w-4" />작성하기
-          </Button>
-        </Link>
-      </div>
+      {/* 요약 */}
+      <StatCards cols={3}>
+        <StatCard label="미확인" value={unreadCount} unit="건" tone={unreadCount > 0 ? "warn" : "gray"} />
+        <StatCard label="인수인계" value={handovers.length} unit="건" sub="조회 기간 기준" />
+        <StatCard
+          label="루틴 항목"
+          value={handovers.reduce((n, h) => n + h.checklist.length, 0)}
+          unit="개"
+          className="col-span-2 lg:col-span-1"
+        />
+      </StatCards>
 
       {/* 2-col main */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4 items-start">
+      <div className="grid grid-cols-1 items-start gap-x4 lg:grid-cols-[minmax(0,1fr)_320px]">
 
         {/* LEFT -- 좌우 뷰어 + 페이지네이션 리스트 */}
         {/* min-w-0: grid item 기본 min-width:auto 때문에 긴 본문(코드블록 등)이 안 줄어들어
             오른쪽 루틴 패널을 화면 밖으로 밀어내는(overflow-clip 로 잘림) 문제 방지 */}
-        <div className="space-y-4 min-w-0">
+        <div className="flex min-w-0 flex-col gap-x4">
           {!hasAny ? (
-            <div className="rounded-xl border bg-card flex flex-col items-center justify-center py-16 text-muted-foreground">
-              <Clock className="h-10 w-10 mb-3 opacity-20" />
-              <p className="text-sm">아직 인수인계 내역이 없습니다</p>
-            </div>
+            <Section>
+              <EmptyState
+                icon={Inbox}
+                title="이 기간에 남긴 인수인계가 없어요"
+                description={"오늘 근무 내용을 남기면 다음 근무자가 바로 확인할 수 있어요.\n조회 기간을 바꿔 볼 수도 있어요."}
+              />
+            </Section>
           ) : (
             <>
               {/* 좌우로 넘겨보는 포커스 뷰어 (넘길 때마다 열람 로그) */}
-              <div className="rounded-xl border-2 border-blue-500/30 bg-gradient-to-br from-blue-50/60 to-transparent shadow-sm">
-                <div className="px-3 py-2 border-b border-blue-100 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFocusedIndex((i) => Math.max(0, i - 1))}
-                    disabled={focusedIndex === 0}
-                    className="p-1.5 rounded-lg text-blue-700 hover:bg-blue-100 disabled:opacity-30 disabled:hover:bg-transparent"
-                    aria-label="이전 인수인계"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                  <span className="text-xs font-bold text-blue-900 tabular-nums">
-                    {focusedIndex + 1} <span className="text-blue-700/50">/ {ordered.length}</span>
+              <Section
+                title={
+                  <span className="tabular-nums">
+                    {focusedIndex + 1}
+                    <span className="t6-regular text-fg-neutral-subtle"> / {ordered.length}</span>
                   </span>
-                  {focused && <span className="text-[11px] text-blue-700/70">· {relDate(focused.date)}</span>}
-                  <button
-                    type="button"
-                    onClick={() => setFocusedIndex((i) => Math.min(ordered.length - 1, i + 1))}
-                    disabled={focusedIndex >= ordered.length - 1}
-                    className="ml-auto p-1.5 rounded-lg text-blue-700 hover:bg-blue-100 disabled:opacity-30 disabled:hover:bg-transparent"
-                    aria-label="다음 인수인계"
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </button>
-                </div>
-                <div className="px-3 py-2">
-                  {focused && (deleteConfirmId === focused.id
-                    ? <DeleteConfirm onConfirm={() => handleDelete(focused.id)} onCancel={() => setDeleteConfirmId(null)} isPending={isPending} />
-                    : <HandoverSummaryCard h={focused} currentUserId={currentUserId} currentUserName={currentUserName} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} isPending={isPending} defaultExpanded />
-                  )}
-                </div>
-              </div>
+                }
+                description={focused ? relDate(focused.date) : undefined}
+                actions={
+                  <div className="flex items-center gap-x1">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setFocusedIndex((i) => Math.max(0, i - 1))}
+                      disabled={focusedIndex === 0}
+                      aria-label="이전 인수인계"
+                    >
+                      <ChevronLeft />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setFocusedIndex((i) => Math.min(ordered.length - 1, i + 1))}
+                      disabled={focusedIndex >= ordered.length - 1}
+                      aria-label="다음 인수인계"
+                    >
+                      <ChevronRight />
+                    </Button>
+                  </div>
+                }
+                bodyClassName="border-t border-stroke-neutral-muted pt-x5"
+              >
+                {focused && (
+                  <HandoverSummaryCard h={focused} currentUserId={currentUserId} currentUserName={currentUserName} onDelete={setDeleteConfirmId} onRead={handleRead} onTogglePin={handleTogglePin} isPending={isPending} defaultExpanded />
+                )}
+              </Section>
 
               {/* 전체 리스트 — 5개씩 페이지네이션 (행 클릭 시 위 뷰어로) */}
-              <div className="rounded-xl border bg-card">
-                <div className="px-4 py-2.5 border-b flex items-center gap-2">
-                  <span className="text-sm font-semibold">전체 인수인계</span>
-                  <span className="text-[11px] text-muted-foreground">{ordered.length}건</span>
-                </div>
-                <ul className="divide-y">
+              <Section title="전체 인수인계" count={ordered.length} flush>
+                <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
                   {ordered.slice(listPage * PAGE_SIZE, listPage * PAGE_SIZE + PAGE_SIZE).map((h) => {
                     const gi = ordered.findIndex((x) => x.id === h.id);
                     const isFocused = gi === focusedIndex;
                     const iRead = h.reads.some((r) => r.userId === currentUserId && r.confirmedAt != null);
                     const iViewed = h.reads.some((r) => r.userId === currentUserId);
+                    const isNew = !iRead && h.authorId !== currentUserId;
                     return (
-                      <li key={h.id}>
-                        <button
-                          type="button"
+                      <li key={h.id} aria-current={isFocused ? "true" : undefined}>
+                        <ListItem
                           onClick={() => focusHandover(h.id)}
-                          className={cn(
-                            "w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors",
-                            isFocused ? "bg-blue-50/70" : "hover:bg-muted/40"
-                          )}
-                        >
-                          <div className={cn(
-                            "w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0",
-                            h.priority === "URGENT" ? "bg-red-100 text-red-700" : "bg-[#FBE9DE] text-[#C5461A]"
-                          )}>
-                            {h.authorName.slice(0, 1)}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-sm font-semibold truncate">{h.authorName}</span>
-                              <span className="text-[11px] text-muted-foreground shrink-0">{relDate(h.date)}</span>
-                              {h.isPinned && <Pin className="h-3 w-3 text-amber-500 shrink-0" />}
-                              {h.priority === "URGENT" && <span className="text-[9px] font-semibold bg-red-100 text-red-700 rounded px-1 shrink-0">긴급</span>}
-                              {!iRead && h.authorId !== currentUserId && <span className="text-[9px] font-semibold bg-blue-500 text-white rounded px-1 shrink-0">NEW</span>}
-                            </div>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {stripMarkdownPreview(h.content, 80) || "(내용 없음)"}
-                            </p>
-                          </div>
-                          {iRead
-                            ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                            : iViewed
-                              ? <Eye className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                              : null}
-                        </button>
+                          chevron={false}
+                          className={cn(isFocused && "bg-bg-layer-fill")}
+                          leading={<Avatar name={h.authorName} size={32} />}
+                          title={
+                            <span className="inline-flex items-center gap-x1_5">
+                              {h.authorName}
+                              <span className="t3-regular text-fg-neutral-subtle">{relDate(h.date)}</span>
+                              {h.isPinned && <Pin className="size-3.5 text-fg-warning" aria-label="고정" />}
+                              {h.priority === "URGENT" && <StatusBadge tone="bad">긴급</StatusBadge>}
+                              {isNew && <StatusBadge tone="brand" solid>새 글</StatusBadge>}
+                            </span>
+                          }
+                          description={stripMarkdownPreview(h.content, 80) || "(내용 없음)"}
+                          trailing={
+                            iRead
+                              ? <CheckCircle2 className="size-4 text-fg-positive" aria-label="확인함" />
+                              : iViewed
+                                ? <Eye className="size-4 text-fg-neutral-subtle" aria-label="열람함" />
+                                : undefined
+                          }
+                        />
                       </li>
                     );
                   })}
@@ -523,127 +507,104 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
                   page={listPage}
                   pageCount={pageCount}
                   onPage={setListPage}
-                  className="px-4 py-2.5 border-t"
+                  className="border-t border-stroke-neutral-muted px-x5 py-x3"
                 />
-              </div>
+              </Section>
             </>
           )}
         </div>
 
         {/* RIGHT -- my tasks */}
-        <div className="space-y-3 min-w-0">
-          {(() => {
-            type MyTask = HandoverTask & { handoverAuthorName: string; handoverDate: Date };
-            const myTasks: MyTask[] = handovers
-              .flatMap((h) => h.tasks.filter((t) => t.assigneeId === currentUserId).map((t) => ({ ...t, handoverAuthorName: h.authorName, handoverDate: h.date })));
-            if (myTasks.length === 0) return null;
-            const doneCount = myTasks.filter((t) => t.isCompleted).length;
-            return (
-              <div className="rounded-xl border bg-card overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
-                  <CheckSquare className="h-3.5 w-3.5 text-blue-500" />
-                  <span className="text-sm font-semibold flex-1">내가 받은 할 일</span>
-                  <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-full border",
-                    doneCount === myTasks.length ? "bg-green-50 text-green-700 border-green-200" : "bg-blue-50 text-blue-700 border-blue-200"
-                  )}>{doneCount}/{myTasks.length} 완료</span>
-                </div>
-                <div className="divide-y max-h-72 overflow-y-auto">
-                  {myTasks.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => handleToggleTask(t.id)}
+        <div className="flex min-w-0 flex-col gap-x4">
+          {myTasks.length > 0 && (
+            <Section
+              title="내가 받은 할 일"
+              actions={
+                <StatusBadge tone={myTasksDone === myTasks.length ? "ok" : "gray"}>
+                  {myTasksDone}/{myTasks.length} 완료
+                </StatusBadge>
+              }
+              flush
+            >
+              <ul className="max-h-72 divide-y divide-stroke-neutral-muted overflow-y-auto border-t border-stroke-neutral-muted">
+                {myTasks.map((t) => (
+                  <li key={t.id}>
+                    <CheckRow
+                      checked={t.isCompleted}
+                      onToggle={() => handleToggleTask(t.id)}
                       disabled={isPending}
-                      className={cn("w-full flex items-start gap-2.5 px-4 py-2.5 text-left hover:bg-muted/20 transition-colors", t.isCompleted && "opacity-60")}
-                    >
-                      {t.isCompleted
-                        ? <CheckSquare className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                        : <Square className="h-4 w-4 text-muted-foreground/40 shrink-0 mt-0.5" />
+                      title={t.title}
+                      description={
+                        <>
+                          {t.content && <span className="mb-x0_5 block text-fg-neutral-muted">{t.content}</span>}
+                          <span>
+                            {t.handoverAuthorName} · {new Date(t.handoverDate).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+                            {t.isCompleted && t.completedAt && <span className="ml-x1 text-fg-positive">완료</span>}
+                          </span>
+                        </>
                       }
-                      <div className="flex-1 min-w-0">
-                        <p className={cn("text-sm font-medium", t.isCompleted && "line-through text-muted-foreground")}>{t.title}</p>
-                        {t.content && <p className="text-xs text-muted-foreground mt-0.5">{t.content}</p>}
-                        <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
-                          <User className="h-2.5 w-2.5" />{t.handoverAuthorName} · {new Date(t.handoverDate).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
-                          {t.isCompleted && t.completedAt && <span className="ml-1 text-green-600">완료</span>}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
 
           {/* 오늘의 루틴 */}
-          {(() => {
-            const todayDow = todayKST().getUTCDay();
-            const todays = templates
-              .filter((t) => t.isActive && (t.days === "" || t.days.split(",").map(Number).includes(todayDow)))
-              .sort((a, b) => SHIFT_ORDER.indexOf(a.shiftType) - SHIFT_ORDER.indexOf(b.shiftType));
-            return (
-              <div className="rounded-xl border bg-card overflow-hidden">
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
-                  <ListChecks className="h-3.5 w-3.5 text-amber-500" />
-                  <span className="text-sm font-semibold flex-1">오늘의 루틴</span>
-                  <span className="text-[11px] text-muted-foreground">{DAY_NAMES[todayDow]}요일</span>
-                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">{todays.length}개</span>
-                </div>
-                {todays.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-6">오늘 해당하는 루틴이 없습니다</p>
-                ) : (
-                  <div className="divide-y max-h-72 overflow-y-auto">
-                    {todays.map((t) => {
-                      const done = completed.has(t.id);
-                      return (
-                        <button
-                          key={t.id}
-                          type="button"
-                          onClick={() => toggleRoutine(t.id)}
-                          disabled={isPending}
-                          className={cn("w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-muted/20 transition-colors", done && "bg-green-50/40")}
-                        >
-                          {done
-                            ? <CheckSquare className="h-4 w-4 text-green-500 shrink-0" />
-                            : <Square className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-                          }
-                          <span className={cn("text-[10px] border rounded px-1.5 py-0.5 shrink-0 w-9 text-center", SHIFT_COLOR[t.shiftType] ?? "bg-gray-50")}>
-                            {SHIFT_LABEL[t.shiftType] ?? t.shiftType}
-                          </span>
-                          <span className={cn("text-sm flex-1 min-w-0", done && "line-through text-muted-foreground")}>{t.title}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          <Section
+            title="오늘의 루틴"
+            description={`${DAY_NAMES[todayDow]}요일 · ${todays.length}개`}
+            actions={
+              todays.length > 0 ? (
+                <span className="t4-medium tabular-nums text-fg-neutral-subtle">{todaysDone}/{todays.length}</span>
+              ) : undefined
+            }
+            flush
+          >
+            {todays.length === 0 ? (
+              <EmptyState compact icon={CalendarCheck} title="오늘 해당하는 루틴이 없어요" className="border-t border-stroke-neutral-muted" />
+            ) : (
+              <ul className="max-h-72 divide-y divide-stroke-neutral-muted overflow-y-auto border-t border-stroke-neutral-muted">
+                {todays.map((t) => {
+                  const done = completed.has(t.id);
+                  return (
+                    <li key={t.id}>
+                      <CheckRow
+                        checked={done}
+                        onToggle={() => toggleRoutine(t.id)}
+                        disabled={isPending}
+                        title={t.title}
+                        trailing={<ShiftBadge shiftType={t.shiftType} />}
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Section>
 
-          {/* 할 일 추가 */}
-          <div className="rounded-xl border bg-card p-3 flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => setTodoModalOpen(true)} className="flex-1 h-8 text-xs gap-1.5">
-              <Plus className="h-3.5 w-3.5" />할 일 추가
-            </Button>
-            <Link href="/todos" className="text-[11px] text-primary hover:underline shrink-0">투두 →</Link>
-          </div>
-
-          <div className="rounded-xl border bg-card p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold">루틴 관리</p>
-              <p className="text-xs text-muted-foreground mt-0.5">투두리스트 · 루틴 탭에서 요일별로 관리할 수 있습니다</p>
-            </div>
-            <Link href="/todos?tab=routine" className="text-xs text-primary hover:underline shrink-0">
-              바로가기 →
-            </Link>
-          </div>
+          {/* 할 일 · 루틴 바로가기 */}
+          <Section title="할 일 · 루틴" flush>
+            <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+              <li>
+                <ListItem onClick={() => setTodoModalOpen(true)} title="할 일 추가" description="투두리스트에 바로 등록돼요" />
+              </li>
+              <li>
+                <ListItem href="/todos" title="투두리스트" />
+              </li>
+              <li>
+                <ListItem href="/todos?tab=routine" title="루틴 관리" description="투두리스트 · 루틴 탭에서 요일별로 관리할 수 있어요" />
+              </li>
+            </ul>
+          </Section>
         </div>
       </div>
 
       <Dialog open={todoModalOpen} onOpenChange={setTodoModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>할 일 추가</DialogTitle>
+            <DialogTitle className="t7-bold">할 일 추가</DialogTitle>
+            <DialogDescription>투두리스트에 등록돼요</DialogDescription>
           </DialogHeader>
           <TodoForm
             staffList={staffList}
@@ -652,17 +613,17 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
           />
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
 
-// ── KPI Chip ──────────────────────────────────────────────────────────────────
-function KpiChip({ value, label, color, icon }: { value: number | string; label: string; color: "red" | "green" | "amber" | "blue" | "muted"; icon: React.ReactNode }) {
-  const colors = { red: "bg-red-50 border-red-200 text-red-700", green: "bg-green-50 border-green-200 text-green-700", amber: "bg-amber-50 border-amber-200 text-amber-700", blue: "bg-blue-50 border-blue-200 text-blue-700", muted: "bg-muted border-border text-muted-foreground" };
-  return (
-    <div className={cn("rounded-xl border px-3 py-2.5 flex items-center gap-2", colors[color])}>
-      {icon}
-      <div><p className="text-lg font-bold leading-none">{value}</p><p className="text-[10px] mt-0.5 opacity-70 leading-tight">{label}</p></div>
+      <ConfirmDialog
+        open={deleteConfirmId != null}
+        onOpenChange={(o) => { if (!o) setDeleteConfirmId(null); }}
+        title="이 인수인계를 삭제할까요?"
+        description="삭제하면 되돌릴 수 없어요."
+        confirmLabel="삭제"
+        pendingLabel="삭제하는 중…"
+        pending={isPending}
+        onConfirm={() => { if (deleteConfirmId) handleDelete(deleteConfirmId); }}
+      />
     </div>
   );
 }

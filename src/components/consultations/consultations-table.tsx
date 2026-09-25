@@ -1,46 +1,46 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { Input } from "@/components/ui/input";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import {
+  AlertCircle,
+  CheckCircle,
+  ChevronRight,
+  ClipboardList,
+  Copy,
+  Eye,
+  Link2,
+  Loader2,
+  MoreHorizontal,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  X,
+  XCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { KakaoButton } from "@/components/ui/kakao-button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { EmptyState, FilterChip, SearchField, StatusBadge, TableCard } from "@/components/backoffice/ui";
 import { updateConsultation } from "@/actions/consultations";
 import { generateFollowUpMessage } from "@/actions/ai-followup";
 import { createConsultationReport } from "@/actions/consultation-reports";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import {
-  Search, X, Pencil, CheckCircle, XCircle, CalendarDays, MessageSquare, ClipboardList, Play,
-  ChevronDown, ChevronUp, Sparkles, Send, Copy, RefreshCw, Loader2, Link2, MessageCircle,
-} from "lucide-react";
-import { useRouter } from "next/navigation";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { DateRangeToolbar } from "@/components/ui/date-range-toolbar";
+import { ConfirmDialog } from "@/components/calendar/confirm-dialog";
+import { CATEGORY_META, STATUS_META, TYPE_LABEL, formatKST, type ConsultationStatus } from "./consultation-tones";
 
-// ─── 카카오 친구 선택 + 전송 다이얼로그 ─────────────────────────────────
-type Status = "SCHEDULED" | "COMPLETED" | "CANCELLED";
-
-const STATUS_CONFIG: Record<Status, {
-  label: string;
-  bar: string;
-  badge: string;
-}> = {
-  SCHEDULED: {
-    label: "예정",
-    bar: "bg-blue-400",
-    badge: "bg-blue-50 text-blue-700 border-blue-200",
-  },
-  COMPLETED: {
-    label: "완료",
-    bar: "bg-emerald-400",
-    badge: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  },
-  CANCELLED: {
-    label: "취소",
-    bar: "bg-gray-300",
-    badge: "bg-gray-50 text-gray-500 border-gray-200",
-  },
-};
+type Status = ConsultationStatus;
 
 type Consultation = {
   id: string;
@@ -58,52 +58,59 @@ type Consultation = {
   prospectGrade?: string | null;
 };
 
-const TYPE_LABEL: Record<string, string> = { STUDENT: "학생", PARENT: "학부모" };
-const CATEGORY_LABEL: Record<string, { label: string; style: string }> = {
-  ENROLLED: { label: "재원생", style: "bg-blue-50 text-blue-700 border-blue-200" },
-  NEW_ADMISSION: { label: "신규 입실", style: "bg-green-50 text-green-700 border-green-200" },
-  CONSIDERING: { label: "등록 고민", style: "bg-amber-50 text-amber-700 border-amber-200" },
-};
+/** AI 팔로업 메시지 진행 상태 — 면담별로 목록 화면에 보관(시트를 닫아도 유지) */
+type AiState = { text: string; generated: boolean; reportUrl: string | null };
+const AI_INITIAL: AiState = { text: "", generated: false, reportUrl: null };
 
-function formatKST(date: Date): string {
-  const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-  const m = kst.getUTCMonth() + 1;
-  const d = kst.getUTCDate();
-  const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
-  const dow = dayNames[kst.getUTCDay()];
-  const hh = String(kst.getUTCHours()).padStart(2, "0");
-  const mm = String(kst.getUTCMinutes()).padStart(2, "0");
-  const timeStr = hh === "00" && mm === "00" ? "" : ` ${hh}:${mm}`;
-  return `${m}월 ${d}일 (${dow})${timeStr}`;
+/** 마크다운 첫 줄을 평문 한 줄로 (목록 미리보기용) */
+function firstLine(md: string | null | undefined): string {
+  if (!md) return "";
+  return (
+    md
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .split("\n")
+      .map((l) => l.replace(/^[\s>#*\-+\d.]+/, "").replace(/[*_`~]/g, "").trim())
+      .find(Boolean) ?? ""
+  );
 }
 
-// ─── Consultation Card ────────────────────────────────────────────────────────
+function displayName(c: Consultation) {
+  return c.student?.name ?? c.prospectName ?? "—";
+}
 
-function ConsultationCard({
+// ─── Preview sheet (내용 + AI 팔로업) ─────────────────────────────────────────
+
+function ConsultationPreview({
   c,
+  ai,
+  setAi,
   isPending,
-  onQuickStatus,
   onNavigate,
+  onComplete,
+  onCancel,
 }: {
   c: Consultation;
+  ai: AiState;
+  setAi: (update: (prev: AiState) => AiState) => void;
   isPending: boolean;
-  onQuickStatus: (status: "COMPLETED" | "CANCELLED") => void;
   onNavigate: () => void;
+  onComplete: () => void;
+  onCancel: () => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const [msgOpen, setMsgOpen] = useState(false);
-  const [msgText, setMsgText] = useState("");
   const [isGenerating, startGenerate] = useTransition();
-  const [msgGenerated, setMsgGenerated] = useState(false);
-  const cfg = STATUS_CONFIG[c.status];
+  const [isCreatingReport, startCreateReport] = useTransition();
   const hasContent = !!(c.agenda || c.outcome || c.followUp || c.notes);
+  const status = STATUS_META[c.status];
+  const category = c.category ? CATEGORY_META[c.category] : null;
+  const name = displayName(c);
+  const grade = c.student?.grade ?? c.prospectGrade;
 
   function handleGenerate() {
     startGenerate(async () => {
       try {
         const result = await generateFollowUpMessage(c.id);
-        setMsgText(result.message);
-        setMsgGenerated(true);
+        setAi((prev) => ({ ...prev, text: result.message, generated: true }));
       } catch {
         toast.error("메시지 생성 실패");
       }
@@ -111,183 +118,111 @@ function ConsultationCard({
   }
 
   function handleCopy() {
-    navigator.clipboard.writeText(msgText);
+    navigator.clipboard.writeText(ai.text);
     toast.success("복사됨");
   }
 
-  const [reportUrl, setReportUrl] = useState<string | null>(null);
-  const [isCreatingReport, startCreateReport] = useTransition();
+  const shareText = ai.reportUrl
+    ? `안녕하세요, ${c.student?.name ?? c.prospectName ?? ""}님.\n상담 내용을 정리해 드립니다.\n아래 링크를 통해 확인해 주세요 👇\n\n${ai.reportUrl}`
+    : "";
+
+  const sections: { label: string; value: string | null | undefined }[] = [
+    { label: "면담 주제", value: c.agenda },
+    { label: "결과", value: c.outcome },
+    { label: "사후조치", value: c.followUp },
+    { label: "메모", value: c.notes },
+  ];
 
   return (
-    <div className={cn(
-      "group flex gap-0 rounded-xl border bg-white shadow-sm overflow-hidden transition-shadow hover:shadow-md",
-      c.status === "CANCELLED" && "opacity-60"
-    )}>
-      {/* Status bar */}
-      <div className={cn("w-1 shrink-0", cfg.bar)} />
-
-      {/* Content */}
-      <div className="flex-1 px-4 py-3 min-w-0">
-        {/* Top row */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0 flex-wrap">
-            <span className="font-semibold text-sm">{c.student?.name ?? c.prospectName ?? "—"}</span>
-            {(c.student?.grade || c.prospectGrade) && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">{c.student?.grade ?? c.prospectGrade}</span>
-            )}
-            {c.type && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">
-                {TYPE_LABEL[c.type] ?? c.type}
-              </span>
-            )}
-            {c.category && CATEGORY_LABEL[c.category] && (
-              <span className={cn("text-xs px-1.5 py-0.5 rounded-full border font-medium", CATEGORY_LABEL[c.category].style)}>
-                {CATEGORY_LABEL[c.category].label}
-              </span>
-            )}
-            <span className={cn("text-xs px-2 py-0.5 rounded-full border font-medium", cfg.badge)}>
-              {cfg.label}
-            </span>
-          </div>
-          {/* Actions — visible on hover */}
-          <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-            {c.status === "SCHEDULED" && (
-              <>
-                <button onClick={onNavigate} disabled={isPending} title="면담 진행"
-                  className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 transition-colors disabled:opacity-40">
-                  <Play className="h-3.5 w-3.5" />진행
-                </button>
-                <button onClick={() => onQuickStatus("COMPLETED")} disabled={isPending}
-                  className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-40">
-                  <CheckCircle className="h-3.5 w-3.5" />완료
-                </button>
-                <button onClick={() => onQuickStatus("CANCELLED")} disabled={isPending}
-                  className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-gray-50 text-gray-500 hover:bg-gray-100 border border-gray-200 transition-colors disabled:opacity-40">
-                  <XCircle className="h-3.5 w-3.5" />취소
-                </button>
-              </>
-            )}
-            <button onClick={onNavigate} title="수정"
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-          </div>
+    <>
+      <SheetHeader className="shrink-0 border-b border-stroke-neutral-muted px-x6 pb-x5 pt-x6 pr-x14">
+        <div className="flex flex-wrap items-center gap-x1_5">
+          <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+          {category && <StatusBadge tone={category.tone}>{category.label}</StatusBadge>}
+          {c.type && <StatusBadge tone="gray">{TYPE_LABEL[c.type] ?? c.type}</StatusBadge>}
         </div>
+        <SheetTitle className="mt-x2">
+          {name}
+          {grade && <span className="ml-x2 t5-regular text-fg-neutral-subtle">{grade}</span>}
+        </SheetTitle>
+        <SheetDescription className="tabular-nums">
+          {c.scheduledAt ? `예정 ${formatKST(c.scheduledAt)}` : "예정 일시 미정"}
+        </SheetDescription>
+      </SheetHeader>
 
-        {/* Meta row */}
-        {c.scheduledAt && (
-          <p className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-            <CalendarDays className="h-3 w-3" />
-            {formatKST(c.scheduledAt)}
-          </p>
-        )}
-
-        {/* Preview (collapsed) */}
-        {!expanded && hasContent && (
-          <div className="mt-2 space-y-1">
-            {c.agenda && (
-              <p className="flex items-start gap-1.5 text-xs text-foreground/80">
-                <MessageSquare className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
-                <span className="line-clamp-1">{c.agenda}</span>
-              </p>
-            )}
+      <div className="flex flex-1 flex-col gap-x6 overflow-y-auto px-x6 py-x5">
+        {hasContent ? (
+          <div className="flex flex-col gap-x5">
+            {sections.filter((s) => s.value).map((s) => (
+              <div key={s.label}>
+                <p className="mb-x1_5 t3-medium text-fg-neutral-subtle">{s.label}</p>
+                <MarkdownViewer source={s.value!} className="t4-regular" />
+              </div>
+            ))}
           </div>
+        ) : (
+          <EmptyState
+            compact
+            icon={ClipboardList}
+            title="아직 기록된 내용이 없어요"
+            description="면담을 진행하면서 주제와 결과를 기록해 주세요"
+          />
         )}
 
-        {/* Expanded — 마크다운 렌더링 */}
-        {expanded && (
-          <div className="mt-3 space-y-3 border-t pt-3">
-            {c.agenda && (
-              <div>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">면담 주제</p>
-                <MarkdownViewer source={c.agenda} className="text-sm" />
-              </div>
-            )}
-            {c.outcome && (
-              <div>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">결과</p>
-                <MarkdownViewer source={c.outcome} className="text-sm" />
-              </div>
-            )}
-            {c.followUp && (
-              <div>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">사후조치</p>
-                <MarkdownViewer source={c.followUp} className="text-sm" />
-              </div>
-            )}
-            {c.notes && (
-              <div>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-1">메모</p>
-                <MarkdownViewer source={c.notes} className="text-sm" />
-              </div>
-            )}
-          </div>
-        )}
+        {/* AI 팔로업 메시지 */}
+        {hasContent && (
+          <section className="flex flex-col gap-x3 rounded-r4 bg-bg-layer-fill p-x4">
+            <div className="flex items-center gap-x2">
+              <Sparkles className="size-4 text-palette-purple-600" aria-hidden />
+              <h3 className="t4-bold text-fg-neutral">AI 팔로업 메시지</h3>
+            </div>
 
-        {/* Toggle + AI 메시지 버튼 */}
-        <div className="flex items-center gap-3 mt-2">
-          {hasContent && (
-            <button
-              onClick={() => setExpanded((v) => !v)}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-              {expanded ? "접기" : "내용 보기"}
-            </button>
-          )}
-          {hasContent && (
-            <button
-              onClick={() => setMsgOpen((v) => !v)}
-              className={cn(
-                "flex items-center gap-1 text-xs transition-colors",
-                msgOpen ? "text-violet-700" : "text-violet-500 hover:text-violet-700"
-              )}
-            >
-              <Sparkles className="h-3 w-3" />
-              {msgOpen ? "메시지 닫기" : "AI 메시지"}
-            </button>
-          )}
-        </div>
-
-        {/* AI 팔로업 메시지 인라인 패널 */}
-        {msgOpen && (
-          <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50/50 p-3 space-y-2">
-            {!msgGenerated && !reportUrl ? (
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-violet-600 flex-1">상담 내용 기반 팔로업 리포트를 생성합니다</p>
-                <Button size="sm" onClick={handleGenerate} disabled={isGenerating}
-                  className="bg-violet-600 hover:bg-violet-700 text-white gap-1.5 h-7 text-xs">
-                  {isGenerating ? <><RefreshCw className="h-3 w-3 animate-spin" />생성 중...</> : <><Sparkles className="h-3 w-3" />생성</>}
+            {!ai.generated && !ai.reportUrl ? (
+              <div className="flex flex-col gap-x3 sm:flex-row sm:items-center">
+                <p className="flex-1 t3-regular text-fg-neutral-subtle">상담 내용을 바탕으로 팔로업 리포트를 만들어요</p>
+                <Button size="sm" onClick={handleGenerate} disabled={isGenerating}>
+                  {isGenerating ? <RefreshCw className="animate-spin" aria-hidden /> : <Sparkles aria-hidden />}
+                  {isGenerating ? "생성 중…" : "생성"}
                 </Button>
               </div>
-            ) : reportUrl ? (
+            ) : ai.reportUrl ? (
               /* 리포트 링크 생성 완료 */
-              <div className="space-y-2">
-                <div className="flex items-center gap-1.5 text-green-600 text-xs font-medium">
-                  <Link2 className="h-3 w-3" />리포트 링크가 생성되었습니다
-                </div>
-                <div className="flex gap-2">
-                  <input value={reportUrl} readOnly className="flex-1 text-xs font-mono bg-white border rounded px-2 py-1.5" />
-                  <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(reportUrl); toast.success("링크 복사됨"); }} className="gap-1 h-7 text-xs">
-                    <Copy className="h-3 w-3" />
+              <div className="flex flex-col gap-x3">
+                <p className="flex items-center gap-x1_5 t3-medium text-fg-positive">
+                  <Link2 className="size-4" aria-hidden />
+                  리포트 링크를 만들었어요
+                </p>
+                <div className="flex gap-x2">
+                  <Input value={ai.reportUrl} readOnly aria-label="리포트 링크" className="t3-regular" />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="링크 복사"
+                    onClick={() => { navigator.clipboard.writeText(ai.reportUrl!); toast.success("링크 복사됨"); }}
+                  >
+                    <Copy aria-hidden />
                   </Button>
                 </div>
-                <div className="rounded-lg border bg-white p-3 text-xs text-muted-foreground whitespace-pre-wrap max-h-24 overflow-y-auto">
-                  {`안녕하세요, ${c.student?.name ?? c.prospectName ?? ""}님.\n상담 내용을 정리해 드립니다.\n아래 링크를 통해 확인해 주세요 👇\n\n${reportUrl}`}
+                <div className="max-h-28 overflow-y-auto whitespace-pre-wrap rounded-r2 bg-bg-layer-default p-x3 t3-regular text-fg-neutral-muted">
+                  {shareText}
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={() => {
-                    const shareText = `안녕하세요, ${c.student?.name ?? c.prospectName ?? ""}님.\n상담 내용을 정리해 드립니다.\n아래 링크를 통해 확인해 주세요 👇\n\n${reportUrl}`;
-                    if (navigator.share) {
-                      navigator.share({ title: "강한선배 상담 안내", text: shareText });
-                    } else {
-                      navigator.clipboard.writeText(shareText);
-                      toast.success("메시지가 복사되었습니다");
-                    }
-                  }} className="flex-1 bg-[#FEE500] hover:bg-[#FDD835] text-[#3C1E1E] gap-1.5 h-8 text-xs">
-                    <MessageCircle className="h-3.5 w-3.5" />카카오톡으로 보내기
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => { setReportUrl(null); setMsgGenerated(false); setMsgText(""); }} className="h-8 text-xs">
+                <div className="flex gap-x2">
+                  {/* 카카오 공식 버튼 색(카카오 브랜드 가이드) — SEED 팔레트 예외 */}
+                  <KakaoButton
+                    size="sm"
+                    onClick={() => {
+                      if (navigator.share) {
+                        navigator.share({ title: "강한선배 상담 안내", text: shareText });
+                      } else {
+                        navigator.clipboard.writeText(shareText);
+                        toast.success("메시지가 복사되었습니다");
+                      }
+                    }}
+                    className="flex-1"
+                  >
+                    카카오톡으로 보내기
+                  </KakaoButton>
+                  <Button variant="outline" size="sm" onClick={() => setAi(() => AI_INITIAL)}>
                     다시 생성
                   </Button>
                 </div>
@@ -295,33 +230,62 @@ function ConsultationCard({
             ) : (
               /* 메시지 편집 → 리포트 생성 */
               <>
-                <Textarea value={msgText} onChange={(e) => setMsgText(e.target.value)}
-                  rows={10} className="bg-white text-sm resize-none" />
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={handleGenerate} disabled={isGenerating} className="gap-1 h-7 text-xs">
-                    <RefreshCw className={cn("h-3 w-3", isGenerating && "animate-spin")} />재생성
+                <Textarea
+                  value={ai.text}
+                  onChange={(e) => { const text = e.target.value; setAi((prev) => ({ ...prev, text })); }}
+                  rows={10}
+                  aria-label="팔로업 메시지"
+                  className="resize-none"
+                />
+                <div className="flex flex-wrap items-center gap-x2">
+                  <Button variant="outline" size="sm" onClick={handleGenerate} disabled={isGenerating}>
+                    <RefreshCw className={cn(isGenerating && "animate-spin")} aria-hidden />
+                    재생성
                   </Button>
-                  <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1 h-7 text-xs">
-                    <Copy className="h-3 w-3" />복사
+                  <Button variant="outline" size="sm" onClick={handleCopy}>
+                    <Copy aria-hidden />
+                    복사
                   </Button>
-                  <Button size="sm" disabled={!msgText.trim() || isCreatingReport} onClick={() => {
-                    startCreateReport(async () => {
-                      try {
-                        const { token } = await createConsultationReport(c.id, msgText);
-                        setReportUrl(`${window.location.origin}/cr/${token}`);
-                      } catch { toast.error("리포트 생성 실패"); }
-                    });
-                  }} className="ml-auto gap-1 h-7 text-xs">
-                    {isCreatingReport ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />}
-                    리포트 링크 생성
+                  <Button
+                    size="sm"
+                    className="ml-auto"
+                    disabled={!ai.text.trim() || isCreatingReport}
+                    onClick={() => {
+                      startCreateReport(async () => {
+                        try {
+                          const { token } = await createConsultationReport(c.id, ai.text);
+                          setAi((prev) => ({ ...prev, reportUrl: `${window.location.origin}/cr/${token}` }));
+                        } catch { toast.error("리포트 생성 실패"); }
+                      });
+                    }}
+                  >
+                    {isCreatingReport ? <Loader2 className="animate-spin" aria-hidden /> : <Link2 aria-hidden />}
+                    {isCreatingReport ? "만드는 중…" : "리포트 링크 생성"}
                   </Button>
                 </div>
               </>
             )}
-          </div>
+          </section>
         )}
       </div>
-    </div>
+
+      {/* Footer actions */}
+      <div className="flex shrink-0 flex-wrap items-center gap-x2 border-t border-stroke-neutral-muted px-x6 py-x4">
+        {c.status === "SCHEDULED" && (
+          <Button variant="ghost" size="sm" className="text-fg-critical" onClick={onCancel} disabled={isPending}>
+            면담 취소
+          </Button>
+        )}
+        <div className="ml-auto flex items-center gap-x2">
+          {c.status === "SCHEDULED" && (
+            <Button variant="outline" onClick={onComplete} disabled={isPending}>
+              완료 처리
+            </Button>
+          )}
+          <Button onClick={onNavigate}>{c.status === "SCHEDULED" ? "면담 진행" : "상세 보기"}</Button>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -344,6 +308,12 @@ export function ConsultationsList({ consultations, owner = "DIRECTOR", initialDa
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>(saved.category ?? "ALL");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>(saved.type ?? "ALL");
   const [isPending, startTransition] = useTransition();
+
+  // 미리 보기 시트 + 면담별 AI 메시지 상태
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [aiStates, setAiStates] = useState<Record<string, AiState>>({});
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
 
   useEffect(() => {
     try { sessionStorage.setItem(filterKey, JSON.stringify({ q: query, status: statusFilter, category: categoryFilter, type: typeFilter })); } catch {}
@@ -415,101 +385,308 @@ export function ConsultationsList({ consultations, owner = "DIRECTOR", initialDa
   // 등록 고민 추적용 통계
   const consideringCount = consultations.filter((c) => c.category === "CONSIDERING" && c.status !== "CANCELLED").length;
 
+  const hasFilter = !!q || statusFilter !== "ALL" || categoryFilter !== "ALL" || typeFilter !== "ALL";
+  const preview = previewId ? consultations.find((c) => c.id === previewId) ?? null : null;
+  const cancelTarget = confirmCancelId ? consultations.find((c) => c.id === confirmCancelId) ?? null : null;
+
+  function openPreview(id: string) {
+    setPreviewId(id);
+    setSheetOpen(true);
+  }
+  const goDetail = (id: string) => router.push(`/consultations/${id}`);
+
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-x4">
       {/* 등록 고민 추적 배너 (원장 면담 전용) */}
       {owner === "DIRECTOR" && consideringCount > 0 && categoryFilter !== "CONSIDERING" && (
         <button
+          type="button"
           onClick={() => { setCategoryFilter("CONSIDERING"); setStatusFilter("ALL"); }}
-          className="w-full flex items-center justify-between px-4 py-2.5 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors"
+          className="flex w-full items-center justify-between gap-x3 rounded-r3 bg-bg-warning-weak px-x4 py-x3 text-left transition-colors hover:bg-bg-warning-weak-pressed"
         >
-          <span className="text-sm text-amber-800 font-medium">
+          <span className="flex items-center gap-x2 t4-medium text-fg-warning-contrast">
+            <AlertCircle className="size-4 shrink-0 text-fg-warning" aria-hidden />
             등록 고민 중인 상담 {consideringCount}건 — 전환 유도가 필요합니다
           </span>
-          <span className="text-xs text-amber-600">보기 →</span>
+          <span className="flex shrink-0 items-center t3-medium text-fg-warning-contrast">
+            보기
+            <ChevronRight className="size-4" aria-hidden />
+          </span>
         </button>
       )}
 
-      {/* 조회 기간 (서버측 범위) */}
-      <DateRangeToolbar
-        initialFrom={initialDateFrom}
-        initialTo={initialDateTo}
-        basePath="/consultations"
-        extraParams={{ owner }}
-        className="flex-wrap"
-      />
+      <div className="flex flex-col gap-x3">
+        {/* 조회 기간 (서버측 범위) */}
+        <DateRangeToolbar
+          initialFrom={initialDateFrom}
+          initialTo={initialDateTo}
+          basePath="/consultations"
+          extraParams={{ owner }}
+          className="flex-wrap"
+        />
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* Status tabs */}
-        <div className="flex items-center gap-0.5 bg-muted/50 rounded-lg p-1 border">
-          {statusTabs.map((t) => (
-            <button key={t.key} onClick={() => setStatusFilter(t.key)}
-              className={cn("px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
-                statusFilter === t.key ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>
-              {t.label}
-              {t.key !== "ALL" && <span className="ml-1 text-[10px] opacity-60">{countByStatus(t.key as Status)}</span>}
-            </button>
-          ))}
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center gap-x2">
+          <div className="flex flex-wrap items-center gap-x1_5" role="group" aria-label="상태">
+            {statusTabs.map((t) => (
+              <FilterChip
+                key={t.key}
+                selected={statusFilter === t.key}
+                count={t.key !== "ALL" ? countByStatus(t.key as Status) : undefined}
+                onClick={() => setStatusFilter(t.key)}
+              >
+                {t.label}
+              </FilterChip>
+            ))}
+          </div>
+
+          <div className="flex w-full flex-wrap items-center gap-x2 lg:ml-auto lg:w-auto">
+            <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as CategoryFilter)}>
+              <SelectTrigger className="w-36" aria-label="상담 분류">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {categoryTabs.map((t) => (
+                  <SelectItem key={t.key} value={t.key}>
+                    {t.key === "ALL" ? "분류 전체" : `${t.label} ${countByCategory(t.key)}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Type (책임T는 학생 상담만이므로 숨김) */}
+            {owner !== "HEAD_TEACHER" && (
+              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as TypeFilter)}>
+                <SelectTrigger className="w-32" aria-label="상담 유형">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {typeTabs.map((t) => (
+                    <SelectItem key={t.key} value={t.key}>
+                      {t.key === "ALL" ? "유형 전체" : `${t.label} ${countByType(t.key)}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            <div className="relative min-w-0 flex-1 sm:flex-none">
+              <SearchField
+                placeholder="원생 이름·학년 검색"
+                aria-label="원생 검색"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="sm:w-60"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="검색어 지우기"
+                  className="absolute right-2 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral"
+                >
+                  <X className="size-3.5" aria-hidden />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
-
-        {/* Category tabs */}
-        <div className="flex items-center gap-0.5 bg-muted/50 rounded-lg p-1 border">
-          {categoryTabs.map((t) => (
-            <button key={t.key} onClick={() => setCategoryFilter(t.key)}
-              className={cn("px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
-                categoryFilter === t.key ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>
-              {t.label}
-              {t.key !== "ALL" && <span className="ml-1 text-[10px] opacity-60">{countByCategory(t.key)}</span>}
-            </button>
-          ))}
-        </div>
-
-        {/* Type tabs (책임T는 학생 상담만이므로 숨김) */}
-        {owner !== "HEAD_TEACHER" && <div className="flex items-center gap-0.5 bg-muted/50 rounded-lg p-1 border">
-          {typeTabs.map((t) => (
-            <button key={t.key} onClick={() => setTypeFilter(t.key)}
-              className={cn("px-2.5 py-1 text-xs font-medium rounded-md transition-colors",
-                typeFilter === t.key ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>
-              {t.label}
-              {t.key !== "ALL" && <span className="ml-1 text-[10px] opacity-60">{countByType(t.key)}</span>}
-            </button>
-          ))}
-        </div>}
-
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input placeholder="원생 검색..." value={query} onChange={(e) => setQuery(e.target.value)} className="pl-8 h-8 w-44 text-sm" />
-          {query && (
-            <button onClick={() => setQuery("")} className="absolute right-2 top-2 text-muted-foreground hover:text-foreground">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-
-        <span className="text-xs text-muted-foreground ml-auto">{filtered.length}건</span>
       </div>
 
-      {/* Cards */}
-      {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-2 rounded-xl border border-dashed">
-          <p className="text-sm">{q ? "검색 결과가 없습니다" : "면담 기록이 없습니다"}</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map((c) => (
-            <ConsultationCard
-              key={c.id}
-              c={c}
-              isPending={isPending}
-              onQuickStatus={(status) => quickStatus(c.id, status)}
-              onNavigate={() => router.push(`/consultations/${c.id}`)}
-            />
-          ))}
-        </div>
-      )}
+      {/* Table */}
+      <TableCard
+        footer={
+          filtered.length > 0 ? (
+            <span className="t3-regular tabular-nums text-fg-neutral-subtle">
+              {hasFilter ? `${consultations.length}건 중 ` : ""}
+              <span className="t3-bold text-fg-neutral">{filtered.length}</span>건
+            </span>
+          ) : undefined
+        }
+      >
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={ClipboardList}
+            title={hasFilter ? "조건에 맞는 면담이 없어요" : "면담 기록이 없어요"}
+            description={hasFilter ? "검색어나 필터를 바꿔 보세요" : "조회 기간을 바꾸거나 새 면담을 등록해 보세요"}
+            action={
+              hasFilter ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => { setQuery(""); setStatusFilter("ALL"); setCategoryFilter("ALL"); setTypeFilter("ALL"); }}
+                >
+                  필터 초기화
+                </Button>
+              ) : (
+                <Button asChild>
+                  <Link href={`/consultations/new?owner=${owner}`}>
+                    <Plus aria-hidden />
+                    면담 등록
+                  </Link>
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <Table className="min-w-[760px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>원생</TableHead>
+                <TableHead>구분</TableHead>
+                <TableHead>예정 일시</TableHead>
+                <TableHead>면담 주제</TableHead>
+                <TableHead>상태</TableHead>
+                <TableHead className="text-right">
+                  <span className="sr-only">작업</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((c) => {
+                const status = STATUS_META[c.status];
+                const category = c.category ? CATEGORY_META[c.category] : null;
+                const cancelled = c.status === "CANCELLED";
+                const agenda = firstLine(c.agenda);
+                return (
+                  <TableRow
+                    key={c.id}
+                    tabIndex={0}
+                    className="cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring"
+                    onClick={() => goDetail(c.id)}
+                    onKeyDown={(e) => { if (e.key === "Enter") goDetail(c.id); }}
+                  >
+                    <TableCell className="whitespace-nowrap">
+                      <span className={cn("t4-medium", cancelled ? "text-fg-neutral-subtle" : "text-fg-neutral")}>
+                        {displayName(c)}
+                      </span>
+                      {(c.student?.grade || c.prospectGrade) && (
+                        <span className="ml-x1_5 t3-regular text-fg-neutral-subtle">
+                          {c.student?.grade ?? c.prospectGrade}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <div className="flex items-center gap-x1_5">
+                        {category && <StatusBadge tone={category.tone}>{category.label}</StatusBadge>}
+                        {c.type && (
+                          <span className="t3-regular text-fg-neutral-muted">{TYPE_LABEL[c.type] ?? c.type}</span>
+                        )}
+                        {!category && !c.type && <span className="text-fg-placeholder">—</span>}
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums">
+                      {c.scheduledAt ? (
+                        <span className={cancelled ? "text-fg-neutral-subtle" : "text-fg-neutral"}>{formatKST(c.scheduledAt)}</span>
+                      ) : (
+                        <span className="text-fg-placeholder">미정</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {agenda ? (
+                        <span className="block max-w-72 truncate text-fg-neutral-muted">{agenda}</span>
+                      ) : (
+                        <span className="text-fg-placeholder">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                    </TableCell>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-x1">
+                        {c.status === "SCHEDULED" && (
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={() => quickStatus(c.id, "COMPLETED")}
+                            disabled={isPending}
+                          >
+                            <CheckCircle aria-hidden />
+                            완료
+                          </Button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => openPreview(c.id)}
+                          aria-label="미리 보기"
+                          title="미리 보기"
+                          className="grid size-x8 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral"
+                        >
+                          <Eye className="size-4" aria-hidden />
+                        </button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label="더보기"
+                              className="grid size-x8 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral"
+                            >
+                              <MoreHorizontal className="size-4" aria-hidden />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => goDetail(c.id)}>
+                              {c.status === "SCHEDULED" ? "면담 진행" : "상세 보기"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => openPreview(c.id)}>
+                              <Sparkles aria-hidden />
+                              내용 · AI 메시지
+                            </DropdownMenuItem>
+                            {c.status === "SCHEDULED" && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-fg-critical"
+                                  onSelect={() => setConfirmCancelId(c.id)}
+                                  disabled={isPending}
+                                >
+                                  <XCircle aria-hidden />
+                                  면담 취소
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </TableCard>
 
+      {/* 미리 보기 시트 */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
+          {preview && (
+            <ConsultationPreview
+              key={preview.id}
+              c={preview}
+              ai={aiStates[preview.id] ?? AI_INITIAL}
+              setAi={(update) => setAiStates((prev) => ({ ...prev, [preview.id]: update(prev[preview.id] ?? AI_INITIAL) }))}
+              isPending={isPending}
+              onNavigate={() => goDetail(preview.id)}
+              onComplete={() => { quickStatus(preview.id, "COMPLETED"); setSheetOpen(false); }}
+              onCancel={() => setConfirmCancelId(preview.id)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
+
+      <ConfirmDialog
+        open={confirmCancelId !== null}
+        onOpenChange={(o) => { if (!o) setConfirmCancelId(null); }}
+        title="면담을 취소할까요?"
+        description={cancelTarget ? `${displayName(cancelTarget)} 면담이 취소 상태로 바뀌어요.` : undefined}
+        confirmLabel="면담 취소"
+        pending={isPending}
+        onConfirm={() => {
+          if (confirmCancelId) quickStatus(confirmCancelId, "CANCELLED");
+          setConfirmCancelId(null);
+          setSheetOpen(false);
+        }}
+      />
     </div>
   );
 }

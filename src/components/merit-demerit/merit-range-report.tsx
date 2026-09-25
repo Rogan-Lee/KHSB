@@ -1,52 +1,32 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { Fragment, useState, useTransition, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SortableHeader } from "@/components/ui/sortable-header";
+import {
+  EmptyState,
+  FilterChip,
+  Skeleton,
+  StatCard,
+  StatCards,
+  StatusBadge,
+  TableCard,
+  Toolbar,
+} from "@/components/backoffice/ui";
 import { getMeritsByRange } from "@/actions/merit-demerit";
-import { formatDate } from "@/lib/utils";
-import { Search, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { cn, formatDate } from "@/lib/utils";
+import { Search, ChevronDown, CalendarSearch } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 
 type SortKey = "name" | "merits" | "demerits" | "net" | "count";
 type SortDir = "asc" | "desc";
 
-function SortButton({
-  label,
-  col,
-  sortKey,
-  sortDir,
-  onSort,
-}: {
-  label: string;
-  col: SortKey;
-  sortKey: SortKey;
-  sortDir: SortDir;
-  onSort: (k: SortKey) => void;
-}) {
-  const active = col === sortKey;
-  return (
-    <button
-      type="button"
-      onClick={() => onSort(col)}
-      className={`flex items-center gap-0.5 text-xs px-2 py-1 rounded-md border transition-colors ${
-        active ? "bg-muted border-foreground/30 font-medium" : "hover:bg-muted"
-      }`}
-    >
-      {label}
-      {active ? (
-        sortDir === "asc" ? (
-          <ArrowUp className="h-3 w-3" />
-        ) : (
-          <ArrowDown className="h-3 w-3" />
-        )
-      ) : (
-        <ArrowUpDown className="h-3 w-3 opacity-30" />
-      )}
-    </button>
-  );
-}
+// 공용 DatePicker 를 툴바 입력 규격(높이 36 · SEED TextInput 테두리)으로 맞춘다
+const DATE_TOOLBAR_CLASS =
+  "h-9 gap-x1_5 rounded-r2 border-0 bg-bg-layer-default px-x3 t4-regular tabular-nums text-fg-neutral shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] hover:bg-bg-layer-default-pressed";
+
+const HEAD_CLASS = "h-10 whitespace-nowrap px-x4 t3-medium text-fg-neutral-subtle";
 
 type MeritRecord = {
   id: string;
@@ -117,58 +97,66 @@ function StudentRow({ group }: { group: StudentGroup }) {
   const net = group.merits - group.demerits;
 
   return (
-    <div className="border rounded-lg overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((p) => !p)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors text-left"
-      >
-        <div className="flex items-center gap-3">
-          <span className="font-medium">{group.name}</span>
-          <span className="text-sm text-muted-foreground">{group.grade}</span>
-          <span className="text-xs text-muted-foreground">{group.records.length}건</span>
-        </div>
-        <div className="flex items-center gap-3">
-          {group.merits > 0 && (
-            <span className="text-sm font-medium text-green-600">상점 +{group.merits}</span>
-          )}
-          {group.demerits > 0 && (
-            <span className="text-sm font-medium text-red-600">벌점 -{group.demerits}</span>
-          )}
-          <span className={`text-sm font-bold ${net >= 0 ? "text-green-600" : "text-red-600"}`}>
-            ({net >= 0 ? "+" : ""}{net})
-          </span>
-          {open
-            ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
-            : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-        </div>
-      </button>
+    <Fragment>
+      <TableRow className="cursor-pointer" onClick={() => setOpen((p) => !p)}>
+        <TableCell>
+          <span className="t4-medium">{group.name}</span>
+          <span className="ml-x1_5 t3-regular text-fg-neutral-subtle">{group.grade}</span>
+        </TableCell>
+        <TableCell className="text-right text-fg-neutral-muted">{group.records.length}건</TableCell>
+        <TableCell className="text-right">
+          {group.merits > 0 ? <span className="text-fg-positive">+{group.merits}</span> : <span className="text-fg-placeholder">—</span>}
+        </TableCell>
+        <TableCell className="text-right">
+          {group.demerits > 0 ? <span className="text-fg-critical">-{group.demerits}</span> : <span className="text-fg-placeholder">—</span>}
+        </TableCell>
+        <TableCell className={cn("text-right t4-bold", net >= 0 ? "text-fg-positive" : "text-fg-critical")}>
+          {net >= 0 ? "+" : ""}
+          {net}
+        </TableCell>
+        <TableCell className="w-12 pr-x3 text-right">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setOpen((p) => !p); }}
+            aria-expanded={open}
+            aria-label={`${group.name} 내역 ${open ? "접기" : "펼치기"}`}
+            className="grid size-8 place-items-center rounded-full text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed"
+          >
+            <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
+          </button>
+        </TableCell>
+      </TableRow>
 
       {open && (
-        <div className="border-t divide-y">
-          {group.records.map((r) => (
-            <div key={r.id} className="flex items-start gap-3 px-4 py-2.5 text-sm">
-              <span className="text-muted-foreground text-xs w-20 shrink-0 pt-0.5">
-                {formatDate(r.date)}
-              </span>
-              <Badge
-                variant={r.type === "MERIT" ? "default" : "destructive"}
-                className="text-[11px] px-1.5 py-0 shrink-0"
-              >
-                {r.type === "MERIT" ? "상점" : "벌점"}
-              </Badge>
-              <span className={`font-semibold w-10 shrink-0 ${r.type === "MERIT" ? "text-green-600" : "text-red-600"}`}>
-                {r.type === "MERIT" ? "+" : "-"}{r.points}
-              </span>
-              {r.category && (
-                <span className="text-muted-foreground text-xs shrink-0">[{r.category}]</span>
-              )}
-              <span className="text-foreground">{r.reason}</span>
-            </div>
-          ))}
-        </div>
+        <TableRow className="bg-bg-layer-fill hover:bg-bg-layer-fill">
+          <TableCell colSpan={6} className="p-0">
+            <ul className="divide-y divide-stroke-neutral-muted">
+              {group.records.map((r) => (
+                <li key={r.id} className="flex flex-wrap items-center gap-x-x3 gap-y-x1 px-x5 py-x2_5">
+                  <span className="w-24 shrink-0 t3-regular tabular-nums text-fg-neutral-subtle">
+                    {formatDate(r.date)}
+                  </span>
+                  <StatusBadge tone={r.type === "MERIT" ? "ok" : "bad"}>
+                    {r.type === "MERIT" ? "상점" : "벌점"}
+                  </StatusBadge>
+                  <span
+                    className={cn(
+                      "w-10 shrink-0 t4-bold tabular-nums",
+                      r.type === "MERIT" ? "text-fg-positive" : "text-fg-critical",
+                    )}
+                  >
+                    {r.type === "MERIT" ? "+" : "-"}
+                    {r.points}
+                  </span>
+                  {r.category && <span className="shrink-0 t3-regular text-fg-neutral-subtle">{r.category}</span>}
+                  <span className="min-w-0 flex-1 t4-regular text-fg-neutral">{r.reason}</span>
+                </li>
+              ))}
+            </ul>
+          </TableCell>
+        </TableRow>
       )}
-    </div>
+    </Fragment>
   );
 }
 
@@ -252,72 +240,119 @@ export function MeritRangeReport() {
 
   const totalMerits = groups.reduce((s, g) => s + g.merits, 0);
   const totalDemerits = groups.reduce((s, g) => s + g.demerits, 0);
+  const presets = getPresets();
+
+  const sortProps = { activeKey: sortKey, dir: sortDir, onToggle: handleSort };
 
   return (
-    <div className="space-y-4">
+    <div>
       {/* 기간 선택 */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex items-center gap-2">
-          <DatePicker value={from || null} onChange={(d) => { setFrom(d ?? ""); setResults(null); }} placeholder="시작" />
-          <span className="text-muted-foreground text-sm">~</span>
-          <DatePicker value={to || null} onChange={(d) => { setTo(d ?? ""); setResults(null); }} placeholder="종료" />
+      <Toolbar>
+        <div className="flex items-center gap-x1_5">
+          <DatePicker
+            value={from || null}
+            onChange={(d) => { setFrom(d ?? ""); setResults(null); }}
+            placeholder="시작일"
+            className={DATE_TOOLBAR_CLASS}
+          />
+          <span className="t4-regular text-fg-neutral-subtle">~</span>
+          <DatePicker
+            value={to || null}
+            onChange={(d) => { setTo(d ?? ""); setResults(null); }}
+            placeholder="종료일"
+            className={DATE_TOOLBAR_CLASS}
+          />
         </div>
-        <Button size="sm" onClick={handleSearch} disabled={isPending} className="gap-1.5">
-          <Search className="h-3.5 w-3.5" />
-          {isPending ? "조회 중..." : "조회"}
+        <Button size="sm" variant="ink" onClick={handleSearch} disabled={isPending}>
+          <Search />
+          {isPending ? "조회 중…" : "조회"}
         </Button>
 
         {/* 빠른 프리셋 */}
-        <div className="flex gap-1.5 flex-wrap">
-          {getPresets().map((p) => (
-            <button
+        <div className="flex flex-wrap gap-x1_5 sm:ml-x2">
+          {presets.map((p) => (
+            <FilterChip
               key={p.label}
-              type="button"
+              selected={p.from === from && p.to === to}
               onClick={() => applyPreset(p.from, p.to)}
-              className="text-xs px-2.5 py-1 rounded-md border hover:bg-muted transition-colors"
             >
               {p.label}
-            </button>
+            </FilterChip>
           ))}
         </div>
-      </div>
+      </Toolbar>
 
       {/* 결과 */}
-      {results !== null && (
-        <div className="space-y-3">
-          {/* 요약 */}
-          <div className="flex items-center gap-4 text-sm text-muted-foreground border-b pb-3">
-            <span>
-              총 <strong className="text-foreground">{results.length}건</strong>
-            </span>
-            <span className="text-green-600">상점 합계 +{totalMerits}</span>
-            <span className="text-red-600">벌점 합계 -{totalDemerits}</span>
-            <span>
-              대상 원생 <strong className="text-foreground">{groups.length}명</strong>
-            </span>
+      {results === null ? (
+        isPending ? (
+          <div className="flex flex-col gap-x3" aria-hidden>
+            <StatCards>
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full rounded-r4" />
+              ))}
+            </StatCards>
+            <Skeleton className="h-48 w-full rounded-r4" />
           </div>
+        ) : (
+          <TableCard>
+            <EmptyState
+              compact
+              icon={CalendarSearch}
+              title="조회를 눌러 결과를 확인해 주세요"
+              description="기간을 바꾸면 이전 결과는 지워져요."
+            />
+          </TableCard>
+        )
+      ) : (
+        <div className={cn("flex flex-col gap-x4", isPending && "opacity-60")}>
+          {/* 요약 */}
+          <StatCards cols={4}>
+            <StatCard label="전체 건수" value={results.length} unit="건" />
+            <StatCard label="상점 합계" value={`+${totalMerits}`} unit="점" tone="ok" />
+            <StatCard label="벌점 합계" value={`-${totalDemerits}`} unit="점" tone="bad" />
+            <StatCard label="대상 원생" value={groups.length} unit="명" />
+          </StatCards>
 
-          {groups.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8 text-sm">
-              해당 기간에 상벌점 내역이 없습니다
-            </p>
-          ) : (
-            <>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs text-muted-foreground mr-1">정렬:</span>
-                <SortButton label="순점수" col="net" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                <SortButton label="상점" col="merits" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                <SortButton label="벌점" col="demerits" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                <SortButton label="이름" col="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                <SortButton label="건수" col="count" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-              </div>
-              <div className="space-y-2">
-                {groups.map((g) => (
-                  <StudentRow key={g.id} group={g} />
-                ))}
-              </div>
-            </>
-          )}
+          <TableCard>
+            {groups.length === 0 ? (
+              <EmptyState
+                compact
+                icon={CalendarSearch}
+                title="이 기간에는 상벌점 내역이 없어요"
+                description="위에서 기간을 바꿔 다시 조회해 보세요."
+              />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <SortableHeader sortKey="name" {...sortProps} className={HEAD_CLASS}>
+                      원생
+                    </SortableHeader>
+                    <SortableHeader sortKey="count" {...sortProps} align="right" className={HEAD_CLASS}>
+                      건수
+                    </SortableHeader>
+                    <SortableHeader sortKey="merits" {...sortProps} align="right" className={HEAD_CLASS}>
+                      상점
+                    </SortableHeader>
+                    <SortableHeader sortKey="demerits" {...sortProps} align="right" className={HEAD_CLASS}>
+                      벌점
+                    </SortableHeader>
+                    <SortableHeader sortKey="net" {...sortProps} align="right" className={HEAD_CLASS}>
+                      순점수
+                    </SortableHeader>
+                    <TableHead className="w-12">
+                      <span className="sr-only">펼치기</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {groups.map((g) => (
+                    <StudentRow key={g.id} group={g} />
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </TableCard>
         </div>
       )}
     </div>

@@ -8,6 +8,7 @@ import {
   sendChatMessage,
   markChatRead,
 } from "@/actions/online/portal-chat";
+import { Avatar } from "@/components/portal/ui";
 import { ChatBubble, type ChatMessageView } from "./chat-bubble";
 import { ChatComposer } from "./chat-composer";
 
@@ -164,52 +165,98 @@ export function ChatView({
     bucket.items.push(m);
   }
 
-  const outerClass =
-    containerVariant === "student"
-      ? "-mx-4 -mt-3 flex h-[calc(100svh-3rem-env(safe-area-inset-top)-64px-env(safe-area-inset-bottom))] flex-col"
-      : "flex h-full flex-col";
-
-  return (
-    <div className={outerClass}>
-      {/* Header bar with partner info */}
-      {containerVariant === "student" && (
-        <div className="border-b border-line bg-panel/85 px-4 py-2.5 backdrop-blur-md">
-          <p className="text-[14px] font-semibold leading-tight text-ink">
-            {partnerName}
-          </p>
-          {partnerLabel && (
-            <p className="text-[11px] text-ink-4">{partnerLabel}</p>
+  if (containerVariant === "student") {
+    // 학생 포털 push 화면 — 탭바 없음, 헤더 56px + safe-area-top.
+    // main 의 pt-1 / pb-8 과 셸의 safe-area-bottom 패딩을 상쇄해 화면을 꽉 채운다
+    // (composer 가 safe-area-bottom 을 직접 패딩).
+    return (
+      <div
+        className="-mx-4 -mt-1 flex flex-col"
+        style={{
+          height: "calc(100svh - 56px - env(safe-area-inset-top))",
+          marginBottom: "calc(-2rem - env(safe-area-inset-bottom))",
+        }}
+      >
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto overscroll-contain bg-bg-layer-basement px-x4 pb-x4"
+        >
+          {messages.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center px-x6 pb-x10 text-center">
+              <Avatar name={partnerName} size={56} />
+              <p className="mt-x4 t6-bold text-fg-neutral">
+                {partnerName}
+                {partnerLabel ? ` ${partnerLabel}` : ""}님께
+                <br />
+                메시지를 보내보세요
+              </p>
+              <p className="mt-x1_5 t4-regular text-fg-neutral-subtle">
+                질문이나 도움이 필요한 내용을
+                <br />
+                편하게 남겨 주세요.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col items-center pb-x2 pt-x6 text-center">
+                <Avatar name={partnerName} size={48} />
+                <p className="mt-x2 t5-bold text-fg-neutral">{partnerName}</p>
+                {partnerLabel && (
+                  <p className="t3-regular text-fg-neutral-subtle">{partnerLabel}</p>
+                )}
+              </div>
+              {grouped.map((g) => (
+                <section key={g.dayKey}>
+                  <div className="flex justify-center pb-x3 pt-x5">
+                    <span className="rounded-full bg-bg-neutral-weak px-x3 py-x1 t2-medium text-fg-neutral-subtle">
+                      {g.dayLabel}
+                    </span>
+                  </div>
+                  <BubbleStack items={g.items} viewer={viewer} portal />
+                </section>
+              ))}
+            </>
           )}
         </div>
-      )}
 
+        <ChatComposer
+          chatId={chatId}
+          studentToken={studentToken}
+          onSend={handleSend}
+          variant="portal"
+        />
+      </div>
+    );
+  }
+
+  // 직원 화면 — 부모(InboxFrame)가 높이를 정하고, 메시지 영역만 스크롤한다
+  return (
+    <div className="flex h-full min-h-0 flex-col">
       {/* Messages scroll area */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto bg-canvas px-3 py-3"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-bg-layer-fill px-x4 pb-x4 md:px-x6"
       >
         {messages.length === 0 ? (
-          <div className="grid h-full place-items-center px-4 text-center">
-            <div>
-              <p className="text-[13px] font-semibold text-ink-3">
-                대화를 시작해 보세요
-              </p>
-              <p className="mt-1 text-[11.5px] text-ink-4">
-                질문이나 도움이 필요한 내용을 자유롭게 남겨 주세요.
-              </p>
-            </div>
+          <div className="flex h-full flex-col items-center justify-center px-x6 text-center">
+            <Avatar name={partnerName} size={48} />
+            <p className="mt-x4 t5-bold text-fg-neutral">대화를 시작해 보세요</p>
+            <p className="mt-x1_5 t4-regular text-fg-neutral-subtle">
+              {partnerName}
+              {partnerLabel ? ` ${partnerLabel}` : ""}에게 첫 메시지를 보내 보세요.
+            </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="mx-auto flex max-w-3xl flex-col">
             {grouped.map((g) => (
-              <div key={g.dayKey} className="space-y-2">
-                <div className="flex items-center justify-center">
-                  <span className="rounded-full bg-canvas-2 px-2.5 py-0.5 text-[10.5px] font-semibold text-ink-4">
-                    {g.dayLabel}
-                  </span>
+              <section key={g.dayKey}>
+                <div className="flex items-center gap-x3 pb-x3 pt-x5" role="separator">
+                  <span className="h-px flex-1 bg-stroke-neutral-muted" aria-hidden />
+                  <span className="t2-medium text-fg-neutral-subtle">{g.dayLabel}</span>
+                  <span className="h-px flex-1 bg-stroke-neutral-muted" aria-hidden />
                 </div>
                 <BubbleStack items={g.items} viewer={viewer} />
-              </div>
+              </section>
             ))}
           </div>
         )}
@@ -227,12 +274,14 @@ export function ChatView({
 function BubbleStack({
   items,
   viewer,
+  portal = false,
 }: {
   items: ChatMessageView[];
   viewer: "STUDENT" | "STAFF";
+  portal?: boolean;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="flex flex-col gap-x1">
       {items.map((m, idx) => {
         const prev = idx > 0 ? items[idx - 1] : null;
         const next = idx < items.length - 1 ? items[idx + 1] : null;
@@ -250,14 +299,30 @@ function BubbleStack({
           new Date(next.createdAt).getTime() -
             new Date(m.createdAt).getTime() <
             60_000;
+        if (portal) {
+          // 보낸 사람이 바뀌는 지점에 여백 — 같은 사람 연속 메시지는 촘촘하게
+          return (
+            <div key={m.id} className={!sameAsPrev && idx > 0 ? "pt-x2_5" : undefined}>
+              <ChatBubble
+                message={m}
+                viewer={viewer}
+                showAvatar={!sameAsPrev}
+                showTime={!sameAsNext}
+                variant="portal"
+              />
+            </div>
+          );
+        }
+        // 직원 화면도 보낸 사람이 바뀌는 지점에만 여백을 둔다
         return (
-          <ChatBubble
-            key={m.id}
-            message={m}
-            viewer={viewer}
-            showAvatar={!sameAsPrev}
-            showTime={!sameAsNext}
-          />
+          <div key={m.id} className={!sameAsPrev && idx > 0 ? "pt-x3" : undefined}>
+            <ChatBubble
+              message={m}
+              viewer={viewer}
+              showAvatar={!sameAsPrev}
+              showTime={!sameAsNext}
+            />
+          </div>
         );
       })}
     </div>

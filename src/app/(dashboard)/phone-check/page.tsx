@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { isStaff } from "@/lib/roles";
 import { todayKST } from "@/lib/utils";
 import { getPhoneCheckBoard } from "@/actions/phone-check";
-import { PageIntro } from "@/components/ui/page-intro";
+import { PageHeader } from "@/components/backoffice/ui";
 import { PhoneCheckBoard } from "./_components/phone-check-board";
 
 export const dynamic = "force-dynamic";
@@ -23,12 +23,10 @@ export default async function PhoneCheckPage({
   const rows = await getPhoneCheckBoard(date);
 
   return (
-    <div className="space-y-6">
-      <PageIntro
-        tag="PHONE CHECK"
+    <div>
+      <PageHeader
         title="휴대폰 검사"
-        description="입실 시 휴대폰 제출 여부를 학생별로 검사하고 기록합니다."
-        accent="text-info"
+        description="입실할 때 휴대폰을 냈는지 학생별로 확인하고 기록해요."
       />
       <PhoneCheckBoard date={date} initialRows={rows} />
     </div>

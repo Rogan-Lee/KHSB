@@ -3,8 +3,20 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Pencil, Check, X, GripVertical, ToggleLeft, ToggleRight } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Switch } from "seed-design/ui/switch";
+import { Plus, Trash2, Pencil, CalendarCheck, ListChecks } from "lucide-react";
 import { cn, DAY_NAMES, todayKST } from "@/lib/utils";
+import {
+  EmptyState,
+  FilterChip,
+  FormActions,
+  Section,
+  Segmented,
+  StatusBadge,
+} from "@/components/backoffice/ui";
+import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
+import { ShiftBadge } from "@/components/handover/handover-ui";
 import {
   createChecklistTemplate,
   updateChecklistTemplate,
@@ -21,9 +33,9 @@ type Template = {
 };
 
 const SHIFT_TYPES = [
-  { value: "ALL", label: "공통", color: "bg-gray-100 text-gray-700" },
-  { value: "OPEN", label: "오픈", color: "bg-blue-100 text-blue-700" },
-  { value: "CLOSE", label: "마감", color: "bg-purple-100 text-purple-700" },
+  { value: "ALL", label: "공통" },
+  { value: "OPEN", label: "오픈" },
+  { value: "CLOSE", label: "마감" },
 ];
 
 // "0,2,5" ↔ [0,2,5]; 빈 값 = 매일
@@ -37,19 +49,38 @@ function daysLabel(csv: string): string {
 
 function DayChips({ selected, onToggle }: { selected: number[]; onToggle: (d: number) => void }) {
   return (
-    <div className="flex gap-1">
-      {DAY_NAMES.map((name, d) => (
-        <button
-          key={d}
-          type="button"
-          onClick={() => onToggle(d)}
-          className={cn(
-            "w-6 h-6 rounded-full border text-xs transition-all",
-            selected.includes(d) ? "bg-primary/10 border-primary/50 text-primary font-semibold" : "border-border text-muted-foreground"
-          )}
-        >
-          {name}
-        </button>
+    <div className="flex flex-wrap gap-x1_5" role="group" aria-label="요일 선택">
+      {DAY_NAMES.map((name, d) => {
+        const on = selected.includes(d);
+        return (
+          <button
+            key={d}
+            type="button"
+            onClick={() => onToggle(d)}
+            aria-pressed={on}
+            className={cn(
+              "grid size-9 place-items-center rounded-full t4-medium transition-colors",
+              on
+                ? "bg-bg-neutral-inverted text-fg-neutral-inverted"
+                : "bg-bg-layer-default text-fg-neutral-muted shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] hover:bg-bg-layer-default-pressed"
+            )}
+          >
+            {name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 근무 타임 선택 칩 */
+function ShiftChips({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="flex flex-wrap gap-x1_5" role="group" aria-label="근무 타임">
+      {SHIFT_TYPES.map((s) => (
+        <FilterChip key={s.value} selected={value === s.value} onClick={() => onChange(s.value)}>
+          {s.label}
+        </FilterChip>
       ))}
     </div>
   );
@@ -68,6 +99,8 @@ export function ChecklistManager({ initialTemplates, editable = true }: { initia
   const [newShiftType, setNewShiftType] = useState("ALL");
   const [newDays, setNewDays] = useState<number[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  // 삭제 확인
+  const [deleteTarget, setDeleteTarget] = useState<Template | null>(null);
 
   // 보기 모드: 요일별 개요 / 목록 관리
   const [view, setView] = useState<"byday" | "list">("byday");
@@ -139,6 +172,7 @@ export function ChecklistManager({ initialTemplates, editable = true }: { initia
       try {
         await deleteChecklistTemplate(id);
         setTemplates((prev) => prev.filter((t) => t.id !== id));
+        setDeleteTarget(null);
         toast.success("삭제되었습니다");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "삭제 실패");
@@ -156,43 +190,32 @@ export function ChecklistManager({ initialTemplates, editable = true }: { initia
   // 추가 폼 (목록/요일별 공용)
   function renderAddForm() {
     return (
-      <div className="border rounded-xl p-4 space-y-3 bg-muted/30">
-        <input
+      <div className="flex flex-col gap-x4 border-t border-stroke-neutral-muted bg-bg-layer-fill px-x5 py-x4">
+        <Input
           type="text"
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
           autoFocus
           placeholder="루틴 항목 이름"
-          className="w-full text-sm bg-transparent border-b border-border pb-1.5 focus:outline-none focus:border-primary/50"
+          aria-label="루틴 항목 이름"
         />
-        <div className="flex gap-2">
-          {SHIFT_TYPES.map((s) => (
-            <button
-              key={s.value}
-              type="button"
-              onClick={() => setNewShiftType(s.value)}
-              className={cn(
-                "text-xs px-3 py-1 rounded-full border transition-all",
-                newShiftType === s.value ? s.color + " border-current font-semibold" : "border-border text-muted-foreground"
-              )}
-            >
-              {s.label}
-            </button>
-          ))}
+        <div className="flex flex-col gap-x2">
+          <p className="t3-medium text-fg-neutral-subtle">근무 타임</p>
+          <ShiftChips value={newShiftType} onChange={setNewShiftType} />
         </div>
-        <div className="space-y-1">
-          <p className="text-[10px] text-muted-foreground">요일 (미선택 = 매일)</p>
+        <div className="flex flex-col gap-x2">
+          <p className="t3-medium text-fg-neutral-subtle">요일 <span className="t3-regular">(선택 안 하면 매일)</span></p>
           <DayChips selected={newDays} onToggle={toggleDay(setNewDays)} />
         </div>
-        <div className="flex items-center gap-2">
-          <Button size="sm" onClick={handleAdd} disabled={isPending || !newTitle.trim()} className="h-7 text-xs gap-1 flex-1">
-            <Plus className="h-3 w-3" /> 추가
+        <FormActions className="pt-0">
+          <Button variant="secondary" size="sm" onClick={() => { setShowAddForm(false); setNewTitle(""); }}>
+            취소
           </Button>
-          <Button size="sm" variant="outline" onClick={() => { setShowAddForm(false); setNewTitle(""); }} className="h-7 text-xs gap-1">
-            <X className="h-3 w-3" /> 취소
+          <Button size="sm" onClick={handleAdd} disabled={isPending || !newTitle.trim()}>
+            {isPending ? "추가하는 중…" : "추가"}
           </Button>
-        </div>
+        </FormActions>
       </div>
     );
   }
@@ -200,42 +223,52 @@ export function ChecklistManager({ initialTemplates, editable = true }: { initia
   // 인라인 편집 폼 (목록/요일별 공용) — key 포함
   function renderEditForm(t: Template) {
     return (
-      <div key={t.id} className="border rounded-xl p-3 space-y-2.5 bg-background">
-        <input
+      <li key={t.id} className="flex flex-col gap-x4 bg-bg-layer-fill px-x5 py-x4">
+        <Input
           type="text"
           value={editTitle}
           onChange={(e) => setEditTitle(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSaveEdit(t.id)}
           autoFocus
-          className="w-full text-sm bg-transparent border-b border-border pb-1.5 focus:outline-none focus:border-primary/50"
+          aria-label="루틴 항목 이름"
         />
-        <div className="flex items-center gap-2">
-          {SHIFT_TYPES.map((s) => (
-            <button
-              key={s.value}
-              type="button"
-              onClick={() => setEditShiftType(s.value)}
-              className={cn(
-                "text-xs px-3 py-1 rounded-full border transition-all",
-                editShiftType === s.value ? s.color + " border-current font-semibold" : "border-border text-muted-foreground"
-              )}
-            >
-              {s.label}
-            </button>
-          ))}
-          <div className="ml-auto flex items-center gap-1">
-            <button onClick={() => handleSaveEdit(t.id)} className="p-1.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
-              <Check className="h-3.5 w-3.5" />
-            </button>
-            <button onClick={() => setEditingId(null)} className="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
+        <div className="flex flex-col gap-x2">
+          <p className="t3-medium text-fg-neutral-subtle">근무 타임</p>
+          <ShiftChips value={editShiftType} onChange={setEditShiftType} />
         </div>
-        <div className="space-y-1">
-          <p className="text-[10px] text-muted-foreground">요일 (미선택 = 매일)</p>
+        <div className="flex flex-col gap-x2">
+          <p className="t3-medium text-fg-neutral-subtle">요일 <span className="t3-regular">(선택 안 하면 매일)</span></p>
           <DayChips selected={editDays} onToggle={toggleDay(setEditDays)} />
         </div>
+        <FormActions className="pt-0">
+          <Button variant="secondary" size="sm" onClick={() => setEditingId(null)}>
+            취소
+          </Button>
+          <Button size="sm" onClick={() => handleSaveEdit(t.id)} disabled={isPending || !editTitle.trim()}>
+            {isPending ? "저장 중…" : "저장"}
+          </Button>
+        </FormActions>
+      </li>
+    );
+  }
+
+  /** 편집·삭제 아이콘 버튼 */
+  function rowActions(t: Template) {
+    return (
+      <div className="flex shrink-0 items-center">
+        <Button variant="ghost" size="icon" onClick={() => startEdit(t)} aria-label={`${t.title} 수정`} title="수정" className="size-8">
+          <Pencil />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setDeleteTarget(t)}
+          aria-label={`${t.title} 삭제`}
+          title="삭제"
+          className="size-8 hover:text-fg-critical"
+        >
+          <Trash2 />
+        </Button>
       </div>
     );
   }
@@ -256,32 +289,26 @@ export function ChecklistManager({ initialTemplates, editable = true }: { initia
   const effectiveView = editable ? view : "byday";
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-x4">
       {/* 보기 토글 (관리자만) */}
       {editable && (
-      <div className="flex gap-1 p-0.5 bg-muted rounded-lg">
-        <button
-          type="button"
-          onClick={() => setView("byday")}
-          className={cn("flex-1 text-xs py-1.5 rounded-md transition-all", view === "byday" ? "bg-background shadow-sm font-semibold" : "text-muted-foreground")}
-        >
-          요일별 보기
-        </button>
-        <button
-          type="button"
-          onClick={() => setView("list")}
-          className={cn("flex-1 text-xs py-1.5 rounded-md transition-all", view === "list" ? "bg-background shadow-sm font-semibold" : "text-muted-foreground")}
-        >
-          목록 관리
-        </button>
-      </div>
+        <Segmented
+          aria-label="루틴 보기 방식"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "byday", label: "요일별 보기" },
+            { value: "list", label: "목록 관리" },
+          ]}
+          className="sm:w-80"
+        />
       )}
 
       {/* ── 요일별 개요 (요일 선택형) ── */}
       {effectiveView === "byday" && (
-        <div className="space-y-3">
+        <div className="flex flex-col gap-x4">
           {/* 요일 선택 칩 */}
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-x1_5" role="group" aria-label="요일">
             {WEEK_ORDER.map((d) => {
               const count = itemsForDay(d).length;
               const isSel = d === selectedDay;
@@ -291,14 +318,17 @@ export function ChecklistManager({ initialTemplates, editable = true }: { initia
                   key={d}
                   type="button"
                   onClick={() => setSelectedDay(d)}
+                  aria-pressed={isSel}
+                  aria-label={`${DAY_NAMES[d]}요일 루틴 ${count}개${isToday ? " (오늘)" : ""}`}
                   className={cn(
-                    "flex flex-col items-center gap-0.5 py-1.5 rounded-lg border text-xs transition-all",
-                    isSel ? "bg-primary text-primary-foreground border-primary font-semibold"
-                          : isToday ? "border-primary/40 text-primary" : "border-border text-muted-foreground hover:bg-muted/40"
+                    "flex flex-col items-center gap-x0_5 rounded-r3 py-x2 transition-colors",
+                    isSel
+                      ? "bg-bg-neutral-inverted text-fg-neutral-inverted"
+                      : "bg-bg-layer-fill text-fg-neutral-muted hover:bg-bg-neutral-weak"
                   )}
                 >
-                  <span>{DAY_NAMES[d]}</span>
-                  <span className={cn("text-[10px]", isSel ? "text-primary-foreground/80" : "text-muted-foreground")}>{count}</span>
+                  <span className={cn("t4-bold", !isSel && isToday && "text-fg-brand")}>{DAY_NAMES[d]}</span>
+                  <span className={cn("t2-regular tabular-nums", isSel ? "text-fg-neutral-inverted" : "text-fg-neutral-subtle")}>{count}</span>
                 </button>
               );
             })}
@@ -308,124 +338,122 @@ export function ChecklistManager({ initialTemplates, editable = true }: { initia
           {(() => {
             const items = itemsForDay(selectedDay);
             return (
-              <div className="rounded-xl border bg-card p-3 space-y-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm font-semibold">{DAY_NAMES[selectedDay]}요일</span>
-                  {selectedDay === todayDow && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-medium">오늘</span>}
-                  <span className="text-[11px] text-muted-foreground ml-auto">{items.length}개</span>
-                  {editable && !showAddForm && (
-                    <button
-                      type="button"
-                      onClick={() => openAddForDay(selectedDay)}
-                      className="flex items-center gap-1 text-[11px] font-medium text-primary hover:bg-primary/10 rounded-md px-1.5 py-1 transition-colors shrink-0"
-                    >
-                      <Plus className="h-3 w-3" />추가
-                    </button>
-                  )}
-                </div>
-
+              <Section
+                title={
+                  <span className="inline-flex items-center gap-x1_5">
+                    {DAY_NAMES[selectedDay]}요일
+                    {selectedDay === todayDow && <StatusBadge tone="brand">오늘</StatusBadge>}
+                  </span>
+                }
+                description={`활성 루틴 ${items.length}개`}
+                actions={
+                  editable && !showAddForm ? (
+                    <Button variant="secondary" size="sm" onClick={() => openAddForDay(selectedDay)}>
+                      <Plus />추가
+                    </Button>
+                  ) : undefined
+                }
+                flush
+              >
                 {editable && showAddForm && renderAddForm()}
 
                 {items.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-4">등록된 루틴 없음</p>
+                  <EmptyState
+                    compact
+                    icon={CalendarCheck}
+                    title="이 요일에 등록된 루틴이 없어요"
+                    className="border-t border-stroke-neutral-muted"
+                  />
                 ) : (
-                  <div className="space-y-1">
+                  <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
                     {items.map((t) =>
                       editable && editingId === t.id ? (
                         renderEditForm(t)
                       ) : (
-                        <div key={t.id} className="flex items-center gap-2">
-                          <span className={cn(
-                            "text-[10px] px-2 py-0.5 rounded-full shrink-0 w-10 text-center",
-                            SHIFT_TYPES.find((s) => s.value === t.shiftType)?.color ?? "bg-gray-100 text-gray-600"
-                          )}>
-                            {SHIFT_TYPES.find((s) => s.value === t.shiftType)?.label ?? t.shiftType}
-                          </span>
-                          <span className="text-sm flex-1 min-w-0">{t.title}</span>
+                        <li key={t.id} className="flex items-center gap-x3 px-x5 py-x2_5">
+                          <ShiftBadge shiftType={t.shiftType} className="w-10 justify-center" />
+                          <span className="min-w-0 flex-1 t4-regular text-fg-neutral">{t.title}</span>
                           {parseDays(t.days).length === 0 && (
-                            <span className="text-[10px] text-muted-foreground shrink-0">매일</span>
+                            <span className="shrink-0 t3-regular text-fg-neutral-subtle">매일</span>
                           )}
-                          {editable && (
-                            <div className="flex items-center gap-0.5 shrink-0">
-                              <button onClick={() => startEdit(t)} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                              <button onClick={() => handleDelete(t.id)} className="p-1 text-muted-foreground hover:text-red-500 transition-colors">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                          {editable && rowActions(t)}
+                        </li>
                       )
                     )}
-                  </div>
+                  </ul>
                 )}
-              </div>
+              </Section>
             );
           })()}
         </div>
       )}
 
       {effectiveView === "list" && (
-      <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">루틴 항목을 등록·수정·삭제할 수 있습니다. 비활성화된 항목은 인수인계 작성 시 표시되지 않습니다.</p>
-        <Button size="sm" variant="outline" onClick={() => setShowAddForm(true)} className="gap-1.5 h-8 text-xs shrink-0">
-          <Plus className="h-3.5 w-3.5" />
-          항목 추가
-        </Button>
-      </div>
+        <Section
+          title="루틴 항목"
+          count={templates.length}
+          description="비활성화된 항목은 인수인계 작성 시 표시되지 않아요"
+          actions={
+            !showAddForm ? (
+              <Button variant="secondary" size="sm" onClick={() => setShowAddForm(true)}>
+                <Plus />항목 추가
+              </Button>
+            ) : undefined
+          }
+          flush
+        >
+          {/* Add form */}
+          {showAddForm && renderAddForm()}
 
-      {/* Add form */}
-      {showAddForm && renderAddForm()}
-
-      {/* Template list */}
-      {templates.length === 0 ? (
-        <div className="text-center py-10 text-muted-foreground text-sm">
-          등록된 루틴 항목이 없습니다
-        </div>
-      ) : (
-        <div className="space-y-1.5">
-          {templates.map((t) =>
-            editingId === t.id ? (
-              renderEditForm(t)
-            ) : (
-              <div
-                key={t.id}
-                className={cn(
-                  "flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all",
-                  t.isActive ? "bg-card" : "bg-muted/30 opacity-60"
-                )}
-              >
-                <GripVertical className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
-                <span className={cn("text-sm flex-1", !t.isActive && "line-through text-muted-foreground")}>
-                  {t.title}
-                </span>
-                <span className={cn(
-                  "text-[10px] px-2 py-0.5 rounded-full shrink-0",
-                  SHIFT_TYPES.find((s) => s.value === t.shiftType)?.color ?? "bg-gray-100 text-gray-600"
-                )}>
-                  {SHIFT_TYPES.find((s) => s.value === t.shiftType)?.label ?? t.shiftType}
-                </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full shrink-0 bg-amber-50 text-amber-700 border border-amber-200">
-                  {daysLabel(t.days)}
-                </span>
-                <button onClick={() => handleToggleActive(t)} className="p-1 text-muted-foreground hover:text-foreground transition-colors" title={t.isActive ? "비활성화" : "활성화"}>
-                  {t.isActive ? <ToggleRight className="h-4 w-4 text-green-500" /> : <ToggleLeft className="h-4 w-4" />}
-                </button>
-                <button onClick={() => startEdit(t)} className="p-1 text-muted-foreground hover:text-foreground transition-colors">
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button onClick={() => handleDelete(t.id)} className="p-1 text-muted-foreground hover:text-red-500 transition-colors">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )
+          {/* Template list */}
+          {templates.length === 0 ? (
+            <EmptyState
+              icon={ListChecks}
+              title="등록된 루틴 항목이 없어요"
+              description="매일 또는 특정 요일에 챙길 일을 루틴으로 등록해 보세요"
+              className="border-t border-stroke-neutral-muted"
+            />
+          ) : (
+            <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+              {templates.map((t) =>
+                editingId === t.id ? (
+                  renderEditForm(t)
+                ) : (
+                  <li key={t.id} className="flex flex-wrap items-center gap-x3 px-x5 py-x3 sm:flex-nowrap">
+                    <span className={cn("min-w-0 flex-1 t4-medium", t.isActive ? "text-fg-neutral" : "text-fg-neutral-subtle line-through")}>
+                      {t.title}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-x1_5">
+                      <ShiftBadge shiftType={t.shiftType} />
+                      <StatusBadge>{daysLabel(t.days)}</StatusBadge>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-x2" title={t.isActive ? "비활성화" : "활성화"}>
+                      <Switch
+                        size="24"
+                        checked={t.isActive}
+                        disabled={isPending}
+                        onCheckedChange={() => handleToggleActive(t)}
+                        inputProps={{ "aria-label": `${t.title} 사용` }}
+                      />
+                    </div>
+                    {rowActions(t)}
+                  </li>
+                )
+              )}
+            </ul>
           )}
-        </div>
+        </Section>
       )}
-      </div>
-      )}
+
+      <ConfirmDialog
+        open={deleteTarget != null}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+        title="이 루틴 항목을 삭제할까요?"
+        description={deleteTarget ? `"${deleteTarget.title}" — 삭제하면 되돌릴 수 없어요. 잠시 빼 두려면 목록 관리에서 비활성화해 보세요.` : undefined}
+        pendingLabel="삭제하는 중…"
+        pending={isPending}
+        onConfirm={() => { if (deleteTarget) handleDelete(deleteTarget.id); }}
+      />
     </div>
   );
 }

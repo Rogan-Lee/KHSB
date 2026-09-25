@@ -2,17 +2,18 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Sheet, SheetContent, SheetHeader, SheetTitle,
+  Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
 import { TimePickerInput } from "@/components/ui/time-picker";
 import { updateConsultation, getStudentConsultationHistory } from "@/actions/consultations";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
-import { History, ChevronDown, ChevronUp, CalendarDays, ClipboardList, MessageSquare } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { FormField, StatusBadge } from "@/components/backoffice/ui";
+import { formatKST } from "./consultation-tones";
 
 type PastConsultation = {
   id: string;
@@ -36,67 +37,44 @@ type Consultation = {
   student: { id: string; name: string; grade: string };
 };
 
-function formatKST(date: Date): string {
-  const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-  const m = kst.getUTCMonth() + 1;
-  const d = kst.getUTCDate();
-  const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
-  const dow = dayNames[kst.getUTCDay()];
-  const hh = String(kst.getUTCHours()).padStart(2, "0");
-  const mm = String(kst.getUTCMinutes()).padStart(2, "0");
-  const timeStr = hh === "00" && mm === "00" ? "" : ` ${hh}:${mm}`;
-  return `${m}월 ${d}일 (${dow})${timeStr}`;
-}
-
 function PastConsultationCard({ c }: { c: PastConsultation }) {
   const [open, setOpen] = useState(false);
   const dateStr = c.actualDate ?? c.scheduledAt;
+  const rows: { label: string; value: string | null }[] = [
+    { label: "주제", value: c.agenda },
+    { label: "결과", value: c.outcome },
+    { label: "사후조치", value: c.followUp },
+    { label: "메모", value: c.notes },
+  ];
 
   return (
-    <div className="rounded-lg border bg-muted/20 overflow-hidden">
+    <div className="overflow-hidden rounded-r3 bg-bg-layer-fill">
       <button
         type="button"
         onClick={() => setOpen((p) => !p)}
-        className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-muted/30 transition-colors"
+        aria-expanded={open}
+        className="flex w-full items-center gap-x3 px-x4 py-x3 text-left transition-colors hover:bg-bg-neutral-weak"
       >
-        <div className="flex items-center gap-2">
-          <History className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium">
-            {dateStr ? formatKST(dateStr) : "날짜 미정"}
-          </span>
-          {c.agenda && (
-            <span className="text-xs text-muted-foreground truncate max-w-[160px]">{c.agenda}</span>
-          )}
-        </div>
-        {open ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+        <span className="shrink-0 t4-medium tabular-nums text-fg-neutral">
+          {dateStr ? formatKST(dateStr) : "날짜 미정"}
+        </span>
+        {c.agenda && (
+          <span className="min-w-0 flex-1 truncate t4-regular text-fg-neutral-subtle">{c.agenda}</span>
+        )}
+        <ChevronDown
+          className={cn("ml-auto size-4 shrink-0 text-fg-neutral-subtle transition-transform", open && "rotate-180")}
+          aria-hidden
+        />
       </button>
       {open && (
-        <div className="px-3 pb-3 space-y-2 text-xs text-foreground/80 border-t bg-muted/10">
-          {c.agenda && (
-            <div className="flex items-start gap-1.5 pt-2">
-              <MessageSquare className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
-              <div><span className="text-muted-foreground">주제:</span> {c.agenda}</div>
+        <dl className="flex flex-col gap-x2 border-t border-stroke-neutral-muted px-x4 py-x3">
+          {rows.filter((r) => r.value).map((r) => (
+            <div key={r.label} className="grid grid-cols-[4.5rem_1fr] gap-x2 t4-regular">
+              <dt className="text-fg-neutral-subtle">{r.label}</dt>
+              <dd className="whitespace-pre-wrap break-words text-fg-neutral">{r.value}</dd>
             </div>
-          )}
-          {c.outcome && (
-            <div className="flex items-start gap-1.5">
-              <ClipboardList className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
-              <div><span className="text-muted-foreground">결과:</span> {c.outcome}</div>
-            </div>
-          )}
-          {c.followUp && (
-            <div className="flex items-start gap-1.5">
-              <ClipboardList className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
-              <div><span className="text-muted-foreground">사후조치:</span> {c.followUp}</div>
-            </div>
-          )}
-          {c.notes && (
-            <div className="flex items-start gap-1.5">
-              <MessageSquare className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
-              <div><span className="text-muted-foreground">메모:</span> {c.notes}</div>
-            </div>
-          )}
-        </div>
+          ))}
+        </dl>
       )}
     </div>
   );
@@ -223,117 +201,107 @@ export function ConsultationProgressSheet({ consultation: c, open, onClose }: Pr
 
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto flex flex-col gap-0 p-0">
+      <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-lg">
         {/* Header */}
-        <SheetHeader className="px-5 py-4 border-b shrink-0">
-          <SheetTitle className="flex items-center gap-2">
-            <span>{c.student.name}</span>
-            <span className="text-sm font-normal text-muted-foreground">{c.student.grade}</span>
-            <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
-              면담 진행 중
-            </span>
+        <SheetHeader className="shrink-0 border-b border-stroke-neutral-muted px-x6 pb-x5 pt-x6 pr-x14">
+          <StatusBadge tone="info" className="self-start">면담 진행 중</StatusBadge>
+          <SheetTitle className="mt-x2">
+            {c.student.name}
+            <span className="ml-x2 t5-regular text-fg-neutral-subtle">{c.student.grade}</span>
           </SheetTitle>
           {c.scheduledAt && (
-            <p className="flex items-center gap-1 text-xs text-muted-foreground">
-              <CalendarDays className="h-3 w-3" />
-              예정: {formatKST(c.scheduledAt)}
-            </p>
+            <SheetDescription className="tabular-nums">예정 {formatKST(c.scheduledAt)}</SheetDescription>
           )}
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+        <div className="flex flex-1 flex-col gap-x6 overflow-y-auto px-x6 py-x5">
           {/* Past consultations */}
           {pastList.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">이전 면담 기록</p>
-              <div className="space-y-1.5">
+            <div className="flex flex-col gap-x2">
+              <p className="t4-bold text-fg-neutral">
+                이전 면담 기록
+                <span className="ml-x1_5 tabular-nums text-fg-brand">{pastList.length}</span>
+              </p>
+              <div className="flex flex-col gap-x1_5">
                 {pastList.map((p) => <PastConsultationCard key={p.id} c={p} />)}
               </div>
             </div>
           )}
 
           {/* Form */}
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs text-muted-foreground">실제 면담 일시</Label>
-                <button
-                  type="button"
-                  onClick={handleNowDate}
-                  className="text-xs text-primary hover:underline underline-offset-2"
-                >
-                  지금
-                </button>
+          <div className="flex flex-col gap-x4">
+            <div className="flex flex-col gap-x2">
+              <div className="flex items-center justify-between gap-x2">
+                <span className="t4-medium text-fg-neutral">실제 면담 일시</span>
+                <Button type="button" variant="link" onClick={handleNowDate} className="t3-medium">
+                  지금으로 입력
+                </Button>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-x2">
                 <DatePicker value={actualDatePart || null} onChange={(d) => setActualDatePart(d ?? "")} placeholder="날짜 선택" />
                 <TimePickerInput value={actualTimePart} onChange={setActualTimePart} />
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">면담 주제</Label>
+            <FormField label="면담 주제" htmlFor="progress-agenda">
               <Textarea
+                id="progress-agenda"
                 value={agenda}
                 onChange={(e) => setAgenda(e.target.value)}
                 placeholder="면담 주제를 입력하세요..."
                 rows={3}
-                className="text-sm resize-none"
+                className="resize-none"
               />
-            </div>
+            </FormField>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">결과</Label>
+            <FormField label="결과" htmlFor="progress-outcome">
               <Textarea
+                id="progress-outcome"
                 value={outcome}
                 onChange={(e) => setOutcome(e.target.value)}
                 placeholder="면담 결과를 입력하세요..."
                 rows={3}
-                className="text-sm resize-none"
+                className="resize-none"
               />
-            </div>
+            </FormField>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">사후조치</Label>
+            <FormField label="사후조치" htmlFor="progress-followup">
               <Textarea
+                id="progress-followup"
                 value={followUp}
                 onChange={(e) => setFollowUp(e.target.value)}
                 placeholder="사후조치 사항을 입력하세요..."
                 rows={2}
-                className="text-sm resize-none"
+                className="resize-none"
               />
-            </div>
+            </FormField>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">메모</Label>
+            <FormField label="메모" htmlFor="progress-notes">
               <Textarea
+                id="progress-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="기타 메모..."
                 rows={2}
-                className="text-sm resize-none"
+                className="resize-none"
               />
-            </div>
+            </FormField>
           </div>
         </div>
 
         {/* Footer actions */}
-        <div className="border-t px-5 py-4 flex items-center gap-2 shrink-0">
-          <Button type="button" variant="outline" size="sm" onClick={handleSaveDraft}>
+        <div className="flex shrink-0 flex-wrap items-center gap-x2 border-t border-stroke-neutral-muted px-x6 py-x4">
+          <Button type="button" variant="ghost" size="sm" onClick={handleSaveDraft}>
             임시저장
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={handleSave} disabled={isPending}>
-            {isPending ? "저장 중..." : "저장"}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            onClick={handleComplete}
-            disabled={isPending}
-            className="ml-auto bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            완료처리
-          </Button>
+          <div className="ml-auto flex items-center gap-x2">
+            <Button type="button" variant="outline" onClick={handleSave} disabled={isPending}>
+              {isPending ? "저장 중…" : "저장"}
+            </Button>
+            <Button type="button" onClick={handleComplete} disabled={isPending}>
+              완료 처리
+            </Button>
+          </div>
         </div>
       </SheetContent>
     </Sheet>

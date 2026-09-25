@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { formatDate, formatTime, parseSchool } from "@/lib/utils";
 import { calcPointBalance } from "@/lib/points";
 import { StudentForm } from "@/components/students/student-form";
@@ -14,6 +13,8 @@ const ExamScoreChart = dynamic(() => import("@/components/students/exam-score-ch
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
 import { StudentMentoringHistory } from "@/components/students/student-mentoring-history";
 import { StudentDetailTabs } from "@/components/students/student-detail-tabs";
+import { StudentAvatar } from "@/components/students/student-avatar";
+import { STUDENT_STATUS } from "@/components/students/student-status";
 import {
   Table,
   TableBody,
@@ -22,21 +23,31 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DescriptionList,
+  EmptyState,
+  PageHeader,
+  Section,
+  StatCard,
+  StatCards,
+  StatusBadge,
+  type Tone,
+} from "@/components/backoffice/ui";
+import { CalendarCheck, MessagesSquare, Phone, Scale } from "lucide-react";
 
-const STATUS_MAP = {
-  ACTIVE: { label: "재원", variant: "default" as const },
-  INACTIVE: { label: "휴원", variant: "secondary" as const },
-  GRADUATED: { label: "졸업", variant: "outline" as const },
-  WITHDRAWN: { label: "퇴원", variant: "destructive" as const },
+const ATTENDANCE_TYPE_MAP: Record<string, { label: string; tone: Tone }> = {
+  NORMAL: { label: "정상", tone: "ok" },
+  ABSENT: { label: "결석", tone: "bad" },
+  TARDY: { label: "지각", tone: "warn" },
+  EARLY_LEAVE: { label: "정상", tone: "ok" },
+  APPROVED_ABSENT: { label: "공결", tone: "info" },
+  NOTIFIED_ABSENT: { label: "미입실", tone: "gray" },
 };
 
-const ATTENDANCE_TYPE_MAP: Record<string, { label: string; variant: "default" | "destructive" | "secondary" | "outline" }> = {
-  NORMAL: { label: "정상", variant: "default" },
-  ABSENT: { label: "결석", variant: "destructive" },
-  TARDY: { label: "지각", variant: "secondary" },
-  EARLY_LEAVE: { label: "정상", variant: "default" },
-  APPROVED_ABSENT: { label: "공결", variant: "secondary" },
-  NOTIFIED_ABSENT: { label: "미입실", variant: "secondary" },
+const CONSULTATION_STATUS: Record<string, { label: string; tone: Tone }> = {
+  SCHEDULED: { label: "예정", tone: "info" },
+  COMPLETED: { label: "완료", tone: "ok" },
+  CANCELLED: { label: "취소", tone: "gray" },
 };
 
 export default async function StudentDetailPage({
@@ -47,7 +58,7 @@ export default async function StudentDetailPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const { id: rawId } = await params;
-  const { tab } = await searchParams;
+  await searchParams; // 탭(?tab=)은 StudentDetailTabs 가 URL 에서 직접 읽는다
   const id = decodeURIComponent(rawId);
 
   let student;
@@ -99,52 +110,73 @@ export default async function StudentDetailPage({
     merits: student.merits,
   });
 
-  return (
-    <div className="space-y-4 max-w-5xl">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <h2 className="text-2xl font-bold">{student.name}</h2>
-        <Badge variant={STATUS_MAP[student.status].variant}>
-          {STATUS_MAP[student.status].label}
-        </Badge>
-        <span className="text-muted-foreground">{student.grade}</span>
-        {student.seat && (
-          <span className="text-sm bg-muted px-2 py-0.5 rounded">
-            좌석 {student.seat}
-          </span>
-        )}
-      </div>
+  const status = STUDENT_STATUS[student.status];
+  const netPoints = totalMerits - totalDemerits;
+  const summary = [
+    [student.school, student.grade].filter(Boolean).join(" "),
+    student.classGroup,
+    student.seat ? `좌석 ${student.seat}번` : "좌석 미배정",
+    student.mentor ? `담당 ${student.mentor.name}` : "담당 멘토 미배정",
+  ].filter(Boolean).join(" · ");
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">이번 달 출석</p>
-            <p className="text-2xl font-bold">
-              {student.attendances.filter((a) => a.type === "NORMAL").length}일
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">누적 상점</p>
-            <p className="text-2xl font-bold text-green-600">{totalMerits}점</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">누적 벌점</p>
-            <p className="text-2xl font-bold text-red-600">{totalDemerits}점</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <p className="text-sm text-muted-foreground">순점수</p>
-            <p className={`text-2xl font-bold ${totalMerits - totalDemerits >= 0 ? "text-green-600" : "text-red-600"}`}>
-              {totalMerits - totalDemerits}점
-            </p>
-          </CardContent>
-        </Card>
+  const profileItems = [
+    { label: "학생 연락처", value: student.phone || "—" },
+    { label: "학부모 연락처", value: student.parentPhone || "—" },
+    { label: "학부모 이메일", value: student.parentEmail || "—" },
+    { label: "등원일", value: formatDate(student.startDate) },
+    { label: "희망 대학", value: student.targetUniversity || "—" },
+    {
+      label: "성적대 (내신 / 모의)",
+      value:
+        student.internalScoreRange || student.mockScoreRange
+          ? `${student.internalScoreRange || "—"} / ${student.mockScoreRange || "—"}`
+          : "—",
+    },
+    ...(student.mentoringNotes
+      ? [{ label: "멘토링 주의사항", value: <span className="whitespace-pre-line">{student.mentoringNotes}</span>, full: true }]
+      : []),
+  ];
+
+  return (
+    <div>
+      <PageHeader
+        back={{ href: "/students", label: "원생 목록" }}
+        title={
+          <span className="inline-flex items-center gap-x3">
+            <StudentAvatar name={student.name} imageUrl={student.imageUrl} size={40} />
+            {student.name}
+          </span>
+        }
+        meta={<StatusBadge tone={status.tone} size="large">{status.label}</StatusBadge>}
+        description={<span className="tabular-nums">{summary}</span>}
+        actions={
+          student.parentPhone ? (
+            <Button variant="outline" asChild>
+              <a href={`tel:${student.parentPhone}`}>
+                <Phone />
+                학부모 전화
+              </a>
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {/* 요약 — 프로필 + 지표 */}
+      <div className="mb-x8 grid grid-cols-1 gap-x3 xl:grid-cols-2">
+        <Section title="프로필">
+          <DescriptionList items={profileItems} cols={2} />
+        </Section>
+        <StatCards cols={2} className="lg:grid-cols-4 xl:grid-cols-2">
+          <StatCard
+            label="이번 달 출석"
+            value={student.attendances.filter((a) => a.type === "NORMAL").length}
+            unit="일"
+            sub="최근 출결 30건 기준"
+          />
+          <StatCard label="누적 상점" value={totalMerits} unit="점" tone={totalMerits > 0 ? "ok" : "gray"} sub="최근 20건 기준" />
+          <StatCard label="누적 벌점" value={totalDemerits} unit="점" tone={totalDemerits > 0 ? "bad" : "gray"} sub="최근 20건 기준" />
+          <StatCard label="순점수" value={netPoints} unit="점" tone={netPoints >= 0 ? "ok" : "bad"} />
+        </StatCards>
       </div>
 
       {/* Tabs */}
@@ -163,34 +195,28 @@ export default async function StudentDetailPage({
         ]}
       >
 
-        <TabsContent value="info" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>기본 정보 수정</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <StudentForm student={student} mentors={mentors} schools={schools} occupiedSeats={occupiedSeats} />
-            </CardContent>
-          </Card>
+        <TabsContent value="info">
+          <Section title="기본 정보 수정" description="원생 정보를 고친 뒤 아래 수정 버튼을 눌러 저장하세요.">
+            <StudentForm student={student} mentors={mentors} schools={schools} occupiedSeats={occupiedSeats} />
+          </Section>
         </TabsContent>
 
-        <TabsContent value="schedule" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>입퇴실 약속 일정</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <StudentScheduleEditor studentId={student.id} schedules={student.schedules} outings={student.outings} />
-            </CardContent>
-          </Card>
+        <TabsContent value="schedule">
+          <Section
+            title="입퇴실 약속 일정"
+            description="등원 요일을 체크하고 입·퇴실 시간을 입력하세요. 외출 약속이 있으면 해당 요일에 외출을 추가하세요."
+            flush
+            className="overflow-hidden"
+          >
+            <StudentScheduleEditor studentId={student.id} schedules={student.schedules} outings={student.outings} />
+          </Section>
         </TabsContent>
 
-        <TabsContent value="attendance" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>최근 출결 기록 (30일)</CardTitle>
-            </CardHeader>
-            <CardContent>
+        <TabsContent value="attendance">
+          <Section title="최근 출결 기록" description="최근 30건" flush className="overflow-hidden">
+            {student.attendances.length === 0 ? (
+              <EmptyState compact icon={CalendarCheck} title="출결 기록이 없어요" className="border-t border-stroke-neutral-muted" />
+            ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -202,89 +228,71 @@ export default async function StudentDetailPage({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {student.attendances.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
-                        출결 기록이 없습니다
+                  {student.attendances.map((a) => (
+                    <TableRow key={a.id}>
+                      <TableCell className="whitespace-nowrap">{formatDate(a.date)}</TableCell>
+                      <TableCell>
+                        <StatusBadge tone={ATTENDANCE_TYPE_MAP[a.type].tone}>
+                          {ATTENDANCE_TYPE_MAP[a.type].label}
+                        </StatusBadge>
                       </TableCell>
+                      <TableCell className="whitespace-nowrap">{a.checkIn ? formatTime(a.checkIn) : <span className="text-fg-placeholder">—</span>}</TableCell>
+                      <TableCell className="whitespace-nowrap">{a.checkOut ? formatTime(a.checkOut) : <span className="text-fg-placeholder">—</span>}</TableCell>
+                      <TableCell className="text-fg-neutral-muted">{a.notes || "—"}</TableCell>
                     </TableRow>
-                  ) : (
-                    student.attendances.map((a) => (
-                      <TableRow key={a.id}>
-                        <TableCell>{formatDate(a.date)}</TableCell>
-                        <TableCell>
-                          <Badge variant={ATTENDANCE_TYPE_MAP[a.type].variant}>
-                            {ATTENDANCE_TYPE_MAP[a.type].label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{a.checkIn ? formatTime(a.checkIn) : "-"}</TableCell>
-                        <TableCell>{a.checkOut ? formatTime(a.checkOut) : "-"}</TableCell>
-                        <TableCell className="text-muted-foreground">{a.notes || "-"}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                  ))}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
+            )}
+          </Section>
         </TabsContent>
 
-        <TabsContent value="merits" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>상벌점 내역</CardTitle>
-            </CardHeader>
-            <CardContent>
+        <TabsContent value="merits">
+          <Section title="상벌점 내역" description="최근 20건" flush className="overflow-hidden">
+            {student.merits.length === 0 ? (
+              <EmptyState compact icon={Scale} title="상벌점 내역이 없어요" className="border-t border-stroke-neutral-muted" />
+            ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>날짜</TableHead>
                     <TableHead>구분</TableHead>
-                    <TableHead>점수</TableHead>
+                    <TableHead className="text-right">점수</TableHead>
                     <TableHead>카테고리</TableHead>
                     <TableHead>사유</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {student.merits.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
-                        상벌점 내역이 없습니다
+                  {student.merits.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell className="whitespace-nowrap">{formatDate(m.date)}</TableCell>
+                      <TableCell>
+                        <StatusBadge tone={m.type === "MERIT" ? "ok" : "bad"}>
+                          {m.type === "MERIT" ? "상점" : "벌점"}
+                        </StatusBadge>
                       </TableCell>
+                      <TableCell className={m.type === "MERIT" ? "text-right t4-bold text-fg-positive" : "text-right t4-bold text-fg-critical"}>
+                        {m.type === "MERIT" ? "+" : "-"}{m.points}
+                      </TableCell>
+                      <TableCell className="text-fg-neutral-muted">{m.category || "—"}</TableCell>
+                      <TableCell>{m.reason}</TableCell>
                     </TableRow>
-                  ) : (
-                    student.merits.map((m) => (
-                      <TableRow key={m.id}>
-                        <TableCell>{formatDate(m.date)}</TableCell>
-                        <TableCell>
-                          <Badge variant={m.type === "MERIT" ? "default" : "destructive"}>
-                            {m.type === "MERIT" ? "상점" : "벌점"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className={m.type === "MERIT" ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-                          {m.type === "MERIT" ? "+" : "-"}{m.points}
-                        </TableCell>
-                        <TableCell>{m.category || "-"}</TableCell>
-                        <TableCell>{m.reason}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                  ))}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
+            )}
+          </Section>
         </TabsContent>
 
-        <TabsContent value="mentoring" className="mt-4">
+        <TabsContent value="mentoring">
           <StudentMentoringHistory studentId={student.id} mentorings={student.mentorings} />
         </TabsContent>
 
-        <TabsContent value="consultation" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>원장 면담 기록</CardTitle>
-            </CardHeader>
-            <CardContent>
+        <TabsContent value="consultation">
+          <Section title="원장 면담 기록" description="최근 10건" flush className="overflow-hidden">
+            {student.consultations.length === 0 ? (
+              <EmptyState compact icon={MessagesSquare} title="면담 기록이 없어요" className="border-t border-stroke-neutral-muted" />
+            ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -292,86 +300,58 @@ export default async function StudentDetailPage({
                     <TableHead>상태</TableHead>
                     <TableHead>주제</TableHead>
                     <TableHead>결과</TableHead>
-                    <TableHead className="w-[60px]"></TableHead>
+                    <TableHead className="w-20"><span className="sr-only">수정</span></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {student.consultations.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
-                        면담 기록이 없습니다
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    student.consultations.map((c) => (
+                  {student.consultations.map((c) => {
+                    const cs = CONSULTATION_STATUS[c.status] ?? CONSULTATION_STATUS.CANCELLED;
+                    return (
                       <TableRow key={c.id}>
-                        <TableCell>{c.scheduledAt ? formatDate(c.scheduledAt) : "-"}</TableCell>
+                        <TableCell className="whitespace-nowrap">{c.scheduledAt ? formatDate(c.scheduledAt) : "—"}</TableCell>
                         <TableCell>
-                          <Badge variant={c.status === "COMPLETED" ? "default" : "secondary"}>
-                            {c.status === "SCHEDULED" ? "예정" :
-                             c.status === "COMPLETED" ? "완료" : "취소"}
-                          </Badge>
+                          <StatusBadge tone={cs.tone}>{cs.label}</StatusBadge>
                         </TableCell>
-                        <TableCell>{c.agenda || "-"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{c.outcome || "-"}</TableCell>
-                        <TableCell>
-                          <Link
-                            href={`/consultations/${c.id}`}
-                            className="text-sm text-primary hover:underline"
-                          >
-                            수정
-                          </Link>
+                        <TableCell>{c.agenda || "—"}</TableCell>
+                        <TableCell className="t3-regular text-fg-neutral-muted">{c.outcome || "—"}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="outline" size="xs" asChild>
+                            <Link href={`/consultations/${c.id}`}>수정</Link>
+                          </Button>
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
+                    );
+                  })}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
+            )}
+          </Section>
         </TabsContent>
 
-        <TabsContent value="assignments" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>과제 관리</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <AssignmentPanel
-                studentId={student.id}
-                studentName={student.name}
-                initialItems={student.assignments}
-              />
-            </CardContent>
-          </Card>
+        <TabsContent value="assignments">
+          <Section>
+            <AssignmentPanel
+              studentId={student.id}
+              studentName={student.name}
+              initialItems={student.assignments}
+            />
+          </Section>
         </TabsContent>
 
-        <TabsContent value="communications" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>학부모 요청 / 운영진 전달사항</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CommunicationPanel
-                studentId={student.id}
-                initialItems={student.communications}
-              />
-            </CardContent>
-          </Card>
+        <TabsContent value="communications">
+          <Section>
+            <CommunicationPanel
+              studentId={student.id}
+              initialItems={student.communications}
+            />
+          </Section>
         </TabsContent>
 
-        <TabsContent value="scores" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>성적 관리</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ExamScoreChart
-                studentId={student.id}
-                initialScores={student.examScores}
-              />
-            </CardContent>
-          </Card>
+        <TabsContent value="scores">
+          <ExamScoreChart
+            studentId={student.id}
+            initialScores={student.examScores}
+          />
         </TabsContent>
       </StudentDetailTabs>
     </div>

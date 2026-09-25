@@ -1,10 +1,21 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { CheckCircle2, XCircle, ChevronRight } from "lucide-react";
-import { BackButton } from "./_back-button";
+import { BookOpen, PartyPopper, SearchX } from "lucide-react";
+import { BottomCTA, ButtonLink, IconTile } from "@/components/portal/ui";
+import { cn } from "@/lib/utils";
+import { VocabTopBar } from "../_components/vocab-top-bar";
+import { VocabNotice } from "../_components/vocab-notice";
+import { ResultWords } from "./result-words";
+import { ResultExitButton } from "./result-exit-button";
 
 export const dynamic = "force-dynamic";
+
+/** 소요 시간 — null 이면 "—", 1분 미만이면 "1분 미만" */
+function fmtDuration(ms: number | null): string {
+  if (ms == null) return "—";
+  if (ms < 60_000) return "1분 미만";
+  return `${Math.round(ms / 60_000)}분`;
+}
 
 export default async function VocabResultPage({
   params,
@@ -42,82 +53,83 @@ export default async function VocabResultPage({
   });
 
   if (!attempt) {
-    return <Notice title="결과를 찾을 수 없어요" body="링크가 올바른지 확인해 주세요." />;
+    return <VocabNotice icon={SearchX} title="결과를 찾을 수 없어요" body="링크가 올바른지 확인해 주세요." />;
   }
   if (attempt.status !== "SUBMITTED") {
     redirect(`/v/${token}`);
   }
 
-  const wrong = attempt.items.filter((i) => !i.isCorrect);
   const score = attempt.score ?? 0;
   const pass = score >= 80;
-  const mins = attempt.durationMs ? Math.round(attempt.durationMs / 60000) : null;
+  const correct = attempt.correctCount;
+  const wrong = Math.max(0, attempt.totalQuestions - attempt.correctCount);
   const portalToken = attempt.student.magicLinks[0]?.token ?? null;
+  const portalHref = portalToken ? `/s/${portalToken}/vocab` : undefined;
 
   return (
-    <div className="mx-auto max-w-[560px] px-6 py-8">
-      <p className="text-[13px] font-medium text-ink-4">{attempt.student.name} 학생 · {attempt.exam.title}</p>
+    <>
+      <VocabTopBar leading="close" title="시험 결과" fallbackHref={portalHref} />
 
-      <section className={`mt-4 rounded-[18px] p-6 text-center text-white shadow-md ${pass ? "bg-gradient-to-br from-ok to-ok" : "bg-gradient-to-br from-brand to-brand-2"}`}>
-        <p className="text-[13px] font-medium opacity-90">시험 결과</p>
-        <p className="mt-1 text-[44px] font-bold leading-none tabular-nums">{score}<span className="text-[22px] font-semibold">점</span></p>
-        <p className="mt-2 text-[14px] opacity-95">
-          {attempt.correctCount} / {attempt.totalQuestions} 정답{mins !== null ? ` · 소요 ${mins}분` : ""}
-        </p>
-      </section>
-
-      {wrong.length === 0 ? (
-        <div className="mt-5 flex items-center gap-2 rounded-[14px] border border-line bg-ok-soft px-4 py-3 text-[14px] font-medium text-ok-ink">
-          <CheckCircle2 className="h-4 w-4" /> 모두 맞았어요! 잘했어요 🎉
-        </div>
-      ) : (
-        <div className="mt-5">
-          <p className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wider text-ink-4">
-            <XCircle className="h-3.5 w-3.5" /> 틀린 단어 {wrong.length}개
+      <main className="mx-auto max-w-[480px] px-x5 pb-x4">
+        {/* 결과 요약 */}
+        <div className="flex flex-col items-center pt-x6 text-center">
+          <IconTile icon={pass ? PartyPopper : BookOpen} tone={pass ? "ok" : "warn"} size={64} round />
+          <h1 className="mt-x5 t8-bold text-fg-neutral">{pass ? "통과했어요!" : "조금만 더 외워봐요"}</h1>
+          <p className="mt-x1_5 t4-regular text-fg-neutral-subtle">
+            {attempt.student.name} 학생 · {attempt.exam.title}
           </p>
-          <ul className="space-y-2">
-            {wrong.map((it) => (
-              <li key={it.order} className="rounded-[12px] border border-line bg-panel p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[16px] font-semibold text-ink">{it.direction === "EN_TO_KO" ? it.word : it.meanings.join(" / ")}</span>
-                  <span className="text-[11px] text-ink-4">{it.direction === "EN_TO_KO" ? "영→한" : "한→영"}</span>
-                </div>
-                <p className="mt-1 text-[13px] text-ink-3">
-                  정답: <b className="text-ink">{it.direction === "EN_TO_KO" ? it.meanings.join(", ") : it.word}</b>
-                </p>
-                <p className="mt-0.5 text-[13px] text-bad-ink">
-                  내 답: {it.studentAnswer ? it.studentAnswer : "(미입력)"}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <p className="mt-6 text-center text-[12px] text-ink-4">제출이 완료되었습니다. 이 시험은 다시 응시할 수 없어요.</p>
-
-      {/* 종료 후 이동 — 포털 링크가 있으면 학생 포털로, 없으면 단순 뒤로 가기 */}
-      <div className="mt-5 flex flex-col gap-2">
-        {portalToken && (
-          <Link
-            href={`/s/${portalToken}`}
-            className="inline-flex items-center justify-center gap-1.5 rounded-[12px] bg-brand px-4 py-3 text-[14px] font-semibold text-white active:scale-[0.99] transition-transform"
+          <p
+            className={cn(
+              "mt-x5 flex items-baseline justify-center gap-x0_5",
+              pass ? "text-fg-positive" : "text-fg-neutral"
+            )}
           >
-            내 포털로 돌아가기
-            <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
-          </Link>
+            <span className="t14-bold tabular-nums">{score}</span>
+            <span className="t7-bold">점</span>
+          </p>
+        </div>
+
+        {/* 정답 · 오답 · 소요 시간 */}
+        <dl className="mt-x6 grid grid-cols-3 divide-x divide-stroke-neutral-subtle rounded-r4 bg-bg-layer-fill py-x4">
+          <Stat label="정답" value={`${correct}개`} className="text-fg-positive" />
+          <Stat label="오답" value={`${wrong}개`} className={wrong > 0 ? "text-fg-critical" : "text-fg-neutral"} />
+          <Stat label="소요 시간" value={fmtDuration(attempt.durationMs)} className="text-fg-neutral" />
+        </dl>
+
+        <ResultWords
+          items={attempt.items.map((i) => ({
+            order: i.order,
+            direction: i.direction,
+            word: i.word,
+            meanings: i.meanings,
+            studentAnswer: i.studentAnswer,
+            isCorrect: i.isCorrect,
+          }))}
+        />
+
+        <p className="mt-x8 text-center t3-regular text-fg-neutral-subtle">
+          제출이 끝난 시험은 다시 볼 수 없어요.
+        </p>
+      </main>
+
+      <BottomCTA>
+        {portalHref ? (
+          <ButtonLink href={portalHref} variant="primary" size="xl" block>
+            영단어 시험 목록으로
+          </ButtonLink>
+        ) : (
+          <ResultExitButton />
         )}
-        <BackButton label={portalToken ? "닫기" : "뒤로 가기"} />
-      </div>
-    </div>
+      </BottomCTA>
+    </>
   );
 }
 
-function Notice({ title, body }: { title: string; body: string }) {
+function Stat({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
-    <div className="mx-auto flex min-h-[80svh] max-w-[520px] flex-col items-center justify-center px-6 text-center">
-      <h1 className="text-[20px] font-bold text-ink">{title}</h1>
-      <p className="mt-3 text-[14px] leading-relaxed text-ink-4">{body}</p>
+    <div className="flex flex-col items-center gap-x1 px-x2">
+      <dt className="t3-regular text-fg-neutral-subtle">{label}</dt>
+      <dd className={cn("t6-bold tabular-nums", className)}>{value}</dd>
     </div>
   );
 }

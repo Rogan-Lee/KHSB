@@ -2,11 +2,14 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ClipboardList, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EmptyState, TableCard } from "@/components/backoffice/ui";
 import { ExamSessionRowActions } from "@/components/exams/exam-session-row-actions";
 import { ExamApplicationManager } from "@/components/exams/exam-application-manager";
-import { EXAM_TYPE_LABELS } from "@/components/exams/exam-type-label";
 import type { ExamType } from "@/generated/prisma";
 
 interface SessionRow {
@@ -34,7 +37,22 @@ const TABS: { value: ExamType; label: string }[] = [
   { value: "SCHOOL_EXAM", label: "내신" },
 ];
 
+/** "2026-04-10T…" → "2026.04.10" */
+function formatDate(iso: string) {
+  return iso.slice(0, 10).replaceAll("-", ".");
+}
+
+/** 탭 라벨 옆 개수 — 선택된 탭이면 브랜드색 */
+function TabCount({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="t4-bold tabular-nums text-fg-placeholder group-data-[state=active]:text-fg-brand">
+      {children}
+    </span>
+  );
+}
+
 export function ExamSessionsTabs({ sessions }: Props) {
+  const router = useRouter();
   const [active, setActive] = useState<string>("OFFICIAL_MOCK");
 
   const grouped = useMemo(() => {
@@ -59,16 +77,14 @@ export function ExamSessionsTabs({ sessions }: Props) {
     <Tabs value={active} onValueChange={setActive} className="w-full">
       <TabsList>
         {TABS.map((t) => (
-          <TabsTrigger key={t.value} value={t.value}>
+          <TabsTrigger key={t.value} value={t.value} className="group">
             {t.label}
-            <span className="ml-1.5 text-[10px] text-muted-foreground">({grouped[t.value].length})</span>
+            <TabCount>{grouped[t.value].length}</TabCount>
           </TabsTrigger>
         ))}
-        <TabsTrigger value="APPLICATIONS">
+        <TabsTrigger value="APPLICATIONS" className="group">
           신청 관리
-          {openCount > 0 && (
-            <span className="ml-1.5 text-[10px] text-ok-ink">({openCount} 열림)</span>
-          )}
+          {openCount > 0 && <TabCount>{openCount}개 접수 중</TabCount>}
         </TabsTrigger>
       </TabsList>
 
@@ -82,50 +98,78 @@ export function ExamSessionsTabs({ sessions }: Props) {
         const hidePercentile = t.value === "SCHOOL_EXAM";
         return (
           <TabsContent key={t.value} value={t.value}>
-            {rows.length === 0 ? (
-              <div className="py-12 text-center text-sm text-muted-foreground">
-                {t.label} 세션이 없습니다.
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>시험일</TableHead>
-                    <TableHead>시험명</TableHead>
-                    <TableHead>종류</TableHead>
-                    <TableHead>룸</TableHead>
-                    <TableHead>응시자</TableHead>
-                    <TableHead>과목</TableHead>
-                    {!hidePercentile && <TableHead>평균 백분위</TableHead>}
-                    <TableHead className="w-20 text-right">액션</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((s) => (
-                    <TableRow key={s.id}>
-                      <TableCell className="text-xs">{s.examDate.slice(0, 10)}</TableCell>
-                      <TableCell>
-                        <Link href={`/exams/${s.id}`} className="font-medium hover:underline">
-                          {s.title}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-xs">{EXAM_TYPE_LABELS[s.examType]}</TableCell>
-                      <TableCell className="text-xs">{s.room}룸</TableCell>
-                      <TableCell className="text-xs">{s.assignmentsCount}명</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{s.subjects.join(", ")}</TableCell>
-                      {!hidePercentile && (
-                        <TableCell className="text-xs tabular-nums">
-                          {s.averagePercentile != null ? s.averagePercentile.toFixed(1) : "—"}
-                        </TableCell>
-                      )}
-                      <TableCell className="text-right">
-                        <ExamSessionRowActions sessionId={s.id} title={s.title} />
-                      </TableCell>
+            <TableCard>
+              {rows.length === 0 ? (
+                <EmptyState
+                  icon={ClipboardList}
+                  title={`아직 ${t.label} 세션이 없어요`}
+                  description="시험 세션을 만들면 이 목록에 시험일 순으로 쌓여요."
+                  action={
+                    <Button variant="secondary" asChild>
+                      <Link href="/exams/new">
+                        <Plus />
+                        시험 세션 생성
+                      </Link>
+                    </Button>
+                  }
+                />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-32">시험일</TableHead>
+                      <TableHead>시험명</TableHead>
+                      <TableHead>룸</TableHead>
+                      <TableHead className="text-right">응시자</TableHead>
+                      <TableHead>과목</TableHead>
+                      {!hidePercentile && <TableHead className="text-right">평균 백분위</TableHead>}
+                      <TableHead className="w-24 text-right">
+                        <span className="sr-only">관리</span>
+                      </TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((s) => (
+                      <TableRow
+                        key={s.id}
+                        className="cursor-pointer"
+                        onClick={() => router.push(`/exams/${s.id}`)}
+                      >
+                        <TableCell className="whitespace-nowrap text-fg-neutral-muted">
+                          {formatDate(s.examDate)}
+                        </TableCell>
+                        <TableCell>
+                          <Link
+                            href={`/exams/${s.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="t4-medium text-fg-neutral hover:underline"
+                          >
+                            {s.title}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-fg-neutral-muted">{s.room}룸</TableCell>
+                        <TableCell className="text-right">{s.assignmentsCount}명</TableCell>
+                        <TableCell className="max-w-72 truncate text-fg-neutral-subtle" title={s.subjects.join(", ")}>
+                          {s.subjects.join(", ")}
+                        </TableCell>
+                        {!hidePercentile && (
+                          <TableCell className="text-right">
+                            {s.averagePercentile != null ? (
+                              s.averagePercentile.toFixed(1)
+                            ) : (
+                              <span className="text-fg-placeholder">—</span>
+                            )}
+                          </TableCell>
+                        )}
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <ExamSessionRowActions sessionId={s.id} title={s.title} />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </TableCard>
           </TabsContent>
         );
       })}

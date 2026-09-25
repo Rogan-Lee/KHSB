@@ -1,7 +1,8 @@
 // 멘토 상세 페이지 렌더링. 데이터는 mentors-data.js(MENTORS)에서 가져옵니다.
 // ⚠ mentor.html 은 mentors-data.js 를 이 파일보다 먼저 로드해야 합니다.
-const id = new URLSearchParams(location.search).get('id') || 'seo';
-const m = MENTORS[id] || MENTORS.seo;
+// id 가 없거나 잘못되면 첫 번째 멘토로 (기존 'seo' 폴백은 데이터에 없어 오류가 났음)
+const id = new URLSearchParams(location.search).get('id') || MENTOR_ORDER[0];
+const m = MENTORS[id] || MENTORS[MENTOR_ORDER[0]];
 
 document.getElementById('pageTitle').textContent = `${m.name} | 강한선배`;
 const hero = document.getElementById('mHero');

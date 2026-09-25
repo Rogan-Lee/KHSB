@@ -11,6 +11,7 @@ import {
   type OnlineReportRow,
 } from "@/components/online/online-reports-panel";
 import { ReportsTypeNav } from "@/components/online/reports-type-nav";
+import { CountBadge, PageHeader } from "@/components/backoffice/ui";
 
 export default async function ReportsDashboardPage({
   searchParams,
@@ -105,49 +106,49 @@ export default async function ReportsDashboardPage({
   const origin = `${proto}://${host}`;
 
   return (
-    <div className="space-y-5">
-      <header className="space-y-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
-            학부모 보고서
-          </h1>
-          <p className="mt-1 text-[13px] text-ink-4">
-            AI 초안 자동 생성 · 원장 편집·승인·발송. 좌측에서 학생 선택 → 우측에서 편집.
-          </p>
-        </div>
-        <ReportsTypeNav current="WEEKLY" />
-      </header>
+    <div>
+      <PageHeader
+        title="학부모 보고서"
+        description="AI가 초안을 만들면 편집·승인한 뒤 학부모에게 보내요."
+      />
+      <ReportsTypeNav current="WEEKLY" />
 
       {totalUnread > 0 && (
-        <section className="rounded-[12px] border-2 border-amber-300 bg-amber-50 p-4">
-          <div className="flex items-center gap-2 mb-2.5">
-            <MessageCircle className="h-4 w-4 text-amber-700" />
-            <h2 className="text-[13px] font-semibold text-amber-900">
-              학부모 피드백 {totalUnread}건 미확인 — 보고서별로 확인하세요
+        <section
+          aria-label="확인하지 않은 학부모 피드백"
+          className="mb-x5 rounded-r4 bg-bg-warning-weak px-x5 py-x4"
+        >
+          <div className="flex items-center gap-x2">
+            <MessageCircle className="size-4 shrink-0 text-fg-warning" aria-hidden />
+            <h2 className="t4-bold text-fg-neutral">
+              확인하지 않은 학부모 피드백{" "}
+              <span className="tabular-nums text-fg-warning">{totalUnread}</span>건
             </h2>
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <p className="mt-x0_5 pl-x6 t3-regular text-fg-neutral-muted">
+            보고서를 열면 피드백이 확인 처리돼요.
+          </p>
+          <div className="mt-x3 flex flex-wrap gap-x2 pl-x6">
             {reportsWithUnread.map((r) => {
               const latest = r.feedbacks[0]?.createdAt;
               return (
                 <Link
                   key={r.id}
                   href={`/online/reports/${r.id}`}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-white border border-amber-300 hover:border-amber-500 hover:bg-amber-100 px-2.5 py-1 text-[12px] text-amber-900 transition-colors"
+                  className="inline-flex h-x8 items-center gap-x1_5 rounded-full bg-bg-layer-default pl-x3 pr-x2 t3-medium text-fg-neutral shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] transition-colors hover:bg-bg-layer-default-pressed"
                   title={
                     latest
                       ? `최신 피드백: ${new Date(latest).toLocaleString("ko-KR")}`
                       : undefined
                   }
                 >
-                  <span className="font-semibold">{r.student.name}</span>
-                  <span className="text-[10.5px] text-amber-700">
+                  {r.student.name}
+                  <span className="t2-regular text-fg-neutral-subtle">
                     {r.student.grade}
+                    {r.type === "MONTHLY" ? " · 월간" : ""}
                   </span>
-                  <span className="inline-flex items-center justify-center rounded-full bg-amber-200 text-amber-900 min-w-[18px] h-[18px] px-1 text-[10.5px] font-bold tabular-nums">
-                    {r._count.feedbacks}
-                  </span>
-                  <ChevronRight className="h-3 w-3 text-amber-600" />
+                  <CountBadge count={r._count.feedbacks} />
+                  <ChevronRight className="size-3.5 text-fg-placeholder" aria-hidden />
                 </Link>
               );
             })}

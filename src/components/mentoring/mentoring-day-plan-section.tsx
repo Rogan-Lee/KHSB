@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp, CalendarDays } from "lucide-react";
+import { ChevronDown, CalendarDays } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { DayView } from "@/components/timetable/day-view";
 import { TimetableEntry } from "@/components/timetable/timetable-grid";
 import type { SchoolEventInfo } from "@/actions/timetable";
@@ -17,25 +18,25 @@ export function MentoringDayPlanSection({ studentId, entries, initialDate, schoo
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="rounded-xl border border-border/60 bg-white dark:bg-background shadow-sm overflow-hidden">
+    <section className="overflow-hidden rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors"
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-x3 px-x5 py-x4 text-left transition-colors hover:bg-bg-layer-default-pressed"
       >
-        <div className="flex items-center gap-2">
-          <CalendarDays className="h-4 w-4 text-muted-foreground" />
-          <span className="font-bold text-sm">시간표 / 학습 플랜</span>
-        </div>
-        {open ? (
-          <ChevronUp className="h-4 w-4 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        )}
+        <span className="flex items-center gap-x2 t5-bold text-fg-neutral">
+          <CalendarDays className="size-4 text-fg-neutral-subtle" aria-hidden />
+          시간표 / 학습 플랜
+        </span>
+        <ChevronDown
+          className={cn("size-4 shrink-0 text-fg-neutral-subtle transition-transform", open && "rotate-180")}
+          aria-hidden
+        />
       </button>
 
       {open && (
-        <div className="border-t border-border/40 p-4">
+        <div className="border-t border-stroke-neutral-muted p-x5">
           <DayView
             studentId={studentId}
             entries={entries}
@@ -44,6 +45,6 @@ export function MentoringDayPlanSection({ studentId, entries, initialDate, schoo
           />
         </div>
       )}
-    </div>
+    </section>
   );
 }

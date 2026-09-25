@@ -5,15 +5,32 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
-  CheckCircle2, AlertTriangle, StickyNote, Pin,
-  Plus, CheckSquare, Square, User, Send,
-  Clock, ListChecks, MessageSquare, Pencil,
-  ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Calendar, ListTodo, History, X,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  CheckCircle2, Pin, Plus, Pencil, ChevronLeft, ChevronRight, History,
+  ListChecks, ListTodo, StickyNote, Inbox,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { cn } from "@/lib/utils";
+import {
+  EmptyState,
+  ListItem,
+  Section,
+  SectionLink,
+  Skeleton,
+  StatCard,
+  StatCards,
+  StatusBadge,
+} from "@/components/backoffice/ui";
+import { CheckRow, ShiftBadge, stripMarkdownPreview } from "@/components/handover/handover-ui";
 import { markHandoverRead, toggleHandoverTask } from "@/actions/handover";
 import { toggleTodo, getTodoVersions } from "@/actions/todos";
 import { createMonthlyNote } from "@/actions/monthly-notes";
@@ -42,9 +59,6 @@ interface Props {
   todos: Todo[];
 }
 
-const SHIFT_COLOR: Record<string, string> = { OPEN: "bg-blue-50 text-blue-700 border-blue-200", CLOSE: "bg-purple-50 text-purple-700 border-purple-200", ALL: "bg-gray-50 text-gray-500 border-gray-200" };
-const SHIFT_LABEL: Record<string, string> = { OPEN: "오픈", CLOSE: "마감", ALL: "공통" };
-
 const DRAFT_KEY = "handover-form-draft";
 
 function fmtDate(d: Date | null) {
@@ -64,7 +78,11 @@ function isOverdue(d: Date | null, done: boolean) {
   return new Date(d) < today;
 }
 
-export function HandoverDashboard({ handovers, templates, monthlyNotes, students, staffList, currentUserId, currentUserName, year, month, todos }: Props) {
+function fmtMonthDay(d: Date) {
+  return new Date(d).toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
+}
+
+export function HandoverDashboard({ handovers, templates, monthlyNotes, students, currentUserId, currentUserName, year, month, todos }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [localHandovers, setLocalHandovers] = useState<Handover[]>(handovers);
@@ -78,15 +96,10 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
   const [noteStudentName, setNoteStudentName] = useState("");
   const [noteContent, setNoteContent] = useState("");
 
-  // 섹션 접기/펼치기
-  const [openSections, setOpenSections] = useState({ handoverTasks: true, routine: false, todos: true });
   const [historyTodo, setHistoryTodo] = useState<Todo | null>(null);
-  function toggleSection(key: keyof typeof openSections) {
-    setOpenSections((p) => ({ ...p, [key]: !p[key] }));
-  }
 
   const unread = localHandovers.filter((h) => h.authorId !== currentUserId && !h.reads.some((r) => r.userId === currentUserId && r.confirmedAt != null));
-  useEffect(() => { setUnreadIdx((i) => Math.min(Math.max(0, i), Math.max(0, unread.length - 1))); }, [unread.length]);
+  // 목록이 줄어들면 인덱스는 렌더 시점에 범위 안으로 맞춘다(아래 idx 계산)
 
   // 나에게 배정된 인수인계 할 일
   type MyHandoverTask = HandoverTask & { handoverAuthorName: string; handoverDate: Date };
@@ -108,6 +121,7 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
   // 전체 완료율
   const totalItems = myHandoverTasks.length + routineItems.length + myPendingTodos.length + myCompletedTodos.length;
   const doneItems = myHandoverTasks.filter((t) => t.isCompleted).length + routineItems.filter((c) => c.isChecked).length + myCompletedTodos.length;
+  const routineDone = routineItems.filter((c) => c.isChecked).length;
 
   // 루틴 → localStorage 동기화
   useEffect(() => {
@@ -177,308 +191,424 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
     });
   }
 
+  function cancelNote() {
+    setShowNoteForm(false); setNoteStudentName(""); setNoteQuery(""); setNoteContent("");
+  }
+
+  const allDone = totalItems > 0 && doneItems === totalItems;
+  const myTaskDone = myHandoverTasks.filter((t) => t.isCompleted).length;
+
   return (
-    <div className="space-y-4">
-      {/* KPI 칩 */}
-      <div className="grid grid-cols-3 gap-2">
-        <KpiChip value={unread.length} label="미확인" color={unread.length > 0 ? "red" : "muted"} icon={<AlertTriangle className="h-3.5 w-3.5" />} />
-        <KpiChip value={`${doneItems}/${totalItems}`} label="오늘 업무 완료" color={doneItems === totalItems && totalItems > 0 ? "green" : "muted"} icon={<CheckCircle2 className="h-3.5 w-3.5" />} />
-        <KpiChip value={localNotes.length} label="이달 특이사항" color="amber" icon={<StickyNote className="h-3.5 w-3.5" />} />
-      </div>
+    <div className="flex flex-col gap-x6">
+      {/* 요약 */}
+      <StatCards cols={3}>
+        <StatCard label="미확인 인수인계" value={unread.length} unit="건" tone={unread.length > 0 ? "warn" : "gray"} />
+        <StatCard
+          label="오늘 업무 완료"
+          value={doneItems}
+          unit={`/ ${totalItems}`}
+          tone={allDone ? "ok" : "gray"}
+          sub="할 일 · 루틴 · 투두 합계"
+        />
+        <StatCard label={`${month}월 특이사항`} value={localNotes.length} unit="건" className="col-span-2 lg:col-span-1" />
+      </StatCards>
 
       {/* 미확인 인수인계 — 좌우로 넘기며 글 본문 전체를 인라인으로 (클릭 시 상세) */}
       {unread.length > 0 && (() => {
-        const idx = Math.min(unreadIdx, unread.length - 1);
+        const idx = Math.min(Math.max(0, unreadIdx), unread.length - 1);
         const h = unread[idx];
         return (
-          <div className="rounded-xl border border-red-200 bg-red-50/60 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-red-100">
-              <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
-              <span className="text-sm font-semibold text-red-700">미확인 인수인계 {unread.length}건</span>
-              <div className="ml-auto flex items-center gap-1">
-                <button type="button" onClick={() => setUnreadIdx(() => Math.max(0, idx - 1))} disabled={idx === 0}
-                  className="p-1 rounded text-red-500 hover:bg-red-100 disabled:opacity-30 disabled:hover:bg-transparent" aria-label="이전">
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <span className="text-[11px] font-semibold text-red-600 tabular-nums">{idx + 1}/{unread.length}</span>
-                <button type="button" onClick={() => setUnreadIdx(() => Math.min(unread.length - 1, idx + 1))} disabled={idx >= unread.length - 1}
-                  className="p-1 rounded text-red-500 hover:bg-red-100 disabled:opacity-30 disabled:hover:bg-transparent" aria-label="다음">
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-                <Link href="/handover" className="ml-1 text-[11px] text-red-400 hover:text-red-600">전체보기 →</Link>
-              </div>
+          <Section
+            title="미확인 인수인계"
+            count={unread.length}
+            actions={
+              <>
+                <div className="flex items-center gap-x1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setUnreadIdx(() => Math.max(0, idx - 1))}
+                    disabled={idx === 0}
+                    aria-label="이전 인수인계"
+                  >
+                    <ChevronLeft />
+                  </Button>
+                  <span className="min-w-10 text-center t4-medium tabular-nums text-fg-neutral-muted">
+                    {idx + 1} / {unread.length}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setUnreadIdx(() => Math.min(unread.length - 1, idx + 1))}
+                    disabled={idx >= unread.length - 1}
+                    aria-label="다음 인수인계"
+                  >
+                    <ChevronRight />
+                  </Button>
+                </div>
+                <SectionLink href="/handover">전체 보기</SectionLink>
+              </>
+            }
+          >
+            <div className="flex flex-wrap items-center gap-x2">
+              {h.isPinned && <StatusBadge tone="warn"><Pin />고정</StatusBadge>}
+              {h.priority === "URGENT" && <StatusBadge tone="bad">긴급</StatusBadge>}
+              {h.category && <StatusBadge>{h.category}</StatusBadge>}
+              <span className="t3-regular text-fg-neutral-subtle">
+                {h.authorName} · {fmtMonthDay(h.date)}
+              </span>
+              <Button size="sm" onClick={() => handleMarkRead(h)} disabled={isPending} className="ml-auto">
+                <CheckCircle2 />
+                확인
+              </Button>
             </div>
-            <div className="px-4 py-3">
-              <div className="flex items-center gap-1.5 mb-2">
-                {h.isPinned && <Pin className="h-3 w-3 text-amber-400" />}
-                {h.priority === "URGENT" && <span className="text-[9px] font-semibold bg-red-100 text-red-700 rounded px-1">긴급</span>}
-                {h.category && <span className="text-[9px] bg-muted text-muted-foreground rounded px-1">{h.category}</span>}
-                <span className="text-[11px] text-muted-foreground">{h.authorName} · {new Date(h.date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}</span>
-                <button onClick={() => handleMarkRead(h)} disabled={isPending} className="ml-auto shrink-0 flex items-center gap-1 text-xs bg-red-600 text-white rounded-md px-2.5 py-1.5 hover:bg-red-700 font-medium">
-                  <CheckCircle2 className="h-3 w-3" />확인
-                </button>
-              </div>
-              <div
-                onClick={(e) => { const t = e.target as HTMLElement; if (t.closest("button") || t.closest("a")) return; router.push(`/handover/${h.id}`); }}
-                className="cursor-pointer rounded-lg border border-red-100 bg-white/60 px-3 py-2.5 max-h-80 overflow-y-auto text-sm text-foreground"
-              >
-                {h.content ? <MarkdownViewer source={h.content} /> : <span className="text-muted-foreground">(내용 없음)</span>}
-              </div>
+            <div
+              onClick={(e) => { const t = e.target as HTMLElement; if (t.closest("button") || t.closest("a")) return; router.push(`/handover/${h.id}`); }}
+              className="mt-x3 max-h-80 cursor-pointer overflow-y-auto rounded-r3 bg-bg-layer-fill px-x4 py-x3 t4-regular text-fg-neutral transition-colors hover:bg-bg-neutral-weak"
+              title="눌러서 상세 보기"
+            >
+              {h.content ? <MarkdownViewer source={h.content} /> : <span className="text-fg-neutral-subtle">(내용 없음)</span>}
             </div>
-          </div>
+          </Section>
         );
       })()}
 
-      {/* 2-col 메인 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 items-start">
-
-        {/* LEFT: 통합 오늘의 업무 + 인수인계 작성 + 최근 피드 */}
-        <div className="space-y-3">
-
-          {/* ── 오늘의 업무 헤더 ── */}
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-sm font-semibold flex-1">오늘의 업무</span>
-            <span className={cn("text-[11px] font-semibold px-2 py-0.5 rounded-full border",
-              totalItems > 0 && doneItems === totalItems ? "bg-green-50 text-green-700 border-green-200" : "bg-muted text-muted-foreground border-border"
-            )}>{doneItems}/{totalItems} 완료</span>
-          </div>
-
-          {/* ── 오늘의 업무 3열 ── */}
-          <div className="grid grid-cols-3 gap-3 items-stretch">
-
-            {/* 1. 인수인계 할 일 */}
-            <div className="rounded-xl border bg-card overflow-hidden flex flex-col">
-              <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-muted/30">
-                <ListChecks className="h-3.5 w-3.5 text-blue-500" />
-                <span className="text-xs font-semibold flex-1">인수인계 할 일</span>
-                <span className="text-[10px] text-muted-foreground">{myHandoverTasks.filter((t) => t.isCompleted).length}/{myHandoverTasks.length}</span>
-              </div>
-              {myHandoverTasks.length === 0 ? (
-                <div className="px-4 py-6 text-xs text-muted-foreground text-center flex-1 flex items-center justify-center">배정된 할 일 없음</div>
-              ) : (
-                <div className="divide-y max-h-96 overflow-y-auto flex-1">
-                  {myHandoverTasks.map((t) => (
-                    <button key={t.id} type="button" onClick={() => handleToggleHandoverTask(t.id)} disabled={isPending}
-                      className={cn("w-full flex items-start gap-2 px-3 py-2 text-left hover:bg-muted/20 transition-colors", t.isCompleted && "opacity-50")}
-                    >
-                      {t.isCompleted ? <CheckSquare className="h-3.5 w-3.5 text-green-500 shrink-0 mt-0.5" /> : <Square className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 mt-0.5" />}
-                      <div className="flex-1 min-w-0">
-                        <p className={cn("text-xs font-medium", t.isCompleted && "line-through text-muted-foreground")}>{t.title}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{t.handoverAuthorName}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* 2. 루틴 체크리스트 */}
-            <div className="rounded-xl border bg-card overflow-hidden flex flex-col">
-              <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-muted/30">
-                <CheckSquare className="h-3.5 w-3.5 text-green-500" />
-                <span className="text-xs font-semibold flex-1">루틴</span>
-                <span className="text-[10px] text-muted-foreground">{routineItems.filter((c) => c.isChecked).length}/{routineItems.length}</span>
-              </div>
-              {routineItems.length === 0 ? (
-                <div className="px-4 py-6 text-xs text-muted-foreground text-center flex-1 flex items-center justify-center">
-                  루틴 없음 · <Link href="/handover" className="text-primary underline">관리</Link>
-                </div>
-              ) : (
-                <div className="divide-y max-h-96 overflow-y-auto flex-1">
-                  {routineItems.map((item, i) => (
-                    <button key={item.id} type="button" onClick={() => toggleRoutine(i)}
-                      className={cn("w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/20 transition-colors", item.isChecked && "opacity-50")}
-                    >
-                      {item.isChecked ? <CheckSquare className="h-3.5 w-3.5 text-green-500 shrink-0" /> : <Square className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />}
-                      <span className={cn("text-xs flex-1", item.isChecked && "line-through text-muted-foreground")}>{item.title}</span>
-                      <span className={cn("text-[10px] border rounded px-1 py-0.5 shrink-0", SHIFT_COLOR[item.shiftType] ?? "")}>
-                        {SHIFT_LABEL[item.shiftType] ?? item.shiftType}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* 3. 투두리스트 */}
-            <div className="rounded-xl border bg-card overflow-hidden flex flex-col">
-              <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-muted/30">
-                <ListTodo className="h-3.5 w-3.5 text-purple-500" />
-                <span className="text-xs font-semibold flex-1">투두</span>
-                <Link href="/todos" className="text-[10px] text-primary hover:underline">관리 →</Link>
-              </div>
-              {localTodos.length === 0 ? (
-                <div className="px-4 py-6 text-xs text-muted-foreground text-center flex-1 flex items-center justify-center">
-                  투두 없음 · <Link href="/todos" className="text-primary underline">추가</Link>
-                </div>
-              ) : (
-                <div className="divide-y max-h-96 overflow-y-auto flex-1">
-                  {myPendingTodos.slice(0, 8).map((t) => (
-                    <div key={t.id} className="flex items-start gap-2 px-3 py-2 hover:bg-muted/20 transition-colors">
-                      <button type="button" onClick={() => handleToggleTodo(t.id)} disabled={isPending} className="shrink-0 mt-0.5">
-                        <Square className="h-3.5 w-3.5 text-muted-foreground/40" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleToggleTodo(t.id)}
-                        disabled={isPending}
-                        className="flex-1 min-w-0 text-left"
-                      >
-                        <p className="text-xs font-medium">{t.title}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          {t.dueDate && (
-                            <span className={cn("text-[10px]", isOverdue(t.dueDate, false) ? "text-red-600 font-semibold" : "text-muted-foreground")}>
-                              {fmtDate(t.dueDate)}
-                            </span>
-                          )}
-                          {t.assigneeName && <span className="text-[10px] text-muted-foreground">{t.assigneeName}</span>}
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setHistoryTodo(t); }}
-                        title="수정 이력"
-                        className="shrink-0 p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-                      >
-                        <History className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                  {(myCompletedTodos.length > 0 || myPendingTodos.length > 8) && (
-                    <div className="px-3 py-2 text-[10px] text-muted-foreground">
-                      {myCompletedTodos.length > 0 && `완료 ${myCompletedTodos.length}개`}
-                      {myPendingTodos.length > 8 && ` · +${myPendingTodos.length - 8}개 더`}
-                      {" · "}<Link href="/todos" className="text-primary underline">전체 보기</Link>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* 최근 인수인계 피드 */}
-          <Panel
-            title="최근 인수인계"
-            icon={<Clock className="h-3.5 w-3.5 text-muted-foreground" />}
-            action={<Link href="/handover" className="text-[11px] text-muted-foreground hover:text-foreground">전체보기 →</Link>}
+      {/* 오늘의 업무 — 인수인계 할 일 · 루틴 · 투두 */}
+      <Section
+        variant="plain"
+        title="오늘의 업무"
+        actions={
+          <StatusBadge tone={allDone ? "ok" : "gray"} size="large">
+            {doneItems}/{totalItems} 완료
+          </StatusBadge>
+        }
+      >
+        <div className="grid grid-cols-1 items-start gap-x4 lg:grid-cols-3">
+          {/* 1. 인수인계 할 일 */}
+          <Section
+            title="인수인계 할 일"
+            actions={<span className="t4-medium tabular-nums text-fg-neutral-subtle">{myTaskDone}/{myHandoverTasks.length}</span>}
+            flush
           >
-            {localHandovers.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-8">인수인계 내역이 없습니다</p>
+            {myHandoverTasks.length === 0 ? (
+              <EmptyState compact icon={ListChecks} title="배정된 할 일이 없어요" className="border-t border-stroke-neutral-muted" />
             ) : (
-              <div className="divide-y">
-                {localHandovers.slice(0, 5).map((h) => {
-                  const isRead = h.reads.some((r) => r.userId === currentUserId && r.confirmedAt != null);
-                  const isAuthor = h.authorId === currentUserId;
-                  const showUnread = !isRead && !isAuthor;
-                  return (
-                    <Link key={h.id} href="/handover">
-                      <div className="flex items-start gap-2.5 px-4 py-3 hover:bg-muted/30 transition-colors">
-                        <div className={cn("w-1.5 h-1.5 rounded-full mt-1.5 shrink-0", showUnread ? "bg-primary" : "bg-transparent")} />
-                        <div className="flex-1 min-w-0">
-                          <p className={cn("text-sm line-clamp-1", showUnread && "font-medium")}>{h.content || "(내용 없음)"}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            {h.tasks.length > 0 && <span className="text-[10px] text-blue-600">할 일 {h.tasks.length}</span>}
-                            {h.checklist.length > 0 && <span className="text-[10px] text-green-600">루틴 {h.checklist.filter((c) => c.isChecked).length}/{h.checklist.length}</span>}
-                            <span className="text-[10px] text-muted-foreground">{h.authorName}</span>
-                            <span className="text-[10px] text-muted-foreground ml-auto">{new Date(h.date).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}</span>
-                          </div>
-                        </div>
-                        {isRead && <CheckCircle2 className="h-3.5 w-3.5 text-green-400 shrink-0 mt-0.5" />}
-                      </div>
+              <ul className="max-h-96 divide-y divide-stroke-neutral-muted overflow-y-auto border-t border-stroke-neutral-muted">
+                {myHandoverTasks.map((t) => (
+                  <li key={t.id}>
+                    <CheckRow
+                      checked={t.isCompleted}
+                      onToggle={() => handleToggleHandoverTask(t.id)}
+                      disabled={isPending}
+                      title={t.title}
+                      description={t.handoverAuthorName}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+
+          {/* 2. 루틴 체크리스트 */}
+          <Section
+            title="루틴"
+            actions={
+              <>
+                <span className="t4-medium tabular-nums text-fg-neutral-subtle">{routineDone}/{routineItems.length}</span>
+                <SectionLink href="/todos?tab=routine">관리</SectionLink>
+              </>
+            }
+            flush
+          >
+            {routineItems.length === 0 ? (
+              <EmptyState
+                compact
+                icon={ListChecks}
+                title="등록된 루틴이 없어요"
+                action={
+                  <Button asChild variant="secondary" size="xs">
+                    <Link href="/todos?tab=routine">루틴 관리</Link>
+                  </Button>
+                }
+                className="border-t border-stroke-neutral-muted"
+              />
+            ) : (
+              <ul className="max-h-96 divide-y divide-stroke-neutral-muted overflow-y-auto border-t border-stroke-neutral-muted">
+                {routineItems.map((item, i) => (
+                  <li key={item.id}>
+                    <CheckRow
+                      checked={item.isChecked}
+                      onToggle={() => toggleRoutine(i)}
+                      title={item.title}
+                      trailing={<ShiftBadge shiftType={item.shiftType} />}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+
+          {/* 3. 투두리스트 */}
+          <Section
+            title="투두"
+            actions={<SectionLink href="/todos">관리</SectionLink>}
+            flush
+          >
+            {localTodos.length === 0 ? (
+              <EmptyState
+                compact
+                icon={ListTodo}
+                title="할 일이 없어요"
+                action={
+                  <Button asChild variant="secondary" size="xs">
+                    <Link href="/todos"><Plus />할 일 추가</Link>
+                  </Button>
+                }
+                className="border-t border-stroke-neutral-muted"
+              />
+            ) : (
+              <div className="border-t border-stroke-neutral-muted">
+                {myPendingTodos.length === 0 ? (
+                  <EmptyState compact icon={CheckCircle2} title="남은 할 일을 모두 끝냈어요" />
+                ) : (
+                  <ul className="max-h-96 divide-y divide-stroke-neutral-muted overflow-y-auto">
+                    {myPendingTodos.slice(0, 8).map((t) => (
+                      <li key={t.id}>
+                        <CheckRow
+                          checked={false}
+                          onToggle={() => handleToggleTodo(t.id)}
+                          disabled={isPending}
+                          title={t.title}
+                          className="pr-x2"
+                          description={
+                            (t.dueDate || t.assigneeName) ? (
+                              <span className="flex flex-wrap items-center gap-x-x2">
+                                {t.dueDate && (
+                                  <span className={cn("tabular-nums", isOverdue(t.dueDate, false) && "t3-bold text-fg-critical")}>
+                                    {fmtDate(t.dueDate)}
+                                  </span>
+                                )}
+                                {t.assigneeName && <span>{t.assigneeName}</span>}
+                              </span>
+                            ) : undefined
+                          }
+                          action={
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setHistoryTodo(t)}
+                              title="수정 이력"
+                              aria-label={`${t.title} 수정 이력`}
+                              className="size-8"
+                            >
+                              <History />
+                            </Button>
+                          }
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {(myCompletedTodos.length > 0 || myPendingTodos.length > 8) && (
+                  <div className="flex items-center gap-x1 border-t border-stroke-neutral-muted px-x5 py-x3 t3-regular text-fg-neutral-subtle">
+                    <span className="tabular-nums">
+                      {myCompletedTodos.length > 0 && `완료 ${myCompletedTodos.length}개`}
+                      {myCompletedTodos.length > 0 && myPendingTodos.length > 8 && " · "}
+                      {myPendingTodos.length > 8 && `+${myPendingTodos.length - 8}개 더`}
+                    </span>
+                    <Link href="/todos" className="ml-auto t3-medium text-fg-neutral-muted hover:text-fg-neutral">
+                      전체 보기
                     </Link>
-                  );
-                })}
+                  </div>
+                )}
               </div>
             )}
-          </Panel>
+          </Section>
         </div>
+      </Section>
 
-        {/* RIGHT: 이달 특이사항 */}
-        <div className="space-y-3">
-          <Panel
-            title={`이달 특이사항 (${month}월)`}
-            icon={<StickyNote className="h-3.5 w-3.5 text-amber-500" />}
-            action={
-              <button onClick={() => setShowNoteForm((p) => !p)} className="text-[11px] text-primary hover:underline flex items-center gap-0.5">
-                <Plus className="h-3 w-3" />등록
-              </button>
+      {/* 최근 인수인계 + 오른쪽 레일 */}
+      <div className="grid grid-cols-1 items-start gap-x4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        {/* 최근 인수인계 피드 */}
+        <Section
+          title="최근 인수인계"
+          actions={<SectionLink href="/handover">전체 보기</SectionLink>}
+          flush
+          className="min-w-0"
+        >
+          {localHandovers.length === 0 ? (
+            <EmptyState
+              compact
+              icon={Inbox}
+              title="아직 인수인계가 없어요"
+              description="오늘 근무 내용을 남기면 다음 근무자가 바로 확인할 수 있어요"
+              className="border-t border-stroke-neutral-muted"
+            />
+          ) : (
+            <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+              {localHandovers.slice(0, 5).map((h) => {
+                const isRead = h.reads.some((r) => r.userId === currentUserId && r.confirmedAt != null);
+                const isAuthor = h.authorId === currentUserId;
+                const showUnread = !isRead && !isAuthor;
+                return (
+                  <li key={h.id}>
+                    <ListItem
+                      href="/handover"
+                      leading={
+                        <span
+                          aria-hidden
+                          className={cn("size-x2 shrink-0 rounded-full", showUnread ? "bg-bg-brand-solid" : "bg-transparent")}
+                        />
+                      }
+                      title={
+                        <span className={showUnread ? undefined : "t4-regular text-fg-neutral-muted"}>
+                          {showUnread && <span className="sr-only">새 글 </span>}
+                          {stripMarkdownPreview(h.content, 120) || "(내용 없음)"}
+                        </span>
+                      }
+                      description={
+                        <span className="flex items-center gap-x2">
+                          {h.tasks.length > 0 && <span>할 일 {h.tasks.length}</span>}
+                          {h.checklist.length > 0 && <span className="tabular-nums">루틴 {h.checklist.filter((c) => c.isChecked).length}/{h.checklist.length}</span>}
+                          <span>{h.authorName}</span>
+                        </span>
+                      }
+                      trailing={
+                        <>
+                          <span className="tabular-nums">{fmtMonthDay(h.date)}</span>
+                          {isRead && <CheckCircle2 className="size-4 text-fg-positive" aria-label="확인함" />}
+                        </>
+                      }
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Section>
+
+        {/* RIGHT: 인수인계 작성 · 이달 특이사항 · 바로가기 */}
+        <div className="flex min-w-0 flex-col gap-x4">
+          <Section
+            title="인수인계 작성"
+            description={`루틴 ${routineDone}/${routineItems.length} 완료`}
+            actions={
+              <Button asChild size="sm">
+                <Link href="/handover/new"><Pencil />작성</Link>
+              </Button>
             }
+            className="pb-x1"
+          />
+
+          <Section
+            title={`${month}월 특이사항`}
+            count={localNotes.length}
+            actions={
+              !showNoteForm ? (
+                <Button variant="ghost" size="xs" onClick={() => setShowNoteForm(true)}>
+                  <Plus />등록
+                </Button>
+              ) : undefined
+            }
+            flush
           >
             {showNoteForm && (
-              <div className="px-3 pt-2 pb-3 border-b space-y-2">
+              <div className="flex flex-col gap-x2 border-t border-stroke-neutral-muted px-x5 py-x4">
                 <div className="relative">
-                  <input type="text" value={noteQuery} onChange={(e) => { setNoteQuery(e.target.value); setNoteStudentName(e.target.value); }}
-                    placeholder="학생 이름..." autoFocus
-                    className="w-full text-sm border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                  <Input
+                    type="text"
+                    value={noteQuery}
+                    onChange={(e) => { setNoteQuery(e.target.value); setNoteStudentName(e.target.value); }}
+                    placeholder="학생 이름"
+                    aria-label="학생 이름"
+                    autoFocus
                   />
                   {filteredStudents.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 z-10 bg-popover border rounded-lg shadow-md max-h-28 overflow-y-auto">
+                    <div className="absolute left-0 right-0 top-full z-10 mt-x1 max-h-40 overflow-y-auto rounded-r3 bg-bg-layer-floating py-x1 shadow-[var(--seed-shadow-s2)]">
                       {filteredStudents.slice(0, 4).map((s) => (
-                        <button key={s.id} className="w-full text-left px-3 py-1.5 text-sm hover:bg-accent flex gap-2" onClick={() => { setNoteStudentName(s.name); setNoteQuery(s.name); }}>
-                          <span className="font-medium">{s.name}</span><span className="text-muted-foreground text-xs">{s.grade}</span>
+                        <button
+                          key={s.id}
+                          type="button"
+                          className="flex w-full items-center gap-x2 px-x3 py-x2 text-left t4-regular hover:bg-bg-layer-default-pressed"
+                          onClick={() => { setNoteStudentName(s.name); setNoteQuery(s.name); }}
+                        >
+                          <span className="t4-medium text-fg-neutral">{s.name}</span>
+                          <span className="t3-regular text-fg-neutral-subtle">{s.grade}</span>
                         </button>
                       ))}
                     </div>
                   )}
                 </div>
-                <Textarea value={noteContent} onChange={(e) => setNoteContent(e.target.value)} placeholder="내용..." rows={2} className="resize-none text-sm" />
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={handleAddNote} disabled={isPending || !noteStudentName.trim() || !noteContent.trim()} className="h-7 text-xs flex-1 gap-1"><Plus className="h-3 w-3" />등록</Button>
-                  <Button size="sm" variant="outline" onClick={() => { setShowNoteForm(false); setNoteStudentName(""); setNoteQuery(""); setNoteContent(""); }} className="h-7 text-xs">취소</Button>
+                <Textarea
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  placeholder="어떤 일이 있었나요?"
+                  aria-label="특이사항 내용"
+                  rows={2}
+                  className="resize-none"
+                />
+                <div className="flex justify-end gap-x2">
+                  <Button size="sm" variant="secondary" onClick={cancelNote}>취소</Button>
+                  <Button
+                    size="sm"
+                    onClick={handleAddNote}
+                    disabled={isPending || !noteStudentName.trim() || !noteContent.trim()}
+                  >
+                    {isPending ? "등록 중…" : "등록"}
+                  </Button>
                 </div>
               </div>
             )}
             {localNotes.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-5">{month}월 특이사항 없음</p>
+              !showNoteForm && (
+                <EmptyState
+                  compact
+                  icon={StickyNote}
+                  title={`${month}월 특이사항이 없어요`}
+                  className="border-t border-stroke-neutral-muted"
+                />
+              )
             ) : (
-              <div className="divide-y max-h-56 overflow-y-auto">
+              <ul className="max-h-72 divide-y divide-stroke-neutral-muted overflow-y-auto border-t border-stroke-neutral-muted">
                 {localNotes.slice(0, 8).map((n) => (
-                  <div key={n.id} className="px-4 py-2.5">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <span className="text-xs font-semibold">{n.studentName}</span>
-                      <span className="text-[10px] text-muted-foreground">{n.authorName}</span>
-                      <span className="text-[10px] text-muted-foreground ml-auto">{new Date(n.createdAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}</span>
+                  <li key={n.id} className="px-x5 py-x3">
+                    <div className="flex items-center gap-x1_5">
+                      <span className="t4-bold text-fg-neutral">{n.studentName}</span>
+                      <span className="t3-regular text-fg-neutral-subtle">{n.authorName}</span>
+                      <span className="ml-auto t3-regular tabular-nums text-fg-neutral-subtle">{fmtMonthDay(n.createdAt)}</span>
                     </div>
-                    <p className="text-xs leading-relaxed text-foreground/80 line-clamp-2">{n.content}</p>
-                  </div>
+                    <p className="mt-x0_5 line-clamp-2 t4-regular text-fg-neutral-muted">{n.content}</p>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
             {localNotes.length > 8 && (
-              <div className="px-4 py-2 border-t"><Link href="/handover" className="text-[11px] text-muted-foreground hover:text-primary">전체 {localNotes.length}개 →</Link></div>
+              <div className="border-t border-stroke-neutral-muted px-x5 py-x3">
+                <Link href="/handover" className="t3-medium text-fg-neutral-muted hover:text-fg-neutral">
+                  전체 {localNotes.length}개 보기
+                </Link>
+              </div>
             )}
-          </Panel>
+          </Section>
 
           {/* 빠른 이동 */}
-          <div className="rounded-xl border bg-card p-3 space-y-1">
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide px-1 mb-2">바로가기</p>
-            <Link href="/todos" className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted/40 text-sm transition-colors">
-              <ListTodo className="h-3.5 w-3.5 text-purple-500" />
-              <span>투두리스트 관리</span>
-              <span className="ml-auto text-[11px] text-muted-foreground">{localTodos.filter((t) => !t.isCompleted).length}개</span>
-            </Link>
-            <Link href="/handover" className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-muted/40 text-sm transition-colors">
-              <MessageSquare className="h-3.5 w-3.5 text-blue-500" />
-              <span>인수인계 전체</span>
-            </Link>
-          </div>
-
-          {/* 인수인계 작성 */}
-          <Link href="/handover/new" className="block">
-            <div className="rounded-xl border border-[#c0d9fc] bg-[#f0f6ff] hover:bg-[#e6f0ff] transition-colors px-4 py-3 flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                <Pencil className="h-4 w-4 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold">인수인계 작성</p>
-                <p className="text-[10px] text-muted-foreground">루틴 {routineItems.filter((c) => c.isChecked).length}/{routineItems.length} 완료</p>
-              </div>
-              <Send className="h-3.5 w-3.5 text-primary shrink-0" />
-            </div>
-          </Link>
+          <Section title="바로가기" flush>
+            <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+              <li>
+                <ListItem
+                  href="/todos"
+                  title="투두리스트 관리"
+                  trailing={<span className="tabular-nums">{localTodos.filter((t) => !t.isCompleted).length}개</span>}
+                />
+              </li>
+              <li>
+                <ListItem href="/handover" title="인수인계 전체" />
+              </li>
+            </ul>
+          </Section>
         </div>
       </div>
+
       {historyTodo && (
         <TodoHistoryDialog todo={historyTodo} onClose={() => setHistoryTodo(null)} />
       )}
@@ -518,109 +648,56 @@ function TodoHistoryDialog({ todo, onClose }: { todo: Todo; onClose: () => void 
   }, [todo.id]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
-      <div className="bg-card border rounded-xl shadow-lg w-full max-w-[520px] max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2 px-4 py-3 border-b">
-          <History className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-semibold">수정 이력</span>
-          <span className="text-xs text-muted-foreground truncate">· {todo.title}</span>
-          <button onClick={onClose} className="ml-auto p-1 rounded hover:bg-muted text-muted-foreground"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4">
-          {err && <p className="text-xs text-red-500 text-center py-4">{err}</p>}
-          {!rows && !err && <p className="text-xs text-muted-foreground text-center py-4">불러오는 중...</p>}
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="t6-bold">수정 이력</DialogTitle>
+          <DialogDescription className="truncate">{todo.title}</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto">
+          {err && <p className="py-x4 text-center t4-regular text-fg-critical">{err}</p>}
+          {!rows && !err && (
+            <div className="flex flex-col gap-x2" aria-busy="true" aria-label="불러오는 중">
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+          )}
           {rows && (
-            <ol className="space-y-2">
-              {/* 현재 상태 (라이브) — 초록색 강조 */}
-              <li className="rounded-lg border border-green-300 bg-green-50 p-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-green-600 text-white">
-                    현재
-                  </span>
-                  <span className="text-xs font-semibold text-green-900">
-                    {todo.lastEditorName ?? todo.authorName}
-                  </span>
-                  <span className="ml-auto text-[11px] text-green-800">
+            <ol className="flex flex-col gap-x2">
+              {/* 현재 상태 (라이브) */}
+              <li className="rounded-r3 bg-bg-positive-weak p-x4">
+                <div className="mb-x1 flex items-center gap-x2">
+                  <StatusBadge tone="ok" solid>현재</StatusBadge>
+                  <span className="t3-bold text-fg-neutral">{todo.lastEditorName ?? todo.authorName}</span>
+                  <span className="ml-auto t3-regular tabular-nums text-fg-neutral-subtle">
                     {fmtDateTimeLong(todo.lastEditedAt ?? todo.createdAt)}
                   </span>
                 </div>
-                <p className="text-xs font-medium">{todo.title}</p>
-                {todo.content && <p className="text-[11px] text-green-900/70 whitespace-pre-wrap mt-1">{todo.content}</p>}
+                <p className="t4-medium text-fg-neutral">{todo.title}</p>
+                {todo.content && <p className="mt-x1 whitespace-pre-wrap t3-regular text-fg-neutral-muted">{todo.content}</p>}
               </li>
 
               {/* 과거 버전 */}
               {rows.map((v) => (
-                <li key={v.id} className="rounded-lg border bg-muted/20 p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={cn(
-                      "text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded",
-                      v.version === 1 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-                    )}>
+                <li key={v.id} className="rounded-r3 bg-bg-layer-fill p-x4">
+                  <div className="mb-x1 flex items-center gap-x2">
+                    <StatusBadge tone={v.version === 1 ? "brand" : "gray"}>
                       v{v.version}{v.version === 1 && " · 최초"}
-                    </span>
-                    <span className="text-xs font-semibold">{v.editorName}</span>
-                    <span className="ml-auto text-[11px] text-muted-foreground">{fmtDateTimeLong(v.createdAt)}</span>
+                    </StatusBadge>
+                    <span className="t3-bold text-fg-neutral">{v.editorName}</span>
+                    <span className="ml-auto t3-regular tabular-nums text-fg-neutral-subtle">{fmtDateTimeLong(v.createdAt)}</span>
                   </div>
-                  <p className="text-xs font-medium">{v.title}</p>
-                  {v.content && <p className="text-[11px] text-muted-foreground whitespace-pre-wrap mt-1">{v.content}</p>}
+                  <p className="t4-medium text-fg-neutral">{v.title}</p>
+                  {v.content && <p className="mt-x1 whitespace-pre-wrap t3-regular text-fg-neutral-muted">{v.content}</p>}
                 </li>
               ))}
               {rows.length === 0 && (
-                <li className="text-[11px] text-muted-foreground text-center py-2">과거 수정 이력이 없습니다</li>
+                <li className="py-x2 text-center t3-regular text-fg-neutral-subtle">과거 수정 이력이 없어요</li>
               )}
             </ol>
           )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ── 공통 컴포넌트 ─────────────────────────────────────────────────────────────
-
-function SectionHeader({ title, count, doneCount, icon, open, onToggle, action }: {
-  title: string; count: number; doneCount: number; icon: React.ReactNode;
-  open: boolean; onToggle: () => void; action?: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="w-full flex items-center gap-2 px-4 py-2 hover:bg-muted/20 transition-colors border-b"
-    >
-      {icon}
-      <span className="text-xs font-semibold text-muted-foreground flex-1 text-left">{title}</span>
-      {action && <span onClick={(e) => e.stopPropagation()}>{action}</span>}
-      <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-full border",
-        count > 0 && doneCount === count ? "bg-green-50 text-green-700 border-green-200" : "bg-muted text-muted-foreground border-border"
-      )}>{doneCount}/{count}</span>
-      {open ? <ChevronUp className="h-3 w-3 text-muted-foreground shrink-0" /> : <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />}
-    </button>
-  );
-}
-
-function KpiChip({ value, label, color, icon }: { value: number | string; label: string; color: "red" | "green" | "amber" | "blue" | "muted"; icon: React.ReactNode }) {
-  const colors = { red: "bg-red-50 border-red-200 text-red-700", green: "bg-green-50 border-green-200 text-green-700", amber: "bg-amber-50 border-amber-200 text-amber-700", blue: "bg-blue-50 border-blue-200 text-blue-700", muted: "bg-muted border-border text-muted-foreground" };
-  return (
-    <div className={cn("rounded-xl border px-3 py-2.5 flex items-center gap-2", colors[color])}>
-      {icon}
-      <div className="min-w-0">
-        <p className="text-lg font-bold leading-none">{value}</p>
-        <p className="text-[10px] mt-0.5 opacity-70 leading-tight">{label}</p>
-      </div>
-    </div>
-  );
-}
-
-function Panel({ title, icon, action, children }: { title: string; icon: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border bg-card overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-2.5 border-b">
-        {icon}
-        <span className="text-sm font-semibold flex-1">{title}</span>
-        {action}
-      </div>
-      {children}
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -4,9 +4,20 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { useDraft } from "@/hooks/use-draft";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, X, Search, Eye, EyeOff } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Switch } from "seed-design/ui/switch";
+import { Plus, Trash2, X, StickyNote, SearchX } from "lucide-react";
+import {
+  EmptyState,
+  FormActions,
+  FormField,
+  SearchField,
+  Section,
+  StatusBadge,
+  Toolbar,
+} from "@/components/backoffice/ui";
+import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { createMonthlyNote, deleteMonthlyNote, toggleMonthlyNoteVisibility } from "@/actions/monthly-notes";
 
 type MonthlyNote = {
@@ -126,172 +137,216 @@ export function MonthlyNotesPanel({
     });
   }
 
+  function cancelForm() {
+    setShowForm(false);
+    clearFormDraft();
+    setStudentQuery("");
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-x4">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="학생 이름, 내용으로 검색..."
-            className="w-full pl-8 pr-3 py-1.5 text-sm border rounded-lg bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
-          />
-        </div>
-        <Button size="sm" variant="outline" onClick={() => setShowForm(true)} className="gap-1.5 h-8 text-xs shrink-0">
-          <Plus className="h-3.5 w-3.5" />
-          특이사항 등록
-        </Button>
-      </div>
+      <Toolbar className="mb-0">
+        <SearchField
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="학생 이름, 내용으로 검색"
+          aria-label="특이사항 검색"
+        />
+        {!showForm && (
+          <Button variant="secondary" onClick={() => setShowForm(true)} className="sm:ml-auto">
+            <Plus />
+            특이사항 등록
+          </Button>
+        )}
+      </Toolbar>
 
       {/* Add form */}
       {showForm && (
-        <div className="border rounded-xl p-4 space-y-3 bg-muted/20">
-          <p className="text-xs font-semibold text-muted-foreground">새 특이사항 등록</p>
-
-          {/* Student search */}
-          {!selectedStudent ? (
-            <div className="space-y-1.5">
-              <input
-                type="text"
-                value={studentQuery}
-                onChange={(e) => setStudentQuery(e.target.value)}
-                placeholder="학생 이름 검색..."
-                className="w-full text-sm border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
-              />
-              {studentQuery && (
-                <div className="border rounded-lg bg-popover shadow-md max-h-36 overflow-y-auto">
-                  {filteredStudents.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-muted-foreground">
-                      검색 결과 없음 —
-                      <button
-                        className="ml-1 text-primary underline"
-                        onClick={() => { setManualName(studentQuery); setStudentQuery(""); }}
-                      >
-                        "{studentQuery}" 직접 입력
-                      </button>
+        <Section title="새 특이사항" description={`${year}년 ${month}월 노트에 추가돼요`}>
+          <div className="flex flex-col gap-x4">
+            <FormField label="학생" required>
+              {/* Student search */}
+              {!selectedStudent ? (
+                <div className="flex flex-col gap-x2">
+                  {!manualName && (
+                    <Input
+                      type="text"
+                      value={studentQuery}
+                      onChange={(e) => setStudentQuery(e.target.value)}
+                      placeholder="학생 이름 검색"
+                      aria-label="학생 이름 검색"
+                      autoFocus
+                    />
+                  )}
+                  {studentQuery && (
+                    <div className="max-h-44 overflow-y-auto rounded-r3 bg-bg-layer-floating py-x1 shadow-[var(--seed-shadow-s2)]">
+                      {filteredStudents.length === 0 ? (
+                        <div className="flex flex-wrap items-center gap-x1 px-x3 py-x2 t4-regular text-fg-neutral-subtle">
+                          검색 결과가 없어요 —
+                          <button
+                            type="button"
+                            className="t4-medium text-fg-brand underline-offset-4 hover:underline"
+                            onClick={() => { setManualName(studentQuery); setStudentQuery(""); }}
+                          >
+                            &quot;{studentQuery}&quot; 직접 입력
+                          </button>
+                        </div>
+                      ) : (
+                        filteredStudents.slice(0, 8).map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            className="flex w-full items-center gap-x2 px-x3 py-x2 text-left transition-colors hover:bg-bg-layer-default-pressed"
+                            onClick={() => { setSelectedStudent(s); setStudentQuery(""); }}
+                          >
+                            <span className="t4-medium text-fg-neutral">{s.name}</span>
+                            <span className="t3-regular text-fg-neutral-subtle">{s.grade}</span>
+                          </button>
+                        ))
+                      )}
                     </div>
-                  ) : (
-                    filteredStudents.slice(0, 8).map((s) => (
-                      <button
-                        key={s.id}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center gap-2"
-                        onClick={() => { setSelectedStudent(s); setStudentQuery(""); }}
-                      >
-                        <span className="font-medium">{s.name}</span>
-                        <span className="text-muted-foreground text-xs">{s.grade}</span>
-                      </button>
-                    ))
+                  )}
+                  {manualName && (
+                    <SelectedChip label={manualName} hint="직접 입력" onClear={() => setManualName("")} />
                   )}
                 </div>
+              ) : (
+                <SelectedChip label={selectedStudent.name} hint={selectedStudent.grade} onClear={() => setSelectedStudent(null)} />
               )}
-              {manualName && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/5 border border-primary/20 rounded-lg">
-                  <span className="text-sm font-medium flex-1">{manualName}</span>
-                  <button onClick={() => setManualName("")} className="text-muted-foreground hover:text-foreground">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/5 border border-primary/20 rounded-lg">
-              <span className="text-sm font-medium flex-1">{selectedStudent.name}</span>
-              <span className="text-xs text-muted-foreground">{selectedStudent.grade}</span>
-              <button onClick={() => setSelectedStudent(null)} className="text-muted-foreground hover:text-foreground">
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          )}
+            </FormField>
 
-          <Textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="특이사항 내용..."
-            rows={3}
-            className="resize-none text-sm"
-          />
+            <FormField label="내용" required>
+              <Textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="어떤 일이 있었는지 적어 주세요"
+                aria-label="특이사항 내용"
+                rows={3}
+                className="resize-none"
+              />
+            </FormField>
 
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              onClick={handleAdd}
-              disabled={isPending || (!selectedStudent && !manualName.trim()) || !content.trim()}
-              className="h-7 text-xs gap-1 flex-1"
-            >
-              <Plus className="h-3 w-3" />
-              등록
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => { setShowForm(false); clearFormDraft(); setStudentQuery(""); }} className="h-7 text-xs">
-              취소
-            </Button>
+            <FormActions>
+              <Button variant="secondary" onClick={cancelForm}>
+                취소
+              </Button>
+              <Button
+                onClick={handleAdd}
+                disabled={isPending || (!selectedStudent && !manualName.trim()) || !content.trim()}
+              >
+                {isPending ? "등록 중…" : "등록"}
+              </Button>
+            </FormActions>
           </div>
-        </div>
+        </Section>
       )}
 
       {/* Notes list */}
-      {filteredNotes.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground text-sm">
-          {notes.length === 0 ? `${month}월 특이사항이 없습니다` : "검색 결과가 없습니다"}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filteredNotes.map((n) =>
-            deleteConfirmId === n.id ? (
-              <div key={n.id} className="rounded-xl border border-red-200 bg-red-50/60 p-3 flex items-center justify-between gap-3">
-                <p className="text-sm text-red-700">이 특이사항을 삭제하시겠습니까?</p>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button variant="destructive" size="sm" onClick={() => handleDelete(n.id)} disabled={isPending} className="h-7 text-xs">삭제</Button>
-                  <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)} className="h-7 text-xs">취소</Button>
-                </div>
-              </div>
-            ) : (
-              <div key={n.id} className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-semibold">{n.studentName}</span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {new Date(n.createdAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+      <Section
+        title={`${month}월 특이사항`}
+        count={filteredNotes.length}
+        description="리포트 표시를 끄면 월간 리포트에 나오지 않아요"
+        flush
+      >
+        {filteredNotes.length === 0 ? (
+          notes.length === 0 ? (
+            <EmptyState
+              icon={StickyNote}
+              title={`${month}월 특이사항이 없어요`}
+              description="학생에게 있었던 일을 남겨 두면 월간 리포트에 함께 담겨요"
+              action={
+                !showForm ? (
+                  <Button variant="secondary" onClick={() => setShowForm(true)}>
+                    <Plus />
+                    특이사항 등록
+                  </Button>
+                ) : undefined
+              }
+              className="border-t border-stroke-neutral-muted"
+            />
+          ) : (
+            <EmptyState
+              icon={SearchX}
+              title="검색 결과가 없어요"
+              description="학생 이름이나 내용을 다시 확인해 주세요"
+              className="border-t border-stroke-neutral-muted"
+            />
+          )
+        ) : (
+          <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+            {filteredNotes.map((n) => (
+              <li key={n.id} className="flex flex-col gap-x3 px-x5 py-x4 sm:flex-row sm:items-start">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x2">
+                    <span className="t5-bold text-fg-neutral">{n.studentName}</span>
+                    <span className="t3-regular tabular-nums text-fg-neutral-subtle">
+                      {new Date(n.createdAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })} · {n.authorName}
                     </span>
-                    <span className="text-[10px] text-muted-foreground">{n.authorName}</span>
-                    {!n.visibleInReport && (
-                      <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                        리포트 비표시
-                      </span>
-                    )}
+                    {!n.visibleInReport && <StatusBadge>리포트 비표시</StatusBadge>}
                   </div>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">{n.content}</p>
+                  <p className="mt-x1 whitespace-pre-wrap t4-regular text-fg-neutral-muted">{n.content}</p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    onClick={() => handleToggleVisibility(n)}
-                    disabled={isPending}
-                    title={n.visibleInReport ? "리포트에 표시됨 — 숨기려면 클릭" : "리포트에서 숨김 — 표시하려면 클릭"}
-                    className={cn(
-                      "p-1 transition-colors mt-0.5",
-                      n.visibleInReport
-                        ? "text-muted-foreground hover:text-foreground"
-                        : "text-muted-foreground/60 hover:text-muted-foreground"
-                    )}
+                <div className="flex shrink-0 items-center gap-x2">
+                  <div
+                    className="inline-flex items-center gap-x2"
+                    title={n.visibleInReport ? "리포트에 표시됨 — 끄면 숨겨요" : "리포트에서 숨김 — 켜면 표시해요"}
                   >
-                    {n.visibleInReport ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                  </button>
+                    <span className="t3-medium text-fg-neutral-muted">리포트 표시</span>
+                    <Switch
+                      size="24"
+                      checked={n.visibleInReport}
+                      disabled={isPending}
+                      onCheckedChange={() => handleToggleVisibility(n)}
+                      inputProps={{ "aria-label": `${n.studentName} 특이사항 리포트 표시` }}
+                    />
+                  </div>
                   {(n.authorId === currentUserId || isAdmin) && (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => setDeleteConfirmId(n.id)}
-                      className={cn("p-1 text-muted-foreground hover:text-red-500 transition-colors mt-0.5")}
+                      aria-label="특이사항 삭제"
+                      title="삭제"
+                      className="size-8 hover:text-fg-critical"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                      <Trash2 />
+                    </Button>
                   )}
                 </div>
-              </div>
-            )
-          )}
-        </div>
-      )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <ConfirmDialog
+        open={deleteConfirmId != null}
+        onOpenChange={(o) => { if (!o) setDeleteConfirmId(null); }}
+        title="이 특이사항을 삭제할까요?"
+        description="삭제하면 되돌릴 수 없어요."
+        pendingLabel="삭제하는 중…"
+        pending={isPending}
+        onConfirm={() => { if (deleteConfirmId) handleDelete(deleteConfirmId); }}
+      />
+    </div>
+  );
+}
+
+/** 선택된 학생(또는 직접 입력한 이름) 표시 + 지우기 */
+function SelectedChip({ label, hint, onClear }: { label: string; hint?: string; onClear: () => void }) {
+  return (
+    <div className="flex h-10 items-center gap-x2 rounded-r2 bg-bg-brand-weak px-x3">
+      <span className="t4-bold text-fg-neutral">{label}</span>
+      {hint && <span className="t3-regular text-fg-neutral-subtle">{hint}</span>}
+      <button
+        type="button"
+        onClick={onClear}
+        aria-label={`${label} 선택 해제`}
+        className="ml-auto grid size-7 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed"
+      >
+        <X className="size-4" />
+      </button>
     </div>
   );
 }

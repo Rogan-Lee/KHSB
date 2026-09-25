@@ -3,21 +3,20 @@
 import { useState, useTransition, useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input, inputBaseClass } from "@/components/ui/input";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import {
   Plus,
   Trash2,
-  CheckSquare,
-  Square,
-  ClipboardList,
-  Pencil,
   Send,
-  X,
-  Users,
   Check,
   ChevronDown,
   ChevronUp,
+  ListTodo,
+  CalendarCheck,
 } from "lucide-react";
+import { EmptyState, FilterChip, FormActions, StatusBadge } from "@/components/backoffice/ui";
+import { CheckRow, ShiftBadge } from "@/components/handover/handover-ui";
 import { cn, todayKST } from "@/lib/utils";
 import {
   createFullHandover,
@@ -83,13 +82,6 @@ interface Props {
   onDone: () => void;
   onCancel: () => void;
 }
-
-const SHIFT_TYPE_LABEL: Record<string, string> = { OPEN: "오픈", CLOSE: "마감", ALL: "공통" };
-const SHIFT_TYPE_COLOR: Record<string, string> = {
-  OPEN: "bg-blue-50 text-blue-700 border-blue-200",
-  CLOSE: "bg-purple-50 text-purple-700 border-purple-200",
-  ALL: "bg-gray-50 text-gray-600 border-gray-200",
-};
 
 function parseIds(val: string | null): string[] {
   if (!val) return [];
@@ -353,298 +345,265 @@ export function HandoverForm({ editingHandover, templates, monthlyNotes, staffLi
   ];
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-x4">
 
       {/* ── Section 1: 근무 내용 ── */}
-      <div className="rounded-lg border bg-card">
-        <button
-          type="button"
-          onClick={() => toggleSection("content")}
-          className="w-full px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-muted/30 rounded-t-lg"
-        >
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <Pencil className="h-4 w-4 text-muted-foreground" />
-            당일 근무 내용
-          </div>
-          {openSections.has("content") ? (
-            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          )}
-        </button>
-        {openSections.has("content") && (
-          <div className="px-4 pb-4">
-            <MarkdownEditor
-              value={workContent}
-              onChange={setWorkContent}
-              placeholder="오늘 근무 중 주요 처리 사항, 학생 이슈 등을 자유롭게 작성하세요..."
-            />
-          </div>
-        )}
-      </div>
+      <FormSection
+        title="당일 근무 내용"
+        description="주요 처리 사항과 학생 이슈를 자유롭게 적어 주세요"
+        open={openSections.has("content")}
+        onToggle={() => toggleSection("content")}
+      >
+        <MarkdownEditor
+          value={workContent}
+          onChange={setWorkContent}
+          placeholder="오늘 근무 중 주요 처리 사항, 학생 이슈 등을 자유롭게 작성하세요..."
+        />
+      </FormSection>
 
       {/* ── Section 2: 수신 담당자 ── */}
-      <div className="rounded-lg border bg-card">
-        <button
-          type="button"
-          onClick={() => toggleSection("recipients")}
-          className="w-full px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-muted/30 rounded-t-lg"
-        >
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <Users className="h-4 w-4 text-muted-foreground" />
-            수신 담당자
-            {recipients.length > 0 && (
-              <span className="text-xs text-primary font-medium ml-1">{recipients.length}명</span>
-            )}
-          </div>
-          {openSections.has("recipients") ? (
-            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          )}
-        </button>
-        {openSections.has("recipients") && (
-          <div className="px-4 pb-4">
-            <div className="flex flex-wrap gap-1.5">
-              {staffList.map((s) => {
-                const selected = recipients.some((r) => r.id === s.id);
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => toggleRecipient(s)}
-                    className={cn(
-                      "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs transition-all",
-                      selected
-                        ? "bg-primary/10 border-primary/40 text-primary font-medium"
-                        : "bg-background border-border text-foreground hover:bg-muted/40"
-                    )}
-                  >
-                    <div className={cn(
-                      "h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0",
-                      selected ? "bg-primary border-primary" : "border-border"
-                    )}>
-                      {selected && <Check className="h-2 w-2 text-primary-foreground" />}
-                    </div>
-                    {s.name}
-                  </button>
-                );
-              })}
-            </div>
+      <FormSection
+        title="수신 담당자"
+        description="선택한 사람에게 확인 요청이 가요"
+        meta={recipients.length > 0 ? <StatusBadge tone="brand">{recipients.length}명</StatusBadge> : undefined}
+        open={openSections.has("recipients")}
+        onToggle={() => toggleSection("recipients")}
+      >
+        {staffList.length === 0 ? (
+          <p className="t4-regular text-fg-neutral-subtle">선택할 수 있는 직원이 없어요</p>
+        ) : (
+          <div className="flex flex-wrap gap-x2">
+            {staffList.map((s) => {
+              const selected = recipients.some((r) => r.id === s.id);
+              return (
+                <FilterChip key={s.id} selected={selected} onClick={() => toggleRecipient(s)}>
+                  {selected && <Check className="size-3.5" aria-hidden />}
+                  {s.name}
+                </FilterChip>
+              );
+            })}
           </div>
         )}
-      </div>
+      </FormSection>
 
       {/* ── Section 3: 다음 근무자 할 일 ── */}
-      <div className="rounded-lg border bg-card">
-        <button
-          type="button"
-          onClick={() => toggleSection("tasks")}
-          className="w-full px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-muted/30 rounded-t-lg"
-        >
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <ClipboardList className="h-4 w-4 text-muted-foreground" />
-            다음 근무자 할 일
-            {tasks.length > 0 && (
-              <span className="text-xs font-semibold bg-muted text-muted-foreground border border-border rounded-full px-2 py-0.5 ml-1">
-                {tasks.length}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {pendingTodos.length > 0 && (
-              <span
-                role="button"
-                tabIndex={0}
-                onClick={(e) => { e.stopPropagation(); setShowTodoImport((p) => !p); }}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); setShowTodoImport((p) => !p); } }}
-                className={cn(
-                  "text-[10px] font-medium px-2 py-0.5 rounded-full border transition-all",
-                  showTodoImport ? "bg-primary/10 border-primary/40 text-primary" : "border-border/60 text-muted-foreground hover:bg-muted/60"
-                )}
-              >
-                내 투두에서 추가
-              </span>
-            )}
-            {openSections.has("tasks") ? (
-              <ChevronUp className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            )}
-          </div>
-        </button>
-        {openSections.has("tasks") && (
-          <div className="px-4 pb-4">
-            {/* 내 투두 import 패널 */}
-            {showTodoImport && pendingTodos.length > 0 && (
-              <div className="mb-3 p-2 border rounded-lg bg-muted/20 space-y-1">
-                <p className="text-[10px] text-muted-foreground font-medium">클릭해서 할 일로 추가</p>
-                {pendingTodos.map((todo) => (
+      <FormSection
+        title="다음 근무자 할 일"
+        meta={tasks.length > 0 ? <StatusBadge>{tasks.length}</StatusBadge> : undefined}
+        open={openSections.has("tasks")}
+        onToggle={() => toggleSection("tasks")}
+        action={
+          pendingTodos.length > 0 ? (
+            <FilterChip
+              selected={showTodoImport}
+              onClick={() => {
+                setShowTodoImport((p) => !p);
+                if (!openSections.has("tasks")) toggleSection("tasks");
+              }}
+            >
+              <ListTodo className="size-3.5" aria-hidden />
+              내 투두에서 추가
+            </FilterChip>
+          ) : undefined
+        }
+      >
+        {/* 내 투두 import 패널 */}
+        {showTodoImport && pendingTodos.length > 0 && (
+          <div className="mb-x4 rounded-r3 bg-bg-layer-fill p-x2">
+            <p className="px-x2 pb-x1_5 pt-x1 t3-medium text-fg-neutral-subtle">눌러서 할 일로 추가해요</p>
+            <ul className="flex flex-col gap-x1">
+              {pendingTodos.map((todo) => (
+                <li key={todo.id}>
                   <button
-                    key={todo.id}
                     type="button"
                     onClick={() => importFromTodo(todo)}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg border border-border/60 bg-background hover:bg-primary/5 hover:border-primary/30 text-left transition-all"
+                    className="flex w-full items-center gap-x2 rounded-r2 bg-bg-layer-default px-x3 py-x2 text-left transition-colors hover:bg-bg-layer-default-pressed"
                   >
-                    <Plus className="h-3 w-3 text-muted-foreground shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{todo.title}</p>
-                      {todo.assigneeName && <p className="text-[10px] text-muted-foreground">{todo.assigneeName}</p>}
-                    </div>
+                    <Plus className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate t4-medium text-fg-neutral">{todo.title}</span>
+                      {todo.assigneeName && <span className="block t3-regular text-fg-neutral-subtle">{todo.assigneeName}</span>}
+                    </span>
                   </button>
-                ))}
-              </div>
-            )}
-
-            {/* 기존 할 일 목록 */}
-            <div className="space-y-2">
-              {tasks.map((t) => (
-                <div key={t._key} className="bg-muted/40 rounded-lg px-2.5 py-2 flex items-center gap-2">
-                  <p className="text-xs font-medium flex-1 min-w-0 truncate">{t.title}</p>
-                  <select
-                    value={t.assigneeId}
-                    onChange={(e) => {
-                      const staff = staffList.find((s) => s.id === e.target.value) ?? null;
-                      updateTaskAssignee(t._key, staff);
-                    }}
-                    className="text-[10px] border rounded-full px-1.5 py-0.5 bg-background text-muted-foreground focus:outline-none focus:ring-0 shrink-0 max-w-[80px]"
-                  >
-                    <option value="">담당자</option>
-                    {staffList.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                  <button onClick={() => removeTask(t._key)} className="p-0.5 text-muted-foreground hover:text-red-500 shrink-0">
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </div>
+                </li>
               ))}
-
-              {/* 새 할 일 추가 */}
-              <div className="border rounded-lg bg-background p-2">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={taskTitle}
-                    onChange={(e) => setTaskTitle(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addTask()}
-                    placeholder="할 일 추가 (Enter)"
-                    className="flex-1 text-xs bg-transparent border-0 focus:outline-none text-foreground placeholder:text-muted-foreground"
-                  />
-                  <select
-                    value={taskAssignee?.id ?? ""}
-                    onChange={(e) => setTaskAssignee(staffList.find((s) => s.id === e.target.value) ?? null)}
-                    className="text-[10px] border rounded-full px-1.5 py-0.5 bg-background text-muted-foreground focus:outline-none focus:ring-0 shrink-0 max-w-[80px]"
-                  >
-                    <option value="">담당자</option>
-                    {staffList.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                  <Button size="sm" variant="ghost" onClick={addTask} disabled={!taskTitle.trim()} className="h-6 w-6 p-0 shrink-0">
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            </div>
+            </ul>
           </div>
         )}
-      </div>
+
+        {/* 기존 할 일 목록 */}
+        {tasks.length > 0 && (
+          <ul className="mb-x3 divide-y divide-stroke-neutral-muted overflow-hidden rounded-r3 border border-stroke-neutral-muted">
+            {tasks.map((t) => (
+              <li key={t._key} className="flex items-center gap-x2 px-x3 py-x2">
+                <p className="min-w-0 flex-1 truncate t4-medium text-fg-neutral">{t.title}</p>
+                <select
+                  value={t.assigneeId}
+                  onChange={(e) => {
+                    const staff = staffList.find((s) => s.id === e.target.value) ?? null;
+                    updateTaskAssignee(t._key, staff);
+                  }}
+                  aria-label={`${t.title} 담당자`}
+                  className={cn(inputBaseClass, "h-8 w-28 shrink-0 px-x2 t3-regular")}
+                >
+                  <option value="">담당자 없음</option>
+                  {staffList.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeTask(t._key)}
+                  aria-label={`${t.title} 삭제`}
+                  className="size-8 hover:text-fg-critical"
+                >
+                  <Trash2 />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* 새 할 일 추가 */}
+        <div className="flex flex-col gap-x2 sm:flex-row sm:items-center">
+          <Input
+            type="text"
+            value={taskTitle}
+            onChange={(e) => setTaskTitle(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addTask()}
+            placeholder="할 일을 입력하고 Enter"
+            aria-label="새 할 일"
+            className="sm:flex-1"
+          />
+          <div className="flex gap-x2">
+            <select
+              value={taskAssignee?.id ?? ""}
+              onChange={(e) => setTaskAssignee(staffList.find((s) => s.id === e.target.value) ?? null)}
+              aria-label="새 할 일 담당자"
+              className={cn(inputBaseClass, "h-10 min-w-0 flex-1 sm:w-32 sm:flex-none")}
+            >
+              <option value="">담당자 없음</option>
+              {staffList.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+            <Button type="button" variant="secondary" onClick={addTask} disabled={!taskTitle.trim()}>
+              <Plus />
+              추가
+            </Button>
+          </div>
+        </div>
+      </FormSection>
 
       {/* ── Section 4: 루틴 체크리스트 ── */}
-      <div className="rounded-lg border bg-card">
-        <button
-          type="button"
-          onClick={() => toggleSection("checklist")}
-          className="w-full px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-muted/30 rounded-t-lg"
-        >
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <CheckSquare className="h-4 w-4 text-muted-foreground" />
-            루틴 체크리스트
-            {visibleCount > 0 && (
-              <span className={cn(
-                "text-[11px] font-semibold rounded-full px-2 py-0.5 border ml-1",
-                checkedCount === visibleCount
-                  ? "bg-green-50 text-green-700 border-green-200"
-                  : "bg-muted text-muted-foreground border-border"
-              )}>
-                {checkedCount}/{visibleCount}
-              </span>
-            )}
-          </div>
-          {openSections.has("checklist") ? (
-            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          )}
-        </button>
-        {openSections.has("checklist") && (
-          <div className="px-4 pb-4 space-y-2">
-            {/* 근무 타임 필터 (신규 작성 시) */}
-            {!editingHandover && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-muted-foreground mr-0.5">근무 타임</span>
-                {SHIFT_FILTERS.map((f) => (
-                  <button
-                    key={f.value}
-                    type="button"
-                    onClick={() => setShift((prev) => (prev === f.value ? null : f.value))}
-                    className={cn(
-                      "text-xs px-2.5 py-1 rounded-full border transition-all",
-                      shift === f.value
-                        ? "bg-primary/10 border-primary/40 text-primary font-medium"
-                        : "border-border text-muted-foreground hover:bg-muted/40"
-                    )}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            )}
-            {visibleCount === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-3">해당 요일·타임의 루틴 항목이 없습니다.</p>
-            ) : (
-              <div className="space-y-1">
-                {checklist.map((item, i) =>
-                  shiftMatch(item.shiftType) ? (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => toggleCheck(i)}
-                    className={cn(
-                      "w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border transition-all text-left",
-                      item.isChecked
-                        ? "bg-green-50 border-green-200 text-green-800"
-                        : "bg-background border-border hover:bg-muted/40"
-                    )}
-                  >
-                    {item.isChecked ? (
-                      <CheckSquare className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                    ) : (
-                      <Square className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    )}
-                    <span className={cn("text-xs flex-1 min-w-0 truncate", item.isChecked && "line-through text-green-700")}>
-                      {item.title}
-                    </span>
-                    <span className={cn("text-[10px] border rounded px-1 py-0.5 shrink-0", SHIFT_TYPE_COLOR[item.shiftType] ?? "bg-gray-50")}>
-                      {SHIFT_TYPE_LABEL[item.shiftType] ?? item.shiftType}
-                    </span>
-                  </button>
-                  ) : null
-                )}
-              </div>
-            )}
+      <FormSection
+        title="루틴 체크리스트"
+        meta={
+          visibleCount > 0 ? (
+            <StatusBadge tone={checkedCount === visibleCount ? "ok" : "gray"}>
+              {checkedCount}/{visibleCount}
+            </StatusBadge>
+          ) : undefined
+        }
+        open={openSections.has("checklist")}
+        onToggle={() => toggleSection("checklist")}
+        flush
+      >
+        {/* 근무 타임 필터 (신규 작성 시) */}
+        {!editingHandover && (
+          <div className="flex flex-wrap items-center gap-x2 px-x5 pb-x3">
+            <span className="t3-medium text-fg-neutral-subtle">근무 타임</span>
+            {SHIFT_FILTERS.map((f) => (
+              <FilterChip
+                key={f.value}
+                selected={shift === f.value}
+                onClick={() => setShift((prev) => (prev === f.value ? null : f.value))}
+              >
+                {f.label}
+              </FilterChip>
+            ))}
           </div>
         )}
-      </div>
+        {visibleCount === 0 ? (
+          <EmptyState compact icon={CalendarCheck} title="해당 요일·타임의 루틴 항목이 없어요" className="border-t border-stroke-neutral-muted" />
+        ) : (
+          <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+            {checklist.map((item, i) =>
+              shiftMatch(item.shiftType) ? (
+                <li key={i}>
+                  <CheckRow
+                    checked={item.isChecked}
+                    onToggle={() => toggleCheck(i)}
+                    title={item.title}
+                    trailing={<ShiftBadge shiftType={item.shiftType} />}
+                  />
+                </li>
+              ) : null
+            )}
+          </ul>
+        )}
+      </FormSection>
 
       {/* ── 액션 ── */}
-      <div className="flex items-center justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="text-sm text-muted-foreground hover:text-foreground px-3 py-1.5 flex items-center gap-1.5">
-          <X className="h-3.5 w-3.5" />
+      <FormActions className="max-sm:[&>*]:flex-1">
+        <Button type="button" variant="secondary" onClick={onCancel}>
           취소
-        </button>
-        <Button onClick={handleSubmit} disabled={isPending} className="gap-1.5">
-          <Send className="h-3.5 w-3.5" />
-          {editingHandover ? "수정 저장" : "인수인계 저장"}
         </Button>
-      </div>
+        <Button type="button" onClick={handleSubmit} disabled={isPending}>
+          <Send />
+          {isPending ? "저장 중…" : editingHandover ? "수정 저장" : "인수인계 저장"}
+        </Button>
+      </FormActions>
     </div>
+  );
+}
+
+/** 접을 수 있는 폼 구획 — 머리(제목·메타·접기) + 본문. action 은 접기 버튼 밖에 둔다 */
+function FormSection({
+  title,
+  description,
+  meta,
+  action,
+  open,
+  onToggle,
+  flush = false,
+  children,
+}: {
+  title: string;
+  description?: string;
+  meta?: React.ReactNode;
+  action?: React.ReactNode;
+  open: boolean;
+  onToggle: () => void;
+  flush?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
+      <div className="flex items-center gap-x2 pr-x3">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className="flex min-w-0 flex-1 items-center gap-x2 rounded-r4 px-x5 py-x4 text-left"
+        >
+          <span className="min-w-0">
+            <span className="flex items-center gap-x2">
+              <span className="t6-bold text-fg-neutral">{title}</span>
+              {meta}
+            </span>
+            {description && open && <span className="mt-x0_5 block t4-regular text-fg-neutral-subtle">{description}</span>}
+          </span>
+        </button>
+        {action}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={open ? `${title} 접기` : `${title} 펼치기`}
+          className="grid size-9 shrink-0 place-items-center rounded-full text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed"
+        >
+          {open ? <ChevronUp className="size-5" /> : <ChevronDown className="size-5" />}
+        </button>
+      </div>
+      {open && <div className={flush ? "overflow-hidden rounded-b-r4" : "px-x5 pb-x5"}>{children}</div>}
+    </section>
   );
 }

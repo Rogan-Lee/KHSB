@@ -10,16 +10,21 @@ import {
 } from "@/actions/assignments";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input, inputBaseClass } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Badge } from "@/components/ui/badge";
+import { CountBadge, TONE_TEXT, type Tone } from "@/components/backoffice/ui";
+import { useConfirmDialog } from "@/components/exams/use-confirm-dialog";
 import {
   Circle,
   CheckCircle2,
   Trash2,
   Pencil,
   ChevronDown,
-  ChevronUp,
   Printer,
+  Plus,
   X,
 } from "lucide-react";
 import type { Assignment } from "@/generated/prisma";
@@ -42,10 +47,11 @@ function formatDue(date: Date | null) {
   const diff = d.getTime() - now.setHours(0, 0, 0, 0);
   const days = Math.ceil(diff / 86400000);
   const label = d.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" });
-  if (days < 0) return { label, color: "text-red-500", suffix: `(${Math.abs(days)}일 초과)` };
-  if (days === 0) return { label, color: "text-orange-500", suffix: "(오늘)" };
-  if (days <= 3) return { label, color: "text-yellow-600", suffix: `(${days}일 후)` };
-  return { label, color: "text-muted-foreground", suffix: `(${days}일 후)` };
+  const tone = (t: Tone) => TONE_TEXT[t];
+  if (days < 0) return { label, color: tone("bad"), suffix: `(${Math.abs(days)}일 초과)` };
+  if (days === 0) return { label, color: tone("brand"), suffix: "(오늘)" };
+  if (days <= 3) return { label, color: tone("warn"), suffix: `(${days}일 후)` };
+  return { label, color: "text-fg-neutral-subtle", suffix: `(${days}일 후)` };
 }
 
 function toDateInputValue(date: Date | null): string {
@@ -71,6 +77,7 @@ export function AssignmentPanel({
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
 
   const [form, setForm] = useState(EMPTY_FORM);
+  const [confirm, confirmDialog] = useConfirmDialog();
 
   const pending = items.filter((i) => !i.isCompleted);
   const completed = items.filter((i) => i.isCompleted);
@@ -204,7 +211,15 @@ export function AssignmentPanel({
     });
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
+    const target = items.find((i) => i.id === id);
+    const ok = await confirm({
+      title: target ? `"${target.title}" 과제를 삭제할까요?` : "과제를 삭제할까요?",
+      description: "삭제하면 되돌릴 수 없어요.",
+      confirmLabel: "삭제",
+      destructive: true,
+    });
+    if (!ok) return;
     startTransition(async () => {
       try {
         await deleteAssignment(id, studentId);
@@ -292,77 +307,92 @@ export function AssignmentPanel({
     win.print();
   }
 
+  const iconButton = "size-x8 text-fg-neutral-subtle";
+
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-x3">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className={cn("text-sm font-medium", compact && "text-xs")}>과제</span>
-          {pending.length > 0 && (
-            <span className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-              {pending.length}
-            </span>
-          )}
+      <div className="flex items-center justify-between gap-x2">
+        <div className="flex items-center gap-x1_5">
+          <span className={cn("text-fg-neutral", compact ? "t4-bold" : "t5-bold")}>과제</span>
+          <CountBadge count={pending.length} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-x1">
           {items.length > 0 && (
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={handlePrint}
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className={iconButton}
               title="과제표 출력"
+              aria-label="과제표 출력"
             >
-              <Printer className="h-3.5 w-3.5" />
-            </button>
+              <Printer />
+            </Button>
           )}
-          <button
+          <Button
+            variant={showForm ? "ghost" : "secondary"}
+            size="sm"
             onClick={showForm ? closeForm : openAdd}
-            className="text-xs text-primary hover:underline"
           >
-            {showForm ? "취소" : "+ 추가"}
-          </button>
+            {showForm ? (
+              "취소"
+            ) : (
+              <>
+                <Plus />
+                추가
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
       {/* 등록/수정 폼 */}
       {showForm && (
-        <div className="space-y-2 p-3 bg-muted/40 rounded-lg border">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-xs font-medium text-muted-foreground">
-              {editingId ? "과제 수정" : "새 과제"}
-            </p>
-            <button onClick={closeForm} className="text-muted-foreground hover:text-foreground">
-              <X className="h-3.5 w-3.5" />
-            </button>
+        <div className="flex flex-col gap-x2_5 rounded-r3 bg-bg-layer-fill p-x4">
+          <div className="flex items-center justify-between">
+            <p className="t4-bold text-fg-neutral">{editingId ? "과제 수정" : "새 과제"}</p>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={closeForm}
+              className={iconButton}
+              aria-label="닫기"
+            >
+              <X />
+            </Button>
           </div>
-          <input
+          <Input
             type="text"
             placeholder="과제 제목 *"
+            aria-label="과제 제목"
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            className="w-full border rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
           />
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-x2">
             <select
               value={form.subject}
+              aria-label="과목"
               onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
-              className="border rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+              className={cn("h-10", inputBaseClass, !form.subject && "text-fg-placeholder")}
             >
               <option value="">과목 선택</option>
               {SUBJECT_OPTIONS.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
-            <DatePicker value={form.dueDate || null} onChange={(d) => setForm((f) => ({ ...f, dueDate: d ?? "" }))} placeholder="날짜 선택" />
+            <DatePicker value={form.dueDate || null} onChange={(d) => setForm((f) => ({ ...f, dueDate: d ?? "" }))} placeholder="마감일 선택" />
           </div>
-          <textarea
+          <Textarea
             placeholder="상세 내용 (선택)"
+            aria-label="상세 내용"
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-            className="w-full border rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-background resize-none min-h-[50px]"
+            className="min-h-[64px] resize-none"
           />
 
           {/* 파일 첨부 — 신규 작성 시엔 임시 보관, 저장 직후 업로드 */}
-          <div className="pt-1 border-t border-border/40">
+          <div className="border-t border-stroke-neutral-muted pt-x3">
             {editingId ? (
               <AssignmentFiles assignmentId={editingId} />
             ) : (
@@ -377,11 +407,10 @@ export function AssignmentPanel({
           <div className="flex justify-end">
             <Button
               size="sm"
-              className="h-7 text-xs"
               onClick={handleSave}
               disabled={isPending || !form.title.trim()}
             >
-              {editingId ? "저장" : "등록"}
+              {isPending ? "저장 중…" : editingId ? "저장" : "등록"}
             </Button>
           </div>
         </div>
@@ -389,126 +418,145 @@ export function AssignmentPanel({
 
       {/* 미완료 과제 */}
       {pending.length === 0 && !showForm && (
-        <p className="text-xs text-muted-foreground py-2 text-center">미완료 과제가 없습니다</p>
+        <div className="rounded-r3 bg-bg-layer-fill px-x4 py-x6 text-center">
+          <p className="t4-medium text-fg-neutral-muted">미완료 과제가 없어요</p>
+          <p className="mt-x0_5 t3-regular text-fg-neutral-subtle">
+            {items.length === 0 ? "\"추가\"를 눌러 첫 과제를 등록해 보세요." : "모든 과제를 끝냈어요."}
+          </p>
+        </div>
       )}
-      <div className="space-y-1.5">
-        {pending.map((item) => {
-          const due = item.dueDate ? formatDue(item.dueDate) : null;
-          const isEditing = editingId === item.id;
-          return (
-            <div
-              key={item.id}
-              className={cn(
-                "flex items-start gap-2 p-2.5 rounded-lg border transition-colors",
-                isEditing ? "bg-primary/5 border-primary/30" : "bg-card hover:bg-accent/30"
-              )}
-            >
-              <button
-                onClick={() => handleComplete(item)}
-                disabled={isPending}
-                className="mt-0.5 shrink-0 text-muted-foreground hover:text-green-600 transition-colors"
-              >
-                <Circle className="h-4 w-4" />
-              </button>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                  {item.subject && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded border font-medium bg-blue-50 text-blue-700 border-blue-200">
-                      {item.subject}
-                    </span>
-                  )}
-                  {due && (
-                    <span className={cn("text-[10px]", due.color)}>
-                      ~{due.label} {due.suffix}
-                    </span>
-                  )}
-                  <span className="text-[10px] text-muted-foreground">· {item.createdByName}</span>
-                </div>
-                <p className="text-sm font-medium leading-snug">{item.title}</p>
-                {item.description && (
-                  <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{item.description}</p>
+      {pending.length > 0 && (
+        <ul className="flex flex-col gap-x1_5">
+          {pending.map((item) => {
+            const due = item.dueDate ? formatDue(item.dueDate) : null;
+            const isEditing = editingId === item.id;
+            return (
+              <li
+                key={item.id}
+                className={cn(
+                  "flex items-start gap-x2_5 rounded-r3 border px-x3 py-x2_5 transition-colors",
+                  isEditing
+                    ? "border-stroke-brand-weak bg-bg-brand-weak"
+                    : "border-stroke-neutral-muted bg-bg-layer-default hover:bg-bg-layer-default-pressed"
                 )}
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
+              >
                 <button
-                  onClick={() => isEditing ? closeForm() : openEdit(item)}
+                  type="button"
+                  onClick={() => handleComplete(item)}
                   disabled={isPending}
-                  className={cn(
-                    "transition-colors",
-                    isEditing ? "text-primary" : "text-muted-foreground hover:text-primary"
+                  className="mt-x0_5 shrink-0 rounded-full text-fg-placeholder transition-colors hover:text-fg-positive disabled:opacity-50"
+                  aria-label={`${item.title} 완료 처리`}
+                  title="완료 처리"
+                >
+                  <Circle className="size-5" />
+                </button>
+                <div className="min-w-0 flex-1">
+                  <p className="t4-medium text-fg-neutral">{item.title}</p>
+                  {item.description && (
+                    <p className="mt-x0_5 whitespace-pre-wrap t3-regular text-fg-neutral-muted">{item.description}</p>
                   )}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  onClick={() => handleDelete(item.id)}
-                  disabled={isPending}
-                  className="text-muted-foreground hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                  <div className="mt-x1 flex flex-wrap items-center gap-x1_5 t2-regular text-fg-neutral-subtle">
+                    {item.subject && <Badge tone="neutral">{item.subject}</Badge>}
+                    {due && (
+                      <span className={cn("t2-medium tabular-nums", due.color)}>
+                        ~{due.label} {due.suffix}
+                      </span>
+                    )}
+                    <span>{item.createdByName}</span>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => (isEditing ? closeForm() : openEdit(item))}
+                    disabled={isPending}
+                    className={cn(iconButton, isEditing && "text-fg-brand")}
+                    aria-label={isEditing ? "수정 닫기" : `${item.title} 수정`}
+                    title="수정"
+                  >
+                    <Pencil />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(item.id)}
+                    disabled={isPending}
+                    className={cn(iconButton, "hover:text-fg-critical")}
+                    aria-label={`${item.title} 삭제`}
+                    title="삭제"
+                  >
+                    <Trash2 />
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       {/* 완료된 과제 */}
       {completed.length > 0 && (
-        <div className="border-t pt-3">
+        <div className="border-t border-stroke-neutral-muted pt-x3">
           <button
+            type="button"
             onClick={() => setShowCompleted((v) => !v)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            aria-expanded={showCompleted}
+            className="-ml-1 inline-flex items-center gap-x1 rounded-r2 px-1 py-x0_5 t3-medium text-fg-neutral-subtle transition-colors hover:text-fg-neutral"
           >
-            {showCompleted ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-            완료된 과제 {completed.length}개
+            <ChevronDown className={cn("size-4 transition-transform", showCompleted && "rotate-180")} />
+            완료한 과제 <span className="tabular-nums">{completed.length}</span>개
           </button>
           {showCompleted && (
-            <div className="space-y-1.5 mt-2">
+            <ul className="mt-x2 flex flex-col gap-x1_5">
               {completed.map((item) => (
-                <div
+                <li
                   key={item.id}
-                  className="flex items-start gap-2 p-2.5 rounded-lg border bg-green-50/60 border-green-100"
+                  className="flex items-start gap-x2_5 rounded-r3 bg-bg-layer-fill px-x3 py-x2_5"
                 >
                   <button
+                    type="button"
                     onClick={() => handleUncomplete(item)}
                     disabled={isPending}
-                    className="mt-0.5 shrink-0 text-green-600 hover:text-muted-foreground transition-colors"
+                    className="mt-x0_5 shrink-0 rounded-full text-fg-positive transition-colors hover:text-fg-neutral-subtle disabled:opacity-50"
                     title="완료 취소"
+                    aria-label={`${item.title} 완료 취소`}
                   >
-                    <CheckCircle2 className="h-4 w-4" />
+                    <CheckCircle2 className="size-5" />
                   </button>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                      {item.subject && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded border font-medium bg-blue-50 text-blue-700 border-blue-200">
-                          {item.subject}
-                        </span>
-                      )}
+                  <div className="min-w-0 flex-1">
+                    <p className="t4-regular text-fg-neutral-subtle line-through">{item.title}</p>
+                    <div className="mt-x1 flex flex-wrap items-center gap-x1_5">
+                      {item.subject && <Badge tone="neutral">{item.subject}</Badge>}
                       {item.completedAt && (
-                        <span className="text-[10px] text-green-700">
+                        <span className="t2-medium tabular-nums text-fg-positive">
                           {new Date(item.completedAt).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })} 완료
                         </span>
                       )}
                     </div>
-                    <p className="text-sm leading-snug line-through text-muted-foreground">{item.title}</p>
                     {item.completedNote && (
-                      <p className="text-xs text-green-700 mt-0.5">{item.completedNote}</p>
+                      <p className="mt-x1 t3-regular text-fg-neutral-muted">{item.completedNote}</p>
                     )}
                   </div>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => handleDelete(item.id)}
                     disabled={isPending}
-                    className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+                    className={cn(iconButton, "hover:text-fg-critical")}
+                    aria-label={`${item.title} 삭제`}
+                    title="삭제"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                    <Trash2 />
+                  </Button>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
         </div>
       )}
+
+      {confirmDialog}
     </div>
   );
 }

@@ -2,11 +2,27 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { CalendarClock, ChevronRight, MessageSquare, Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { CalendarClock, CalendarX2, MessageSquare, SearchX } from "lucide-react";
+import {
+  EmptyState,
+  FilterChip,
+  SearchField,
+  Segmented,
+  StatusBadge,
+  TableCard,
+  Toolbar,
+} from "@/components/backoffice/ui";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useStickyState } from "@/hooks/use-sticky-state";
 import { DeleteProposalButton } from "./delete-proposal-button";
+import { proposalStatus } from "./_lib/status";
 
 export type ProposalRow = {
   id: string;
@@ -22,18 +38,11 @@ export type ProposalRow = {
 
 type Sort = "recent" | "name" | "submitted";
 
-const SORT_TABS: { key: Sort; label: string }[] = [
-  { key: "recent", label: "최신순" },
-  { key: "name", label: "이름순" },
-  { key: "submitted", label: "제출순" },
+const SORT_TABS: { value: Sort; label: string }[] = [
+  { value: "recent", label: "최신순" },
+  { value: "name", label: "이름순" },
+  { value: "submitted", label: "제출순" },
 ];
-
-const STATUS_META: Record<string, { label: string; cls: string }> = {
-  SUBMITTED: { label: "검토 대기", cls: "bg-slate-100 text-slate-700" },
-  PROPOSED: { label: "학부모 승인 대기", cls: "bg-amber-100 text-amber-800" },
-  APPROVED: { label: "승인됨 · 반영 대기", cls: "bg-blue-100 text-blue-800" },
-  REJECTED: { label: "반려됨", cls: "bg-rose-100 text-rose-700" },
-};
 
 const STATUS_FILTERS: { key: string; label: string }[] = [
   { key: "ALL", label: "전체" },
@@ -70,94 +79,129 @@ export function SchedulesPanel({ proposals }: { proposals: ProposalRow[] }) {
   }, [proposals, query, sort, statusFilter]);
 
   return (
-    <div className="space-y-3">
+    <div>
       {/* 검색 + 정렬 */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="학생 이름으로 검색"
-            className="pl-9"
-          />
-        </div>
-        <div className="flex gap-1.5">
-          {SORT_TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setSort(t.key)}
-              className={cn(
-                "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                sort === t.key ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:bg-accent"
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <Toolbar className="justify-between">
+        <SearchField
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="학생 이름으로 검색"
+          aria-label="학생 이름으로 검색"
+        />
+        <Segmented
+          aria-label="정렬"
+          options={SORT_TABS}
+          value={sort}
+          onChange={setSort}
+          className="w-full sm:w-auto"
+        />
+      </Toolbar>
 
       {/* 상태 필터 */}
-      <div className="flex flex-wrap gap-1.5">
+      <div
+        role="group"
+        aria-label="상태 필터"
+        className="mb-x4 flex gap-x2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         {STATUS_FILTERS.map((f) => (
-          <button
+          <FilterChip
             key={f.key}
-            type="button"
+            selected={statusFilter === f.key}
+            count={counts[f.key] ?? 0}
             onClick={() => setStatusFilter(f.key)}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors",
-              statusFilter === f.key
-                ? "border-foreground bg-foreground text-background"
-                : "border-border bg-background text-muted-foreground hover:bg-accent"
-            )}
           >
             {f.label}
-            <span className="tabular-nums opacity-70">{counts[f.key] ?? 0}</span>
-          </button>
+          </FilterChip>
         ))}
       </div>
 
-      {/* 리스트 (자체 스크롤) */}
-      <div className="overflow-hidden rounded-lg border bg-card">
+      <TableCard>
         {filtered.length === 0 ? (
-          <div className="py-12 text-center text-sm text-muted-foreground">
-            {proposals.length === 0 ? "검토할 스케줄 제안이 없습니다." : "조건에 맞는 제안이 없습니다."}
-          </div>
+          proposals.length === 0 ? (
+            <EmptyState
+              icon={CalendarX2}
+              title="검토할 스케줄 제안이 없어요"
+              description="학생이 포털에서 등원 스케줄을 제출하면 여기에 표시돼요."
+            />
+          ) : (
+            <EmptyState
+              icon={SearchX}
+              title="조건에 맞는 제안이 없어요"
+              description="상태 필터나 검색어를 바꿔 보세요."
+            />
+          )
         ) : (
-          <ul className="max-h-[calc(100vh-320px)] divide-y overflow-y-auto">
-            {filtered.map((p) => (
-              <li key={p.id} className="flex items-center gap-1 pr-2 transition-colors hover:bg-accent">
-                <Link href={`/online/schedules/${p.id}`} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
-                  <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", STATUS_META[p.status]?.cls ?? "bg-gray-100")}>
-                    {STATUS_META[p.status]?.label ?? p.status}
-                  </span>
-                  <span className="truncate font-medium">{p.studentName}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">{p.studentGrade} · v{p.version}</span>
-                  {p.scheduledFor && (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-info/40 px-2 py-0.5 text-[11px] text-info">
-                      <CalendarClock className="h-3 w-3" />
-                      {new Date(p.scheduledFor).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })} 예약
-                    </span>
-                  )}
-                  {p.feedbackCount > 0 && (
-                    <span className="inline-flex shrink-0 items-center gap-1 text-xs text-rose-600">
-                      <MessageSquare className="h-3.5 w-3.5" />
-                      {p.feedbackCount}
-                    </span>
-                  )}
-                  <span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
-                    {new Date(p.updatedAt).toLocaleDateString("ko-KR")}
-                  </span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                </Link>
-                <DeleteProposalButton id={p.id} />
-              </li>
-            ))}
-          </ul>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>학생</TableHead>
+                <TableHead>상태</TableHead>
+                <TableHead>반영 예약</TableHead>
+                <TableHead className="text-right">학부모 피드백</TableHead>
+                <TableHead className="text-right">최근 수정</TableHead>
+                <TableHead className="w-x14">
+                  <span className="sr-only">삭제</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((p) => {
+                const st = proposalStatus(p.status);
+                return (
+                  <TableRow key={p.id} className="relative cursor-pointer">
+                    <TableCell>
+                      <span className="inline-flex items-center gap-x1_5 whitespace-nowrap">
+                        {/* 행 전체를 누르면 상세로 — 링크 영역을 행 크기로 늘린다 */}
+                        <Link
+                          href={`/online/schedules/${p.id}`}
+                          className="t4-medium text-fg-neutral after:absolute after:inset-0 after:content-['']"
+                        >
+                          {p.studentName}
+                        </Link>
+                        <span className="t3-regular text-fg-neutral-subtle">
+                          {p.studentGrade} · v{p.version}
+                        </span>
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {p.scheduledFor ? (
+                        <span className="inline-flex items-center gap-x1 text-fg-informative">
+                          <CalendarClock className="size-4" aria-hidden />
+                          {new Date(p.scheduledFor).toLocaleDateString("ko-KR", {
+                            month: "long",
+                            day: "numeric",
+                          })}
+                        </span>
+                      ) : (
+                        <span className="text-fg-placeholder">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {p.feedbackCount > 0 ? (
+                        <StatusBadge tone="warn">
+                          <MessageSquare aria-hidden />
+                          {p.feedbackCount}
+                        </StatusBadge>
+                      ) : (
+                        <span className="text-fg-placeholder">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-right text-fg-neutral-muted">
+                      {new Date(p.updatedAt).toLocaleDateString("ko-KR")}
+                    </TableCell>
+                    <TableCell className="relative z-10 py-0 text-right">
+                      <DeleteProposalButton id={p.id} studentName={p.studentName} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         )}
-      </div>
+      </TableCard>
     </div>
   );
 }

@@ -16,13 +16,13 @@ import { toggleMeritDemeritVisibility } from "@/actions/merit-demerit";
 import { toggleMonthlyNoteVisibility } from "@/actions/monthly-notes";
 import { generateMonthlyMentoringSummary } from "@/actions/ai-enhance";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import {
   Loader2, Link as LinkIcon, Sparkles, Send, Check, Eye, EyeOff,
-  Image as ImageIcon, RefreshCw, User as UserIcon, Clock, ClipboardList,
-  TrendingUp, TrendingDown, Minus, AlertCircle, GraduationCap, BookOpen, Star,
+  Image as ImageIcon, RefreshCw, Clock, ClipboardList,
+  TrendingUp, TrendingDown, Minus, AlertCircle, MousePointerClick,
 } from "lucide-react";
+import { Avatar, EmptyState, Notice, Skeleton, StatusBadge } from "@/components/backoffice/ui";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { PhotoPickerDialog } from "./photo-picker-dialog";
@@ -140,8 +140,12 @@ export function ReportDetailPane({
 
   if (!student) {
     return (
-      <div className="border rounded-lg flex items-center justify-center h-full min-h-0 text-sm text-muted-foreground">
-        좌측에서 학생을 선택하세요.
+      <div className="flex h-full min-h-0 items-center justify-center rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
+        <EmptyState
+          icon={MousePointerClick}
+          title="학생을 선택하세요"
+          description="왼쪽 목록에서 학생을 고르면 리포트를 보고 고칠 수 있어요."
+        />
       </div>
     );
   }
@@ -247,53 +251,66 @@ export function ReportDetailPane({
     ? report.totalStudyMinutes - report.prevMonthStudyMinutes
     : null;
 
+  const lastExamIdx = supp ? supp.exams.findIndex((e) => !e.isThisMonth) : -1;
+  const summaryDirty = !!report && summary !== (report.mentoringSummary ?? "");
+  const commentDirty = !!report && comment !== (report.overallComment ?? "");
+
   return (
-    <div className="border rounded-lg bg-background flex flex-col h-full min-h-0 overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
       {/* 헤더 */}
-      <div className="px-5 py-3 border-b flex items-center gap-3 flex-wrap">
-        <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-          <UserIcon className="h-4 w-4 text-primary" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="font-bold text-base truncate">{student.name}</h3>
-            <span className="text-xs text-muted-foreground">{student.grade}</span>
+      <div className="flex flex-wrap items-center gap-x3 border-b border-stroke-neutral-muted px-x5 py-x4">
+        <Avatar name={student.name} size={40} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x1_5">
+            <h3 className="truncate t6-bold text-fg-neutral">{student.name}</h3>
+            <span className="t3-regular text-fg-neutral-subtle">{student.grade}</span>
             {report ? (
               report.sentAt ? (
-                <Badge className="text-[10px]">발송완료</Badge>
+                <StatusBadge tone="ok">발송 완료</StatusBadge>
               ) : (
-                <Badge variant="secondary" className="text-[10px]">생성됨</Badge>
+                <StatusBadge tone="info">생성됨</StatusBadge>
               )
             ) : (
-              <Badge variant="outline" className="text-[10px]">미생성</Badge>
+              <StatusBadge tone="gray">미생성</StatusBadge>
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground">{year}년 {month}월 리포트</p>
+          <p className="mt-x0_5 t3-regular tabular-nums text-fg-neutral-subtle">{year}년 {month}월 리포트</p>
         </div>
-        <div className="flex items-center gap-1 shrink-0 flex-wrap">
+        <div className="flex shrink-0 flex-wrap items-center gap-x1_5">
           {!report ? (
             <Button size="sm" onClick={handleGenerate} disabled={busy === "generate"}>
-              {busy === "generate" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <ClipboardList className="h-3.5 w-3.5 mr-1" />}
-              리포트 생성
+              {busy === "generate" ? <Loader2 className="animate-spin" /> : <ClipboardList />}
+              {busy === "generate" ? "생성 중…" : "리포트 생성"}
             </Button>
           ) : (
             <>
-              <Button variant="outline" size="sm" onClick={handleGenerate} disabled={busy === "generate"} title="통계 재집계">
-                {busy === "generate" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-x9"
+                onClick={handleGenerate}
+                disabled={busy === "generate"}
+                title="통계 재집계"
+                aria-label="통계 재집계"
+              >
+                {busy === "generate" ? <Loader2 className="animate-spin" /> : <RefreshCw />}
               </Button>
               <Button variant="outline" size="sm" onClick={handleShareLink}>
-                <LinkIcon className="h-3.5 w-3.5 mr-1" />공유 링크
+                <LinkIcon />
+                공유 링크
               </Button>
               {report.shareToken && (
-                <a href={`/r/monthly/${report.shareToken}`} target="_blank" rel="noreferrer">
-                  <Button variant="outline" size="sm">
-                    <Eye className="h-3.5 w-3.5 mr-1" />학부모 화면
-                  </Button>
-                </a>
+                <Button variant="outline" size="sm" asChild>
+                  <a href={`/r/monthly/${report.shareToken}`} target="_blank" rel="noreferrer">
+                    <Eye />
+                    학부모 화면
+                  </a>
+                </Button>
               )}
               {!report.sentAt && (
-                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={handleMarkSent} disabled={busy === "send"}>
-                  <Send className="h-3.5 w-3.5 mr-1" />발송 표시
+                <Button size="sm" onClick={handleMarkSent} disabled={busy === "send"}>
+                  {busy === "send" ? <Loader2 className="animate-spin" /> : <Send />}
+                  발송 표시
                 </Button>
               )}
             </>
@@ -302,29 +319,49 @@ export function ReportDetailPane({
       </div>
 
       {!report ? (
-        <div className="flex-1 min-h-0 flex items-center justify-center p-6 text-center text-sm text-muted-foreground">
-          아직 생성된 리포트가 없습니다. 상단 "리포트 생성" 버튼으로 집계를 실행하세요.
+        <div className="flex min-h-0 flex-1 items-center justify-center p-x6">
+          <EmptyState
+            icon={ClipboardList}
+            title="아직 생성된 리포트가 없어요"
+            description={`${year}년 ${month}월 출결·순공·멘토링 통계를 모아 리포트를 만들어요.`}
+            action={
+              <Button onClick={handleGenerate} disabled={busy === "generate"}>
+                {busy === "generate" ? <Loader2 className="animate-spin" /> : <ClipboardList />}
+                {busy === "generate" ? "생성 중…" : "리포트 생성"}
+              </Button>
+            }
+          />
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-5">
+        <div className="flex min-h-0 flex-1 flex-col gap-x8 overflow-y-auto p-x5">
           {/* 통계 요약 */}
-          <section>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">통계</h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <PaneSection title="통계">
+            <div className="grid grid-cols-2 gap-x2 md:grid-cols-3 xl:grid-cols-5">
               <Stat label="총 순공 시간" value={formatMinutes(report.totalStudyMinutes)}>
                 {studyDiff !== null && studyDiff !== 0 && (
-                  <span className={cn("inline-flex items-center gap-0.5 text-[10px] ml-1", studyDiff > 0 ? "text-emerald-700" : "text-red-600")}>
-                    {studyDiff > 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-x0_5 t2-medium",
+                      studyDiff > 0 ? "text-fg-positive" : "text-fg-critical"
+                    )}
+                  >
+                    {studyDiff > 0 ? <TrendingUp className="size-3" aria-hidden /> : <TrendingDown className="size-3" aria-hidden />}
+                    {studyDiff > 0 ? "+" : "-"}
                     {formatMinutes(Math.abs(studyDiff))}
                   </span>
                 )}
                 {studyDiff === 0 && (
-                  <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground ml-1">
-                    <Minus className="h-2.5 w-2.5" />동일
+                  <span className="inline-flex items-center gap-x0_5 t2-medium text-fg-neutral-subtle">
+                    <Minus className="size-3" aria-hidden />
+                    지난달과 같음
                   </span>
                 )}
               </Stat>
-              <Stat label="순위" value={report.studyRankInRoom ? `${report.studyRankInRoom}위` : "—"} sub={report.studyRankTotal ? `/ ${report.studyRankTotal}명` : ""} />
+              <Stat
+                label="순위"
+                value={report.studyRankInRoom ? `${report.studyRankInRoom}위` : "—"}
+                sub={report.studyRankTotal ? `/ ${report.studyRankTotal}명` : ""}
+              />
               <Stat label="출석" value={`${report.attendanceDays}일`} sub={`지각 ${report.tardyCount} · 결석 ${report.absentDays}`} />
               <Stat label="멘토링" value={`${report.mentoringCount}회`} />
               <Stat
@@ -334,199 +371,241 @@ export function ReportDetailPane({
               />
             </div>
             {report.patrolNotes && report.patrolNotes.length > 0 && (
-              <ul className="mt-2 space-y-1 rounded-md border border-amber-100 bg-amber-50/60 px-2.5 py-2">
+              <ul className="mt-x2 flex flex-col gap-x1 rounded-r3 bg-bg-warning-weak px-x4 py-x3">
                 {report.patrolNotes.map((n, i) => (
-                  <li key={`${n.date}-${i}`} className="flex gap-2 text-xs text-foreground/80">
-                    <span className="shrink-0 pt-px font-mono tabular-nums text-amber-700">{n.date}</span>
+                  <li key={`${n.date}-${i}`} className="flex gap-x3 t3-regular text-fg-neutral">
+                    <span className="w-10 shrink-0 t3-medium tabular-nums text-fg-warning-contrast">{n.date}</span>
                     <span className="flex-1 whitespace-pre-wrap">{n.note}</span>
                   </li>
                 ))}
               </ul>
             )}
-          </section>
+          </PaneSection>
 
           {/* 모의고사 결과 (직전 → 당월, 어떤 시험인지 명시) */}
-          <section>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <GraduationCap className="h-3.5 w-3.5" /> 모의고사 결과
-            </h4>
+          <PaneSection title="모의고사 결과">
             {suppLoading && !supp ? (
-              <p className="text-xs text-muted-foreground">불러오는 중…</p>
+              <PaneSkeleton />
             ) : !supp || supp.exams.length === 0 ? (
-              <p className="text-xs text-muted-foreground rounded-md border border-dashed p-3">기록된 모의고사/내신 성적이 없습니다.</p>
+              <PaneEmpty>기록된 모의고사·내신 성적이 없어요</PaneEmpty>
             ) : (
-              <div className="space-y-2">
+              <ul className="flex flex-col gap-x2">
                 {supp.exams.map((ex, i) => (
-                  <div key={`${ex.examDate}-${ex.examName}-${i}`} className={cn("rounded-md border p-2.5", ex.isThisMonth && "border-primary/40 bg-primary/5")}>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <Badge variant="outline" className="text-[9px] h-4 px-1">{EXAM_TYPE_LABEL[ex.examType] ?? ex.examType}</Badge>
-                      <span className="text-sm font-medium">{ex.examName}</span>
-                      <span className="text-[10px] text-muted-foreground">{ex.examDate}</span>
+                  <li
+                    key={`${ex.examDate}-${ex.examName}-${i}`}
+                    className={cn(
+                      "rounded-r3 border px-x4 py-x3",
+                      ex.isThisMonth ? "border-stroke-brand-weak bg-bg-brand-weak" : "border-stroke-neutral-muted"
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center gap-x1_5">
+                      <StatusBadge tone="gray">{EXAM_TYPE_LABEL[ex.examType] ?? ex.examType}</StatusBadge>
+                      <span className="t4-medium text-fg-neutral">{ex.examName}</span>
+                      <span className="t2-regular tabular-nums text-fg-neutral-subtle">{ex.examDate}</span>
                       {ex.isThisMonth ? (
-                        <Badge className="text-[9px] h-4 px-1 ml-auto">당월</Badge>
-                      ) : i === supp.exams.findIndex((e) => !e.isThisMonth) ? (
-                        <Badge variant="secondary" className="text-[9px] h-4 px-1 ml-auto">직전</Badge>
+                        <StatusBadge tone="brand" className="ml-auto">당월</StatusBadge>
+                      ) : i === lastExamIdx ? (
+                        <StatusBadge tone="gray" className="ml-auto">직전</StatusBadge>
                       ) : null}
                     </div>
-                    <div className="flex flex-wrap gap-1.5 mt-1.5">
-                      {ex.subjects.map((s, si) => (
-                        <span key={si} className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px]">
-                          <span className="text-muted-foreground">{s.subject}</span>
-                          <span className="font-semibold">
-                            {s.grade != null ? `${s.grade}등급` : s.rawScore != null ? `${s.rawScore}점` : "—"}
+                    <div className="mt-x2 flex flex-wrap gap-x1_5">
+                      {ex.subjects.map((sub, si) => (
+                        <span
+                          key={si}
+                          className="inline-flex items-center gap-x1 rounded-r1_5 bg-bg-neutral-weak px-x2 py-x0_5 t2-regular tabular-nums"
+                        >
+                          <span className="text-fg-neutral-subtle">{sub.subject}</span>
+                          <span className="t2-bold text-fg-neutral">
+                            {sub.grade != null ? `${sub.grade}등급` : sub.rawScore != null ? `${sub.rawScore}점` : "—"}
                           </span>
-                          {s.percentile != null && <span className="text-muted-foreground">{s.percentile}%</span>}
+                          {sub.percentile != null && <span className="text-fg-neutral-subtle">{sub.percentile}%</span>}
                         </span>
                       ))}
                     </div>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
-          </section>
+          </PaneSection>
 
           {/* 영단어 시험 결과 */}
-          <section>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <BookOpen className="h-3.5 w-3.5" /> 영단어 시험 결과
-            </h4>
+          <PaneSection
+            title="영단어 시험 결과"
+            trailing={
+              supp && supp.vocab.rows.length > 0 ? (
+                <span className="t3-regular tabular-nums text-fg-neutral-subtle">
+                  {supp.vocab.rows.length}회 · 평균 <span className="t3-bold text-fg-neutral">{supp.vocab.avgScore}점</span>
+                </span>
+              ) : undefined
+            }
+          >
             {suppLoading && !supp ? (
-              <p className="text-xs text-muted-foreground">불러오는 중…</p>
+              <PaneSkeleton />
             ) : !supp || supp.vocab.rows.length === 0 ? (
-              <p className="text-xs text-muted-foreground rounded-md border border-dashed p-3">이 달 영단어 시험 결과가 없습니다.</p>
+              <PaneEmpty>이 달 영단어 시험 결과가 없어요</PaneEmpty>
             ) : (
-              <div className="rounded-md border divide-y">
-                <div className="flex items-center justify-between px-3 py-1.5 bg-muted/40 text-[11px] text-muted-foreground">
-                  <span>총 {supp.vocab.rows.length}회</span>
-                  <span>평균 {supp.vocab.avgScore}점</span>
-                </div>
-                {supp.vocab.rows.map((v) => (
-                  <div key={v.id} className="flex items-center justify-between px-3 py-1.5 text-xs">
-                    <span className="text-muted-foreground">{v.testDate}</span>
-                    <span>{v.correctWords}/{v.totalWords}</span>
-                    <span className="font-semibold tabular-nums">{v.score}점</span>
-                  </div>
-                ))}
+              <div className="overflow-hidden rounded-r3 border border-stroke-neutral-muted">
+                <table className="w-full t3-regular tabular-nums">
+                  <thead className="bg-bg-layer-fill">
+                    <tr className="border-b border-stroke-neutral-muted">
+                      <th className="px-x4 py-x2 text-left t3-medium text-fg-neutral-subtle">시험일</th>
+                      <th className="px-x4 py-x2 text-right t3-medium text-fg-neutral-subtle">정답</th>
+                      <th className="px-x4 py-x2 text-right t3-medium text-fg-neutral-subtle">점수</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stroke-neutral-muted">
+                    {supp.vocab.rows.map((v) => (
+                      <tr key={v.id}>
+                        <td className="px-x4 py-x2 text-fg-neutral-muted">{v.testDate}</td>
+                        <td className="px-x4 py-x2 text-right text-fg-neutral-muted">
+                          {v.correctWords}/{v.totalWords}
+                        </td>
+                        <td className="px-x4 py-x2 text-right t3-bold text-fg-neutral">{v.score}점</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
-          </section>
+          </PaneSection>
 
           {/* 특이사항 · 상벌점 (체크된 항목만 학부모 리포트 노출) */}
-          <section>
-            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Star className="h-3.5 w-3.5" /> 특이사항 · 상벌점
-              <span className="ml-auto text-[10px] font-normal normal-case tracking-normal text-muted-foreground">눈 아이콘 = 학부모 노출</span>
-            </h4>
+          <PaneSection
+            title="특이사항 · 상벌점"
+            trailing={
+              <span className="inline-flex items-center gap-x1 t2-regular text-fg-neutral-subtle">
+                <Eye className="size-3.5" aria-hidden />
+                켜진 항목만 학부모에게 보여요
+              </span>
+            }
+          >
             {suppLoading && !supp ? (
-              <p className="text-xs text-muted-foreground">불러오는 중…</p>
+              <PaneSkeleton />
             ) : (
-              <div className="space-y-2">
+              <div className="flex flex-col gap-x2">
                 {/* 원생 기록 (MonthlyNote) */}
                 {supp?.notes.monthlyNote ? (
-                  <div className={cn("rounded-md border p-2.5", !supp.notes.monthlyNote.visibleInReport && "opacity-50")}>
-                    <div className="flex items-start gap-2">
-                      <p className="flex-1 text-xs whitespace-pre-wrap">{supp.notes.monthlyNote.content}</p>
-                      <VisibilityToggle
-                        visible={supp.notes.monthlyNote.visibleInReport}
-                        onToggle={(v) => toggleNoteVisible(supp.notes.monthlyNote!.id, v)}
-                      />
-                    </div>
+                  <div
+                    className={cn(
+                      "flex items-start gap-x2 rounded-r3 border border-stroke-neutral-muted py-x2_5 pl-x4 pr-x2",
+                      !supp.notes.monthlyNote.visibleInReport && "bg-bg-layer-fill"
+                    )}
+                  >
+                    <p
+                      className={cn(
+                        "flex-1 whitespace-pre-wrap pt-x1 t3-regular",
+                        supp.notes.monthlyNote.visibleInReport ? "text-fg-neutral" : "text-fg-neutral-subtle"
+                      )}
+                    >
+                      {supp.notes.monthlyNote.content}
+                    </p>
+                    <VisibilityToggle
+                      visible={supp.notes.monthlyNote.visibleInReport}
+                      onToggle={(v) => toggleNoteVisible(supp.notes.monthlyNote!.id, v)}
+                    />
                   </div>
                 ) : (
-                  <p className="text-[11px] text-muted-foreground">이 달 원생 기록(특이사항) 없음</p>
+                  <p className="t3-regular text-fg-neutral-subtle">이 달 원생 기록(특이사항)이 없어요</p>
                 )}
 
                 {/* 상벌점 (MeritDemerit) */}
                 {supp && supp.notes.merits.length > 0 ? (
-                  <div className="rounded-md border divide-y">
+                  <ul className="divide-y divide-stroke-neutral-muted overflow-hidden rounded-r3 border border-stroke-neutral-muted">
                     {supp.notes.merits.map((m) => (
-                      <div key={m.id} className={cn("flex items-center gap-2 px-2.5 py-1.5", !m.visibleInReport && "opacity-50")}>
-                        <Badge variant={m.type === "MERIT" ? "default" : "destructive"} className="text-[9px] h-4 px-1">
+                      <li
+                        key={m.id}
+                        className={cn(
+                          "flex items-center gap-x2 py-x1_5 pl-x4 pr-x2",
+                          !m.visibleInReport && "bg-bg-layer-fill"
+                        )}
+                      >
+                        <StatusBadge tone={m.type === "MERIT" ? "ok" : "bad"}>
                           {m.type === "MERIT" ? `상점 +${m.points}` : `벌점 -${m.points}`}
-                        </Badge>
-                        <span className="flex-1 text-xs truncate">{m.reason ?? m.category ?? "—"}</span>
-                        <span className="text-[10px] text-muted-foreground">{m.date}</span>
+                        </StatusBadge>
+                        <span
+                          className={cn(
+                            "flex-1 truncate t3-regular",
+                            m.visibleInReport ? "text-fg-neutral" : "text-fg-neutral-subtle"
+                          )}
+                        >
+                          {m.reason ?? m.category ?? "—"}
+                        </span>
+                        <span className="shrink-0 t2-regular tabular-nums text-fg-neutral-subtle">{m.date}</span>
                         <VisibilityToggle visible={m.visibleInReport} onToggle={(v) => toggleMeritVisible(m.id, v)} />
-                      </div>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 ) : (
-                  <p className="text-[11px] text-muted-foreground">이 달 상벌점 없음</p>
+                  <p className="t3-regular text-fg-neutral-subtle">이 달 상벌점이 없어요</p>
                 )}
               </div>
             )}
-          </section>
+          </PaneSection>
 
           {/* 멘토링 종합 의견 — 항상 편집 가능 */}
-          <section>
-            <div className="flex items-center gap-2 mb-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">멘토링 종합 의견</h4>
-              <div className="flex gap-1 ml-auto">
-                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleAutoExtract} disabled={busy === "extract"}>
-                  {busy === "extract" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+          <PaneSection
+            title="멘토링 종합 의견"
+            trailing={
+              <div className="flex gap-x1_5">
+                <Button variant="outline" size="xs" onClick={handleAutoExtract} disabled={busy === "extract"}>
+                  {busy === "extract" && <Loader2 className="animate-spin" />}
                   자동 추출
                 </Button>
-                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleAiSummary} disabled={busy === "ai"}>
-                  {busy === "ai" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
+                <Button variant="outline" size="xs" onClick={handleAiSummary} disabled={busy === "ai"}>
+                  {busy === "ai" ? <Loader2 className="animate-spin" /> : <Sparkles />}
                   AI 요약
                 </Button>
               </div>
-            </div>
+            }
+          >
             <MarkdownEditor value={summary} onChange={setSummary} placeholder="월간 종합 의견 — 자동 추출/AI 요약으로 초안 생성 가능" />
-            <div className="flex items-center justify-end gap-2 mt-1.5">
-              {summary !== (report.mentoringSummary ?? "") && (
-                <span className="text-[11px] text-amber-700">변경됨 — 저장 필요</span>
-              )}
-              <Button size="sm" onClick={handleSaveSummary} disabled={busy === "summary" || summary === (report.mentoringSummary ?? "")}>
-                {busy === "summary" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+            <SaveRow dirty={summaryDirty}>
+              <Button size="sm" onClick={handleSaveSummary} disabled={busy === "summary" || !summaryDirty}>
+                {busy === "summary" ? <Loader2 className="animate-spin" /> : <Check />}
                 의견 저장
               </Button>
-            </div>
-          </section>
+            </SaveRow>
+          </PaneSection>
 
           {/* 원장 한마디 — 항상 편집 가능 */}
-          <section>
-            <div className="flex items-center gap-2 mb-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">원장님 한마디 (선택)</h4>
-            </div>
+          <PaneSection title="원장님 한마디" description="선택 사항이에요">
             <MarkdownEditor value={comment} onChange={setComment} placeholder="학부모에게 전할 메시지..." />
-            <div className="flex items-center justify-end gap-2 mt-1.5">
-              {comment !== (report.overallComment ?? "") && (
-                <span className="text-[11px] text-amber-700">변경됨 — 저장 필요</span>
-              )}
-              <Button size="sm" onClick={handleSaveComment} disabled={busy === "comment" || comment === (report.overallComment ?? "")}>
-                {busy === "comment" ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+            <SaveRow dirty={commentDirty}>
+              <Button size="sm" onClick={handleSaveComment} disabled={busy === "comment" || !commentDirty}>
+                {busy === "comment" ? <Loader2 className="animate-spin" /> : <Check />}
                 코멘트 저장
               </Button>
-            </div>
-          </section>
+            </SaveRow>
+          </PaneSection>
 
           {/* 첨부 사진 */}
-          <section>
-            <div className="flex items-center gap-2 mb-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">첨부 사진</h4>
-              <Button variant="outline" size="sm" className="h-7 text-xs ml-auto" onClick={() => setPhotoPickerOpen(true)}>
-                <ImageIcon className="h-3 w-3 mr-1" />사진 선택
+          <PaneSection
+            title="첨부 사진"
+            trailing={
+              <Button variant="outline" size="xs" onClick={() => setPhotoPickerOpen(true)}>
+                <ImageIcon />
+                사진 선택
               </Button>
-            </div>
+            }
+          >
             {report.attachedPhotoIds.length === 0 ? (
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 flex items-center gap-2">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                첨부된 사진이 없습니다. 좌측 "사진 선택"으로 이 달 사진을 골라 첨부하세요.
-              </div>
+              <Notice tone="warn" icon={AlertCircle}>
+                첨부된 사진이 없어요. &quot;사진 선택&quot;으로 이 달 사진을 골라 첨부하세요.
+              </Notice>
             ) : (
-              <p className="text-xs text-muted-foreground">
-                첨부된 사진 {report.attachedPhotoIds.length}장 — "사진 선택" 버튼으로 변경 가능
+              <p className="t3-regular text-fg-neutral-muted">
+                사진 <span className="t3-bold tabular-nums text-fg-neutral">{report.attachedPhotoIds.length}장</span>이
+                첨부돼 있어요. &quot;사진 선택&quot;으로 바꿀 수 있어요.
               </p>
             )}
-          </section>
+          </PaneSection>
 
           {/* 발송 이력 */}
           {report.sentAt && (
-            <section className="text-xs text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              발송 기록: {new Date(report.sentAt).toLocaleString("ko-KR")}
-            </section>
+            <p className="flex items-center gap-x1 t3-regular tabular-nums text-fg-neutral-subtle">
+              <Clock className="size-3.5" aria-hidden />
+              발송 기록 {new Date(report.sentAt).toLocaleString("ko-KR")}
+            </p>
           )}
         </div>
       )}
@@ -543,31 +622,85 @@ export function ReportDetailPane({
   );
 }
 
+/** 디테일 패널 안 소구획 — 제목 + 우측 보조 요소 */
+function PaneSection({
+  title,
+  description,
+  trailing,
+  children,
+}: {
+  title: string;
+  description?: string;
+  trailing?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <div className="mb-x3 flex flex-wrap items-center justify-between gap-x2">
+        <div className="flex items-baseline gap-x1_5">
+          <h4 className="t5-bold text-fg-neutral">{title}</h4>
+          {description && <span className="t3-regular text-fg-neutral-subtle">{description}</span>}
+        </div>
+        {trailing}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function PaneEmpty({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="rounded-r3 bg-bg-layer-fill px-x4 py-x4 text-center t3-regular text-fg-neutral-subtle">{children}</p>
+  );
+}
+
+function PaneSkeleton() {
+  return (
+    <div className="flex flex-col gap-x2" aria-label="불러오는 중">
+      <Skeleton className="h-x12 w-full" />
+      <Skeleton className="h-x12 w-2/3" />
+    </div>
+  );
+}
+
+/** 저장 버튼 줄 — 바뀐 내용이 있으면 안내 문구 */
+function SaveRow({ dirty, children }: { dirty: boolean; children: React.ReactNode }) {
+  return (
+    <div className="mt-x2 flex items-center justify-end gap-x2">
+      {dirty && <span className="t3-medium text-fg-warning">바뀐 내용이 있어요 — 저장이 필요해요</span>}
+      {children}
+    </div>
+  );
+}
+
 function VisibilityToggle({ visible, onToggle }: { visible: boolean; onToggle: (v: boolean) => void }) {
+  const label = visible ? "학부모 리포트에 노출 중 (누르면 숨김)" : "숨김 (누르면 노출)";
   return (
     <button
       type="button"
       onClick={() => onToggle(!visible)}
-      title={visible ? "학부모 리포트에 노출 중 (클릭하면 숨김)" : "숨김 (클릭하면 노출)"}
+      title={label}
+      aria-label={label}
+      aria-pressed={visible}
       className={cn(
-        "shrink-0 rounded p-1 transition-colors",
-        visible ? "text-emerald-600 hover:bg-emerald-50" : "text-muted-foreground/50 hover:bg-muted",
+        "grid size-x8 shrink-0 place-items-center rounded-r2 transition-colors hover:bg-bg-transparent-pressed",
+        visible ? "text-fg-positive" : "text-fg-placeholder",
       )}
     >
-      {visible ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+      {visible ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
     </button>
   );
 }
 
 function Stat({ label, value, sub, children }: { label: string; value: string; sub?: string; children?: React.ReactNode }) {
   return (
-    <div className="rounded-md border p-2.5">
-      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
-      <p className="text-base font-bold mt-0.5 flex items-baseline gap-1">
-        {value}
-        {sub && <span className="text-[11px] text-muted-foreground font-normal">{sub}</span>}
-        {children}
+    <div className="min-w-0 rounded-r3 bg-bg-layer-fill px-x4 py-x3">
+      <p className="t3-medium text-fg-neutral-subtle">{label}</p>
+      <p className="mt-x1 flex flex-wrap items-baseline gap-x1">
+        <span className="t6-bold tabular-nums text-fg-neutral">{value}</span>
+        {sub && <span className="t2-regular tabular-nums text-fg-neutral-subtle">{sub}</span>}
       </p>
+      {children && <div className="mt-x0_5">{children}</div>}
     </div>
   );
 }

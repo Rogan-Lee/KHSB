@@ -9,8 +9,12 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Download, Trash2, X, Clock, Plus, CalendarDays } from "lucide-react";
+import { Notice, StatusBadge } from "@/components/backoffice/ui";
+import { ConfirmDialog } from "@/components/calendar/confirm-dialog";
+import { Download, X, Clock, Plus } from "lucide-react";
 import type { SchoolEventInfo } from "@/actions/timetable";
+import { EntryFormFields } from "./entry-form";
+import { AUTO_BLOCK_TONE, LEGEND, schoolEventTone, timetableTone, weekdayTextClass } from "./tones";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const START_HOUR = 6;
@@ -23,21 +27,6 @@ const HEADER_H = 44;
 
 const DAYS = [1, 2, 3, 4, 5, 6, 0]; // Mon…Sat, Sun
 const DAY_LABELS = ["월", "화", "수", "목", "금", "토", "일"];
-
-// Tailwind-safe color definitions
-const COLORS: Record<string, {
-  bg: string; border: string; text: string; subtext: string;
-  handle: string; dot: string; previewBg: string; previewBorder: string;
-}> = {
-  blue:   { bg: "bg-blue-50",   border: "border-blue-300",   text: "text-blue-800",   subtext: "text-blue-500",   handle: "bg-blue-400",   dot: "bg-blue-400",   previewBg: "bg-blue-100/70",   previewBorder: "border-blue-400"   },
-  red:    { bg: "bg-red-50",    border: "border-red-300",    text: "text-red-800",    subtext: "text-red-400",    handle: "bg-red-400",    dot: "bg-red-400",    previewBg: "bg-red-100/70",    previewBorder: "border-red-400"    },
-  orange: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-800", subtext: "text-orange-400", handle: "bg-orange-400", dot: "bg-orange-400", previewBg: "bg-orange-100/70", previewBorder: "border-orange-400" },
-  yellow: { bg: "bg-yellow-50", border: "border-yellow-300", text: "text-yellow-800", subtext: "text-yellow-400", handle: "bg-yellow-400", dot: "bg-yellow-400", previewBg: "bg-yellow-100/70", previewBorder: "border-yellow-400" },
-  green:  { bg: "bg-green-50",  border: "border-green-300",  text: "text-green-800",  subtext: "text-green-500",  handle: "bg-green-400",  dot: "bg-green-400",  previewBg: "bg-green-100/70",  previewBorder: "border-green-400"  },
-  purple: { bg: "bg-purple-50", border: "border-purple-300", text: "text-purple-800", subtext: "text-purple-400", handle: "bg-purple-400", dot: "bg-purple-400", previewBg: "bg-purple-100/70", previewBorder: "border-purple-400" },
-  pink:   { bg: "bg-pink-50",   border: "border-pink-300",   text: "text-pink-800",   subtext: "text-pink-400",   handle: "bg-pink-400",   dot: "bg-pink-400",   previewBg: "bg-pink-100/70",   previewBorder: "border-pink-400"   },
-  teal:   { bg: "bg-teal-50",   border: "border-teal-300",   text: "text-teal-800",   subtext: "text-teal-500",   handle: "bg-teal-400",   dot: "bg-teal-400",   previewBg: "bg-teal-100/70",   previewBorder: "border-teal-400"   },
-};
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function timeToMin(t: string): number {
@@ -342,34 +331,59 @@ export function TimetableGrid({
     }
   }
 
+
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   const hourLabels = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i);
   const today = todayDayOfWeek();
   const nowInRange = currentMin >= START_HOUR * 60 && currentMin < END_HOUR * 60;
 
   // Preview block while create panel is open
-  const previewColor = COLORS[form.colorCode] ?? COLORS.blue;
+  const previewTone = timetableTone(form.colorCode);
+
+  const panelTitle =
+    panel?.mode === "create"
+      ? "새 일정 추가"
+      : panel?.mode === "edit"
+        ? "일정 수정"
+        : panel?.mode === "auto"
+          ? `${AUTO_BLOCK_TONE[panel.block.type].label} 일정`
+          : "";
 
   return (
-    <div className="space-y-3">
-      {/* Toolbar */}
+    <div className="flex flex-col gap-x3">
+      {/* Toolbar — 범례 · 도움말 · 내보내기 */}
       {!compact && (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Clock className="h-3.5 w-3.5" />
-            <span>빈 칸을 드래그해서 일정을 추가하세요</span>
+        <div className="flex flex-wrap items-center justify-between gap-x3">
+          <div className="flex flex-wrap items-center gap-x1_5" aria-label="범례">
+            {LEGEND.map((l) => (
+              <span
+                key={l.label}
+                className="inline-flex h-7 items-center gap-x1_5 rounded-full bg-bg-layer-fill px-x2_5 t3-medium text-fg-neutral-muted"
+              >
+                <span className={cn("size-3 rounded-r1 ring-1 ring-inset", l.swatch)} aria-hidden />
+                {l.label}
+              </span>
+            ))}
           </div>
-          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={exportPDF}>
-            <Download className="h-3.5 w-3.5" />
-            PDF 내보내기
-          </Button>
+          <div className="flex items-center gap-x3">
+            <span className="hidden items-center gap-x1_5 t3-regular text-fg-neutral-subtle md:inline-flex">
+              <Clock className="size-3.5" aria-hidden />
+              빈 칸을 드래그해 일정을 추가해요
+            </span>
+            <Button variant="outline" size="sm" onClick={exportPDF}>
+              <Download aria-hidden />
+              PDF 저장
+            </Button>
+          </div>
         </div>
       )}
 
-      <div className="flex gap-4 items-start">
+      <div className="flex flex-col gap-x4 lg:flex-row lg:items-start">
         {/* ── Grid ── */}
         <div
           ref={gridOnlyRef}
-          className="flex-1 min-w-0 rounded-xl border border-border/60 overflow-hidden bg-white dark:bg-background shadow-sm"
+          className="min-w-0 flex-1 overflow-hidden rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default"
         >
           <div
             ref={scrollRef}
@@ -377,10 +391,10 @@ export function TimetableGrid({
             style={{ maxHeight: compact ? "440px" : "calc(100vh - 200px)" }}
           >
             {/* Sticky header + all-day row */}
-            <div className="sticky top-0 z-40 bg-white dark:bg-background">
+            <div className="sticky top-0 z-40 bg-bg-layer-default">
               {/* Day labels */}
               <div
-                className="border-b border-border/60"
+                className="border-b border-stroke-neutral-muted"
                 style={{ gridTemplateColumns: `${TIME_COL_W}px repeat(7, 1fr)`, display: "grid" }}
               >
                 <div style={{ height: HEADER_H, width: TIME_COL_W }} />
@@ -389,21 +403,16 @@ export function TimetableGrid({
                   return (
                     <div
                       key={label}
-                      className="flex items-center justify-center gap-2 border-l border-border/40 first:border-l-0"
+                      className="flex items-center justify-center border-l border-stroke-neutral-muted"
                       style={{ height: HEADER_H }}
                     >
-                      <span
-                        className={cn(
-                          "text-sm font-bold tracking-wide",
-                          isToday ? "text-blue-600" : i === 5 ? "text-blue-400" : i === 6 ? "text-red-400" : "text-muted-foreground"
-                        )}
-                      >
-                        {label}
-                      </span>
-                      {isToday && (
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">
-                          ●
+                      {isToday ? (
+                        <span className="inline-flex h-7 items-center gap-x1 rounded-full bg-bg-brand-solid px-x2_5 t4-bold text-palette-static-white">
+                          {label}
+                          <span className="sr-only">(오늘)</span>
                         </span>
+                      ) : (
+                        <span className={cn("t4-bold", weekdayTextClass(DAYS[i]))}>{label}</span>
                       )}
                     </div>
                   );
@@ -412,10 +421,13 @@ export function TimetableGrid({
 
               {/* All-day row */}
               <div
-                className="border-b border-border/40 bg-muted/5"
+                className="border-b border-stroke-neutral-muted bg-bg-layer-fill"
                 style={{ gridTemplateColumns: `${TIME_COL_W}px repeat(7, 1fr)`, display: "grid" }}
               >
-                <div className="flex items-center justify-end pr-2 text-[10px] text-muted-foreground/50 font-medium border-r border-border/30" style={{ minHeight: 36 }}>
+                <div
+                  className="flex items-center justify-end pr-x2 t2-medium text-fg-neutral-subtle"
+                  style={{ minHeight: 40 }}
+                >
                   종일
                 </div>
                 {DAYS.map((day) => {
@@ -432,41 +444,38 @@ export function TimetableGrid({
                     <div
                       key={day}
                       className={cn(
-                        "border-l border-border/30 first:border-l-0 px-1 py-1 flex flex-col gap-0.5",
-                        isColToday && "bg-blue-50/20"
+                        "group/allday flex flex-col gap-x0_5 border-l border-stroke-neutral-muted p-x1",
+                        isColToday && "bg-bg-brand-weak/40"
                       )}
-                      style={{ minHeight: 36 }}
+                      style={{ minHeight: 40 }}
                     >
                       {/* School events (read-only) */}
-                      {daySchoolEvts.map((ev) => {
-                        const isExam = ev.type === "SCHOOL_EXAM";
-                        return (
-                          <div
-                            key={ev.id}
-                            className={cn(
-                              "w-full text-left text-[11px] font-semibold px-2 py-0.5 rounded border truncate",
-                              isExam
-                                ? "bg-red-50 border-red-200 text-red-700"
-                                : "bg-purple-50 border-purple-200 text-purple-700"
-                            )}
-                            title={ev.title}
-                          >
-                            {ev.title}
-                          </div>
-                        );
-                      })}
+                      {daySchoolEvts.map((ev) => (
+                        <div
+                          key={ev.id}
+                          className={cn(
+                            "w-full truncate rounded-r1 px-x1_5 py-x0_5 text-left t2-medium ring-1 ring-inset",
+                            schoolEventTone(ev.type)
+                          )}
+                          title={ev.title}
+                        >
+                          {ev.title}
+                        </div>
+                      ))}
                       {/* User all-day entries */}
                       {dayAllDay.map((entry) => {
-                        const c = COLORS[entry.colorCode] ?? COLORS.blue;
+                        const t = timetableTone(entry.colorCode);
                         const isSel = panel?.mode === "edit" && panel.entry.id === entry.id;
                         return (
                           <button
                             key={entry.id}
+                            type="button"
                             onClick={() => openEdit(entry)}
                             className={cn(
-                              "w-full text-left text-[11px] font-semibold px-2 py-0.5 rounded border transition-all truncate",
-                              c.bg, c.border, c.text,
-                              isSel && "ring-1 ring-blue-400"
+                              "w-full truncate rounded-r1 px-x1_5 py-x0_5 text-left t2-bold ring-inset transition-[filter] hover:brightness-95",
+                              t.block,
+                              t.title,
+                              isSel ? cn("ring-2", t.ring) : "ring-1"
                             )}
                           >
                             {entry.subject}
@@ -474,15 +483,17 @@ export function TimetableGrid({
                         );
                       })}
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           setPanel({ mode: "create", dayOfWeek: day, startTime: "00:00", endTime: "23:59" });
                           setForm({ subject: "", details: "", colorCode: "blue", allDay: true });
                         }}
-                        className="self-end text-muted-foreground/30 hover:text-muted-foreground transition-colors p-0.5 rounded mt-auto"
+                        className="mt-auto grid size-6 place-items-center self-end rounded-r1 text-fg-placeholder transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral-muted"
                         title="종일 일정 추가"
+                        aria-label="종일 일정 추가"
                       >
-                        <Plus className="h-3 w-3" />
+                        <Plus className="size-3.5" aria-hidden />
                       </button>
                     </div>
                   );
@@ -501,10 +512,10 @@ export function TimetableGrid({
                 {hourLabels.map((h) => (
                   <div
                     key={h}
-                    className="absolute w-full flex items-center justify-end pr-3"
+                    className="absolute flex w-full items-center justify-end pr-x2_5"
                     style={{ top: (h - START_HOUR) * HOUR_HEIGHT - 8, height: 16 }}
                   >
-                    <span className="text-xs text-muted-foreground/70 font-mono tabular-nums">
+                    <span className="t2-regular tabular-nums text-fg-neutral-subtle">
                       {String(h).padStart(2, "0")}:00
                     </span>
                   </div>
@@ -512,10 +523,10 @@ export function TimetableGrid({
                 {/* Current time label */}
                 {nowInRange && (
                   <div
-                    className="absolute w-full flex items-center justify-end pr-2 z-30 pointer-events-none"
+                    className="pointer-events-none absolute z-30 flex w-full items-center justify-end pr-x1"
                     style={{ top: minToY(currentMin), transform: "translateY(-50%)" }}
                   >
-                    <span className="text-[10px] font-bold text-red-500 font-mono tabular-nums bg-white dark:bg-background px-0.5 leading-none">
+                    <span className="rounded-full bg-bg-brand-solid px-x1_5 py-x0_5 t2-bold tabular-nums text-palette-static-white">
                       {minToTime(currentMin)}
                     </span>
                   </div>
@@ -561,8 +572,8 @@ export function TimetableGrid({
                   <div
                     key={day}
                     className={cn(
-                      "relative border-l border-border/40 cursor-crosshair",
-                      isToday && "bg-blue-50/30 dark:bg-blue-950/10"
+                      "relative cursor-crosshair border-l border-stroke-neutral-muted",
+                      isToday && "bg-bg-brand-weak/40"
                     )}
                     style={{ height: TOTAL_HEIGHT }}
                     onMouseDown={(e) => handleColMouseDown(e, dayIdx)}
@@ -571,7 +582,7 @@ export function TimetableGrid({
                     {hourLabels.map((h) => (
                       <div
                         key={h}
-                        className="absolute w-full border-t border-border/30"
+                        className="absolute w-full border-t border-stroke-neutral-muted"
                         style={{ top: (h - START_HOUR) * HOUR_HEIGHT }}
                       />
                     ))}
@@ -579,7 +590,7 @@ export function TimetableGrid({
                     {hourLabels.map((h) => (
                       <div
                         key={`${h}h`}
-                        className="absolute w-full border-t border-border/15"
+                        className="absolute w-full border-t border-stroke-neutral-subtle"
                         style={{ top: (h - START_HOUR) * HOUR_HEIGHT + HOUR_HEIGHT / 2, borderStyle: "dashed" }}
                       />
                     ))}
@@ -587,12 +598,12 @@ export function TimetableGrid({
                     {/* Current time indicator */}
                     {isToday && nowInRange && (
                       <div
-                        className="absolute left-0 right-0 z-30 pointer-events-none"
+                        className="pointer-events-none absolute left-0 right-0 z-30"
                         style={{ top: minToY(currentMin) }}
                       >
-                        <div className="flex items-center">
-                          <div className="w-2 h-2 rounded-full bg-red-500 -ml-1 shrink-0" />
-                          <div className="flex-1 h-px bg-red-400" />
+                        <div className="flex -translate-y-1/2 items-center">
+                          <div className="-ml-1.5 size-2.5 shrink-0 rounded-full bg-bg-brand-solid" />
+                          <div className="h-0.5 flex-1 bg-bg-brand-solid" />
                         </div>
                       </div>
                     )}
@@ -604,15 +615,16 @@ export function TimetableGrid({
                         (SNAP / 60) * HOUR_HEIGHT,
                         minToY(timeToMin(block.endTime)) - top
                       );
-                      const isAttend = block.type === "ATTENDANCE";
+                      const tone = AUTO_BLOCK_TONE[block.type];
                       return (
                         <div
                           key={i}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`${block.label} ${block.startTime}–${block.endTime}`}
                           className={cn(
-                            "absolute left-0.5 right-0.5 rounded cursor-pointer transition-opacity",
-                            isAttend
-                              ? "bg-emerald-50 border border-emerald-200 hover:bg-emerald-100"
-                              : "bg-amber-50 border border-amber-200 hover:bg-amber-100"
+                            "absolute left-0.5 right-0.5 cursor-pointer rounded-r1_5 ring-1 ring-inset transition-[filter] hover:brightness-95",
+                            tone.block
                           )}
                           style={{ top, height, zIndex: 2 }}
                           onMouseDown={(e) => e.stopPropagation()}
@@ -620,19 +632,20 @@ export function TimetableGrid({
                             e.stopPropagation();
                             setPanel({ mode: "auto", block, dayLabel: DAY_LABELS[dayIdx] });
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setPanel({ mode: "auto", block, dayLabel: DAY_LABELS[dayIdx] });
+                            }
+                          }}
                         >
-                          <div className={cn(
-                            "px-1.5 py-1 h-full overflow-hidden",
-                          )}>
-                            <div className={cn(
-                              "flex items-center gap-1",
-                              isAttend ? "text-emerald-600" : "text-amber-600"
-                            )}>
-                              <div className={cn("w-1 h-1 rounded-full shrink-0", isAttend ? "bg-emerald-400" : "bg-amber-400")} />
-                              <p className="text-xs font-semibold truncate">{block.label}</p>
+                          <div className="h-full overflow-hidden px-x1_5 py-x1">
+                            <div className={cn("flex items-center gap-x1", tone.fg)}>
+                              <span className={cn("size-1.5 shrink-0 rounded-full", tone.dot)} aria-hidden />
+                              <p className="truncate t3-medium">{block.label}</p>
                             </div>
                             {height > 36 && (
-                              <p className={cn("text-[10px] font-mono mt-0.5 opacity-70", isAttend ? "text-emerald-500" : "text-amber-500")}>
+                              <p className={cn("mt-x0_5 t2-regular tabular-nums", tone.fg)}>
                                 {block.startTime}–{block.endTime}
                               </p>
                             )}
@@ -650,41 +663,52 @@ export function TimetableGrid({
                           : timeToMin(entry.endTime);
                       const top = minToY(startMin);
                       const height = Math.max((SNAP / 60) * HOUR_HEIGHT, minToY(endMin) - top);
-                      const c = COLORS[entry.colorCode] ?? COLORS.blue;
+                      const t = timetableTone(entry.colorCode);
                       const isSelected = panel?.mode === "edit" && panel.entry.id === entry.id;
                       return (
                         <div
                           key={entry.id}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`${entry.subject} ${entry.startTime}–${entry.endTime}`}
                           className={cn(
-                            "absolute left-1 right-1 rounded-md border-l-[3px] overflow-hidden cursor-pointer",
-                            "shadow-sm hover:shadow-md transition-shadow",
-                            c.bg, c.border,
-                            isSelected && "ring-2 ring-offset-1 ring-blue-400"
+                            "group absolute left-1 right-1 cursor-pointer overflow-hidden rounded-r1_5 ring-inset transition-[filter] hover:brightness-95",
+                            t.block,
+                            isSelected ? cn("ring-2", t.ring) : "ring-1"
                           )}
                           style={{ top, height, zIndex: 10 }}
                           onMouseDown={(e) => e.stopPropagation()}
                           onClick={() => openEdit(entry)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              openEdit(entry);
+                            }
+                          }}
                         >
-                          <div className="px-2 py-1.5 h-full flex flex-col overflow-hidden">
-                            <p className={cn("text-xs font-bold leading-tight truncate", c.text)}>
+                          <div className="flex h-full flex-col overflow-hidden px-x2 py-x1_5">
+                            <p className={cn("truncate t3-bold", t.title)}>
                               {entry.subject}
                             </p>
                             {height > 50 && entry.details && (
-                              <p className={cn("text-[11px] leading-tight truncate mt-0.5", c.subtext)}>
+                              <p className={cn("mt-x0_5 truncate t2-regular", t.sub)}>
                                 {entry.details}
                               </p>
                             )}
                             {height > 36 && (
-                              <p className={cn("text-[10px] font-mono mt-auto", c.subtext)}>
+                              <p className={cn("mt-auto t2-regular tabular-nums", t.sub)}>
                                 {entry.startTime} – {entry.endTime}
                               </p>
                             )}
                           </div>
                           <div
-                            className={cn("absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 hover:opacity-100 transition-opacity rounded-b", c.handle)}
+                            className="absolute bottom-0 left-0 right-0 flex h-2.5 cursor-ns-resize items-end justify-center pb-0.5 opacity-0 transition-opacity hover:opacity-100 group-hover:opacity-100"
                             onMouseDown={(e) => handleResizeMouseDown(e, entry)}
                             onClick={(e) => e.stopPropagation()}
-                          />
+                            aria-hidden
+                          >
+                            <span className={cn("h-1 w-6 rounded-full", t.solid)} />
+                          </div>
                         </div>
                       );
                     })}
@@ -692,10 +716,10 @@ export function TimetableGrid({
                     {/* Drag ghost (during drag) */}
                     {ghost && (
                       <div
-                        className="absolute left-1 right-1 rounded-md border-2 border-dashed border-blue-400/60 bg-blue-100/40 pointer-events-none"
+                        className="pointer-events-none absolute left-1 right-1 rounded-r1_5 border-2 border-dashed border-stroke-brand-solid bg-bg-brand-weak"
                         style={{ top: ghost.top, height: ghost.height, zIndex: 20 }}
                       >
-                        <p className="text-xs text-blue-600 font-mono px-2 pt-1">
+                        <p className="px-x2 pt-x1 t2-bold tabular-nums text-fg-brand">
                           {minToTime(ghost.startMin)} – {minToTime(ghost.endMin)}
                         </p>
                       </div>
@@ -705,16 +729,17 @@ export function TimetableGrid({
                     {preview && (
                       <div
                         className={cn(
-                          "absolute left-1 right-1 rounded-md border-l-[3px] border pointer-events-none",
-                          previewColor.previewBg, previewColor.previewBorder
+                          "pointer-events-none absolute left-1 right-1 rounded-r1_5 opacity-80 ring-2 ring-inset",
+                          previewTone.block,
+                          previewTone.ring
                         )}
                         style={{ top: preview.top, height: preview.height, zIndex: 15 }}
                       >
-                        <div className="px-2 py-1">
-                          <p className={cn("text-xs font-bold leading-tight truncate", previewColor.text)}>
+                        <div className="px-x2 py-x1">
+                          <p className={cn("truncate t3-bold", previewTone.title)}>
                             {form.subject || "새 일정"}
                           </p>
-                          <p className={cn("text-[10px] font-mono", previewColor.subtext)}>
+                          <p className={cn("t2-regular tabular-nums", previewTone.sub)}>
                             {panel?.mode === "create" ? `${panel.startTime} – ${panel.endTime}` : ""}
                           </p>
                         </div>
@@ -729,175 +754,75 @@ export function TimetableGrid({
 
         {/* ── Right panel ── */}
         {panel && (
-          <div className="w-72 shrink-0 rounded-xl border border-border/60 bg-white dark:bg-background shadow-sm overflow-hidden sticky top-4">
+          <aside className="w-full shrink-0 rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default lg:sticky lg:top-4 lg:w-80">
             {/* Panel header */}
-            <div className={cn(
-              "flex items-center justify-between px-4 py-3 border-b border-border/60",
-              panel.mode === "auto"
-                ? panel.block.type === "ATTENDANCE" ? "bg-emerald-50 dark:bg-emerald-950/20" : "bg-amber-50 dark:bg-amber-950/20"
-                : "bg-muted/30"
-            )}>
-              <p className="font-semibold text-sm">
-                {panel.mode === "create" && "새 일정 추가"}
-                {panel.mode === "edit" && "일정 수정"}
-                {panel.mode === "auto" && (panel.block.type === "ATTENDANCE" ? "등원 일정" : "외출 일정")}
-              </p>
-              <button onClick={() => setPanel(null)} className="text-muted-foreground hover:text-foreground rounded-md p-0.5 hover:bg-muted/50">
-                <X className="h-4 w-4" />
+            <div className="flex items-center justify-between gap-x2 px-x5 pb-x3 pt-x4">
+              <div className="flex min-w-0 items-center gap-x2">
+                <h3 className="truncate t6-bold text-fg-neutral">{panelTitle}</h3>
+                {panel.mode === "auto" && <StatusBadge tone="gray">자동</StatusBadge>}
+              </div>
+              <button
+                type="button"
+                onClick={() => setPanel(null)}
+                aria-label="닫기"
+                className="-mr-x2 grid size-x8 shrink-0 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed"
+              >
+                <X className="size-5" aria-hidden />
               </button>
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className="px-x5 pb-x5">
               {/* ── Auto block (read-only) ── */}
               {panel.mode === "auto" && (
-                <>
-                  <div className={cn(
-                    "rounded-lg p-3 border",
-                    panel.block.type === "ATTENDANCE"
-                      ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                      : "bg-amber-50 border-amber-200 text-amber-800"
-                  )}>
-                    <p className="font-semibold text-sm">{panel.block.label}</p>
-                    <p className="text-xs mt-1 font-mono opacity-80">
+                <div className="flex flex-col gap-x3">
+                  <div
+                    className={cn(
+                      "rounded-r2 px-x3 py-x2_5 ring-1 ring-inset",
+                      AUTO_BLOCK_TONE[panel.block.type].block
+                    )}
+                  >
+                    <p className={cn("t4-bold", AUTO_BLOCK_TONE[panel.block.type].fg)}>{panel.block.label}</p>
+                    <p className={cn("mt-x0_5 t3-regular tabular-nums", AUTO_BLOCK_TONE[panel.block.type].fg)}>
                       {panel.dayLabel}요일 · {panel.block.startTime} – {panel.block.endTime}
                     </p>
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed bg-muted/40 rounded-lg px-3 py-2.5">
-                    자동 등록된 일정입니다.<br />
-                    출결 일정 관리 페이지에서 수정하세요.
-                  </p>
-                </>
+                  <Notice tone="gray">
+                    자동으로 등록된 일정이에요. 출결 일정 관리 페이지에서 수정해 주세요.
+                  </Notice>
+                </div>
               )}
 
               {/* ── Create / Edit ── */}
               {(panel.mode === "create" || panel.mode === "edit") && (
-                <>
-                  {/* Time badge / AllDay badge */}
-                  {form.allDay ? (
-                    <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2 border border-blue-100">
-                      <CalendarDays className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                      <span className="text-xs text-blue-600 font-medium">
-                        {DAY_LABELS[DAYS.indexOf(panel.mode === "create" ? panel.dayOfWeek : panel.entry.dayOfWeek)]}요일 · 종일
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 bg-muted/40 rounded-lg px-3 py-2">
-                      <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className="text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">
-                          {DAY_LABELS[DAYS.indexOf(panel.mode === "create" ? panel.dayOfWeek : panel.entry.dayOfWeek)]}요일
-                        </span>
-                        {" · "}
-                        <span className="font-mono">
-                          {panel.mode === "create" ? panel.startTime : panel.entry.startTime}
-                          {" – "}
-                          {panel.mode === "create" ? panel.endTime : panel.entry.endTime}
-                        </span>
-                      </span>
-                      {panel.mode === "edit" && (
-                        <span className="ml-auto text-[9px] text-muted-foreground/50 leading-tight text-right">
-                          하단 핸들로<br/>시간 조정
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* AllDay toggle */}
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-muted-foreground">종일 일정</label>
-                    <button
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, allDay: !f.allDay }))}
-                      className={cn(
-                        "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-                        form.allDay ? "bg-blue-500" : "bg-muted border border-border"
-                      )}
-                    >
-                      <span className={cn(
-                        "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
-                        form.allDay ? "translate-x-4" : "translate-x-0.5"
-                      )} />
-                    </button>
-                  </div>
-
-                  {/* Subject */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">과목명 *</label>
-                    <input
-                      type="text"
-                      placeholder="수학, 영어, 자습 등"
-                      value={form.subject}
-                      onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
-                      onKeyDown={(e) => { if (e.key === "Enter") panel.mode === "create" ? handleCreate() : handleUpdate(); }}
-                      autoFocus
-                      className="w-full rounded-lg border border-border/70 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 bg-background transition-all"
-                    />
-                  </div>
-
-                  {/* Details */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-muted-foreground">메모</label>
-                    <textarea
-                      placeholder="선생님, 교재, 숙제 내용 등"
-                      value={form.details}
-                      onChange={(e) => setForm((f) => ({ ...f, details: e.target.value }))}
-                      rows={3}
-                      className="w-full rounded-lg border border-border/70 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400 bg-background resize-none transition-all"
-                    />
-                  </div>
-
-                  {/* Color picker */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">색상</label>
-                    <div className="flex gap-2 flex-wrap">
-                      {Object.entries(COLORS).map(([key, c]) => (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => setForm((f) => ({ ...f, colorCode: key }))}
-                          className={cn(
-                            "w-6 h-6 rounded-full transition-all",
-                            c.dot,
-                            form.colorCode === key
-                              ? "ring-2 ring-offset-2 ring-foreground/30 scale-110"
-                              : "opacity-50 hover:opacity-80"
-                          )}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center justify-between pt-1 border-t border-border/40">
-                    {panel.mode === "edit" ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5 h-8 px-2"
-                        onClick={() => handleDelete(panel.entry.id)}
-                        disabled={isPending}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        삭제
-                      </Button>
-                    ) : (
-                      <div />
-                    )}
-                    <Button
-                      size="sm"
-                      className="h-8 px-4"
-                      onClick={panel.mode === "create" ? handleCreate : handleUpdate}
-                      disabled={isPending}
-                    >
-                      {panel.mode === "create" ? "추가하기" : "저장하기"}
-                    </Button>
-                  </div>
-                </>
+                <EntryFormFields
+                  mode={panel.mode}
+                  dayLabel={`${DAY_LABELS[DAYS.indexOf(panel.mode === "create" ? panel.dayOfWeek : panel.entry.dayOfWeek)]}요일`}
+                  startTime={panel.mode === "create" ? panel.startTime : panel.entry.startTime}
+                  endTime={panel.mode === "create" ? panel.endTime : panel.entry.endTime}
+                  form={form}
+                  setForm={setForm}
+                  onSubmit={panel.mode === "create" ? handleCreate : handleUpdate}
+                  onDelete={panel.mode === "edit" ? () => setConfirmDeleteId(panel.entry.id) : undefined}
+                  isPending={isPending}
+                  showResizeHint={panel.mode === "edit"}
+                />
               )}
             </div>
-          </div>
+          </aside>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteId !== null}
+        onOpenChange={(o) => { if (!o) setConfirmDeleteId(null); }}
+        title="이 일정을 삭제할까요?"
+        description="삭제하면 시간표에서 바로 사라져요."
+        pending={isPending}
+        onConfirm={() => {
+          if (confirmDeleteId) handleDelete(confirmDeleteId);
+          setConfirmDeleteId(null);
+        }}
+      />
     </div>
   );
 }

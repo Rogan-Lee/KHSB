@@ -1,13 +1,11 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getRecentHandovers, getStaffList } from "@/actions/handover";
 import { getChecklistTemplates } from "@/actions/checklist-templates";
 import { getMonthlyNotes } from "@/actions/monthly-notes";
 import { getTodos } from "@/actions/todos";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/backoffice/ui";
 import { HandoverFormPageWrapper } from "@/components/handover/handover-form-page-wrapper";
 
 export default async function NewHandoverPage() {
@@ -35,36 +33,28 @@ export default async function NewHandoverPage() {
   const pendingTodos = todos.filter((t) => !t.isCompleted);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Link
-          href="/handover"
-          className="text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <h2 className="text-xl font-bold">인수인계 작성</h2>
-      </div>
+    <div className="mx-auto max-w-3xl">
+      <PageHeader
+        back={{ href: "/handover", label: "인수인계" }}
+        title="인수인계 작성"
+        description="오늘 근무 내용과 다음 근무자가 할 일을 남겨 주세요."
+      />
 
-      <Card>
-        <CardContent className="pt-6">
-          <HandoverFormPageWrapper
-            backHref="/handover"
-            templates={templates}
-            monthlyNotes={
-              monthlyNotes as React.ComponentProps<
-                typeof HandoverFormPageWrapper
-              >["monthlyNotes"]
-            }
-            staffList={staffList}
-            pendingTodos={
-              pendingTodos as React.ComponentProps<
-                typeof HandoverFormPageWrapper
-              >["pendingTodos"]
-            }
-          />
-        </CardContent>
-      </Card>
+      <HandoverFormPageWrapper
+        backHref="/handover"
+        templates={templates}
+        monthlyNotes={
+          monthlyNotes as React.ComponentProps<
+            typeof HandoverFormPageWrapper
+          >["monthlyNotes"]
+        }
+        staffList={staffList}
+        pendingTodos={
+          pendingTodos as React.ComponentProps<
+            typeof HandoverFormPageWrapper
+          >["pendingTodos"]
+        }
+      />
     </div>
   );
 }

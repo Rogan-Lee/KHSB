@@ -1,22 +1,19 @@
 import * as React from "react"
-
 import { cn } from "@/lib/utils"
+import { inputBaseClass } from "./input"
 
-const Textarea = React.forwardRef<
-  HTMLTextAreaElement,
-  React.ComponentProps<"textarea">
->(({ className, ...props }, ref) => {
-  return (
-    <textarea
-      className={cn(
-        "flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
-        className
-      )}
-      ref={ref}
-      {...props}
-    />
-  )
-})
+// SEED TextField Textarea(outline · medium) 규격
+const Textarea = React.forwardRef<HTMLTextAreaElement, React.ComponentProps<"textarea">>(
+  ({ className, ...props }, ref) => {
+    return (
+      <textarea
+        className={cn("flex min-h-[82px] border-0 py-x2_5 leading-[1.6]", inputBaseClass, className)}
+        ref={ref}
+        {...props}
+      />
+    )
+  }
+)
 Textarea.displayName = "Textarea"
 
 export { Textarea }

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { FormField } from "@/components/backoffice/ui";
 import { toast } from "sonner";
 import { setUserStatus } from "@/actions/payroll";
 import type { UserStatus } from "@/generated/prisma";
@@ -50,61 +50,59 @@ export function StaffStatusDialog({ open, onOpenChange, user, onSuccess }: Props
     });
   }
 
+  const effects = isActive
+    ? [
+        "새 멘토링·근무 선택 목록에서 빠져요.",
+        "지난 기록(급여·멘토링·출결)은 그대로 남아요.",
+        "발급된 순찰 매직링크는 따로 무효화해야 해요.",
+      ]
+    : ["선택 목록과 매직링크 발급 대상에 다시 포함돼요."];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="t7-bold">
             {isActive ? "근무자 퇴사 처리" : "근무자 활성 복귀"}
           </DialogTitle>
           <DialogDescription>
-            <span className="font-medium text-foreground">{user.name}</span>
-            <span className="text-muted-foreground"> 님의 상태를 </span>
-            <Badge variant={isActive ? "destructive" : "default"}>
-              {isActive ? "퇴사" : "활성"}
-            </Badge>
-            <span className="text-muted-foreground"> 로 변경합니다.</span>
+            <span className="t4-bold text-fg-neutral">{user.name}</span>
+            님을 {isActive ? "퇴사" : "재직"} 상태로 바꿔요.
           </DialogDescription>
         </DialogHeader>
 
+        <ul className="flex flex-col gap-x1_5 rounded-r3 bg-bg-layer-fill px-x4 py-x3">
+          {effects.map((text) => (
+            <li key={text} className="flex gap-x2 t4-regular text-fg-neutral-muted">
+              <span aria-hidden className="mt-2 size-1 shrink-0 rounded-full bg-fg-neutral-subtle" />
+              {text}
+            </li>
+          ))}
+        </ul>
+
         {isActive ? (
-          <div className="space-y-2 text-sm">
-            <p className="text-muted-foreground">
-              · 새 멘토링/근무 픽커에서 제외됩니다.
-              <br />
-              · 과거 기록(급여·멘토링·출결)은 그대로 유지됩니다.
-              <br />
-              · 발급된 근무 매직링크가 있다면 별도 무효화가 필요합니다.
-            </p>
-            <label className="block pt-2">
-              <span className="mb-1 block text-xs font-medium">
-                사유 메모 (선택)
-              </span>
-              <Textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="예: 2026-05-30 자 퇴사 (계약 만료)"
-                rows={3}
-              />
-            </label>
-          </div>
+          <FormField label="사유 메모" htmlFor="termination-note" hint="선택 입력이에요">
+            <Textarea
+              id="termination-note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="예: 2026-05-30 자 퇴사 (계약 만료)"
+              rows={3}
+            />
+          </FormField>
         ) : (
-          <div className="space-y-2 text-sm">
-            <p className="text-muted-foreground">
-              · 픽커·매직링크 발급에 다시 포함됩니다.
-            </p>
-            {user.terminationNote && (
-              <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-                이전 사유: {user.terminationNote}
-              </p>
-            )}
-          </div>
+          user.terminationNote && (
+            <div className="rounded-r3 border border-stroke-neutral-muted px-x4 py-x3">
+              <p className="t3-medium text-fg-neutral-subtle">이전 퇴사 사유</p>
+              <p className="mt-x1 t4-regular text-fg-neutral">{user.terminationNote}</p>
+            </div>
+          )
         )}
 
         <DialogFooter>
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             onClick={() => onOpenChange(false)}
             disabled={isPending}
           >
@@ -117,7 +115,7 @@ export function StaffStatusDialog({ open, onOpenChange, user, onSuccess }: Props
             disabled={isPending}
           >
             {isPending
-              ? "처리 중..."
+              ? "처리 중…"
               : isActive
                 ? "퇴사 처리"
                 : "활성 복귀"}

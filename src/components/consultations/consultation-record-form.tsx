@@ -2,16 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { TimePickerInput } from "@/components/ui/time-picker";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { updateConsultation } from "@/actions/consultations";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
-import { History, ChevronDown, ChevronUp, CalendarDays, ClipboardList, MessageSquare } from "lucide-react";
+import { ChevronDown, CalendarDays } from "lucide-react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { FormActions, FormField, Segmented } from "@/components/backoffice/ui";
+import { cn } from "@/lib/utils";
+import { formatKST } from "./consultation-tones";
 
 type PastConsultation = {
   id: string;
@@ -46,67 +46,44 @@ const CATEGORY_OPTIONS = [
   { value: "CONSIDERING", label: "등록 고민" },
 ];
 
-function formatKST(date: Date): string {
-  const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-  const m = kst.getUTCMonth() + 1;
-  const d = kst.getUTCDate();
-  const dayNames = ["일", "월", "화", "수", "목", "금", "토"];
-  const dow = dayNames[kst.getUTCDay()];
-  const hh = String(kst.getUTCHours()).padStart(2, "0");
-  const mm = String(kst.getUTCMinutes()).padStart(2, "0");
-  const timeStr = hh === "00" && mm === "00" ? "" : ` ${hh}:${mm}`;
-  return `${m}월 ${d}일 (${dow})${timeStr}`;
-}
-
 function PastConsultationCard({ c }: { c: PastConsultation }) {
   const [open, setOpen] = useState(false);
   const dateStr = c.actualDate ?? c.scheduledAt;
+  const rows: { label: string; value: string | null }[] = [
+    { label: "주제", value: c.agenda },
+    { label: "결과", value: c.outcome },
+    { label: "사후조치", value: c.followUp },
+    { label: "메모", value: c.notes },
+  ];
 
   return (
-    <div className="rounded-lg border bg-muted/20 overflow-hidden">
+    <div className="overflow-hidden rounded-r3 bg-bg-layer-fill">
       <button
         type="button"
         onClick={() => setOpen((p) => !p)}
-        className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-muted/30 transition-colors"
+        aria-expanded={open}
+        className="flex w-full items-center gap-x3 px-x4 py-x3 text-left transition-colors hover:bg-bg-neutral-weak"
       >
-        <div className="flex items-center gap-2">
-          <History className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium">
-            {dateStr ? formatKST(dateStr) : "날짜 미정"}
-          </span>
-          {c.agenda && (
-            <span className="text-xs text-muted-foreground truncate max-w-[200px]">{c.agenda}</span>
-          )}
-        </div>
-        {open ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+        <span className="shrink-0 t4-medium tabular-nums text-fg-neutral">
+          {dateStr ? formatKST(dateStr) : "날짜 미정"}
+        </span>
+        {c.agenda && (
+          <span className="min-w-0 flex-1 truncate t4-regular text-fg-neutral-subtle">{c.agenda}</span>
+        )}
+        <ChevronDown
+          className={cn("ml-auto size-4 shrink-0 text-fg-neutral-subtle transition-transform", open && "rotate-180")}
+          aria-hidden
+        />
       </button>
       {open && (
-        <div className="px-3 pb-3 space-y-2 text-xs text-foreground/80 border-t bg-muted/10">
-          {c.agenda && (
-            <div className="flex items-start gap-1.5 pt-2">
-              <MessageSquare className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
-              <div><span className="text-muted-foreground">주제:</span> {c.agenda}</div>
+        <dl className="flex flex-col gap-x2 border-t border-stroke-neutral-muted px-x4 py-x3">
+          {rows.filter((r) => r.value).map((r) => (
+            <div key={r.label} className="grid grid-cols-[4.5rem_1fr] gap-x2 t4-regular">
+              <dt className="text-fg-neutral-subtle">{r.label}</dt>
+              <dd className="whitespace-pre-wrap break-words text-fg-neutral">{r.value}</dd>
             </div>
-          )}
-          {c.outcome && (
-            <div className="flex items-start gap-1.5">
-              <ClipboardList className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
-              <div><span className="text-muted-foreground">결과:</span> {c.outcome}</div>
-            </div>
-          )}
-          {c.followUp && (
-            <div className="flex items-start gap-1.5">
-              <ClipboardList className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
-              <div><span className="text-muted-foreground">사후조치:</span> {c.followUp}</div>
-            </div>
-          )}
-          {c.notes && (
-            <div className="flex items-start gap-1.5">
-              <MessageSquare className="h-3 w-3 mt-0.5 shrink-0 text-muted-foreground" />
-              <div><span className="text-muted-foreground">메모:</span> {c.notes}</div>
-            </div>
-          )}
-        </div>
+          ))}
+        </dl>
       )}
     </div>
   );
@@ -216,113 +193,94 @@ export function ConsultationRecordForm({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-x6">
       {/* Previous consultations */}
       {previousConsultations.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">이전 면담 기록</p>
-          <div className="space-y-1.5">
+        <div className="flex flex-col gap-x2">
+          <p className="t4-bold text-fg-neutral">
+            이전 면담 기록
+            <span className="ml-x1_5 tabular-nums text-fg-brand">{previousConsultations.length}</span>
+          </p>
+          <div className="flex flex-col gap-x1_5">
             {previousConsultations.map((c) => <PastConsultationCard key={c.id} c={c} />)}
           </div>
         </div>
       )}
 
       {/* Form */}
-      <div className="space-y-4">
+      <div className="flex flex-col gap-x5">
         {/* 유형 / 분류 선택 */}
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">상담 유형</p>
-            <div className="flex items-center gap-0.5 bg-muted/50 rounded-lg p-1 border">
-              {TYPE_OPTIONS.map((opt) => (
-                <button key={opt.value} type="button" onClick={() => setConsultType(opt.value)}
-                  className={cn("px-3 py-1 text-xs font-medium rounded-md transition-colors",
-                    consultType === opt.value ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">상담 분류</p>
-            <div className="flex items-center gap-0.5 bg-muted/50 rounded-lg p-1 border">
-              {CATEGORY_OPTIONS.map((opt) => (
-                <button key={opt.value} type="button" onClick={() => setConsultCategory(opt.value)}
-                  className={cn("px-3 py-1 text-xs font-medium rounded-md transition-colors",
-                    consultCategory === opt.value ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
+        <div className="grid grid-cols-1 gap-x4 sm:grid-cols-2">
+          <FormField label="상담 유형">
+            <Segmented
+              aria-label="상담 유형"
+              value={consultType}
+              onChange={setConsultType}
+              options={TYPE_OPTIONS}
+            />
+          </FormField>
+          <FormField label="상담 분류">
+            <Segmented
+              aria-label="상담 분류"
+              value={consultCategory}
+              onChange={setConsultCategory}
+              options={CATEGORY_OPTIONS}
+            />
+          </FormField>
         </div>
 
-        {scheduledAt && (
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <CalendarDays className="h-4 w-4" />
-            <span>예정: {formatKST(scheduledAt)}</span>
+        <div className="flex flex-col gap-x2">
+          <div className="flex items-center justify-between gap-x2">
+            <span className="t4-medium text-fg-neutral">실제 면담 일시</span>
+            <Button type="button" variant="link" onClick={handleNowDate} className="t3-medium">
+              지금으로 입력
+            </Button>
           </div>
-        )}
-
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm">실제 면담 일시</Label>
-            <button
-              type="button"
-              onClick={handleNowDate}
-              className="text-xs text-primary hover:underline underline-offset-2"
-            >
-              지금
-            </button>
-          </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-x2">
             <DatePicker value={actualDatePart || null} onChange={(d) => setActualDatePart(d ?? "")} placeholder="날짜 선택" />
             <TimePickerInput value={actualTimePart} onChange={setActualTimePart} />
           </div>
+          {scheduledAt && (
+            <p className="flex items-center gap-x1_5 t3-regular tabular-nums text-fg-neutral-subtle">
+              <CalendarDays className="size-3.5" aria-hidden />
+              예정 {formatKST(scheduledAt)}
+            </p>
+          )}
         </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-sm">면담 주제</Label>
-          <div className="min-h-[200px] border rounded-lg overflow-hidden">
+        <FormField label="면담 주제">
+          <div className="min-h-[200px] overflow-hidden rounded-r2 border border-stroke-neutral-weak">
             <MarkdownEditor value={agenda} onChange={setAgenda} placeholder="면담 주제를 입력하세요..." />
           </div>
-        </div>
+        </FormField>
 
-        <div className="space-y-1.5">
-          <Label className="text-sm">결과</Label>
-          <div className="min-h-[200px] border rounded-lg overflow-hidden">
+        <FormField label="결과">
+          <div className="min-h-[200px] overflow-hidden rounded-r2 border border-stroke-neutral-weak">
             <MarkdownEditor value={outcome} onChange={setOutcome} placeholder="면담 결과를 입력하세요..." />
           </div>
-        </div>
+        </FormField>
 
-        <div className="space-y-1.5">
-          <Label className="text-sm">사후조치</Label>
-          <div className="min-h-[150px] border rounded-lg overflow-hidden">
+        <FormField label="사후조치">
+          <div className="min-h-[150px] overflow-hidden rounded-r2 border border-stroke-neutral-weak">
             <MarkdownEditor value={followUp} onChange={setFollowUp} placeholder="사후조치 사항을 입력하세요..." />
           </div>
-        </div>
+        </FormField>
 
-        <div className="space-y-1.5">
-          <Label className="text-sm">메모</Label>
-          <div className="min-h-[150px] border rounded-lg overflow-hidden">
+        <FormField label="메모">
+          <div className="min-h-[150px] overflow-hidden rounded-r2 border border-stroke-neutral-weak">
             <MarkdownEditor value={notes} onChange={setNotes} placeholder="기타 메모..." />
           </div>
-        </div>
+        </FormField>
       </div>
 
-      <div className="flex items-center gap-2 pt-2">
+      <FormActions className="border-t border-stroke-neutral-muted pt-x5 [&>button]:max-sm:flex-1">
         <Button type="button" variant="outline" onClick={handleSave} disabled={isPending}>
-          {isPending ? "저장 중..." : "저장"}
+          {isPending ? "저장 중…" : "저장"}
         </Button>
-        <Button
-          type="button"
-          onClick={handleComplete}
-          disabled={isPending}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white"
-        >
-          완료처리
+        <Button type="button" onClick={handleComplete} disabled={isPending}>
+          {isPending ? "처리 중…" : "완료 처리"}
         </Button>
-      </div>
+      </FormActions>
     </div>
   );
 }

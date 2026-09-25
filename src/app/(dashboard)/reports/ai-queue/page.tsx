@@ -1,9 +1,10 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft, CalendarClock } from "lucide-react";
+import { CalendarClock } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
 import { getAiJobQueueOverview } from "@/lib/report-ai-queue";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EmptyState, PageHeader, StatCard, StatCards, StatusBadge, TableCard } from "@/components/backoffice/ui";
 
 // AI 텍스트 생성 예약 대기열 — QUEUED 상태 ReportAiJob 목록.
 // 야간 Claude 루틴(/api/cron/report-ai-queue)이 오래 대기한 것부터 생성한다.
@@ -19,71 +20,55 @@ export default async function ReportAiQueuePage() {
   const mentoring = rows.filter((r) => r.type === "MENTORING_COMMENT").length;
 
   return (
-    <div className="space-y-5 p-4 md:p-6 max-w-3xl">
-      <header className="space-y-2">
-        <Link
-          href="/reports/monthly"
-          className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          월간 리포트로 돌아가기
-        </Link>
-        <div className="flex items-center gap-2">
-          <CalendarClock className="h-5 w-5 text-violet-600" />
-          <h1 className="text-2xl font-semibold tracking-[-0.015em]">
-            AI 생성 예약 대기열
-          </h1>
-        </div>
-        <p className="text-[13px] text-muted-foreground">
-          야간 Claude 루틴이 오래 대기한 것부터 순차 생성합니다. 생성되면 해당 리포트의
-          종합의견·코멘트에 자동 반영됩니다.
-        </p>
-      </header>
+    <div className="max-w-4xl">
+      <PageHeader
+        back={{ href: "/reports/monthly", label: "월간 리포트" }}
+        title="AI 생성 예약 대기열"
+        description="야간 Claude 루틴이 오래 기다린 것부터 차례로 만들어요. 생성되면 해당 리포트의 종합의견·코멘트에 자동으로 들어가요."
+      />
 
-      <div className="flex flex-wrap gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[13px] text-violet-800">
-          대기 총 <b className="tabular-nums">{rows.length}</b>건
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[13px] text-muted-foreground">
-          월간 종합의견 <b className="tabular-nums">{monthly}</b> · 멘토링 코멘트{" "}
-          <b className="tabular-nums">{mentoring}</b>
-        </span>
+      <div className="flex flex-col gap-x6">
+        <StatCards cols={3}>
+          <StatCard label="대기 중" value={rows.length} unit="건" />
+          <StatCard label="월간 종합의견" value={monthly} unit="건" />
+          <StatCard label="멘토링 코멘트" value={mentoring} unit="건" />
+        </StatCards>
+
+        <TableCard>
+          {rows.length === 0 ? (
+            <EmptyState
+              icon={CalendarClock}
+              title="대기 중인 예약이 없어요"
+              description="월간 리포트에서 학생을 골라 'AI 종합의견 예약'을 누르면 여기에 쌓여요."
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>학생</TableHead>
+                  <TableHead>유형</TableHead>
+                  <TableHead>대상</TableHead>
+                  <TableHead className="text-right">대기 시각</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow key={r.jobId}>
+                    <TableCell className="t4-medium">{r.studentName}</TableCell>
+                    <TableCell>
+                      <StatusBadge tone="gray">{r.typeLabel}</StatusBadge>
+                    </TableCell>
+                    <TableCell className="text-fg-neutral-muted">{r.periodLabel ?? "—"}</TableCell>
+                    <TableCell className="whitespace-nowrap text-right text-fg-neutral-subtle">
+                      {new Date(r.queuedAt).toLocaleString("ko-KR")}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </TableCard>
       </div>
-
-      {rows.length === 0 ? (
-        <div className="rounded-[12px] border border-dashed p-10 text-center text-[13px] text-muted-foreground">
-          대기 중인 예약 생성 항목이 없습니다.
-        </div>
-      ) : (
-        <div className="rounded-[12px] border overflow-hidden">
-          <table className="w-full text-[13px]">
-            <thead className="bg-muted/40 text-muted-foreground text-[11px] uppercase tracking-wide">
-              <tr>
-                <th className="text-left px-3 py-2 font-semibold">학생</th>
-                <th className="text-left px-3 py-2 font-semibold">유형</th>
-                <th className="text-left px-3 py-2 font-semibold">대상</th>
-                <th className="text-left px-3 py-2 font-semibold">대기 시각</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.jobId} className="border-t">
-                  <td className="px-3 py-2 font-medium">{r.studentName}</td>
-                  <td className="px-3 py-2">
-                    <span className="inline-block rounded bg-violet-100 text-violet-800 px-1.5 py-0.5 text-[11px] font-medium">
-                      {r.typeLabel}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">{r.periodLabel ?? "—"}</td>
-                  <td className="px-3 py-2 tabular-nums text-muted-foreground">
-                    {new Date(r.queuedAt).toLocaleString("ko-KR")}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }

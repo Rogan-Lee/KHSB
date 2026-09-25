@@ -1,6 +1,7 @@
 export const revalidate = 30;
 
 import { prisma } from "@/lib/prisma";
+import { PageHeader } from "@/components/backoffice/ui";
 import { TimetablePageClient } from "./timetable-client";
 
 export default async function TimetablePage() {
@@ -19,9 +20,9 @@ export default async function TimetablePage() {
   ]);
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold">시간표</h1>
+    <>
+      <PageHeader title="시간표" description="원생별 주간 시간표와 하루 학습 계획을 관리해요." />
       <TimetablePageClient students={students} mentors={mentors} />
-    </div>
+    </>
   );
 }

@@ -1,7 +1,10 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
+import { CalendarClock, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { PageHeader, Section, StatCard, StatCards } from "@/components/backoffice/ui";
 import { MonthlyReportPanel } from "@/components/reports/monthly-report-panel";
 import { MonthlyAdmissionInfoEditor } from "@/components/reports/monthly-admission-info-editor";
 import { MonthlyAwardsManager } from "@/components/reports/monthly-awards-manager";
@@ -78,89 +81,96 @@ export default async function MonthlyReportsPage({
     patrolNotes: patrolNotesByStudent.get(r.studentId) ?? [],
   }));
 
+  const sentCount = reports.filter((r) => r.sentAt).length;
+  const reportStudentIdSet = new Set(reportStudentIds);
+  const notCreatedCount = students.filter((s) => !reportStudentIdSet.has(s.id)).length;
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold">월간 학부모 리포트</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {year}년 {month}월 — 전체 {students.length}명 · 생성 {reports.length}건 · 발송 {reports.filter((r) => r.sentAt).length}건
-          </p>
-        </div>
-        <MonthSelector year={year} month={month} />
-      </div>
+    <div>
+      <PageHeader
+        title="월간 학부모 리포트"
+        description="공통 내용을 등록하고, 학생별 리포트를 만들어 학부모에게 보내요"
+        actions={
+          <>
+            <Button variant="outline" asChild>
+              <Link href="/reports/ai-queue">
+                <CalendarClock />
+                AI 예약 대기열
+              </Link>
+            </Button>
+            <MonthSelector year={year} month={month} />
+          </>
+        }
+      />
 
-      {/* STEP 1: 공통 내용 등록 (모든 학부모 페이지에 공통 표시) */}
-      <details className="rounded-lg border bg-card open:shadow-sm" open>
-        <summary className="cursor-pointer list-none px-5 py-3 flex items-center gap-3">
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">1</span>
-          <div className="flex-1">
-            <h3 className="font-bold text-sm">공통 내용 등록</h3>
-            <p className="text-xs text-muted-foreground">입시 정보 · 시상 · 운영 공지 · 권장 학습 — 모든 학부모 페이지에 공통으로 노출됩니다.</p>
+      <div className="flex flex-col gap-x8">
+        <StatCards cols={3}>
+          <StatCard label={`${month}월 대상 원생`} value={students.length} unit="명" />
+          <StatCard
+            label="리포트 생성"
+            value={reports.length}
+            unit="건"
+            sub={students.length > 0 ? `미생성 ${notCreatedCount}명` : undefined}
+          />
+          <StatCard
+            label="발송 완료"
+            value={sentCount}
+            unit="건"
+            tone={reports.length > 0 && sentCount === reports.length ? "ok" : "gray"}
+            sub={reports.length > 0 ? `미발송 ${reports.length - sentCount}건` : undefined}
+          />
+        </StatCards>
+
+        {/* STEP 1: 공통 내용 등록 (모든 학부모 페이지에 공통 표시) */}
+        <details className="group" open>
+          <summary className="flex cursor-pointer list-none items-start justify-between gap-x3 rounded-r2 pb-x4 [&::-webkit-details-marker]:hidden">
+            <div className="min-w-0">
+              <h2 className="t6-bold text-fg-neutral">공통 내용</h2>
+              <p className="mt-x0_5 t4-regular text-fg-neutral-subtle">
+                입시 정보 · 시상 · 운영 공지 · 권장 학습 — 모든 학부모 페이지에 함께 보여요
+              </p>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-x1 rounded-r2 px-x2 py-x1 t4-medium text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral">
+              <span className="group-open:hidden">펼치기</span>
+              <span className="hidden group-open:inline">접기</span>
+              <ChevronDown className="size-4 transition-transform group-open:rotate-180" aria-hidden />
+            </span>
+          </summary>
+          <div className="grid grid-cols-1 gap-x4 lg:grid-cols-2">
+            <Section title="익월 입시 정보">
+              <MonthlyAdmissionInfoEditor year={year} month={month} initial={admissionInfo} />
+            </Section>
+
+            <Section title="이달의 시상" count={awards.length}>
+              <MonthlyAwardsManager year={year} month={month} awards={awards} students={students} />
+            </Section>
+
+            <Section title="운영 공지" description="운영 일정 등">
+              <MonthlyNoticeEditor
+                page="monthly_notice"
+                label="운영 공지 (운영 일정 등)"
+                initial={operationsNotice}
+              />
+            </Section>
+
+            <Section title="이달의 권장 과목 · 인강 · 교재">
+              <MonthlyNoticeEditor
+                page="monthly_recommendation"
+                label="권장 학습 리소스"
+                initial={recommendation}
+              />
+            </Section>
           </div>
-          <span className="text-[11px] text-muted-foreground">접기 / 펼치기 ▾</span>
-        </summary>
-        <div className="px-5 pb-5">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">익월 입시 정보</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <MonthlyAdmissionInfoEditor year={year} month={month} initial={admissionInfo} />
-              </CardContent>
-            </Card>
+        </details>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">이달의 시상</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <MonthlyAwardsManager year={year} month={month} awards={awards} students={students} />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">운영 공지</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <MonthlyNoticeEditor
-                  page="monthly_notice"
-                  label="운영 공지 (운영 일정 등)"
-                  initial={operationsNotice}
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">이달의 권장 과목 · 인강 · 교재</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <MonthlyNoticeEditor
-                  page="monthly_recommendation"
-                  label="권장 학습 리소스"
-                  initial={recommendation}
-                />
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </details>
-
-      {/* STEP 2~5: 학생별 리포트 (다중선택 → 일괄생성 → 수정 → URL → 발송) */}
-      <div className="rounded-lg border bg-card">
-        <div className="px-5 py-3 border-b flex items-center gap-3">
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold">2</span>
-          <div className="flex-1">
-            <h3 className="font-bold text-sm">학생별 리포트</h3>
-            <p className="text-xs text-muted-foreground">학생 다중 선택 → 일괄 생성 → 내용 수정 → URL 생성 → 발송. 좌측에서 학생을 고르면 우측에서 바로 편집할 수 있어요.</p>
-          </div>
-        </div>
-        <div className="p-5">
+        {/* STEP 2~5: 학생별 리포트 (다중선택 → 일괄생성 → 수정 → URL → 발송) */}
+        <Section
+          variant="plain"
+          title="학생별 리포트"
+          description="학생을 골라 한 번에 만들고, 왼쪽에서 학생을 누르면 오른쪽에서 바로 고치고 보낼 수 있어요"
+        >
           <MonthlyReportPanel year={year} month={month} students={students} reports={reportsWithNotes} />
-        </div>
+        </Section>
       </div>
     </div>
   );
@@ -170,22 +180,20 @@ function MonthSelector({ year, month }: { year: number; month: number }) {
   const prev = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
   const next = month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
   return (
-    <div className="flex items-center gap-1">
-      <a
-        href={`/reports/monthly?year=${prev.year}&month=${prev.month}`}
-        className="px-3 py-1.5 text-sm rounded-md border hover:bg-accent"
-      >
-        ‹ 이전
-      </a>
-      <span className="px-3 py-1.5 text-sm font-medium">
+    <div className="flex items-center gap-x0_5 rounded-r2 bg-bg-neutral-weak p-x0_5">
+      <Button variant="ghost" size="icon" className="size-x9" asChild>
+        <a href={`/reports/monthly?year=${prev.year}&month=${prev.month}`} aria-label="이전 달">
+          <ChevronLeft />
+        </a>
+      </Button>
+      <span className="min-w-24 px-x1 text-center t4-bold tabular-nums text-fg-neutral">
         {year}년 {month}월
       </span>
-      <a
-        href={`/reports/monthly?year=${next.year}&month=${next.month}`}
-        className="px-3 py-1.5 text-sm rounded-md border hover:bg-accent"
-      >
-        다음 ›
-      </a>
+      <Button variant="ghost" size="icon" className="size-x9" asChild>
+        <a href={`/reports/monthly?year=${next.year}&month=${next.month}`} aria-label="다음 달">
+          <ChevronRight />
+        </a>
+      </Button>
     </div>
   );
 }

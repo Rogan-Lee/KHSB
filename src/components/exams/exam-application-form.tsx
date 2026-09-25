@@ -3,9 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { GraduationCap, CheckCircle2, Clock } from "lucide-react";
+import { GraduationCap, CheckCircle2 } from "lucide-react";
 import { submitExamApplication, cancelExamApplication } from "@/actions/exam-application";
 import type { ExamApplicationSession } from "@/lib/exam-application-data";
+import { Badge, Button, EmptyState, Notice, Section } from "@/components/portal/ui";
+import { BottomSheet } from "@/components/portal/bottom-sheet";
+import { TextField, TextFieldTextarea } from "seed-design/ui/text-field";
 
 function dateLabel(ymd: string): string {
   return new Date(ymd + "T00:00:00+09:00").toLocaleDateString("ko-KR", {
@@ -24,21 +27,20 @@ export function ExamApplicationForm({
   sessions: ExamApplicationSession[];
 }) {
   return (
-    <div className="space-y-4">
-      <section className="rounded-[18px] bg-gradient-to-br from-brand to-brand-2 p-5 text-white shadow-md">
-        <div className="flex items-center gap-2">
-          <GraduationCap className="h-5 w-5" strokeWidth={2.4} />
-          <h2 className="text-[18px] font-bold tracking-[-0.02em]">모의고사 신청</h2>
-        </div>
-        <p className="mt-2 text-[13px] leading-relaxed opacity-95">
-          응시할 모의고사를 골라 신청해 주세요. 운영진 확인 후 최종 확정됩니다.
-        </p>
-      </section>
+    <div className="flex flex-col gap-x3">
+      <p className="px-x1 pb-x1 pt-x3 t5-regular text-fg-neutral-muted">
+        응시할 모의고사를 골라 신청해 주세요. 운영진이 확인한 뒤 최종 확정돼요.
+      </p>
 
       {sessions.length === 0 ? (
-        <section className="rounded-[14px] border border-line bg-panel p-6 text-center text-[13px] text-ink-4">
-          현재 신청 접수 중인 모의고사가 없습니다.
-        </section>
+        <Section>
+          <EmptyState
+            icon={GraduationCap}
+            title="접수 중인 모의고사가 없어요"
+            description="신청이 열리면 여기에서 바로 신청할 수 있어요."
+            className="py-x8"
+          />
+        </Section>
       ) : (
         sessions.map((s) => <SessionCard key={s.sessionId} token={token} session={s} />)
       )}
@@ -50,6 +52,7 @@ function SessionCard({ token, session }: { token: string; session: ExamApplicati
   const router = useRouter();
   const [busy, startTransition] = useTransition();
   const [memo, setMemo] = useState(session.myMemo);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const applied = session.myStatus === "PENDING" || session.myStatus === "CONFIRMED";
   const confirmed = session.myStatus === "CONFIRMED";
 
@@ -69,6 +72,7 @@ function SessionCard({ token, session }: { token: string; session: ExamApplicati
       try {
         await cancelExamApplication(token, session.sessionId);
         toast.success("신청을 취소했어요");
+        setCancelOpen(false);
         router.refresh();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "취소에 실패했어요");
@@ -77,69 +81,104 @@ function SessionCard({ token, session }: { token: string; session: ExamApplicati
   }
 
   return (
-    <section className="rounded-[14px] border border-line bg-panel p-4">
-      <div className="flex items-start justify-between gap-2">
+    <Section>
+      <div className="flex items-start justify-between gap-x3">
         <div className="min-w-0">
-          <p className="text-[15px] font-bold text-ink">{session.title}</p>
-          <p className="mt-0.5 text-[12px] text-ink-4">
+          <h2 className="t6-bold text-fg-neutral">{session.title}</h2>
+          <p className="mt-x1 t4-regular text-fg-neutral-subtle">
             {dateLabel(session.examDate)} · {session.examTypeLabel}
           </p>
         </div>
+        {/* SEED Badge 는 텍스트 전용 — 아이콘 없이 톤으로 상태 구분 */}
         {confirmed ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-ok-soft px-2.5 py-1 text-[11px] font-semibold text-ok-ink">
-            <CheckCircle2 className="h-3.5 w-3.5" /> 확정
-          </span>
+          <Badge tone="ok" size="md">
+            확정
+          </Badge>
         ) : applied ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warn-soft px-2.5 py-1 text-[11px] font-semibold text-warn-ink">
-            <Clock className="h-3.5 w-3.5" /> 신청 접수됨
-          </span>
+          <Badge tone="warn" size="md">
+            신청 접수됨
+          </Badge>
         ) : null}
       </div>
 
       {session.subjects.length > 0 && (
-        <p className="mt-2 text-[12px] text-ink-3">과목: {session.subjects.join(", ")}</p>
+        <div className="mt-x3 flex flex-wrap gap-x1">
+          {session.subjects.map((subject, i) => (
+            <Badge key={`${i}-${subject}`} tone="gray">
+              {subject}
+            </Badge>
+          ))}
+        </div>
       )}
       {session.notes && (
-        <p className="mt-1 whitespace-pre-wrap text-[12px] text-ink-4">{session.notes}</p>
+        <p className="mt-x3 whitespace-pre-wrap t4-regular text-fg-neutral-muted">
+          {session.notes}
+        </p>
       )}
 
       {confirmed ? (
-        <p className="mt-3 rounded-[10px] bg-ok-soft/50 px-3 py-2.5 text-[12.5px] text-ink-2">
-          응시가 확정되었습니다. 변경이 필요하면 운영진에게 문의해 주세요.
-        </p>
+        <Notice tone="ok" icon={CheckCircle2} className="mt-x4">
+          응시가 확정됐어요. 변경이 필요하면 운영진에게 문의해 주세요.
+        </Notice>
       ) : (
         <>
           {!applied && (
-            <textarea
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              placeholder="요청사항 (선택)"
-              rows={2}
-              maxLength={300}
-              className="mt-3 w-full resize-none rounded-[12px] border border-line bg-panel px-3 py-2.5 text-[13px] text-ink placeholder:text-ink-4 focus:border-brand focus:outline-none"
-            />
+            <div className="mt-x4">
+              <TextField
+                label="요청사항"
+                indicator="선택"
+                value={memo}
+                onValueChange={({ slicedValue }) => setMemo(slicedValue)}
+                maxGraphemeCount={300}
+              >
+                <TextFieldTextarea maxLength={300} />
+              </TextField>
+            </div>
           )}
-          <div className="mt-3 flex gap-2">
+          <div className="mt-x3">
             {applied ? (
-              <button
-                onClick={cancel}
-                disabled={busy}
-                className="flex-1 rounded-[12px] border border-line bg-panel px-4 py-3 text-[14px] font-semibold text-ink-3 active:bg-canvas-2 disabled:opacity-50"
+              <Button
+                variant="gray"
+                size="lg"
+                block
+                loading={busy}
+                onClick={() => setCancelOpen(true)}
               >
-                {busy ? "처리 중…" : "신청 취소"}
-              </button>
+                신청 취소
+              </Button>
             ) : (
-              <button
-                onClick={apply}
-                disabled={busy}
-                className="flex-1 rounded-[12px] bg-brand px-4 py-3 text-[14px] font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-50"
-              >
-                {busy ? "처리 중…" : "신청하기"}
-              </button>
+              <Button variant="primary" size="lg" block loading={busy} onClick={apply}>
+                신청하기
+              </Button>
             )}
           </div>
         </>
       )}
-    </section>
+
+      <BottomSheet
+        open={cancelOpen}
+        onOpenChange={(o) => {
+          if (!busy) setCancelOpen(o);
+        }}
+        title="신청을 취소할까요?"
+        description={`‘${session.title}’ 신청이 취소돼요.`}
+        footer={
+          <>
+            <Button
+              variant="gray"
+              size="xl"
+              className="flex-1"
+              disabled={busy}
+              onClick={() => setCancelOpen(false)}
+            >
+              닫기
+            </Button>
+            <Button variant="primary" size="xl" className="flex-1" loading={busy} onClick={cancel}>
+              신청 취소
+            </Button>
+          </>
+        }
+      />
+    </Section>
   );
 }

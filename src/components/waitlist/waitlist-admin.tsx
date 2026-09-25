@@ -24,7 +24,62 @@ import {
 import { createConsultation } from "@/actions/consultations";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { DateTimePickerInput } from "@/components/ui/time-picker";
-import { formatDateTime } from "@/lib/utils";
+import { formatDateTime, cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input, inputBaseClass } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  EmptyState,
+  FilterChip,
+  FormActions,
+  FormField,
+  Notice,
+  SearchField,
+  Section,
+  Segmented,
+  StatCard,
+  StatCards,
+  StatusBadge,
+  TableCard,
+  Toolbar,
+  type Tone,
+} from "@/components/backoffice/ui";
+import { Switch } from "seed-design/ui/switch";
+import {
+  Building2,
+  CalendarPlus,
+  Check,
+  ClipboardList,
+  Copy,
+  FileText,
+  Link2,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Undo2,
+  UserPlus,
+  XCircle,
+} from "lucide-react";
+import { useConfirmDialog } from "@/components/suggestions/use-confirm-dialog";
 
 type StudentLite = { id: string; name: string; grade: string };
 
@@ -83,15 +138,15 @@ const STATUS_LABEL: Record<WaitlistStatus, string> = {
   ENROLLED: "등원",
   CANCELLED: "취소",
 };
-const STATUS_TONE: Record<WaitlistStatus, string> = {
-  WAITING: "bg-blue-50 text-blue-600",
-  INVITED: "bg-amber-50 text-amber-600",
-  ENROLLED: "bg-green-50 text-green-700",
-  CANCELLED: "bg-gray-100 text-gray-500",
+const STATUS_TONE: Record<WaitlistStatus, Tone> = {
+  WAITING: "info",
+  INVITED: "warn",
+  ENROLLED: "ok",
+  CANCELLED: "gray",
 };
 
-const btn = "rounded-md px-2.5 py-1 text-xs font-medium transition disabled:opacity-50";
-const input = "rounded-md border border-border bg-background px-3 py-2 text-sm";
+// 네이티브 select 를 SEED TextInput 규격으로
+const nativeSelect = cn("h-10 border-0 pr-x2", inputBaseClass);
 
 export function WaitlistAdmin({
   branches,
@@ -131,31 +186,47 @@ export function WaitlistAdmin({
     return group.findIndex((e) => e.id === entry.id) + 1;
   };
 
+  const waitlistWaiting = entries.filter((e) => e.status === "WAITING" && e.kind === "WAITLIST").length;
+  const invited = entries.filter((e) => e.status === "INVITED").length;
+  const enrolled = entries.filter((e) => e.status === "ENROLLED").length;
+  const inquiries = entries.filter((e) => e.kind === "INQUIRY").length;
+
   return (
-    <div>
+    <div className="flex flex-col gap-x6">
+      <StatCards cols={4}>
+        <StatCard label="대기 중" value={waitlistWaiting} unit="명" sub="단순 문의 제외" />
+        <StatCard label="안내 발송(초대됨)" value={invited} unit="명" />
+        <StatCard label="등원 확정" value={enrolled} unit="명" />
+        <StatCard label="단순 문의" value={inquiries} unit="건" />
+      </StatCards>
+
       <ShareApply />
 
-      <div className="mb-4 flex gap-2 border-b border-border">
-        {(["entries", "branches"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
-              tab === t ? "border-brand text-brand" : "border-transparent text-muted-foreground"
-            }`}
-          >
-            {t === "entries" ? `대기자 (${entries.length})` : `지점·프로그램 (${branches.length})`}
-          </button>
-        ))}
-      </div>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as "entries" | "branches")}>
+        <TabsList>
+          <TabsTrigger value="entries">
+            대기자
+            <span className={cn("t4-bold tabular-nums", tab === "entries" ? "text-fg-brand" : "text-fg-placeholder")}>
+              {entries.length}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="branches">
+            지점·프로그램
+            <span className={cn("t4-bold tabular-nums", tab === "branches" ? "text-fg-brand" : "text-fg-placeholder")}>
+              {branches.length}
+            </span>
+          </TabsTrigger>
+        </TabsList>
 
-      {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+        {error && <Notice tone="bad" className="mt-x4">{error}</Notice>}
 
-      {tab === "entries" ? (
-        <EntriesTab entries={entries} branches={branches} positionOf={positionOf} run={run} pending={pending} />
-      ) : (
-        <BranchesTab branches={branches} entries={entries} students={students} run={run} pending={pending} />
-      )}
+        <TabsContent value="entries">
+          <EntriesTab entries={entries} branches={branches} positionOf={positionOf} run={run} pending={pending} />
+        </TabsContent>
+        <TabsContent value="branches">
+          <BranchesTab branches={branches} entries={entries} students={students} run={run} pending={pending} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -163,6 +234,8 @@ export function WaitlistAdmin({
 /** 대기 신청 유도 메시지 + /apply 링크 공유 (저장 없음, 작성→복사). */
 function ShareApply() {
   const [origin, setOrigin] = useState("");
+  // SSR 과 첫 렌더를 맞추려고 마운트 뒤에 origin 을 읽는다 (기존 동작 유지)
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setOrigin(window.location.origin), []);
   const link = `${origin}/apply`;
   const [msg, setMsg] = useState(
@@ -179,36 +252,38 @@ function ShareApply() {
   }
 
   return (
-    <div className="mb-5 rounded-lg border border-border bg-muted/30 p-4">
-      <p className="text-sm font-semibold">대기 신청 링크 공유</p>
-      <p className="mb-3 text-xs text-muted-foreground">
-        유도 안내 메시지와 함께 카톡·문자로 보내세요. (예비 신청자에게 발송)
-      </p>
-      <div className="mb-2 flex items-center gap-2">
-        <input readOnly value={link} className={`${input} flex-1 text-xs`} />
-        <button
-          onClick={() => copy(link, "신청 링크가 복사되었습니다")}
-          className={`${btn} bg-gray-100 text-gray-700`}
-        >
-          링크만 복사
-        </button>
+    <Section
+      title="대기 신청 링크 공유"
+      description="안내 메시지와 함께 카톡·문자로 보내세요. (예비 신청자에게 발송)"
+    >
+      <div className="grid grid-cols-1 gap-x4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+        <FormField label="신청 링크" htmlFor="waitlist-apply-link">
+          <div className="flex gap-x2">
+            <Input id="waitlist-apply-link" readOnly value={link} className="min-w-0 flex-1" />
+            <Button variant="secondary" onClick={() => copy(link, "신청 링크가 복사되었습니다")}>
+              <Link2 />
+              링크만 복사
+            </Button>
+          </div>
+        </FormField>
+        <FormField label="안내 메시지" htmlFor="waitlist-apply-msg" hint="복사하면 메시지 아래에 링크가 붙어요.">
+          <Textarea
+            id="waitlist-apply-msg"
+            value={msg}
+            onChange={(e) => setMsg(e.target.value)}
+            rows={3}
+            className="resize-none"
+            placeholder="유도 안내 메시지"
+          />
+        </FormField>
       </div>
-      <textarea
-        value={msg}
-        onChange={(e) => setMsg(e.target.value)}
-        rows={3}
-        className={`${input} w-full resize-none text-sm`}
-        placeholder="유도 안내 메시지"
-      />
-      <div className="mt-2 flex justify-end">
-        <button
-          onClick={() => copy(`${msg}\n${link}`, "안내 메시지 + 링크가 복사되었습니다")}
-          className={`${btn} bg-brand text-white`}
-        >
+      <FormActions className="mt-x2">
+        <Button onClick={() => copy(`${msg}\n${link}`, "안내 메시지 + 링크가 복사되었습니다")} className="w-full sm:w-auto">
+          <Copy />
           메시지 + 링크 복사
-        </button>
-      </div>
-    </div>
+        </Button>
+      </FormActions>
+    </Section>
   );
 }
 
@@ -234,11 +309,11 @@ function matchesFilter(e: Entry, f: EntryFilter): boolean {
 
 /** 입실 희망 뱃지 — winter/immediate 외 값(과거 데이터)은 미표시 */
 function EntryPreferenceBadge({ value }: { value: string | null }) {
-  if (value !== "winter" && value !== "immediate") return <>-</>;
+  if (value !== "winter" && value !== "immediate") return <span className="text-fg-placeholder">—</span>;
   return value === "winter" ? (
-    <span className="rounded bg-sky-50 px-1.5 py-0.5 text-xs text-sky-600">윈터</span>
+    <StatusBadge tone="info">윈터</StatusBadge>
   ) : (
-    <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-xs text-emerald-600">즉시</span>
+    <StatusBadge tone="ok">즉시</StatusBadge>
   );
 }
 
@@ -259,13 +334,22 @@ function EntriesTab({
   const [editing, setEditing] = useState<Entry | null>(null);
   const [guiding, setGuiding] = useState<Entry | null>(null);
   const [consulting, setConsulting] = useState<Entry | null>(null);
+  const { prompt, dialog } = useConfirmDialog();
 
   const shown = entries.filter((e) => matchesFilter(e, filter));
   const countOf = (k: EntryFilter) => entries.filter((e) => matchesFilter(e, k)).length;
 
-  function handleCancel(e: Entry) {
-    // ponytail: 취소 사유는 prompt로 수집 — 별도 모달 없이 한 줄. 풍부한 UX 필요해지면 교체.
-    const reason = window.prompt(`${e.name} 대기 취소 사유를 입력하세요`, "");
+  async function handleCancel(e: Entry) {
+    // 취소 사유는 확인 다이얼로그에서 한 줄로 받는다 (비워도 됨).
+    const reason = await prompt({
+      title: `${e.name} 님의 대기를 취소할까요?`,
+      description: "취소해도 목록의 ‘취소’ 필터에서 다시 대기로 되돌릴 수 있어요.",
+      label: "취소 사유",
+      placeholder: "예: 타 독서실 등록",
+      confirmLabel: "대기 취소",
+      cancelLabel: "닫기",
+      destructive: true,
+    });
     if (reason === null) return; // 취소 안 함
     run(() => cancelWaitlist(e.id, reason));
   }
@@ -281,155 +365,141 @@ function EntriesTab({
     }
   }
 
+  const activeLabel = ENTRY_FILTERS.find((f) => f.key === filter)?.label ?? "";
+
   return (
     <div>
-      <div className="mb-3 flex flex-wrap gap-1.5">
+      <Toolbar>
         {ENTRY_FILTERS.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={`rounded-full px-3 py-1 text-xs font-medium ${
-              filter === f.key ? "bg-brand text-white" : "bg-muted text-muted-foreground"
-            }`}
-          >
-            {f.label} {countOf(f.key)}
-          </button>
+          <FilterChip key={f.key} selected={filter === f.key} count={countOf(f.key)} onClick={() => setFilter(f.key)}>
+            {f.label}
+          </FilterChip>
         ))}
-      </div>
+      </Toolbar>
 
-      {shown.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">해당 상태의 대기자가 없습니다.</p>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2">순번</th>
-                <th className="px-3 py-2">이름</th>
-                <th className="px-3 py-2">연락처</th>
-                <th className="px-3 py-2">지점</th>
-                <th className="px-3 py-2">학년/성별</th>
-                <th className="px-3 py-2">입실 희망</th>
-                <th className="px-3 py-2">프로그램</th>
-                <th className="px-3 py-2">등록일시</th>
-                <th className="px-3 py-2">상태</th>
-                <th className="px-3 py-2">처리</th>
-              </tr>
-            </thead>
-            <tbody>
+      <TableCard>
+        {shown.length === 0 ? (
+          <EmptyState
+            compact
+            icon={ClipboardList}
+            title={filter === "ALL" ? "아직 대기자가 없어요" : `‘${activeLabel}’ 상태의 대기자가 없어요`}
+            description={filter === "ALL" ? "위의 신청 링크를 공유하면 신청이 여기에 쌓여요." : "다른 필터를 눌러 확인해 보세요."}
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-16 text-right">순번</TableHead>
+                <TableHead>이름</TableHead>
+                <TableHead>연락처</TableHead>
+                <TableHead>지점</TableHead>
+                <TableHead>학년·성별</TableHead>
+                <TableHead>입실 희망</TableHead>
+                <TableHead>프로그램</TableHead>
+                <TableHead>등록일시</TableHead>
+                <TableHead>상태</TableHead>
+                <TableHead className="text-right">처리</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {shown.map((e) => (
-                <tr key={e.id} className="border-t border-border align-top">
-                  <td className="px-3 py-2 font-semibold text-brand">
-                    {e.status === "WAITING" && e.kind === "WAITLIST" ? positionOf(e) : "-"}
-                  </td>
-                  <td className="px-3 py-2 font-medium">
-                    <div className="flex flex-wrap items-center gap-1">
-                      {e.name}
-                      {e.kind === "INQUIRY" && (
-                        <span className="rounded bg-purple-50 px-1 py-0.5 text-[10px] text-purple-600">문의</span>
-                      )}
+                <TableRow key={e.id}>
+                  <TableCell className="text-right t4-bold text-fg-brand">
+                    {e.status === "WAITING" && e.kind === "WAITLIST" ? positionOf(e) : <span className="t4-regular text-fg-placeholder">—</span>}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-x1">
+                      <span className="whitespace-nowrap t4-medium">{e.name}</span>
+                      {e.kind === "INQUIRY" && <StatusBadge tone="violet">문의</StatusBadge>}
                       {e.matchedStudent && (
-                        <span
-                          className="rounded bg-green-50 px-1 py-0.5 text-[10px] text-green-600"
-                          title={`기존 원생: ${e.matchedStudent.name} (${e.matchedStudent.grade})`}
-                        >
-                          기존 원생
+                        <span title={`기존 원생: ${e.matchedStudent.name} (${e.matchedStudent.grade})`}>
+                          <StatusBadge tone="ok">기존 원생</StatusBadge>
                         </span>
                       )}
                     </div>
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    <div className="flex flex-wrap items-center gap-1">
-                      {e.phone || "-"}
-                      {e.phone && !e.phoneVerifiedAt && (
-                        <span className="rounded bg-orange-50 px-1 py-0.5 text-[10px] text-orange-600">미인증</span>
-                      )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-x1">
+                      <span className="whitespace-nowrap text-fg-neutral-muted">{e.phone || "—"}</span>
+                      {e.phone && !e.phoneVerifiedAt && <StatusBadge tone="warn">미인증</StatusBadge>}
                     </div>
-                  </td>
-                  <td className="px-3 py-2">{e.branchName}</td>
-                  <td className="px-3 py-2">
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">{e.branchName}</TableCell>
+                  <TableCell className="whitespace-nowrap text-fg-neutral-muted">
                     {e.gradeType ? (e.gradeType === "REPEAT" ? "N수생" : "재학생") : "-"} ·{" "}
                     {e.gender ? (e.gender === "MALE" ? "남" : "여") : "-"}
-                  </td>
-                  <td className="px-3 py-2">
+                  </TableCell>
+                  <TableCell>
                     <EntryPreferenceBadge value={e.entryPreference} />
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">{e.programName ?? "-"}</td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">{formatDateTime(e.createdAt)}</td>
-                  <td className="px-3 py-2">
-                    <span className={`rounded px-1.5 py-0.5 text-xs ${STATUS_TONE[e.status]}`}>
-                      {STATUS_LABEL[e.status]}
-                    </span>
+                  </TableCell>
+                  <TableCell className="text-fg-neutral-muted">{e.programName ?? "—"}</TableCell>
+                  <TableCell className="whitespace-nowrap t3-regular text-fg-neutral-subtle">{formatDateTime(e.createdAt)}</TableCell>
+                  <TableCell>
+                    <StatusBadge tone={STATUS_TONE[e.status]}>{STATUS_LABEL[e.status]}</StatusBadge>
                     {e.status === "CANCELLED" && e.cancelReason && (
-                      <p className="mt-1 max-w-[160px] text-[11px] text-gray-400">사유: {e.cancelReason}</p>
+                      <p className="mt-x1 max-w-40 t2-regular text-fg-neutral-subtle">사유: {e.cancelReason}</p>
                     )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap gap-1">
-                      <button
-                        disabled={pending}
-                        onClick={() => setEditing(e)}
-                        className={`${btn} bg-gray-100 text-gray-700`}
-                      >
-                        수정
-                      </button>
-                      <button
-                        disabled={pending}
-                        onClick={() => setConsulting(e)}
-                        className={`${btn} bg-violet-100 text-violet-700`}
-                      >
-                        면담 등록
-                      </button>
-                      <button
-                        disabled={pending}
-                        onClick={() => setGuiding(e)}
-                        className={`${btn} bg-amber-100 text-amber-700`}
-                      >
-                        {e.guideToken ? "안내 수정" : "안내 작성"}
-                      </button>
-                      {e.guideToken && (
-                        <button
-                          disabled={pending}
-                          onClick={() => copyGuideLink(e)}
-                          className={`${btn} bg-amber-50 text-amber-600`}
-                        >
-                          링크 복사
-                        </button>
-                      )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-x1">
                       {e.status !== "ENROLLED" && (
-                        <button
+                        <Button
+                          variant="secondary"
+                          size="xs"
                           disabled={pending}
                           onClick={() => run(() => setWaitlistStatus(e.id, "ENROLLED"))}
-                          className={`${btn} bg-green-100 text-green-700`}
                         >
+                          <Check />
                           등원확정
-                        </button>
+                        </Button>
                       )}
-                      {e.status === "CANCELLED" ? (
-                        <button
-                          disabled={pending}
-                          onClick={() => run(() => setWaitlistStatus(e.id, "WAITING"))}
-                          className={`${btn} bg-blue-100 text-blue-700`}
-                        >
-                          대기복귀
-                        </button>
-                      ) : (
-                        <button
-                          disabled={pending}
-                          onClick={() => handleCancel(e)}
-                          className={`${btn} bg-red-100 text-red-600`}
-                        >
-                          취소
-                        </button>
-                      )}
+                      <Button variant="ghost" size="xs" disabled={pending} onClick={() => setGuiding(e)}>
+                        <FileText />
+                        {e.guideToken ? "안내 수정" : "안내 작성"}
+                      </Button>
+                      <DropdownMenu modal={false}>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="size-8" aria-label={`${e.name} 더보기`} disabled={pending}>
+                            <MoreHorizontal />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-44">
+                          <DropdownMenuItem onSelect={() => setEditing(e)}>
+                            <Pencil />
+                            정보 수정
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => setConsulting(e)}>
+                            <CalendarPlus />
+                            면담 등록
+                          </DropdownMenuItem>
+                          {e.guideToken && (
+                            <DropdownMenuItem onSelect={() => copyGuideLink(e)}>
+                              <Link2 />
+                              안내 링크 복사
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          {e.status === "CANCELLED" ? (
+                            <DropdownMenuItem onSelect={() => run(() => setWaitlistStatus(e.id, "WAITING"))}>
+                              <Undo2 />
+                              대기복귀
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem className="text-fg-critical" onSelect={() => handleCancel(e)}>
+                              <XCircle />
+                              대기 취소
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+            </TableBody>
+          </Table>
+        )}
+      </TableCard>
 
       {editing && (
         <EditEntryModal
@@ -445,6 +515,7 @@ function EntriesTab({
 
       {guiding && <GuideEditorModal entry={guiding} onClose={() => setGuiding(null)} />}
       {consulting && <ConsultationModal entry={consulting} onClose={() => setConsulting(null)} />}
+      {dialog}
     </div>
   );
 }
@@ -486,41 +557,39 @@ function ConsultationModal({ entry, onClose }: { entry: Entry; onClose: () => vo
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="w-full max-w-md rounded-xl bg-background p-5 shadow-lg">
-        <h3 className="mb-1 text-base font-bold">면담 등록 — {entry.name}</h3>
-        <p className="mb-4 text-xs text-muted-foreground">
-          {matched ? `기존 원생(${matched.name}) 면담으로 등록됩니다.` : "신규 상담(예비)으로 등록됩니다."} 면담 관리에서 확인할 수 있어요.
-        </p>
-        <div className="space-y-3">
-          <label className="block text-xs text-muted-foreground">
-            면담 일시 (선택)
-            <DateTimePickerInput value={scheduledAt} onChange={setScheduledAt} className="mt-1 w-full" />
-          </label>
-          <label className="block text-xs text-muted-foreground">
-            안건/메모 (선택)
-            <textarea
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>면담 등록 — {entry.name}</DialogTitle>
+          <DialogDescription>
+            {matched ? `기존 원생(${matched.name}) 면담으로 등록돼요.` : "신규 상담(예비)으로 등록돼요."} 면담 관리에서 확인할 수 있어요.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-x4">
+          <FormField label="면담 일시" hint="선택 사항이에요.">
+            <DateTimePickerInput value={scheduledAt} onChange={setScheduledAt} className="w-full" />
+          </FormField>
+          <FormField label="안건·메모" htmlFor="waitlist-consult-agenda">
+            <Textarea
+              id="waitlist-consult-agenda"
               value={agenda}
               onChange={(e) => setAgenda(e.target.value)}
               rows={3}
-              className={`${input} mt-1 w-full resize-none`}
-              placeholder="면담 안건"
+              className="resize-none"
+              placeholder="면담 안건 (선택)"
             />
-          </label>
+          </FormField>
         </div>
-        <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className={`${btn} bg-muted text-muted-foreground`}>
+        <DialogFooter>
+          <Button variant="secondary" onClick={onClose}>
             닫기
-          </button>
-          <button onClick={save} disabled={saving} className={`${btn} bg-brand text-white`}>
-            {saving ? "등록 중..." : "면담 등록"}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+          <Button onClick={save} disabled={saving}>
+            {saving ? "등록 중…" : "면담 등록"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -552,28 +621,27 @@ function GuideEditorModal({ entry, onClose }: { entry: Entry; onClose: () => voi
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl bg-background p-5 shadow-lg">
-        <h3 className="mb-1 text-base font-bold">등록 안내 작성 — {entry.name}</h3>
-        <p className="mb-3 text-xs text-muted-foreground">
-          저장하면 공개 링크가 발급되고 자동 복사됩니다. 카톡·문자로 직접 전달하세요. (대기 상태면 “초대됨”으로 변경)
-        </p>
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-border p-2">
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col">
+        <DialogHeader>
+          <DialogTitle>등록 안내 작성 — {entry.name}</DialogTitle>
+          <DialogDescription>
+            저장하면 공개 링크가 발급되고 자동으로 복사돼요. 카톡·문자로 직접 전달해 주세요. (대기 상태면 “초대됨”으로 바뀌어요)
+          </DialogDescription>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-r3 border border-stroke-neutral-muted p-x3">
           <MarkdownEditor value={md} onChange={setMd} placeholder="등록 안내 / 정보 입력 / 입금 안내 등" />
         </div>
-        <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onClose} className={`${btn} bg-muted text-muted-foreground`}>
+        <DialogFooter>
+          <Button variant="secondary" onClick={onClose}>
             닫기
-          </button>
-          <button onClick={save} disabled={saving} className={`${btn} bg-brand text-white`}>
-            {saving ? "저장 중..." : "저장 + 링크 복사"}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+          <Button onClick={save} disabled={saving}>
+            {saving ? "저장 중…" : "저장 + 링크 복사"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -603,30 +671,31 @@ function EditEntryModal({
   const [note, setNote] = useState(entry.note ?? "");
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="w-full max-w-md rounded-xl bg-background p-5 shadow-lg">
-        <h3 className="mb-4 text-base font-bold">대기자 정보 수정 — {entry.branchName}</h3>
-        <div className="space-y-3">
-          <label className="block text-xs text-muted-foreground">
-            이름
-            <input className={`${input} mt-1 w-full`} value={name} onChange={(e) => setName(e.target.value)} />
-          </label>
-          <label className="block text-xs text-muted-foreground">
-            연락처
-            <input
-              className={`${input} mt-1 w-full`}
-              value={phone}
-              inputMode="numeric"
-              onChange={(e) => setPhone(e.target.value)}
-            />
-          </label>
-          <label className="block text-xs text-muted-foreground">
-            프로그램
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>대기자 정보 수정</DialogTitle>
+          <DialogDescription>{entry.branchName}</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-x4">
+          <div className="grid grid-cols-2 gap-x3">
+            <FormField label="이름" htmlFor="waitlist-edit-name">
+              <Input id="waitlist-edit-name" value={name} onChange={(e) => setName(e.target.value)} />
+            </FormField>
+            <FormField label="연락처" htmlFor="waitlist-edit-phone">
+              <Input
+                id="waitlist-edit-phone"
+                value={phone}
+                inputMode="numeric"
+                onChange={(e) => setPhone(e.target.value)}
+                className="tabular-nums"
+              />
+            </FormField>
+          </div>
+          <FormField label="프로그램" htmlFor="waitlist-edit-program">
             <select
-              className={`${input} mt-1 w-full`}
+              id="waitlist-edit-program"
+              className={nativeSelect}
               value={programId}
               onChange={(e) => setProgramId(e.target.value)}
             >
@@ -637,54 +706,51 @@ function EditEntryModal({
                 </option>
               ))}
             </select>
-          </label>
-          <div className="flex gap-3">
-            <label className="flex-1 text-xs text-muted-foreground">
-              학년
-              <select
-                className={`${input} mt-1 w-full`}
+          </FormField>
+          <div className="grid grid-cols-2 gap-x3">
+            <FormField label="학년">
+              <Segmented
+                aria-label="학년"
                 value={gradeType}
-                onChange={(e) => setGradeType(e.target.value as WaitGradeType)}
-              >
-                <option value="REPEAT">N수생</option>
-                <option value="ENROLLED">재학생</option>
-              </select>
-            </label>
-            <label className="flex-1 text-xs text-muted-foreground">
-              성별
-              <select
-                className={`${input} mt-1 w-full`}
+                onChange={(v) => setGradeType(v)}
+                options={[
+                  { value: "REPEAT", label: "N수생" },
+                  { value: "ENROLLED", label: "재학생" },
+                ]}
+              />
+            </FormField>
+            <FormField label="성별">
+              <Segmented
+                aria-label="성별"
                 value={gender}
-                onChange={(e) => setGender(e.target.value as WaitGender)}
-              >
-                <option value="MALE">남</option>
-                <option value="FEMALE">여</option>
-              </select>
-            </label>
+                onChange={(v) => setGender(v)}
+                options={[
+                  { value: "MALE", label: "남" },
+                  { value: "FEMALE", label: "여" },
+                ]}
+              />
+            </FormField>
           </div>
-          <label className="block text-xs text-muted-foreground">
-            메모/요청
-            <textarea
-              className={`${input} mt-1 w-full resize-none`}
+          <FormField label="메모·요청" htmlFor="waitlist-edit-note">
+            <Textarea
+              id="waitlist-edit-note"
+              className="resize-none"
               rows={2}
               value={note}
               onChange={(e) => setNote(e.target.value)}
             />
-          </label>
+          </FormField>
         </div>
-        <div className="mt-5 flex justify-end gap-2">
-          <button onClick={onClose} className={`${btn} bg-muted text-muted-foreground`}>
+        <DialogFooter>
+          <Button variant="secondary" onClick={onClose}>
             닫기
-          </button>
-          <button
-            onClick={() => onSave({ name, phone, programId: programId || null, gender, gradeType, note: note || null })}
-            className={`${btn} bg-brand text-white`}
-          >
+          </Button>
+          <Button onClick={() => onSave({ name, phone, programId: programId || null, gender, gradeType, note: note || null })}>
             저장
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -700,13 +766,13 @@ function CapacityBadge({
   const remaining = capacity != null ? capacity - enrolled : null;
   const full = remaining != null && remaining <= 0;
   return (
-    <span className="text-xs text-muted-foreground">
-      등원 <span className={`font-semibold ${full ? "text-red-500" : "text-gray-700"}`}>{enrolled}</span>
+    <span className="t3-regular tabular-nums text-fg-neutral-subtle">
+      등원 <span className={cn("t3-bold", full ? "text-fg-critical" : "text-fg-neutral")}>{enrolled}</span>
       {capacity != null && <span> / 정원 {capacity}</span>}
       {remaining != null && (
-        <span className={full ? "text-red-500" : "text-green-600"}> (잔여 {Math.max(0, remaining)})</span>
+        <span className={full ? "text-fg-critical" : "text-fg-positive"}> (잔여 {Math.max(0, remaining)})</span>
       )}
-      <span className="text-gray-300"> · </span>대기 {waiting}
+      <span className="text-fg-placeholder"> · </span>대기 {waiting}
     </span>
   );
 }
@@ -737,145 +803,177 @@ function BranchesTab({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-border p-4">
-        <input className={input} placeholder="지점명 (예: 동탄점)" value={name} onChange={(e) => setName(e.target.value)} />
-        <input className={input} placeholder="slug (예: dongtan)" value={slug} onChange={(e) => setSlug(e.target.value)} />
-        <button
-          disabled={pending}
-          onClick={() => {
+    <div className="flex flex-col gap-x6">
+      <Section title="지점 추가" description="slug 는 공개 신청 링크 주소에 쓰여요. 영문 소문자로 적어 주세요.">
+        <form
+          className="grid grid-cols-1 items-end gap-x3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+          onSubmit={(ev) => {
+            ev.preventDefault();
             run(() => createBranch({ name, slug }));
             setName("");
             setSlug("");
           }}
-          className={`${btn} bg-brand text-white`}
         >
-          지점 추가
-        </button>
-      </div>
+          <FormField label="지점명" htmlFor="waitlist-branch-name">
+            <Input id="waitlist-branch-name" placeholder="예: 동탄점" value={name} onChange={(e) => setName(e.target.value)} />
+          </FormField>
+          <FormField label="slug" htmlFor="waitlist-branch-slug">
+            <Input id="waitlist-branch-slug" placeholder="예: dongtan" value={slug} onChange={(e) => setSlug(e.target.value)} />
+          </FormField>
+          <Button type="submit" disabled={pending}>
+            <Plus />
+            지점 추가
+          </Button>
+        </form>
+      </Section>
+
+      {branches.length === 0 && (
+        <div className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
+          <EmptyState compact icon={Building2} title="아직 등록된 지점이 없어요" description="위에서 첫 지점을 추가해 보세요." />
+        </div>
+      )}
 
       {branches.map((b) => (
-        <div key={b.id} className="rounded-lg border border-border p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold">{b.name}</span>
-              <span className="text-xs text-muted-foreground">/{b.slug}</span>
-              {!b.isActive && (
-                <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">비활성</span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <select
-                className={input}
+        <Section
+          key={b.id}
+          title={
+            <>
+              {b.name}
+              <span className="t4-regular text-fg-neutral-subtle">/{b.slug}</span>
+              {!b.isActive && <StatusBadge tone="gray">비활성</StatusBadge>}
+            </>
+          }
+          actions={
+            <>
+              <Select
                 value={b.waitStatus}
-                onChange={(ev) => run(() => updateBranch(b.id, { waitStatus: ev.target.value as BranchWaitStatus }))}
+                onValueChange={(v) => run(() => updateBranch(b.id, { waitStatus: v as BranchWaitStatus }))}
               >
-                {Object.entries(WAIT_STATUS_LABEL).map(([k, label]) => (
-                  <option key={k} value={k}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-              <button
+                <SelectTrigger className="h-9 w-32" aria-label={`${b.name} 모집 상태`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(WAIT_STATUS_LABEL).map(([k, label]) => (
+                    <SelectItem key={k} value={k}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Switch
+                size="24"
+                label="활성"
+                checked={b.isActive}
                 disabled={pending}
-                onClick={() => run(() => updateBranch(b.id, { isActive: !b.isActive }))}
-                className={`${btn} bg-gray-100 text-gray-700`}
-              >
-                {b.isActive ? "비활성화" : "활성화"}
-              </button>
+                onCheckedChange={() => run(() => updateBranch(b.id, { isActive: !b.isActive }))}
+              />
+            </>
+          }
+        >
+          <div className="flex flex-col gap-x5">
+            {/* 지점 총정원 + 집계 */}
+            <div className="flex flex-wrap items-end gap-x4">
+              <FormField label="지점 총정원" htmlFor={`waitlist-branch-cap-${b.id}`}>
+                <Input
+                  id={`waitlist-branch-cap-${b.id}`}
+                  type="number"
+                  min={0}
+                  className="w-28 tabular-nums"
+                  defaultValue={b.capacity ?? ""}
+                  placeholder="미설정"
+                  onBlur={(ev) => {
+                    const next = capOrNull(ev.target.value);
+                    if (next !== b.capacity) run(() => updateBranch(b.id, { capacity: next }));
+                  }}
+                />
+              </FormField>
+              <div className="pb-x2_5">
+                <CapacityBadge capacity={b.capacity} enrolled={b.enrolled} waiting={b.waiting} />
+              </div>
             </div>
-          </div>
 
-          {/* 지점 총정원 + 집계 */}
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <label className="text-xs text-muted-foreground">
-              지점 총정원{" "}
-              <input
-                type="number"
-                min={0}
-                className={`${input} w-24`}
-                defaultValue={b.capacity ?? ""}
-                placeholder="미설정"
+            {/* 안내문 */}
+            <FormField label="공개 안내문" htmlFor={`waitlist-branch-notice-${b.id}`} hint="입력칸에서 벗어나면 바로 저장돼요.">
+              <Textarea
+                id={`waitlist-branch-notice-${b.id}`}
+                className="resize-none"
+                rows={2}
+                defaultValue={b.notice ?? ""}
+                placeholder="예: 현재 정원이 차서 대기 등록만 가능해요."
                 onBlur={(ev) => {
-                  const next = capOrNull(ev.target.value);
-                  if (next !== b.capacity) run(() => updateBranch(b.id, { capacity: next }));
+                  if (ev.target.value !== (b.notice ?? "")) run(() => updateBranch(b.id, { notice: ev.target.value }));
                 }}
               />
-            </label>
-            <CapacityBadge capacity={b.capacity} enrolled={b.enrolled} waiting={b.waiting} />
-          </div>
+            </FormField>
 
-          {/* 안내문 */}
-          <textarea
-            className={`${input} mt-3 w-full resize-none`}
-            rows={2}
-            defaultValue={b.notice ?? ""}
-            placeholder="공개 안내문 (예: 현재 정원이 차서 대기 등록만 가능해요.)"
-            onBlur={(ev) => {
-              if (ev.target.value !== (b.notice ?? "")) run(() => updateBranch(b.id, { notice: ev.target.value }));
-            }}
-          />
-
-          {/* 프로그램 */}
-          <div className="mt-4 space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">프로그램 · 정원</p>
-            {b.programs.length === 0 && <p className="text-xs text-muted-foreground">등록된 프로그램 없음</p>}
-            {b.programs.map((p) => (
-              <div key={p.id} className="flex flex-wrap items-center gap-2 rounded-md bg-muted/40 px-3 py-2">
-                <button
-                  disabled={pending}
-                  onClick={() => run(() => toggleProgram(p.id, !p.isActive))}
-                  className={`${btn} ${p.isActive ? "bg-blue-50 text-blue-600" : "bg-gray-100 text-gray-400 line-through"}`}
-                  title={p.isActive ? "클릭하여 비활성화" : "클릭하여 활성화"}
-                >
-                  {p.name}
-                </button>
-                <label className="text-xs text-muted-foreground">
-                  정원{" "}
-                  <input
-                    type="number"
-                    min={0}
-                    className={`${input} w-20`}
-                    defaultValue={p.capacity ?? ""}
-                    placeholder="미설정"
-                    onBlur={(ev) => {
-                      const next = capOrNull(ev.target.value);
-                      if (next !== p.capacity) run(() => updateProgram(p.id, { capacity: next }));
-                    }}
-                  />
-                </label>
-                <CapacityBadge capacity={p.capacity} enrolled={p.enrolled} waiting={p.waiting} />
-                <button
-                  disabled={pending}
-                  onClick={() => setEnrolling(p)}
-                  className={`${btn} ml-auto bg-green-50 text-green-700`}
-                >
-                  기존 원생 등록
-                </button>
-              </div>
-            ))}
-            <div className="flex gap-2 pt-1">
-              <input
-                className={`${input} flex-1`}
-                placeholder="프로그램명 추가"
-                value={programInputs[b.id] ?? ""}
-                onChange={(e) => setProgramInputs((prev) => ({ ...prev, [b.id]: e.target.value }))}
-              />
-              <button
-                disabled={pending}
-                onClick={() => {
+            {/* 프로그램 */}
+            <div className="flex flex-col gap-x2">
+              <p className="t4-medium text-fg-neutral">프로그램 · 정원</p>
+              <ul className="divide-y divide-stroke-neutral-muted overflow-hidden rounded-r3 border border-stroke-neutral-muted">
+                {b.programs.length === 0 && (
+                  <li className="px-x4 py-x4 text-center t4-regular text-fg-neutral-subtle">등록된 프로그램이 없어요</li>
+                )}
+                {b.programs.map((p) => (
+                  <li key={p.id} className="flex flex-wrap items-center gap-x-x4 gap-y-x2 px-x4 py-x3">
+                    <div className="flex min-w-40 items-center gap-x2_5">
+                      <Switch
+                        size="16"
+                        checked={p.isActive}
+                        disabled={pending}
+                        onCheckedChange={() => run(() => toggleProgram(p.id, !p.isActive))}
+                        inputProps={{ "aria-label": `${p.name} ${p.isActive ? "비활성화" : "활성화"}` }}
+                      />
+                      <span className={cn("t4-medium", p.isActive ? "text-fg-neutral" : "text-fg-neutral-subtle line-through")}>
+                        {p.name}
+                      </span>
+                    </div>
+                    <label className="flex items-center gap-x2 t3-medium text-fg-neutral-subtle">
+                      정원
+                      <Input
+                        type="number"
+                        min={0}
+                        className="h-9 w-20 tabular-nums"
+                        defaultValue={p.capacity ?? ""}
+                        placeholder="미설정"
+                        onBlur={(ev) => {
+                          const next = capOrNull(ev.target.value);
+                          if (next !== p.capacity) run(() => updateProgram(p.id, { capacity: next }));
+                        }}
+                      />
+                    </label>
+                    <CapacityBadge capacity={p.capacity} enrolled={p.enrolled} waiting={p.waiting} />
+                    <Button variant="secondary" size="xs" className="ml-auto" disabled={pending} onClick={() => setEnrolling(p)}>
+                      <UserPlus />
+                      기존 원생 등록
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+              <form
+                className="flex gap-x2"
+                onSubmit={(ev) => {
+                  ev.preventDefault();
                   const v = programInputs[b.id] ?? "";
                   if (!v.trim()) return;
                   run(() => createProgram(b.id, v));
                   setProgramInputs((prev) => ({ ...prev, [b.id]: "" }));
                 }}
-                className={`${btn} bg-brand text-white`}
               >
-                추가
-              </button>
+                <Input
+                  className="min-w-0 flex-1"
+                  placeholder="프로그램명 추가"
+                  aria-label={`${b.name} 프로그램명`}
+                  value={programInputs[b.id] ?? ""}
+                  onChange={(e) => setProgramInputs((prev) => ({ ...prev, [b.id]: e.target.value }))}
+                />
+                <Button type="submit" variant="ink" disabled={pending}>
+                  <Plus />
+                  추가
+                </Button>
+              </form>
             </div>
           </div>
-        </div>
+        </Section>
       ))}
 
       {enrolling && (
@@ -945,52 +1043,52 @@ function BulkEnrollModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl bg-background p-5 shadow-lg">
-        <h3 className="mb-1 text-base font-bold">기존 원생 등록 — {program.name}</h3>
-        <p className="mb-3 text-xs text-muted-foreground">
-          재원생(ACTIVE)을 이 프로그램 참여자로 추가합니다. 이미 참여 중인 학생은 목록에서 제외됩니다.
-        </p>
-        <input
-          className={`${input} mb-2`}
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="flex max-h-[85vh] max-w-md flex-col">
+        <DialogHeader>
+          <DialogTitle>기존 원생 등록 — {program.name}</DialogTitle>
+          <DialogDescription>
+            재원생을 이 프로그램 참여자로 추가해요. 이미 참여 중인 학생은 목록에서 빠져 있어요.
+          </DialogDescription>
+        </DialogHeader>
+        <SearchField
           placeholder="이름·학년 검색"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          className="sm:w-full"
+          aria-label="재원생 검색"
         />
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-md border border-border">
+        <div className="min-h-0 flex-1 divide-y divide-stroke-neutral-muted overflow-y-auto rounded-r3 border border-stroke-neutral-muted">
           {candidates.length === 0 ? (
-            <p className="p-4 text-center text-xs text-muted-foreground">추가할 수 있는 재원생이 없습니다.</p>
+            <p className="px-x4 py-x6 text-center t4-regular text-fg-neutral-subtle">추가할 수 있는 재원생이 없어요</p>
           ) : (
             candidates.map((s) => (
               <label
                 key={s.id}
-                className="flex cursor-pointer items-center gap-2 border-b border-border px-3 py-2 text-sm last:border-0 hover:bg-muted/40"
+                className="flex cursor-pointer items-center gap-x3 px-x4 py-x2_5 transition-colors hover:bg-bg-layer-default-pressed"
               >
-                <input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} className="h-4 w-4" />
-                <span className="font-medium">{s.name}</span>
-                <span className="text-xs text-muted-foreground">{s.grade}</span>
+                <Checkbox checked={selected.has(s.id)} onCheckedChange={() => toggle(s.id)} />
+                <span className="t4-medium text-fg-neutral">{s.name}</span>
+                <span className="t3-regular text-fg-neutral-subtle">{s.grade}</span>
                 {appliedIds.has(s.id) && (
-                  <span className="ml-auto rounded bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-600">신청함</span>
+                  <StatusBadge tone="info" className="ml-auto">신청함</StatusBadge>
                 )}
               </label>
             ))
           )}
         </div>
-        <div className="mt-4 flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">{selected.size}명 선택</span>
-          <div className="flex gap-2">
-            <button onClick={onClose} className={`${btn} bg-muted text-muted-foreground`}>
+        <DialogFooter className="sm:items-center sm:justify-between">
+          <span className="t3-regular tabular-nums text-fg-neutral-subtle">{selected.size}명 선택</span>
+          <div className="flex flex-col-reverse gap-x2 sm:flex-row">
+            <Button variant="secondary" onClick={onClose}>
               닫기
-            </button>
-            <button onClick={save} disabled={saving || selected.size === 0} className={`${btn} bg-brand text-white`}>
-              {saving ? "등록 중..." : "참여자 등록"}
-            </button>
+            </Button>
+            <Button onClick={save} disabled={saving || selected.size === 0}>
+              {saving ? "등록 중…" : "참여자 등록"}
+            </Button>
           </div>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

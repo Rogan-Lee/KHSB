@@ -7,11 +7,17 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { Switch } from "seed-design/ui/switch";
 import {
-  Loader2, CheckCircle2, Circle, Check, Filter,
-  Eye, EyeOff, ExternalLink, Sparkles,
+  Loader2, Check, Eye, EyeOff, History, Sparkles,
 } from "lucide-react";
+import {
+  FilterChip,
+  Segmented,
+  StatCard,
+  StatCards,
+  StatusBadge,
+} from "@/components/backoffice/ui";
 import {
   upsertDailyKakaoLog,
   summarizeKakaoRaw,
@@ -24,6 +30,15 @@ import {
   deriveFilterOptions,
   type StudentFilterState,
 } from "@/components/online/student-filter-bar";
+import {
+  DetailPane,
+  DetailPaneEmpty,
+  DetailPaneHeader,
+  MasterDetail,
+  PickerCount,
+  PickerItem,
+  PickerList,
+} from "@/components/online/student-picker";
 
 export type DailyLogRow = {
   studentId: string;
@@ -167,317 +182,289 @@ export function DailyLogPanel({
   };
 
   return (
-    <div className="space-y-3">
-      {/* 상단 툴바 */}
-      <div className="flex items-center gap-2 flex-wrap bg-muted/40 rounded-md px-3 py-2">
-        <span className="text-xs text-muted-foreground">
-          총 <b className="text-foreground">{rows.length}</b>명 · 기록{" "}
-          <b className="text-foreground">{recordedCount}</b>건
-          {unrecordedCount > 0 && (
-            <Badge variant="outline" className="ml-2 border-amber-300 text-amber-800 h-5 px-1.5 text-[10px]">
-              미기록 {unrecordedCount}
-            </Badge>
-          )}
-        </span>
-        {canToggleAll && (
-          <div className="ml-auto flex items-center gap-2 text-xs">
-            <Link
-              href="/online/daily-log"
-              className={cn(
-                "rounded-full px-3 py-1 font-medium",
-                !viewAll ? "bg-foreground text-background" : "border bg-background text-muted-foreground"
-              )}
-            >
-              내 학생만
-            </Link>
-            <Link
-              href="/online/daily-log?all=1"
-              className={cn(
-                "rounded-full px-3 py-1 font-medium",
-                viewAll ? "bg-foreground text-background" : "border bg-background text-muted-foreground"
-              )}
-            >
-              전체
-            </Link>
-          </div>
-        )}
-      </div>
+    <div className="flex flex-col gap-x6">
+      {/* 오늘 현황 */}
+      <StatCards cols={3}>
+        <StatCard label={viewAll ? "전체 학생" : "담당 학생"} value={rows.length} unit="명" />
+        <StatCard label="오늘 기록" value={recordedCount} unit="건" />
+        <StatCard
+          label="미기록"
+          value={unrecordedCount}
+          unit="명"
+          tone={unrecordedCount > 0 ? "warn" : "gray"}
+          sub={unrecordedCount > 0 ? "아직 오늘 보고가 없는 학생" : "모두 기록했어요"}
+        />
+      </StatCards>
 
-      {/* 학생 필터 (학생/학년/학교) */}
-      <StudentFilterBar
-        value={filter}
-        onChange={setFilter}
-        availableGrades={filterOptions.grades}
-        availableSchools={filterOptions.schools}
-        hasUnknownSchool={filterOptions.hasUnknownSchool}
-      />
+      <div className="flex flex-col gap-x4">
+        {/* 학생 필터 (학생/학년/학교) + 보기 범위 */}
+        <StudentFilterBar
+          value={filter}
+          onChange={setFilter}
+          availableGrades={filterOptions.grades}
+          availableSchools={filterOptions.schools}
+          hasUnknownSchool={filterOptions.hasUnknownSchool}
+          rightSlot={
+            canToggleAll ? (
+              <div className="flex items-center gap-x1_5" role="group" aria-label="보기 범위">
+                <ScopeLink href="/online/daily-log" selected={!viewAll}>
+                  내 학생만
+                </ScopeLink>
+                <ScopeLink href="/online/daily-log?all=1" selected={viewAll}>
+                  전체
+                </ScopeLink>
+              </div>
+            ) : undefined
+          }
+        />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-3 min-h-[600px]">
-        {/* 좌측 학생 리스트 */}
-        <div className="border rounded-lg bg-background overflow-hidden flex flex-col">
-          <div className="px-3 py-2 border-b">
-            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={onlyUnrecorded}
-                onChange={(e) => setOnlyUnrecorded(e.target.checked)}
-                className="rounded h-3 w-3"
-              />
-              <Filter className="h-3 w-3" />
-              미기록만 보기
-              <span className="ml-auto tabular-nums">
-                {filtered.length}/{rows.length}
-              </span>
-            </label>
-          </div>
-          <div className="flex-1 overflow-y-auto divide-y max-h-[600px]">
-            {filtered.length === 0 ? (
-              <p className="p-4 text-center text-xs text-muted-foreground">
-                조건에 맞는 학생이 없습니다
-              </p>
-            ) : (
-              filtered.map((r) => {
-                const isActive = activeStudentId === r.studentId;
-                return (
-                  <div
-                    key={r.studentId}
-                    onClick={() => setActiveStudentId(r.studentId)}
-                    className={cn(
-                      "cursor-pointer px-3 py-2.5 border-l-2 transition-colors",
-                      isActive
-                        ? "bg-primary/5 border-primary"
-                        : "hover:bg-muted/40 border-transparent"
-                    )}
+        <MasterDetail
+          list={
+            <PickerList
+              header={
+                <>
+                  <FilterChip
+                    selected={onlyUnrecorded}
+                    count={unrecordedCount}
+                    onClick={() => setOnlyUnrecorded((v) => !v)}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm truncate">{r.studentName}</span>
-                      <span className="text-[10px] text-muted-foreground">{r.grade}</span>
-                      <div className="ml-auto shrink-0">
-                        {r.log ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                    미기록만 보기
+                  </FilterChip>
+                  <PickerCount shown={filtered.length} total={rows.length} />
+                </>
+              }
+              isEmpty={filtered.length === 0}
+              emptyTitle={onlyUnrecorded && unrecordedCount === 0 ? "미기록 학생이 없어요" : undefined}
+              emptyDescription={onlyUnrecorded && unrecordedCount === 0 ? "오늘 보고를 모두 기록했어요" : undefined}
+            >
+              {filtered.map((r) => (
+                <PickerItem
+                  key={r.studentId}
+                  active={activeStudentId === r.studentId}
+                  onClick={() => setActiveStudentId(r.studentId)}
+                  name={r.studentName}
+                  grade={r.grade}
+                  badges={
+                    r.log ? (
+                      <StatusBadge tone="ok">기록됨</StatusBadge>
+                    ) : (
+                      <StatusBadge tone="warn">미기록</StatusBadge>
+                    )
+                  }
+                  description={
+                    r.log && (r.log.tags.length > 0 || !r.log.isParentVisible) ? (
+                      <>
+                        {r.log.tags.length > 0 && <span className="truncate">{r.log.tags.join(", ")}</span>}
+                        {!r.log.isParentVisible && (
+                          <span className="inline-flex items-center gap-x0_5">
+                            <EyeOff className="size-3" aria-hidden />
+                            내부
+                          </span>
+                        )}
+                      </>
+                    ) : undefined
+                  }
+                />
+              ))}
+            </PickerList>
+          }
+          detail={
+            <DetailPane>
+              {!activeRow ? (
+                <DetailPaneEmpty />
+              ) : (
+                <>
+                  <DetailPaneHeader
+                    title={activeRow.studentName}
+                    meta={<span className="t4-regular text-fg-neutral-subtle">{activeRow.grade}</span>}
+                    description={
+                      <>
+                        <span className="tabular-nums">{logDate}</span>
+                        <span aria-hidden>·</span>
+                        {activeRow.log ? (
+                          <span>{activeRow.log.authorName} 기록</span>
                         ) : (
-                          <Circle className="h-3.5 w-3.5 text-amber-400" />
+                          <span className="t3-medium text-fg-warning">미기록</span>
+                        )}
+                      </>
+                    }
+                    actions={
+                      <Button asChild variant="secondary" size="sm">
+                        <Link href={`/online/students/${activeRow.studentId}/daily-log`}>
+                          <History />
+                          과거 기록
+                        </Link>
+                      </Button>
+                    }
+                  />
+
+                  <div className="flex flex-col gap-x6 px-x5 py-x5">
+                    {/* 모드 switcher */}
+                    <Segmented
+                      aria-label="작성 방식"
+                      className="sm:w-auto sm:self-start"
+                      value={mode}
+                      onChange={setMode}
+                      options={[
+                        { value: "summary", label: "요약 직접 입력" },
+                        {
+                          value: "raw",
+                          label: (
+                            <span className="inline-flex items-center gap-x1">
+                              <Sparkles className="size-4" aria-hidden />
+                              원문 붙여넣기 + AI 요약
+                            </span>
+                          ),
+                        },
+                      ]}
+                    />
+
+                    {/* 원문 (AI 모드만) */}
+                    {mode === "raw" && (
+                      <div className="flex flex-col gap-x2">
+                        <div className="flex items-center justify-between gap-x2">
+                          <label htmlFor="daily-log-raw" className="t4-medium text-fg-neutral">
+                            카톡 원문
+                          </label>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={handleAiSummarize}
+                            disabled={aiBusy || !rawContent.trim()}
+                          >
+                            {aiBusy ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                            {aiBusy ? "요약 중…" : "AI 요약"}
+                          </Button>
+                        </div>
+                        <Textarea
+                          id="daily-log-raw"
+                          value={rawContent}
+                          onChange={(e) => setRawContent(e.target.value)}
+                          rows={8}
+                          placeholder="카톡 대화 원문을 그대로 붙여넣고 'AI 요약' 버튼을 누르면 요약·태그가 자동으로 채워집니다. (최대 20,000자)"
+                          className="resize-y"
+                        />
+                        <p className="t3-regular text-fg-neutral-subtle">
+                          원문은 저장되지만 학부모 공개 페이지에는 보이지 않아요. 요약만 보여요.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* 요약 */}
+                    <div className="flex flex-col gap-x2">
+                      <div className="flex items-center gap-x2">
+                        <label htmlFor="daily-log-summary" className="t4-medium text-fg-neutral">
+                          {mode === "raw" ? "AI 추천 요약 (검토 후 저장)" : "오늘 대화 요약"}
+                        </label>
+                        {aiSummarized && (
+                          <StatusBadge tone="violet">
+                            <Sparkles aria-hidden />
+                            AI 생성
+                          </StatusBadge>
                         )}
                       </div>
+                      <Textarea
+                        id="daily-log-summary"
+                        value={summary}
+                        onChange={(e) => {
+                          setSummary(e.target.value);
+                          if (aiSummarized) setAiSummarized(false);
+                        }}
+                        rows={mode === "raw" ? 5 : 8}
+                        placeholder="오늘 학생과 나눈 카톡 대화의 핵심 요약을 적어 주세요. 학부모 공개 시 보고서 자료로 활용됩니다."
+                        className="resize-y"
+                      />
                     </div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                      {r.log ? (
-                        <>
-                          <span className="text-emerald-600">기록됨</span>
-                          {r.log.tags.length > 0 && (
-                            <span className="truncate">· {r.log.tags.join(", ")}</span>
+
+                    {/* 태그 */}
+                    <div className="flex flex-col gap-x2">
+                      <p className="t4-medium text-fg-neutral">태그</p>
+                      <div className="flex flex-wrap gap-x1_5">
+                        {KAKAO_LOG_TAGS.map((tag) => (
+                          <FilterChip
+                            key={tag}
+                            selected={tags.includes(tag)}
+                            onClick={() => toggleTag(tag)}
+                          >
+                            {tag}
+                          </FilterChip>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 학부모 공개 토글 */}
+                    <div className="flex items-center justify-between gap-x4 rounded-r3 bg-bg-layer-fill px-x4 py-x3">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-x1_5 t4-medium text-fg-neutral">
+                          {isParentVisible ? (
+                            <Eye className="size-4 text-fg-positive" aria-hidden />
+                          ) : (
+                            <EyeOff className="size-4 text-fg-neutral-subtle" aria-hidden />
                           )}
-                          {!r.log.isParentVisible && (
-                            <span className="text-slate-500">· 내부</span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-amber-600">미기록</span>
+                          {isParentVisible ? "학부모 보고서에 포함" : "내부 메모 (학부모 비공개)"}
+                        </p>
+                        <p className="mt-x0_5 t3-regular text-fg-neutral-subtle">
+                          끄면 직원만 볼 수 있는 내부 메모로 저장돼요
+                        </p>
+                      </div>
+                      <Switch
+                        size="24"
+                        checked={isParentVisible}
+                        onCheckedChange={(v) => setIsParentVisible(v)}
+                        inputProps={{ "aria-label": "학부모 보고서에 포함" }}
+                      />
+                    </div>
+
+                    {/* 저장 */}
+                    <div className="flex flex-col-reverse items-stretch gap-x2 border-t border-stroke-neutral-muted pt-x4 sm:flex-row sm:items-center sm:justify-end">
+                      {hasEdits && (
+                        <span className="text-center t3-medium text-fg-warning sm:text-right">
+                          변경됨 — 저장 필요
+                        </span>
                       )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* 우측: 상세 */}
-        <div className="border rounded-lg bg-background flex flex-col min-h-[600px]">
-          {!activeRow ? (
-            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-              좌측에서 학생을 선택하세요
-            </div>
-          ) : (
-            <>
-              {/* 헤더 */}
-              <div className="px-5 py-3 border-b flex items-center gap-3 flex-wrap">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-base">{activeRow.studentName}</h3>
-                    <span className="text-xs text-muted-foreground">{activeRow.grade}</span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    {logDate}
-                    {activeRow.log ? ` · ${activeRow.log.authorName} 기록` : " · 미기록"}
-                  </p>
-                </div>
-                <Link
-                  href={`/online/students/${activeRow.studentId}/daily-log`}
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  과거 기록
-                </Link>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                {/* 모드 switcher */}
-                <div className="inline-flex rounded-md border bg-muted/40 p-0.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setMode("summary")}
-                    className={cn(
-                      "px-3 py-1 rounded font-medium transition-colors",
-                      mode === "summary" ? "bg-background shadow-sm" : "text-muted-foreground"
-                    )}
-                  >
-                    요약 직접 입력
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode("raw")}
-                    className={cn(
-                      "px-3 py-1 rounded font-medium transition-colors inline-flex items-center gap-1",
-                      mode === "raw" ? "bg-background shadow-sm" : "text-muted-foreground"
-                    )}
-                  >
-                    <Sparkles className="h-3 w-3" />
-                    원문 붙여넣기 + AI 요약
-                  </button>
-                </div>
-
-                {/* 원문 (AI 모드만) */}
-                {mode === "raw" && (
-                  <section>
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        카톡 원문
-                      </h4>
                       <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={handleAiSummarize}
-                        disabled={aiBusy || !rawContent.trim()}
+                        type="button"
+                        onClick={handleSave}
+                        disabled={saving || !summary.trim() || !hasEdits}
                       >
-                        {aiBusy ? (
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        ) : (
-                          <Sparkles className="h-3 w-3 mr-1" />
-                        )}
-                        AI 요약
+                        {saving ? <Loader2 className="animate-spin" /> : <Check />}
+                        {saving ? "저장 중…" : "저장"}
                       </Button>
                     </div>
-                    <Textarea
-                      value={rawContent}
-                      onChange={(e) => setRawContent(e.target.value)}
-                      rows={8}
-                      placeholder="카톡 대화 원문을 그대로 붙여넣고 'AI 요약' 버튼을 누르면 요약·태그가 자동으로 채워집니다. (최대 20,000자)"
-                      className="text-[12px] leading-relaxed resize-y font-mono"
-                    />
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      원문은 DB 에 저장되지만 학부모 공개 페이지엔 노출되지 않습니다 (요약만 보임).
-                    </p>
-                  </section>
-                )}
-
-                {/* 요약 */}
-                <section>
-                  <div className="flex items-center gap-2 mb-2">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      {mode === "raw" ? "AI 추천 요약 (검토 후 저장)" : "오늘 대화 요약"}
-                    </h4>
-                    {aiSummarized && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-medium rounded-full bg-purple-100 text-purple-800 px-2 py-0.5">
-                        <Sparkles className="h-2.5 w-2.5" />
-                        AI 생성
-                      </span>
-                    )}
                   </div>
-                  <Textarea
-                    value={summary}
-                    onChange={(e) => {
-                      setSummary(e.target.value);
-                      if (aiSummarized) setAiSummarized(false);
-                    }}
-                    rows={mode === "raw" ? 5 : 8}
-                    placeholder="오늘 학생과 나눈 카톡 대화의 핵심 요약을 적어 주세요. 학부모 공개 시 보고서 자료로 활용됩니다."
-                    className="text-sm leading-relaxed resize-y"
-                  />
-                </section>
-
-                {/* 태그 */}
-                <section>
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                    태그
-                  </h4>
-                  <div className="flex flex-wrap gap-1.5">
-                    {KAKAO_LOG_TAGS.map((tag) => {
-                      const active = tags.includes(tag);
-                      return (
-                        <button
-                          key={tag}
-                          type="button"
-                          onClick={() => toggleTag(tag)}
-                          className={cn(
-                            "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                            active
-                              ? "bg-foreground text-background"
-                              : "border bg-background text-muted-foreground hover:text-foreground hover:border-foreground/20"
-                          )}
-                        >
-                          {tag}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </section>
-
-                {/* 학부모 공개 토글 */}
-                <section>
-                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                    공개 여부
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={() => setIsParentVisible((v) => !v)}
-                    className={cn(
-                      "inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm",
-                      isParentVisible
-                        ? "border-emerald-300 bg-emerald-50 text-emerald-900"
-                        : "border-slate-300 bg-slate-50 text-slate-700"
-                    )}
-                  >
-                    {isParentVisible ? (
-                      <>
-                        <Eye className="h-4 w-4" />
-                        학부모 보고서에 포함
-                      </>
-                    ) : (
-                      <>
-                        <EyeOff className="h-4 w-4" />
-                        내부 메모 (학부모 비공개)
-                      </>
-                    )}
-                  </button>
-                </section>
-
-                {/* 저장 */}
-                <section className="border-t pt-4">
-                  <div className="flex items-center justify-end gap-2">
-                    {hasEdits && (
-                      <span className="text-[11px] text-amber-700">변경됨 — 저장 필요</span>
-                    )}
-                    <Button
-                      size="sm"
-                      onClick={handleSave}
-                      disabled={saving || !summary.trim() || !hasEdits}
-                    >
-                      {saving ? (
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                      ) : (
-                        <Check className="h-3 w-3 mr-1" />
-                      )}
-                      저장
-                    </Button>
-                  </div>
-                </section>
-              </div>
-            </>
-          )}
-        </div>
+                </>
+              )}
+            </DetailPane>
+          }
+        />
       </div>
     </div>
+  );
+}
+
+/** 보기 범위 전환 링크 — FilterChip 과 같은 모양의 URL 링크 */
+function ScopeLink({
+  href,
+  selected,
+  children,
+}: {
+  href: string;
+  selected: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={selected ? "page" : undefined}
+      className={cn(
+        "inline-flex h-8 shrink-0 items-center rounded-full px-x3 t3-medium transition-colors",
+        selected
+          ? "bg-bg-neutral-inverted text-fg-neutral-inverted"
+          : "bg-bg-layer-default text-fg-neutral-muted shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] hover:bg-bg-layer-default-pressed",
+      )}
+    >
+      {children}
+    </Link>
   );
 }

@@ -3,9 +3,9 @@ import { validateMagicLink } from "@/lib/student-auth";
 import { todayKST } from "@/lib/utils";
 import { listMyScheduleProposals } from "@/actions/online/schedule-proposals";
 import { getMyDailyPlans, getMyWeekSchedule } from "@/actions/student-schedule";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScheduleSubmitPanel } from "./_components/schedule-submit-panel";
 import { MySchedulePanel } from "./_components/my-schedule-panel";
+import { ScheduleTabs } from "./_components/schedule-tabs";
 
 export const dynamic = "force-dynamic";
 
@@ -25,26 +25,18 @@ export default async function StudentSchedulePage({
   ]);
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-6">
-      <Tabs defaultValue="my-schedule">
-        <TabsList className="mb-4 grid w-full grid-cols-2">
-          <TabsTrigger value="my-schedule">내 일정</TabsTrigger>
-          <TabsTrigger value="submit">등원 스케줄</TabsTrigger>
-        </TabsList>
-        <TabsContent value="my-schedule">
-          <MySchedulePanel
-            token={token}
-            weekStart={week.weekStart}
-            todayStr={todayKST().toISOString().slice(0, 10)}
-            timetable={week.timetable}
-            events={week.events}
-            plans={plans}
-          />
-        </TabsContent>
-        <TabsContent value="submit">
-          <ScheduleSubmitPanel token={token} history={history} />
-        </TabsContent>
-      </Tabs>
-    </div>
+    <ScheduleTabs
+      mySchedule={
+        <MySchedulePanel
+          token={token}
+          weekStart={week.weekStart}
+          todayStr={todayKST().toISOString().slice(0, 10)}
+          timetable={week.timetable}
+          events={week.events}
+          plans={plans}
+        />
+      }
+      submit={<ScheduleSubmitPanel token={token} history={history} />}
+    />
   );
 }

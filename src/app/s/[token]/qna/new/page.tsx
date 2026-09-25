@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
 import { validateMagicLink } from "@/lib/student-auth";
 import { QuestionForm } from "../_components/question-form";
 
@@ -14,15 +12,13 @@ export default async function NewStudentQuestionPage({
   if (!session) redirect("/s/expired");
 
   return (
-    <div className="space-y-4">
-      <Link
-        href={`/s/${token}/qna`}
-        className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-4 active:text-ink-2"
-      >
-        <ChevronLeft className="h-4 w-4" strokeWidth={2.5} />
-        질문 목록
-      </Link>
-      <h1 className="text-[18px] font-bold tracking-[-0.02em] text-ink">새 질문</h1>
+    <div className="pt-x2">
+      <div className="mb-x8">
+        <h1 className="t9-bold text-fg-neutral">어떤 문제가 궁금한가요?</h1>
+        <p className="mt-x2 t5-regular text-fg-neutral-subtle">
+          사진 한 장이면 충분해요. 멘토가 풀이를 차근차근 알려드릴게요.
+        </p>
+      </div>
       <QuestionForm token={token} />
     </div>
   );

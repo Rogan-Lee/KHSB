@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PageIntro } from "@/components/ui/page-intro";
-import { ChevronLeft } from "lucide-react";
+import { EmptyState, PageHeader, Section, StatusBadge } from "@/components/backoffice/ui";
+import { Pencil, Users } from "lucide-react";
 import { ExamSeatManager } from "@/components/exams/exam-seat-manager";
 import { ExamScoreBulkEditor } from "@/components/exams/exam-score-bulk-editor";
 import { ExamApplicationAdmin } from "@/components/exams/exam-application-admin";
@@ -98,47 +97,48 @@ export default async function ExamSessionDetailPage({
     notes: sc.notes,
   }));
 
+  const examDateLabel = session.examDate.toISOString().slice(0, 10).replaceAll("-", ".");
   const headerDescription = isExternalExam
-    ? `${EXAM_TYPE_LABELS[session.examType]} · 과목: ${session.subjects.join(", ")}`
-    : `${EXAM_TYPE_LABELS[session.examType]} · ${session.room}룸 · 과목: ${session.subjects.join(", ")}`;
+    ? `${examDateLabel} · 과목 ${session.subjects.join(", ")}`
+    : `${examDateLabel} · ${session.room}룸 · 과목 ${session.subjects.join(", ")}`;
 
   return (
-    <div className="space-y-4">
-      <div>
-        <Link href="/exams" className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-          <ChevronLeft className="h-3 w-3" />
-          시험 세션 목록
-        </Link>
-      </div>
-      <PageIntro
-        tag={`EXAMS · ${session.examDate.toISOString().slice(0, 10)}`}
+    <div>
+      <PageHeader
+        back={{ href: "/exams", label: "시험 관리" }}
         title={session.title}
+        meta={<StatusBadge tone="info">{EXAM_TYPE_LABELS[session.examType]}</StatusBadge>}
         description={headerDescription}
-        accent="text-info"
+        actions={
+          <Button variant="outline" asChild>
+            <Link href={`/exams/${id}/edit`}>
+              <Pencil />
+              세션 정보 수정
+            </Link>
+          </Button>
+        }
       />
 
-      <Card>
-        <CardContent className="pt-4">
-          <ExamApplicationAdmin
-            sessionId={session.id}
-            applicationOpen={session.applicationOpen}
-            applications={applicationRows}
-          />
-        </CardContent>
-      </Card>
+      <div className="flex flex-col gap-x6">
+        <ExamApplicationAdmin
+          sessionId={session.id}
+          applicationOpen={session.applicationOpen}
+          applications={applicationRows}
+        />
 
-      {isExternalExam ? (
-        // 외부 시험: 좌석 배정 없이 성적 입력만.
-        <Card>
-          <CardContent className="pt-4">
-            <div className="mb-3 text-xs text-muted-foreground">
-              외부 시험({EXAM_TYPE_LABELS[session.examType]})은 자습실 좌석 배정이 필요 없습니다.
-              아래 전체 학생 목록에서 응시한 학생만 점수를 입력하면 됩니다 (빈 값은 저장되지 않음).
-            </div>
+        {isExternalExam ? (
+          // 외부 시험: 좌석 배정 없이 성적 입력만.
+          <Section
+            title="성적 입력"
+            description={`${EXAM_TYPE_LABELS[session.examType]}은 자습실 좌석 배정이 필요 없어요. 응시한 학생만 점수를 입력하면 돼요 (빈 값은 저장되지 않아요).`}
+          >
             {externalParticipants.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">
-                ACTIVE 상태의 오프라인 학생이 없습니다.
-              </p>
+              <EmptyState
+                compact
+                icon={Users}
+                title="재원 중인 오프라인 학생이 없어요"
+                description="ACTIVE 상태의 오프라인 학생이 있어야 성적을 입력할 수 있어요."
+              />
             ) : (
               <ExamScoreBulkEditor
                 sessionId={session.id}
@@ -147,19 +147,22 @@ export default async function ExamSessionDetailPage({
                 existing={existingScores}
               />
             )}
-          </CardContent>
-        </Card>
-      ) : (
-        // PRIVATE_MOCK (자습실 시험): 기존 2탭 흐름 유지.
-        <Tabs defaultValue="seats">
-          <TabsList>
-            <TabsTrigger value="seats">좌석 배치 ({session.assignments.length}명)</TabsTrigger>
-            <TabsTrigger value="scores">성적 일괄 입력</TabsTrigger>
-          </TabsList>
+          </Section>
+        ) : (
+          // PRIVATE_MOCK (자습실 시험): 기존 2탭 흐름 유지.
+          <Tabs defaultValue="seats">
+            <TabsList>
+              <TabsTrigger value="seats" className="group">
+                좌석 배치
+                <span className="t4-bold tabular-nums text-fg-placeholder group-data-[state=active]:text-fg-brand">
+                  {session.assignments.length}명
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="scores">성적 일괄 입력</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="seats" className="mt-4">
-            <Card>
-              <CardContent className="pt-4">
+            <TabsContent value="seats">
+              <Section>
                 <ExamSeatManager
                   sessionId={session.id}
                   assignments={session.assignments.map((a) => ({
@@ -178,17 +181,18 @@ export default async function ExamSessionDetailPage({
                   }))}
                   seatOwnerMap={seatOwnerMap}
                 />
-              </CardContent>
-            </Card>
-          </TabsContent>
+              </Section>
+            </TabsContent>
 
-          <TabsContent value="scores" className="mt-4">
-            <Card>
-              <CardContent className="pt-4">
+            <TabsContent value="scores">
+              <Section>
                 {seatedParticipants.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-8 text-center">
-                    먼저 &quot;좌석 배치&quot; 탭에서 응시자를 선택하세요.
-                  </p>
+                  <EmptyState
+                    compact
+                    icon={Users}
+                    title="아직 응시자가 없어요"
+                    description={"먼저 \"좌석 배치\" 탭에서 응시자를 선택하세요."}
+                  />
                 ) : (
                   <ExamScoreBulkEditor
                     sessionId={session.id}
@@ -197,16 +201,10 @@ export default async function ExamSessionDetailPage({
                     existing={existingScores}
                   />
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      )}
-
-      <div className="flex justify-end">
-        <Link href={`/exams/${id}/edit`}>
-          <Button variant="outline" size="sm">세션 정보 수정</Button>
-        </Link>
+              </Section>
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     </div>
   );
