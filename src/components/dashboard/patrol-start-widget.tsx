@@ -4,18 +4,21 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-import { ShieldCheck, Play, ArrowRight, Square, Loader2 } from "lucide-react";
+import { ShieldCheck, Play, ArrowRight, Square } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { IconTile, StatusBadge } from "@/components/backoffice/ui";
+import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { startPatrolRound, endPatrolRound } from "@/actions/patrol";
 
 type ActiveRound = { id: string; checkedCount: number } | null;
 
 // 대시보드 순찰 위젯 — 여기서 바로 순찰 시작/종료. 시작하면 "순찰 중"으로 전환되고
-// 종료 버튼이 노출됨. 전체 순찰 화면은 "이동"으로 /patrol/run 진입.
+// 종료 버튼이 노출됨. 전체 순찰 화면은 "순찰 화면으로"로 /patrol/run 진입.
 export function PatrolStartWidget({ active }: { active: ActiveRound }) {
   const router = useRouter();
   const [round, setRound] = useState<ActiveRound>(active);
   const [pending, startTransition] = useTransition();
+  const [confirmEnd, setConfirmEnd] = useState(false);
 
   const running = round != null;
   // 서버 prop(active)이 로컬 round 와 같은 회차면 최신 점검 수를 신뢰
@@ -37,11 +40,11 @@ export function PatrolStartWidget({ active }: { active: ActiveRound }) {
 
   function handleEnd() {
     if (!round) return;
-    if (!confirm("순찰을 종료할까요?")) return;
     startTransition(async () => {
       try {
         await endPatrolRound(undefined, round.id);
         setRound(null);
+        setConfirmEnd(false);
         toast.success("순찰을 종료했어요");
         router.refresh();
       } catch (e) {
@@ -51,63 +54,60 @@ export function PatrolStartWidget({ active }: { active: ActiveRound }) {
   }
 
   return (
-    <div
-      className={cn(
-        "rounded-[12px] border px-[14px] py-3 flex items-center gap-3 transition-colors shadow-[var(--shadow-xs)]",
-        running ? "border-ok/30 bg-ok-soft" : "border-line bg-panel"
-      )}
+    <section
+      aria-label="순찰"
+      className="flex flex-col gap-x4 rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default p-x5 sm:flex-row sm:items-center"
     >
-      <span
-        className={cn(
-          "grid place-items-center w-[36px] h-[36px] rounded-[10px] shrink-0",
-          running ? "bg-ok text-white" : "bg-ink-6 text-ink-3"
-        )}
-      >
-        <ShieldCheck className="h-4 w-4" />
-      </span>
-      <div className="flex-1 min-w-0">
-        <p className="text-[11px] text-ink-4 leading-none mb-1">순찰</p>
-        {running ? (
-          <p className="text-[13px] font-semibold text-ok-ink leading-tight">
-            순찰 중 · 점검 {checkedCount}건
+      <div className="flex min-w-0 flex-1 items-center gap-x4">
+        <IconTile icon={ShieldCheck} tone={running ? "ok" : "brand"} size={48} />
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x2">
+            <h2 className="t5-bold text-fg-neutral">
+              {running ? `순찰 중 · 점검 ${checkedCount}건` : "지금 순찰을 시작하세요"}
+            </h2>
+            {running && <StatusBadge tone="ok">진행 중</StatusBadge>}
+          </div>
+          <p className="mt-x0_5 t4-regular text-fg-neutral-subtle">
+            {running
+              ? "순찰 화면에서 좌석별 점검을 이어서 기록할 수 있어요"
+              : "순찰을 시작하면 좌석별 점검을 바로 기록할 수 있어요"}
           </p>
-        ) : (
-          <p className="text-[13px] font-semibold text-ink tracking-[-0.01em] leading-tight">
-            지금 순찰을 시작하세요
-          </p>
-        )}
+        </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
+
+      <div className="flex shrink-0 items-center gap-x2 max-sm:[&>*]:flex-1">
         {running ? (
           <>
-            <Link
-              href="/patrol/run"
-              className="inline-flex items-center gap-1 rounded-[8px] border border-ok/40 px-3 h-8 text-xs font-semibold text-ok-ink hover:bg-ok/10"
-            >
-              이동 <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-            <button
-              type="button"
-              onClick={handleEnd}
-              disabled={pending}
-              className="inline-flex items-center gap-1 rounded-[8px] border border-line px-3 h-8 text-xs font-semibold text-ink-3 hover:bg-panel-2 disabled:opacity-50"
-            >
-              {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
+            <Button variant="secondary" onClick={() => setConfirmEnd(true)} disabled={pending}>
+              <Square />
               종료
-            </button>
+            </Button>
+            <Button asChild>
+              <Link href="/patrol/run">
+                순찰 화면으로
+                <ArrowRight />
+              </Link>
+            </Button>
           </>
         ) : (
-          <button
-            type="button"
-            onClick={handleStart}
-            disabled={pending}
-            className="inline-flex items-center gap-1 rounded-[8px] bg-slate-900 px-3 h-8 text-xs font-semibold text-white disabled:opacity-50"
-          >
-            {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-            순찰 시작
-          </button>
+          <Button onClick={handleStart} disabled={pending}>
+            <Play />
+            {pending ? "시작하는 중…" : "순찰 시작"}
+          </Button>
         )}
       </div>
-    </div>
+
+      <ConfirmDialog
+        open={confirmEnd}
+        onOpenChange={setConfirmEnd}
+        title="순찰을 종료할까요?"
+        description={`이번 순찰에서 점검 ${checkedCount}건을 기록했어요.`}
+        confirmLabel="종료"
+        pendingLabel="종료하는 중…"
+        destructive={false}
+        pending={pending}
+        onConfirm={handleEnd}
+      />
+    </section>
   );
 }

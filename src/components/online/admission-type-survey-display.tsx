@@ -1,10 +1,35 @@
-import { Trophy, ListChecks, Target, Briefcase, FileText } from "lucide-react";
 import {
   INTERNAL_SUBJECT_KEYS,
   MOCK_SUBJECT_KEYS,
   isAdmissionTypeComplete,
   type AdmissionTypeAnswer,
 } from "@/lib/online/survey-template";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  IncompleteNote,
+  LegacyAnswer,
+  Missing,
+  SurveyAnswers,
+  SurveyEmpty,
+  SurveyEntries,
+  SurveyEntry,
+  SurveyEntryHead,
+  SurveyItem,
+  SurveyTag,
+} from "@/components/online/survey-answer-ui";
+
+// 설문 등급 표 — 좁은 칸, 가운데 정렬, 읽기 전용이라 행 호버 없음
+const TABLE_WRAP = "overflow-hidden rounded-r2 border border-stroke-neutral-muted";
+const HEAD_CELL = "h-auto px-x2 py-x2 text-center";
+const BODY_CELL = "h-auto px-x2 py-x2 text-center tabular-nums";
+const ROW = "hover:bg-transparent";
 
 export function AdmissionTypeSurveyDisplay({
   value,
@@ -30,180 +55,138 @@ export function AdmissionTypeSurveyDisplay({
     !value.rationale.trim() &&
     !value.legacyText;
 
-  if (empty) return <p className="text-[12.5px] text-ink-5">(비어 있음)</p>;
+  if (empty) return <SurveyEmpty />;
 
   const isJeongsiOnly = value.primaryTrack === "정시 단일";
 
   return (
-    <div className="space-y-3 text-[12.5px] text-ink">
-      {value.legacyText && (
-        <div className="rounded-[8px] border border-amber-200 bg-amber-50 p-2.5">
-          <p className="text-[10.5px] font-semibold text-amber-900 mb-0.5">이전 자유 기술 답변</p>
-          <p className="text-[12px] text-amber-900 whitespace-pre-wrap">{value.legacyText}</p>
-        </div>
-      )}
+    <SurveyAnswers>
+      {value.legacyText && <LegacyAnswer text={value.legacyText} />}
 
       {/* 주력 전형 */}
       {value.primaryTrack && (
-        <section>
-          <h4 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide mb-1.5 inline-flex items-center gap-1.5">
-            <Trophy className="h-3 w-3" />
-            주력 전형
-          </h4>
-          <div className="rounded-[8px] border border-line bg-canvas p-2.5">
-            <span className="rounded-full bg-ink/10 text-ink-2 px-2 py-0.5 text-[11px] font-medium">
-              {value.primaryTrack}
-            </span>
-          </div>
-        </section>
+        <SurveyItem label="주력 전형">
+          <SurveyTag>{value.primaryTrack}</SurveyTag>
+        </SurveyItem>
       )}
 
       {/* 내신 */}
       {hasInternal && (
-        <section>
-          <h4 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide mb-1.5 inline-flex items-center gap-1.5">
-            <ListChecks className="h-3 w-3" />
-            내신 등급
-          </h4>
-          <div className="overflow-x-auto rounded-[8px] border border-line bg-canvas">
-            <table className="w-full text-[12px]">
-              <thead className="bg-canvas-2 text-ink-4">
-                <tr>
-                  <th className="px-2 py-1.5 text-left font-semibold">학기</th>
+        <SurveyItem label="내신 등급">
+          <div className={TABLE_WRAP}>
+            <Table>
+              <TableHeader>
+                <TableRow className={ROW}>
+                  <TableHead className={`${HEAD_CELL} text-left`}>학기</TableHead>
                   {INTERNAL_SUBJECT_KEYS.map((k) => (
-                    <th key={k} className="px-1 py-1.5 text-center font-semibold">{k}</th>
+                    <TableHead key={k} className={HEAD_CELL}>{k}</TableHead>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {value.internalGrades
                   .filter((g) => !g.unregistered && INTERNAL_SUBJECT_KEYS.some((k) => g.grades[k]?.trim()))
                   .map((g) => (
-                    <tr key={g.semester} className="border-t border-line">
-                      <td className="px-2 py-1 font-semibold">{g.semester}</td>
+                    <TableRow key={g.semester} className={ROW}>
+                      <TableCell className={`${BODY_CELL} whitespace-nowrap text-left t4-medium`}>{g.semester}</TableCell>
                       {INTERNAL_SUBJECT_KEYS.map((k) => (
-                        <td key={k} className="px-1 py-1 text-center tabular-nums">
-                          {g.grades[k]?.trim() || <span className="text-ink-5">-</span>}
-                        </td>
+                        <TableCell key={k} className={BODY_CELL}>
+                          {g.grades[k]?.trim() || <Missing>-</Missing>}
+                        </TableCell>
                       ))}
-                    </tr>
+                    </TableRow>
                   ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
-        </section>
+        </SurveyItem>
       )}
 
       {/* 모의 */}
       {registeredMocks.length > 0 && (
-        <section>
-          <h4 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide mb-1.5 inline-flex items-center gap-1.5">
-            <Target className="h-3 w-3" />
-            모의고사 등급
-          </h4>
-          <div className="space-y-1.5">
+        <SurveyItem label="모의고사 등급">
+          <div className="flex flex-col gap-x4">
             {registeredMocks.map((m, i) => (
-              <div key={i} className="rounded-[8px] border border-line bg-canvas p-2.5">
-                <p className="font-semibold mb-1">{m.label || <em className="text-ink-5">회차 미입력</em>}</p>
-                <table className="w-full text-[11.5px]">
-                  <thead className="text-ink-5">
-                    <tr>
-                      <th className="px-1 py-0.5 text-left font-semibold w-12">항목</th>
-                      {MOCK_SUBJECT_KEYS.map((k) => (
-                        <th key={k} className="px-1 py-0.5 text-center font-semibold">{k}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="px-1 py-0.5 text-ink-3">등급</td>
-                      {MOCK_SUBJECT_KEYS.map((k) => (
-                        <td key={k} className="px-1 py-0.5 text-center tabular-nums">
-                          {m.grades[k]?.trim() || <span className="text-ink-5">-</span>}
-                        </td>
-                      ))}
-                    </tr>
-                    <tr>
-                      <td className="px-1 py-0.5 text-ink-3">백분위</td>
-                      {MOCK_SUBJECT_KEYS.map((k) => (
-                        <td key={k} className="px-1 py-0.5 text-center tabular-nums">
-                          {m.percentiles[k]?.trim() || <span className="text-ink-5">-</span>}
-                        </td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
+              <div key={i}>
+                <p className="mb-x2 t4-bold">{m.label || <Missing>회차 미입력</Missing>}</p>
+                <div className={TABLE_WRAP}>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className={ROW}>
+                        <TableHead className={`${HEAD_CELL} w-16 text-left`}>항목</TableHead>
+                        {MOCK_SUBJECT_KEYS.map((k) => (
+                          <TableHead key={k} className={HEAD_CELL}>{k}</TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow className={ROW}>
+                        <TableCell className={`${BODY_CELL} whitespace-nowrap text-left text-fg-neutral-muted`}>등급</TableCell>
+                        {MOCK_SUBJECT_KEYS.map((k) => (
+                          <TableCell key={k} className={BODY_CELL}>
+                            {m.grades[k]?.trim() || <Missing>-</Missing>}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                      <TableRow className={ROW}>
+                        <TableCell className={`${BODY_CELL} whitespace-nowrap text-left text-fg-neutral-muted`}>백분위</TableCell>
+                        {MOCK_SUBJECT_KEYS.map((k) => (
+                          <TableCell key={k} className={BODY_CELL}>
+                            {m.percentiles[k]?.trim() || <Missing>-</Missing>}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             ))}
           </div>
-        </section>
+        </SurveyItem>
       )}
 
       {/* 수능 최저 */}
       {value.csatMinimum && (
-        <section>
-          <h4 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide mb-1.5 inline-flex items-center gap-1.5">
-            <Briefcase className="h-3 w-3" />
-            수능 최저 충족 자신감
-          </h4>
-          <div className="rounded-[8px] border border-line bg-canvas p-2.5">
-            <span className="rounded-full bg-ink/10 text-ink-2 px-2 py-0.5 text-[11px] font-medium">
-              {value.csatMinimum}
-            </span>
-          </div>
-        </section>
+        <SurveyItem label="수능 최저 충족 자신감">
+          <SurveyTag>{value.csatMinimum}</SurveyTag>
+        </SurveyItem>
       )}
 
       {/* 수시 카드 */}
       {!isJeongsiOnly && filledCards.length > 0 && (
-        <section>
-          <h4 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide mb-1.5 inline-flex items-center gap-1.5">
-            <Trophy className="h-3 w-3" />
-            수시 카드 전략 ({filledCards.length}장 입력)
-          </h4>
-          <div className="space-y-1.5">
+        <SurveyItem
+          label="수시 카드 전략"
+          trailing={<span className="tabular-nums">· {filledCards.length}장 입력</span>}
+        >
+          <SurveyEntries>
             {value.cardStrategy.map((c, i) => {
               const filled = c.university || c.department || c.track || c.fit;
               if (!filled) return null;
               return (
-                <div key={i} className="rounded-[8px] border border-line bg-canvas p-2.5">
-                  <div className="flex items-baseline gap-2 flex-wrap">
-                    <span className="rounded-full bg-ink text-white text-[10.5px] font-semibold px-1.5 py-0.5">
-                      카드 {i + 1}
-                    </span>
-                    <span className="font-semibold">{c.university || <em className="text-ink-5">대학 미입력</em>}</span>
-                    <span className="text-ink-4">·</span>
-                    <span>{c.department || <em className="text-ink-5">학과 미입력</em>}</span>
-                    {c.track && (
-                      <span className="rounded-full bg-ink/10 text-ink-2 px-1.5 py-0.5 text-[10.5px]">{c.track}</span>
-                    )}
-                    {c.fit && (
-                      <span className="rounded-full bg-ink/10 text-ink-2 px-1.5 py-0.5 text-[10.5px]">{c.fit}</span>
-                    )}
-                  </div>
-                </div>
+                <SurveyEntry key={i}>
+                  <SurveyEntryHead>
+                    <span className="t3-bold tabular-nums text-fg-brand">카드 {i + 1}</span>
+                    <span className="t4-bold">{c.university || <Missing>대학 미입력</Missing>}</span>
+                    <span className="text-fg-neutral-subtle" aria-hidden>·</span>
+                    <span>{c.department || <Missing>학과 미입력</Missing>}</span>
+                    {c.track && <SurveyTag>{c.track}</SurveyTag>}
+                    {c.fit && <SurveyTag>{c.fit}</SurveyTag>}
+                  </SurveyEntryHead>
+                </SurveyEntry>
               );
             })}
-          </div>
-        </section>
+          </SurveyEntries>
+        </SurveyItem>
       )}
 
       {/* 판단 근거 */}
       {value.rationale.trim() && (
-        <section>
-          <h4 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide mb-1.5 inline-flex items-center gap-1.5">
-            <FileText className="h-3 w-3" />
-            판단 근거
-          </h4>
-          <div className="rounded-[8px] border border-line bg-canvas p-2.5 whitespace-pre-wrap leading-relaxed">
-            {value.rationale}
-          </div>
-        </section>
+        <SurveyItem label="판단 근거">
+          <p className="whitespace-pre-wrap break-words">{value.rationale}</p>
+        </SurveyItem>
       )}
 
-      {!complete && (
-        <p className="text-[10.5px] text-amber-700">⚠ 일부 항목이 비어 있어 제출 조건 미충족.</p>
-      )}
-    </div>
+      {!complete && <IncompleteNote />}
+    </SurveyAnswers>
   );
 }

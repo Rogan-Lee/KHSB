@@ -1,62 +1,64 @@
-import Link from "next/link";
-import { AlertTriangle } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TagPill } from "@/components/ui/tag-pill";
+import { UserCheck } from "lucide-react";
+import { EmptyState, ListItem, Section, StatusBadge } from "@/components/backoffice/ui";
 import { cn } from "@/lib/utils";
 import type { AttentionStudent } from "@/lib/attention";
 
 /**
  * 대시보드 — 유의 관찰 학생 위젯.
- * 수동 플래그 + 자동 판별 결과를 사유와 함께 노출. 목록이 비면 렌더하지 않음.
+ * 수동 플래그 + 자동 판별 결과를 사유와 함께 노출. 목록이 비면 빈 상태를 보여 준다.
  */
 export function AttentionWidget({ students }: { students: AttentionStudent[] }) {
-  if (students.length === 0) return null;
-
   return (
-    <Card className="rounded-[12px] border-line shadow-[var(--shadow-xs)] overflow-hidden">
-      <CardHeader className="flex flex-row items-center gap-2 py-[14px] px-[18px] border-b border-line-2">
-        <AlertTriangle className="h-4 w-4 text-warn" />
-        <CardTitle className="text-[13.5px] font-[650] tracking-[-0.015em] text-ink m-0">
-          유의 관찰 학생
-        </CardTitle>
-        <span className="ml-auto text-[11.5px] text-ink-4 font-mono tabular-nums">
-          {students.length}명
-        </span>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="max-h-72 overflow-y-auto">
+    <Section
+      title="유의 관찰 학생"
+      count={students.length > 0 ? students.length : undefined}
+      description="수동 지정과 최근 출결·과제·상벌점 기록을 바탕으로 골랐어요"
+      flush
+    >
+      {students.length === 0 ? (
+        <EmptyState compact icon={UserCheck} title="지금 살펴볼 학생이 없어요" />
+      ) : (
+        <ul className="max-h-80 divide-y divide-stroke-neutral-muted overflow-y-auto border-t border-stroke-neutral-muted">
           {students.map((s) => (
-            <Link key={s.studentId} href={`/students/${s.studentId}`}>
-              <div className="flex items-center gap-2.5 px-[18px] py-[10px] border-b border-line-2 last:border-b-0 hover:bg-panel-2 text-[12.5px]">
-                <span
-                  className={cn(
-                    "w-1.5 h-1.5 rounded-full shrink-0",
-                    s.severity === "high" ? "bg-bad" : "bg-warn",
-                  )}
-                />
-                <span className="font-semibold text-ink tracking-[-0.01em] shrink-0">{s.name}</span>
-                <span className="text-[11px] text-ink-4 shrink-0">{s.grade}</span>
-                {s.isManual && <TagPill variant="brand">수동</TagPill>}
-                <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-                  {s.reasons.slice(0, 2).map((r, i) => (
-                    <TagPill
-                      key={i}
-                      variant={
-                        r.kind === "manual" ? "neutral" : s.severity === "high" ? "bad" : "warn"
-                      }
-                    >
-                      {r.label}
-                    </TagPill>
-                  ))}
-                  {s.reasons.length > 2 && (
-                    <span className="text-[10.5px] text-ink-4">+{s.reasons.length - 2}</span>
-                  )}
-                </div>
-              </div>
-            </Link>
+            <li key={s.studentId}>
+              <ListItem
+                href={`/students/${s.studentId}`}
+                leading={
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "size-x2 shrink-0 rounded-full",
+                      s.severity === "high" ? "bg-bg-critical-solid" : "bg-bg-warning-solid",
+                    )}
+                  />
+                }
+                title={
+                  <span className="inline-flex items-center gap-x1_5">
+                    {s.name}
+                    <span className="t3-regular text-fg-neutral-subtle">{s.grade}</span>
+                    {s.isManual && <StatusBadge tone="brand">수동</StatusBadge>}
+                  </span>
+                }
+                description={
+                  <span className="mt-x0_5 inline-flex items-center gap-x1">
+                    {s.reasons.slice(0, 2).map((r, i) => (
+                      <StatusBadge
+                        key={i}
+                        tone={r.kind === "manual" ? "gray" : s.severity === "high" ? "bad" : "warn"}
+                      >
+                        {r.label}
+                      </StatusBadge>
+                    ))}
+                    {s.reasons.length > 2 && (
+                      <span className="t3-regular tabular-nums text-fg-neutral-subtle">+{s.reasons.length - 2}</span>
+                    )}
+                  </span>
+                }
+              />
+            </li>
           ))}
-        </div>
-      </CardContent>
-    </Card>
+        </ul>
+      )}
+    </Section>
   );
 }

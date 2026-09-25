@@ -1,36 +1,43 @@
 import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
+import { badge } from "@seed-design/css/recipes/badge"
 
 import { cn } from "@/lib/utils"
 
-const badgeVariants = cva(
-  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-  {
-    variants: {
-      variant: {
-        default:
-          "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
-        secondary:
-          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        destructive:
-          "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        outline: "text-foreground",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-    },
-  }
-)
+// SEED Badge 레시피 — shadcn variant 이름을 SEED tone/variant 로 매핑한다.
+// SEED 기본 max-width(말줄임)는 대시보드 문구 길이에 맞춰 해제.
+type LegacyVariant = "default" | "secondary" | "destructive" | "outline"
+type Tone = "neutral" | "brand" | "informative" | "positive" | "warning" | "critical"
 
-export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
+const MAP: Record<LegacyVariant, { tone: Tone; variant: "weak" | "solid" | "outline" }> = {
+  default: { tone: "brand", variant: "weak" },
+  secondary: { tone: "neutral", variant: "weak" },
+  destructive: { tone: "critical", variant: "weak" },
+  outline: { tone: "neutral", variant: "outline" },
+}
 
-function Badge({ className, variant, ...props }: BadgeProps) {
-  return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
+export function badgeVariants({
+  variant = "default",
+  tone,
+  solid,
+  size = "medium",
+}: { variant?: LegacyVariant | null; tone?: Tone; solid?: boolean; size?: "medium" | "large" } = {}) {
+  const m = MAP[variant ?? "default"]
+  return cn(
+    badge({ tone: tone ?? m.tone, variant: solid ? "solid" : m.variant, size }).root,
+    "max-w-none gap-x1 whitespace-nowrap [&_svg]:size-3 [&_svg]:shrink-0",
   )
 }
 
-export { Badge, badgeVariants }
+export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+  variant?: LegacyVariant | null
+  /** SEED 역할색 — 지정하면 variant 의 기본 tone 을 덮는다 */
+  tone?: Tone
+  solid?: boolean
+  size?: "medium" | "large"
+}
+
+function Badge({ className, variant, tone, solid, size, ...props }: BadgeProps) {
+  return <span className={cn(badgeVariants({ variant, tone, solid, size }), className)} {...props} />
+}
+
+export { Badge }

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { LayoutDashboard, ArrowLeftRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CountBadge, PageHeader } from "@/components/backoffice/ui";
 import { HandoverDashboard } from "@/components/dashboard/handover-dashboard";
 
 type HandoverTask = {
@@ -62,7 +62,11 @@ interface Props {
   month: number;
   unreadCount: number;
   todos: Todo[];
+  /** 서버(KST)에서 만든 오늘 날짜 라벨 — 없으면 브라우저 시각(KST)으로 만든다 */
+  dateLabel?: string;
 }
+
+type Mode = "dashboard" | "handover";
 
 export function DashboardWrapper({
   children,
@@ -78,59 +82,40 @@ export function DashboardWrapper({
   month,
   unreadCount,
   todos,
+  dateLabel,
 }: Props) {
-  const [mode, setMode] = useState<"dashboard" | "handover">("dashboard");
+  const [mode, setMode] = useState<Mode>("dashboard");
+
+  const today =
+    dateLabel ??
+    new Date().toLocaleDateString("ko-KR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      weekday: "long",
+      timeZone: "Asia/Seoul",
+    });
 
   return (
-    <div className="space-y-4">
-      {/* Header with toggle */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight">안녕하세요, {userName}님</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            {new Date().toLocaleDateString("ko-KR", {
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-              weekday: "long",
-            })}
-          </p>
-        </div>
+    <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
+      <PageHeader
+        title={`안녕하세요, ${userName}님`}
+        description={today}
+        actions={
+          <TabsList variant="segment" aria-label="홈 화면 보기 전환">
+            <TabsTrigger value="dashboard">대시보드</TabsTrigger>
+            <TabsTrigger value="handover">
+              인수인계
+              <CountBadge count={unreadCount} />
+            </TabsTrigger>
+          </TabsList>
+        }
+      />
 
-        {/* Mode toggle */}
-        <div className="flex items-center gap-1 bg-muted/50 p-1 rounded-xl shrink-0">
-          <button
-            onClick={() => setMode("dashboard")}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all",
-              mode === "dashboard" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <LayoutDashboard className="h-3.5 w-3.5" />
-            대시보드
-          </button>
-          <button
-            onClick={() => setMode("handover")}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all relative",
-              mode === "handover" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <ArrowLeftRight className="h-3.5 w-3.5" />
-            인수인계
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Content */}
-      {mode === "dashboard" ? (
-        children
-      ) : (
+      <TabsContent value="dashboard" className="mt-0">
+        {children}
+      </TabsContent>
+      <TabsContent value="handover" className="mt-0">
         <HandoverDashboard
           handovers={handovers}
           templates={templates}
@@ -143,7 +128,7 @@ export function DashboardWrapper({
           month={month}
           todos={todos}
         />
-      )}
-    </div>
+      </TabsContent>
+    </Tabs>
   );
 }

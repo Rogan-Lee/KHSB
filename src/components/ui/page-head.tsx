@@ -1,6 +1,8 @@
-import { cn } from "@/lib/utils";
+import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { Fragment } from "react";
+import { PageHeader } from "@/components/backoffice/ui";
+import { cn } from "@/lib/utils";
 
 interface Crumb {
   label: string;
@@ -9,6 +11,7 @@ interface Crumb {
 
 interface PageHeadProps {
   crumbs?: Crumb[];
+  /** @deprecated 단축키 힌트 — 새 셸(⌘K)에서는 표시하지 않는다 */
   kbd?: string;              // e.g. "G then D"
   title: string;
   subline?: React.ReactNode; // e.g. "현재 재실 <b>72명</b> · 입실 마감까지 1시간 26분"
@@ -16,44 +19,33 @@ interface PageHeadProps {
   className?: string;
 }
 
-// Page header for v4 shell — crumb + kbd hint + big 44px h1 + right actions.
-export function PageHead({ crumbs, kbd, title, subline, actions, className }: PageHeadProps) {
+// 레거시 페이지 머리 — backoffice PageHeader 로 그린다(제목 t8→t10 bold, 설명 한 줄, 우측 버튼).
+// crumbs 는 제목 위 작은 경로 줄(t3)로 보여 준다. 새 코드는 PageHeader 를 직접 쓴다.
+export function PageHead({ crumbs, title, subline, actions, className }: PageHeadProps) {
   return (
-    <div className={cn("px-0 pt-1 pb-0", className)}>
-      {(crumbs?.length || kbd) && (
-        <div className="flex items-center gap-2 text-[13px] text-ink-3 mb-2">
-          {crumbs?.map((c, i) => (
-            <Fragment key={i}>
-              {i > 0 && <ChevronRight className="h-3 w-3 text-ink-5" />}
-              <span className={cn(
-                i === (crumbs.length - 1) ? "text-ink-2 font-medium" : "text-ink-3"
-              )}>
-                {c.label}
-              </span>
-            </Fragment>
-          ))}
-          {kbd && (
-            <kbd className="ml-1.5 font-mono text-[10.5px] text-ink-4 px-1.5 py-0.5 rounded-[4px] bg-canvas border border-line">
-              {kbd}
-            </kbd>
-          )}
-        </div>
+    <div className={className}>
+      {crumbs && crumbs.length > 0 && (
+        <nav aria-label="경로" className="mb-x3 flex flex-wrap items-center gap-x1 t3-medium text-fg-neutral-subtle">
+          {crumbs.map((c, i) => {
+            const last = i === crumbs.length - 1;
+            return (
+              <Fragment key={i}>
+                {i > 0 && <ChevronRight className="size-3.5 text-fg-placeholder" aria-hidden />}
+                {c.href && !last ? (
+                  <Link href={c.href} className="rounded-r1 transition-colors hover:text-fg-neutral">
+                    {c.label}
+                  </Link>
+                ) : (
+                  <span className={cn(last && "text-fg-neutral-muted")} aria-current={last ? "page" : undefined}>
+                    {c.label}
+                  </span>
+                )}
+              </Fragment>
+            );
+          })}
+        </nav>
       )}
-      <div className="flex items-end gap-[18px] flex-wrap mt-1.5">
-        <h1 className="text-[44px] font-[650] tracking-[-0.035em] leading-[1.05] text-ink m-0 shrink-0 whitespace-nowrap">
-          {title}
-        </h1>
-        {subline && (
-          <div className="flex-1 basis-[200px] min-w-0 text-[14px] text-ink-3 font-[450] mb-1.5 truncate">
-            {subline}
-          </div>
-        )}
-        {actions && (
-          <div className="ml-auto flex gap-2 mb-1.5 items-center">
-            {actions}
-          </div>
-        )}
-      </div>
+      <PageHeader title={title} description={subline} actions={actions} />
     </div>
   );
 }

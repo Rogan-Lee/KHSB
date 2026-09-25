@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createOnlineStudent } from "@/actions/online/students";
 import { Combobox } from "@/components/ui/combobox";
+import { FormActions, FormField } from "@/components/backoffice/ui";
 
 type UserOption = { id: string; name: string };
 
@@ -71,148 +72,150 @@ export function NewOnlineStudentForm({
   };
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Field label="이름" required>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="예: 김지훈"
-            className="text-[13px]"
-          />
-        </Field>
-        <Field label="학년" required>
-          <Input
-            value={grade}
-            onChange={(e) => setGrade(e.target.value)}
-            placeholder="예: 고3, N수, 중3"
-            className="text-[13px]"
-          />
-        </Field>
-        <Field label="학교">
-          <Input
-            value={school}
-            onChange={(e) => setSchool(e.target.value)}
-            placeholder="학교명 (선택)"
-            className="text-[13px]"
-          />
-        </Field>
-      </div>
+    <form onSubmit={onSubmit} className="flex flex-col gap-x6">
+      <FieldGroup title="학생">
+        <div className="grid grid-cols-1 gap-x4 md:grid-cols-3">
+          <FormField label="이름" required htmlFor="nos-name">
+            <Input id="nos-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="예: 김지훈" />
+          </FormField>
+          <FormField label="학년" required htmlFor="nos-grade">
+            <Input
+              id="nos-grade"
+              value={grade}
+              onChange={(e) => setGrade(e.target.value)}
+              placeholder="예: 고3, N수, 중3"
+            />
+          </FormField>
+          <FormField label="학교" htmlFor="nos-school">
+            <Input
+              id="nos-school"
+              value={school}
+              onChange={(e) => setSchool(e.target.value)}
+              placeholder="학교명 (선택)"
+            />
+          </FormField>
+        </div>
+      </FieldGroup>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Field label="학부모 연락처" required>
-          <Input
-            value={parentPhone}
-            onChange={(e) => setParentPhone(e.target.value)}
-            placeholder="010-1234-5678"
-            className="text-[13px]"
-          />
-        </Field>
-        <Field label="학부모 이메일">
-          <Input
-            type="email"
-            value={parentEmail}
-            onChange={(e) => setParentEmail(e.target.value)}
-            placeholder="parent@example.com (선택)"
-            className="text-[13px]"
-          />
-        </Field>
-        <Field label="온라인 관리 시작일" required>
-          <Input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="text-[13px]"
-          />
-        </Field>
-      </div>
+      <FieldGroup title="학부모 · 시작일">
+        <div className="grid grid-cols-1 gap-x4 md:grid-cols-3">
+          <FormField label="학부모 연락처" required htmlFor="nos-phone">
+            <Input
+              id="nos-phone"
+              inputMode="tel"
+              className="tabular-nums"
+              value={parentPhone}
+              onChange={(e) => setParentPhone(e.target.value)}
+              placeholder="010-1234-5678"
+            />
+          </FormField>
+          <FormField label="학부모 이메일" htmlFor="nos-email">
+            <Input
+              id="nos-email"
+              type="email"
+              value={parentEmail}
+              onChange={(e) => setParentEmail(e.target.value)}
+              placeholder="parent@example.com (선택)"
+            />
+          </FormField>
+          <FormField label="온라인 관리 시작일" required htmlFor="nos-start">
+            <Input
+              id="nos-start"
+              type="date"
+              className="tabular-nums"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </FormField>
+        </div>
+      </FieldGroup>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Field label="목표 대학">
-          <Input
-            value={targetUniversity}
-            onChange={(e) => setTargetUniversity(e.target.value)}
-            placeholder="예: 서울대 경영학과"
-            className="text-[13px]"
-          />
-        </Field>
-        <Field label="선택 과목">
-          <Input
-            value={selectedSubjects}
-            onChange={(e) => setSelectedSubjects(e.target.value)}
-            placeholder="예: 수학, 영어, 사탐"
-            className="text-[13px]"
-          />
-        </Field>
-        <Field label="지원 전형">
-          <Input
-            value={admissionType}
-            onChange={(e) => setAdmissionType(e.target.value)}
-            placeholder="예: 수시 학종, 정시"
-            className="text-[13px]"
-          />
-        </Field>
-      </div>
+      <FieldGroup title="입시 정보">
+        <div className="grid grid-cols-1 gap-x4 md:grid-cols-3">
+          <FormField label="목표 대학" htmlFor="nos-univ">
+            <Input
+              id="nos-univ"
+              value={targetUniversity}
+              onChange={(e) => setTargetUniversity(e.target.value)}
+              placeholder="예: 서울대 경영학과"
+            />
+          </FormField>
+          <FormField label="선택 과목" htmlFor="nos-subjects">
+            <Input
+              id="nos-subjects"
+              value={selectedSubjects}
+              onChange={(e) => setSelectedSubjects(e.target.value)}
+              placeholder="예: 수학, 영어, 사탐"
+            />
+          </FormField>
+          <FormField label="지원 전형" htmlFor="nos-admission">
+            <Input
+              id="nos-admission"
+              value={admissionType}
+              onChange={(e) => setAdmissionType(e.target.value)}
+              placeholder="예: 수시 학종, 정시"
+            />
+          </FormField>
+        </div>
+      </FieldGroup>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Field label="관리 멘토">
-          <Combobox
-            value={assignedMentorId}
-            onChange={setAssignedMentorId}
-            items={mentors.map((m) => ({ value: m.id, label: m.name }))}
-            placeholder="나중에 배정"
-            searchPlaceholder="이름 검색…"
-            allowEmpty
-            emptyLabel="나중에 배정"
-            triggerClassName="text-[13px]"
-            popoverClassName="w-[--radix-popover-trigger-width]"
-          />
-        </Field>
-        <Field label="컨설턴트">
-          <Combobox
-            value={assignedConsultantId}
-            onChange={setAssignedConsultantId}
-            items={consultants.map((c) => ({ value: c.id, label: c.name }))}
-            placeholder="나중에 배정"
-            searchPlaceholder="이름 검색…"
-            allowEmpty
-            emptyLabel="나중에 배정"
-            triggerClassName="text-[13px]"
-            popoverClassName="w-[--radix-popover-trigger-width]"
-          />
-        </Field>
-      </div>
+      <FieldGroup title="담당자" hint="비워 두면 나중에 학생 화면에서 배정할 수 있어요">
+        <div className="grid grid-cols-1 gap-x4 md:grid-cols-2">
+          <FormField label="관리 멘토">
+            <Combobox
+              value={assignedMentorId}
+              onChange={setAssignedMentorId}
+              items={mentors.map((m) => ({ value: m.id, label: m.name }))}
+              placeholder="나중에 배정"
+              searchPlaceholder="이름 검색…"
+              allowEmpty
+              emptyLabel="나중에 배정"
+              triggerClassName="t4-regular"
+              popoverClassName="w-[--radix-popover-trigger-width]"
+            />
+          </FormField>
+          <FormField label="컨설턴트">
+            <Combobox
+              value={assignedConsultantId}
+              onChange={setAssignedConsultantId}
+              items={consultants.map((c) => ({ value: c.id, label: c.name }))}
+              placeholder="나중에 배정"
+              searchPlaceholder="이름 검색…"
+              allowEmpty
+              emptyLabel="나중에 배정"
+              triggerClassName="t4-regular"
+              popoverClassName="w-[--radix-popover-trigger-width]"
+            />
+          </FormField>
+        </div>
+      </FieldGroup>
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={isPending}>
-          {isPending ? (
-            <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-          ) : (
-            <UserPlus className="h-4 w-4 mr-1.5" />
-          )}
-          온라인 학생 등록
+      <FormActions>
+        <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
+          {isPending ? <Loader2 className="animate-spin" /> : <UserPlus />}
+          {isPending ? "등록 중…" : "온라인 학생 등록"}
         </Button>
-      </div>
+      </FormActions>
     </form>
   );
 }
 
-function Field({
-  label,
-  required,
+function FieldGroup({
+  title,
+  hint,
   children,
 }: {
-  label: string;
-  required?: boolean;
+  title: string;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[11px] text-ink-4">
-        {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
-      </span>
+    <fieldset className="min-w-0">
+      <legend className="mb-x3 t5-bold text-fg-neutral">
+        {title}
+        {hint && <span className="ml-x2 t3-regular text-fg-neutral-subtle">{hint}</span>}
+      </legend>
       {children}
-    </label>
+    </fieldset>
   );
 }

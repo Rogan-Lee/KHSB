@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { isOnlineStaff, isManagerMentor, isFullAccess } from "@/lib/roles";
@@ -8,6 +6,7 @@ import { WeeklyPlanEditor } from "@/components/online/weekly-plan-editor";
 import type { WeeklyPlanGoals } from "@/actions/online/weekly-plans";
 import { mondayOfKST } from "@/lib/online/week";
 import { DEFAULT_SUBJECTS } from "@/lib/online/subjects";
+import { StudentDetailHeader } from "../_components/student-detail-header";
 
 export default async function StudentWeeklyPlanPage({
   params,
@@ -26,7 +25,14 @@ export default async function StudentWeeklyPlanPage({
 
   const student = await prisma.student.findUnique({
     where: { id },
-    select: { id: true, name: true, grade: true, isOnlineManaged: true, selectedSubjects: true },
+    select: {
+      id: true,
+      name: true,
+      grade: true,
+      status: true,
+      isOnlineManaged: true,
+      selectedSubjects: true,
+    },
   });
   if (!student || !student.isOnlineManaged) notFound();
 
@@ -49,28 +55,17 @@ export default async function StudentWeeklyPlanPage({
   const initialGoals: WeeklyPlanGoals =
     (plan?.goals as unknown as WeeklyPlanGoals | null) ?? {};
 
-  return (
-    <div className="space-y-5">
-      <div>
-        <Link
-          href={`/online/students/${id}`}
-          className="inline-flex items-center gap-1 text-[12px] text-ink-4 hover:text-ink"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          학생 상세
-        </Link>
-      </div>
+  const description = [
+    student.grade,
+    plan?.author && `작성자 ${plan.author.name}`,
+    plan?.updatedAt && `${plan.updatedAt.toLocaleDateString("ko-KR")} 수정`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
-      <header>
-        <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
-          {student.name} — 주간 계획
-        </h1>
-        <p className="mt-1 text-[13px] text-ink-4">
-          {student.grade}
-          {plan?.author && ` · 작성자: ${plan.author.name}`}
-          {plan?.updatedAt && ` · ${plan.updatedAt.toLocaleDateString("ko-KR")} 수정`}
-        </p>
-      </header>
+  return (
+    <div>
+      <StudentDetailHeader student={student} current="plans" description={description} />
 
       <WeeklyPlanEditor
         studentId={id}

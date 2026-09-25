@@ -20,6 +20,13 @@ interface Props {
   className?: string;
 }
 
+// SEED SelectTrigger(ui/select) 와 같은 규격 — 높이 40, r2, 1px stroke-neutral-weak, 포커스·열림 2px stroke-neutral-contrast
+const TRIGGER =
+  "flex h-10 w-full items-center justify-between gap-x2 rounded-r2 border-0 bg-bg-layer-default px-x3 text-left t4-regular text-fg-neutral outline-none transition-shadow " +
+  "shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] " +
+  "focus-visible:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)] data-[state=open]:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)] " +
+  "disabled:cursor-not-allowed disabled:bg-bg-disabled disabled:text-fg-disabled";
+
 export function SearchableSelect({
   options,
   value,
@@ -39,11 +46,16 @@ export function SearchableSelect({
 
   const selected = options.find((o) => o.value === value);
 
+  // 열 때 검색어 초기화 — 여는 순간(onOpenChange)에 처리해 effect 안 setState 를 피한다
+  function handleOpenChange(next: boolean) {
+    if (next) setQuery("");
+    setOpen(next);
+  }
+
   useEffect(() => {
-    if (open) {
-      setQuery("");
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
+    if (!open) return;
+    const t = setTimeout(() => inputRef.current?.focus(), 50);
+    return () => clearTimeout(t);
   }, [open]);
 
   function handleSelect(val: string) {
@@ -52,45 +64,37 @@ export function SearchableSelect({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
-            "hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-            "disabled:cursor-not-allowed disabled:opacity-50",
-            className
-          )}
-        >
-          <span className={cn("truncate", !selected && "text-muted-foreground")}>
+        <button type="button" className={cn(TRIGGER, className)}>
+          <span className={cn("truncate", !selected && "text-fg-placeholder")}>
             {selected ? selected.label : placeholder}
           </span>
-          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronDown className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
         </button>
       </PopoverTrigger>
 
       <PopoverContent
-        className="p-0 w-[var(--radix-popover-trigger-width)]"
+        className="w-(--radix-popover-trigger-width) min-w-48 overflow-hidden p-0"
         align="start"
         sideOffset={4}
       >
         {/* 검색 입력 */}
-        <div className="flex items-center border-b px-3 gap-2">
-          <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <div className="flex items-center gap-x2 border-b border-stroke-neutral-muted px-x3">
+          <Search className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={searchPlaceholder}
-            className="flex-1 py-2.5 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+            className="h-11 min-w-0 flex-1 bg-transparent t4-regular text-fg-neutral outline-none placeholder:text-fg-placeholder"
           />
         </div>
 
         {/* 목록 */}
-        <div className="max-h-60 overflow-y-auto py-1">
+        <div className="max-h-60 overflow-y-auto p-x1_5">
           {filtered.length === 0 ? (
-            <div className="py-6 text-center text-sm text-muted-foreground">{emptyText}</div>
+            <div className="py-x8 text-center t4-regular text-fg-neutral-subtle">{emptyText}</div>
           ) : (
             filtered.map((opt) => (
               <button
@@ -98,17 +102,17 @@ export function SearchableSelect({
                 type="button"
                 onClick={() => handleSelect(opt.value)}
                 className={cn(
-                  "flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground",
-                  value === opt.value && "bg-accent/50 font-medium"
+                  "flex w-full items-center gap-x2 rounded-r2 px-x3 py-x2_5 text-left t4-regular text-fg-neutral outline-none transition-colors hover:bg-bg-layer-floating-pressed focus-visible:bg-bg-layer-floating-pressed",
+                  value === opt.value && "t4-bold"
                 )}
               >
                 <Check
                   className={cn(
-                    "h-3.5 w-3.5 shrink-0",
+                    "size-4 shrink-0 text-fg-neutral",
                     value === opt.value ? "opacity-100" : "opacity-0"
                   )}
                 />
-                {opt.label}
+                <span className="min-w-0 truncate">{opt.label}</span>
               </button>
             ))
           )}

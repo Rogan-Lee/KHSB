@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { toast } from "sonner";
 import {
   Play,
@@ -11,12 +10,12 @@ import {
   Check,
   AlertTriangle,
   UserX,
-  ShieldCheck,
   Loader2,
-  Search,
   Flag,
   X,
-  ArrowLeft,
+  CheckCircle2,
+  SearchX,
+  Users,
 } from "lucide-react";
 import { QrScanner } from "@/app/w/[token]/_components/qr-scanner";
 import { decodeStudentQr, formatAttendanceSpan, seatRoom, PATROL_NOTE_PRESETS } from "@/lib/patrol";
@@ -32,14 +31,66 @@ import {
 import { flagStudentAttention, clearStudentAttention } from "@/actions/attention";
 import type { AttentionStudent } from "@/lib/attention";
 import type { PatrolStatus } from "@/generated/prisma";
-import { TagPill } from "@/components/ui/tag-pill";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  EmptyState,
+  FilterChip,
+  Notice,
+  PageHeader,
+  ProgressBar,
+  SearchField,
+  Section,
+  StatusBadge,
+  type Tone,
+} from "@/components/backoffice/ui";
 
-const STATUS_META: Record<PatrolStatus, { label: string; icon: typeof Check; pill: "ok" | "warn" | "neutral" }> = {
-  OK: { label: "양호", icon: Check, pill: "ok" },
-  NOTE: { label: "특이사항", icon: AlertTriangle, pill: "warn" },
-  ABSENT: { label: "자리비움", icon: UserX, pill: "neutral" },
+// 점검 상태 → SEED 역할색: 양호 positive · 특이사항 warning · 자리비움 neutral
+const STATUS_META: Record<
+  PatrolStatus,
+  { label: string; icon: typeof Check; tone: Tone; selected: string }
+> = {
+  OK: {
+    label: "양호",
+    icon: Check,
+    tone: "ok",
+    selected: "bg-bg-positive-weak text-fg-positive shadow-[inset_0_0_0_2px_var(--seed-color-stroke-positive-solid)]",
+  },
+  NOTE: {
+    label: "특이사항",
+    icon: AlertTriangle,
+    tone: "warn",
+    selected: "bg-bg-warning-weak text-fg-warning shadow-[inset_0_0_0_2px_var(--seed-color-stroke-warning-solid)]",
+  },
+  ABSENT: {
+    label: "자리비움",
+    icon: UserX,
+    tone: "gray",
+    selected: "bg-bg-neutral-weak text-fg-neutral shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-solid)]",
+  },
 };
+
+// 빈 상세 패널 안내 — 순찰 기록 순서
+const STEPS = [
+  "명단에서 학생을 누르거나 좌석 QR을 스캔해요",
+  "양호 · 특이사항 · 자리비움 중 하나를 골라요",
+  "점검 기록을 누르면 다음 학생으로 넘어가요",
+];
+
+function fmtClock(iso: string) {
+  return new Date(iso).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Seoul" });
+}
 
 type Target = { id: string; name: string; seat: string | null; existing?: PatrolRecordView };
 
@@ -65,6 +116,9 @@ export function PatrolDesktop({
   // 우측 패널 — 유의 관찰 수동 지정 입력
   const [flagFormOpen, setFlagFormOpen] = useState(false);
   const [flagReason, setFlagReason] = useState("");
+  // 표시용: 미점검만 보기 · 회차 종료 확인
+  const [onlyUnchecked, setOnlyUnchecked] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
 
   const round = data.activeRound;
   const checkedById = useMemo(() => {
@@ -77,6 +131,10 @@ export function PatrolDesktop({
   const checkedCount = data.records.length;
   const rosterCount = data.roster.length;
   const pct = rosterCount > 0 ? Math.min(100, Math.round((checkedCount / rosterCount) * 100)) : 0;
+  // 완료 판정은 명단(재실) 학생 기준 — 명단 외 점검은 제외
+  const rosterChecked = data.roster.filter((s) => checkedById.has(s.id)).length;
+  const remaining = rosterCount - rosterChecked;
+  const complete = rosterCount > 0 && remaining === 0;
 
   // 룸 칩 필터 — 실데이터에 존재하는 그룹만, 1개 이하면 칩 숨김
   const [roomFilter, setRoomFilter] = useState<string | null>(null);
@@ -94,9 +152,10 @@ export function PatrolDesktop({
     return data.roster.filter(
       (s) =>
         (!roomFilter || seatRoom(s.seat) === roomFilter) &&
+        (!onlyUnchecked || !checkedById.has(s.id)) &&
         (!q || `${s.name} ${s.grade} ${s.seat ?? ""}`.toLowerCase().includes(q)),
     );
-  }, [query, roomFilter, data.roster]);
+  }, [query, roomFilter, onlyUnchecked, checkedById, data.roster]);
 
   const offRosterRecords = useMemo(
     () => data.records.filter((r) => !data.roster.find((s) => s.id === r.studentId)),
@@ -161,9 +220,15 @@ export function PatrolDesktop({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 종료 — 확인 다이얼로그(아래 Dialog)를 거쳐 runEnd 에서 처리
   function handleEnd() {
     if (!round) return;
-    if (!confirm("이번 순찰 회차를 종료할까요?")) return;
+    setEndOpen(true);
+  }
+
+  function runEnd() {
+    if (!round) return;
+    setEndOpen(false);
     startTransition(async () => {
       try {
         await endPatrolRound(undefined, round.id);
@@ -231,91 +296,103 @@ export function PatrolDesktop({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-x5">
       {/* 모바일 안내 */}
-      <div className="rounded-lg border border-warn-soft bg-warn-soft px-3 py-2 text-[12px] text-warn-ink md:hidden">
+      <Notice tone="warn" className="md:hidden">
         순찰 모드는 데스크탑에서 사용하세요. 모바일은 매직링크 순찰 화면을 이용해 주세요.
-      </div>
+      </Notice>
 
-      {/* 헤더 */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-panel px-4 py-3 shadow-[var(--shadow-xs)]">
-        <Link
-          href="/"
-          className="inline-flex h-8 items-center gap-1 rounded-lg border border-line px-2.5 text-[13px] font-medium text-ink-3 hover:bg-panel-2"
-          aria-label="대시보드로 돌아가기"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> 뒤로
-        </Link>
-        <ShieldCheck className="h-5 w-5 text-brand" />
-        <h1 className="text-[15px] font-bold tracking-[-0.01em] text-ink">순찰 — {data.patrollerName}</h1>
-        {round && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-ok-soft px-2.5 py-0.5 text-[11px] font-semibold text-ok-ink">
-            <span className="h-1.5 w-1.5 rounded-full bg-current" /> 진행중
-          </span>
-        )}
-        {round && (
-          <div className="flex min-w-[180px] flex-1 items-center gap-3">
-            <div className="h-2 flex-1 overflow-hidden rounded-full bg-canvas-2">
-              <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${pct}%` }} />
-            </div>
-            <span className="shrink-0 text-[13px] font-semibold tabular-nums text-ink-2">
-              점검 {checkedCount} <span className="text-ink-4">/ 재실 {rosterCount}</span>
-            </span>
-          </div>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          {round && (
-            <button
-              type="button"
-              onClick={() => setScanning((s) => !s)}
-              className={cn(
-                "inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium",
-                scanning ? "border-brand bg-brand-soft text-brand-2" : "border-line text-ink-3 hover:bg-panel-2",
-              )}
-            >
-              <ScanLine className="h-3.5 w-3.5" /> {scanning ? "스캔 중지" : "QR 스캔"}
-            </button>
-          )}
-          {round ? (
-            <button
-              type="button"
-              onClick={handleEnd}
-              disabled={pending}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-medium text-ink-3 hover:bg-panel-2 disabled:opacity-50"
-            >
-              <Square className="h-3.5 w-3.5" /> 순찰 종료
-            </button>
+      <PageHeader
+        className="mb-0 md:mb-0"
+        back={{ href: "/", label: "대시보드" }}
+        title="순찰"
+        meta={
+          round ? (
+            <StatusBadge tone="ok" size="large">진행 중</StatusBadge>
           ) : (
-            <button
-              type="button"
-              onClick={handleStart}
-              disabled={pending}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand px-4 text-[13px] font-semibold text-white disabled:opacity-50"
-            >
-              <Play className="h-3.5 w-3.5" /> 순찰 시작
-            </button>
+            <StatusBadge tone="gray" size="large">대기</StatusBadge>
+          )
+        }
+        description={
+          <span className="tabular-nums">
+            순찰자 {data.patrollerName}
+            {round && ` · ${round.label ? `${round.label} · ` : ""}${fmtClock(round.startedAt)} 시작`}
+          </span>
+        }
+        actions={
+          <>
+            {round && (
+              <Button
+                variant={scanning ? "soft" : "outline"}
+                aria-pressed={scanning}
+                onClick={() => setScanning((s) => !s)}
+              >
+                <ScanLine /> {scanning ? "스캔 중지" : "QR 스캔"}
+              </Button>
+            )}
+            {round ? (
+              <Button variant="outline" onClick={handleEnd} disabled={pending}>
+                <Square /> 순찰 종료
+              </Button>
+            ) : (
+              <Button onClick={handleStart} disabled={pending}>
+                {pending ? <Loader2 className="animate-spin" /> : <Play />} 순찰 시작
+              </Button>
+            )}
+          </>
+        }
+      />
+
+      {/* 진행률 — 진행 중 회차가 있을 때만 */}
+      {round ? (
+        <section aria-label="점검 진행률" className="rounded-r4 bg-bg-layer-fill px-x5 py-x4">
+          <div className="flex flex-wrap items-end justify-between gap-x3">
+            <div>
+              <p className="t4-medium text-fg-neutral-subtle">점검 진행</p>
+              <p className="mt-x1 flex items-baseline gap-x1 tabular-nums">
+                <span className="t10-bold text-fg-neutral">{checkedCount}</span>
+                <span className="t5-medium text-fg-neutral-subtle">/ 재실 {rosterCount}명</span>
+              </p>
+            </div>
+            <p className="t4-medium tabular-nums text-fg-neutral-muted">
+              {complete ? (
+                <span className="inline-flex items-center gap-x1 text-fg-positive">
+                  <CheckCircle2 className="size-4" aria-hidden /> 모두 점검했어요
+                </span>
+              ) : (
+                <>
+                  남은 학생 <span className="t5-bold text-fg-brand">{remaining}</span>명 · {pct}%
+                </>
+              )}
+            </p>
+          </div>
+          <ProgressBar value={pct / 100} tone={complete ? "ok" : "brand"} className="mt-x3" />
+          {complete && (
+            <p className="mt-x3 t4-regular text-fg-neutral-muted">
+              재실 학생 점검을 모두 마쳤어요. 이상이 없으면 순찰을 종료해 주세요.
+            </p>
           )}
-        </div>
-      </div>
+        </section>
+      ) : (
+        <Notice tone="info" title="진행 중인 순찰이 없어요">
+          순찰을 시작해야 점검을 기록할 수 있어요.
+        </Notice>
+      )}
 
       {/* QR 스캐너 (선택) */}
       {round && scanning && (
-        <div className="mx-auto max-w-sm rounded-xl border border-line bg-panel p-3 shadow-[var(--shadow-xs)]">
+        <Section className="mx-auto w-full max-w-sm" title="QR 스캔" description="좌석 QR을 사각형 안에 비춰 주세요.">
           <QrScanner active={scanning} onScan={handleScan} onError={(m) => toast.error(m)} />
-          <p className="mt-2 text-center text-[12px] text-ink-4">좌석 QR을 사각형 안에 비춰주세요</p>
-        </div>
+        </Section>
       )}
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_360px] md:items-start">
+      <div className="grid grid-cols-1 gap-x4 md:grid-cols-[1fr_360px] md:items-start">
         {/* 좌: 유의 관찰 + 명단 */}
-        <div className="space-y-3 min-w-0">
+        <div className="flex min-w-0 flex-col gap-x4">
           {/* 유의 관찰 학생 */}
           {attention.length > 0 && (
-            <div className="overflow-hidden rounded-xl border border-warn-soft bg-warn-soft/40 shadow-[var(--shadow-xs)]">
-              <p className="flex items-center gap-1.5 border-b border-warn-soft px-4 py-2.5 text-[12.5px] font-semibold text-warn-ink">
-                <AlertTriangle className="h-3.5 w-3.5" /> 유의 관찰 학생 ({attention.length})
-              </p>
-              <ul className="divide-y divide-warn-soft/60">
+            <Section flush title="유의 관찰 학생" count={attention.length} description="먼저 살펴볼 학생이에요.">
+              <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
                 {attention.map((a) => {
                   const rec = checkedById.get(a.studentId);
                   const inRoster = data.roster.some((s) => s.id === a.studentId);
@@ -325,170 +402,206 @@ export function PatrolDesktop({
                         type="button"
                         onClick={() => selectStudent({ id: a.studentId, name: a.name, seat: a.seat })}
                         className={cn(
-                          "flex w-full items-center gap-2 px-4 py-2.5 text-left hover:bg-warn-soft/50",
-                          target?.id === a.studentId && "bg-warn-soft/70",
+                          "flex w-full items-center gap-x2 px-x5 py-x3 text-left transition-colors hover:bg-bg-layer-default-pressed",
+                          target?.id === a.studentId && "bg-bg-brand-weak hover:bg-bg-brand-weak",
                         )}
                       >
                         <span
+                          aria-hidden
                           className={cn(
-                            "h-1.5 w-1.5 shrink-0 rounded-full",
-                            a.severity === "high" ? "bg-bad" : "bg-warn",
+                            "size-2 shrink-0 rounded-full",
+                            a.severity === "high" ? "bg-fg-critical" : "bg-fg-warning",
                           )}
                         />
-                        <span className="shrink-0 text-[13.5px] font-semibold text-ink">{a.name}</span>
-                        <span className="shrink-0 text-[11px] text-ink-4">{a.grade}</span>
-                        {a.isManual && <TagPill variant="brand">수동</TagPill>}
-                        {!inRoster && <span className="text-[10.5px] text-ink-4">(미재실)</span>}
-                        <span className="ml-auto flex items-center gap-1">
+                        <span className="shrink-0 t4-bold text-fg-neutral">{a.name}</span>
+                        <span className="shrink-0 t3-regular text-fg-neutral-subtle">{a.grade}</span>
+                        {a.isManual && <StatusBadge tone="brand">수동</StatusBadge>}
+                        {!inRoster && <span className="t3-regular text-fg-neutral-subtle">(미재실)</span>}
+                        <span className="ml-auto flex flex-wrap items-center justify-end gap-x1">
                           {a.reasons[0] && (
-                            <TagPill variant={a.severity === "high" ? "bad" : "warn"}>{a.reasons[0].label}</TagPill>
+                            <StatusBadge tone={a.severity === "high" ? "bad" : "warn"}>{a.reasons[0].label}</StatusBadge>
                           )}
-                          {rec && <TagPill variant={STATUS_META[rec.status].pill}>{STATUS_META[rec.status].label}</TagPill>}
+                          {rec && <StatusBadge tone={STATUS_META[rec.status].tone}>{STATUS_META[rec.status].label}</StatusBadge>}
                         </span>
                       </button>
                     </li>
                   );
                 })}
               </ul>
-            </div>
+            </Section>
           )}
 
-          {/* 재실 명단 테이블 */}
-          <div className="overflow-hidden rounded-xl border border-line bg-panel shadow-[var(--shadow-xs)]">
-            <div className="flex items-center gap-2 border-b border-line-2 px-3 py-2.5">
-              <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-4" />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="이름 · 학년 · 좌석 검색"
-                  className="h-8 w-full rounded-md border border-line bg-canvas pl-8 pr-2 text-[13px] focus:border-brand focus:outline-none"
-                />
-              </div>
-              <span className="shrink-0 text-[11.5px] text-ink-4 tabular-nums">
+          {/* 재실 명단 */}
+          <Section flush title="재실 명단" count={rosterCount}>
+            <div className="flex flex-wrap items-center gap-x2 border-t border-stroke-neutral-muted px-x5 py-x3">
+              <SearchField
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="이름 · 학년 · 좌석 검색"
+                aria-label="학생 검색"
+                className="sm:w-64"
+              />
+              <FilterChip
+                selected={onlyUnchecked}
+                count={remaining}
+                onClick={() => setOnlyUnchecked((v) => !v)}
+                className="h-9 px-x3_5 t4-medium"
+              >
+                미점검만
+              </FilterChip>
+              <span className="ml-auto shrink-0 t3-regular tabular-nums text-fg-neutral-subtle">
                 {filteredRoster.length} / {rosterCount}
               </span>
             </div>
 
             {/* 룸 칩 필터 */}
             {rooms.length > 1 && (
-              <div className="flex flex-wrap gap-1.5 border-b border-line-2 px-3 py-2">
+              <div className="flex flex-wrap gap-x1_5 px-x5 pb-x3" role="group" aria-label="룸 필터">
                 {[null, ...rooms].map((room) => (
-                  <button
+                  <FilterChip
                     key={room ?? "__all"}
-                    type="button"
+                    selected={roomFilter === room}
                     onClick={() => setRoomFilter(room)}
-                    className={cn(
-                      "rounded-full border px-2.5 py-1 text-[11.5px] font-medium",
-                      roomFilter === room
-                        ? "border-brand bg-brand-soft text-brand-2"
-                        : "border-line text-ink-3 hover:bg-panel-2",
-                    )}
                   >
                     {room ?? "전체"}
-                  </button>
+                  </FilterChip>
                 ))}
               </div>
             )}
 
             {rosterCount === 0 ? (
-              <p className="px-4 py-8 text-center text-[13px] text-ink-4">오늘 재실(체크인) 학생이 없어요</p>
+              <EmptyState
+                compact
+                icon={Users}
+                title="오늘 재실(체크인) 학생이 없어요"
+                description="입실한 학생이 생기면 여기에 명단이 나타나요."
+                className="border-t border-stroke-neutral-muted"
+              />
             ) : (
-              <table className="w-full text-[13px]">
-                <thead>
-                  <tr className="border-b border-line-2 bg-panel-2 text-[11px] font-semibold text-ink-4">
-                    <th className="w-16 px-3 py-2 text-left">좌석</th>
-                    <th className="px-3 py-2 text-left">이름</th>
-                    <th className="w-16 px-3 py-2 text-left">학년</th>
-                    <th className="w-24 px-3 py-2 text-right">점검상태</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRoster.map((s) => {
-                    const rec = checkedById.get(s.id);
-                    const isTarget = target?.id === s.id;
-                    const flagged = attentionIds.has(s.id);
-                    return (
-                      <tr
-                        key={s.id}
-                        onClick={() => selectStudent(s)}
-                        className={cn(
-                          "cursor-pointer border-b border-line-2 last:border-0 hover:bg-panel-2",
-                          isTarget && "bg-brand-softer",
-                          flagged && "border-l-2 border-l-warn",
-                        )}
-                      >
-                        <td className="px-3 py-2 font-mono text-[12px] text-ink-4">{s.seat ?? "—"}</td>
-                        <td className="px-3 py-2 font-medium text-ink">
-                          <span className="inline-flex items-center gap-1.5">
-                            {flagged && <Flag className="h-3 w-3 text-warn" />}
-                            {s.name}
-                            {formatAttendanceSpan(s.checkInAt, s.checkOutAt) && (
-                              <span className="text-[11px] font-normal tabular-nums text-ink-4">
-                                {formatAttendanceSpan(s.checkInAt, s.checkOutAt)}
-                              </span>
-                            )}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-[11.5px] text-ink-4">{s.grade}</td>
-                        <td className="px-3 py-2 text-right">
-                          {rec ? (
-                            <TagPill variant={STATUS_META[rec.status].pill}>{STATUS_META[rec.status].label}</TagPill>
-                          ) : (
-                            <TagPill variant="neutral">진행중</TagPill>
+              <div className="border-t border-stroke-neutral-muted">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-16 text-center">좌석</TableHead>
+                      <TableHead>이름</TableHead>
+                      <TableHead className="w-16">학년</TableHead>
+                      <TableHead className="w-24 text-right">점검</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRoster.map((s) => {
+                      const rec = checkedById.get(s.id);
+                      const isTarget = target?.id === s.id;
+                      const flagged = attentionIds.has(s.id);
+                      const span = formatAttendanceSpan(s.checkInAt, s.checkOutAt);
+                      return (
+                        <TableRow
+                          key={s.id}
+                          onClick={() => selectStudent(s)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              selectStudent(s);
+                            }
+                          }}
+                          tabIndex={0}
+                          aria-selected={isTarget}
+                          className={cn(
+                            "cursor-pointer outline-none focus-visible:bg-bg-layer-default-pressed",
+                            isTarget && "bg-bg-brand-weak hover:bg-bg-brand-weak",
                           )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {filteredRoster.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="px-4 py-6 text-center text-[13px] text-ink-4">
-                        검색 결과 없음
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                        >
+                          <TableCell className="text-center t5-bold tabular-nums">{s.seat ?? "—"}</TableCell>
+                          <TableCell>
+                            <span className="inline-flex flex-wrap items-center gap-x1_5">
+                              {flagged && <Flag className="size-3.5 text-fg-warning" aria-label="유의 관찰" />}
+                              <span className="t4-bold text-fg-neutral">{s.name}</span>
+                              {span && <span className="t3-regular tabular-nums text-fg-neutral-subtle">{span}</span>}
+                            </span>
+                          </TableCell>
+                          <TableCell className="t3-regular text-fg-neutral-muted">{s.grade}</TableCell>
+                          <TableCell className="text-right">
+                            {rec ? (
+                              <StatusBadge tone={STATUS_META[rec.status].tone}>{STATUS_META[rec.status].label}</StatusBadge>
+                            ) : (
+                              <span className="t3-regular text-fg-neutral-subtle">미점검</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {filteredRoster.length === 0 && (
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={4} className="p-0">
+                          {onlyUnchecked && !query.trim() ? (
+                            <EmptyState compact icon={CheckCircle2} title="남은 학생이 없어요" description="이 조건의 재실 학생을 모두 점검했어요." />
+                          ) : (
+                            <EmptyState compact icon={SearchX} title="검색 결과가 없어요" />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             )}
-          </div>
+          </Section>
 
           {/* 명단 외 점검 */}
           {offRosterRecords.length > 0 && (
-            <div className="overflow-hidden rounded-xl border border-line bg-panel shadow-[var(--shadow-xs)]">
-              <p className="border-b border-line-2 px-4 py-2.5 text-[12px] font-semibold text-ink-4">명단 외 점검</p>
-              <ul className="divide-y divide-line-2">
+            <Section flush title="명단 외 점검" count={offRosterRecords.length}>
+              <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
                 {offRosterRecords.map((r) => (
                   <li key={r.id}>
                     <button
                       type="button"
                       onClick={() => selectStudent({ id: r.studentId, name: r.studentName, seat: r.seat })}
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left hover:bg-panel-2"
+                      className="flex w-full items-center gap-x3 px-x5 py-x3 text-left transition-colors hover:bg-bg-layer-default-pressed"
                     >
-                      <span className="w-12 shrink-0 font-mono text-[12px] text-ink-4">{r.seat ?? "—"}</span>
-                      <span className="flex-1 text-[13.5px] font-medium text-ink">{r.studentName}</span>
-                      <TagPill variant={STATUS_META[r.status].pill}>{STATUS_META[r.status].label}</TagPill>
+                      <span className="w-12 shrink-0 t5-bold tabular-nums text-fg-neutral">{r.seat ?? "—"}</span>
+                      <span className="flex-1 t4-bold text-fg-neutral">{r.studentName}</span>
+                      <StatusBadge tone={STATUS_META[r.status].tone}>{STATUS_META[r.status].label}</StatusBadge>
                     </button>
                   </li>
                 ))}
               </ul>
-            </div>
+            </Section>
           )}
         </div>
 
         {/* 우: 선택 학생 상세 패널 — self-stretch 로 컬럼을 행 높이만큼 늘려야 sticky 가 스크롤을 따라온다 */}
         <div className="md:self-stretch">
-        <div className="rounded-xl border border-line bg-panel p-4 shadow-[var(--shadow-xs)] md:sticky md:top-3">
+        <div className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default p-x5 md:sticky md:top-20">
           {!target ? (
-            <div className="py-16 text-center text-[13px] text-ink-4">
-              왼쪽 명단에서 학생을 선택하세요
+            <div className="flex flex-col gap-x5 py-x4">
+              <div>
+                <p className="t5-bold text-fg-neutral">학생을 선택하세요</p>
+                <p className="mt-x1 t4-regular text-fg-neutral-subtle">이 순서대로 하면 빠르게 기록할 수 있어요.</p>
+              </div>
+              <ol className="flex flex-col gap-x3">
+                {STEPS.map((step, i) => (
+                  <li key={step} className="flex items-center gap-x3">
+                    <span className="grid size-7 shrink-0 place-items-center rounded-full bg-bg-neutral-weak t3-bold tabular-nums text-fg-neutral-muted">
+                      {i + 1}
+                    </span>
+                    <span className="t4-regular text-fg-neutral-muted">{step}</span>
+                  </li>
+                ))}
+              </ol>
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="flex items-start justify-between gap-2">
+            <div className="flex flex-col gap-x4">
+              <div className="flex items-start justify-between gap-x2">
                 <div className="min-w-0">
-                  <p className="text-[16px] font-bold text-ink">{info?.name ?? target.name}</p>
-                  <p className="text-[12px] text-ink-4">
+                  <div className="flex flex-wrap items-center gap-x2">
+                    <p className="t7-bold text-fg-neutral">{info?.name ?? target.name}</p>
+                    {target.existing && (
+                      <StatusBadge tone={STATUS_META[target.existing.status].tone}>
+                        점검함 · {STATUS_META[target.existing.status].label}
+                      </StatusBadge>
+                    )}
+                  </div>
+                  <p className="mt-x0_5 t4-regular text-fg-neutral-subtle">
                     {[info?.school, info?.grade, (info?.seat ?? target.seat) ? `좌석 ${info?.seat ?? target.seat}` : null]
                       .filter(Boolean)
                       .join(" · ") || "정보 불러오는 중…"}
@@ -497,79 +610,70 @@ export function PatrolDesktop({
                 <button
                   type="button"
                   onClick={() => setTarget(null)}
-                  className="rounded-lg p-1.5 text-ink-4 hover:bg-panel-2"
+                  className="grid size-9 shrink-0 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed"
                   aria-label="닫기"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="size-5" />
                 </button>
               </div>
 
               {/* 유의 관찰 배너/지정 */}
               {info && (
                 info.attentionFlag ? (
-                  <div className="rounded-lg border border-warn-soft bg-warn-soft/50 px-3 py-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-warn-ink">
-                        <Flag className="h-3.5 w-3.5" /> 유의 관찰 대상
+                  <div className="rounded-r3 bg-bg-warning-weak px-x4 py-x3">
+                    <div className="flex items-center justify-between gap-x2">
+                      <span className="inline-flex items-center gap-x1_5 t4-bold text-fg-warning">
+                        <Flag className="size-4" aria-hidden /> 유의 관찰 대상
                       </span>
-                      <button
-                        type="button"
-                        onClick={handleClearFlag}
-                        disabled={pending}
-                        className="text-[11.5px] font-medium text-ink-3 underline underline-offset-2 hover:text-ink disabled:opacity-50"
-                      >
+                      <Button variant="ghost" size="xs" onClick={handleClearFlag} disabled={pending}>
                         해제
-                      </button>
+                      </Button>
                     </div>
                     {info.attentionReason && (
-                      <p className="mt-1 text-[12.5px] text-ink-2 whitespace-pre-wrap">{info.attentionReason}</p>
+                      <p className="mt-x1 whitespace-pre-wrap t4-regular text-fg-neutral">{info.attentionReason}</p>
                     )}
                   </div>
                 ) : flagFormOpen ? (
-                  <div className="space-y-2 rounded-lg border border-line bg-panel-2 p-2.5">
-                    <input
+                  <div className="flex flex-col gap-x2 rounded-r3 bg-bg-layer-fill p-x3">
+                    <Input
                       value={flagReason}
                       onChange={(e) => setFlagReason(e.target.value)}
                       autoFocus
+                      aria-label="유의 관찰 사유"
                       placeholder="유의 관찰 사유 (예: 최근 집중도 저하)"
-                      className="w-full rounded-md border border-line bg-canvas px-2.5 py-1.5 text-[13px] focus:border-brand focus:outline-none"
                     />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
+                    <div className="flex justify-end gap-x2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => { setFlagFormOpen(false); setFlagReason(""); }}
-                        className="text-[12px] text-ink-4 hover:text-ink"
                       >
                         취소
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleFlag}
-                        disabled={pending}
-                        className="inline-flex h-7 items-center rounded-md bg-brand px-3 text-[12px] font-semibold text-white disabled:opacity-50"
-                      >
+                      </Button>
+                      <Button size="sm" onClick={handleFlag} disabled={pending}>
                         지정
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ) : (
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setFlagFormOpen(true)}
-                    className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-3 underline underline-offset-2 hover:text-ink"
+                    className="w-fit text-fg-neutral-muted"
                   >
-                    <Flag className="h-3.5 w-3.5" /> 유의 관찰로 지정
-                  </button>
+                    <Flag /> 유의 관찰로 지정
+                  </Button>
                 )
               )}
 
               {/* 학생 메모 */}
               {infoLoading ? (
-                <div className="flex items-center gap-2 rounded-lg bg-panel-2 px-3 py-2.5 text-[12.5px] text-ink-4">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> 학생 정보 불러오는 중…
+                <div className="flex items-center gap-x2 rounded-r3 bg-bg-layer-fill px-x4 py-x3 t4-regular text-fg-neutral-subtle">
+                  <Loader2 className="size-4 animate-spin" aria-hidden /> 학생 정보 불러오는 중…
                 </div>
               ) : info && (info.mentoringNotes || info.studentInfo || info.dailyNote) ? (
-                <div className="space-y-1.5 rounded-lg bg-panel-2 px-3 py-2.5">
+                <div className="flex flex-col gap-x2 rounded-r3 bg-bg-layer-fill px-x4 py-x3">
                   {info.dailyNote && <InfoRow label="당일 변동" value={info.dailyNote} tone="warn" />}
                   {info.mentoringNotes && <InfoRow label="멘토링 주의" value={info.mentoringNotes} />}
                   {info.studentInfo && <InfoRow label="학생 정보" value={info.studentInfo} />}
@@ -577,80 +681,101 @@ export function PatrolDesktop({
               ) : null}
 
               {/* 상태 선택 */}
-              <div className="grid grid-cols-3 gap-2">
-                {(Object.keys(STATUS_META) as PatrolStatus[]).map((st) => {
-                  const meta = STATUS_META[st];
-                  const Icon = meta.icon;
-                  const selected = draftStatus === st;
-                  return (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => setDraftStatus(st)}
-                      className={cn(
-                        "flex flex-col items-center gap-1 rounded-lg border-2 py-2.5 text-[12.5px] font-semibold transition",
-                        selected ? "border-brand bg-brand text-white" : "border-line text-ink-3 hover:bg-panel-2",
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {meta.label}
-                    </button>
-                  );
-                })}
+              <div className="flex flex-col gap-x2">
+                <p className="t4-medium text-fg-neutral">점검 상태</p>
+                <div className="grid grid-cols-3 gap-x2" role="group" aria-label="점검 상태">
+                  {(Object.keys(STATUS_META) as PatrolStatus[]).map((st) => {
+                    const meta = STATUS_META[st];
+                    const Icon = meta.icon;
+                    const selected = draftStatus === st;
+                    return (
+                      <button
+                        key={st}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setDraftStatus(st)}
+                        className={cn(
+                          "flex h-x16 flex-col items-center justify-center gap-x1 rounded-r3 t4-bold transition-colors",
+                          selected
+                            ? meta.selected
+                            : "bg-bg-layer-default text-fg-neutral-muted shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] hover:bg-bg-layer-default-pressed",
+                        )}
+                      >
+                        <Icon className="size-5" aria-hidden />
+                        {meta.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* 특이사항 프리셋 칩 — 탭하면 NOTE 상태로 전환 + note 에 append */}
-              <div className="flex flex-wrap gap-1.5">
-                {PATROL_NOTE_PRESETS.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => {
-                      setDraftStatus("NOTE");
-                      setDraftNote((prev) => (prev.trim() ? `${prev.trim()}, ${p}` : p));
-                    }}
-                    className="rounded-full border border-line bg-panel-2 px-2.5 py-1 text-[11.5px] text-ink-3 hover:border-brand hover:text-ink"
-                  >
-                    {p}
-                  </button>
-                ))}
+              <div className="flex flex-col gap-x2">
+                <p className="t3-medium text-fg-neutral-subtle">자주 쓰는 특이사항</p>
+                <div className="flex flex-wrap gap-x1_5">
+                  {PATROL_NOTE_PRESETS.map((p) => (
+                    <FilterChip
+                      key={p}
+                      onClick={() => {
+                        setDraftStatus("NOTE");
+                        setDraftNote((prev) => (prev.trim() ? `${prev.trim()}, ${p}` : p));
+                      }}
+                    >
+                      {p}
+                    </FilterChip>
+                  ))}
+                </div>
               </div>
 
               {draftStatus === "NOTE" && (
-                <textarea
+                <Textarea
                   value={draftNote}
                   onChange={(e) => setDraftNote(e.target.value)}
                   rows={3}
+                  aria-label="특이사항 내용"
                   placeholder="특이사항 내용 (예: 졸고 있음, 자리 이탈, 휴대폰 사용)"
-                  className="w-full rounded-lg border border-line bg-canvas px-3 py-2 text-[13px] focus:border-brand focus:outline-none"
                 />
               )}
 
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={pending || !round}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-brand text-[14px] font-semibold text-white disabled:opacity-50"
-              >
-                {target.existing ? "수정 저장" : "점검 기록"}
-              </button>
+              <Button size="lg" onClick={handleSave} disabled={pending || !round} className="w-full">
+                {pending ? "저장 중…" : target.existing ? "수정 저장" : "점검 기록"}
+              </Button>
               {!round && (
-                <p className="text-center text-[11.5px] text-ink-4">순찰을 시작해야 점검을 기록할 수 있어요</p>
+                <p className="text-center t3-regular text-fg-neutral-subtle">순찰을 시작해야 점검을 기록할 수 있어요</p>
               )}
             </div>
           )}
         </div>
         </div>
       </div>
+
+      {/* 회차 종료 확인 */}
+      <Dialog open={endOpen} onOpenChange={setEndOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>이번 순찰 회차를 종료할까요?</DialogTitle>
+            <DialogDescription>
+              {checkedCount}명을 점검했어요.
+              {remaining > 0 && ` 아직 점검하지 않은 재실 학생이 ${remaining}명 있어요.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEndOpen(false)}>
+              계속 순찰
+            </Button>
+            <Button onClick={runEnd}>순찰 종료</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 function InfoRow({ label, value, tone }: { label: string; value: string; tone?: "warn" }) {
   return (
-    <div className="flex gap-2 text-[12.5px]">
-      <span className={cn("shrink-0 font-semibold", tone === "warn" ? "text-warn-ink" : "text-ink-4")}>{label}</span>
-      <span className="whitespace-pre-wrap text-ink-2">{value}</span>
+    <div className="flex gap-x2 t3-regular">
+      <span className={cn("w-16 shrink-0 t3-bold", tone === "warn" ? "text-fg-warning" : "text-fg-neutral-subtle")}>{label}</span>
+      <span className="min-w-0 whitespace-pre-wrap text-fg-neutral">{value}</span>
     </div>
   );
 }

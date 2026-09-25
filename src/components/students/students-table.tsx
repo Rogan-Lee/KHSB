@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { formatDate, cn } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -18,6 +17,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -29,36 +29,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, ArrowLeftRight, LogOut, LogIn, ChevronRight, Search, X } from "lucide-react";
+import { MoreHorizontal, ArrowLeftRight, LogOut, LogIn, ChevronRight, AlertTriangle, CircleAlert } from "lucide-react";
 import { checkoutStudent, readmitStudent, moveStudentSeat, swapStudentSeats, updateStudentSeat } from "@/actions/students";
 import { toast } from "sonner";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Student, User, AttendanceSchedule } from "@/generated/prisma";
 import { useSortableTable } from "@/hooks/use-sortable-table";
-import { SortableHeader } from "@/components/ui/sortable-header";
+import { FormField, Notice, StatusBadge, TableCard } from "@/components/backoffice/ui";
+import { SortHead } from "./sort-head";
+import { StudentAvatar } from "./student-avatar";
+import { STUDENT_STATUS } from "./student-status";
 
 type StudentWithRelations = Student & {
   mentor: Pick<User, "name"> | null;
   schedules: AttendanceSchedule[];
-};
-
-// 이번 주 화요일 기준 단어시험 응시 여부 판단
-function isVocabDone(vocabTestDate: Date | null | undefined): boolean {
-  if (!vocabTestDate) return false;
-  const now = new Date();
-  const day = now.getDay();
-  const daysBack = day >= 2 ? day - 2 : day + 5;
-  const lastTue = new Date(now);
-  lastTue.setDate(now.getDate() - daysBack);
-  lastTue.setHours(0, 0, 0, 0);
-  return new Date(vocabTestDate) >= lastTue;
-}
-
-const STATUS_MAP = {
-  ACTIVE: { label: "재원", variant: "default" as const },
-  INACTIVE: { label: "휴원", variant: "secondary" as const },
-  GRADUATED: { label: "졸업", variant: "outline" as const },
-  WITHDRAWN: { label: "퇴원", variant: "destructive" as const },
 };
 
 // ── 좌석 변경 다이얼로그 ──────────────────────────────
@@ -106,42 +89,35 @@ function SeatChangeDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>좌석 변경 — {student.name}</DialogTitle>
+          <DialogTitle>좌석 변경</DialogTitle>
+          <DialogDescription>
+            {student.name} · 현재 좌석 <span className="t4-medium text-fg-neutral tabular-nums">{student.seat || "미배정"}</span>
+          </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="text-sm text-muted-foreground">
-            현재 좌석: <span className="font-mono font-medium text-foreground">{student.seat || "미배정"}</span>
-          </div>
-          <div className="space-y-1.5">
-            <Label>새 좌석 번호</Label>
-            <Input
-              value={newSeat}
-              onChange={(e) => setNewSeat(e.target.value)}
-              placeholder="예: A-01"
-              autoFocus
-            />
-          </div>
-          {occupant && (
-            <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm">
-              <span className="font-medium text-orange-800">{newSeat.trim()}</span>
-              <span className="text-orange-700"> 자리에 </span>
-              <span className="font-medium text-orange-800">{occupant.name}</span>
-              <span className="text-orange-700">이(가) 있습니다.</span>
-              <br />
-              <span className="text-orange-600 text-xs">확인하면 두 학생의 좌석을 맞교환합니다.</span>
-            </div>
-          )}
-          {newSeat.trim() && !occupant && newSeat.trim() !== student.seat && (
-            <p className="text-xs text-green-600">빈 자리입니다. 이동합니다.</p>
-          )}
-        </div>
+        <FormField label="새 좌석 번호" htmlFor="seat-change-input">
+          <Input
+            id="seat-change-input"
+            value={newSeat}
+            onChange={(e) => setNewSeat(e.target.value)}
+            placeholder="예: A-01"
+            autoFocus
+          />
+        </FormField>
+        {occupant && (
+          <Notice tone="warn" icon={AlertTriangle} title={`${newSeat.trim()} 자리에 ${occupant.name}이(가) 있습니다.`}>
+            확인하면 두 학생의 좌석을 맞교환합니다.
+          </Notice>
+        )}
+        {newSeat.trim() && !occupant && newSeat.trim() !== student.seat && (
+          <p className="t3-medium text-fg-positive">빈 자리입니다. 이동합니다.</p>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onClose()} disabled={isPending}>취소</Button>
           <Button
             onClick={handleSubmit}
             disabled={isPending || !newSeat.trim() || newSeat.trim() === student.seat}
           >
-            {isPending ? "처리 중..." : occupant ? "교환" : "이동"}
+            {isPending ? "처리 중…" : occupant ? "교환" : "이동"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -178,23 +154,19 @@ function CheckoutDialog({
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>퇴실 처리</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3 py-2 text-sm">
-          <p>
-            <span className="font-medium">{student.name}</span>
-            {student.seat && (
-              <span className="text-muted-foreground"> ({student.seat})</span>
-            )}
+          <DialogDescription>
+            <span className="t4-medium text-fg-neutral">{student.name}</span>
+            {student.seat && <span className="tabular-nums"> ({student.seat})</span>}
             의 퇴실을 처리합니다.
-          </p>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700 text-xs">
-            좌석이 반납되고 비활성 상태로 전환됩니다. 멘토링, 출결 등 기록은 보존됩니다.
-          </div>
-        </div>
+          </DialogDescription>
+        </DialogHeader>
+        <Notice tone="warn" icon={AlertTriangle}>
+          좌석이 반납되고 비활성 상태로 전환됩니다. 멘토링, 출결 등 기록은 보존됩니다.
+        </Notice>
         <DialogFooter>
           <Button variant="outline" onClick={() => onClose()} disabled={isPending}>취소</Button>
           <Button variant="destructive" onClick={handleCheckout} disabled={isPending}>
-            {isPending ? "처리 중..." : "퇴실 처리"}
+            {isPending ? "처리 중…" : "퇴실 처리"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -245,37 +217,35 @@ function ReadmitDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>재입실 처리 — {student.name}</DialogTitle>
+          <DialogTitle>재입실 처리</DialogTitle>
+          <DialogDescription>
+            {student.name}
+            {lastSeat && (
+              <>
+                {" "}· 퇴원 전 좌석 <span className="t4-medium text-fg-neutral tabular-nums">{lastSeat}번</span>
+              </>
+            )}
+          </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          {lastSeat && (
-            <div className="text-sm text-muted-foreground">
-              퇴원 전 좌석: <span className="font-mono font-medium text-foreground">{lastSeat}번</span>
-            </div>
-          )}
-          <div className="space-y-1.5">
-            <Label>좌석 번호</Label>
-            <Input
-              value={newSeat}
-              onChange={(e) => setNewSeat(e.target.value)}
-              placeholder="좌석 번호 입력 (비워두면 미배정)"
-              autoFocus
-            />
-          </div>
-          {occupant && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              <span className="font-medium">{newSeat}번</span> 좌석에 <span className="font-medium">{occupant.name}</span>이(가) 있습니다.
-              다른 좌석을 선택하세요.
-            </div>
-          )}
-          {newSeat && !occupant && (
-            <p className="text-xs text-green-600">빈 좌석입니다.</p>
-          )}
-        </div>
+        <FormField label="좌석 번호" htmlFor="readmit-seat-input" hint="비워 두면 미배정으로 재입실해요">
+          <Input
+            id="readmit-seat-input"
+            value={newSeat}
+            onChange={(e) => setNewSeat(e.target.value)}
+            placeholder="좌석 번호 입력 (비워두면 미배정)"
+            autoFocus
+          />
+        </FormField>
+        {occupant && (
+          <Notice tone="bad" icon={CircleAlert} title={`${newSeat}번 좌석에 ${occupant.name}이(가) 있습니다.`}>
+            다른 좌석을 선택하세요.
+          </Notice>
+        )}
+        {newSeat && !occupant && <p className="t3-medium text-fg-positive">빈 좌석입니다.</p>}
         <DialogFooter>
           <Button variant="outline" onClick={() => onClose()} disabled={isPending}>취소</Button>
           <Button onClick={handleReadmit} disabled={isPending || !!occupant}>
-            {isPending ? "처리 중..." : "재입실"}
+            {isPending ? "처리 중…" : "재입실"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -286,40 +256,27 @@ function ReadmitDialog({
 const TOTAL_SEATS = 89;
 
 // ── 메인 테이블 ──────────────────────────────────────
-const STUDENTS_FILTER_KEY = "students-table-filters";
-function loadStudentFilters() {
-  try { return JSON.parse(sessionStorage.getItem(STUDENTS_FILTER_KEY) ?? "{}"); } catch { return {}; }
-}
-
-export function StudentsTable({ students }: { students: StudentWithRelations[] }) {
+// 검색·필터는 상위 StudentsListView 의 툴바가 맡고, 여기서는 정렬·빈 좌석 배치·행 동작만 담당한다.
+export function StudentsTable({
+  students,
+  allStudents,
+  seatLayout = false,
+}: {
+  /** 툴바 필터가 적용된 표시 대상 */
+  students: StudentWithRelations[];
+  /** 좌석 점유 확인용 전체 원생 (없으면 students) */
+  allStudents?: StudentWithRelations[];
+  /** 필터·검색이 없는 기본 보기 — 정렬도 없으면 1~89번 빈 좌석을 함께 보여 준다 */
+  seatLayout?: boolean;
+}) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
   const [seatDialog, setSeatDialog] = useState<StudentWithRelations | null>(null);
   const [checkoutDialog, setCheckoutDialog] = useState<StudentWithRelations | null>(null);
-  const saved = typeof window !== "undefined" ? loadStudentFilters() : {};
-  const [query, setQuery] = useState<string>(saved.q ?? "");
-  const [showWithdrawn, setShowWithdrawn] = useState<boolean>(saved.withdrawn ?? false);
-  const [mentorFilter, setMentorFilter] = useState<string>("ALL");
-
-  // 멘토 목록 추출 (이름 가나다순)
-  const mentorNames = [...new Set(students.map((s) => s.mentor?.name).filter(Boolean) as string[])].sort((a, b) => a.localeCompare(b, "ko"));
-
-  useEffect(() => {
-    try { sessionStorage.setItem(STUDENTS_FILTER_KEY, JSON.stringify({ q: query, withdrawn: showWithdrawn })); } catch {}
-  }, [query, showWithdrawn]);
-
-  // 퇴원생 보기 모드: WITHDRAWN만 표시 / 기본: WITHDRAWN 제외
-  const statusFiltered = showWithdrawn
-    ? students.filter((s) => s.status === "WITHDRAWN")
-    : students.filter((s) => s.status !== "WITHDRAWN");
-
-  // 멘토 필터 적용
-  const visibleStudents = mentorFilter === "ALL"
-    ? statusFiltered
-    : statusFiltered.filter((s) => s.mentor?.name === mentorFilter);
+  const [readmitDialog, setReadmitDialog] = useState<StudentWithRelations | null>(null);
+  const everyone = allStudents ?? students;
 
   // 정렬 (헤더 클릭으로 3-state 토글)
-  const { rows: sortedStudents, sort, toggle } = useSortableTable(visibleStudents, {
+  const { rows: sortedStudents, sort, toggle } = useSortableTable(students, {
     seat: (s) => {
       const n = s.seat ? parseInt(s.seat, 10) : NaN;
       return isNaN(n) ? Number.MAX_SAFE_INTEGER : n;
@@ -331,8 +288,6 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
     status: (s) => s.status,
   });
 
-  const [readmitDialog, setReadmitDialog] = useState<StudentWithRelations | null>(null);
-
   function handleDialogClose(refresh = false) {
     setSeatDialog(null);
     setCheckoutDialog(null);
@@ -340,19 +295,17 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
     if (refresh) router.refresh();
   }
 
-  const q = query.trim().toLowerCase();
-
-  // 기본 뷰(정렬/검색/퇴원생 모드 전부 미활성)일 때만 빈 좌석 표시.
-  // 정렬 활성 또는 검색어 있으면 학생 row만 보여줌 (빈 좌석은 관련 없음).
+  // 기본 뷰(정렬/검색/필터/퇴원생 모드 전부 미활성)일 때만 빈 좌석 표시.
   type Row = { type: "student"; student: StudentWithRelations } | { type: "empty"; seatNum: string };
-  const showEmptySeats = !showWithdrawn && !sort && !q;
+  const showEmptySeats = seatLayout && !sort;
 
   const rows: Row[] = [];
+  let emptyCount = 0;
   if (showEmptySeats) {
-    // 재원 모드 + 정렬/검색 없음: 좌석 1~TOTAL_SEATS 순회하며 빈 좌석 같이 표시
+    // 좌석 1~TOTAL_SEATS 순회하며 빈 좌석 같이 표시
     const seatMap = new Map<string, StudentWithRelations>();
     const noSeatStudents: StudentWithRelations[] = [];
-    for (const s of visibleStudents) {
+    for (const s of students) {
       if (s.seat?.trim()) seatMap.set(s.seat.trim(), s);
       else noSeatStudents.push(s);
     }
@@ -364,197 +317,131 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
         seatMap.delete(key);
       } else {
         rows.push({ type: "empty", seatNum: key });
+        emptyCount++;
       }
     }
     // 비숫자 좌석(A-57 등) 학생 추가
     for (const [, student] of seatMap) rows.push({ type: "student", student });
     for (const s of noSeatStudents) rows.push({ type: "student", student: s });
   } else {
-    // 정렬/검색/퇴원생 모드: useSortableTable 결과에 검색 필터 추가
-    const filtered = q
-      ? sortedStudents.filter((s) =>
-          [s.name, s.school, s.grade, s.mentor?.name, s.seat, s.phone, s.parentPhone]
-            .some((v) => v?.toLowerCase().includes(q))
-        )
-      : sortedStudents;
-    for (const s of filtered) rows.push({ type: "student", student: s });
+    for (const s of sortedStudents) rows.push({ type: "student", student: s });
   }
+
+  const head = { activeKey: sort?.key, dir: sort?.dir, onToggle: toggle };
 
   return (
     <>
-      <div className="flex items-center gap-2 mb-3">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="이름, 학교, 멘토, 연락처 검색..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="pl-8 h-8 w-64 text-sm"
-          />
-          {query && (
-            <button onClick={() => setQuery("")} className="absolute right-2 top-2 text-muted-foreground hover:text-foreground">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-        {q && (
-          <span className="text-xs text-muted-foreground">
-            {rows.length}명 검색됨
-          </span>
-        )}
-        <button
-          onClick={() => setShowWithdrawn((v) => !v)}
-          className={`ml-auto px-3 py-1 text-xs rounded-lg border transition-colors ${
-            showWithdrawn
-              ? "bg-red-50 text-red-700 border-red-200"
-              : "text-muted-foreground border-transparent hover:border-border"
-          }`}
-        >
-          {showWithdrawn ? "← 재원생 보기" : "퇴원생 보기"}
-        </button>
-      </div>
-
-      {/* 멘토 필터 */}
-      {mentorNames.length > 0 && (
-        <div className="flex items-center gap-1.5 mb-3 flex-wrap">
-          <span className="text-xs text-muted-foreground shrink-0">담당 멘토</span>
-          {[{ name: "전체", value: "ALL" }, ...mentorNames.map((n) => ({ name: n, value: n }))].map((m) => (
-            <button
-              key={m.value}
-              onClick={() => setMentorFilter(m.value)}
-              className={cn(
-                "px-2.5 py-1 text-xs rounded-md font-medium border transition-colors",
-                mentorFilter === m.value
-                  ? "bg-primary/10 text-primary border-primary/30"
-                  : "border-border text-muted-foreground hover:bg-muted"
-              )}
-            >
-              {m.name}
-              {m.value !== "ALL" && (
-                <span className="ml-1 text-[10px] opacity-60">
-                  {statusFiltered.filter((s) => s.mentor?.name === m.value).length}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-      <div className="overflow-x-auto">
+      <TableCard
+        footer={
+          showEmptySeats ? (
+            <>
+              <span className="t3-regular text-fg-neutral-muted tabular-nums">
+                좌석 {TOTAL_SEATS}석 중 <span className="t3-bold text-fg-neutral">{emptyCount}석</span>이 비어 있어요
+              </span>
+              <span className="hidden t3-regular text-fg-neutral-subtle sm:inline">
+                정렬·검색·필터를 쓰면 빈 자리는 숨겨요
+              </span>
+            </>
+          ) : undefined
+        }
+      >
         <Table>
           <TableHeader>
             <TableRow>
-              <SortableHeader sortKey="seat" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="w-14 whitespace-nowrap h-10 px-2">
-                좌석
-              </SortableHeader>
-              <SortableHeader sortKey="name" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="whitespace-nowrap h-10 px-2">
-                이름
-              </SortableHeader>
-              <SortableHeader sortKey="school" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="whitespace-nowrap h-10 px-2">
-                학교/학년
-              </SortableHeader>
-              <TableHead className="whitespace-nowrap">연락처</TableHead>
-              <TableHead className="whitespace-nowrap">학부모 연락처</TableHead>
-              <SortableHeader sortKey="mentor" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="whitespace-nowrap h-10 px-2">
-                담당 멘토
-              </SortableHeader>
-              <TableHead className="whitespace-nowrap">특이사항</TableHead>
-              <SortableHeader sortKey="startDate" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="whitespace-nowrap h-10 px-2">
-                등원일
-              </SortableHeader>
-              <SortableHeader sortKey="status" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="whitespace-nowrap h-10 px-2">
-                상태
-              </SortableHeader>
-              <TableHead className="w-8"></TableHead>
-              <TableHead className="w-8"></TableHead>
+              <SortHead sortKey="seat" {...head} className="w-16">좌석</SortHead>
+              <SortHead sortKey="name" {...head}>이름</SortHead>
+              <SortHead sortKey="school" {...head}>학교/학년</SortHead>
+              <TableHead>연락처</TableHead>
+              <TableHead>학부모 연락처</TableHead>
+              <SortHead sortKey="mentor" {...head}>담당 멘토</SortHead>
+              <TableHead>특이사항</TableHead>
+              <SortHead sortKey="startDate" {...head}>등원일</SortHead>
+              <SortHead sortKey="status" {...head}>상태</SortHead>
+              <TableHead className="w-12"><span className="sr-only">메뉴</span></TableHead>
+              <TableHead className="w-10"><span className="sr-only">상세</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((row, i) => {
+            {rows.map((row) => {
               if (row.type === "empty") {
                 return (
-                  <TableRow key={`empty-${row.seatNum}`} className="bg-muted/20">
-                    <TableCell className="font-mono text-xs text-muted-foreground">{row.seatNum}</TableCell>
-                    <TableCell colSpan={9} className="text-xs text-muted-foreground/60 italic">
+                  <TableRow key={`empty-${row.seatNum}`} className="hover:bg-transparent">
+                    <TableCell className="h-10 py-x2 t4-regular text-fg-placeholder tabular-nums">{row.seatNum}</TableCell>
+                    <TableCell colSpan={10} className="h-10 py-x2 t3-regular text-fg-placeholder">
                       빈 자리
                     </TableCell>
-                    <TableCell />
                   </TableRow>
                 );
               }
 
               const student = row.student;
+              const status = STUDENT_STATUS[student.status];
               return (
                 <TableRow
                   key={student.id}
-                  className="cursor-pointer hover:bg-accent/50 transition-colors"
+                  className="cursor-pointer"
                   onClick={() => router.push(`/students/${student.id}`)}
                 >
-                  <TableCell className="font-mono text-xs whitespace-nowrap">
-                    {student.seat || <span className="text-muted-foreground/50">-</span>}
+                  <TableCell className="whitespace-nowrap t4-medium tabular-nums">
+                    {student.seat || <span className="text-fg-placeholder">—</span>}
                   </TableCell>
-                  <TableCell className="font-medium whitespace-nowrap">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-7 w-7">
-                        {student.imageUrl && <AvatarImage src={student.imageUrl} alt={student.name} />}
-                        <AvatarFallback className="text-[11px] font-semibold">
-                          {student.name.trim().slice(0, 1) || "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span>{student.name}</span>
-                      {student.seat && (
-                        <Badge variant="outline" className="px-1.5 py-0 font-mono text-[10px] text-muted-foreground">
-                          {student.seat}
-                        </Badge>
-                      )}
+                  <TableCell className="whitespace-nowrap">
+                    <div className="flex items-center gap-x2_5">
+                      <StudentAvatar name={student.name} imageUrl={student.imageUrl} size={32} />
+                      <Link
+                        href={`/students/${student.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="t4-medium text-fg-neutral hover:underline focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+                      >
+                        {student.name}
+                      </Link>
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm whitespace-nowrap">
-                    <span>{[student.school, student.grade].filter(Boolean).join(" ") || "-"}</span>
+                  <TableCell className="whitespace-nowrap">
+                    <span>{[student.school, student.grade].filter(Boolean).join(" ") || "—"}</span>
                     {student.classGroup && (
-                      <span className="ml-1.5 text-xs text-muted-foreground">({student.classGroup})</span>
+                      <span className="ml-x1_5 t3-regular text-fg-neutral-subtle">{student.classGroup}</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm whitespace-nowrap">{student.phone || "-"}</TableCell>
-                  <TableCell className="text-sm whitespace-nowrap">{student.parentPhone}</TableCell>
-                  <TableCell className="text-sm whitespace-nowrap">{student.mentor?.name || "-"}</TableCell>
+                  <TableCell className="whitespace-nowrap text-fg-neutral-muted tabular-nums">{student.phone || "—"}</TableCell>
+                  <TableCell className="whitespace-nowrap text-fg-neutral-muted tabular-nums">{student.parentPhone}</TableCell>
+                  <TableCell className="whitespace-nowrap">{student.mentor?.name || <span className="text-fg-placeholder">—</span>}</TableCell>
                   <TableCell className="max-w-[200px]" title={student.studentInfo || undefined}>
                     {student.studentInfo ? (
-                      <span className="text-xs text-muted-foreground line-clamp-1">{student.studentInfo}</span>
+                      <span className="line-clamp-1 t3-regular text-fg-neutral-muted">{student.studentInfo}</span>
                     ) : (
-                      <span className="text-muted-foreground/40 text-xs">-</span>
+                      <span className="text-fg-placeholder">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm whitespace-nowrap">{formatDate(student.startDate)}</TableCell>
+                  <TableCell className="whitespace-nowrap text-fg-neutral-muted tabular-nums">{formatDate(student.startDate)}</TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_MAP[student.status].variant}>
-                      {STATUS_MAP[student.status].label}
-                    </Badge>
+                    <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                          <MoreHorizontal className="h-4 w-4" />
+                        <Button variant="ghost" size="icon" className="size-8" aria-label={`${student.name} 메뉴`}>
+                          <MoreHorizontal />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         {student.status === "WITHDRAWN" ? (
                           <DropdownMenuItem onClick={() => setReadmitDialog(student)}>
-                            <LogIn className="h-3.5 w-3.5 mr-2" />
+                            <LogIn />
                             재입실 처리
                           </DropdownMenuItem>
                         ) : (
                           <>
                             <DropdownMenuItem onClick={() => setSeatDialog(student)}>
-                              <ArrowLeftRight className="h-3.5 w-3.5 mr-2" />
+                              <ArrowLeftRight />
                               좌석 변경
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              className="text-red-600 focus:text-red-600"
+                              className="text-fg-critical focus:text-fg-critical"
                               onClick={() => setCheckoutDialog(student)}
                             >
-                              <LogOut className="h-3.5 w-3.5 mr-2" />
+                              <LogOut />
                               퇴실 처리
                             </DropdownMenuItem>
                           </>
@@ -563,19 +450,19 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
                     </DropdownMenu>
                   </TableCell>
                   <TableCell>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
+                    <ChevronRight className="size-4 text-fg-placeholder" aria-hidden />
                   </TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
-      </div>
+      </TableCard>
 
       {seatDialog && (
         <SeatChangeDialog
           student={seatDialog}
-          allStudents={students}
+          allStudents={everyone}
           open={!!seatDialog}
           onClose={(refresh) => handleDialogClose(refresh)}
         />
@@ -590,7 +477,7 @@ export function StudentsTable({ students }: { students: StudentWithRelations[] }
       {readmitDialog && (
         <ReadmitDialog
           student={readmitDialog}
-          allStudents={students}
+          allStudents={everyone}
           open={!!readmitDialog}
           onClose={(refresh) => handleDialogClose(refresh)}
         />

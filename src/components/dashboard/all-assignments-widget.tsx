@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import { CheckCircle2, Clock, ClipboardCheck, AlertCircle } from "lucide-react";
+import { CheckCircle2, ClipboardList } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EmptyState, ListItem, Section, SectionLink, StatusBadge } from "@/components/backoffice/ui";
 import type { AssignmentStatusRow } from "@/actions/dashboard-widgets";
 
 type Tab = "upcoming" | "overdue" | "completed" | "all";
@@ -67,74 +66,62 @@ export function AllAssignmentsWidget({ rows }: { rows: AssignmentStatusRow[] }) 
     }).slice(0, 40);
   }, [enriched, tab]);
 
+  const empty: Record<Tab, { title: string; positive?: boolean }> = {
+    upcoming: { title: "기한 3일 이내 과제가 없어요" },
+    overdue: { title: "기한이 지난 과제가 없어요", positive: true },
+    completed: { title: "완료된 과제가 없어요" },
+    all: { title: "등록된 과제가 없어요" },
+  };
+
   return (
-    <Card className="rounded-[12px] border-line shadow-[var(--shadow-xs)] overflow-hidden">
-      <CardHeader className="flex flex-row items-center gap-2 py-[14px] px-[18px] border-b border-line-2">
-        <ClipboardCheck className="h-4 w-4 text-ink-4" />
-        <CardTitle className="text-[13.5px] font-[650] tracking-[-0.015em] text-ink m-0">
-          전 원생 과제 현황
-        </CardTitle>
-        <span className="ml-auto text-[11.5px] text-ink-4 font-mono tabular-nums">
-          {counts.all}건
-        </span>
-      </CardHeader>
-      <div className="flex border-b border-line-2 text-[11.5px]">
-        {(["upcoming", "overdue", "completed", "all"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={cn(
-              "flex-1 px-3 py-2 transition-colors border-b-2",
-              tab === t
-                ? "text-ink font-semibold border-brand"
-                : "text-ink-4 hover:text-ink border-transparent"
-            )}
-          >
-            {TAB_LABEL[t]}
-            <span className="ml-1 text-ink-4 font-mono tabular-nums">{counts[t]}</span>
-          </button>
-        ))}
-      </div>
-      <CardContent className="p-0">
-        {filtered.length === 0 ? (
-          <div className="py-8 text-center text-[12.5px] text-ink-4">
-            {tab === "upcoming" && "기한 3일 이내 과제가 없습니다"}
-            {tab === "overdue" && (
-              <span className="text-ok inline-flex items-center gap-1">
-                <CheckCircle2 className="h-4 w-4" /> 기한 초과 과제 없음
-              </span>
-            )}
-            {tab === "completed" && "완료된 과제가 없습니다"}
-            {tab === "all" && "과제가 없습니다"}
-          </div>
-        ) : (
-          <div className="max-h-80 overflow-y-auto">
-            {filtered.map((r) => (
-              <Link
-                key={r.id}
+    <Section
+      title="전 원생 과제 현황"
+      count={counts.all}
+      actions={<SectionLink href="/assignments">전체 보기</SectionLink>}
+      flush
+    >
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="px-x5 pb-x3">
+        <TabsList variant="segment" aria-label="과제 상태" className="max-w-full overflow-x-auto [scrollbar-width:none]">
+          {(["upcoming", "overdue", "completed", "all"] as const).map((t) => (
+            <TabsTrigger key={t} value={t} className="px-x2_5 sm:px-x3">
+              {TAB_LABEL[t]}
+              <span className="tabular-nums text-fg-neutral-subtle">{counts[t]}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+      {filtered.length === 0 ? (
+        <EmptyState
+          compact
+          icon={empty[tab].positive ? CheckCircle2 : ClipboardList}
+          title={empty[tab].title}
+          className="border-t border-stroke-neutral-muted"
+        />
+      ) : (
+        <ul className="max-h-96 divide-y divide-stroke-neutral-muted overflow-y-auto border-t border-stroke-neutral-muted">
+          {filtered.map((r) => (
+            <li key={r.id}>
+              <ListItem
                 href={`/students/${r.studentId}`}
-                className="grid items-center gap-3 px-[18px] py-[10px] border-b border-line-2 last:border-b-0 hover:bg-panel-2 text-[12.5px]"
-                style={{ gridTemplateColumns: "auto 1fr auto" }}
-              >
-                <span className="font-semibold text-ink tracking-[-0.01em] shrink-0">
-                  {r.studentName}
-                  <span className="text-[10.5px] text-ink-4 ml-1">{r.studentGrade}</span>
-                </span>
-                <span className="text-ink-3 truncate">
-                  {r.subject && <span className="text-ink-4 mr-1">[{r.subject}]</span>}
-                  {r.title}
-                </span>
-                <DueBadge
-                  isCompleted={r.isCompleted}
-                  daysUntil={r.daysUntil}
-                  dueDate={r.dueDate}
-                />
-              </Link>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                title={
+                  <>
+                    {r.studentName}
+                    <span className="ml-x1_5 t3-regular text-fg-neutral-subtle">{r.studentGrade}</span>
+                  </>
+                }
+                description={
+                  <>
+                    {r.subject && <span className="mr-x1 text-fg-neutral-muted">[{r.subject}]</span>}
+                    {r.title}
+                  </>
+                }
+                trailing={<DueBadge isCompleted={r.isCompleted} daysUntil={r.daysUntil} dueDate={r.dueDate} />}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
   );
 }
 
@@ -147,43 +134,13 @@ function DueBadge({
   daysUntil: number | null;
   dueDate: Date | null;
 }) {
-  if (isCompleted) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10.5px] text-ok bg-ok-soft px-1.5 py-0.5 rounded font-semibold">
-        <CheckCircle2 className="h-3 w-3" />
-        완료
-      </span>
-    );
-  }
-  if (daysUntil == null) {
-    return <span className="text-[10.5px] text-ink-4">기한 없음</span>;
-  }
-  if (daysUntil < 0) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10.5px] text-bad bg-bad-soft px-1.5 py-0.5 rounded font-semibold">
-        <AlertCircle className="h-3 w-3" />
-        {Math.abs(daysUntil)}일 초과
-      </span>
-    );
-  }
-  if (daysUntil === 0) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10.5px] text-warn bg-warn-soft px-1.5 py-0.5 rounded font-semibold">
-        <Clock className="h-3 w-3" />
-        오늘 마감
-      </span>
-    );
-  }
-  if (daysUntil <= 3) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10.5px] text-warn bg-warn-soft px-1.5 py-0.5 rounded font-semibold">
-        <Clock className="h-3 w-3" />
-        {daysUntil}일 남음
-      </span>
-    );
-  }
+  if (isCompleted) return <StatusBadge tone="ok">완료</StatusBadge>;
+  if (daysUntil == null) return <span className="t3-regular text-fg-neutral-subtle">기한 없음</span>;
+  if (daysUntil < 0) return <StatusBadge tone="bad">{Math.abs(daysUntil)}일 초과</StatusBadge>;
+  if (daysUntil === 0) return <StatusBadge tone="warn">오늘 마감</StatusBadge>;
+  if (daysUntil <= 3) return <StatusBadge tone="warn">{daysUntil}일 남음</StatusBadge>;
   return (
-    <span className="text-[10.5px] text-ink-4 tabular-nums">
+    <span className="t3-regular tabular-nums text-fg-neutral-subtle">
       {dueDate ? `D-${daysUntil}` : ""}
     </span>
   );

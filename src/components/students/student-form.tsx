@@ -3,8 +3,7 @@
 import { useRef, useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input, inputBaseClass } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -14,16 +13,24 @@ import {
 } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { createStudent, updateStudent } from "@/actions/students";
-import { GRADE_OPTIONS, parseSchool } from "@/lib/utils";
+import { GRADE_OPTIONS, cn, parseSchool } from "@/lib/utils";
 import { KOREAN_ELECTIVES, MATH_ELECTIVES, INQUIRY_SUBJECTS } from "@/lib/online/subjects";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
 import { ChevronDown, ImagePlus, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { FormActions, FormField } from "@/components/backoffice/ui";
 import type { Student, User } from "@/generated/prisma";
 
 const TOTAL_SEATS = 89;
+
+// 입력 아래 펼쳐지는 선택 목록 — ui/dropdown-menu 와 같은 떠 있는 레이어 모양
+const POPUP =
+  "absolute z-50 mt-x1 max-h-56 w-full overflow-auto rounded-r3 bg-bg-layer-floating p-x1_5 shadow-[var(--seed-shadow-s3)]";
+const OPTION =
+  "w-full rounded-r2 px-x3 py-x2 text-left t4-regular text-fg-neutral transition-colors hover:bg-bg-layer-floating-pressed";
+const OPTION_ON = "bg-bg-layer-floating-pressed t4-medium";
 
 interface StudentFormProps {
   student?: Student;
@@ -64,13 +71,13 @@ function SeatCombobox({ name, defaultValue, occupiedSeats }: { name: string; def
           autoComplete="off"
           className="pr-8"
         />
-        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-fg-neutral-subtle" />
       </div>
       {open && (
-        <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-auto">
+        <div className={POPUP}>
           <button
             type="button"
-            className={`w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${value === "none" ? "bg-accent" : ""}`}
+            className={cn(OPTION, value === "none" && OPTION_ON)}
             onMouseDown={() => { setValue("none"); setQuery(""); setOpen(false); }}
           >
             미배정
@@ -82,7 +89,7 @@ function SeatCombobox({ name, defaultValue, occupiedSeats }: { name: string; def
                 key={num}
                 type="button"
                 disabled={isOccupied}
-                className={`w-full text-left px-3 py-2 text-sm ${isOccupied ? "opacity-50 cursor-not-allowed text-muted-foreground" : "hover:bg-accent hover:text-accent-foreground"} ${value === num ? "bg-accent" : ""}`}
+                className={cn(OPTION, "tabular-nums", isOccupied && "cursor-not-allowed text-fg-disabled", value === num && OPTION_ON)}
                 onMouseDown={() => { if (!isOccupied) { setValue(num); setQuery(""); setOpen(false); } }}
               >
                 {num}번{isOccupied ? " (사용중)" : ""}
@@ -90,7 +97,7 @@ function SeatCombobox({ name, defaultValue, occupiedSeats }: { name: string; def
             );
           })}
           {filtered.length === 0 && (
-            <p className="px-3 py-2 text-sm text-muted-foreground">결과 없음</p>
+            <p className="px-x3 py-x2 t4-regular text-fg-neutral-subtle">결과 없음</p>
           )}
         </div>
       )}
@@ -121,15 +128,15 @@ function SchoolCombobox({ name, defaultValue, options }: { name: string; default
           autoComplete="off"
           className="pr-8"
         />
-        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-fg-neutral-subtle" />
       </div>
       {open && filtered.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-auto">
+        <div className={POPUP}>
           {filtered.map((s) => (
             <button
               key={s}
               type="button"
-              className="w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+              className={OPTION}
               onMouseDown={() => { setValue(s); setQuery(s); setOpen(false); }}
             >
               {s}
@@ -164,15 +171,15 @@ function ProfileImageUploader({ defaultValue }: { defaultValue?: string }) {
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-x4">
       <input type="hidden" name="imageUrl" value={url} />
-      <Avatar className="h-14 w-14">
-        {url && <AvatarImage src={url} alt="프로필 이미지" />}
-        <AvatarFallback className="text-xs text-muted-foreground">
-          <ImagePlus className="h-4 w-4" />
+      <Avatar className="size-x14">
+        {url && <AvatarImage src={url} alt="프로필 이미지" className="object-cover" />}
+        <AvatarFallback className="bg-bg-neutral-weak text-fg-neutral-subtle">
+          <ImagePlus className="size-5" />
         </AvatarFallback>
       </Avatar>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x2">
         <input
           ref={inputRef}
           type="file"
@@ -184,11 +191,11 @@ function ProfileImageUploader({ defaultValue }: { defaultValue?: string }) {
           }}
         />
         <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => inputRef.current?.click()}>
-          {uploading ? "업로드 중..." : url ? "이미지 변경" : "이미지 선택"}
+          {uploading ? "업로드 중…" : url ? "이미지 변경" : "이미지 선택"}
         </Button>
         {url && (
           <Button type="button" variant="ghost" size="sm" disabled={uploading} onClick={() => setUrl("")}>
-            <X className="h-3.5 w-3.5" />
+            <X />
             제거
           </Button>
         )}
@@ -234,22 +241,23 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
     ? new Date(student.birthDate).toISOString().split("T")[0]
     : "";
 
-  return (
-    <form action={handleSubmit} ref={formRef} className="space-y-4">
-      <div className="space-y-2">
-        <Label>프로필 이미지</Label>
-        <ProfileImageUploader defaultValue={student?.imageUrl || ""} />
-      </div>
+  const subjectSelect = cn(inputBaseClass, "h-10 px-x3");
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="name">이름 *</Label>
+  return (
+    <form action={handleSubmit} ref={formRef} className="flex flex-col">
+      <FormGroup title="프로필">
+        <FormField label="프로필 이미지" className="sm:col-span-2">
+          <ProfileImageUploader defaultValue={student?.imageUrl || ""} />
+        </FormField>
+      </FormGroup>
+
+      <FormGroup title="기본 정보">
+        <FormField label="이름" htmlFor="name" required>
           <Input id="name" name="name" defaultValue={student?.name} required />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="grade">학년 *</Label>
+        </FormField>
+        <FormField label="학년" htmlFor="grade" required>
           <Select name="grade" defaultValue={student?.grade}>
-            <SelectTrigger>
+            <SelectTrigger id="grade">
               <SelectValue placeholder="학년 선택" />
             </SelectTrigger>
             <SelectContent>
@@ -258,34 +266,13 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
               ))}
             </SelectContent>
           </Select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="phone">학생 연락처</Label>
-          <Input id="phone" name="phone" defaultValue={student?.phone || ""} placeholder="010-0000-0000" />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="parentPhone">학부모 연락처 *</Label>
-          <Input id="parentPhone" name="parentPhone" defaultValue={student?.parentPhone} required placeholder="010-0000-0000" />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="parentEmail">학부모 이메일</Label>
-        <Input id="parentEmail" name="parentEmail" type="email" defaultValue={student?.parentEmail || ""} placeholder="parent@example.com" />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="school">학교</Label>
+        </FormField>
+        <FormField label="학교" htmlFor="school">
           <SchoolCombobox name="school" defaultValue={student?.school || ""} options={schools} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="classGroup">반</Label>
+        </FormField>
+        <FormField label="반" htmlFor="classGroup" hint="입퇴실 일정 저장 시 자동 갱신 (3회까지 선택반 · 4회+ 정규반)">
           <Select name="classGroup" defaultValue={student?.classGroup || "none"}>
-            <SelectTrigger>
+            <SelectTrigger id="classGroup">
               <SelectValue placeholder="반 선택" />
             </SelectTrigger>
             <SelectContent>
@@ -294,67 +281,63 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
               <SelectItem value="선택반">선택반</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-[10px] text-muted-foreground">입퇴실 일정 저장 시 자동 갱신 (3회까지 선택반 · 4회+ 정규반)</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="seat">좌석번호</Label>
+        </FormField>
+        <FormField label="좌석번호" htmlFor="seat">
           <SeatCombobox name="seat" defaultValue={student?.seat || "none"} occupiedSeats={occupiedSeats} />
-        </div>
-        <div />
-      </div>
+        </FormField>
+        <FormField label="담당 멘토" htmlFor="mentorId">
+          <Combobox
+            name="mentorId"
+            value={mentorId}
+            onChange={setMentorId}
+            items={mentors.map((m) => ({ value: m.id, label: m.name }))}
+            placeholder="멘토 선택 (선택사항)"
+            searchPlaceholder="멘토 이름 검색…"
+            allowEmpty
+            emptyLabel="미배정"
+            popoverClassName="w-[--radix-popover-trigger-width]"
+          />
+        </FormField>
+      </FormGroup>
 
-      <div className="space-y-2">
-        <Label htmlFor="mentorId">담당 멘토</Label>
-        <Combobox
-          name="mentorId"
-          value={mentorId}
-          onChange={setMentorId}
-          items={mentors.map((m) => ({ value: m.id, label: m.name }))}
-          placeholder="멘토 선택 (선택사항)"
-          searchPlaceholder="멘토 이름 검색…"
-          allowEmpty
-          emptyLabel="미배정"
-          popoverClassName="w-[--radix-popover-trigger-width]"
-        />
-      </div>
+      <FormGroup title="연락처">
+        <FormField label="학생 연락처" htmlFor="phone">
+          <Input id="phone" name="phone" defaultValue={student?.phone || ""} placeholder="010-0000-0000" />
+        </FormField>
+        <FormField label="학부모 연락처" htmlFor="parentPhone" required>
+          <Input id="parentPhone" name="parentPhone" defaultValue={student?.parentPhone} required placeholder="010-0000-0000" />
+        </FormField>
+        <FormField label="학부모 이메일" htmlFor="parentEmail" className="sm:col-span-2">
+          <Input id="parentEmail" name="parentEmail" type="email" defaultValue={student?.parentEmail || ""} placeholder="parent@example.com" />
+        </FormField>
+      </FormGroup>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label>등원일 *</Label>
+      <FormGroup title="등록 정보" cols={3}>
+        <FormField label="등원일" required>
           <DatePicker name="startDate" defaultValue={defaultDate} required placeholder="등원일 선택" />
-        </div>
-        <div className="space-y-2">
-          <Label>퇴원예정일</Label>
+        </FormField>
+        <FormField label="퇴원예정일">
           <DatePicker name="endDate" defaultValue={defaultEndDate || undefined} placeholder="퇴원예정일 선택" />
-        </div>
-        <div className="space-y-2">
-          <Label>생년월일</Label>
+        </FormField>
+        <FormField label="생년월일">
           <DatePicker name="birthDate" defaultValue={defaultBirthDate || undefined} placeholder="생년월일 선택" />
-        </div>
-      </div>
+        </FormField>
+      </FormGroup>
 
       {/* 학습 정보 */}
-      <div className="border-t pt-4 space-y-3">
-        <p className="text-sm font-medium text-muted-foreground">학습 정보 (멘토링용)</p>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="internalScoreRange">내신 성적대</Label>
+      <FormGroup title="학습 정보" description="멘토링할 때 참고하는 정보예요">
+        <div className="grid grid-cols-1 gap-x4 sm:col-span-2 sm:grid-cols-3">
+          <FormField label="내신 성적대" htmlFor="internalScoreRange">
             <Input id="internalScoreRange" name="internalScoreRange" defaultValue={student?.internalScoreRange || ""} placeholder="예: 2~3등급" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="mockScoreRange">모의고사 성적대</Label>
+          </FormField>
+          <FormField label="모의고사 성적대" htmlFor="mockScoreRange">
             <Input id="mockScoreRange" name="mockScoreRange" defaultValue={student?.mockScoreRange || ""} placeholder="예: 3~4등급" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="targetUniversity">희망 대학</Label>
+          </FormField>
+          <FormField label="희망 대학" htmlFor="targetUniversity">
             <Input id="targetUniversity" name="targetUniversity" defaultValue={student?.targetUniversity || ""} placeholder="예: 연세대" />
-          </div>
+          </FormField>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="mentoringNotes">멘토링 주의사항</Label>
+        <FormField label="멘토링 주의사항" htmlFor="mentoringNotes" className="sm:col-span-2">
           <Textarea
             id="mentoringNotes"
             name="mentoringNotes"
@@ -362,60 +345,53 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
             placeholder="멘토링 시 주의해야 할 사항, 성격, 특이사항 등..."
             rows={2}
           />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="selectedSubjects">선택과목</Label>
-            <Input
-              id="selectedSubjects"
-              name="selectedSubjects"
-              defaultValue={(student as { selectedSubjects?: string | null } | undefined)?.selectedSubjects || ""}
-              placeholder="예: 수학, 영어, 사탐(생활과윤리)"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="admissionType">입시 전형</Label>
-            <Input
-              id="admissionType"
-              name="admissionType"
-              defaultValue={(student as { admissionType?: string | null } | undefined)?.admissionType || ""}
-              placeholder="예: 수시 학생부종합, 정시"
-            />
-          </div>
-        </div>
+        </FormField>
+        <FormField label="선택과목" htmlFor="selectedSubjects">
+          <Input
+            id="selectedSubjects"
+            name="selectedSubjects"
+            defaultValue={(student as { selectedSubjects?: string | null } | undefined)?.selectedSubjects || ""}
+            placeholder="예: 수학, 영어, 사탐(생활과윤리)"
+          />
+        </FormField>
+        <FormField label="입시 전형" htmlFor="admissionType">
+          <Input
+            id="admissionType"
+            name="admissionType"
+            defaultValue={(student as { admissionType?: string | null } | undefined)?.admissionType || ""}
+            placeholder="예: 수시 학생부종합, 정시"
+          />
+        </FormField>
         {/* 국어/수학 선택과목 + 탐구 과목 (평가원 성적표 구조) */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x4 sm:col-span-2 sm:grid-cols-4">
           {([
             { name: "koreanElective", label: "국어 선택", options: KOREAN_ELECTIVES as readonly string[], current: (student as { koreanElective?: string | null } | undefined)?.koreanElective },
             { name: "mathElective", label: "수학 선택", options: MATH_ELECTIVES as readonly string[], current: (student as { mathElective?: string | null } | undefined)?.mathElective },
             { name: "inquiry1Subject", label: "탐구1", options: INQUIRY_SUBJECTS as readonly string[], current: (student as { inquiry1Subject?: string | null } | undefined)?.inquiry1Subject },
             { name: "inquiry2Subject", label: "탐구2", options: INQUIRY_SUBJECTS as readonly string[], current: (student as { inquiry2Subject?: string | null } | undefined)?.inquiry2Subject },
           ] as const).map((f) => (
-            <div className="space-y-2" key={f.name}>
-              <Label htmlFor={f.name}>{f.label}</Label>
+            <FormField key={f.name} label={f.label} htmlFor={f.name}>
               <select
                 id={f.name}
                 name={f.name}
                 defaultValue={f.current || "none"}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                className={subjectSelect}
               >
                 <option value="none">선택 안 함</option>
                 {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
-            </div>
+            </FormField>
           ))}
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="onlineLectures">수강중인 인강</Label>
+        <FormField label="수강중인 인강" htmlFor="onlineLectures" className="sm:col-span-2">
           <Input
             id="onlineLectures"
             name="onlineLectures"
             defaultValue={(student as { onlineLectures?: string | null } | undefined)?.onlineLectures || ""}
             placeholder="예: 메가스터디 수학(현우진), EBSi 국어"
           />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="studentInfo">학생정보 메모</Label>
+        </FormField>
+        <FormField label="학생정보 메모" htmlFor="studentInfo" className="sm:col-span-2">
           <Textarea
             id="studentInfo"
             name="studentInfo"
@@ -423,17 +399,40 @@ export function StudentForm({ student, mentors, schools = [], occupiedSeats = []
             placeholder="학생 특이사항, 성향, 추가 메모 등..."
             rows={2}
           />
-        </div>
-      </div>
+        </FormField>
+      </FormGroup>
 
-      <div className="flex gap-2 pt-2">
-        <Button type="submit" disabled={isPending}>
-          {isPending ? "저장 중..." : student ? "수정" : "등록"}
-        </Button>
+      <FormActions className="border-t border-stroke-neutral-muted pt-x5 max-sm:[&>*]:flex-1">
         <Button type="button" variant="outline" onClick={() => history.back()}>
           취소
         </Button>
-      </div>
+        <Button type="submit" disabled={isPending}>
+          {isPending ? "저장 중…" : student ? "수정" : "등록"}
+        </Button>
+      </FormActions>
     </form>
+  );
+}
+
+/** 폼 묶음 — 제목 + 2열(또는 3열) 입력 격자, 묶음 사이 옅은 구분선 */
+function FormGroup({
+  title,
+  description,
+  cols = 2,
+  children,
+}: {
+  title: string;
+  description?: string;
+  cols?: 2 | 3;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-x4 border-t border-stroke-neutral-muted py-x6 first:border-t-0 first:pt-0">
+      <div>
+        <h3 className="t5-bold text-fg-neutral">{title}</h3>
+        {description && <p className="mt-x0_5 t3-regular text-fg-neutral-subtle">{description}</p>}
+      </div>
+      <div className={cn("grid grid-cols-1 gap-x4", cols === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>{children}</div>
+    </section>
   );
 }

@@ -1,9 +1,8 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { CalendarDays, Plus } from "lucide-react";
 import { TodayMentoringPanel } from "@/components/mentoring/today-mentoring-panel";
 import { MentoringList } from "@/components/mentoring/mentoring-list";
 import { MentoringAnnouncement } from "@/components/mentoring/mentoring-announcement";
@@ -12,9 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getTodayWorkingMentors } from "@/actions/mentoring";
 import { getAnnouncement } from "@/actions/announcements";
 import { getStudentsForReportDispatch } from "@/actions/parent-reports";
-import { Calendar } from "lucide-react";
 import { isFullAccess, isStaff, isOnlineStaff } from "@/lib/roles";
-import { PageIntro } from "@/components/ui/page-intro";
+import { PageHeader, Section, StatCard, StatCards } from "@/components/backoffice/ui";
 import { redirect } from "next/navigation";
 
 export const revalidate = 10;
@@ -127,76 +125,101 @@ export default async function MentoringPage({
     else if (row.type === "DEMERIT") entry.negative += sum;
   }
 
+  // 오늘 요약 — 이미 불러온 목록에서 계산(추가 쿼리 없음). 조회 기간이 오늘을 벗어나면 표시하지 않는다.
+  const includesToday = !hasRange || (initialFrom <= today && today <= initialTo);
+  const todayMentorings = includesToday
+    ? mentorings.filter((m) => toIsoDate(m.scheduledAt) === today && m.status !== "CANCELLED")
+    : [];
+  const todayDone = todayMentorings.filter((m) => m.status === "COMPLETED").length;
+  const todayLeft = todayMentorings.filter((m) => m.status === "SCHEDULED").length;
+  const priorityStudentIds = new Set(
+    todaySlots.flatMap((slot) => slot.candidates.filter((c) => c.priority === 1).map((c) => c.studentId))
+  );
+
   return (
-    <div className="space-y-6">
-      <PageIntro
-        tag="MENTORING · 03"
+    <>
+      <PageHeader
         title="멘토링"
-        description="멘토링 일정 관리, 기록, 학부모 리포트"
-        accent="text-info"
+        description="오늘 멘토링 일정과 기록, 학부모 리포트를 한곳에서 관리해요"
+        actions={
+          <>
+            <Button asChild variant="outline">
+              <Link href="/mentoring/schedule">
+                <CalendarDays />
+                내 스케줄 관리
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/mentoring/new">
+                <Plus />
+                멘토링 등록
+              </Link>
+            </Button>
+          </>
+        }
       />
 
-      {/* 이번 주 공지사항 */}
-      <Card>
-        <CardContent className="pt-4">
-          <MentoringAnnouncement announcement={announcement} canEdit={canEditAnnouncement} />
-        </CardContent>
-      </Card>
+      <div className="flex flex-col gap-x8">
+        {/* 오늘 요약 */}
+        <StatCards cols={4}>
+          <StatCard
+            label="오늘 멘토링"
+            value={includesToday ? todayMentorings.length : "—"}
+            unit={includesToday ? "건" : undefined}
+            sub={includesToday ? `완료 ${todayDone} · 예정 ${todayLeft}` : "조회 기간에 오늘이 없어요"}
+          />
+          <StatCard
+            label="기록 대기"
+            value={includesToday ? todayLeft : "—"}
+            unit={includesToday ? "건" : undefined}
+            tone={includesToday && todayLeft > 0 ? "brand" : "gray"}
+            sub="오늘 예정 중 완료 처리 전"
+          />
+          <StatCard
+            label="우선 멘토링 대상"
+            value={priorityStudentIds.size}
+            unit="명"
+            tone={priorityStudentIds.size > 0 ? "bad" : "gray"}
+            sub="지금 재실 중인 1순위 원생"
+          />
+          <StatCard
+            label="재실 원생"
+            value={checkedInStudentIds.size}
+            unit="명"
+            sub={`오늘 근무 멘토 ${todaySlots.length}명`}
+          />
+        </StatCards>
 
-      {/* 오늘의 멘토링 추천 */}
-      <Card>
-        <CardContent className="pt-4">
+        {/* 이번 주 공지사항 */}
+        <MentoringAnnouncement announcement={announcement} canEdit={canEditAnnouncement} />
+
+        {/* 오늘의 멘토링 추천 */}
+        <Section
+          title="오늘의 멘토링 추천"
+          description={`${today} · 근무 멘토별로 지금 재실 중인 원생을 우선순위대로 보여 줘요`}
+          flush
+        >
           <TodayMentoringPanel slots={todaySlots} today={today} />
-        </CardContent>
-      </Card>
+        </Section>
 
-      {/* 스케줄 관리 링크 */}
-      <div className="flex justify-end">
-        <Link href="/mentoring/schedule">
-          <Button variant="outline" size="sm">
-            <Calendar className="h-4 w-4 mr-1.5" />
-            내 스케줄 관리
-          </Button>
-        </Link>
+        <Tabs defaultValue="list">
+          <TabsList>
+            <TabsTrigger value="list">멘토링 기록</TabsTrigger>
+            <TabsTrigger value="report">리포트 발송</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="list">
+            <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} vocabEnrolledStudentIds={vocabEnrolledIds} attendanceNotes={attendanceNotesMap} tardyStudentIds={tardyStudentIds} meritPoints={meritPointsByStudent} initialDateFrom={initialFrom} initialDateTo={initialTo} />
+          </TabsContent>
+
+          <TabsContent value="report">
+            <p className="mb-x4 t4-regular text-fg-neutral-subtle">
+              원생을 여러 명 골라 리포트를 한 번에 만들고, 내용을 다듬은 뒤 카카오톡·문자로 보내요.
+            </p>
+            <MentoringReportTab rows={reportRows} />
+          </TabsContent>
+        </Tabs>
       </div>
-
-      <Tabs defaultValue="list" className="space-y-3">
-        <TabsList>
-          <TabsTrigger value="list">멘토링 기록</TabsTrigger>
-          <TabsTrigger value="report">리포트 발송</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="list">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>멘토링 목록</CardTitle>
-              <Link href="/mentoring/new">
-                <Button size="sm">
-                  <Plus className="h-4 w-4 mr-1" />
-                  멘토링 등록
-                </Button>
-              </Link>
-            </CardHeader>
-            <CardContent>
-              <MentoringList mentorings={mentorings} mentors={mentors} isDirector={isDirector} currentUserId={session?.user?.id} checkedInStudentIds={[...checkedInStudentIds]} vocabEnrolledStudentIds={vocabEnrolledIds} attendanceNotes={attendanceNotesMap} tardyStudentIds={tardyStudentIds} meritPoints={meritPointsByStudent} initialDateFrom={initialFrom} initialDateTo={initialTo} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="report">
-          <Card>
-            <CardHeader>
-              <CardTitle>학부모 리포트 발송</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                학생 다중 선택 → 일괄 생성 → URL 내용 수정 → URL 생성 → 카카오/문자 발송
-              </p>
-            </CardHeader>
-            <CardContent>
-              <MentoringReportTab rows={reportRows} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+    </>
   );
 }

@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useId, useState } from "react";
+import { Check, ChevronDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
@@ -43,6 +42,13 @@ interface ComboboxProps {
   popoverClassName?: string;
 }
 
+// SEED SelectTrigger(ui/select) 와 같은 규격 — 높이 40, r2, 1px stroke-neutral-weak, 포커스·열림 2px stroke-neutral-contrast
+const TRIGGER =
+  "flex h-10 w-full items-center justify-between gap-x2 rounded-r2 border-0 bg-bg-layer-default px-x3 text-left t4-regular text-fg-neutral outline-none transition-shadow " +
+  "shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] " +
+  "focus-visible:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)] data-[state=open]:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)] " +
+  "disabled:cursor-not-allowed disabled:bg-bg-disabled disabled:text-fg-disabled";
+
 export function Combobox({
   items,
   value,
@@ -60,6 +66,7 @@ export function Combobox({
   popoverClassName,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
+  const listId = useId();
   const selected = items.find((i) => i.value === value) ?? null;
 
   return (
@@ -80,34 +87,34 @@ export function Combobox({
       )}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button
+          <button
             type="button"
-            variant="outline"
             role="combobox"
             aria-expanded={open}
+            aria-controls={listId}
             disabled={disabled}
-            className={cn(
-              "w-full justify-between font-normal",
-              !selected && "text-muted-foreground",
-              triggerClassName,
-            )}
+            className={cn(TRIGGER, triggerClassName)}
           >
-            <span className="truncate text-left">
+            <span className={cn("truncate", !selected && "text-fg-placeholder")}>
               {selected
                 ? selected.subLabel
                   ? `${selected.label} (${selected.subLabel})`
                   : selected.label
                 : placeholder}
             </span>
-            <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
-          </Button>
+            <ChevronDown className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
+          </button>
         </PopoverTrigger>
-        <PopoverContent className={cn("w-[260px] p-0", popoverClassName)} align="start">
+        <PopoverContent
+          id={listId}
+          className={cn("w-[260px] min-w-(--radix-popover-trigger-width) overflow-hidden p-0", popoverClassName)}
+          align="start"
+        >
           <Command>
-            <CommandInput placeholder={searchPlaceholder} className="text-xs" />
+            <CommandInput placeholder={searchPlaceholder} className="h-12 t4-regular" />
             <CommandList>
               <CommandEmpty>{emptyMessage}</CommandEmpty>
-              <CommandGroup>
+              <CommandGroup className="p-x1_5">
                 {allowEmpty && (
                   <CommandItem
                     // 고유 value — 공백/빈 문자열은 cmdk 가 무시해 선택·호버가 안 됨. 검색어는 keywords 로.
@@ -117,10 +124,10 @@ export function Combobox({
                       onChange("");
                       setOpen(false);
                     }}
-                    className="text-xs"
+                    className="gap-x2"
                   >
-                    <Check className={cn("mr-2 h-3.5 w-3.5", value === "" ? "opacity-100" : "opacity-0")} />
-                    <span className="text-muted-foreground">{emptyLabel}</span>
+                    <Check className={cn("size-4 text-fg-neutral", value === "" ? "opacity-100" : "opacity-0")} />
+                    <span className="text-fg-neutral-subtle">{emptyLabel}</span>
                   </CommandItem>
                 )}
                 {items.map((item) => (
@@ -134,18 +141,20 @@ export function Combobox({
                       onChange(item.value);
                       setOpen(false);
                     }}
-                    className="text-xs"
+                    className={cn("gap-x2", value === item.value && "t4-bold")}
                   >
                     <Check
                       className={cn(
-                        "mr-2 h-3.5 w-3.5",
+                        "size-4 text-fg-neutral",
                         value === item.value ? "opacity-100" : "opacity-0",
                       )}
                     />
-                    {item.label}
-                    {item.subLabel && (
-                      <span className="ml-1 text-muted-foreground">({item.subLabel})</span>
-                    )}
+                    <span className="min-w-0 truncate">
+                      {item.label}
+                      {item.subLabel && (
+                        <span className="ml-x1 t4-regular text-fg-neutral-subtle">({item.subLabel})</span>
+                      )}
+                    </span>
                   </CommandItem>
                 ))}
               </CommandGroup>

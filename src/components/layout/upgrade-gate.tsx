@@ -1,8 +1,19 @@
 "use client";
 
 import { getMinimumPlan, PLAN_LABELS, type FeatureKey, type PlanTier } from "@/lib/features";
-import { Lock, ArrowRight } from "lucide-react";
+import { Lock, Check, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { StatusBadge, type Tone } from "@/components/backoffice/ui";
+import { cn } from "@/lib/utils";
+
+// 플랜 배지 색 — lib/features 의 PLAN_LABELS.color(원색 유틸) 대신 SEED 역할색으로 표시
+const PLAN_TONE: Record<PlanTier, Tone> = {
+  STARTER: "gray",
+  STANDARD: "info",
+  PREMIUM: "violet",
+};
+
+const PLAN_ORDER: PlanTier[] = ["STARTER", "STANDARD", "PREMIUM"];
 
 /**
  * 현재 플랜에서 사용할 수 없는 기능에 접근했을 때 표시하는 업그레이드 안내 컴포넌트.
@@ -20,60 +31,69 @@ export function UpgradeGate({
   const currentPlanInfo = PLAN_LABELS[currentPlan];
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-      <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-6">
-        <Lock className="h-8 w-8 text-muted-foreground" />
-      </div>
+    <div className="flex min-h-[60vh] flex-col items-center justify-center px-x4 py-x12 text-center">
+      <span
+        aria-hidden
+        className="mb-x5 grid size-x14 place-items-center rounded-full bg-bg-neutral-weak text-fg-neutral-subtle"
+      >
+        <Lock className="size-7" />
+      </span>
 
-      <h2 className="text-xl font-bold mb-2">
-        플랜 업그레이드가 필요합니다
-      </h2>
+      <h2 className="t7-bold text-fg-neutral">플랜 업그레이드가 필요해요</h2>
 
-      <p className="text-sm text-muted-foreground max-w-md mb-6">
+      <p className="mt-x2 max-w-md t4-regular text-fg-neutral-subtle">
         이 기능은{" "}
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold ${planInfo.color}`}>
-          {planInfo.label}
-        </span>
-        {" "}플랜부터 사용할 수 있습니다.
-        현재{" "}
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold ${currentPlanInfo.color}`}>
-          {currentPlanInfo.label}
-        </span>
-        {" "}플랜을 이용 중입니다.
+        <StatusBadge tone={PLAN_TONE[requiredPlan]}>{planInfo.label}</StatusBadge>
+        {" "}플랜부터 사용할 수 있어요. 지금은{" "}
+        <StatusBadge tone={PLAN_TONE[currentPlan]}>{currentPlanInfo.label}</StatusBadge>
+        {" "}플랜을 쓰고 있어요.
       </p>
 
-      <div className="rounded-xl border bg-card p-6 max-w-sm w-full space-y-4">
-        <div className="space-y-2">
-          <PlanCompare label="Starter" tier="STARTER" requiredPlan={requiredPlan} />
-          <PlanCompare label="Standard" tier="STANDARD" requiredPlan={requiredPlan} />
-          <PlanCompare label="Premium" tier="PREMIUM" requiredPlan={requiredPlan} />
-        </div>
+      <div className="mt-x8 w-full max-w-sm rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default p-x5 text-left">
+        <ul className="flex flex-col divide-y divide-stroke-neutral-muted">
+          {PLAN_ORDER.map((tier) => (
+            <PlanCompare key={tier} tier={tier} requiredPlan={requiredPlan} current={tier === currentPlan} />
+          ))}
+        </ul>
 
-        <Button className="w-full gap-2" disabled>
+        <Button className="mt-x5 w-full" disabled>
           업그레이드 (준비 중)
-          <ArrowRight className="h-4 w-4" />
         </Button>
-        <p className="text-[11px] text-muted-foreground">
-          결제 시스템 준비 중입니다. 문의: 관리자에게 연락해주세요.
+        <p className="mt-x2 text-center t3-regular text-fg-neutral-subtle">
+          결제 시스템을 준비하고 있어요. 관리자에게 문의해 주세요.
         </p>
       </div>
     </div>
   );
 }
 
-function PlanCompare({ label, tier, requiredPlan }: { label: string; tier: PlanTier; requiredPlan: PlanTier }) {
-  const order: PlanTier[] = ["STARTER", "STANDARD", "PREMIUM"];
-  const isIncluded = order.indexOf(tier) >= order.indexOf(requiredPlan);
+function PlanCompare({
+  tier,
+  requiredPlan,
+  current,
+}: {
+  tier: PlanTier;
+  requiredPlan: PlanTier;
+  current: boolean;
+}) {
+  const isIncluded = PLAN_ORDER.indexOf(tier) >= PLAN_ORDER.indexOf(requiredPlan);
   const info = PLAN_LABELS[tier];
 
   return (
-    <div className={`flex items-center justify-between px-3 py-2 rounded-lg border text-sm ${
-      isIncluded ? info.color : "text-muted-foreground bg-muted/30 border-transparent"
-    }`}>
-      <span className="font-medium">{label}</span>
-      <span className="text-xs">
+    <li className="flex items-center justify-between gap-x3 py-x3 first:pt-0 last:pb-0">
+      <span className={cn("flex items-center gap-x2 t4-medium", isIncluded ? "text-fg-neutral" : "text-fg-neutral-subtle")}>
+        {info.label}
+        {current && <StatusBadge tone="gray">현재</StatusBadge>}
+      </span>
+      <span
+        className={cn(
+          "inline-flex items-center gap-x1 t3-medium",
+          isIncluded ? "text-fg-positive" : "text-fg-neutral-subtle",
+        )}
+      >
+        {isIncluded ? <Check className="size-4" aria-hidden /> : <Minus className="size-4" aria-hidden />}
         {isIncluded ? "포함" : "미포함"}
       </span>
-    </div>
+    </li>
   );
 }

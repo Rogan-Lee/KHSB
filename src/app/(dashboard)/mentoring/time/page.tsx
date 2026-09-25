@@ -2,12 +2,13 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canViewMentoringTime } from "@/lib/roles";
-import { Card, CardContent } from "@/components/ui/card";
-import { PageIntro } from "@/components/ui/page-intro";
+import { PageHeader } from "@/components/backoffice/ui";
 import { DateRangeToolbar } from "@/components/ui/date-range-toolbar";
 import { MentoringTimeDashboard } from "@/components/mentoring/mentoring-time-dashboard";
 
 export const revalidate = 10;
+
+const SHORT_LABEL = "15분";
 
 function parseDate(s: string | undefined, fallback: Date) {
   if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return fallback;
@@ -65,24 +66,23 @@ export default async function MentoringTimePage({
   }));
 
   return (
-    <div className="space-y-6">
-      <PageIntro
-        tag="MENTORING · TIME"
+    <>
+      <PageHeader
+        back={{ href: "/mentoring", label: "멘토링" }}
         title="멘토링 시간 관리"
-        description="멘토별 멘토링 진행 시간을 모아보고 짧게 끝난 세션을 확인합니다 (15분 미만 경고)"
-        accent="text-info"
+        description={`멘토별 진행 시간을 모아 보고, ${SHORT_LABEL} 미만으로 짧게 끝난 세션을 확인해요`}
       />
-
-      <Card>
-        <CardContent className="pt-4 space-y-4">
+      <MentoringTimeDashboard
+        rows={rows}
+        filters={
           <DateRangeToolbar
             initialFrom={rangeFrom ? toIso(rangeFrom) : ""}
             initialTo={rangeToInput ? toIso(rangeToInput) : ""}
             basePath="/mentoring/time"
+            className="flex-wrap"
           />
-          <MentoringTimeDashboard rows={rows} />
-        </CardContent>
-      </Card>
-    </div>
+        }
+      />
+    </>
   );
 }

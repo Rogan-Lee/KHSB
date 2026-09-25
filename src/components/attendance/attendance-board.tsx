@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -22,29 +20,36 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { TimePickerInput } from "@/components/ui/time-picker";
 import { upsertAttendance } from "@/actions/attendance";
-import { formatTime } from "@/lib/utils";
+import { cn, formatTime } from "@/lib/utils";
 import { toast } from "sonner";
 import type { AttendanceRecord, AttendanceSchedule, Student } from "@/generated/prisma";
-import { Edit2 } from "lucide-react";
+import { Pencil, Users } from "lucide-react";
+import { EmptyState, Section } from "@/components/backoffice/ui";
+import { AttendanceStateBadge, attendanceStateMeta } from "@/components/attendance/attendance-status";
 
 type StudentWithAttendance = Student & {
   attendances: AttendanceRecord[];
   schedules: AttendanceSchedule[];
 };
 
-const TYPE_CONFIG: Record<string, { label: string; variant: "default" | "destructive" | "secondary" | "outline"; color: string }> = {
-  NORMAL: { label: "정상", variant: "default", color: "bg-green-100 border-green-300" },
-  ABSENT: { label: "결석", variant: "destructive", color: "bg-red-100 border-red-300" },
-  TARDY: { label: "지각", variant: "secondary", color: "bg-orange-100 border-orange-300" },
-  EARLY_LEAVE: { label: "정상", variant: "default", color: "bg-green-100 border-green-300" },
-  APPROVED_ABSENT: { label: "공결", variant: "secondary", color: "bg-gray-100 border-gray-300" },
-  NOTIFIED_ABSENT: { label: "미입실", variant: "secondary", color: "bg-purple-100 border-purple-300" },
+// 기록 유형 → 표시 상태 키(색·라벨은 ./attendance-status 의 단일 매핑을 따른다). 조퇴(EARLY_LEAVE)는 정상으로 본다.
+const TYPE_STATE: Record<string, string> = {
+  NORMAL: "NORMAL",
+  ABSENT: "ABSENT",
+  TARDY: "TARDY",
+  EARLY_LEAVE: "NORMAL",
+  APPROVED_ABSENT: "APPROVED_ABSENT",
+  NOTIFIED_ABSENT: "NOTIFIED_ABSENT",
 };
 
 interface Props {
   students: StudentWithAttendance[];
   today: string;
 }
+
+const TIME_INPUT =
+  "h-10 w-full rounded-r2 border-stroke-neutral-weak bg-bg-layer-default px-x3 py-0 t4-medium text-fg-neutral " +
+  "focus:border-stroke-neutral-contrast focus:ring-1 focus:ring-stroke-neutral-contrast placeholder:text-fg-placeholder";
 
 function AttendanceEditForm({
   student,
@@ -80,10 +85,10 @@ function AttendanceEditForm({
   }
 
   return (
-    <form action={handleSubmit} className="space-y-4">
+    <form action={handleSubmit} className="flex flex-col gap-x4">
       <input type="hidden" name="studentId" value={student.id} />
 
-      <div className="space-y-2">
+      <div className="flex flex-col gap-x2">
         <Label>출결 유형</Label>
         <Select name="type" defaultValue={attendance?.type || "NORMAL"}>
           <SelectTrigger>
@@ -98,18 +103,18 @@ function AttendanceEditForm({
         </Select>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
+      <div className="grid grid-cols-2 gap-x3">
+        <div className="flex flex-col gap-x2">
           <Label>입실 시간</Label>
-          <TimePickerInput value={checkIn} onChange={setCheckIn} className="w-full" />
+          <TimePickerInput value={checkIn} onChange={setCheckIn} className={TIME_INPUT} />
         </div>
-        <div className="space-y-2">
+        <div className="flex flex-col gap-x2">
           <Label>퇴실 시간</Label>
-          <TimePickerInput value={checkOut} onChange={setCheckOut} className="w-full" />
+          <TimePickerInput value={checkOut} onChange={setCheckOut} className={TIME_INPUT} />
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="flex flex-col gap-x2">
         <Label htmlFor="notes">비고</Label>
         <Textarea
           id="notes"
@@ -138,44 +143,42 @@ export function AttendanceBoard({ students, today }: Props) {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            오늘 출결 현황 ({new Date(today).toLocaleDateString("ko-KR", {
-              month: "long",
-              day: "numeric",
-              weekday: "short",
-              timeZone: "Asia/Seoul",
-            })})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+      <Section
+        title={`오늘 출결 현황 (${new Date(today).toLocaleDateString("ko-KR", {
+          month: "long",
+          day: "numeric",
+          weekday: "short",
+          timeZone: "Asia/Seoul",
+        })})`}
+        count={students.length}
+      >
+        {students.length === 0 ? (
+          <EmptyState compact icon={Users} title="표시할 원생이 없어요" />
+        ) : (
+          <div className="grid grid-cols-2 gap-x3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {students.map((student) => {
               const att = student.attendances[0];
               const hasSchedule = student.schedules.length > 0;
-              const config = att
-                ? TYPE_CONFIG[att.type]
-                : hasSchedule
-                ? { label: "미기록", variant: "outline" as const, color: "bg-yellow-50 border-yellow-300" }
-                : { label: "비등원일", variant: "outline" as const, color: "bg-gray-50 border-gray-200" };
+              const state = att ? TYPE_STATE[att.type] ?? "NORMAL" : hasSchedule ? "UNRECORDED" : "NO_SCHEDULE";
 
               return (
                 <button
+                  type="button"
                   key={student.id}
                   onClick={() => setSelected(student)}
-                  className={`p-3 rounded-lg border-2 text-left transition-all hover:shadow-md ${config.color}`}
+                  className={cn(
+                    "group flex flex-col gap-x1_5 rounded-r3 p-x3 text-left transition-colors",
+                    attendanceStateMeta(state).row,
+                  )}
                 >
-                  <div className="flex items-start justify-between mb-1">
-                    <span className="font-semibold text-sm">{student.name}</span>
-                    <Edit2 className="h-3 w-3 text-muted-foreground mt-0.5" />
+                  <div className="flex items-start justify-between gap-x2">
+                    <span className="truncate t5-bold text-fg-neutral">{student.name}</span>
+                    <Pencil className="mt-x0_5 size-3.5 shrink-0 text-fg-neutral-subtle" aria-hidden />
                   </div>
-                  <p className="text-xs text-muted-foreground mb-1.5">{student.grade} {student.seat ? `· ${student.seat}` : ""}</p>
-                  <Badge variant={config.variant} className="text-xs">
-                    {config.label}
-                  </Badge>
+                  <p className="t3-regular text-fg-neutral-subtle">{student.grade} {student.seat ? `· ${student.seat}` : ""}</p>
+                  <AttendanceStateBadge state={state} className="w-fit" />
                   {att && (
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="t3-regular tabular-nums text-fg-neutral-muted">
                       {att.checkIn ? formatTime(att.checkIn) : ""}
                       {att.checkIn && att.checkOut ? " → " : ""}
                       {att.checkOut ? formatTime(att.checkOut) : ""}
@@ -185,8 +188,8 @@ export function AttendanceBoard({ students, today }: Props) {
               );
             })}
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </Section>
 
       {/* Edit Dialog */}
       <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>

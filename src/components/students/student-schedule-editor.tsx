@@ -4,8 +4,12 @@ import { useState, useTransition } from "react";
 import { saveAttendanceSchedule, saveOutingSchedules } from "@/actions/attendance";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { inputBaseClass } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TimePickerInput } from "@/components/ui/time-picker";
 import { Plus, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { AttendanceSchedule, OutingSchedule } from "@/generated/prisma";
 
 const DAYS = [
@@ -108,78 +112,81 @@ export function StudentScheduleEditor({ studentId, schedules, outings }: Props) 
     });
   }
 
+  const flexToggle = (day: number, field: "flexStart" | "flexEnd", checked: boolean) =>
+    setRows((prev) => ({ ...prev, [day]: { ...prev[day], [field]: checked } }));
+
+  // 표는 카드(Section flush) 가장자리까지 붙고, 저장 버튼은 아래 줄 오른쪽
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">
-        등원 요일을 체크하고 입·퇴실 시간을 입력하세요. 외출 약속이 있으면 해당 요일에 외출을 추가하세요.
-      </p>
-      <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="bg-muted/50 border-b text-xs text-muted-foreground">
-              <th className="px-3 py-2 text-center w-10">등원</th>
-              <th className="px-3 py-2 text-left w-14">요일</th>
-              <th className="px-3 py-2 text-left whitespace-nowrap">입실 약속</th>
-              <th className="px-3 py-2 text-left whitespace-nowrap">퇴실 약속</th>
-              <th className="px-3 py-2 text-left">외출 일정</th>
-            </tr>
-          </thead>
-          <tbody>
-            {DAYS.map((d) => {
-              const row = rows[d.value];
-              return (
-                <tr key={d.value} className="border-b last:border-0 align-top">
-                  <td className="px-3 py-2.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={row.enabled}
-                      onChange={(e) => updateDay(d.value, "enabled", e.target.checked)}
-                      className="w-4 h-4 accent-blue-500 cursor-pointer mt-0.5"
-                    />
-                  </td>
-                  <td className="px-3 py-2.5 font-medium whitespace-nowrap">
-                    <span className={row.enabled ? "" : "text-muted-foreground"}>{d.label}요일</span>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    {row.enabled && (
-                      <label className="flex items-center gap-1 cursor-pointer mb-1">
-                        <input type="checkbox" checked={row.flexStart}
-                          onChange={(e) => setRows((prev) => ({ ...prev, [d.value]: { ...prev[d.value], flexStart: e.target.checked } }))}
-                          className="w-3 h-3 accent-violet-500" />
-                        <span className="text-[10px] text-violet-600">자율</span>
-                      </label>
-                    )}
+    <div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-16 text-center">등원</TableHead>
+            <TableHead className="w-20">요일</TableHead>
+            <TableHead>입실 약속</TableHead>
+            <TableHead>퇴실 약속</TableHead>
+            <TableHead>외출 일정</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {DAYS.map((d) => {
+            const row = rows[d.value];
+            return (
+              <TableRow key={d.value} className="align-top hover:bg-transparent">
+                <TableCell className="text-center">
+                  <Checkbox
+                    checked={row.enabled}
+                    onCheckedChange={(v) => updateDay(d.value, "enabled", v === true)}
+                    aria-label={`${d.label}요일 등원`}
+                    className="mt-x1_5"
+                  />
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <span className={cn("inline-block pt-x1_5 t4-medium", row.enabled ? "text-fg-neutral" : "text-fg-neutral-subtle")}>
+                    {d.label}요일
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-col gap-x1_5">
                     {row.flexStart ? (
-                      <span className="text-xs text-violet-600 font-medium">자율(미정)</span>
+                      <span className="inline-flex h-8 items-center t3-medium text-palette-purple-700">자율(미정)</span>
                     ) : (
                       <TimePickerInput value={row.startTime} onChange={(v) => updateDay(d.value, "startTime", v)} disabled={!row.enabled} size="sm" />
                     )}
-                  </td>
-                  <td className="px-3 py-2.5">
                     {row.enabled && (
-                      <label className="flex items-center gap-1 cursor-pointer mb-1">
-                        <input type="checkbox" checked={row.flexEnd}
-                          onChange={(e) => setRows((prev) => ({ ...prev, [d.value]: { ...prev[d.value], flexEnd: e.target.checked } }))}
-                          className="w-3 h-3 accent-violet-500" />
-                        <span className="text-[10px] text-violet-600">자율</span>
+                      <label className="flex cursor-pointer items-center gap-x1_5">
+                        <Checkbox checked={row.flexStart} onCheckedChange={(v) => flexToggle(d.value, "flexStart", v === true)} />
+                        <span className="t3-medium text-fg-neutral-muted">자율</span>
                       </label>
                     )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-col gap-x1_5">
                     {row.flexEnd ? (
-                      <span className="text-xs text-violet-600 font-medium">자율(미정)</span>
+                      <span className="inline-flex h-8 items-center t3-medium text-palette-purple-700">자율(미정)</span>
                     ) : (
                       <TimePickerInput value={row.endTime} onChange={(v) => updateDay(d.value, "endTime", v)} disabled={!row.enabled} size="sm" />
                     )}
-                  </td>
-                  <td className="px-3 py-2 space-y-1.5">
+                    {row.enabled && (
+                      <label className="flex cursor-pointer items-center gap-x1_5">
+                        <Checkbox checked={row.flexEnd} onCheckedChange={(v) => flexToggle(d.value, "flexEnd", v === true)} />
+                        <span className="t3-medium text-fg-neutral-muted">자율</span>
+                      </label>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-col gap-x1_5">
                     {row.outings.map((o, idx) => (
-                      <div key={idx} className="flex items-center gap-1.5">
+                      <div key={idx} className="flex flex-wrap items-center gap-x1_5">
                         <TimePickerInput
                           value={o.outStart}
                           onChange={(v) => updateOuting(d.value, idx, "outStart", v)}
                           disabled={!row.enabled}
                           size="sm"
                         />
-                        <span className="text-xs text-muted-foreground">~</span>
+                        <span className="t3-regular text-fg-neutral-subtle">~</span>
                         <TimePickerInput
                           value={o.outEnd}
                           onChange={(v) => updateOuting(d.value, idx, "outEnd", v)}
@@ -192,36 +199,42 @@ export function StudentScheduleEditor({ studentId, schedules, outings }: Props) 
                           onChange={(e) => updateOuting(d.value, idx, "reason", e.target.value)}
                           disabled={!row.enabled}
                           placeholder="사유"
-                          className="border rounded px-2 py-1 text-xs w-24 disabled:opacity-30 disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-blue-400 bg-background"
+                          aria-label={`${d.label}요일 외출 사유`}
+                          className={cn(inputBaseClass, "h-8 w-28 px-x2 t3-regular")}
                         />
                         <button
                           type="button"
                           onClick={() => removeOuting(d.value, idx)}
-                          className="text-muted-foreground hover:text-destructive"
+                          className="grid size-8 place-items-center rounded-full text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed hover:text-fg-critical"
+                          aria-label={`${d.label}요일 외출 삭제`}
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="size-4" />
                         </button>
                       </div>
                     ))}
-                    {row.enabled && (
+                    {row.enabled ? (
                       <button
                         type="button"
                         onClick={() => addOuting(d.value)}
-                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                        className="inline-flex h-8 items-center gap-x1 self-start rounded-r2 t3-medium text-fg-neutral-muted transition-colors hover:text-fg-neutral"
                       >
-                        <Plus className="h-3 w-3" />외출 추가
+                        <Plus className="size-3.5" />외출 추가
                       </button>
+                    ) : (
+                      row.outings.length === 0 && <span className="inline-flex h-8 items-center t3-regular text-fg-placeholder">—</span>
                     )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+      <div className="flex justify-end border-t border-stroke-neutral-muted px-x5 py-x4">
+        <Button onClick={save} disabled={isPending}>
+          {isPending ? "저장 중…" : "일정 저장"}
+        </Button>
       </div>
-      <Button onClick={save} disabled={isPending} size="sm">
-        {isPending ? "저장 중..." : "일정 저장"}
-      </Button>
     </div>
   );
 }

@@ -1,12 +1,13 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { ChevronLeft, MessageCircle, ChevronDown } from "lucide-react";
+import { MessageCircle, ChevronDown } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
 import { ReportEditor } from "@/components/online/report-editor";
 import { MonthlyExamSelector } from "@/components/online/monthly-exam-selector";
+import { ReportStatusBadge } from "@/components/online/report-status";
+import { EmptyState, PageHeader, Section, StatusBadge } from "@/components/backoffice/ui";
 
 export default async function ReportEditPage({
   params,
@@ -48,133 +49,134 @@ export default async function ReportEditPage({
 
   const periodLabel = `${report.periodStart.toLocaleDateString("ko-KR")} ~ ${report.periodEnd.toLocaleDateString("ko-KR")}`;
 
+  const isMonthly = report.type === "MONTHLY";
+  const typeLabel = isMonthly ? "월간 보고서" : "주간 보고서";
+
   return (
-    <div className="space-y-5">
-      <div>
-        <Link
-          href="/online/reports"
-          className="inline-flex items-center gap-1 text-[12px] text-ink-4 hover:text-ink"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          보고서 목록
-        </Link>
-      </div>
-
-      <header>
-        <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em] inline-flex items-center gap-2">
-          {report.student.name} — 주간 보고서
-          {report.feedbacks.length > 0 && (
-            <a
-              href="#parent-feedback"
-              className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 text-[12px] font-semibold hover:bg-amber-200"
-              title="학부모 피드백 섹션으로 이동"
-            >
-              <MessageCircle className="h-3 w-3" />
-              피드백 {report.feedbacks.length}건
-            </a>
-          )}
-        </h1>
-        <p className="mt-1 text-[13px] text-ink-4">
-          {report.student.grade} · {periodLabel}
-          {report.approvedBy && ` · 승인: ${report.approvedBy.name}`}
-          {report.sentAt && ` · 발송: ${report.sentAt.toLocaleDateString("ko-KR")}`}
-          {report.status === "SENT" && ` · 열람 ${report.viewCount}회`}
-        </p>
-      </header>
-
-      {/* 신규 피드백 도착 — 즉시 강조 배너 (이번 진입 시 미확인이었던 건 수) */}
-      {unreadCount > 0 && (
-        <a
-          href="#parent-feedback"
-          className="block rounded-[12px] border-2 border-amber-300 bg-amber-50 p-4 hover:border-amber-400 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <MessageCircle className="h-5 w-5 text-amber-700 shrink-0" />
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-amber-900">
-                학부모 피드백 {unreadCount}건이 새로 도착했어요
-              </p>
-              <p className="text-[11.5px] text-amber-800 mt-0.5">
-                아래 "학부모 피드백" 섹션에서 내용을 확인하세요. 페이지를 닫으면 자동으로 확인 처리됩니다.
-              </p>
-            </div>
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-200 text-amber-900 px-2.5 py-1 text-[11px] font-semibold">
-              <ChevronDown className="h-3 w-3" />
-              아래로 이동
-            </span>
-          </div>
-        </a>
-      )}
-
-      {report.type === "MONTHLY" && (
-        <MonthlyExamSelector
-          reportId={report.id}
-          studentId={report.studentId}
-          currentSessionId={report.selectedExamSessionId}
-        />
-      )}
-
-      <ReportEditor
-        reportId={report.id}
-        initialMarkdown={markdown}
-        initialStatus={report.status}
-        publicUrl={publicUrl}
-        errorMessage={report.errorMessage}
+    <div>
+      <PageHeader
+        back={
+          isMonthly
+            ? { href: "/online/reports/monthly", label: "월간 보고서" }
+            : { href: "/online/reports", label: "주간 보고서" }
+        }
+        title={`${report.student.name} ${typeLabel}`}
+        meta={
+          <>
+            <ReportStatusBadge status={report.status} />
+            {report.feedbacks.length > 0 && (
+              <a
+                href="#parent-feedback"
+                title="학부모 피드백 섹션으로 이동"
+                className="inline-flex h-x6 items-center gap-x1 rounded-full bg-bg-neutral-weak px-x2 t3-medium text-fg-neutral-muted transition-colors hover:bg-bg-neutral-weak-pressed"
+              >
+                <MessageCircle className="size-3.5" aria-hidden />
+                피드백 <span className="tabular-nums">{report.feedbacks.length}</span>건
+              </a>
+            )}
+          </>
+        }
+        description={
+          <span className="tabular-nums">
+            {report.student.grade} · {periodLabel}
+            {report.approvedBy && ` · 승인 ${report.approvedBy.name}`}
+            {report.sentAt && ` · 발송 ${report.sentAt.toLocaleDateString("ko-KR")}`}
+            {report.status === "SENT" && ` · 열람 ${report.viewCount}회`}
+          </span>
+        }
       />
 
-      {report.feedbacks.length > 0 ? (
-        <section
+      <div className="flex flex-col gap-x6">
+        {/* 신규 피드백 도착 — 즉시 강조 배너 (이번 진입 시 미확인이었던 건 수) */}
+        {unreadCount > 0 && (
+          <a
+            href="#parent-feedback"
+            className="flex items-center gap-x3 rounded-r4 bg-bg-warning-weak px-x5 py-x4 transition-colors hover:bg-bg-warning-weak-pressed"
+          >
+            <MessageCircle className="size-5 shrink-0 text-fg-warning" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <p className="t4-bold text-fg-neutral">
+                학부모 피드백 <span className="tabular-nums">{unreadCount}</span>건이 새로 도착했어요
+              </p>
+              <p className="mt-x0_5 t3-regular text-fg-neutral-muted">
+                아래 ‘학부모 피드백’에서 확인해 주세요. 이 화면을 열면 확인 처리돼요.
+              </p>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-x1 t3-medium text-fg-neutral-muted">
+              <ChevronDown className="size-4" aria-hidden />
+              아래로
+            </span>
+          </a>
+        )}
+
+        {isMonthly && (
+          <MonthlyExamSelector
+            reportId={report.id}
+            studentId={report.studentId}
+            currentSessionId={report.selectedExamSessionId}
+          />
+        )}
+
+        <ReportEditor
+          reportId={report.id}
+          initialMarkdown={markdown}
+          initialStatus={report.status}
+          publicUrl={publicUrl}
+          errorMessage={report.errorMessage}
+        />
+
+        <Section
           id="parent-feedback"
-          className="rounded-[12px] border-2 border-ink/10 bg-panel p-4 scroll-mt-4"
+          title="학부모 피드백"
+          count={report.feedbacks.length > 0 ? report.feedbacks.length : undefined}
+          description="학부모가 공개 페이지 하단에서 보낸 의견이에요."
+          flush
+          className="scroll-mt-20"
         >
-          <h2 className="text-[14px] font-semibold text-ink mb-3 inline-flex items-center gap-2">
-            <MessageCircle className="h-4 w-4 text-ink-3" />
-            학부모 피드백 ({report.feedbacks.length})
-          </h2>
-          <ul className="space-y-2">
-            {report.feedbacks.map((f) => {
-              // 이번 진입에서 미확인이었던 건 (readAt 이 방금 1초 이내에 set)
-              const wasUnread = !f.readAt;
-              return (
-                <li
-                  key={f.id}
-                  className={`rounded-[10px] border p-3 ${wasUnread ? "border-amber-300 bg-amber-50" : "border-line bg-canvas-2/30"}`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[12.5px] font-semibold text-ink">
-                      {f.name?.trim() || "익명 학부모"}
-                    </span>
-                    <span className="text-[11px] text-ink-5">
-                      {f.createdAt.toLocaleString("ko-KR")}
-                    </span>
-                    {wasUnread && (
-                      <span className="ml-auto inline-flex items-center rounded-full bg-amber-200 text-amber-900 px-2 py-0.5 text-[10.5px] font-semibold">
-                        NEW
+          {report.feedbacks.length > 0 ? (
+            <ul className="border-t border-stroke-neutral-muted">
+              {report.feedbacks.map((f) => {
+                // 이번 진입에서 미확인이었던 건 (readAt 이 방금 1초 이내에 set)
+                const wasUnread = !f.readAt;
+                return (
+                  <li
+                    key={f.id}
+                    className={
+                      wasUnread
+                        ? "border-b border-stroke-neutral-muted bg-bg-warning-weak px-x5 py-x4 last:border-b-0"
+                        : "border-b border-stroke-neutral-muted px-x5 py-x4 last:border-b-0"
+                    }
+                  >
+                    <div className="flex flex-wrap items-center gap-x2">
+                      <span className="t4-bold text-fg-neutral">
+                        {f.name?.trim() || "익명 학부모"}
                       </span>
-                    )}
-                  </div>
-                  <p className="text-[13px] text-ink whitespace-pre-wrap leading-relaxed">
-                    {f.content}
-                  </p>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : (
-        <section
-          id="parent-feedback"
-          className="rounded-[12px] border border-dashed border-line bg-canvas-2/40 p-6 text-center"
-        >
-          <MessageCircle className="h-5 w-5 text-ink-5 mx-auto mb-2" />
-          <p className="text-[12.5px] text-ink-5">
-            아직 받은 학부모 피드백이 없습니다.
-          </p>
-          <p className="text-[11px] text-ink-5 mt-0.5">
-            학부모가 공개 페이지 하단에서 의견을 보내면 여기에 표시됩니다.
-          </p>
-        </section>
-      )}
+                      <span className="t3-regular tabular-nums text-fg-neutral-subtle">
+                        {f.createdAt.toLocaleString("ko-KR")}
+                      </span>
+                      {wasUnread && (
+                        <StatusBadge tone="warn" className="ml-auto">
+                          새 피드백
+                        </StatusBadge>
+                      )}
+                    </div>
+                    <p className="mt-x1_5 whitespace-pre-wrap t4-regular text-fg-neutral">
+                      {f.content}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <EmptyState
+              compact
+              icon={MessageCircle}
+              title="아직 받은 피드백이 없어요"
+              description="학부모가 공개 페이지에서 의견을 보내면 여기에 표시돼요."
+            />
+          )}
+        </Section>
+      </div>
     </div>
   );
 }

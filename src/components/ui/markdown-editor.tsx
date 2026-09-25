@@ -30,7 +30,7 @@ export function MarkdownEditor({ value, onChange, placeholder }: Props) {
   const editor = useEditor({
     extensions: [
       StarterKit,
-      ImageExt.configure({ inline: false, HTMLAttributes: { class: "rounded-lg max-w-full my-2" } }),
+      ImageExt.configure({ inline: false, HTMLAttributes: { class: "my-x2 max-w-full rounded-r3" } }),
       Placeholder.configure({
         placeholder: placeholder ?? "내용을 입력하세요... (# 제목, **굵게**, - 목록, > 인용 등)",
       }),
@@ -128,25 +128,27 @@ export function MarkdownEditor({ value, onChange, placeholder }: Props) {
   }
 
   return (
-    <div className="border rounded-lg overflow-hidden bg-background">
+    // SEED TextInput(outline) 규격 — 1px stroke-neutral-weak, 입력 중 2px stroke-neutral-contrast.
+    // 윤곽선은 outline(안쪽 오프셋)으로 그려 툴바 배경에 가려지지 않게 한다.
+    <div className="overflow-hidden rounded-r2 bg-bg-layer-default outline outline-1 -outline-offset-1 outline-stroke-neutral-weak transition-[outline-color] focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-stroke-neutral-contrast">
       {/* Toolbar */}
-      <div className="flex items-center gap-1 px-3 py-1.5 border-b bg-muted/30">
+      <div className="flex flex-wrap items-center gap-x-x2 gap-y-x1 border-b border-stroke-neutral-muted bg-bg-layer-fill px-x2 py-x1_5">
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploading || !editor}
-          className="flex items-center gap-1.5 text-xs px-2 py-1 rounded hover:bg-muted transition-colors text-muted-foreground disabled:opacity-40"
+          className="inline-flex h-8 items-center gap-x1_5 rounded-r2 px-x2_5 t3-medium text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral disabled:pointer-events-none disabled:text-fg-disabled"
         >
           {uploading ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className="size-4 animate-spin" />
           ) : (
-            <ImageIcon className="h-3.5 w-3.5" />
+            <ImageIcon className="size-4" />
           )}
-          이미지 첨부
+          {uploading ? "올리는 중…" : "이미지 첨부"}
         </button>
-        <span className="text-[10px] text-muted-foreground/70 select-none">드래그 · Ctrl+V</span>
+        <span className="select-none t2-regular text-fg-placeholder">드래그 · Ctrl+V</span>
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-        <span className="ml-auto text-[11px] text-muted-foreground select-none">
+        <span className="ml-auto hidden select-none pr-x1 t2-regular text-fg-placeholder sm:inline">
           # 제목 &nbsp;·&nbsp; **굵게** &nbsp;·&nbsp; _기울임_ &nbsp;·&nbsp; - 목록 &nbsp;·&nbsp; &gt; 인용
         </span>
       </div>
@@ -155,7 +157,7 @@ export function MarkdownEditor({ value, onChange, placeholder }: Props) {
       <div onDrop={handleDrop} onDragOver={(e) => e.preventDefault()} onPaste={handlePaste}>
         <EditorContent
           editor={editor}
-          className="notion-editor-content px-4 py-3 min-h-[200px] focus-within:outline-none"
+          className="notion-editor-content min-h-[200px] px-x4 py-x3 focus-within:outline-none"
         />
       </div>
     </div>

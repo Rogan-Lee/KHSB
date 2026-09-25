@@ -3,19 +3,10 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { getHandoverById, recordHandoverView } from "@/actions/handover";
 import { formatDate } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
-import {
-  ArrowLeft,
-  AlertTriangle,
-  Pin,
-  CheckCircle2,
-  User,
-  Pencil,
-  Clock,
-  Eye,
-} from "lucide-react";
+import { Pin, CheckCircle2, Pencil } from "lucide-react";
+import { PageHeader, ProgressBar, Section, StatusBadge } from "@/components/backoffice/ui";
 import { ConfirmButton } from "./confirm-button";
 import { ChecklistToggleButton } from "./checklist-toggle-button";
 import { TaskToggleButton } from "./task-toggle-button";
@@ -50,231 +41,224 @@ export default async function HandoverDetailPage({
 
   const checkedCount = handover.checklist.filter((c) => c.isChecked).length;
   const completedTasks = handover.tasks.filter((t) => t.isCompleted).length;
-  const initial = handover.authorName.slice(0, 1);
+  const confirmedTotal = handover.reads.filter((r) => r.confirmedAt != null).length;
+  const routineAllDone = checkedCount === handover.checklist.length;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* 뒤로가기 */}
-      <Link
-        href="/handover"
-        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        목록으로
-      </Link>
-
-      {/* 헤더: 아바타 + 작성자 + 시간 */}
-      <div className="flex items-start gap-3">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${isUrgent ? "bg-red-100 text-red-700" : "bg-[#FBE9DE] text-[#C5461A]"}`}>
-          {initial}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-base font-bold">{handover.authorName}</span>
-            <span className="text-sm text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {formatDate(handover.date)}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            {isUrgent && (
-              <Badge variant="destructive" className="text-[10px] gap-0.5">
-                <AlertTriangle className="h-2.5 w-2.5" />긴급
-              </Badge>
-            )}
-            {handover.isPinned && (
-              <Badge variant="outline" className="text-[10px] gap-0.5 bg-amber-50 text-amber-700 border-amber-200">
-                <Pin className="h-2.5 w-2.5" />고정
-              </Badge>
-            )}
-            {handover.category && (
-              <Badge variant="secondary" className="text-[10px]">{handover.category}</Badge>
-            )}
-          </div>
-        </div>
-        {isAuthor && (
-          <Link href={`/handover/${handover.id}/edit`}>
-            <Button variant="outline" size="sm" className="gap-1.5 shrink-0">
-              <Pencil className="h-3.5 w-3.5" />수정
-            </Button>
-          </Link>
-        )}
-      </div>
-
-      {/* 수신자 확인 현황 */}
-      {recipientNames.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          {recipientNames.map((name, idx) => {
-            const rid = recipientIds[idx];
-            const rRead = rid ? handover.reads.find((r) => r.userId === rid && r.confirmedAt != null) : null;
-            return (
-              <span key={idx} className={`inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-1 ${rRead ? "bg-green-50 text-green-700 border border-green-200" : "bg-gray-100 text-gray-500 border border-gray-200"}`}>
-                <User className="h-3 w-3" />
-                {name}
-                {rRead ? <CheckCircle2 className="h-3 w-3" /> : <span className="opacity-60">미확인</span>}
-              </span>
-            );
-          })}
-        </div>
-      )}
-
-      {/* 본문 */}
-      {handover.content && (
-        <div className="rounded-lg border bg-card p-5">
-          <MarkdownViewer source={handover.content} />
-        </div>
-      )}
-
-      {/* 할 일 */}
-      {handover.tasks.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold">할 일</h3>
-            <span className="text-xs text-muted-foreground">{completedTasks}/{handover.tasks.length} 완료</span>
-          </div>
-          <div className="rounded-lg border bg-card divide-y">
-            {handover.tasks.map((task) => (
-              <div key={task.id} className="px-4 py-2.5">
-                <TaskToggleButton
-                  taskId={task.id}
-                  title={task.title}
-                  content={task.content}
-                  assigneeName={task.assigneeName}
-                  isCompleted={task.isCompleted}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 루틴 체크리스트 */}
-      {handover.checklist.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold">루틴</h3>
-            <span className={`text-xs ${checkedCount === handover.checklist.length ? "text-green-600" : "text-orange-600"}`}>
-              {checkedCount}/{handover.checklist.length}
-            </span>
-          </div>
-          <div className="rounded-lg border bg-card overflow-hidden">
-            {/* 진행률 바 */}
-            <div className="w-full bg-muted h-1.5">
-              <div
-                className={`h-1.5 transition-all ${checkedCount === handover.checklist.length ? "bg-green-500" : "bg-orange-500"}`}
-                style={{ width: `${handover.checklist.length > 0 ? (checkedCount / handover.checklist.length) * 100 : 0}%` }}
-              />
-            </div>
-            <div className="divide-y">
-              {handover.checklist.map((c) => (
-                <ChecklistToggleButton
-                  key={c.id}
-                  itemId={c.id}
-                  title={c.title}
-                  isChecked={c.isChecked}
-                  checkedAt={c.checkedAt}
-                  checkedByName={c.checkedByName}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 확인 영역 */}
-      <div className="rounded-lg border bg-card p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <CheckCircle2 className="h-4 w-4" />
-          {handover.reads.filter((r) => r.confirmedAt != null).length}명 확인
-        </div>
-        {isAuthor ? null : isRead ? (
-          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-600">
-            <CheckCircle2 className="h-4 w-4" />확인 완료
-          </span>
-        ) : (
-          <ConfirmButton handoverId={handover.id} />
-        )}
-      </div>
-
-      {/* 열람/확인 현황 (원장 전용) — 누가·언제 봤고 확인했는지 (3상태) */}
-      {isFullAccess(session.user.role) && (() => {
-        const fmt = (d: Date | string) =>
-          new Date(d).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-        // 지정 수신자가 있으면 수신자를 기준 명단으로, 없으면 열람한 사람 전체를 대상으로 표시
-        type ReadItem = { userId: string; userName: string; readAt: Date; confirmedAt: Date | null };
-        type Row = { userId: string; name: string; read?: ReadItem };
-        const rows: Row[] = recipientNames.length > 0
-          ? recipientNames.map((name, i) => {
-              const uid = recipientIds[i] ?? name;
-              return { userId: uid, name, read: recipientIds[i] ? handover.reads.find((r) => r.userId === recipientIds[i]) : undefined };
-            })
-          : [...handover.reads]
-              .sort((a, b) => new Date(a.readAt).getTime() - new Date(b.readAt).getTime())
-              .map((r) => ({ userId: r.userId, name: r.userName, read: r }));
-        // 수신자 외 열람자(기타)
-        const extraReaders = recipientNames.length > 0
-          ? handover.reads.filter((r) => !recipientIds.includes(r.userId))
-          : [];
-
-        function StatusBadge({ read }: { read?: ReadItem }) {
-          if (!read) return <span className="text-[10px] rounded px-1.5 py-0.5 bg-gray-100 text-gray-500 border border-gray-200">미열람</span>;
-          if (read.confirmedAt) return <span className="text-[10px] rounded px-1.5 py-0.5 bg-green-100 text-green-700 border border-green-200">확인완료</span>;
-          return <span className="text-[10px] rounded px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-200">열람</span>;
+    <div className="mx-auto max-w-3xl">
+      <PageHeader
+        back={{ href: "/handover", label: "인수인계" }}
+        title={`${handover.authorName}님의 인수인계`}
+        meta={
+          <>
+            {isUrgent && <StatusBadge tone="bad">긴급</StatusBadge>}
+            {handover.isPinned && <StatusBadge tone="warn"><Pin />고정</StatusBadge>}
+            {handover.category && <StatusBadge>{handover.category}</StatusBadge>}
+          </>
         }
+        description={formatDate(handover.date)}
+        actions={
+          isAuthor ? (
+            <Button asChild variant="outline">
+              <Link href={`/handover/${handover.id}/edit`}>
+                <Pencil />수정
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      />
 
-        return (
-          <div className="rounded-lg border bg-card p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <Eye className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold">열람 · 확인 현황</h3>
-              <span className="text-[10px] bg-muted text-muted-foreground rounded px-1.5 py-0.5">원장 전용</span>
-            </div>
-            <ul className="space-y-2">
-              {rows.map((row) => (
-                <li key={row.userId} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="flex items-center gap-2 min-w-0">
-                    <span className="font-medium truncate">{row.name}</span>
-                    <StatusBadge read={row.read} />
-                  </span>
-                  <span className="text-[11px] text-muted-foreground text-right shrink-0">
-                    {row.read
-                      ? row.read.confirmedAt
-                        ? `확인 ${fmt(row.read.confirmedAt)}`
-                        : `열람 ${fmt(row.read.readAt)}`
-                      : "—"}
-                  </span>
+      <div className="flex flex-col gap-x4">
+        {/* 본문 + 수신자 확인 현황 */}
+        {(handover.content || recipientNames.length > 0) && (
+          <Section>
+            {recipientNames.length > 0 && (
+              <div className={handover.content ? "mb-x4 border-b border-stroke-neutral-muted pb-x4" : undefined}>
+                <p className="mb-x2 t3-medium text-fg-neutral-subtle">받는 사람</p>
+                <div className="flex flex-wrap items-center gap-x1_5">
+                  {recipientNames.map((name, idx) => {
+                    const rid = recipientIds[idx];
+                    const rRead = rid ? handover.reads.find((r) => r.userId === rid && r.confirmedAt != null) : null;
+                    return (
+                      <StatusBadge key={idx} tone={rRead ? "ok" : "gray"} size="large">
+                        {name}
+                        {rRead ? <CheckCircle2 /> : <span className="opacity-70">미확인</span>}
+                      </StatusBadge>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {handover.content && (
+              <div className="t5-regular text-fg-neutral">
+                <MarkdownViewer source={handover.content} />
+              </div>
+            )}
+          </Section>
+        )}
+
+        {/* 할 일 */}
+        {handover.tasks.length > 0 && (
+          <Section
+            title="할 일"
+            actions={
+              <span className="t4-medium tabular-nums text-fg-neutral-subtle">
+                {completedTasks}/{handover.tasks.length} 완료
+              </span>
+            }
+            flush
+          >
+            <ul className="divide-y divide-stroke-neutral-muted overflow-hidden rounded-b-r4 border-t border-stroke-neutral-muted">
+              {handover.tasks.map((task) => (
+                <li key={task.id}>
+                  <TaskToggleButton
+                    taskId={task.id}
+                    title={task.title}
+                    content={task.content}
+                    assigneeName={task.assigneeName}
+                    isCompleted={task.isCompleted}
+                  />
                 </li>
               ))}
             </ul>
-            {extraReaders.length > 0 && (
-              <div className="pt-2 border-t space-y-2">
-                <p className="text-[11px] text-muted-foreground">기타 열람자</p>
-                <ul className="space-y-2">
-                  {extraReaders.map((r) => (
-                    <li key={r.userId} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="flex items-center gap-2 min-w-0">
-                        <span className="font-medium truncate">{r.userName}</span>
-                        <StatusBadge read={r} />
-                      </span>
-                      <span className="text-[11px] text-muted-foreground text-right shrink-0">
-                        {r.confirmedAt ? `확인 ${fmt(r.confirmedAt)}` : `열람 ${fmt(r.readAt)}`}
-                      </span>
-                    </li>
+          </Section>
+        )}
+
+        {/* 루틴 체크리스트 */}
+        {handover.checklist.length > 0 && (
+          <Section
+            title="루틴"
+            actions={
+              <span className={`t4-bold tabular-nums ${routineAllDone ? "text-fg-positive" : "text-fg-warning"}`}>
+                {checkedCount}/{handover.checklist.length}
+              </span>
+            }
+            flush
+          >
+            {/* 진행률 바 */}
+            <div className="px-x5 pb-x4">
+              <ProgressBar
+                value={handover.checklist.length > 0 ? checkedCount / handover.checklist.length : 0}
+                tone={routineAllDone ? "ok" : "brand"}
+              />
+            </div>
+            <ul className="divide-y divide-stroke-neutral-muted overflow-hidden rounded-b-r4 border-t border-stroke-neutral-muted">
+              {handover.checklist.map((c) => (
+                <li key={c.id}>
+                  <ChecklistToggleButton
+                    itemId={c.id}
+                    title={c.title}
+                    isChecked={c.isChecked}
+                    checkedAt={c.checkedAt}
+                    checkedByName={c.checkedByName}
+                  />
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {/* 확인 영역 */}
+        <section className="flex flex-col gap-x3 rounded-r4 bg-bg-layer-fill px-x5 py-x4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="t5-bold text-fg-neutral">
+              {isAuthor ? "내가 남긴 인수인계예요" : isRead ? "확인을 마쳤어요" : "내용을 확인했다면 눌러 주세요"}
+            </p>
+            <p className="mt-x0_5 t4-regular tabular-nums text-fg-neutral-subtle">{confirmedTotal}명 확인</p>
+          </div>
+          {isAuthor ? null : isRead ? (
+            <span className="inline-flex items-center gap-x1_5 t4-bold text-fg-positive">
+              <CheckCircle2 className="size-5" aria-hidden />확인 완료
+            </span>
+          ) : (
+            <ConfirmButton handoverId={handover.id} />
+          )}
+        </section>
+
+        {/* 열람/확인 현황 (원장 전용) — 누가·언제 봤고 확인했는지 (3상태) */}
+        {isFullAccess(session.user.role) && (() => {
+          // 지정 수신자가 있으면 수신자를 기준 명단으로, 없으면 열람한 사람 전체를 대상으로 표시
+          type Row = { userId: string; name: string; read?: ReadItem };
+          const rows: Row[] = recipientNames.length > 0
+            ? recipientNames.map((name, i) => {
+                const uid = recipientIds[i] ?? name;
+                return { userId: uid, name, read: recipientIds[i] ? handover.reads.find((r) => r.userId === recipientIds[i]) : undefined };
+              })
+            : [...handover.reads]
+                .sort((a, b) => new Date(a.readAt).getTime() - new Date(b.readAt).getTime())
+                .map((r) => ({ userId: r.userId, name: r.userName, read: r }));
+          // 수신자 외 열람자(기타)
+          const extraReaders = recipientNames.length > 0
+            ? handover.reads.filter((r) => !recipientIds.includes(r.userId))
+            : [];
+
+          return (
+            <Section
+              title="열람 · 확인 현황"
+              actions={<StatusBadge tone="violet">원장 전용</StatusBadge>}
+              flush
+            >
+              {rows.length === 0 ? (
+                <p className="border-t border-stroke-neutral-muted px-x5 py-x4 t4-regular text-fg-neutral-subtle">아직 열람한 사람이 없어요</p>
+              ) : (
+                <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+                  {rows.map((row) => (
+                    <ReaderRow key={row.userId} name={row.name} read={row.read} />
                   ))}
                 </ul>
-              </div>
-            )}
-          </div>
-        );
-      })()}
+              )}
+              {extraReaders.length > 0 && (
+                <>
+                  <p className="border-t border-stroke-neutral-muted bg-bg-layer-fill px-x5 py-x2 t3-medium text-fg-neutral-subtle">기타 열람자</p>
+                  <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+                    {extraReaders.map((r) => (
+                      <ReaderRow key={r.userId} name={r.userName} read={r} />
+                    ))}
+                  </ul>
+                </>
+              )}
+            </Section>
+          );
+        })()}
 
-      {/* 댓글 */}
-      <HandoverComments
-        handoverId={handover.id}
-        comments={handover.comments}
-        currentUserId={session.user.id}
-        canModerate={isFullAccess(session.user.role)}
-      />
+        {/* 댓글 */}
+        <HandoverComments
+          handoverId={handover.id}
+          comments={handover.comments}
+          currentUserId={session.user.id}
+          canModerate={isFullAccess(session.user.role)}
+        />
+      </div>
     </div>
+  );
+}
+
+// ── 열람 · 확인 현황 행 ────────────────────────────────────────────────────
+type ReadItem = { userId: string; userName: string; readAt: Date; confirmedAt: Date | null };
+
+const fmtReadTime = (d: Date | string) =>
+  new Date(d).toLocaleString("ko-KR", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+function ReadStatusBadge({ read }: { read?: ReadItem }) {
+  if (!read) return <StatusBadge>미열람</StatusBadge>;
+  if (read.confirmedAt) return <StatusBadge tone="ok">확인완료</StatusBadge>;
+  return <StatusBadge tone="warn">열람</StatusBadge>;
+}
+
+function ReaderRow({ name, read }: { name: string; read?: ReadItem }) {
+  return (
+    <li className="flex items-center justify-between gap-x2 px-x5 py-x3">
+      <span className="flex min-w-0 items-center gap-x2">
+        <span className="truncate t4-medium text-fg-neutral">{name}</span>
+        <ReadStatusBadge read={read} />
+      </span>
+      <span className="shrink-0 text-right t3-regular tabular-nums text-fg-neutral-subtle">
+        {read
+          ? read.confirmedAt
+            ? `확인 ${fmtReadTime(read.confirmedAt)}`
+            : `열람 ${fmtReadTime(read.readAt)}`
+          : "—"}
+      </span>
+    </li>
   );
 }

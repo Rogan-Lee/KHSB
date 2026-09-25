@@ -3,8 +3,10 @@
 import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EmptyState, Section, StatusBadge, type Tone } from "@/components/backoffice/ui";
 import {
   Check,
   X,
@@ -15,6 +17,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Inbox,
 } from "lucide-react";
 import {
   toggleExamApplicationOpen,
@@ -31,10 +34,10 @@ export type ApplicationRow = {
   memo: string | null;
 };
 
-const STATUS_META: Record<ExamApplicationStatus, { label: string; tone: string }> = {
-  PENDING: { label: "대기", tone: "bg-warn-soft text-warn-ink" },
-  CONFIRMED: { label: "확정", tone: "bg-ok-soft text-ok-ink" },
-  CANCELLED: { label: "반려", tone: "bg-bad-soft text-bad-ink" },
+const STATUS_META: Record<ExamApplicationStatus, { label: string; tone: Tone }> = {
+  PENDING: { label: "대기", tone: "warn" },
+  CONFIRMED: { label: "확정", tone: "ok" },
+  CANCELLED: { label: "반려", tone: "bad" },
 };
 
 const STATUS_TABS: ExamApplicationStatus[] = ["PENDING", "CONFIRMED", "CANCELLED"];
@@ -55,54 +58,57 @@ function PaginatedRows({
   const start = current * PAGE_SIZE;
   const visible = rows.slice(start, start + PAGE_SIZE);
 
+  const pagerButton = "size-x8";
   return (
-    <div className="space-y-2">
-      <ul className="divide-y divide-line rounded-lg border border-line">{visible.map(renderRow)}</ul>
+    <div className="flex flex-col gap-x3">
+      <ul className="divide-y divide-stroke-neutral-muted overflow-hidden rounded-r3 border border-stroke-neutral-muted">
+        {visible.map(renderRow)}
+      </ul>
       {rows.length > PAGE_SIZE && (
-        <div className="flex items-center justify-between gap-2 pt-1">
-          <span className="text-xs text-muted-foreground tabular-nums">
-            페이지 {current + 1} / {totalPages}
+        <div className="flex items-center justify-between gap-x2">
+          <span className="t3-regular tabular-nums text-fg-neutral-subtle">
+            {current + 1} / {totalPages} 페이지
           </span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-x1">
             <Button
-              variant="outline"
-              size="sm"
-              className="h-7 w-7 p-0"
+              variant="ghost"
+              size="icon"
+              className={pagerButton}
               onClick={() => setPage(0)}
               disabled={current === 0}
               aria-label="첫 페이지"
             >
-              <ChevronsLeft className="h-3.5 w-3.5" />
+              <ChevronsLeft />
             </Button>
             <Button
-              variant="outline"
-              size="sm"
-              className="h-7 w-7 p-0"
+              variant="ghost"
+              size="icon"
+              className={pagerButton}
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={current === 0}
               aria-label="이전 페이지"
             >
-              <ChevronLeft className="h-3.5 w-3.5" />
+              <ChevronLeft />
             </Button>
             <Button
-              variant="outline"
-              size="sm"
-              className="h-7 w-7 p-0"
+              variant="ghost"
+              size="icon"
+              className={pagerButton}
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={current >= totalPages - 1}
               aria-label="다음 페이지"
             >
-              <ChevronRight className="h-3.5 w-3.5" />
+              <ChevronRight />
             </Button>
             <Button
-              variant="outline"
-              size="sm"
-              className="h-7 w-7 p-0"
+              variant="ghost"
+              size="icon"
+              className={pagerButton}
               onClick={() => setPage(totalPages - 1)}
               disabled={current >= totalPages - 1}
               aria-label="마지막 페이지"
             >
-              <ChevronsRight className="h-3.5 w-3.5" />
+              <ChevronsRight />
             </Button>
           </div>
         </div>
@@ -128,54 +134,69 @@ export function ExamApplicationAdmin({
 
   function renderRow(a: ApplicationRow) {
     const meta = STATUS_META[a.status];
+    const iconButton = "size-x9";
     return (
-      <li key={a.id} className="flex items-center gap-2 px-3 py-2.5">
+      <li key={a.id} className="flex items-center gap-x3 px-x4 py-x3">
         <div className="min-w-0 flex-1">
-          <span className="text-sm font-medium">{a.studentName}</span>
-          <span className="ml-1.5 text-xs text-muted-foreground">{a.grade}</span>
-          {a.memo && <p className="mt-0.5 text-xs text-muted-foreground">{a.memo}</p>}
+          <div className="flex items-center gap-x1_5">
+            <span className="t4-medium text-fg-neutral">{a.studentName}</span>
+            <span className="t3-regular text-fg-neutral-subtle">{a.grade}</span>
+          </div>
+          {a.memo && <p className="mt-x0_5 t3-regular text-fg-neutral-muted">{a.memo}</p>}
         </div>
-        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${meta.tone}`}>
-          {meta.label}
-        </span>
-        {a.status !== "CONFIRMED" ? (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={() => run(() => setExamApplicationStatus(a.id, "CONFIRMED"), "확정했습니다")}
-          >
-            <Check className="h-3.5 w-3.5" />
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={() => run(() => setExamApplicationStatus(a.id, "PENDING"), "확정을 취소했습니다")}
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </Button>
-        )}
-        {a.status !== "CANCELLED" ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={busy}
-            onClick={() => run(() => setExamApplicationStatus(a.id, "CANCELLED"), "반려했습니다")}
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        ) : (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={busy}
-            onClick={() => run(() => setExamApplicationStatus(a.id, "PENDING"), "대기로 되돌렸습니다")}
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </Button>
-        )}
+        <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
+        <div className="flex shrink-0 items-center gap-x0_5">
+          {a.status !== "CONFIRMED" ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              className={cn(iconButton, "text-fg-positive")}
+              disabled={busy}
+              aria-label={`${a.studentName} 확정`}
+              title="확정"
+              onClick={() => run(() => setExamApplicationStatus(a.id, "CONFIRMED"), "확정했습니다")}
+            >
+              <Check />
+            </Button>
+          ) : (
+            <Button
+              size="icon"
+              variant="ghost"
+              className={iconButton}
+              disabled={busy}
+              aria-label={`${a.studentName} 확정 취소`}
+              title="확정 취소"
+              onClick={() => run(() => setExamApplicationStatus(a.id, "PENDING"), "확정을 취소했습니다")}
+            >
+              <RotateCcw />
+            </Button>
+          )}
+          {a.status !== "CANCELLED" ? (
+            <Button
+              size="icon"
+              variant="ghost"
+              className={cn(iconButton, "text-fg-critical")}
+              disabled={busy}
+              aria-label={`${a.studentName} 반려`}
+              title="반려"
+              onClick={() => run(() => setExamApplicationStatus(a.id, "CANCELLED"), "반려했습니다")}
+            >
+              <X />
+            </Button>
+          ) : (
+            <Button
+              size="icon"
+              variant="ghost"
+              className={iconButton}
+              disabled={busy}
+              aria-label={`${a.studentName} 대기로 되돌리기`}
+              title="대기로 되돌리기"
+              onClick={() => run(() => setExamApplicationStatus(a.id, "PENDING"), "대기로 되돌렸습니다")}
+            >
+              <RotateCcw />
+            </Button>
+          )}
+        </div>
       </li>
     );
   }
@@ -204,24 +225,28 @@ export function ExamApplicationAdmin({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-medium">신청자 ({applications.length}명)</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            신청 접수: {applicationOpen ? "열림" : "닫힘"} · 확정 {confirmedCount}명
-          </p>
-        </div>
-        <div className="flex gap-2">
+    <Section
+      title="응시 신청"
+      count={applications.length}
+      description={
+        <span className="inline-flex flex-wrap items-center gap-x1_5">
+          <StatusBadge tone={applicationOpen ? "ok" : "gray"}>
+            {applicationOpen ? "신청 접수 중" : "신청 닫힘"}
+          </StatusBadge>
+          <span className="tabular-nums">확정 {confirmedCount}명</span>
+        </span>
+      }
+      actions={
+        <>
           {applicationOpen && (
             <Button size="sm" variant="outline" disabled={busy} onClick={copyApplyLink}>
-              <Copy className="h-4 w-4 mr-1" />
+              <Copy />
               신청 링크 복사
             </Button>
           )}
           <Button
             size="sm"
-            variant={applicationOpen ? "outline" : "default"}
+            variant={applicationOpen ? "secondary" : confirmedCount === 0 ? "default" : "outline"}
             disabled={busy}
             onClick={() =>
               run(
@@ -234,6 +259,7 @@ export function ExamApplicationAdmin({
           </Button>
           <Button
             size="sm"
+            variant={confirmedCount > 0 ? "default" : "secondary"}
             disabled={busy || confirmedCount === 0}
             onClick={() =>
               run(async () => {
@@ -242,32 +268,39 @@ export function ExamApplicationAdmin({
               }, "확정 신청자를 좌석배정했습니다")
             }
           >
-            <Shuffle className="h-4 w-4 mr-1" />
+            <Shuffle />
             신청자 → 좌석배정
           </Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       {applications.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">아직 신청자가 없습니다.</p>
+        <EmptyState
+          compact
+          icon={Inbox}
+          title="아직 신청자가 없어요"
+          description={
+            applicationOpen
+              ? "신청 링크를 복사해 학생들에게 보내 보세요."
+              : "신청을 열면 학생들이 링크로 응시 신청을 할 수 있어요."
+          }
+        />
       ) : (
         <Tabs defaultValue="PENDING" className="w-full">
-          <TabsList>
+          <TabsList variant="segment">
             {STATUS_TABS.map((s) => (
               <TabsTrigger key={s} value={s}>
                 {STATUS_META[s].label}
-                <span className="ml-1.5 text-[10px] text-muted-foreground">({countOf(s)})</span>
+                <span className="tabular-nums text-fg-neutral-subtle">{countOf(s)}</span>
               </TabsTrigger>
             ))}
           </TabsList>
           {STATUS_TABS.map((s) => {
             const rows = applications.filter((a) => a.status === s);
             return (
-              <TabsContent key={s} value={s} className="mt-3">
+              <TabsContent key={s} value={s} className="mt-x4">
                 {rows.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    {STATUS_META[s].label} 상태의 신청자가 없습니다.
-                  </p>
+                  <EmptyState compact title={`${STATUS_META[s].label} 상태의 신청자가 없어요`} />
                 ) : (
                   <PaginatedRows rows={rows} renderRow={renderRow} />
                 )}
@@ -276,6 +309,6 @@ export function ExamApplicationAdmin({
           })}
         </Tabs>
       )}
-    </div>
+    </Section>
   );
 }

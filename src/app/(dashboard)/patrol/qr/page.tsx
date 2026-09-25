@@ -1,10 +1,8 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { isStaff } from "@/lib/roles";
+import { PageHeader } from "@/components/backoffice/ui";
 import { PatrolQrSheet } from "./_components/patrol-qr-sheet";
 import { compareSeat } from "@/lib/patrol";
 
@@ -22,15 +20,13 @@ export default async function PatrolQrPage() {
   ).sort(compareSeat);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2 print:hidden">
-        <Link href="/patrol">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            순찰 관리
-          </Button>
-        </Link>
-        <h1 className="text-xl font-bold">좌석 QR 스티커</h1>
+    <div>
+      <div className="print:hidden">
+        <PageHeader
+          back={{ href: "/patrol", label: "순찰 관리" }}
+          title="좌석 QR 스티커"
+          description="인쇄해서 학생 책상에 붙여 두면 순찰할 때 QR로 바로 기록할 수 있어요."
+        />
       </div>
       <PatrolQrSheet students={students} />
     </div>

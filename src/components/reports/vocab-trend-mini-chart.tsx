@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { BookOpen } from "lucide-react";
+import { Section, StatGrid } from "@/components/portal/ui";
 import { VocabTrendMiniChartView } from "./vocab-trend-mini-chart-view";
 
 interface Props {
@@ -55,20 +55,21 @@ export async function VocabTrendMiniChart({
     totalWords: s.totalWords,
   }));
 
+  const latest = data[data.length - 1];
+
   return (
-    <section className="bg-white rounded-2xl shadow-sm overflow-hidden border border-emerald-200">
-      <div className="px-5 py-4 border-b border-emerald-100 bg-emerald-50/60">
-        <div className="flex items-center gap-2">
-          <BookOpen className="h-4 w-4 text-emerald-600 shrink-0" />
-          <p className="text-sm font-bold text-gray-800">{title}</p>
-        </div>
-      </div>
-      <div className="px-5 py-4 space-y-3">
+    <Section title={title}>
+      <StatGrid
+        items={[
+          { label: "응시", value: `${total}회` },
+          { label: "평균", value: `${avgScore}점` },
+          { label: "최근", value: `${latest.score}점`, tone: "brand" },
+        ]}
+      />
+      <div className="mt-x5">
         <VocabTrendMiniChartView data={data} />
-        <p className="text-[11px] text-gray-500 text-center">
-          총 {total}회 응시 · 평균 {avgScore}점
-        </p>
       </div>
-    </section>
+      <p className="mt-x2 t3-regular text-fg-neutral-subtle">점수는 정답률(%) 기준이에요.</p>
+    </Section>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CountBadge } from "@/components/backoffice/ui";
 
 export function StudentDetailTabs({
   defaultTab,
@@ -24,15 +25,12 @@ export function StudentDetailTabs({
 
   return (
     <Tabs value={currentTab} onValueChange={handleTabChange}>
-      <TabsList>
+      <TabsList aria-label="원생 상세 메뉴">
         {tabItems.map((item) => (
           <TabsTrigger key={item.value} value={item.value}>
             {item.label}
-            {item.badge != null && item.badge > 0 && (
-              <span className="ml-1.5 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                {item.badge}
-              </span>
-            )}
+            {/* 미완료 과제·미확인 요청 등 처리할 건수 */}
+            {item.badge != null && item.badge > 0 && <CountBadge count={item.badge} />}
           </TabsTrigger>
         ))}
       </TabsList>

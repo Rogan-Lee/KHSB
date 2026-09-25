@@ -2,28 +2,20 @@
 
 import { Fragment, useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatDate, cn } from "@/lib/utils";
 import Link from "next/link";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent,
   DropdownMenuSubTrigger, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
-} from "@/components/ui/dialog";
-import { MoreHorizontal, Search, Trash2, X, Link2, ExternalLink, CheckCircle2, ChevronDown, ChevronRight, Send, Loader2, Filter, Camera, ChevronLeft, ChevronsLeft, ChevronsRight, RefreshCw } from "lucide-react";
+import { MoreHorizontal, Trash2, X, Link2, ExternalLink, CheckCircle2, ChevronDown, ChevronRight, Send, Loader2, Camera, ChevronLeft, ChevronsLeft, ChevronsRight, RefreshCw, ClipboardList } from "lucide-react";
 import { ParentReportInlinePanel } from "./parent-report-inline-panel";
 import { DatePicker } from "@/components/ui/date-picker";
 import { updateMentoringStatus, updateMentoringNotes, deleteMentoring, bulkDeleteMentorings } from "@/actions/mentoring";
@@ -31,20 +23,19 @@ import { createParentReportsBulk, type BulkParentReportResult } from "@/actions/
 import { toast } from "sonner";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 import { SortableHeader } from "@/components/ui/sortable-header";
+import { EmptyState, FilterChip, SearchField, Segmented, StatusBadge, TableCard, Toolbar } from "@/components/backoffice/ui";
+import { inputBaseClass } from "@/components/ui/input";
+import { MENTORING_STATUS, MentoringStatusBadge, TH_CLASS, type MentoringStatusKey } from "./mentoring-status";
+import { ConfirmDialog } from "./confirm-dialog";
 
-const STATUS_MAP = {
-  SCHEDULED: { label: "예정", variant: "secondary" as const },
-  COMPLETED: { label: "완료", variant: "default" as const },
-  CANCELLED: { label: "취소", variant: "destructive" as const },
-  RESCHEDULED: { label: "일정변경", variant: "outline" as const },
-};
+const STATUS_MAP = MENTORING_STATUS;
 
 type Mentoring = {
   id: string;
   scheduledAt: Date;
   scheduledTimeStart: string | null;
   scheduledTimeEnd: string | null;
-  status: keyof typeof STATUS_MAP;
+  status: MentoringStatusKey;
   notes: string | null;
   student: {
     id: string; name: string; grade: string; seat?: string | null; vocabTestDate?: Date | null;
@@ -77,14 +68,22 @@ type Props = {
 
 const PAGE_SIZE = 20;
 
-/** 이달 상벌점 임계값을 넘으면 이모지 표시 (§2.17). 임계값: 상점 10↑ / 벌점 15↑ */
+/** 이달 상벌점 임계값을 넘으면 표시 (§2.17). 임계값: 상점 10↑ / 벌점 15↑ */
 function MeritBadge({ positive, negative }: { positive: number; negative: number }) {
   if (positive < 10 && negative < 15) return null;
   return (
-    <span className="inline-flex items-center gap-0.5 text-sm leading-none shrink-0">
-      {positive >= 10 && <span title={`이달 상점 ${positive}점`}>👍</span>}
-      {negative >= 15 && <span title={`이달 벌점 ${negative}점`}>🤬</span>}
-    </span>
+    <>
+      {positive >= 10 && (
+        <span title={`이달 상점 ${positive}점`}>
+          <StatusBadge tone="ok">상점 {positive}</StatusBadge>
+        </span>
+      )}
+      {negative >= 15 && (
+        <span title={`이달 벌점 ${negative}점`}>
+          <StatusBadge tone="bad">벌점 {negative}</StatusBadge>
+        </span>
+      )}
+    </>
   );
 }
 
@@ -128,23 +127,14 @@ function DeleteConfirmDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>멘토링 삭제</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">{mentoring.student.name}</span>의{" "}
-          {formatDate(mentoring.scheduledAt)} 멘토링을 삭제합니다. 이 작업은 되돌릴 수 없습니다.
-        </p>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>취소</Button>
-          <Button variant="destructive" disabled={isPending} onClick={handleDelete}>
-            {isPending ? "삭제 중..." : "삭제"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={open}
+      onOpenChange={(v) => { if (!v) onClose(); }}
+      title="멘토링 삭제"
+      description={`${mentoring.student.name}의 ${formatDate(mentoring.scheduledAt)} 멘토링을 삭제할까요?\n삭제한 기록은 되돌릴 수 없어요.`}
+      pending={isPending}
+      onConfirm={handleDelete}
+    />
   );
 }
 
@@ -162,22 +152,15 @@ function BulkDeleteConfirmDialog({
   isPending: boolean;
 }) {
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>멘토링 {count}건 삭제</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          선택한 멘토링 {count}건을 삭제합니다. 이 작업은 되돌릴 수 없습니다.
-        </p>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>취소</Button>
-          <Button variant="destructive" disabled={isPending} onClick={onConfirm}>
-            {isPending ? "삭제 중..." : `${count}건 삭제`}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={open}
+      onOpenChange={(v) => { if (!v) onClose(); }}
+      title={`멘토링 ${count}건 삭제`}
+      description={`선택한 멘토링 ${count}건을 삭제할까요?\n삭제한 기록은 되돌릴 수 없어요.`}
+      confirmLabel={`${count}건 삭제`}
+      pending={isPending}
+      onConfirm={onConfirm}
+    />
   );
 }
 
@@ -198,8 +181,8 @@ function KebabMenu({ mentoring, onDelete }: { mentoring: Mentoring; onDelete: ()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8" disabled={isPending}>
-          <MoreHorizontal className="h-4 w-4" />
+        <Button variant="ghost" size="icon" className="size-8" disabled={isPending} aria-label="더보기">
+          <MoreHorizontal />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -219,7 +202,7 @@ function KebabMenu({ mentoring, onDelete }: { mentoring: Mentoring; onDelete: ()
         </DropdownMenuSub>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          className="text-destructive focus:text-destructive"
+          className="text-fg-critical focus:text-fg-critical"
           onClick={onDelete}
         >
           삭제
@@ -468,245 +451,255 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
     }
   }
 
+  const colCount = mentors.length > 0 ? 11 : 10;
+  const isTodayRange = initialDateFrom === today && initialDateTo === today;
+
   return (
-    <div className="space-y-3">
-      {/* 필터 */}
-      <div className="flex flex-wrap items-center gap-2">
+    <div>
+      {/* 필터 — 원생·멘토·취소·리포트 (즉시 적용) */}
+      <Toolbar className="mb-x3">
+        <div className="relative w-full sm:w-60">
+          <SearchField
+            placeholder="원생 이름 검색"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="원생 이름 검색"
+            className="pr-x8 sm:w-60"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="검색어 지우기"
+              className="absolute right-2 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full text-fg-neutral-subtle hover:bg-bg-transparent-pressed hover:text-fg-neutral"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
         {mentors.length > 0 && (
-          <>
-            <span className="text-sm text-muted-foreground">담당 멘토</span>
-            <Combobox
-              value={selectedMentorId === "all" ? "" : selectedMentorId}
-              onChange={(v) => setSelectedMentorId(v || "all")}
-              items={mentors.map((m) => ({ value: m.id, label: m.name }))}
-              placeholder="전체"
-              searchPlaceholder="멘토 이름 검색…"
-              allowEmpty
-              emptyLabel="전체"
-              triggerClassName="w-36 h-8 text-sm"
-            />
-          </>
+          <Combobox
+            value={selectedMentorId === "all" ? "" : selectedMentorId}
+            onChange={(v) => setSelectedMentorId(v || "all")}
+            items={mentors.map((m) => ({ value: m.id, label: m.name }))}
+            placeholder="멘토 전체"
+            searchPlaceholder="멘토 이름 검색…"
+            allowEmpty
+            emptyLabel="전체"
+            triggerClassName="w-40"
+          />
         )}
-        <span className="text-sm text-muted-foreground">날짜</span>
-        <DatePicker value={dateFrom || null} onChange={(d) => setDateFrom(d ?? "")} placeholder="시작" />
-        <span className="text-sm text-muted-foreground">~</span>
-        <DatePicker value={dateTo || null} onChange={(d) => setDateTo(d ?? "")} placeholder="종료" />
+        <Segmented
+          aria-label="취소 필터"
+          value={cancelFilter}
+          onChange={(v) => setCancelFilter(v)}
+          options={[
+            { value: "exclude", label: "취소 제외" },
+            { value: "only", label: "취소만" },
+            { value: "all", label: "전체" },
+          ]}
+          className="w-auto"
+        />
+        <FilterChip selected={showOnlyWithReport} onClick={() => setShowOnlyWithReport(!showOnlyWithReport)}>
+          리포트 있는 것만
+        </FilterChip>
+      </Toolbar>
+
+      {/* 조회 기간 — 서버 조회(URL) */}
+      <Toolbar>
+        <span className="t4-medium text-fg-neutral-muted">기간</span>
+        <DatePicker value={dateFrom || null} onChange={(d) => setDateFrom(d ?? "")} placeholder="시작일" className="h-9 px-x3" />
+        <span className="t4-regular text-fg-neutral-subtle">~</span>
+        <DatePicker value={dateTo || null} onChange={(d) => setDateTo(d ?? "")} placeholder="종료일" className="h-9 px-x3" />
         <Button
           type="button"
           size="sm"
-          className="h-8 gap-1.5"
+          variant={datesDirty ? "default" : "outline"}
           onClick={() => applyDateRange(dateFrom, dateTo)}
           disabled={isRefetching || (!datesDirty && filtered.length > 0)}
           title={datesDirty ? "변경된 날짜로 조회" : "현재 범위로 다시 조회"}
         >
-          {isRefetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          조회
+          {isRefetching ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+          {isRefetching ? "조회 중…" : "조회"}
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 px-2 text-xs"
-          onClick={() => applyDateRange(today, today)}
-          disabled={isRefetching}
-        >
-          오늘만
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 px-2 text-xs"
-          onClick={applyRecentRange}
-          disabled={isRefetching}
-        >
-          최근 1주일
-        </Button>
-        <Button
-          variant={isAllRange ? "secondary" : "ghost"}
-          size="sm"
-          className="h-8 px-2 text-xs"
-          onClick={() => applyDateRange("", "")}
-          disabled={isRefetching}
-          title="전체 기간 조회 (기본값)"
-        >
-          전체
-        </Button>
-        <div className="relative ml-2">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="원생 이름 검색..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="pl-8 h-8 w-44 text-sm"
-          />
-          {query && (
-            <button onClick={() => setQuery("")} className="absolute right-2 top-2 text-muted-foreground hover:text-foreground">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
+        <div className="flex flex-wrap items-center gap-x1_5">
+          <FilterChip selected={isTodayRange} onClick={() => applyDateRange(today, today)} disabled={isRefetching}>
+            오늘
+          </FilterChip>
+          <FilterChip onClick={applyRecentRange} disabled={isRefetching}>
+            최근 1주일
+          </FilterChip>
+          <FilterChip
+            selected={isAllRange}
+            onClick={() => applyDateRange("", "")}
+            disabled={isRefetching}
+            title="전체 기간 조회 (기본값)"
+          >
+            전체 기간
+          </FilterChip>
         </div>
-        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none ml-2">
-          <input
-            type="checkbox"
-            checked={showOnlyWithReport}
-            onChange={(e) => setShowOnlyWithReport(e.target.checked)}
-            className="rounded h-3 w-3"
-          />
-          <Filter className="h-3 w-3" />
-          리포트 있는 것만
-        </label>
-        <div className="inline-flex items-center rounded-full border bg-background p-0.5" role="group" aria-label="취소 필터">
-          {([
-            { key: "exclude", label: "취소 제외" },
-            { key: "only", label: "취소만" },
-            { key: "all", label: "전체" },
-          ] as const).map((opt) => (
-            <button
-              key={opt.key}
-              type="button"
-              onClick={() => setCancelFilter(opt.key)}
-              aria-pressed={cancelFilter === opt.key}
-              className={
-                "h-6 px-2.5 text-[11px] rounded-full transition-colors " +
-                (cancelFilter === opt.key
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted")
-              }
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          {selectedCount > 0 && (
-            <>
-              <Button
-                size="sm"
-                className="h-8 gap-1.5"
-                onClick={handleBulkCreateReports}
-                disabled={bulkGenerating}
-              >
-                {bulkGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
-                {selectedCount}건 리포트 생성
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 gap-1.5 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-                onClick={handleBulkShare}
-              >
-                <Send className="h-3.5 w-3.5" />
-                링크 복사
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                className="h-8 gap-1.5"
-                onClick={() => setBulkDeleteOpen(true)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                {selectedCount}건 삭제
-              </Button>
-            </>
-          )}
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {totalCount > 0
-              ? `${pageStart + 1}–${Math.min(pageStart + PAGE_SIZE, totalCount)} / ${totalCount}건`
-              : "0건"}
-          </span>
-        </div>
-      </div>
+        <span className="ml-auto t3-regular tabular-nums text-fg-neutral-subtle">
+          {totalCount > 0
+            ? `${pageStart + 1}–${Math.min(pageStart + PAGE_SIZE, totalCount)} / ${totalCount}건`
+            : "0건"}
+        </span>
+      </Toolbar>
 
-      <div className="overflow-x-auto">
-        <Table className="text-[13px]">
+      {/* 선택 작업 */}
+      {selectedCount > 0 && (
+        <div className="mb-x3 flex flex-wrap items-center gap-x2 rounded-r4 bg-bg-layer-fill px-x4 py-x2_5">
+          <span className="t4-bold tabular-nums text-fg-neutral">{selectedCount}건 선택됨</span>
+          <Button variant="ghost" size="xs" onClick={() => setSelected(new Set())}>
+            선택 해제
+          </Button>
+          <div className="ml-auto flex flex-wrap items-center gap-x2">
+            <Button size="sm" onClick={handleBulkCreateReports} disabled={bulkGenerating}>
+              {bulkGenerating ? <Loader2 className="animate-spin" /> : <Link2 />}
+              {bulkGenerating ? "생성 중…" : `${selectedCount}건 리포트 생성`}
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleBulkShare}>
+              <Send />
+              링크 복사
+            </Button>
+            <Button size="sm" variant="ghost" className="text-fg-critical" onClick={() => setBulkDeleteOpen(true)}>
+              <Trash2 />
+              {selectedCount}건 삭제
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <TableCard
+        footer={
+          totalCount > PAGE_SIZE ? (
+            <>
+              <span className="t3-regular tabular-nums text-fg-neutral-subtle">
+                페이지 {currentPage + 1} / {totalPages}
+              </span>
+              <div className="flex items-center gap-x1">
+                <Button variant="ghost" size="icon" className="size-8" onClick={() => setPage(0)} disabled={currentPage === 0} aria-label="첫 페이지">
+                  <ChevronsLeft />
+                </Button>
+                <Button variant="ghost" size="icon" className="size-8" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={currentPage === 0} aria-label="이전 페이지">
+                  <ChevronLeft />
+                </Button>
+                <Button variant="ghost" size="icon" className="size-8" onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1} aria-label="다음 페이지">
+                  <ChevronRight />
+                </Button>
+                <Button variant="ghost" size="icon" className="size-8" onClick={() => setPage(totalPages - 1)} disabled={currentPage >= totalPages - 1} aria-label="마지막 페이지">
+                  <ChevronsRight />
+                </Button>
+              </div>
+            </>
+          ) : undefined
+        }
+      >
+        <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-16 px-2">
-                <label
-                  className="flex items-center gap-1.5 cursor-pointer select-none rounded px-1 py-1 -mx-1 -my-1 hover:bg-muted/60 transition-colors"
+              <TableHead className="w-12 pr-0">
+                <Checkbox
+                  checked={headerCheckState}
+                  onCheckedChange={toggleAll}
+                  aria-label="현재 페이지 전체 선택"
                   title={allSelected ? "현재 페이지 전체 해제" : "현재 페이지 전체 선택"}
-                >
-                  <Checkbox
-                    checked={headerCheckState}
-                    onCheckedChange={toggleAll}
-                    aria-label="현재 페이지 전체 선택"
-                    className="data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground"
-                  />
-                  <span className="text-[11px] font-medium text-muted-foreground">전체</span>
-                </label>
+                />
               </TableHead>
-              <TableHead className="w-10 text-center">좌석</TableHead>
-              <SortableHeader sortKey="scheduledAt" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2 whitespace-nowrap">
+              <TableHead className="w-14 text-center">좌석</TableHead>
+              <SortableHeader sortKey="scheduledAt" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className={TH_CLASS}>
                 예정일
               </SortableHeader>
-              <SortableHeader sortKey="studentName" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2 whitespace-nowrap">
+              <SortableHeader sortKey="studentName" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className={TH_CLASS}>
                 원생
               </SortableHeader>
               {mentors.length > 0 && (
-                <SortableHeader sortKey="mentorName" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2 whitespace-nowrap">
+                <SortableHeader sortKey="mentorName" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className={TH_CLASS}>
                   멘토
                 </SortableHeader>
               )}
-              <SortableHeader sortKey="time" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2 whitespace-nowrap">
+              <SortableHeader sortKey="time" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className={TH_CLASS}>
                 시간
               </SortableHeader>
-              <SortableHeader sortKey="status" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className="h-10 px-2 whitespace-nowrap">
+              <SortableHeader sortKey="status" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} className={TH_CLASS}>
                 상태
               </SortableHeader>
               <TableHead>메모</TableHead>
-              <TableHead className="whitespace-nowrap text-center">KDA 사진</TableHead>
-              <TableHead className="whitespace-nowrap">학부모 리포트</TableHead>
-              <TableHead></TableHead>
+              <TableHead className="text-center">KDA 사진</TableHead>
+              <TableHead>학부모 리포트</TableHead>
+              <TableHead><span className="sr-only">작업</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {visibleRows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={mentors.length > 0 ? 11 : 10} className="text-center text-muted-foreground py-8">
-                  멘토링 기록이 없습니다
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={colCount} className="p-0">
+                  {mentorings.length === 0 ? (
+                    <EmptyState
+                      icon={ClipboardList}
+                      title={isAllRange ? "아직 등록된 멘토링이 없어요" : "이 기간에 멘토링이 없어요"}
+                      description={isAllRange ? "멘토링 일정을 등록하면 여기에서 기록을 관리할 수 있어요" : "기간을 바꾸거나 전체 기간으로 조회해 보세요"}
+                      action={
+                        <Button asChild size="sm">
+                          <Link href="/mentoring/new">멘토링 등록</Link>
+                        </Button>
+                      }
+                    />
+                  ) : (
+                    <EmptyState
+                      icon={ClipboardList}
+                      title="조건에 맞는 멘토링이 없어요"
+                      description="검색어나 멘토·취소·리포트 필터를 바꿔 보세요"
+                    />
+                  )}
                 </TableCell>
               </TableRow>
             ) : (
-              visibleRows.map((m, idx) => (
+              visibleRows.map((m) => {
+                const vocabMissed = vocabEnrolledSet.has(m.student.id) && !isVocabDone(m.student.vocabTestDate);
+                return (
                 <Fragment key={m.id}>
                 <TableRow
                   data-state={selected.has(m.id) ? "selected" : undefined}
-                  className={vocabEnrolledSet.has(m.student.id) && !isVocabDone(m.student.vocabTestDate) ? "bg-orange-50" : undefined}
-                  title={vocabEnrolledSet.has(m.student.id) && !isVocabDone(m.student.vocabTestDate) ? "영단어 시험 미응시" : undefined}
+                  title={vocabMissed ? "영단어 시험 미응시" : undefined}
                 >
-                  <TableCell>
+                  <TableCell className="pr-0">
                     <Checkbox
                       checked={selected.has(m.id)}
                       onCheckedChange={() => toggleOne(m.id)}
                       aria-label={`${m.student.name} 선택`}
                     />
                   </TableCell>
-                  <TableCell className="text-center text-xs text-muted-foreground font-mono">{m.student.seat || "—"}</TableCell>
-                  <TableCell className="whitespace-nowrap">{formatDate(m.scheduledAt)}</TableCell>
-                  <TableCell className="min-w-[220px]">
-                    <div className="flex items-center gap-2 flex-nowrap">
-                      {/* 입실 상태 표시 */}
+                  <TableCell className="text-center t3-regular tabular-nums text-fg-neutral-subtle">{m.student.seat || "—"}</TableCell>
+                  <TableCell className="whitespace-nowrap tabular-nums">{formatDate(m.scheduledAt)}</TableCell>
+                  <TableCell className="min-w-[240px]">
+                    <div className="flex flex-nowrap items-center gap-x2">
+                      {/* 입실 상태 */}
                       {checkedInSet.has(m.student.id) ? (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200 shrink-0 whitespace-nowrap">
-                          <span className="relative flex h-1.5 w-1.5">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500" />
+                        <StatusBadge tone="ok" className="gap-x1">
+                          <span className="relative flex size-1.5" aria-hidden>
+                            <span className="absolute inline-flex size-full animate-ping rounded-full bg-bg-positive-solid opacity-75" />
+                            <span className="relative inline-flex size-1.5 rounded-full bg-bg-positive-solid" />
                           </span>
                           입실
-                        </span>
+                        </StatusBadge>
                       ) : (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-red-600 border border-red-200 shrink-0 whitespace-nowrap">
-                          미입실
-                        </span>
+                        <StatusBadge tone="gray">미입실</StatusBadge>
                       )}
                       {/* 이름 + 학년 */}
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1 flex-nowrap whitespace-nowrap">
-                          <span className="font-medium whitespace-nowrap">{m.student.name}</span>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">{m.student.grade}</span>
+                        <div className="flex flex-nowrap items-center gap-x1_5 whitespace-nowrap">
+                          <Link
+                            href={`/mentoring/${m.id}`}
+                            className="t4-bold text-fg-neutral underline-offset-4 hover:underline"
+                          >
+                            {m.student.name}
+                          </Link>
+                          <span className="t3-regular text-fg-neutral-subtle">{m.student.grade}</span>
                           {(() => {
                             const p = meritPoints[m.student.id];
                             return p ? <MeritBadge positive={p.positive} negative={p.negative} /> : null;
                           })()}
+                          {vocabMissed && <StatusBadge tone="warn">단어 미응시</StatusBadge>}
                           {/* 입퇴실 시간 */}
                           {(() => {
                             const dow = new Date(m.scheduledAt).getDay();
@@ -714,7 +707,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                             if (!sched) return null;
                             const isCheckedIn = checkedInSet.has(m.student.id);
                             return (
-                              <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground whitespace-nowrap shrink-0">
+                              <span className="shrink-0 whitespace-nowrap rounded-r1 bg-bg-neutral-weak px-x1_5 py-x0_5 t2-medium tabular-nums text-fg-neutral-muted">
                                 {isCheckedIn
                                   ? `~${sched.endTime === "FLEXIBLE" ? "자율" : sched.endTime}`
                                   : `${sched.startTime === "FLEXIBLE" ? "자율" : sched.startTime}~${sched.endTime === "FLEXIBLE" ? "자율" : sched.endTime}`}
@@ -724,28 +717,24 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                         </div>
                         {/* 입퇴실 특이사항 · 지연입실 */}
                         {(tardySet.has(m.student.id) || attendanceNotes[m.student.id]) && (
-                          <p className="text-[11px] text-amber-600 truncate max-w-[200px] mt-0.5" title={attendanceNotes[m.student.id]}>
-                            {tardySet.has(m.student.id) && (
-                              <span className="mr-1 rounded bg-amber-100 px-1 py-px font-semibold text-amber-700">지연입실</span>
-                            )}
-                            {attendanceNotes[m.student.id]}
+                          <p className="mt-x0_5 flex max-w-[240px] items-center gap-x1 t3-regular text-fg-warning" title={attendanceNotes[m.student.id]}>
+                            {tardySet.has(m.student.id) && <StatusBadge tone="warn">지연입실</StatusBadge>}
+                            <span className="truncate">{attendanceNotes[m.student.id]}</span>
                           </p>
                         )}
                       </div>
                     </div>
                   </TableCell>
                   {mentors.length > 0 && <TableCell className="whitespace-nowrap">{m.mentor.name}</TableCell>}
-                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                  <TableCell className="whitespace-nowrap t3-regular tabular-nums text-fg-neutral-muted">
                     {m.scheduledTimeStart && m.scheduledTimeEnd
                       ? `${m.scheduledTimeStart}~${m.scheduledTimeEnd}`
                       : "—"}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_MAP[m.status].variant}>
-                      {STATUS_MAP[m.status].label}
-                    </Badge>
+                    <MentoringStatusBadge status={m.status} />
                   </TableCell>
-                  <TableCell className="max-w-56 align-top">
+                  <TableCell className="min-w-40 max-w-56">
                     {(() => {
                       const isEditing = notesEditingId === m.id;
                       const current = notesOverride[m.id] !== undefined ? notesOverride[m.id] : m.notes;
@@ -767,7 +756,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                             }}
                             placeholder={isCancelled ? "취소 사유를 입력해주세요" : "메모"}
                             rows={2}
-                            className="w-full text-xs rounded border border-blue-300 px-2 py-1 resize-y focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 bg-background"
+                            className={cn(inputBaseClass, "resize-y px-x2 py-x1_5 t3-regular")}
                           />
                         );
                       }
@@ -776,13 +765,13 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                           type="button"
                           onClick={() => startNotesEdit({ ...m, notes: current })}
                           className={cn(
-                            "w-full text-left text-sm rounded px-1.5 py-1 -ml-1.5 hover:bg-muted/40 transition-colors line-clamp-2",
-                            current ? "text-foreground" : "text-muted-foreground/60",
-                            isCancelled && !current && "text-rose-500/80"
+                            "-ml-1.5 line-clamp-2 w-full rounded-r1 px-x1_5 py-x1 text-left t3-regular transition-colors hover:bg-bg-transparent-pressed",
+                            current ? "text-fg-neutral" : "text-fg-placeholder",
+                            isCancelled && !current && "text-fg-critical"
                           )}
                           title={current ?? (isCancelled ? "취소 사유를 입력해주세요" : "메모 추가")}
                         >
-                          {current || (isCancelled ? "취소 사유 입력" : "—")}
+                          {current || (isCancelled ? "취소 사유 입력" : "메모 추가")}
                         </button>
                       );
                     })()}
@@ -791,15 +780,15 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                     {(() => {
                       const photoCount = m._count?.photos ?? 0;
                       return photoCount > 0 ? (
-                        <Badge variant="outline" className="text-[10px] border-emerald-300 bg-emerald-50 text-emerald-700 gap-1">
-                          <Camera className="h-3 w-3" />
-                          제출 완료 {photoCount}
-                        </Badge>
+                        <StatusBadge tone="ok">
+                          <Camera />
+                          제출 {photoCount}
+                        </StatusBadge>
                       ) : (
-                        <Badge variant="outline" className="text-[10px] border-gray-300 text-muted-foreground gap-1">
-                          <Camera className="h-3 w-3" />
+                        <StatusBadge tone="gray">
+                          <Camera />
                           미제출
-                        </Badge>
+                        </StatusBadge>
                       );
                     })()}
                   </TableCell>
@@ -809,39 +798,34 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                       const isOpen = parentReportOpenId === m.id;
                       const bulk = bulkResults[m.id];
                       return (
-                        <div className="flex items-center gap-1 flex-nowrap">
+                        <div className="flex flex-nowrap items-center gap-x1_5">
                           {bulk === "pending" && (
-                            <Badge variant="outline" className="text-[10px] border-blue-300 text-blue-700 gap-1">
-                              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                            <StatusBadge tone="info">
+                              <Loader2 className="animate-spin" />
                               생성 중
-                            </Badge>
+                            </StatusBadge>
                           )}
-                          {bulk === "failed" && (
-                            <Badge variant="outline" className="text-[10px] border-red-300 text-red-700">실패</Badge>
-                          )}
+                          {bulk === "failed" && <StatusBadge tone="bad">실패</StatusBadge>}
                           {!bulk && pr && (
-                            <Badge variant="outline" className="text-[10px] border-emerald-300 text-emerald-700 gap-1">
-                              <CheckCircle2 className="h-3 w-3" />
+                            <StatusBadge tone="ok">
+                              <CheckCircle2 />
                               생성됨
-                            </Badge>
+                            </StatusBadge>
                           )}
                           {bulk === "created" && (
-                            <Badge variant="outline" className="text-[10px] border-emerald-500 bg-emerald-50 text-emerald-700 gap-1">
-                              <CheckCircle2 className="h-3 w-3" />
+                            <StatusBadge tone="ok" solid>
+                              <CheckCircle2 />
                               방금 생성
-                            </Badge>
+                            </StatusBadge>
                           )}
-                          {bulk === "existing" && (
-                            <Badge variant="outline" className="text-[10px] border-gray-300 text-muted-foreground">기존</Badge>
-                          )}
+                          {bulk === "existing" && <StatusBadge tone="gray">기존</StatusBadge>}
                           <Button
-                            size="sm"
-                            variant={isOpen ? "default" : "outline"}
-                            className="h-7 text-xs"
+                            size="xs"
+                            variant={isOpen ? "ink" : "outline"}
                             onClick={() => setParentReportOpenId(isOpen ? null : m.id)}
+                            aria-expanded={isOpen}
                           >
-                            {isOpen ? <ChevronDown className="h-3 w-3 mr-0.5" /> : <ChevronRight className="h-3 w-3 mr-0.5" />}
-                            <Link2 className="h-3 w-3 mr-1" />
+                            {isOpen ? <ChevronDown /> : <ChevronRight />}
                             {pr ? "관리" : "생성"}
                           </Button>
                           {pr && (
@@ -849,10 +833,11 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                               href={`/r/${pr.token}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="p-1 text-muted-foreground hover:text-foreground"
+                              className="grid size-8 place-items-center rounded-full text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral"
                               title="학부모 화면 열기"
+                              aria-label="학부모 화면 열기"
                             >
-                              <ExternalLink className="h-3.5 w-3.5" />
+                              <ExternalLink className="size-4" />
                             </a>
                           )}
                         </div>
@@ -860,10 +845,12 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                     })()}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Link href={`/mentoring/${m.id}`}>
-                        <Button variant="ghost" size="sm">기록</Button>
-                      </Link>
+                    <div className="flex items-center justify-end gap-x1">
+                      <Button asChild size="xs" variant={m.status === "SCHEDULED" ? "default" : "soft"}>
+                        <Link href={`/mentoring/${m.id}`}>
+                          {m.status === "SCHEDULED" ? "기록 작성" : "기록 보기"}
+                        </Link>
+                      </Button>
                       <KebabMenu
                         mentoring={m}
                         onDelete={() => setDeleteTarget(m)}
@@ -872,8 +859,8 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                   </TableCell>
                 </TableRow>
                 {parentReportOpenId === m.id && (
-                  <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableCell colSpan={mentors.length > 0 ? 11 : 10} className="p-3">
+                  <TableRow className="bg-bg-layer-fill hover:bg-bg-layer-fill">
+                    <TableCell colSpan={colCount} className="p-x4">
                       <ParentReportInlinePanel
                         mentoringId={m.id}
                         studentName={m.student.name}
@@ -885,61 +872,12 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
                   </TableRow>
                 )}
                 </Fragment>
-              ))
+                );
+              })
             )}
           </TableBody>
         </Table>
-      </div>
-
-      {totalCount > PAGE_SIZE && (
-        <div className="flex items-center justify-between gap-2 pt-1">
-          <span className="text-xs text-muted-foreground tabular-nums">
-            페이지 {currentPage + 1} / {totalPages}
-          </span>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 w-7 p-0"
-              onClick={() => setPage(0)}
-              disabled={currentPage === 0}
-              aria-label="첫 페이지"
-            >
-              <ChevronsLeft className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 w-7 p-0"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={currentPage === 0}
-              aria-label="이전 페이지"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 w-7 p-0"
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              disabled={currentPage >= totalPages - 1}
-              aria-label="다음 페이지"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 w-7 p-0"
-              onClick={() => setPage(totalPages - 1)}
-              disabled={currentPage >= totalPages - 1}
-              aria-label="마지막 페이지"
-            >
-              <ChevronsRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      )}
+      </TableCard>
 
       {deleteTarget && (
         <DeleteConfirmDialog

@@ -4,14 +4,14 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { DateTimePickerInput } from "@/components/ui/time-picker";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { createConsultation } from "@/actions/consultations";
 import { toast } from "sonner";
-import { ArrowLeft, Search, Check, ChevronDown } from "lucide-react";
+import { Search, Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { FormActions, FormField, PageHeader, Section, Segmented } from "@/components/backoffice/ui";
 
 interface Props {
   students: { id: string; name: string; grade: string }[];
@@ -50,42 +50,48 @@ function StudentCombobox({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
         className={cn(
-          "w-full flex items-center justify-between border rounded-lg px-4 py-3 text-sm bg-background hover:bg-accent transition-colors",
-          !selected && "text-muted-foreground"
+          "flex h-10 w-full items-center justify-between gap-x2 rounded-r2 bg-bg-layer-default px-x3 text-left t4-regular shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] outline-none transition-shadow focus-visible:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)]",
+          open && "shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)]",
+          selected ? "text-fg-neutral" : "text-fg-placeholder"
         )}
       >
         <span className="truncate">{selected ? `${selected.name} (${selected.grade})` : "원생을 검색하세요..."}</span>
-        <ChevronDown className="h-4 w-4 shrink-0 opacity-50 ml-2" />
+        <ChevronDown className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
       </button>
       {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border bg-popover shadow-lg">
-          <div className="flex items-center gap-2 px-3 py-2.5 border-b">
-            <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+        <div className="absolute z-50 mt-x1 w-full overflow-hidden rounded-r3 bg-bg-layer-floating shadow-[var(--seed-shadow-s3)]">
+          <div className="flex items-center gap-x2 border-b border-stroke-neutral-muted px-x3 py-x2_5">
+            <Search className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
             <input
               autoFocus
               type="text"
               placeholder="이름으로 검색..."
+              aria-label="원생 이름 검색"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="flex-1 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+              className="flex-1 bg-transparent t4-regular text-fg-neutral outline-none placeholder:text-fg-placeholder"
             />
           </div>
-          <div className="max-h-64 overflow-y-auto py-1">
+          <div className="max-h-64 overflow-y-auto py-x1_5" role="listbox">
             {filtered.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">검색 결과 없음</p>
+              <p className="px-x4 py-x6 text-center t4-regular text-fg-neutral-subtle">검색 결과가 없어요</p>
             ) : (
               filtered.map((s) => (
                 <button
                   key={s.id}
                   type="button"
+                  role="option"
+                  aria-selected={value === s.id}
                   onClick={() => { onChange(s.id); setOpen(false); setQuery(""); }}
                   className={cn(
-                    "w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent transition-colors text-left",
-                    value === s.id && "bg-accent/60"
+                    "flex w-full items-center gap-x2 px-x3 py-x2_5 text-left t4-regular text-fg-neutral transition-colors hover:bg-bg-layer-floating-pressed",
+                    value === s.id && "t4-medium"
                   )}
                 >
-                  <Check className={cn("h-4 w-4 shrink-0 text-primary", value === s.id ? "opacity-100" : "opacity-0")} />
+                  <Check className={cn("size-4 shrink-0 text-fg-brand", value === s.id ? "opacity-100" : "opacity-0")} aria-hidden />
                   <span className="truncate">{s.name} ({s.grade})</span>
                 </button>
               ))
@@ -162,138 +168,111 @@ export function NewConsultationForm({ students, owner = "DIRECTOR" }: Props) {
     });
   }
 
+  const listHref = isHeadTeacher ? "/consultations?owner=HEAD_TEACHER" : "/consultations";
+
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <Link
-          href={isHeadTeacher ? "/consultations?owner=HEAD_TEACHER" : "/consultations"}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          면담 목록으로
-        </Link>
-        <h1 className="text-2xl font-bold">{isHeadTeacher ? "책임T 면담 등록" : "원장 면담 등록"}</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          면담 일정을 등록하고 주제를 미리 작성할 수 있습니다.
-        </p>
-      </div>
+    <div className="max-w-3xl">
+      <PageHeader
+        back={{ href: listHref, label: "면담 목록" }}
+        title={isHeadTeacher ? "책임T 면담 등록" : "원장 면담 등록"}
+        description="면담 일정을 등록하고 주제를 미리 작성할 수 있어요."
+      />
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* 상담 유형 + 분류 */}
-        <div className="flex flex-wrap items-center gap-4">
-          {/* 유형: 학생/학부모 (책임T는 학생 상담만) */}
-          {!isHeadTeacher && (
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">상담 유형</Label>
-              <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 border">
-                {TYPE_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setConsultType(opt.value)}
-                    className={cn(
-                      "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
-                      consultType === opt.value ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+      <form onSubmit={handleSubmit}>
+        <Section>
+          <div className="flex flex-col gap-x6">
+            {/* 상담 유형 + 분류 */}
+            <div className="grid grid-cols-1 gap-x4 sm:grid-cols-2">
+              {/* 유형: 학생/학부모 (책임T는 학생 상담만) */}
+              {!isHeadTeacher && (
+                <FormField label="상담 유형">
+                  <Segmented
+                    aria-label="상담 유형"
+                    value={consultType}
+                    onChange={setConsultType}
+                    options={TYPE_OPTIONS}
+                  />
+                </FormField>
+              )}
 
-          {/* 분류: 재원생/신규 학생 */}
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">상담 분류</Label>
-            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1 border">
-              {CATEGORY_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => {
-                    setConsultCategory(opt.value);
-                    if (opt.value === "ENROLLED") { setProspectName(""); setProspectGrade(""); setProspectPhone(""); }
+              {/* 분류: 재원생/신규 학생 */}
+              <FormField label="상담 분류">
+                <Segmented
+                  aria-label="상담 분류"
+                  value={consultCategory}
+                  onChange={(v) => {
+                    setConsultCategory(v);
+                    if (v === "ENROLLED") { setProspectName(""); setProspectGrade(""); setProspectPhone(""); }
                     else { setStudentId(""); }
                   }}
-                  className={cn(
-                    "px-4 py-1.5 text-sm font-medium rounded-md transition-colors",
-                    consultCategory === opt.value ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
+                  options={CATEGORY_OPTIONS}
+                />
+              </FormField>
             </div>
-          </div>
-        </div>
 
-        {/* 원생 & 일시 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {isRegistered ? (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">원생</Label>
-              <StudentCombobox students={students} value={studentId} onChange={setStudentId} />
+            {/* 원생 & 일시 */}
+            <div className="grid grid-cols-1 gap-x5 md:grid-cols-2">
+              {isRegistered ? (
+                <FormField label="원생" required>
+                  <StudentCombobox students={students} value={studentId} onChange={setStudentId} />
+                </FormField>
+              ) : (
+                <div className="flex flex-col gap-x4">
+                  <FormField label="이름" required htmlFor="prospect-name">
+                    <Input
+                      id="prospect-name"
+                      value={prospectName}
+                      onChange={(e) => setProspectName(e.target.value)}
+                      placeholder="상담 학생 이름"
+                    />
+                  </FormField>
+                  <div className="grid grid-cols-2 gap-x3">
+                    <FormField label="학년" htmlFor="prospect-grade">
+                      <Input
+                        id="prospect-grade"
+                        value={prospectGrade}
+                        onChange={(e) => setProspectGrade(e.target.value)}
+                        placeholder="예: 고2"
+                      />
+                    </FormField>
+                    <FormField label="연락처" htmlFor="prospect-phone">
+                      <Input
+                        id="prospect-phone"
+                        value={prospectPhone}
+                        onChange={(e) => setProspectPhone(e.target.value)}
+                        placeholder="학부모 또는 학생"
+                      />
+                    </FormField>
+                  </div>
+                </div>
+              )}
+              <FormField label="예정 일시">
+                <DateTimePickerInput name="scheduledAt" />
+              </FormField>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">이름 *</Label>
-                <Input
-                  value={prospectName}
-                  onChange={(e) => setProspectName(e.target.value)}
-                  placeholder="상담 학생 이름"
+
+            {/* 면담 주제 — 마크다운 */}
+            <FormField label="면담 주제" hint="마크다운 문법과 이미지 첨부를 지원해요.">
+              <div className="min-h-[300px] overflow-hidden rounded-r2 border border-stroke-neutral-weak">
+                <MarkdownEditor
+                  value={agenda}
+                  onChange={setAgenda}
+                  placeholder="면담에서 다룰 주제를 자유롭게 작성하세요..."
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">학년</Label>
-                  <Input
-                    value={prospectGrade}
-                    onChange={(e) => setProspectGrade(e.target.value)}
-                    placeholder="예: 고2"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">연락처</Label>
-                  <Input
-                    value={prospectPhone}
-                    onChange={(e) => setProspectPhone(e.target.value)}
-                    placeholder="학부모 또는 학생"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">예정 일시</Label>
-            <DateTimePickerInput name="scheduledAt" />
-          </div>
-        </div>
+            </FormField>
 
-        {/* 면담 주제 — 마크다운 */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">면담 주제</Label>
-          <p className="text-xs text-muted-foreground">마크다운 문법을 지원합니다. 이미지 첨부도 가능합니다.</p>
-          <div className="min-h-[300px] border rounded-lg overflow-hidden">
-            <MarkdownEditor
-              value={agenda}
-              onChange={setAgenda}
-              placeholder="면담에서 다룰 주제를 자유롭게 작성하세요..."
-            />
+            {/* 버튼 */}
+            <FormActions className="border-t border-stroke-neutral-muted pt-x5 [&>*]:max-sm:flex-1">
+              <Button type="button" variant="outline" asChild>
+                <Link href={listHref}>취소</Link>
+              </Button>
+              <Button type="submit" disabled={isPending || !isValid}>
+                {isPending ? "저장 중…" : "면담 등록"}
+              </Button>
+            </FormActions>
           </div>
-        </div>
-
-        {/* 버튼 */}
-        <div className="flex items-center gap-3 pt-4 border-t">
-          <Link href={isHeadTeacher ? "/consultations?owner=HEAD_TEACHER" : "/consultations"}>
-            <Button type="button" variant="outline">취소</Button>
-          </Link>
-          <Button type="submit" disabled={isPending || !isValid}>
-            {isPending ? "저장 중..." : "면담 등록"}
-          </Button>
-        </div>
+        </Section>
       </form>
     </div>
   );

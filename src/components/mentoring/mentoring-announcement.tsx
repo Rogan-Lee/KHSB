@@ -1,16 +1,19 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { Fragment, useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createAnnouncement, updateAnnouncement, deleteAnnouncement, deleteAnnouncementsBulk, getAnnouncementHistory } from "@/actions/announcements";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Megaphone, Pencil, X, Check, Loader2, ChevronLeft, ChevronRight, History, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import { EmptyState, FormActions, FormField, Skeleton } from "@/components/backoffice/ui";
+import { Megaphone, Pencil, ChevronLeft, ChevronRight, ChevronDown, Trash2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "./confirm-dialog";
 
 interface AnnouncementData {
   id: string;
@@ -30,6 +33,16 @@ interface HistoryTabProps {
   onEdit: (item: AnnouncementData) => void;
 }
 
+function HistorySkeleton() {
+  return (
+    <div className="flex flex-col gap-x3 px-x5 py-x4" aria-busy="true" aria-label="불러오는 중">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Skeleton key={i} className="h-x6 w-full" />
+      ))}
+    </div>
+  );
+}
+
 function HistoryTab({ canEdit, onEdit }: HistoryTabProps) {
   const [items, setItems] = useState<AnnouncementData[]>([]);
   const [total, setTotal] = useState(0);
@@ -39,6 +52,7 @@ function HistoryTab({ canEdit, onEdit }: HistoryTabProps) {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const pageSize = 5;
   const router = useRouter();
 
@@ -78,11 +92,11 @@ function HistoryTab({ canEdit, onEdit }: HistoryTabProps) {
 
   async function handleBulkDelete() {
     if (selected.size === 0) return;
-    if (!confirm(`선택한 ${selected.size}개 공지를 삭제하시겠습니까?`)) return;
     setBulkDeleting(true);
     try {
       await deleteAnnouncementsBulk([...selected]);
       toast.success(`${selected.size}개 공지가 삭제되었습니다`);
+      setBulkConfirmOpen(false);
       router.refresh();
       loadPage(page);
     } catch {
@@ -92,139 +106,137 @@ function HistoryTab({ canEdit, onEdit }: HistoryTabProps) {
     }
   }
 
-  if (!loaded) {
-    return (
-      <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-        불러오는 중...
-      </div>
-    );
-  }
+  if (!loaded) return <HistorySkeleton />;
 
   if (total === 0) {
-    return (
-      <div className="text-center py-8 text-sm text-muted-foreground">
-        등록된 공지사항이 없습니다
-      </div>
-    );
+    return <EmptyState compact icon={Megaphone} title="등록된 공지사항이 없어요" />;
   }
 
   const totalPages = Math.ceil(total / pageSize);
+  const allChecked = items.length > 0 && selected.size === items.length;
 
   return (
-    <div className="space-y-3">
-      {/* 선택 삭제 바 */}
-      {canEdit && selected.size > 0 && (
-        <div className="flex items-center justify-between bg-destructive/10 rounded-md px-3 py-2">
-          <span className="text-sm font-medium">{selected.size}개 선택됨</span>
-          <Button
-            variant="destructive"
-            size="sm"
-            className="h-7 text-xs"
-            onClick={handleBulkDelete}
-            disabled={bulkDeleting}
-          >
-            {bulkDeleting ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
-            선택 삭제
-          </Button>
+    <div>
+      {/* 목록 머리 — 전체 선택 · 선택 삭제 */}
+      {canEdit && (
+        <div className="flex min-h-12 items-center gap-x3 border-y border-stroke-neutral-muted bg-bg-layer-fill px-x5 py-x2">
+          <Checkbox
+            checked={allChecked ? true : selected.size > 0 ? "indeterminate" : false}
+            onCheckedChange={toggleAll}
+            aria-label="이 페이지 공지 전체 선택"
+          />
+          <span className="t3-medium text-fg-neutral-subtle">
+            {selected.size > 0 ? `${selected.size}개 선택됨` : "전체 선택"}
+          </span>
+          {selected.size > 0 && (
+            <Button
+              variant="ghost"
+              size="xs"
+              className="ml-auto text-fg-critical"
+              onClick={() => setBulkConfirmOpen(true)}
+              disabled={bulkDeleting}
+            >
+              <Trash2 />
+              선택 삭제
+            </Button>
+          )}
         </div>
       )}
 
       {isPending ? (
-        <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          불러오는 중...
-        </div>
+        <HistorySkeleton />
       ) : (
-        <div className="rounded-md border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                {canEdit && (
-                  <th className="w-10 px-3 py-2">
-                    <input
-                      type="checkbox"
-                      checked={items.length > 0 && selected.size === items.length}
-                      onChange={toggleAll}
-                      className="rounded border-input"
-                    />
-                  </th>
-                )}
-                <th className="text-left px-3 py-2 font-medium">제목</th>
-                <th className="text-left px-3 py-2 font-medium w-20">작성자</th>
-                <th className="text-left px-3 py-2 font-medium w-28">작성일</th>
-                {canEdit && <th className="w-16" />}
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, i) => (
-                <>
-                  <tr
-                    key={`row-${page}-${i}`}
-                    className={cn(
-                      "border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors",
-                      selected.has(item.id) && "bg-primary/5"
-                    )}
-                    onClick={() => setExpandedIdx(expandedIdx === i ? null : i)}
-                  >
-                    {canEdit && (
-                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={selected.has(item.id)}
-                          onChange={() => toggleSelect(item.id)}
-                          className="rounded border-input"
-                        />
-                      </td>
-                    )}
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-1.5">
-                        {expandedIdx === i ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-                        {item.title || "제목 없음"}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">{item.author.name}</td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {new Date(item.createdAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric", weekday: "short" })}
-                    </td>
-                    {canEdit && (
-                      <td className="px-2 py-2">
-                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => onEdit(item)}
-                            className="text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                  {expandedIdx === i && (
-                    <tr key={`detail-${page}-${i}`}>
-                      <td colSpan={canEdit ? 5 : 3} className="px-4 py-3 bg-muted/20">
-                        <MarkdownViewer source={item.content} />
-                      </td>
-                    </tr>
+        <ul className={cn(!canEdit && "border-t border-stroke-neutral-muted")}>
+          {items.map((item, i) => {
+            const expanded = expandedIdx === i;
+            return (
+              <Fragment key={`row-${page}-${i}`}>
+                <li
+                  className={cn(
+                    "flex items-center gap-x3 border-b border-stroke-neutral-muted px-x5 py-x3 transition-colors",
+                    selected.has(item.id) ? "bg-bg-neutral-weak" : "hover:bg-bg-layer-default-pressed"
                   )}
-                </>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                >
+                  {canEdit && (
+                    <Checkbox
+                      checked={selected.has(item.id)}
+                      onCheckedChange={() => toggleSelect(item.id)}
+                      aria-label={`${item.title || "제목 없음"} 선택`}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setExpandedIdx(expanded ? null : i)}
+                    aria-expanded={expanded}
+                    className="flex min-w-0 flex-1 items-center gap-x2 text-left"
+                  >
+                    <ChevronDown
+                      className={cn("size-4 shrink-0 text-fg-neutral-subtle transition-transform", expanded && "rotate-180")}
+                      aria-hidden
+                    />
+                    <span className="truncate t4-medium text-fg-neutral">{item.title || "제목 없음"}</span>
+                  </button>
+                  <span className="hidden shrink-0 t3-regular text-fg-neutral-subtle sm:inline">{item.author.name}</span>
+                  <span className="shrink-0 t3-regular tabular-nums text-fg-neutral-subtle">
+                    {new Date(item.createdAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric", weekday: "short" })}
+                  </span>
+                  {canEdit && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8"
+                      onClick={() => onEdit(item)}
+                      aria-label="공지 수정"
+                    >
+                      <Pencil />
+                    </Button>
+                  )}
+                </li>
+                {expanded && (
+                  <li className="border-b border-stroke-neutral-muted bg-bg-layer-fill px-x5 py-x4">
+                    <MarkdownViewer source={item.content} />
+                  </li>
+                )}
+              </Fragment>
+            );
+          })}
+        </ul>
       )}
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          <Button variant="outline" size="sm" disabled={page === 0 || isPending} onClick={() => loadPage(page - 1)}>
-            <ChevronLeft className="h-4 w-4" />
+        <div className="flex items-center justify-center gap-x2 px-x5 py-x3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            disabled={page === 0 || isPending}
+            onClick={() => loadPage(page - 1)}
+            aria-label="이전 페이지"
+          >
+            <ChevronLeft />
           </Button>
-          <span className="text-sm text-muted-foreground">{page + 1} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages - 1 || isPending} onClick={() => loadPage(page + 1)}>
-            <ChevronRight className="h-4 w-4" />
+          <span className="t3-medium tabular-nums text-fg-neutral-muted">{page + 1} / {totalPages}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            disabled={page >= totalPages - 1 || isPending}
+            onClick={() => loadPage(page + 1)}
+            aria-label="다음 페이지"
+          >
+            <ChevronRight />
           </Button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={bulkConfirmOpen}
+        onOpenChange={setBulkConfirmOpen}
+        title={`공지 ${selected.size}개 삭제`}
+        description="선택한 공지를 삭제할까요? 삭제한 공지는 되돌릴 수 없어요."
+        pending={bulkDeleting}
+        onConfirm={handleBulkDelete}
+      />
     </div>
   );
 }
@@ -235,6 +247,7 @@ export function MentoringAnnouncement({ announcement, canEdit }: Props) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const router = useRouter();
   const [tab, setTab] = useState("current");
   const [collapsed, setCollapsed] = useState(false);
@@ -299,11 +312,11 @@ export function MentoringAnnouncement({ announcement, canEdit }: Props) {
 
   async function handleDeleteCurrent() {
     if (!announcement) return;
-    if (!confirm("현재 공지를 삭제하시겠습니까?")) return;
     setSaving(true);
     try {
       await deleteAnnouncement(announcement.id);
       toast.success("공지가 삭제되었습니다");
+      setDeleteConfirmOpen(false);
       router.refresh();
     } catch {
       toast.error("삭제에 실패했습니다");
@@ -313,105 +326,137 @@ export function MentoringAnnouncement({ announcement, canEdit }: Props) {
   }
 
   return (
-    <Tabs value={tab} onValueChange={setTab}>
-      <div
-        className="flex items-center justify-between cursor-pointer select-none"
-        onClick={() => !editing && setCollapsed(!collapsed)}
-      >
-        <div className="flex items-center gap-2">
-          {collapsed ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
-          <Megaphone className="h-5 w-5 text-orange-500" />
-          <h3 className="font-semibold text-base">공지사항</h3>
-          {collapsed && announcement?.title && (
-            <span className="text-sm text-muted-foreground truncate max-w-[200px]">— {announcement.title}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          {!collapsed && (
-            <TabsList className="h-8">
-              <TabsTrigger value="current" className="text-xs px-3 h-7">이번 주</TabsTrigger>
-              <TabsTrigger value="history" className="text-xs px-3 h-7">
-                <History className="h-3 w-3 mr-1" />
-                목록
-              </TabsTrigger>
-            </TabsList>
-          )}
-          {canEdit && !editing && !collapsed && (
-            <Button variant="ghost" size="sm" onClick={handleNewAnnouncement}>
-              <Pencil className="h-3.5 w-3.5 mr-1" />
-              새 공지
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {!collapsed && <><TabsContent value="current" className="mt-3">
-        {editing ? (
-          <div className="space-y-3">
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="공지 제목을 입력하세요"
-              className="font-medium"
+    <Tabs
+      value={tab}
+      onValueChange={setTab}
+      className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default"
+    >
+      {/* 머리 — 제목(누르면 접기/펼치기) · 탭 · 새 공지 */}
+      <div className="flex flex-wrap items-center justify-between gap-x3 px-x5 py-x4">
+        <h2 className="min-w-0">
+          <button
+            type="button"
+            onClick={() => !editing && setCollapsed(!collapsed)}
+            aria-expanded={!collapsed}
+            className="flex min-w-0 max-w-full items-center gap-x2 text-left"
+          >
+            <ChevronDown
+              className={cn("size-5 shrink-0 text-fg-neutral-subtle transition-transform", collapsed && "-rotate-90")}
+              aria-hidden
             />
-            <MarkdownEditor
-              value={content}
-              onChange={setContent}
-              placeholder="멘토들에게 전달할 공지사항을 작성하세요..."
-            />
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={handleCancel} disabled={saving}>
-                <X className="h-3.5 w-3.5 mr-1" />
-                취소
-              </Button>
-              <Button size="sm" onClick={handleSave} disabled={saving || !content.trim()}>
-                {saving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1" />}
-                {editingId ? "수정" : "등록"}
-              </Button>
-            </div>
-          </div>
-        ) : announcement ? (
-          <div>
-            {announcement.title && (
-              <h2 className="text-lg font-bold mb-3">{announcement.title}</h2>
+            <span className="shrink-0 t6-bold text-fg-neutral">공지사항</span>
+            {collapsed && announcement?.title && (
+              <span className="truncate t4-regular text-fg-neutral-subtle">{announcement.title}</span>
             )}
-            <MarkdownViewer source={announcement.content} />
-            <div className="flex items-center justify-between mt-3 pt-3 border-t">
-              <p className="text-xs text-muted-foreground">
-                작성: {announcement.author.name} · {new Date(announcement.createdAt).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
-              </p>
-              {canEdit && (
-                <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleEditCurrent}>
-                    <Pencil className="h-3 w-3 mr-1" />
-                    수정
-                  </Button>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive" onClick={handleDeleteCurrent} disabled={saving}>
-                    <Trash2 className="h-3 w-3 mr-1" />
-                    삭제
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-            {canEdit ? (
-              <button onClick={() => setEditing(true)} className="hover:text-foreground transition-colors">
-                공지사항을 작성해주세요
-              </button>
-            ) : (
-              "등록된 공지사항이 없습니다"
+          </button>
+        </h2>
+        {!collapsed && (
+          <div className="flex flex-wrap items-center gap-x2">
+            <TabsList variant="segment">
+              <TabsTrigger value="current">이번 주</TabsTrigger>
+              <TabsTrigger value="history">지난 공지</TabsTrigger>
+            </TabsList>
+            {canEdit && !editing && (
+              <Button variant="outline" size="sm" onClick={handleNewAnnouncement}>
+                <Plus />
+                새 공지
+              </Button>
             )}
           </div>
         )}
-      </TabsContent>
+      </div>
 
-      <TabsContent value="history" className="mt-3">
-        <HistoryTab canEdit={canEdit} onEdit={handleEditHistory} />
-      </TabsContent>
-      </>}
+      {!collapsed && (
+        <>
+          <TabsContent value="current" className="mt-0 px-x5 pb-x5">
+            {editing ? (
+              <div className="flex flex-col gap-x4">
+                <FormField label="제목" required>
+                  <Input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="공지 제목을 입력하세요"
+                  />
+                </FormField>
+                <FormField label="내용" required>
+                  <MarkdownEditor
+                    value={content}
+                    onChange={setContent}
+                    placeholder="멘토들에게 전달할 공지사항을 작성하세요..."
+                  />
+                </FormField>
+                <FormActions>
+                  <Button variant="outline" onClick={handleCancel} disabled={saving}>
+                    취소
+                  </Button>
+                  <Button onClick={handleSave} disabled={saving || !content.trim()}>
+                    {saving ? "저장 중…" : editingId ? "수정" : "등록"}
+                  </Button>
+                </FormActions>
+              </div>
+            ) : announcement ? (
+              <div>
+                {announcement.title && (
+                  <h3 className="mb-x3 t7-bold text-fg-neutral">{announcement.title}</h3>
+                )}
+                <MarkdownViewer source={announcement.content} />
+                <div className="mt-x4 flex flex-wrap items-center justify-between gap-x2 border-t border-stroke-neutral-muted pt-x3">
+                  <p className="t3-regular text-fg-neutral-subtle">
+                    {announcement.author.name} · {new Date(announcement.createdAt).toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" })}
+                  </p>
+                  {canEdit && (
+                    <div className="flex items-center gap-x1">
+                      <Button variant="ghost" size="xs" onClick={handleEditCurrent}>
+                        <Pencil />
+                        수정
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="text-fg-critical"
+                        onClick={() => setDeleteConfirmOpen(true)}
+                        disabled={saving}
+                      >
+                        <Trash2 />
+                        삭제
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <EmptyState
+                compact
+                icon={Megaphone}
+                title="이번 주 공지가 없어요"
+                description={canEdit ? "멘토들에게 전할 내용을 공지로 남겨 보세요" : undefined}
+                action={
+                  canEdit ? (
+                    <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                      <Pencil />
+                      공지 작성
+                    </Button>
+                  ) : undefined
+                }
+                className="rounded-r3 bg-bg-layer-fill"
+              />
+            )}
+          </TabsContent>
 
+          <TabsContent value="history" className="mt-0 pb-x2">
+            <HistoryTab canEdit={canEdit} onEdit={handleEditHistory} />
+          </TabsContent>
+        </>
+      )}
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="공지 삭제"
+        description="현재 공지를 삭제할까요? 삭제한 공지는 되돌릴 수 없어요."
+        pending={saving}
+        onConfirm={handleDeleteCurrent}
+      />
     </Tabs>
   );
 }

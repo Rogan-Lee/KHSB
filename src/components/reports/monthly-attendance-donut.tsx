@@ -10,12 +10,24 @@ interface Props {
   outingCount: number;
 }
 
-// CSS conic-gradient donut (v4 — no recharts for simple donut)
+// 상태색 — SEED 시맨틱(성공·주의·위험) + 분류용 보라
+const COLOR = {
+  normal: "var(--seed-color-bg-positive-solid)",
+  tardy: "var(--seed-color-bg-warning-solid)",
+  absent: "var(--seed-color-bg-critical-solid)",
+  early: "var(--seed-color-palette-purple-500)",
+  outing: "var(--seed-color-fg-placeholder)",
+};
+
+// 링 두께만 남기고 가운데를 뚫는 마스크 — 어떤 배경 위에서도 자연스럽게 보인다
+const RING_MASK = "radial-gradient(farthest-side, transparent calc(100% - 16px), black calc(100% - 15px))";
+
+// CSS conic-gradient donut (recharts 없이 간단한 도넛)
 export function MonthlyAttendanceDonut({ normal, tardy, absent, earlyLeave, outingCount }: Props) {
   const total = normal + tardy + absent + earlyLeave;
 
   if (total === 0) {
-    return <p className="text-[12.5px] text-ink-4 text-center py-4">집계된 출결 데이터가 없습니다</p>;
+    return <p className="py-x4 text-center t3-regular text-fg-neutral-subtle">집계된 출결 데이터가 없어요</p>;
   }
 
   const pctNormal = (normal / total) * 100;
@@ -33,35 +45,36 @@ export function MonthlyAttendanceDonut({ normal, tardy, absent, earlyLeave, outi
     slices.push(`${color} ${start}% ${end}%`);
     acc = end;
   };
-  push(pctNormal, "var(--ok)");
-  push(pctTardy, "var(--warn)");
-  push(pctAbsent, "var(--bad)");
-  push(pctEarly, "var(--violet)");
+  push(pctNormal, COLOR.normal);
+  push(pctTardy, COLOR.tardy);
+  push(pctAbsent, COLOR.absent);
+  push(pctEarly, COLOR.early);
 
   const gradient = `conic-gradient(${slices.join(", ")})`;
   const rate = Math.round((normal / total) * 100);
 
   return (
-    <div className="flex items-center gap-5">
-      <div
-        className="relative w-[120px] h-[120px] rounded-full grid place-items-center shrink-0"
-        style={{ background: gradient }}
-      >
-        <div className="w-[84px] h-[84px] rounded-full bg-panel grid place-items-center">
-          <div className="text-center leading-none">
-            <div className="text-[22px] font-[650] tracking-[-0.03em] text-ink tabular-nums font-mono">{rate}</div>
-            <div className="text-[11px] text-ink-4 mt-1">출석률</div>
+    <div className="flex items-center gap-x5">
+      <div className="relative grid size-[120px] shrink-0 place-items-center">
+        <div
+          aria-hidden
+          className="absolute inset-0 rounded-full"
+          style={{ background: gradient, mask: RING_MASK, WebkitMask: RING_MASK }}
+        />
+        <div className="relative text-center">
+          <div className="t8-bold tabular-nums text-fg-neutral">
+            {rate}
+            <span className="t4-bold text-fg-neutral-subtle">%</span>
           </div>
+          <div className="t2-regular text-fg-neutral-subtle">출석률</div>
         </div>
       </div>
-      <div className="flex-1 flex flex-col gap-[6px]">
-        <LegendRow color="var(--ok)"     label="정상 출석" value={`${normal}일`} />
-        <LegendRow color="var(--warn)"   label="지각"     value={`${tardy}일`} />
-        <LegendRow color="var(--violet)" label="조퇴"     value={`${earlyLeave}일`} />
-        <LegendRow color="var(--bad)"    label="결석"     value={`${absent}일`} />
-        {outingCount > 0 && (
-          <LegendRow color="var(--ink-4)" label="외출" value={`${outingCount}회`} top />
-        )}
+      <div className="flex flex-1 flex-col gap-x1_5">
+        <LegendRow color={COLOR.normal} label="정상 출석" value={`${normal}일`} />
+        <LegendRow color={COLOR.tardy} label="지각" value={`${tardy}일`} />
+        <LegendRow color={COLOR.early} label="조퇴" value={`${earlyLeave}일`} />
+        <LegendRow color={COLOR.absent} label="결석" value={`${absent}일`} />
+        {outingCount > 0 && <LegendRow color={COLOR.outing} label="외출" value={`${outingCount}회`} top />}
       </div>
     </div>
   );
@@ -69,13 +82,15 @@ export function MonthlyAttendanceDonut({ normal, tardy, absent, earlyLeave, outi
 
 function LegendRow({ color, label, value, top }: { color: string; label: string; value: string; top?: boolean }) {
   return (
-    <div className={cn(
-      "flex items-center gap-2 text-[12px]",
-      top && "pt-[6px] mt-[6px] border-t border-line-2"
-    )}>
-      <span className="h-[6px] w-[6px] rounded-full shrink-0" style={{ background: color }} />
-      <span className="flex-1 text-ink-3">{label}</span>
-      <span className="font-semibold text-ink font-mono tabular-nums tracking-[-0.01em]">{value}</span>
+    <div
+      className={cn(
+        "flex items-center gap-x2 t3-regular",
+        top && "mt-x1_5 border-t border-stroke-neutral-muted pt-x1_5"
+      )}
+    >
+      <span className="size-2 shrink-0 rounded-full" style={{ background: color }} aria-hidden />
+      <span className="flex-1 text-fg-neutral-muted">{label}</span>
+      <span className="t3-bold tabular-nums text-fg-neutral">{value}</span>
     </div>
   );
 }

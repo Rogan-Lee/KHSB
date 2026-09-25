@@ -1,10 +1,25 @@
-import { GraduationCap, PieChart, MapPin, Lightbulb } from "lucide-react";
 import {
   HISTORY_MIX_KEYS,
   HISTORY_MIX_LABELS,
   isHistoryComplete,
   type HistoryAnswer,
 } from "@/lib/online/survey-template";
+import { DescriptionList } from "@/components/backoffice/ui";
+import {
+  IncompleteNote,
+  LegacyAnswer,
+  Missing,
+  SurveyAnswers,
+  SurveyEmpty,
+  SurveyEntries,
+  SurveyEntry,
+  SurveyEntryHead,
+  SurveyField,
+  SurveyItem,
+  SurveyTag,
+  SurveyTags,
+} from "@/components/online/survey-answer-ui";
+import { cn } from "@/lib/utils";
 
 export function HistorySurveyDisplay({ value }: { value: HistoryAnswer }) {
   const complete = isHistoryComplete(value);
@@ -16,144 +31,114 @@ export function HistorySurveyDisplay({ value }: { value: HistoryAnswer }) {
     !value.legacyText;
 
   if (empty) {
-    return <p className="text-[12.5px] text-ink-5">(비어 있음)</p>;
+    return <SurveyEmpty />;
   }
 
   const mixSum = HISTORY_MIX_KEYS.reduce((acc, k) => acc + value.currentMix[k], 0);
 
   return (
-    <div className="space-y-3 text-[12.5px] text-ink">
-      {value.legacyText && (
-        <div className="rounded-[8px] border border-amber-200 bg-amber-50 p-2.5">
-          <p className="text-[10.5px] font-semibold text-amber-900 mb-0.5">이전 자유 기술 답변</p>
-          <p className="text-[12px] text-amber-900 whitespace-pre-wrap">{value.legacyText}</p>
-        </div>
-      )}
+    <SurveyAnswers>
+      {value.legacyText && <LegacyAnswer text={value.legacyText} />}
 
       {/* 이전 학습 경험 */}
       {value.hasPriorEducation && (
-        <section>
-          <h4 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide mb-1.5 inline-flex items-center gap-1.5">
-            <GraduationCap className="h-3 w-3" />
-            이전 학습 경험
-          </h4>
+        <SurveyItem label="이전 학습 경험">
           {value.hasPriorEducation === "no" ? (
-            <p className="rounded-[8px] border border-line bg-canvas px-3 py-2 text-ink-3">없음</p>
+            <p>없음</p>
           ) : (
-            <div className="space-y-1.5">
+            <SurveyEntries>
               {value.priorEducation.map((p, i) => (
-                <div key={i} className="rounded-[8px] border border-line bg-canvas p-2.5">
-                  <div className="flex items-baseline gap-2 flex-wrap">
-                    <span className="font-semibold">
-                      {p.institution || <em className="text-ink-5">기관 미입력</em>}
-                    </span>
-                    {p.format && (
-                      <span className="rounded-full bg-ink/10 text-ink-2 px-1.5 py-0.5 text-[10.5px]">
-                        {p.format}
-                      </span>
-                    )}
+                <SurveyEntry key={i}>
+                  <SurveyEntryHead>
+                    <span className="t4-bold">{p.institution || <Missing>기관 미입력</Missing>}</span>
+                    {p.format && <SurveyTag>{p.format}</SurveyTag>}
                     {(p.periodFrom || p.periodTo) && (
-                      <span className="text-[11px] text-ink-4">
+                      <span className="t3-regular tabular-nums text-fg-neutral-subtle">
                         {p.periodFrom || "?"} ~ {p.periodTo || "?"}
                       </span>
                     )}
-                  </div>
+                  </SurveyEntryHead>
                   {p.subjects.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {p.subjects.map((s) => (
-                        <span key={s} className="rounded-full bg-ink/10 text-ink-2 px-1.5 py-0.5 text-[10.5px]">
-                          {s === "기타" && p.subjectOther ? `기타: ${p.subjectOther}` : s}
-                        </span>
-                      ))}
+                    <div className="mt-x2">
+                      <SurveyTags>
+                        {p.subjects.map((s) => (
+                          <SurveyTag key={s}>
+                            {s === "기타" && p.subjectOther ? `기타: ${p.subjectOther}` : s}
+                          </SurveyTag>
+                        ))}
+                      </SurveyTags>
                     </div>
                   )}
-                  {p.quitReason && (
-                    <p className="mt-1.5 text-[12px] text-ink-3 whitespace-pre-wrap">
-                      <span className="text-[10.5px] font-semibold text-ink-4 mr-1">그만둔 이유:</span>
-                      {p.quitReason}
-                    </p>
-                  )}
-                </div>
+                  {p.quitReason && <SurveyField label="그만둔 이유">{p.quitReason}</SurveyField>}
+                </SurveyEntry>
               ))}
-            </div>
+            </SurveyEntries>
           )}
-        </section>
+        </SurveyItem>
       )}
 
       {/* 학습 시간 분배 */}
       {mixSum > 0 && (
-        <section>
-          <h4 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide mb-1.5 inline-flex items-center gap-1.5">
-            <PieChart className="h-3 w-3" />
-            학습 시간 분배
-            <span className={`ml-1 tabular-nums ${mixSum === 100 ? "text-emerald-600" : "text-amber-600"}`}>
-              ({mixSum}%)
+        <SurveyItem
+          label="학습 시간 분배"
+          trailing={
+            <span className={cn("t3-bold tabular-nums", mixSum === 100 ? "text-fg-positive" : "text-fg-warning")}>
+              합계 {mixSum}%
             </span>
-          </h4>
-          <div className="rounded-[8px] border border-line bg-canvas p-2.5">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-              {HISTORY_MIX_KEYS.map((k) => (
-                <div key={k} className="flex items-center justify-between text-[12px]">
-                  <span className="text-ink-3">{HISTORY_MIX_LABELS[k]}</span>
-                  <span className="font-semibold tabular-nums">{value.currentMix[k]}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+          }
+        >
+          <dl className="grid max-w-md grid-cols-2 gap-x-x6 gap-y-x2">
+            {HISTORY_MIX_KEYS.map((k) => (
+              <div key={k} className="flex items-center justify-between gap-x2">
+                <dt className="text-fg-neutral-muted">{HISTORY_MIX_LABELS[k]}</dt>
+                <dd className="t4-bold tabular-nums">{value.currentMix[k]}%</dd>
+              </div>
+            ))}
+          </dl>
+        </SurveyItem>
       )}
 
       {/* 학습 장소 */}
       {value.studyPlace && (
-        <section>
-          <h4 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide mb-1.5 inline-flex items-center gap-1.5">
-            <MapPin className="h-3 w-3" />
-            주 학습 장소
-          </h4>
-          <div className="rounded-[8px] border border-line bg-canvas p-2.5">
-            <span className="rounded-full bg-ink/10 text-ink-2 px-2 py-0.5 text-[11px] font-medium">
-              {value.studyPlace}
-            </span>
+        <SurveyItem label="주 학습 장소">
+          <div className="flex flex-wrap items-center gap-x2">
+            <SurveyTag>{value.studyPlace}</SurveyTag>
             {value.studyPlace === "기타" && value.studyPlaceOther && (
-              <span className="ml-2 text-ink">→ {value.studyPlaceOther}</span>
+              <span className="break-words">
+                <span className="text-fg-neutral-subtle" aria-hidden>→ </span>
+                {value.studyPlaceOther}
+              </span>
             )}
           </div>
-        </section>
+        </SurveyItem>
       )}
 
       {/* 입시 컨설팅 */}
       {value.priorConsulting.had && (
-        <section>
-          <h4 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide mb-1.5 inline-flex items-center gap-1.5">
-            <Lightbulb className="h-3 w-3" />
-            이전 입시 컨설팅
-          </h4>
+        <SurveyItem label="이전 입시 컨설팅">
           {value.priorConsulting.had === "no" ? (
-            <p className="rounded-[8px] border border-line bg-canvas px-3 py-2 text-ink-3">없음</p>
+            <p>없음</p>
           ) : (
-            <div className="rounded-[8px] border border-line bg-canvas p-2.5 space-y-1">
-              <p>
-                <span className="text-[10.5px] font-semibold text-ink-4 mr-1">기관:</span>
-                {value.priorConsulting.institution || <em className="text-ink-5">미입력</em>}
-              </p>
-              <p>
-                <span className="text-[10.5px] font-semibold text-ink-4 mr-1">시기:</span>
-                {value.priorConsulting.period || <em className="text-ink-5">미입력</em>}
-              </p>
-              <p>
-                <span className="text-[10.5px] font-semibold text-ink-4 mr-1">만족도:</span>
-                {value.priorConsulting.satisfaction
-                  ? `${value.priorConsulting.satisfaction} / 5`
-                  : <em className="text-ink-5">미입력</em>}
-              </p>
-            </div>
+            <DescriptionList
+              cols={3}
+              items={[
+                { label: "기관", value: value.priorConsulting.institution || <Missing /> },
+                { label: "시기", value: value.priorConsulting.period || <Missing /> },
+                {
+                  label: "만족도",
+                  value: value.priorConsulting.satisfaction ? (
+                    <span className="tabular-nums">{value.priorConsulting.satisfaction} / 5</span>
+                  ) : (
+                    <Missing />
+                  ),
+                },
+              ]}
+            />
           )}
-        </section>
+        </SurveyItem>
       )}
 
-      {!complete && (
-        <p className="text-[10.5px] text-amber-700">⚠ 일부 항목이 비어 있어 제출 조건 미충족.</p>
-      )}
-    </div>
+      {!complete && <IncompleteNote />}
+    </SurveyAnswers>
   );
 }
