@@ -1,10 +1,10 @@
-import { Redirect, Tabs } from 'expo-router';
-import { CircleHelp, ClockArrowDown, Home, MoreHorizontal, UsersRound } from 'lucide-react-native';
+import { Redirect, Stack } from 'expo-router';
 
-import { RoleTabs, tabIcon } from '@/components/role-tabs';
+import { color } from '@/design';
 import { useSession } from '@/lib/session';
 
-export default function StaffLayout() {
+/** staff — 탭 루트((tabs)) 위에 하위 화면을 쌓는 스택. 하위 화면은 탭바 없이 뒤로가기 헤더(Screen kind="push"). */
+export default function RoleLayout() {
   const { session, status } = useSession();
 
   if (status !== 'loading' && session?.role !== 'staff') {
@@ -12,29 +12,13 @@ export default function StaffLayout() {
   }
 
   return (
-    <RoleTabs>
-      <Tabs.Screen
-        name="index"
-        options={{ tabBarIcon: tabIcon(Home), tabBarLabel: '홈', title: '홈' }}
-      />
-      <Tabs.Screen
-        name="attendance"
-        options={{ tabBarIcon: tabIcon(ClockArrowDown), tabBarLabel: '입퇴실', title: '입퇴실' }}
-      />
-      <Tabs.Screen
-        name="mentoring"
-        options={{ tabBarIcon: tabIcon(UsersRound), tabBarLabel: '멘토링', title: '멘토링' }}
-      />
-      <Tabs.Screen
-        name="qna"
-        options={{ tabBarIcon: tabIcon(CircleHelp), tabBarLabel: '질의응답', title: '질의응답' }}
-      />
-      <Tabs.Screen
-        name="more"
-        options={{ tabBarIcon: tabIcon(MoreHorizontal), tabBarLabel: '더보기', title: '더보기' }}
-      />
-      <Tabs.Screen name="staff-tasks" options={{ href: null, title: '수행평가 관리' }} />
-      <Tabs.Screen name="chat" options={{ href: null, title: '학생 채팅' }} />
-    </RoleTabs>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: color.bg.layerBasement },
+        animation: 'slide_from_right',
+      }}>
+      <Stack.Screen name="(tabs)" />
+    </Stack>
   );
 }

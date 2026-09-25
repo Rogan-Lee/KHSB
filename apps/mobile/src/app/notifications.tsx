@@ -1,22 +1,46 @@
-import { Redirect, router, useFocusEffect } from 'expo-router';
-import { BellRing, ChevronLeft, Clock3, Settings2 } from 'lucide-react-native';
-import { useCallback, useState } from 'react';
+import { Redirect, useFocusEffect } from 'expo-router';
 import {
-  Linking,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from 'react-native';
+  BellOff,
+  BellRing,
+  CalendarCheck,
+  ClipboardCheck,
+  DoorOpen,
+  FileText,
+  Inbox,
+  Megaphone,
+  MessageCircle,
+  MessageCircleQuestion,
+  Send,
+  Settings,
+  Sunrise,
+  Sunset,
+  type LucideIcon,
+} from 'lucide-react-native';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { AppState, Linking, Platform, StyleSheet, Switch, View } from 'react-native';
 
-import { AppScreen } from '@/components/app-screen';
-import { Card, PrimaryButton, SectionTitle } from '@/components/mobile-ui';
-import { colors, spacing } from '@/constants/theme';
+import {
+  IconTile,
+  ListRow,
+  Notice,
+  Press,
+  Screen,
+  Section,
+  Skeleton,
+  Stack,
+  Text,
+  color,
+  radius,
+  space,
+  toast,
+  useResponsive,
+  type Tone,
+} from '@/design';
 import type { StudentTasksResponse } from '@/lib/mobile-api';
 import { requestMobileApi } from '@/lib/mobile-api';
 import {
+  ALWAYS_ON_CATEGORY,
+  NOTIFICATION_CATEGORIES,
   getNotificationPermissionState,
   getNotificationPreferences,
   getScheduledTaskReminderCount,
@@ -24,328 +48,416 @@ import {
   saveNotificationPreferences,
   scheduleNotificationPreview,
   syncTaskDeadlineNotifications,
+  type NotificationChannel,
+  type NotificationPermissionState,
+  type NotificationPreferences,
+  type NotificationRole,
 } from '@/lib/notifications';
-import type {
-  NotificationPermissionState,
-  NotificationPreferences,
-} from '@/lib/notifications';
+import {
+  REMINDER_DAY_BEFORE_HOUR,
+  REMINDER_SAME_DAY_HOUR,
+} from '@/lib/notification-reminders';
 import {
   getRemotePushRegistrationState,
   syncRemotePushRegistration,
+  type RemotePushRegistrationState,
 } from '@/lib/push-registration';
-import type { RemotePushRegistrationState } from '@/lib/push-registration';
 import { useSession } from '@/lib/session';
 
-const DEFAULT_PREFERENCES: NotificationPreferences = {
-  answers: true,
-  enabled: false,
-  mentoring: true,
-  tasks: true,
+const IS_WEB = Platform.OS === 'web';
+
+const CATEGORY_ICON: Record<NotificationRole, Partial<Record<NotificationChannel, { icon: LucideIcon; tone: Tone }>>> = {
+  student: {
+    tasks: { icon: ClipboardCheck, tone: 'brand' },
+    answers: { icon: MessageCircleQuestion, tone: 'info' },
+    mentoring: { icon: MessageCircle, tone: 'ok' },
+  },
+  staff: {
+    answers: { icon: MessageCircleQuestion, tone: 'info' },
+    mentoring: { icon: CalendarCheck, tone: 'violet' },
+    tasks: { icon: Inbox, tone: 'brand' },
+  },
+  parent: {
+    tasks: { icon: DoorOpen, tone: 'ok' },
+    mentoring: { icon: FileText, tone: 'brand' },
+  },
 };
 
+/** 태블릿에서 설정 목록 폭 — 스위치가 설명에서 멀어지지 않게 기본(720)보다 좁게 가운데 */
+const SETTINGS_TABLET_WIDTH = 600;
+
+/** 알림 설정 — 학생·직원·학부모 공통 (역할별 알림 종류). */
 export default function NotificationSettingsScreen() {
   const { session, status } = useSession();
-  const [preferences, setPreferences] =
-    useState<NotificationPreferences>(DEFAULT_PREFERENCES);
-  const [permission, setPermission] =
-    useState<NotificationPermissionState>('undetermined');
+  const { isTablet } = useResponsive();
+  const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
+  const [permission, setPermission] = useState<NotificationPermissionState>('undetermined');
+  const [remoteStatus, setRemoteStatus] = useState<RemotePushRegistrationState>('disabled');
   const [scheduledCount, setScheduledCount] = useState(0);
-  const [remoteStatus, setRemoteStatus] =
-    useState<RemotePushRegistrationState>('disabled');
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
+  const [asking, setAsking] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const prefsRef = useRef<NotificationPreferences | null>(null);
+  const saveChain = useRef<Promise<void>>(Promise.resolve());
+
+  const role: NotificationRole = session?.role ?? 'student';
+  const isStudent = session?.role === 'student';
 
   const load = useCallback(async () => {
-    const [nextPreferences, nextPermission, nextCount, nextRemoteStatus] =
-      await Promise.all([
+    try {
+      const [nextPrefs, nextPermission, nextCount, nextRemote] = await Promise.all([
         getNotificationPreferences(),
         getNotificationPermissionState(),
         getScheduledTaskReminderCount(),
         getRemotePushRegistrationState(),
       ]);
-    setPreferences(nextPreferences);
-    setPermission(nextPermission);
-    setScheduledCount(nextCount);
-    setRemoteStatus(nextRemoteStatus);
+      prefsRef.current = nextPrefs;
+      setPrefs(nextPrefs);
+      setPermission(nextPermission);
+      setScheduledCount(nextCount);
+      setRemoteStatus(nextRemote);
+    } catch {
+      toast('알림 설정을 불러오지 못했어요', 'error');
+    }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      void load().catch(() => {
-        setMessage('알림 설정을 불러오지 못했습니다.');
-      });
+      void load();
     }, [load]),
   );
+
+  // 기기 설정에서 권한을 바꾸고 돌아오면 다시 읽는다
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') void load();
+    });
+    return () => sub.remove();
+  }, [load]);
 
   if (status !== 'loading' && !session) {
     return <Redirect href="/(auth)" />;
   }
 
-  async function persist(next: NotificationPreferences) {
-    setPreferences(next);
-    await saveNotificationPreferences(next);
-    if (session) {
-      try {
-        setRemoteStatus(await syncRemotePushRegistration(next));
-      } catch {
-        setRemoteStatus('error');
-        setMessage('설정은 저장했지만 원격 알림을 연결하지 못했습니다.');
-      }
-    }
-    if (session?.role === 'student' && next.enabled && next.tasks) {
-      try {
-        const tasks = await requestMobileApi<StudentTasksResponse>(
-          '/api/mobile/v1/student/tasks',
-        );
+  async function resyncReminders(next: NotificationPreferences) {
+    if (!isStudent) return;
+    try {
+      if (next.enabled && (next.reminderDayBefore || next.reminderSameDay)) {
+        const tasks = await requestMobileApi<StudentTasksResponse>('/api/mobile/v1/student/tasks');
         setScheduledCount(await syncTaskDeadlineNotifications(tasks.items));
-      } catch {
-        setMessage('설정은 저장했지만 과제 알림 예약을 갱신하지 못했습니다.');
+      } else {
+        setScheduledCount(await getScheduledTaskReminderCount());
       }
-    } else {
-      setScheduledCount(await getScheduledTaskReminderCount());
+    } catch {
+      toast('설정은 저장했지만 마감 알림 예약을 갱신하지 못했어요', 'error');
     }
   }
 
-  async function toggleEnabled(enabled: boolean) {
-    setBusy(true);
-    setMessage('');
+  async function persist(next: NotificationPreferences) {
+    await saveNotificationPreferences(next);
     try {
-      if (enabled) {
-        const nextPermission = await requestNotificationPermission();
-        setPermission(nextPermission);
-        if (nextPermission !== 'granted') {
-          setMessage('기기 설정에서 알림 권한을 허용하세요.');
+      setRemoteStatus(await syncRemotePushRegistration(next));
+    } catch {
+      setRemoteStatus('error');
+      toast('설정은 저장했지만 서버에 기기를 연결하지 못했어요', 'error');
+    }
+    await resyncReminders(next);
+  }
+
+  /** 화면은 바로 바꾸고 저장은 순서대로 (빠르게 여러 번 눌러도 마지막 상태가 남는다) */
+  function update(patch: Partial<NotificationPreferences>) {
+    const base = prefsRef.current;
+    if (!base) return;
+    const next = { ...base, ...patch };
+    prefsRef.current = next;
+    setPrefs(next);
+    saveChain.current = saveChain.current
+      .then(() => persist(next))
+      .catch(() => toast('알림 설정을 저장하지 못했어요', 'error'));
+  }
+
+  async function toggleMaster(on: boolean) {
+    if (on) {
+      if (asking) return;
+      setAsking(true);
+      try {
+        const next = await requestNotificationPermission();
+        setPermission(next);
+        if (next !== 'granted') {
+          toast(
+            next === 'denied' ? '기기 설정에서 강한선배 알림을 허용해 주세요' : '알림 권한을 허용해야 받을 수 있어요',
+            'error',
+          );
           return;
         }
+      } catch {
+        toast('알림 권한을 확인하지 못했어요', 'error');
+        return;
+      } finally {
+        setAsking(false);
       }
-      await persist({ ...preferences, enabled });
-    } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : '알림 설정을 저장하지 못했습니다.',
-      );
-    } finally {
-      setBusy(false);
     }
-  }
-
-  async function toggleCategory(
-    key: keyof Omit<NotificationPreferences, 'enabled'>,
-    enabled: boolean,
-  ) {
-    setBusy(true);
-    setMessage('');
-    try {
-      await persist({ ...preferences, [key]: enabled });
-    } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : '알림 설정을 저장하지 못했습니다.',
-      );
-    } finally {
-      setBusy(false);
-    }
+    update({ enabled: on });
   }
 
   async function preview() {
-    setBusy(true);
-    setMessage('');
+    if (previewing) return;
+    setPreviewing(true);
     try {
       await scheduleNotificationPreview();
-      setMessage('2초 후 알림 미리보기가 표시됩니다.');
+      setPermission('granted');
+      toast('2초 뒤에 미리보기 알림이 와요', 'success');
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : '알림을 예약하지 못했습니다.',
-      );
+      toast(error instanceof Error ? error.message : '알림을 보내지 못했어요', 'error');
     } finally {
-      setBusy(false);
+      setPreviewing(false);
     }
   }
 
-  const permissionLabel = {
-    denied: '차단됨',
-    granted: '허용됨',
-    undetermined: '허용 필요',
-    unsupported: '앱에서 확인',
-  }[permission];
-  const remoteStatusLabel = {
-    disabled: '원격 알림 꺼짐',
-    error: '원격 알림 연결 실패',
-    registered: '원격 알림 연결됨',
-    unconfigured: 'EAS 프로젝트 연결 필요',
-    unsupported: '실기기에서 연결',
-  }[remoteStatus];
+  const openDeviceSettings = () => {
+    void Linking.openSettings().catch(() => toast('기기 설정을 열지 못했어요', 'error'));
+  };
+
+  const granted = permission === 'granted';
+  const masterOn = !!prefs?.enabled && granted;
+  const masterDescription = IS_WEB
+    ? '알림은 iOS·Android 앱에서 받을 수 있어요'
+    : permission === 'denied'
+      ? '기기 설정에서 알림이 꺼져 있어요'
+      : !masterOn
+        ? '켜면 새 소식을 바로 알려 드려요'
+        : remoteStatus === 'error'
+          ? '켜져 있지만 서버 연결에 실패했어요'
+          : remoteStatus === 'unsupported'
+            ? '켜져 있어요 · 이 기기에서는 마감 알림만 받아요'
+            : remoteStatus === 'unconfigured'
+              ? '켜져 있어요 · 푸시 서버 설정이 필요해요'
+              : '켜져 있어요';
 
   return (
-    <AppScreen
-      right={
-        <Pressable
-          accessibilityLabel="뒤로 가기"
-          accessibilityRole="button"
-          hitSlop={8}
-          onPress={() => router.back()}
-          style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}>
-          <ChevronLeft color={colors.ink} size={24} />
-        </Pressable>
-      }
-      subtitle="기기에서 받을 알림 종류를 관리합니다."
-      title="알림 설정">
-      <Card>
-        <SettingRow
-          caption={`기기 권한 ${permissionLabel}`}
-          disabled={busy || permission === 'unsupported'}
-          icon={BellRing}
-          onValueChange={(value) => void toggleEnabled(value)}
-          title="알림 받기"
-          value={preferences.enabled && permission === 'granted'}
-        />
-      </Card>
+    <Screen
+      kind="push"
+      title="알림 설정"
+      backFallback="/"
+      maxWidth={isTablet ? SETTINGS_TABLET_WIDTH : undefined}>
+      {!prefs || !session ? (
+        <SettingsSkeleton />
+      ) : (
+        <Stack>
+          <Section flush>
+            <SwitchRow
+              icon={masterOn ? BellRing : BellOff}
+              tone={masterOn ? 'brand' : 'gray'}
+              title="알림 받기"
+              description={masterDescription}
+              value={masterOn}
+              disabled={IS_WEB || asking}
+              onValueChange={(v) => void toggleMaster(v)}
+            />
+          </Section>
 
-      <SectionTitle>알림 종류</SectionTitle>
-      <Card>
-        <SettingRow
-          caption={
-            session?.role === 'student'
-              ? `마감 전날·당일 알림 · 예약 ${scheduledCount}건`
-              : session?.role === 'parent'
-                ? '자녀 수행평가 관련 알림'
-                : '학생 제출 및 수정본 알림'
-          }
-          disabled={busy || !preferences.enabled}
-          icon={Clock3}
-          onValueChange={(value) => void toggleCategory('tasks', value)}
-          title="수행평가"
-          value={preferences.enabled && preferences.tasks}
-        />
-        <Divider />
-        <SettingRow
-          caption={remoteStatusLabel}
-          disabled={busy || !preferences.enabled}
-          icon={BellRing}
-          onValueChange={(value) => void toggleCategory('answers', value)}
-          title="질의응답"
-          value={preferences.enabled && preferences.answers}
-        />
-        <Divider />
-        <SettingRow
-          caption="멘토링 일정 알림은 다음 단계에서 연결"
-          disabled={busy || !preferences.enabled}
-          icon={Settings2}
-          onValueChange={(value) => void toggleCategory('mentoring', value)}
-          title="멘토링"
-          value={preferences.enabled && preferences.mentoring}
-        />
-      </Card>
+          {!IS_WEB && permission === 'denied' && (
+            <Notice tone="warn" icon={BellOff} title="알림이 꺼져 있어요" onPress={openDeviceSettings}>
+              기기 설정 → 알림에서 강한선배를 허용해 주세요.
+            </Notice>
+          )}
+          {masterOn && remoteStatus === 'error' && (
+            <Notice tone="bad" onPress={() => update({})}>
+              서버에 이 기기를 연결하지 못했어요. 눌러서 다시 시도해 주세요.
+            </Notice>
+          )}
 
-      {message ? <Text style={styles.message}>{message}</Text> : null}
-      <PrimaryButton disabled={busy} onPress={() => void preview()} variant="secondary">
-        알림 미리보기
-      </PrimaryButton>
-      {permission === 'denied' && Platform.OS !== 'web' ? (
-        <PrimaryButton
-          disabled={busy}
-          onPress={() => void Linking.openSettings()}
-          variant="secondary">
-          기기 알림 설정 열기
-        </PrimaryButton>
-      ) : null}
-    </AppScreen>
+          <Section
+            title="받을 알림"
+            description={masterOn ? undefined : '알림 받기를 켜면 고를 수 있어요'}
+            flush>
+            {NOTIFICATION_CATEGORIES[role].map((category) => {
+              const look = CATEGORY_ICON[role][category.channel] ?? { icon: BellRing, tone: 'gray' as const };
+              return (
+                <SwitchRow
+                  key={category.channel}
+                  icon={look.icon}
+                  tone={look.tone}
+                  title={category.title}
+                  description={category.description}
+                  value={masterOn && prefs[category.channel]}
+                  disabled={!masterOn}
+                  onValueChange={(v) => update({ [category.channel]: v })}
+                />
+              );
+            })}
+            <ListRow
+              leading={<IconTile icon={Megaphone} size={40} />}
+              title={ALWAYS_ON_CATEGORY[role].title}
+              description={ALWAYS_ON_CATEGORY[role].description}
+              trailing={
+                <Text variant="t4-medium" color={masterOn ? 'neutralMuted' : 'neutralSubtle'}>
+                  {masterOn ? '항상' : '꺼짐'}
+                </Text>
+              }
+              muted={!masterOn}
+            />
+          </Section>
+
+          {isStudent && (
+            <Section
+              title="수행평가 마감 알림"
+              description={
+                masterOn
+                  ? `이 기기에 미리 예약해 두는 알림이에요 · 지금 ${scheduledCount}건 예약됨`
+                  : '이 기기에 미리 예약해 두는 알림이에요'
+              }
+              flush>
+              <SwitchRow
+                icon={Sunset}
+                tone="warn"
+                title={`마감 전날 저녁 ${REMINDER_DAY_BEFORE_HOUR - 12}시`}
+                description="'내일 마감이에요' 하고 알려 드려요"
+                value={masterOn && prefs.reminderDayBefore}
+                disabled={!masterOn}
+                onValueChange={(v) => update({ reminderDayBefore: v })}
+              />
+              <SwitchRow
+                icon={Sunrise}
+                tone="info"
+                title={`마감 당일 아침 ${REMINDER_SAME_DAY_HOUR}시`}
+                description="'오늘 마감이에요' 하고 알려 드려요"
+                value={masterOn && prefs.reminderSameDay}
+                disabled={!masterOn}
+                onValueChange={(v) => update({ reminderSameDay: v })}
+              />
+            </Section>
+          )}
+
+          {!IS_WEB && (
+            <Section flush>
+              <ListRow
+                leading={<IconTile icon={Send} size={40} />}
+                title="알림 미리보기"
+                description={previewing ? '보내는 중…' : '2초 뒤에 테스트 알림을 보내요'}
+                onPress={() => void preview()}
+              />
+              <ListRow
+                leading={<IconTile icon={Settings} size={40} />}
+                title="기기 알림 설정 열기"
+                description="소리·배너 방식은 기기 설정에서 바꿀 수 있어요"
+                onPress={openDeviceSettings}
+              />
+            </Section>
+          )}
+        </Stack>
+      )}
+    </Screen>
   );
 }
 
-function SettingRow({
-  caption,
-  disabled,
-  icon: Icon,
-  onValueChange,
+// ─── 스위치 행 (ListRow 규격 + SEED Switch 색) ───────────────────────
+
+function SwitchRow({
+  icon,
+  tone,
   title,
+  description,
   value,
+  disabled = false,
+  onValueChange,
 }: {
-  caption: string;
-  disabled: boolean;
-  icon: typeof BellRing;
-  onValueChange: (value: boolean) => void;
+  icon: LucideIcon;
+  tone: Tone;
   title: string;
+  description?: ReactNode;
   value: boolean;
+  disabled?: boolean;
+  onValueChange: (value: boolean) => void;
 }) {
   return (
-    <View style={[styles.row, disabled && styles.disabled]}>
-      <View style={styles.iconBox}>
-        <Icon color={colors.blue} size={20} />
+    <Press
+      onPress={() => onValueChange(!value)}
+      disabled={disabled}
+      scale={0}
+      pressedBg
+      accessibilityRole="switch"
+      accessibilityLabel={title}
+      accessibilityState={{ checked: value, disabled }}
+      style={s.row}>
+      <IconTile icon={icon} tone={disabled ? 'gray' : tone} size={40} />
+      <View style={s.body}>
+        <Text variant="t5-medium" color={disabled ? 'neutralSubtle' : 'neutral'}>
+          {title}
+        </Text>
+        {description != null &&
+          (typeof description === 'string' ? (
+            <Text variant="t4-regular" color="neutralSubtle">
+              {description}
+            </Text>
+          ) : (
+            description
+          ))}
       </View>
-      <View style={styles.text}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.caption}>{caption}</Text>
-      </View>
+      <SeedSwitch value={value} disabled={disabled} onValueChange={onValueChange} />
+    </Press>
+  );
+}
+
+/** RN Switch 에 SEED switchmark 색 — 켬 bg.brandSolid · 끔 palette.gray600 · 비활성 투명도 0.38 */
+function SeedSwitch({
+  value,
+  disabled,
+  onValueChange,
+}: {
+  value: boolean;
+  disabled: boolean;
+  onValueChange: (value: boolean) => void;
+}) {
+  // 행 전체가 눌림 영역 — 스위치는 터치를 받지 않게 해서 두 번 토글되지 않도록 한다
+  return (
+    <View
+      style={{ pointerEvents: 'none', opacity: disabled ? 0.38 : 1 }}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants">
       <Switch
-        disabled={disabled}
-        ios_backgroundColor={colors.line}
-        onValueChange={onValueChange}
-        thumbColor={colors.surface}
-        trackColor={{ false: colors.line, true: colors.primary }}
         value={value}
+        disabled={disabled}
+        onValueChange={onValueChange}
+        trackColor={{ false: color.palette.gray600, true: color.bg.brandSolid }}
+        thumbColor={color.palette.staticWhite}
+        ios_backgroundColor={color.palette.gray600}
       />
     </View>
   );
 }
 
-function Divider() {
-  return <View style={styles.divider} />;
+function SettingsSkeleton() {
+  return (
+    <Stack>
+      <Skeleton style={{ height: 76, borderRadius: radius.r5 }} />
+      <Section>
+        <View style={{ gap: space.x5 }}>
+          {[0, 1, 2].map((i) => (
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
+              <Skeleton style={{ width: 40, height: 40, borderRadius: radius.r3 }} />
+              <View style={{ flex: 1, gap: space.x1_5 }}>
+                <Skeleton style={{ width: '40%', height: 16 }} />
+                <Skeleton style={{ width: '70%', height: 14 }} />
+              </View>
+              <Skeleton style={{ width: 51, height: 31, borderRadius: radius.full }} />
+            </View>
+          ))}
+        </View>
+      </Section>
+    </Stack>
+  );
 }
 
-const styles = StyleSheet.create({
-  backButton: {
-    alignItems: 'center',
-    borderColor: colors.line,
-    borderRadius: 8,
-    borderWidth: 1,
-    height: 42,
-    justifyContent: 'center',
-    width: 42,
-  },
+const s = StyleSheet.create({
   row: {
-    alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.md,
-    minHeight: 76,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  iconBox: {
     alignItems: 'center',
-    backgroundColor: colors.blueSoft,
-    borderRadius: 8,
-    height: 40,
-    justifyContent: 'center',
-    width: 40,
+    gap: space.x3,
+    marginHorizontal: space.x2,
+    paddingHorizontal: space.x3,
+    paddingVertical: space.x3,
+    minHeight: 64,
+    borderRadius: radius.r4,
   },
-  text: {
-    flex: 1,
-    gap: 3,
-  },
-  title: {
-    color: colors.ink,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  caption: {
-    color: colors.muted,
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  divider: {
-    backgroundColor: colors.line,
-    height: StyleSheet.hairlineWidth,
-    marginLeft: 64,
-  },
-  message: {
-    color: colors.muted,
-    fontSize: 13,
-    lineHeight: 19,
-    textAlign: 'center',
-  },
-  disabled: {
-    opacity: 0.5,
-  },
-  pressed: {
-    opacity: 0.72,
-  },
+  body: { flex: 1, minWidth: 0, gap: space.x0_5 },
 });
