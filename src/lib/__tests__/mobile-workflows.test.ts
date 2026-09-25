@@ -8,6 +8,14 @@ vi.mock("@/lib/prisma", () => ({
       update: vi.fn(),
       upsert: vi.fn(),
     },
+    // 다회 외출(seq≥2) 기록 — 출결 흐름이 현재 외출 여부를 판단할 때 조회한다
+    dailyOuting: {
+      findMany: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+      deleteMany: vi.fn(),
+    },
     mentoring: {
       findUnique: vi.fn(),
       update: vi.fn(),
@@ -41,6 +49,7 @@ import {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(prisma.$transaction).mockResolvedValue([] as never);
+  vi.mocked(prisma.dailyOuting.findMany).mockResolvedValue([] as never);
 });
 
 describe("mobile question workflows", () => {
