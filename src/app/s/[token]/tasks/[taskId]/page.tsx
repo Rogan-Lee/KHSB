@@ -1,5 +1,5 @@
 import { redirect, notFound } from "next/navigation";
-import { CalendarDays, History } from "lucide-react";
+import { CheckCircle2, CircleAlert } from "lucide-react";
 import { validateMagicLink } from "@/lib/student-auth";
 import { prisma } from "@/lib/prisma";
 import { TaskSubmissionForm } from "@/components/online/task-submission-form";
@@ -7,24 +7,39 @@ import {
   TaskSubmissionsThread,
   type SubmissionVersion,
 } from "@/components/online/task-submissions-thread";
-import type { PerformanceTaskStatus } from "@/generated/prisma";
+import {
+  Badge,
+  GroupLabel,
+  IconTile,
+  InfoRow,
+  Notice,
+  Section,
+  dueInfo,
+} from "@/components/portal/ui";
+import { TASK_STATUS } from "@/components/portal/status";
 import type { UploadedFile } from "@/actions/online/task-submissions";
 
-const STATUS_LABEL: Record<PerformanceTaskStatus, string> = {
-  OPEN: "진행 전",
-  IN_PROGRESS: "진행 중",
-  SUBMITTED: "제출 완료",
-  NEEDS_REVISION: "수정 필요",
-  DONE: "최종 완료",
-};
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+const KST_OFFSET = 9 * 60 * 60 * 1000;
 
-const STATUS_TONE: Record<PerformanceTaskStatus, string> = {
-  OPEN: "bg-canvas-2 text-ink-3",
-  IN_PROGRESS: "bg-info-soft text-info-ink",
-  SUBMITTED: "bg-warn-soft text-warn-ink",
-  NEEDS_REVISION: "bg-bad-soft text-bad-ink",
-  DONE: "bg-ok-soft text-ok-ink",
-};
+/** "9월 30일 (수)" — 올해가 아니면 연도 포함 */
+function formatDate(d: Date): string {
+  const kst = new Date(d.getTime() + KST_OFFSET);
+  const thisYear = new Date(Date.now() + KST_OFFSET).getUTCFullYear();
+  const md = `${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일 (${WEEKDAYS[kst.getUTCDay()]})`;
+  return kst.getUTCFullYear() === thisYear ? md : `${kst.getUTCFullYear()}년 ${md}`;
+}
+
+/** "9월 20일 오후 3:12" */
+function formatDateTime(d: Date): string {
+  const kst = new Date(d.getTime() + KST_OFFSET);
+  const h = kst.getUTCHours();
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일 ${h < 12 ? "오전" : "오후"} ${h12}:${kst
+    .getUTCMinutes()
+    .toString()
+    .padStart(2, "0")}`;
+}
 
 export default async function StudentTaskDetailPage({
   params,
@@ -74,109 +89,101 @@ export default async function StudentTaskDetailPage({
     })),
   }));
 
-  const due = task.dueDate;
-  const daysLeft = Math.ceil((due.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  const dueLabel =
-    daysLeft < 0 ? `D+${-daysLeft}` : daysLeft === 0 ? "D-Day" : `D-${daysLeft}`;
-  const dueTone =
-    daysLeft < 0 && task.status !== "DONE"
-      ? "bg-bad-soft text-bad-ink"
-      : daysLeft <= 1 && task.status !== "DONE"
-        ? "bg-warn-soft text-warn-ink"
-        : "bg-canvas-2 text-ink-3";
+  const isDone = task.status === "DONE";
+  const status = TASK_STATUS[task.status];
+  const due = dueInfo(task.dueDate, isDone || task.status === "SUBMITTED");
+
+  // createOrUpdateSubmission 규칙: 최신 제출에 피드백이 있으면 새 버전, 없으면 같은 버전 덮어쓰기
+  const latestHasFeedback = !!latest && latest.feedbacks.length > 0;
+  const submitTitle = !latest ? "과제 제출" : latestHasFeedback ? "수정본 제출" : "제출물 수정";
+  const submitDescription = !latest
+    ? "파일을 올리면 컨설턴트가 검토하고 피드백을 남겨줘요."
+    : latestHasFeedback
+      ? `새 버전(v${latest.version + 1})으로 저장돼요.`
+      : `피드백을 받기 전이라 v${latest.version}을 바로 고칠 수 있어요.`;
 
   return (
-    <div className="space-y-4">
-      {/* Hero */}
-      <section className="rounded-[14px] border border-line bg-panel p-4">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="rounded-full bg-canvas-2 px-2 py-0.5 text-[10.5px] font-medium text-ink-3">
-            {task.subject}
-          </span>
-          <span
-            className={`rounded-full px-2 py-0.5 text-[10.5px] font-medium ${STATUS_TONE[task.status]}`}
-          >
-            {STATUS_LABEL[task.status]}
-          </span>
-          {latest && (
-            <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10.5px] font-medium text-warn-ink">
-              v{latest.version} 제출됨
-            </span>
-          )}
+    <div className="flex flex-col gap-x3">
+      {/* 제목 */}
+      <Section>
+        <div className="flex flex-wrap items-center gap-x1_5">
+          <Badge>{task.subject}</Badge>
+          {task.format && <Badge>{task.format}</Badge>}
         </div>
-        <h2 className="mt-2.5 text-[18px] font-bold leading-snug tracking-[-0.01em] text-ink">
-          {task.title}
-          {task.format && (
-            <span className="ml-1.5 text-[12px] font-normal text-ink-4">
-              ({task.format})
-            </span>
-          )}
-        </h2>
+        <h2 className="mt-x3 t8-bold text-fg-neutral">{task.title}</h2>
         {task.description && (
-          <p className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed text-ink-3">
+          <p className="mt-x2_5 whitespace-pre-wrap break-words t5-regular text-fg-neutral-muted">
             {task.description}
           </p>
         )}
-        <div className="mt-3 flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 text-[12px] tabular-nums text-ink-4">
-            <CalendarDays className="h-3.5 w-3.5" />
-            {due.toLocaleDateString("ko-KR")}
-          </span>
-          <span
-            className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold tabular-nums ${dueTone}`}
-          >
-            {dueLabel}
-          </span>
-        </div>
-      </section>
+      </Section>
 
-      {/* Submission action */}
-      {task.status !== "DONE" && (
-        <section className="rounded-[14px] border border-line bg-panel p-4">
-          <h3 className="mb-2.5 text-[13.5px] font-semibold text-ink">
-            {task.status === "NEEDS_REVISION" ? "수정본 제출 (새 버전)" : "제출"}
-          </h3>
+      {/* 정보 */}
+      <Section>
+        <InfoRow label="상태">
+          <Badge tone={status.tone} size="md">
+            {status.label}
+          </Badge>
+        </InfoRow>
+        <InfoRow label="마감일">
+          <span className="inline-flex items-center gap-x2 tabular-nums">
+            {formatDate(task.dueDate)}
+            {!isDone && <Badge tone={due.tone}>{due.label}</Badge>}
+          </span>
+        </InfoRow>
+        <InfoRow label="최근 제출">
+          {latest ? (
+            <span className="tabular-nums">
+              v{latest.version} · {formatDateTime(latest.submittedAt)}
+            </span>
+          ) : (
+            <span className="t5-regular text-fg-neutral-subtle">아직 없어요</span>
+          )}
+        </InfoRow>
+      </Section>
+
+      {/* 제출 */}
+      {!isDone && (
+        <Section title={submitTitle} description={submitDescription}>
+          {task.status === "NEEDS_REVISION" && (
+            <Notice tone="bad" icon={CircleAlert} className="mb-x5">
+              컨설턴트가 수정을 요청했어요. 아래 제출 기록에서 피드백을 확인해 주세요.
+            </Notice>
+          )}
           <TaskSubmissionForm
             studentToken={token}
             taskId={taskId}
-            initialFiles={
-              task.status === "NEEDS_REVISION" ? [] : latestFiles
-            }
-            initialNote={
-              task.status === "NEEDS_REVISION" ? null : latest?.note ?? null
-            }
+            initialFiles={task.status === "NEEDS_REVISION" ? [] : latestFiles}
+            initialNote={task.status === "NEEDS_REVISION" ? null : latest?.note ?? null}
             isSubmitted={!!latest}
           />
-        </section>
+        </Section>
       )}
 
-      {task.status === "DONE" && latest && (
-        <section className="rounded-[14px] border border-ok/30 bg-ok-soft px-4 py-5">
-          <p className="text-[14px] font-bold text-ok-ink">
-            ✅ 최종 완료된 과제예요
-          </p>
-          <p className="mt-1 text-[12px] text-ok-ink/80">
-            컨설턴트가 최종 승인했습니다.
-          </p>
-        </section>
-      )}
-
-      {/* History */}
-      {versions.length > 0 && (
-        <section>
-          <div className="mb-2 flex items-center gap-2">
-            <History className="h-3.5 w-3.5 text-ink-4" />
-            <h3 className="text-[12px] font-semibold uppercase tracking-wider text-ink-4">
-              제출 히스토리 · {versions.length}개
-            </h3>
+      {isDone && latest && (
+        <Section>
+          <div className="flex items-center gap-x3_5">
+            <IconTile icon={CheckCircle2} tone="ok" size={48} round />
+            <div className="min-w-0">
+              <p className="t6-bold text-fg-neutral">최종 완료된 과제예요</p>
+              <p className="mt-x0_5 t4-regular text-fg-neutral-subtle">컨설턴트가 최종 승인했어요.</p>
+            </div>
           </div>
+        </Section>
+      )}
+
+      {/* 제출 기록 */}
+      {versions.length > 0 && (
+        <div className="pt-x3">
+          <GroupLabel trailing={`${versions.length}개`}>제출 기록</GroupLabel>
           <TaskSubmissionsThread
+            variant="portal"
             versions={versions}
             taskStatus={task.status}
             canWriteFeedback={false}
             studentPortalUrl={`/s/${token}/tasks/${taskId}`}
           />
-        </section>
+        </div>
       )}
     </div>
   );

@@ -3,11 +3,22 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Upload, X, Paperclip } from "lucide-react";
+import { FileText, ImageIcon } from "lucide-react";
+import { Fieldset, Icon, PrefixIcon } from "@seed-design/react";
+import { IconPlusLine, IconXmarkLine } from "@karrotmarket/react-monochrome-icon";
+import { ActionButton } from "seed-design/ui/action-button";
+import { ProgressCircle } from "seed-design/ui/progress-circle";
+import { TextField, TextFieldTextarea } from "seed-design/ui/text-field";
 import {
   createOrUpdateSubmission,
   type UploadedFile,
 } from "@/actions/online/task-submissions";
+import { Button, IconTile } from "@/components/portal/ui";
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))}KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+}
 
 export function TaskSubmissionForm({
   studentToken,
@@ -95,79 +106,108 @@ export function TaskSubmissionForm({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-[10px] border border-line bg-panel p-3">
-        <p className="text-[12px] font-semibold text-ink mb-2">첨부 파일</p>
-        {files.length === 0 ? (
-          <p className="text-[11.5px] text-ink-5">
-            최대 5개, 파일당 50MB. PDF · PNG · JPG · DOCX · HWP · ZIP
-          </p>
-        ) : (
-          <ul className="space-y-1.5">
+    <div className="flex flex-col gap-x6">
+      {/* 첨부 파일 — SEED Fieldset(라벨·설명) + 파일 행 + ActionButton 형태의 파일 선택 */}
+      <Fieldset.Root>
+        <Fieldset.Header>
+          <Fieldset.Label>첨부 파일</Fieldset.Label>
+        </Fieldset.Header>
+
+        {(files.length > 0 || uploadingName) && (
+          <ul className="flex flex-col gap-x1">
             {files.map((f, i) => (
-              <li
-                key={i}
-                className="flex items-center gap-2 rounded-[6px] bg-canvas-2 px-2 py-1.5 text-[12px]"
-              >
-                <Paperclip className="h-3.5 w-3.5 text-ink-4 shrink-0" />
+              <li key={i} className="flex items-center gap-x3 py-x1">
+                <IconTile
+                  icon={f.mimeType?.startsWith("image/") ? ImageIcon : FileText}
+                  size={40}
+                />
                 <a
                   href={f.url}
                   target="_blank"
                   rel="noopener"
-                  className="flex-1 truncate text-ink hover:underline"
+                  className="min-w-0 flex-1 transition-opacity active:opacity-60"
                 >
-                  {f.name}
+                  <p className="truncate t5-medium text-fg-neutral">{f.name}</p>
+                  <p className="mt-x0_5 t3-regular tabular-nums text-fg-neutral-subtle">
+                    {formatSize(f.sizeBytes)}
+                  </p>
                 </a>
-                <span className="shrink-0 text-[11px] text-ink-5">
-                  {(f.sizeBytes / 1024 / 1024).toFixed(1)}MB
-                </span>
-                <button
-                  type="button"
+                <ActionButton
+                  variant="ghost"
+                  layout="iconOnly"
+                  size="medium"
+                  color="fg.neutralSubtle"
+                  bleedX="asPadding"
                   onClick={() => removeFile(i)}
-                  className="p-1 text-ink-4 hover:text-red-500"
-                  title="제거"
+                  aria-label={`${f.name} 첨부 취소`}
                 >
-                  <X className="h-3 w-3" />
-                </button>
+                  <Icon svg={<IconXmarkLine />} />
+                </ActionButton>
               </li>
             ))}
+            {uploadingName && (
+              <li className="flex items-center gap-x3 py-x1" aria-live="polite">
+                <span className="inline-flex size-x10 shrink-0 items-center justify-center rounded-r3 bg-bg-neutral-weak">
+                  <ProgressCircle size="24" tone="neutral" aria-label="업로드 중" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate t5-medium text-fg-neutral-muted">{uploadingName}</p>
+                  <p className="mt-x0_5 t3-regular text-fg-neutral-subtle">올리는 중…</p>
+                </div>
+              </li>
+            )}
           </ul>
         )}
 
         {files.length < 5 && (
-          <label className="mt-2 inline-flex items-center gap-1.5 cursor-pointer rounded-[8px] border border-dashed border-line hover:border-line-strong px-3 py-1.5 text-[12px] font-medium text-ink-3 hover:text-ink transition-colors">
-            <Upload className="h-3.5 w-3.5" />
-            {uploadingName ? `${uploadingName} 업로드 중...` : "파일 선택"}
-            <input
-              type="file"
-              onChange={handleFileChange}
-              className="hidden"
-              disabled={!!uploadingName}
-              accept=".pdf,.png,.jpg,.jpeg,.docx,.doc,.hwp,.hwpx,.zip"
-            />
-          </label>
+          <ActionButton
+            asChild
+            variant="neutralWeak"
+            size="large"
+            disabled={!!uploadingName}
+            className="w-full focus-within:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-focus-ring)]"
+          >
+            <label>
+              <PrefixIcon svg={<IconPlusLine />} />
+              파일 첨부하기
+              <input
+                type="file"
+                onChange={handleFileChange}
+                className="sr-only"
+                disabled={!!uploadingName}
+                accept=".pdf,.png,.jpg,.jpeg,.docx,.doc,.hwp,.hwpx,.zip"
+              />
+            </label>
+          </ActionButton>
         )}
-      </div>
 
-      <label className="block">
-        <span className="text-[12px] font-semibold text-ink">코멘트 (선택)</span>
-        <textarea
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          rows={3}
-          placeholder="컨설턴트에게 전달할 내용이 있으면 적어 주세요"
-          className="mt-1 w-full rounded-[8px] border border-line bg-canvas px-3 py-2 text-[12.5px] text-ink resize-y focus:outline-none focus:border-line-strong"
-        />
-      </label>
+        <Fieldset.Footer>
+          <Fieldset.Description>
+            최대 5개, 파일당 50MB까지 올릴 수 있어요. PDF · 이미지 · 워드 · 한글 · ZIP
+          </Fieldset.Description>
+        </Fieldset.Footer>
+      </Fieldset.Root>
 
-      <button
-        type="button"
-        onClick={onSubmit}
-        disabled={isPending || !!uploadingName}
-        className="w-full rounded-[8px] bg-ink text-white px-4 py-2.5 text-[13px] font-semibold disabled:opacity-50"
+      <TextField
+        label="코멘트"
+        indicator="선택"
+        value={note}
+        onValueChange={({ value }) => setNote(value)}
       >
-        {isPending ? "제출 중..." : isSubmitted ? "재제출" : "제출하기"}
-      </button>
+        {/* SEED large textarea 는 min-height 94px(≈3줄) + 자동 높이 */}
+        <TextFieldTextarea placeholder="컨설턴트에게 전할 내용이 있으면 적어 주세요" />
+      </TextField>
+
+      <Button
+        variant="primary"
+        size="xl"
+        block
+        onClick={onSubmit}
+        loading={isPending}
+        disabled={!!uploadingName}
+      >
+        {isSubmitted ? "다시 제출하기" : "제출하기"}
+      </Button>
     </div>
   );
 }

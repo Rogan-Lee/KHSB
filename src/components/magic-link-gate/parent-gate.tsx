@@ -8,27 +8,27 @@ type ParentModel = "parent-report" | "study-plan" | "consultation" | "schedule" 
 const CONFIG: Record<ParentModel, { title: string; description: string; brand: "blue" | "purple" | "violet" }> = {
   schedule: {
     title: "학부모 본인 확인",
-    description: "등원 스케줄(안)을 확인하기 전, 본인 확인이 필요해요.\n학생 학부모 휴대폰 뒷 4자리를 입력해 주세요.",
+    description: "등원 스케줄(안)을 확인하기 전, 본인 확인이 필요해요.\n등록된 학부모 휴대폰 번호 뒷 4자리를 입력해 주세요.",
     brand: "blue",
   },
   monthly: {
     title: "학부모 본인 확인",
-    description: "월간 리포트를 열기 전, 본인 확인이 필요해요.\n학생 학부모 휴대폰 뒷 4자리를 입력해 주세요.",
+    description: "월간 리포트를 열기 전, 본인 확인이 필요해요.\n등록된 학부모 휴대폰 번호 뒷 4자리를 입력해 주세요.",
     brand: "blue",
   },
   "parent-report": {
     title: "학부모 본인 확인",
-    description: "멘토링 리포트를 열기 전, 본인 확인이 필요해요.\n학생 학부모 휴대폰 뒷 4자리를 입력해 주세요.",
+    description: "멘토링 리포트를 열기 전, 본인 확인이 필요해요.\n등록된 학부모 휴대폰 번호 뒷 4자리를 입력해 주세요.",
     brand: "blue",
   },
   "study-plan": {
     title: "학부모 본인 확인",
-    description: "공부 계획 리포트를 열기 전, 본인 확인이 필요해요.\n학생 학부모 휴대폰 뒷 4자리를 입력해 주세요.",
+    description: "공부 계획 리포트를 열기 전, 본인 확인이 필요해요.\n등록된 학부모 휴대폰 번호 뒷 4자리를 입력해 주세요.",
     brand: "purple",
   },
   consultation: {
     title: "학부모 본인 확인",
-    description: "상담 안내를 열기 전, 본인 확인이 필요해요.\n학생 학부모 휴대폰 뒷 4자리를 입력해 주세요.",
+    description: "상담 안내를 열기 전, 본인 확인이 필요해요.\n등록된 학부모 휴대폰 번호 뒷 4자리를 입력해 주세요.",
     brand: "violet",
   },
 };

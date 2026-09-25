@@ -1,7 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+// URL 쿼리(?tab=) 기반 탭 — SEED Tabs (fill 레이아웃). 헤더 바로 아래에 sticky 로 붙는다.
+
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { TabsList, TabsRoot, TabsTrigger } from "seed-design/ui/tabs";
 
 export type SegmentOption = {
   key: string;
@@ -19,51 +21,32 @@ export function SegmentTabs({
   defaultKey: string;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const current = searchParams?.get(param) ?? defaultKey;
 
+  const go = (key: string) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    if (key === defaultKey) params.delete(param);
+    else params.set(param, key);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+
   return (
-    <div
-      role="tablist"
-      className="sticky top-12 z-20 -mx-4 mb-3 border-b border-line bg-canvas/85 px-4 py-2 backdrop-blur-md"
-    >
-      <div className="flex gap-1 rounded-[10px] bg-canvas-2 p-1">
-        {options.map((opt) => {
-          const isActive = current === opt.key;
-          const params = new URLSearchParams(
-            searchParams?.toString() ?? ""
-          );
-          if (opt.key === defaultKey) params.delete(param);
-          else params.set(param, opt.key);
-          const qs = params.toString();
-          const href = qs ? `${pathname}?${qs}` : pathname;
-          return (
-            <Link
-              key={opt.key}
-              href={href}
-              role="tab"
-              aria-selected={isActive}
-              scroll={false}
-              className={`flex-1 rounded-[8px] py-2 text-center text-[12.5px] font-semibold transition-colors ${
-                isActive
-                  ? "bg-panel text-ink shadow-xs"
-                  : "text-ink-4 active:text-ink-2"
-              }`}
-            >
+    <div className="sticky top-[calc(env(safe-area-inset-top)+56px)] z-20 -mx-4 mb-x3 bg-[var(--portal-surface,var(--seed-color-bg-layer-basement))]">
+      <TabsRoot value={current} onValueChange={go} triggerLayout="fill" size="medium">
+        <TabsList>
+          {options.map((opt) => (
+            <TabsTrigger key={opt.key} value={opt.key}>
               {opt.label}
               {typeof opt.count === "number" && (
-                <span
-                  className={`ml-1 tabular-nums ${
-                    isActive ? "text-brand" : "text-ink-5"
-                  }`}
-                >
-                  {opt.count}
-                </span>
+                <span className="ml-x1 tabular-nums opacity-70">{opt.count}</span>
               )}
-            </Link>
-          );
-        })}
-      </div>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </TabsRoot>
     </div>
   );
 }

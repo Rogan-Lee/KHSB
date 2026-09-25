@@ -1,28 +1,31 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronRight, ClipboardList, CheckCircle2 } from "lucide-react";
+import { ClipboardList, CheckCircle2 } from "lucide-react";
 import { validateMagicLink } from "@/lib/student-auth";
 import { prisma } from "@/lib/prisma";
 import { SegmentTabs } from "../_components/segment-tabs";
+import {
+  Badge,
+  EmptyState,
+  ListRow,
+  ProgressBar,
+  Section,
+  dueInfo,
+} from "@/components/portal/ui";
+import { TASK_STATUS } from "@/components/portal/status";
 import type { PerformanceTaskStatus } from "@/generated/prisma";
 
-const STATUS_LABEL: Record<PerformanceTaskStatus, string> = {
-  OPEN: "진행 전",
-  IN_PROGRESS: "진행 중",
-  SUBMITTED: "제출 완료",
-  NEEDS_REVISION: "수정 필요",
-  DONE: "최종 완료",
-};
-
-const STATUS_TONE: Record<PerformanceTaskStatus, string> = {
-  OPEN: "bg-canvas-2 text-ink-3",
-  IN_PROGRESS: "bg-info-soft text-info-ink",
-  SUBMITTED: "bg-warn-soft text-warn-ink",
-  NEEDS_REVISION: "bg-bad-soft text-bad-ink",
-  DONE: "bg-ok-soft text-ok-ink",
-};
-
 type TabKey = "open" | "done";
+
+// 제출 완료·최종 완료는 학생이 할 일이 없으므로 D-day 를 강조하지 않는다
+const isSettled = (s: PerformanceTaskStatus) => s === "DONE" || s === "SUBMITTED";
+
+/** dueDate 는 @db.Date — KST 기준 "9월 30일" */
+function formatDue(d: Date): string {
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const thisYear = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCFullYear();
+  const md = `${kst.getUTCMonth() + 1}월 ${kst.getUTCDate()}일`;
+  return kst.getUTCFullYear() === thisYear ? md : `${kst.getUTCFullYear()}년 ${md}`;
+}
 
 export default async function StudentTasksPage({
   params,
@@ -46,8 +49,39 @@ export default async function StudentTasksPage({
   const tab: TabKey = sp.tab === "done" ? "done" : "open";
   const list = tab === "done" ? done : upcoming;
 
+  // 요약 카드 문구 — 가장 급한 것 하나만
+  const todo = upcoming.filter((t) => !isSettled(t.status));
+  const revision = todo.filter((t) => t.status === "NEEDS_REVISION").length;
+  const overdue = todo.filter((t) => dueInfo(t.dueDate).days < 0).length;
+  const dueSoon = todo.filter((t) => {
+    const { days } = dueInfo(t.dueDate);
+    return days >= 0 && days <= 3;
+  }).length;
+  const headline =
+    revision > 0
+      ? `수정할 과제가 ${revision}건 있어요`
+      : overdue > 0
+        ? `마감이 지난 과제가 ${overdue}건 있어요`
+        : dueSoon > 0
+          ? `3일 안에 마감되는 과제가 ${dueSoon}건 있어요`
+          : upcoming.length > 0
+            ? `진행 중인 과제가 ${upcoming.length}건 있어요`
+            : "모든 과제를 끝냈어요";
+
   return (
     <div>
+      {tasks.length > 0 && (
+        <Section className="mb-x2">
+          <p className="t6-bold text-fg-neutral">{headline}</p>
+          <div className="mt-x3_5 flex items-center gap-x3">
+            <ProgressBar value={done.length / tasks.length} tone="ok" className="flex-1" />
+            <span className="shrink-0 t3-medium tabular-nums text-fg-neutral-muted">
+              {done.length}/{tasks.length} 완료
+            </span>
+          </div>
+        </Section>
+      )}
+
       <SegmentTabs
         defaultKey="open"
         options={[
@@ -57,125 +91,54 @@ export default async function StudentTasksPage({
       />
 
       {list.length === 0 ? (
-        <EmptyState tab={tab} />
+        <Section>
+          {tab === "done" ? (
+            <EmptyState
+              icon={CheckCircle2}
+              tone="ok"
+              title="완료한 과제가 없어요"
+              description="최종 승인을 받은 과제가 여기에 모여요."
+              className="py-x8"
+            />
+          ) : (
+            <EmptyState
+              icon={ClipboardList}
+              title="진행 중인 과제가 없어요"
+              description="새 수행평가가 등록되면 여기에서 알려드릴게요."
+              className="py-x8"
+            />
+          )}
+        </Section>
       ) : (
-        <ul className="space-y-2.5">
-          {list.map((t) => (
-            <li key={t.id}>
-              <TaskCard token={token} task={t} />
-            </li>
-          ))}
-        </ul>
+        <Section flush>
+          {list.map((t) => {
+            const status = TASK_STATUS[t.status];
+            const due = dueInfo(t.dueDate, isSettled(t.status));
+            const isDone = t.status === "DONE";
+            return (
+              <ListRow
+                key={t.id}
+                href={`/s/${token}/tasks/${t.id}`}
+                meta={isDone ? undefined : <Badge tone={status.tone}>{status.label}</Badge>}
+                title={t.title}
+                description={
+                  <span className="tabular-nums">
+                    {t.subject} · {formatDue(t.dueDate)} 마감
+                    {t.format ? ` · ${t.format}` : ""}
+                  </span>
+                }
+                trailing={
+                  isDone ? undefined : (
+                    <Badge tone={due.tone} size="md">
+                      {due.label}
+                    </Badge>
+                  )
+                }
+              />
+            );
+          })}
+        </Section>
       )}
-    </div>
-  );
-}
-
-function TaskCard({
-  token,
-  task,
-}: {
-  token: string;
-  task: {
-    id: string;
-    subject: string;
-    title: string;
-    description: string | null;
-    format: string | null;
-    dueDate: Date;
-    status: PerformanceTaskStatus;
-  };
-}) {
-  const days = Math.ceil(
-    (task.dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-  );
-  const isOverdue = days < 0 && task.status !== "DONE";
-  const isUrgent = days >= 0 && days <= 1 && task.status !== "DONE";
-
-  const dueLabel =
-    days < 0 ? `D+${-days}` : days === 0 ? "D-Day" : `D-${days}`;
-
-  const dueTone = isOverdue
-    ? "bg-bad-soft text-bad-ink"
-    : isUrgent
-      ? "bg-warn-soft text-warn-ink"
-      : days <= 3 && task.status !== "DONE"
-        ? "bg-warn-soft/70 text-warn-ink"
-        : "bg-canvas-2 text-ink-3";
-
-  return (
-    <Link
-      href={`/s/${token}/tasks/${task.id}`}
-      className={`block rounded-[14px] border bg-panel p-4 transition-colors active:bg-canvas-2 ${
-        isOverdue || isUrgent
-          ? "border-line shadow-xs ring-1 ring-bad/10"
-          : "border-line"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="rounded-full bg-canvas-2 px-2 py-0.5 text-[10.5px] font-medium text-ink-3">
-            {task.subject}
-          </span>
-          <span
-            className={`rounded-full px-2 py-0.5 text-[10.5px] font-medium ${STATUS_TONE[task.status]}`}
-          >
-            {STATUS_LABEL[task.status]}
-          </span>
-        </div>
-        <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold tabular-nums ${dueTone}`}
-        >
-          {dueLabel}
-        </span>
-      </div>
-
-      <p className="mt-2.5 text-[15px] font-semibold leading-snug text-ink">
-        {task.title}
-        {task.format && (
-          <span className="ml-1.5 text-[11.5px] font-normal text-ink-4">
-            ({task.format})
-          </span>
-        )}
-      </p>
-
-      {task.description && (
-        <p className="mt-1 line-clamp-2 text-[12.5px] leading-relaxed text-ink-4">
-          {task.description}
-        </p>
-      )}
-
-      <div className="mt-3 flex items-center justify-between border-t border-line pt-2.5">
-        <span className="text-[11.5px] tabular-nums text-ink-4">
-          마감 {task.dueDate.toLocaleDateString("ko-KR")}
-        </span>
-        <span className="inline-flex items-center text-[12px] font-semibold text-brand">
-          열기
-          <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} />
-        </span>
-      </div>
-    </Link>
-  );
-}
-
-function EmptyState({ tab }: { tab: TabKey }) {
-  return (
-    <div className="rounded-[14px] border border-dashed border-line bg-canvas-2/40 px-5 py-12 text-center">
-      <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-panel text-ink-4">
-        {tab === "done" ? (
-          <CheckCircle2 className="h-6 w-6" />
-        ) : (
-          <ClipboardList className="h-6 w-6" />
-        )}
-      </span>
-      <p className="mt-3 text-[13.5px] font-semibold text-ink-2">
-        {tab === "done" ? "완료한 과제가 없어요" : "진행 중인 과제가 없어요"}
-      </p>
-      <p className="mt-1 text-[12px] text-ink-4">
-        {tab === "done"
-          ? "과제를 끝내면 여기에 모여요."
-          : "새로운 수행평가가 등록되면 여기에 표시됩니다."}
-      </p>
     </div>
   );
 }

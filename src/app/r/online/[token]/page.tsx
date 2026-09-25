@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
+import { FileText } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { MarkdownViewer } from "@/components/ui/markdown-viewer";
+import { ReportHero, ReportShell } from "@/components/parent-report/report-shell";
+import { Prose } from "@/components/portal/prose";
+import { EmptyState, Section } from "@/components/portal/ui";
 import { ParentFeedbackForm } from "@/components/online/parent-feedback-form";
 import { ReportViewBeacon } from "@/components/online/report-view-beacon";
 
@@ -30,45 +33,49 @@ export default async function OnlineParentReportPublicPage({
     report.type === "WEEKLY" ? "주간" : report.type === "MONTHLY" ? "월간" : "수시";
 
   return (
-    <div className="min-h-screen bg-canvas">
-      <header className="border-b border-line bg-panel">
-        <div className="mx-auto max-w-[720px] px-4 py-4">
-          <div className="text-[11px] font-medium text-ink-4 uppercase tracking-wide">
-            학부모 {typeLabel} 보고서
-          </div>
-          <h1 className="mt-1 text-[18px] font-semibold text-ink">
-            {report.student.name} 학생 ({report.student.grade})
-          </h1>
-          <p className="mt-1 text-[12px] text-ink-4 tabular-nums">
-            {report.periodStart.toLocaleDateString("ko-KR")} ~{" "}
-            {report.periodEnd.toLocaleDateString("ko-KR")}
-            {report.sentAt && (
-              <>
-                {" · 발송 "}
-                {report.sentAt.toLocaleDateString("ko-KR")}
-              </>
-            )}
-          </p>
-        </div>
-      </header>
-
+    <ReportShell
+      label={`${typeLabel} 보고서`}
+      footer="담당 원장님이 공개한 보고서예요. 링크를 다른 사람에게 전달하지 말아 주세요."
+    >
       <ReportViewBeacon token={token} />
 
-      <main className="mx-auto max-w-[720px] px-4 py-5 space-y-5">
-        <div className="rounded-[12px] border border-line bg-panel p-5">
-          {markdown ? (
-            <MarkdownViewer source={markdown} />
-          ) : (
-            <p className="text-[13px] text-ink-5">내용이 비어 있습니다.</p>
-          )}
-        </div>
+      <ReportHero
+        eyebrow={`학부모 ${typeLabel} 보고서`}
+        title={`${report.student.name} 학생`}
+        meta={[
+          report.student.grade,
+          <span key="period" className="tabular-nums">
+            {formatMonthDay(report.periodStart)} ~ {formatMonthDay(report.periodEnd)}
+          </span>,
+          report.sentAt && (
+            <span key="sent" className="tabular-nums">
+              발송 {formatMonthDay(report.sentAt)}
+            </span>
+          ),
+        ]}
+      />
 
-        <ParentFeedbackForm token={token} />
+      <Section>
+        {markdown.trim() ? (
+          <Prose source={markdown} />
+        ) : (
+          <EmptyState icon={FileText} title="아직 작성된 내용이 없어요" className="py-x8" />
+        )}
+      </Section>
 
-        <footer className="text-center text-[11px] text-ink-5">
-          이 링크는 담당 원장님에 의해 공개되었습니다. 외부에 재공유하지 말아 주세요.
-        </footer>
-      </main>
-    </div>
+      <ParentFeedbackForm token={token} />
+    </ReportShell>
   );
 }
+
+const MONTH_DAY = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  month: "long",
+  day: "numeric",
+});
+
+/** "4월 13일" (KST) */
+function formatMonthDay(date: Date): string {
+  return MONTH_DAY.format(date);
+}
+
