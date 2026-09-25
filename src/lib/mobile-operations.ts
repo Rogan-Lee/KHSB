@@ -131,7 +131,9 @@ export async function getMobileStaffOperations(
     prisma.handover.count({
       where: {
         date: { gte: since },
-        // 미확인 = 확인(confirmedAt) 기록이 없는 인수인계. 단순 열람은 미확인으로 유지.
+        // 미확인 = 남이 쓴 인수인계 중 확인(confirmedAt) 기록이 없는 것. 단순 열람은 미확인으로 유지.
+        // (웹 대시보드·앱 홈과 같은 기준 — 내가 쓴 건 제외)
+        authorId: { not: userId },
         reads: { none: { userId, confirmedAt: { not: null } } },
       },
     }),
@@ -259,6 +261,7 @@ function serializeHandover(
     createdAt: handover.createdAt.toISOString(),
     date: handover.date.toISOString().slice(0, 10),
     id: handover.id,
+    isMine: handover.authorId === userId,
     isPinned: handover.isPinned,
     isRead: handover.reads.some((read) => read.userId === userId && read.confirmedAt != null),
     priority: handover.priority,

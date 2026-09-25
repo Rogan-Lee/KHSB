@@ -5,7 +5,7 @@ import {
   mobileJson,
   requireMobileStudent,
 } from "@/lib/mobile-auth";
-import { getMobileStudentQuestionThread } from "@/lib/mobile-workflows";
+import { getMobileStudentQuestion } from "@/lib/mobile-student-questions";
 
 export async function GET(
   request: NextRequest,
@@ -16,9 +16,7 @@ export async function GET(
       requireMobileStudent(request),
       context.params,
     ]);
-    return mobileJson(
-      await getMobileStudentQuestionThread(student.id, questionId),
-    );
+    return mobileJson(await getMobileStudentQuestion(student.id, questionId));
   } catch (error) {
     return mobileApiErrorResponse(error);
   }

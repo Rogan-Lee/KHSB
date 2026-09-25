@@ -7,7 +7,7 @@ import {
   requireMobileStudent,
 } from "@/lib/mobile-auth";
 import { notifyAssignedStaffOfQuestion } from "@/lib/mobile-push";
-import { addMobileStudentQuestionMessage } from "@/lib/mobile-workflows";
+import { addMobileStudentQuestionReply } from "@/lib/mobile-student-questions";
 
 export async function POST(
   request: NextRequest,
@@ -19,8 +19,8 @@ export async function POST(
       context.params,
       request.json(),
     ]);
-    const result = await addMobileStudentQuestionMessage(
-      student.id,
+    const result = await addMobileStudentQuestionReply(
+      { id: student.id, name: student.name },
       questionId,
       body,
     );

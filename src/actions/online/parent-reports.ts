@@ -7,6 +7,11 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireFullAccess } from "@/lib/roles";
 import { notifySlack } from "@/lib/slack";
+import { queueParentReportPush } from "@/lib/mobile-push";
+import {
+  createOnlineParentFeedback,
+  validateParentFeedbackContent,
+} from "@/lib/online/parent-feedback";
 import {
   buildWeeklyReportPrompt,
   type WeeklyReportInputs,
@@ -372,7 +377,7 @@ export async function markReportSent(params: {
 
   const existing = await prisma.onlineParentReport.findUnique({
     where: { id: params.reportId },
-    select: { status: true, sentChannels: true },
+    select: { status: true, sentChannels: true, studentId: true, type: true },
   });
   if (!existing) throw new Error("보고서를 찾을 수 없습니다");
   if (existing.status !== "APPROVED" && existing.status !== "SENT") {
@@ -391,6 +396,17 @@ export async function markReportSent(params: {
       sentAt: existing.status === "SENT" ? undefined : new Date(),
     },
   });
+  // 학부모 앱 새 리포트 알림 — 처음 발송될 때만 (fire-and-forget)
+  if (existing.status !== "SENT") {
+    queueParentReportPush(
+      existing.studentId,
+      existing.type === "MONTHLY"
+        ? "ONLINE_MONTHLY"
+        : existing.type === "WEEKLY"
+          ? "ONLINE_WEEKLY"
+          : "ONLINE",
+    );
+  }
 
   revalidatePath(`/online/reports/${params.reportId}`);
   revalidatePath("/online/reports");
@@ -426,8 +442,7 @@ export async function submitParentFeedback(params: {
   name?: string | null;
   content: string;
 }) {
-  if (!params.content.trim()) throw new Error("내용을 입력해 주세요");
-  if (params.content.length > 2000) throw new Error("2000자 이내로 작성해 주세요");
+  validateParentFeedbackContent(params.content);
 
   const report = await prisma.onlineParentReport.findUnique({
     where: { token: params.token },
@@ -441,21 +456,11 @@ export async function submitParentFeedback(params: {
     throw new Error("유효하지 않은 보고서입니다");
   }
 
-  await prisma.onlineParentFeedback.create({
-    data: {
-      reportId: report.id,
-      name: params.name?.trim() || null,
-      content: params.content.trim(),
-    },
-  });
-
-  const label = params.name?.trim() ? `"${params.name.trim()}" 님` : "학부모님";
-  await notifySlack(
-    `💬 *${report.student.name} 학부모 피드백 도착*\n${label}: ${params.content.slice(0, 200)}${params.content.length > 200 ? "..." : ""}\n_/online/reports/${report.id} 에서 확인_`
+  // 핵심 로직: src/lib/online/parent-feedback.ts — 학부모 앱과 공용
+  return createOnlineParentFeedback(
+    { id: report.id, studentName: report.student.name },
+    { name: params.name, content: params.content },
   );
-
-  revalidatePath(`/online/reports/${report.id}`);
-  return { ok: true };
 }
 
 /**

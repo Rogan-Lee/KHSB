@@ -1,9 +1,45 @@
 import { z } from "zod";
 
-import type { Role, TaskFeedbackStatus } from "@/generated/prisma";
+import type { Prisma, Role, TaskFeedbackStatus } from "@/generated/prisma";
 import { MobileApiError } from "@/lib/mobile-auth";
+import { staffCapabilities } from "@/lib/mobile-capabilities";
 import { prisma } from "@/lib/prisma";
+import { isFullAccess } from "@/lib/roles";
 import { notifySlack } from "@/lib/slack";
+import { isResponsibleFor } from "@/lib/student-access";
+import { assignedToMeWhere } from "@/lib/student-filters";
+
+/** 직원 조회자 — 원장·SA 는 전체, 그 외 직원은 담당 학생만 (웹 /online/performance 와 동일) */
+type StaffViewer = { id: string; role: Role | string };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** 완료된 수행평가는 최근 45일 것만 목록에 */
+const DONE_LOOKBACK_DAYS = 45;
+
+const assignmentSelect = {
+  assignedConsultantId: true,
+  assignedMentorId: true,
+  assignedStaffId: true,
+  mentorId: true,
+} as const;
+
+function staffStudentWhere(user?: StaffViewer): Prisma.StudentWhereInput {
+  return !user || isFullAccess(user.role) ? {} : assignedToMeWhere(user.id);
+}
+
+function assertCanViewStudentTasks(
+  user: StaffViewer,
+  student: {
+    assignedConsultantId: string | null;
+    assignedMentorId: string | null;
+    assignedStaffId: string | null;
+    mentorId: string | null;
+  },
+  message = "담당 학생의 수행평가만 볼 수 있어요",
+) {
+  if (isFullAccess(user.role)) return;
+  if (!isResponsibleFor(student, user.id)) throw new MobileApiError(message, 403);
+}
 
 const fileSchema = z.object({
   mimeType: z.string().trim().min(1).max(160),
@@ -245,16 +281,28 @@ export async function submitMobileStudentTask(
   return { ok: true, version };
 }
 
-export async function getMobileStaffTasks() {
+/**
+ * 직원 수행평가 목록. user 를 넘기면 담당 학생으로 스코핑(원장·SA 는 전체).
+ * user 없이 부르면 전체(구 호출부 호환) — 새 호출부는 반드시 user 를 넘길 것.
+ */
+export async function getMobileStaffTasks(
+  user?: StaffViewer,
+  now = new Date(),
+) {
+  const doneSince = new Date(now.getTime() - DONE_LOOKBACK_DAYS * DAY_MS);
   const tasks = await prisma.performanceTask.findMany({
-    where: { submissions: { some: {} } },
+    where: {
+      student: { status: "ACTIVE", ...staffStudentWhere(user) },
+      OR: [{ status: { not: "DONE" } }, { updatedAt: { gte: doneSince } }],
+    },
     orderBy: [{ updatedAt: "desc" }, { dueDate: "asc" }],
-    take: 100,
+    take: 300,
     select: {
+      _count: { select: { submissions: true } },
       dueDate: true,
       id: true,
       status: true,
-      student: { select: { grade: true, id: true, name: true } },
+      student: { select: { grade: true, id: true, name: true, school: true } },
       subject: true,
       submissions: {
         orderBy: { version: "desc" },
@@ -267,6 +315,7 @@ export async function getMobileStaffTasks() {
         },
       },
       title: true,
+      updatedAt: true,
     },
   });
   const items = tasks.map((task) => {
@@ -286,12 +335,19 @@ export async function getMobileStaffTasks() {
       statusLabel: statusLabel(task.status),
       student: task.student,
       subject: task.subject,
+      submissionCount: task._count.submissions,
       title: task.title,
+      updatedAt: task.updatedAt.toISOString(),
     };
   });
   return {
     items,
+    scope: !user || isFullAccess(user.role) ? ("all" as const) : ("assigned" as const),
+    canWriteFeedback: user ? staffCapabilities(user.role).writeFeedback : false,
     summary: {
+      active: items.filter(
+        (item) => item.status === "OPEN" || item.status === "IN_PROGRESS",
+      ).length,
       done: items.filter((item) => item.status === "DONE").length,
       needsFeedback: items.filter(
         (item) =>
@@ -300,11 +356,12 @@ export async function getMobileStaffTasks() {
       ).length,
       needsRevision: items.filter((item) => item.status === "NEEDS_REVISION")
         .length,
+      review: items.filter((item) => item.status === "SUBMITTED").length,
     },
   };
 }
 
-export async function getMobileStaffTask(taskId: string) {
+export async function getMobileStaffTask(user: StaffViewer, taskId: string) {
   const task = await prisma.performanceTask.findUnique({
     where: { id: taskId },
     select: {
@@ -315,7 +372,13 @@ export async function getMobileStaffTask(taskId: string) {
       scoreWeight: true,
       status: true,
       student: {
-        select: { grade: true, id: true, name: true, school: true },
+        select: {
+          grade: true,
+          id: true,
+          name: true,
+          school: true,
+          ...assignmentSelect,
+        },
       },
       subject: true,
       submissions: {
@@ -343,8 +406,13 @@ export async function getMobileStaffTask(taskId: string) {
     },
   });
   if (!task) throw new MobileApiError("수행평가를 찾을 수 없습니다", 404);
+  assertCanViewStudentTasks(user, task.student);
 
   return {
+    canWriteFeedback:
+      staffCapabilities(user.role).writeFeedback &&
+      task.status !== "DONE" &&
+      task.submissions.length > 0,
     description: task.description,
     dueDate: task.dueDate.toISOString(),
     format: task.format,
@@ -352,7 +420,12 @@ export async function getMobileStaffTask(taskId: string) {
     scoreWeight: task.scoreWeight,
     status: task.status,
     statusLabel: statusLabel(task.status),
-    student: task.student,
+    student: {
+      grade: task.student.grade,
+      id: task.student.id,
+      name: task.student.name,
+      school: task.student.school,
+    },
     subject: task.subject,
     submissions: task.submissions.map((submission) => ({
       feedbacks: submission.feedbacks.map((feedback) => ({
@@ -373,16 +446,13 @@ export async function getMobileStaffTask(taskId: string) {
   };
 }
 
-function canWriteTaskFeedback(role: Role) {
-  return ["SUPER_ADMIN", "DIRECTOR", "CONSULTANT"].includes(role);
-}
-
 export async function createMobileTaskFeedback(
   user: { id: string; role: Role },
   submissionId: string,
   input: unknown,
 ) {
-  if (!canWriteTaskFeedback(user.role)) {
+  // 역할 게이팅은 capability 단일 출처 (src/lib/mobile-capabilities.ts)
+  if (!staffCapabilities(user.role).writeFeedback) {
     throw new MobileApiError("수행평가 피드백 권한이 필요합니다", 403);
   }
   const data = parseBody(feedbackSchema, input);
@@ -395,6 +465,7 @@ export async function createMobileTaskFeedback(
         select: {
           id: true,
           status: true,
+          student: { select: assignmentSelect },
           studentId: true,
           submissions: {
             orderBy: { version: "desc" },
@@ -406,6 +477,11 @@ export async function createMobileTaskFeedback(
     },
   });
   if (!submission) throw new MobileApiError("제출물을 찾을 수 없습니다", 404);
+  assertCanViewStudentTasks(
+    user,
+    submission.task.student,
+    "담당 학생의 수행평가에만 피드백을 남길 수 있어요",
+  );
   if (submission.task.status === "DONE") {
     throw new MobileApiError("완료된 수행평가에는 피드백을 추가할 수 없습니다", 409);
   }
@@ -454,5 +530,10 @@ export async function createMobileTaskFeedback(
     });
   }
 
-  return { ok: true, status: data.status };
+  return {
+    ok: true,
+    status: data.status,
+    studentId: submission.task.studentId,
+    taskId: submission.task.id,
+  };
 }

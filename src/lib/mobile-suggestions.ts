@@ -1,3 +1,5 @@
+import { revalidatePath } from "next/cache";
+
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
 import { notifySlack } from "@/lib/slack";
@@ -43,6 +45,8 @@ export async function getMobileStudentSuggestions(studentId: string) {
     handledAt: r.handledAt ? r.handledAt.toISOString() : null,
     createdAt: r.createdAt.toISOString(),
     hasUnseenUpdate: isUnseen(r.statusUpdatedAt, r.studentReadAt),
+    // 원장이 삭제 처리한 건의 — 웹 포털처럼 '삭제됨' 안내
+    deletedAt: r.deletedAt ? r.deletedAt.toISOString() : null,
   }));
 
   const unseen = items.filter((i) => i.hasUnseenUpdate).length;
@@ -98,6 +102,10 @@ export async function createMobileStudentSuggestion(
   void notifySlack(
     `📮 [학생 건의·앱] ${student.name}(${student.grade}) · ${CATEGORY_LABELS[category]} — "${title}"`,
   );
+
+  // 웹 액션(createStudentSuggestion)과 같은 경로 갱신 — 직원 건의 목록·대시보드
+  revalidatePath("/suggestions");
+  revalidatePath("/");
 
   return { ok: true, id: created.id };
 }

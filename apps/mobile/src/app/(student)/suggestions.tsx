@@ -1,223 +1,309 @@
-import { Lightbulb, Plus } from 'lucide-react-native';
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Megaphone, MessageSquareReply, Plus, Trash2 } from 'lucide-react-native';
+import { useEffect, useRef, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import { AppScreen } from '@/components/app-screen';
-import { FormSheet } from '@/components/form-sheet';
 import {
   Badge,
-  Card,
+  BottomSheet,
+  Button,
+  Chip,
+  ChipGroup,
+  color,
   EmptyState,
   ErrorState,
-  LoadingState,
-  PrimaryButton,
-  Segmented,
-} from '@/components/mobile-ui';
-import { FormError, FormInput } from '@/components/workflow-ui';
-import { colors, palette, radius, spacing, Tone, type } from '@/constants/theme';
-import { formatRelativeTime } from '@/lib/format';
-import { mutateMobileApi, useMobileQuery } from '@/lib/mobile-api';
-import type {
-  SuggestionCategory,
-  SuggestionItem,
-  SuggestionListResponse,
-  SuggestionStatus,
-} from '@/lib/mobile-api';
+  Notice,
+  radius,
+  Screen,
+  Section,
+  Skeleton,
+  space,
+  Stack,
+  Text,
+  TextField,
+  toast,
+} from '@/design';
+import {
+  SUGGESTION_CATEGORIES,
+  SUGGESTION_STATUS,
+  SUGGESTIONS_PATH,
+  type StudentSuggestion,
+  type StudentSuggestionsResponse,
+} from '@/lib/api/student-suggestions';
+import { refreshBadges } from '@/lib/badges';
+import { mutateMobileApi, useMobileQuery, type SuggestionCategory } from '@/lib/mobile-api';
 
-const BASE = '/api/mobile/v1/student/suggestions';
+// 웹 학생 포털 건의사항(/s/[token]/suggestions)과 같은 구성: 안내 → 건의 카드 → 하단 "건의하기" → 작성 시트.
+// 서버 GET 이 조회와 동시에 미확인 업데이트를 읽음 처리한다.
 
-const CATEGORIES: { label: string; value: SuggestionCategory }[] = [
-  { label: '시설', value: 'FACILITY' },
-  { label: '수업', value: 'CLASS' },
-  { label: '운영', value: 'OPERATION' },
-  { label: '기타', value: 'ETC' },
-];
+const MAX_TITLE = 120;
+const MAX_CONTENT = 2000;
 
-function statusTone(status: SuggestionStatus): Tone {
-  switch (status) {
-    case 'REFLECTED':
-      return 'positive';
-    case 'REVIEWING':
-      return 'blue';
-    case 'DECLINED':
-      return 'neutral';
-    default:
-      return 'warning';
-  }
+/** 9월 25일 14:30 (KST) */
+function fmtDate(iso: string): string {
+  const d = new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000);
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 ${hh}:${mm}`;
 }
 
 export default function StudentSuggestionsScreen() {
-  const { data, error, isLoading, isRefreshing, refresh, retry } =
-    useMobileQuery<SuggestionListResponse>(BASE);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const { data, error, isRefreshing, refresh, retry } =
+    useMobileQuery<StudentSuggestionsResponse>(SUGGESTIONS_PATH);
+  const [open, setOpen] = useState(false);
+
+  // 조회로 읽음 처리됐으니 배지 갱신
+  const unseen = data?.summary.unseen ?? 0;
+  useEffect(() => {
+    if (unseen > 0) refreshBadges();
+  }, [unseen]);
+
   const items = data?.items ?? [];
 
   return (
-    <AppScreen
-      eyebrow="SUGGESTIONS"
-      onRefresh={() => void refresh()}
-      refreshing={isRefreshing}
-      subtitle="시설·수업·운영에 대한 제안"
-      title="건의사항">
-      <PrimaryButton onPress={() => setSheetOpen(true)}>
-        <View style={styles.newBtn}>
-          <Plus color={colors.textOncolor} size={18} strokeWidth={2.4} />
-          <Text style={styles.newBtnText}>새 건의 작성</Text>
-        </View>
-      </PrimaryButton>
+    <>
+      <Screen
+        kind="push"
+        title="건의사항"
+        backFallback="/(student)/(tabs)/menu"
+        refreshing={isRefreshing}
+        onRefresh={() => void refresh()}
+        footer={
+          data ? (
+            <Button variant="primary" size="xl" block icon={Plus} onPress={() => setOpen(true)}>
+              건의하기
+            </Button>
+          ) : undefined
+        }>
+        {!data ? (
+          error ? (
+            <ErrorState message={error} onRetry={() => void retry()} />
+          ) : (
+            <SuggestionsSkeleton />
+          )
+        ) : items.length === 0 ? (
+          <Section>
+            <EmptyState
+              icon={Megaphone}
+              tone="brand"
+              title="아직 건의사항이 없어요"
+              description={'불편한 점이나 바라는 점을 알려주세요.\n검토 후 결과를 여기서 안내해 드려요.'}
+              style={{ paddingVertical: space.x10 }}
+            />
+          </Section>
+        ) : (
+          <Stack>
+            <Text variant="t4-regular" color="neutralSubtle" style={s.intro}>
+              불편한 점이나 바라는 점을 알려주세요. 검토 후 결과를 여기서 안내해 드려요.
+            </Text>
+            {items.map((item) => (
+              <SuggestionCard key={item.id} item={item} />
+            ))}
+          </Stack>
+        )}
+      </Screen>
 
-      {isLoading && !data ? <LoadingState /> : null}
-      {error && !data ? <ErrorState message={error} onRetry={() => void retry()} /> : null}
-      {data && items.length === 0 ? (
-        <EmptyState
-          title="작성한 건의가 없어요"
-          message="불편한 점이나 제안할 내용을 자유롭게 남겨주세요."
-        />
-      ) : null}
-
-      <View style={styles.list}>
-        {items.map((item) => (
-          <SuggestionCard key={item.id} item={item} />
-        ))}
-      </View>
-
-      {sheetOpen ? (
-        <SuggestionForm
-          onClose={() => setSheetOpen(false)}
-          onCreated={async () => {
-            setSheetOpen(false);
-            await refresh();
-          }}
-        />
-      ) : null}
-    </AppScreen>
+      <SuggestionSheet
+        open={open}
+        onClose={() => setOpen(false)}
+        onCreated={() => {
+          setOpen(false);
+          void refresh();
+          refreshBadges();
+        }}
+      />
+    </>
   );
 }
 
-function SuggestionCard({ item }: { item: SuggestionItem }) {
+function SuggestionCard({ item }: { item: StudentSuggestion }) {
+  const deleted = !!item.deletedAt;
+  const st = SUGGESTION_STATUS[item.status];
   return (
-    <Card>
-      <View style={styles.cardTop}>
-        <View style={styles.badges}>
-          <Badge tone="info">{item.categoryLabel}</Badge>
-          <Badge tone={statusTone(item.status)}>{item.statusLabel}</Badge>
-          {item.hasUnseenUpdate ? <Badge tone="negative">NEW</Badge> : null}
-        </View>
-        <Text style={styles.time}>{formatRelativeTime(item.createdAt)}</Text>
+    <Section>
+      <View style={s.badges}>
+        <Badge tone="gray">{item.categoryLabel}</Badge>
+        {deleted ? <Badge tone="bad">삭제됨</Badge> : <Badge tone={st.tone}>{st.label}</Badge>}
+        {item.hasUnseenUpdate && (
+          <View style={s.update} accessibilityLabel="새 업데이트">
+            <View style={s.dot} />
+            <Text variant="t3-bold" color="brand">
+              업데이트
+            </Text>
+          </View>
+        )}
       </View>
-      <Text style={styles.title}>{item.title}</Text>
-      <Text style={styles.content}>{item.content}</Text>
+
+      {deleted && (
+        <Notice tone="bad" icon={Trash2} style={{ marginTop: space.x3 }}>
+          관리자가 이 건의사항을 삭제했어요.
+        </Notice>
+      )}
+
+      <Text variant="t5-bold" color={deleted ? 'neutralMuted' : 'neutral'} style={{ marginTop: space.x3 }}>
+        {item.title}
+      </Text>
+      <Text
+        variant="t4-regular"
+        color={deleted ? 'neutralSubtle' : 'neutralMuted'}
+        style={{ marginTop: space.x1 }}>
+        {item.content}
+      </Text>
+
       {item.staffReply ? (
-        <View style={styles.reply}>
-          <Text style={styles.replyLabel}>
-            답변{item.handledByName ? ` · ${item.handledByName}` : ''}
+        <View style={s.reply}>
+          <View style={s.replyHead}>
+            <MessageSquareReply color={color.fg.brand} size={16} strokeWidth={2.2} />
+            <Text variant="t3-bold" color="neutralMuted">
+              원장 답변{item.handledByName ? ` · ${item.handledByName}` : ''}
+            </Text>
+          </View>
+          <Text variant="t4-regular" color="neutralMuted" style={{ marginTop: space.x1_5 }}>
+            {item.staffReply}
           </Text>
-          <Text style={styles.replyText}>{item.staffReply}</Text>
         </View>
       ) : null}
-    </Card>
+
+      <Text variant="t3-regular" color="neutralSubtle" tabular style={{ marginTop: space.x3 }}>
+        {fmtDate(item.createdAt)}
+      </Text>
+    </Section>
   );
 }
 
-function SuggestionForm({
+function SuggestionSheet({
+  open,
   onClose,
   onCreated,
 }: {
+  open: boolean;
   onClose: () => void;
-  onCreated: () => Promise<void>;
+  onCreated: () => void;
 }) {
   const [category, setCategory] = useState<SuggestionCategory>('FACILITY');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const [pending, setPending] = useState(false);
+  const busy = useRef(false);
 
-  async function submit() {
-    if (!title.trim()) {
-      setError('제목을 입력해 주세요.');
-      return;
-    }
-    if (!content.trim()) {
-      setError('건의 내용을 입력해 주세요.');
-      return;
-    }
-    setError('');
-    setSubmitting(true);
+  const submit = async () => {
+    if (busy.current) return;
+    if (!title.trim()) return toast('제목을 입력해 주세요', 'error');
+    if (!content.trim()) return toast('건의 내용을 입력해 주세요', 'error');
+    busy.current = true;
+    setPending(true);
     try {
-      await mutateMobileApi(BASE, 'POST', {
+      await mutateMobileApi(SUGGESTIONS_PATH, 'POST', {
         category,
         title: title.trim(),
         content: content.trim(),
       });
-      await onCreated();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '제출하지 못했습니다.');
+      toast('건의사항이 접수되었어요', 'success');
+      setCategory('FACILITY');
+      setTitle('');
+      setContent('');
+      onCreated();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : '건의를 보내지 못했어요', 'error');
     } finally {
-      setSubmitting(false);
+      busy.current = false;
+      setPending(false);
     }
-  }
+  };
 
   return (
-    <FormSheet
-      onClose={onClose}
-      subtitle="작성한 건의는 담당 직원이 검토합니다"
-      title="새 건의 작성"
-      visible>
-      <Text style={styles.fieldLabel}>분류</Text>
-      <Segmented
-        options={CATEGORIES}
-        value={category}
-        onChange={(v) => setCategory(v as SuggestionCategory)}
-      />
-      <FormInput
-        label="제목"
-        maxLength={120}
-        onChangeText={setTitle}
-        placeholder="한 줄로 요약해 주세요"
-        value={title}
-      />
-      <FormInput
-        label="내용"
-        maxLength={2000}
-        multiline
-        onChangeText={setContent}
-        placeholder="자세한 내용을 적어주세요"
-        value={content}
-      />
-      <FormError message={error} />
-      <PrimaryButton disabled={submitting} onPress={() => void submit()}>
-        {submitting ? '제출 중…' : '건의 제출하기'}
-      </PrimaryButton>
-    </FormSheet>
+    <BottomSheet
+      open={open}
+      onClose={() => {
+        if (!pending) onClose();
+      }}
+      dismissible={!pending}
+      title="어떤 점을 건의할까요?"
+      description="원장님이 확인하고 답변을 남겨 드려요."
+      footer={
+        <Button variant="primary" size="xl" block loading={pending} onPress={() => void submit()} style={{ flex: 1 }}>
+          건의 보내기
+        </Button>
+      }>
+      <View style={{ gap: space.x5, paddingBottom: space.x1 }}>
+        <View style={{ gap: space.x2 }}>
+          <Text variant="t5-medium">분류</Text>
+          <ChipGroup>
+            {SUGGESTION_CATEGORIES.map((c) => (
+              <Chip
+                key={c.value}
+                selected={category === c.value}
+                onPress={() => setCategory(c.value)}
+                disabled={pending}>
+                {c.label}
+              </Chip>
+            ))}
+          </ChipGroup>
+        </View>
+
+        <TextField
+          label="제목"
+          value={title}
+          onChangeText={setTitle}
+          placeholder="예: 3층 정수기 온수가 안 나와요"
+          maxLength={MAX_TITLE}
+          showCount
+          editable={!pending}
+          returnKeyType="next"
+        />
+
+        <TextField
+          label="내용"
+          value={content}
+          onChangeText={setContent}
+          placeholder="건의 내용을 자세히 적어 주세요"
+          maxLength={MAX_CONTENT}
+          showCount
+          multiline
+          minHeight={140}
+          editable={!pending}
+        />
+      </View>
+    </BottomSheet>
   );
 }
 
-const styles = StyleSheet.create({
-  newBtn: { alignItems: 'center', flexDirection: 'row', gap: 7 },
-  newBtnText: { ...type.label1, color: colors.textOncolor, fontWeight: '700' },
-  list: { gap: spacing.md },
-  cardTop: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  badges: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  time: { ...type.caption2, color: colors.textAssistive },
-  title: { ...type.label1, color: colors.textNormal, marginTop: spacing.sm },
-  content: {
-    ...type.body3,
-    color: colors.textAlternative,
-    lineHeight: 21,
-    marginTop: 4,
-  },
+function SuggestionsSkeleton() {
+  return (
+    <Stack>
+      <Skeleton style={{ width: '85%', height: 16, marginTop: space.x2, marginLeft: space.x1 }} />
+      {[0, 1].map((i) => (
+        <View key={i} style={s.skeletonCard}>
+          <View style={{ flexDirection: 'row', gap: space.x1_5 }}>
+            <Skeleton style={{ width: 36, height: 20 }} />
+            <Skeleton style={{ width: 44, height: 20 }} />
+          </View>
+          <Skeleton style={{ width: '60%', height: 20 }} />
+          <Skeleton style={{ width: '100%', height: 16 }} />
+          <Skeleton style={{ width: '80%', height: 16 }} />
+          <Skeleton style={{ width: 90, height: 14 }} />
+        </View>
+      ))}
+    </Stack>
+  );
+}
+
+const s = StyleSheet.create({
+  intro: { paddingHorizontal: space.x1, paddingTop: space.x2 },
+  badges: { flexDirection: 'row', alignItems: 'center', gap: space.x1_5 },
+  update: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: space.x1_5 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: color.bg.brandSolid },
   reply: {
-    backgroundColor: palette.blue5,
-    borderRadius: radius.lg,
-    gap: 4,
-    marginTop: spacing.md,
-    padding: spacing.md,
+    marginTop: space.x4,
+    borderRadius: radius.r3_5,
+    backgroundColor: color.bg.layerFill,
+    paddingHorizontal: space.x4,
+    paddingVertical: space.x3_5,
   },
-  replyLabel: { ...type.caption2, color: palette.blue50, fontWeight: '700' },
-  replyText: { ...type.body3, color: colors.textNormal, lineHeight: 20 },
-  fieldLabel: { ...type.label2, color: colors.textNormal, marginBottom: 8 },
+  replyHead: { flexDirection: 'row', alignItems: 'center', gap: space.x1_5 },
+  skeletonCard: {
+    backgroundColor: color.bg.layerDefault,
+    borderRadius: radius.r5,
+    padding: space.x5,
+    gap: space.x3,
+  },
 });

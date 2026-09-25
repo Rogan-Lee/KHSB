@@ -16,8 +16,19 @@ import {
   type AttendanceSlot,
   type OutingSlot,
 } from "@/lib/online/schedule-commit";
+import {
+  approveScheduleProposalCore,
+  rejectScheduleProposalCore,
+} from "@/lib/online/schedule-parent-decision";
+import { queueParentScheduleProposalPush } from "@/lib/mobile-push";
+import {
+  listScheduleProposalsForStudent,
+  submitScheduleProposalForStudent,
+} from "@/lib/online/schedule-student-core";
 
 // ───────────────────── 학생 (매직링크 토큰) ─────────────────────
+
+// 핵심 로직은 src/lib/online/schedule-student-core.ts (학생 앱과 공용). 여기서는 토큰 인증만.
 
 /** 학생이 주간 등하원/외출 스케줄을 제출. 새 버전으로 기록. */
 export async function submitScheduleProposal(params: {
@@ -28,44 +39,14 @@ export async function submitScheduleProposal(params: {
 }) {
   const session = await validateMagicLink(params.studentToken);
   if (!session) throw new Error("인증이 만료되었습니다");
-
-  const attendance = sanitizeAttendance(params.attendance);
-  const outings = sanitizeOutings(params.outings);
-
-  const last = await prisma.scheduleProposal.findFirst({
-    where: { studentId: session.student.id },
-    orderBy: { version: "desc" },
-    select: { version: true },
-  });
-  const version = (last?.version ?? 0) + 1;
-
-  const created = await prisma.scheduleProposal.create({
-    data: {
-      studentId: session.student.id,
-      version,
-      status: "SUBMITTED",
-      submittedAttendance: attendance,
-      submittedOutings: outings,
-      studentMemo: params.memo?.trim() || null,
-      // 제안 초기값 = 제출값 (운영진이 검토/수정)
-      proposedAttendance: attendance,
-      proposedOutings: outings,
-    },
-  });
-  revalidatePath("/online/schedules");
-  return { id: created.id, version };
+  return submitScheduleProposalForStudent(session.student.id, params);
 }
 
 /** 학생 포털 — 본인 제출 이력. */
 export async function listMyScheduleProposals(studentToken: string) {
   const session = await validateMagicLink(studentToken);
   if (!session) throw new Error("인증이 만료되었습니다");
-  const rows = await prisma.scheduleProposal.findMany({
-    where: { studentId: session.student.id },
-    orderBy: { version: "desc" },
-    select: { id: true, version: true, status: true, createdAt: true, committedAt: true },
-  });
-  return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString(), committedAt: r.committedAt?.toISOString() ?? null }));
+  return listScheduleProposalsForStudent(session.student.id);
 }
 
 // ───────────────────── 운영진 (Clerk, 원장) ─────────────────────
@@ -136,8 +117,10 @@ export async function sendProposalToParent(id: string, effectiveDate: string) {
       expiresAt: reportExpiresAt(),
       revokedAt: null,
     },
-    select: { token: true },
+    select: { token: true, studentId: true },
   });
+  // 학부모 앱 승인 요청 알림 (fire-and-forget) — 앱 등원 스케줄 화면에서 바로 승인 가능
+  queueParentScheduleProposalPush(updated.studentId, id);
   revalidatePath(`/online/schedules/${id}`);
   revalidatePath("/online/schedules");
   return { token: updated.token };
@@ -240,43 +223,23 @@ export async function rollbackScheduleProposal(id: string) {
 }
 
 // ───────────────────── 학부모 (토큰 게이트) ─────────────────────
+// 핵심 로직은 src/lib/online/schedule-parent-decision.ts (학부모 앱과 공용). 여기서는 토큰 게이트만.
 
 /** 학부모 승인 — APPROVED. 게이트 통과 필요. 실행 예정일이 이미 도래했으면 즉시 반영. */
 export async function approveScheduleProposal(token: string) {
-  const proposal = await prisma.scheduleProposal.findUnique({ where: { token }, select: { id: true, studentId: true, status: true, scheduledFor: true } });
+  const proposal = await prisma.scheduleProposal.findUnique({ where: { token }, select: { id: true, studentId: true } });
   if (!proposal) throw new Error("스케줄을 찾을 수 없습니다");
   const passed = await hasGatePass("PARENT", token, proposal.studentId);
   if (!passed) throw new Error("본인 확인이 필요합니다");
-  if (proposal.status !== "PROPOSED") throw new Error("승인할 수 없는 상태입니다");
-
-  await prisma.scheduleProposal.update({ where: { id: proposal.id }, data: { status: "APPROVED", approvedAt: new Date() } });
-
-  // 실행 예정일이 오늘 이하면(검토 지연 등) cron 을 기다리지 않고 즉시 반영. 미래면 예정일 cron 이 처리.
-  const todayStr = todayKST().toISOString().slice(0, 10);
-  if (proposal.scheduledFor && proposal.scheduledFor.toISOString().slice(0, 10) <= todayStr) {
-    await applyProposalCommit(proposal.id, null);
-  }
-  revalidatePath("/online/schedules");
-  return { ok: true };
+  return approveScheduleProposalCore(proposal.id);
 }
 
 /** 학부모 반려 — REJECTED + 피드백. 게이트 통과 필요. */
 export async function rejectScheduleProposal(token: string, content: string) {
-  const proposal = await prisma.scheduleProposal.findUnique({ where: { token }, select: { id: true, studentId: true, status: true } });
+  const proposal = await prisma.scheduleProposal.findUnique({ where: { token }, select: { id: true, studentId: true } });
   if (!proposal) throw new Error("스케줄을 찾을 수 없습니다");
   const passed = await hasGatePass("PARENT", token, proposal.studentId);
   if (!passed) throw new Error("본인 확인이 필요합니다");
-
-  const text = content.trim();
-  if (!text) throw new Error("의견을 입력해 주세요");
-
-  // 승인 전(PROPOSED)이면 반려 처리, 이미 반영/처리된 뒤면 상태 유지하고 피드백만 남긴다.
-  await prisma.$transaction([
-    ...(proposal.status === "PROPOSED"
-      ? [prisma.scheduleProposal.update({ where: { id: proposal.id }, data: { status: "REJECTED" } })]
-      : []),
-    prisma.scheduleProposalFeedback.create({ data: { proposalId: proposal.id, content: text } }),
-  ]);
-  revalidatePath("/online/schedules");
+  await rejectScheduleProposalCore(proposal.id, content);
   return { ok: true };
 }
