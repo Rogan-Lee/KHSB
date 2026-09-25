@@ -1,13 +1,15 @@
 "use client";
 
+import { useId } from "react";
 import {
+  Area,
+  AreaChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
+  type TooltipPayloadEntry,
 } from "recharts";
 
 interface Datum {
@@ -22,57 +24,102 @@ interface Props {
   data: Datum[];
 }
 
+// SEED 토큰 — 학부모 리포트(ReportShell, light-only) 안에서 SVG 속성에 CSS 변수로 사용
+const COLOR = {
+  line: "var(--seed-color-fg-brand)",
+  grid: "var(--seed-color-stroke-neutral-subtle)",
+  axisLine: "var(--seed-color-stroke-neutral-weak)",
+  tick: "var(--seed-color-fg-neutral-subtle)",
+  surface: "var(--seed-color-bg-layer-default)",
+};
+
+/** "2026-09-03" → "9/3" */
+function shortDate(iso: unknown): string {
+  const [, m, d] = String(iso ?? "").split("-");
+  return m && d ? `${Number(m)}/${Number(d)}` : String(iso ?? "");
+}
+
+/** "2026-09-03" → "9월 3일" */
+function longDate(iso: unknown): string {
+  const [, m, d] = String(iso ?? "").split("-");
+  return m && d ? `${Number(m)}월 ${Number(d)}일` : String(iso ?? "");
+}
+
 /**
  * 영단어 학습 추이 라인 차트(클라이언트). 부모 서버 컴포넌트가 데이터 정제까지 처리.
  * X = testDate (월/일), Y = 정답률(%) 0~100.
  */
 export function VocabTrendMiniChartView({ data }: Props) {
+  const gradientId = `vocab-fill-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   return (
-    <div className="h-48 rounded-[12px] border border-gray-100 bg-white p-2">
+    <div className="h-48 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 10, right: 12, bottom: 4, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#EFEFEC" vertical={false} />
+        <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={COLOR.line} stopOpacity={0.18} />
+              <stop offset="100%" stopColor={COLOR.line} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke={COLOR.grid} vertical={false} />
           <XAxis
-            dataKey="date"
-            fontSize={11}
-            tick={{ fill: "#8A8D94" }}
+            dataKey="isoDate"
+            fontSize={12}
+            tick={{ fill: COLOR.tick }}
+            tickFormatter={shortDate}
             tickLine={false}
-            axisLine={{ stroke: "#DADAD6" }}
+            axisLine={{ stroke: COLOR.axisLine }}
+            tickMargin={8}
+            interval="preserveStartEnd"
+            minTickGap={12}
           />
           <YAxis
-            fontSize={11}
-            tick={{ fill: "#8A8D94" }}
+            fontSize={12}
+            tick={{ fill: COLOR.tick }}
             domain={[0, 100]}
             ticks={[0, 25, 50, 75, 100]}
             tickLine={false}
             axisLine={false}
-            unit="%"
+            width={32}
           />
           <Tooltip
-            formatter={(v, _name, item) => {
-              const p = (item as { payload?: Datum } | undefined)?.payload;
-              const detail = p ? ` (${p.correctWords}/${p.totalWords})` : "";
-              return [`${v}점${detail}`, "정답률"];
-            }}
-            labelFormatter={(label) => `${label}`}
-            contentStyle={{
-              fontSize: 12,
-              borderRadius: 10,
-              border: "1px solid #E8E8E5",
-              boxShadow: "0 10px 28px -12px rgba(20,20,25,0.18)",
-            }}
+            cursor={{ stroke: COLOR.axisLine, strokeWidth: 1 }}
+            content={({ active, payload }) => <VocabTooltip active={active} payload={payload} />}
           />
-          <Line
+          <Area
             type="monotone"
             dataKey="score"
             name="정답률"
-            stroke="#2E9D6B"
-            strokeWidth={2.5}
-            dot={{ r: 3.5, fill: "#2E9D6B", strokeWidth: 2, stroke: "white" }}
-            activeDot={{ r: 5 }}
+            stroke={COLOR.line}
+            strokeWidth={2}
+            fill={`url(#${gradientId})`}
+            dot={{ r: 4, fill: COLOR.line, strokeWidth: 2, stroke: COLOR.surface }}
+            activeDot={{ r: 6, strokeWidth: 2, stroke: COLOR.surface }}
           />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+function VocabTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<TooltipPayloadEntry>;
+}) {
+  const p = payload?.[0]?.payload as Datum | undefined;
+  if (!active || !p) return null;
+  return (
+    <div className="rounded-r3 bg-bg-layer-floating px-x3 py-x2_5 shadow-s2">
+      <p className="t3-bold text-fg-neutral">{longDate(p.isoDate)}</p>
+      <p className="mt-x1 flex items-baseline gap-x1_5">
+        <span className="t5-bold tabular-nums text-fg-neutral">{p.score}점</span>
+        <span className="t3-regular tabular-nums text-fg-neutral-subtle">
+          {p.correctWords}/{p.totalWords}개 정답
+        </span>
+      </p>
     </div>
   );
 }

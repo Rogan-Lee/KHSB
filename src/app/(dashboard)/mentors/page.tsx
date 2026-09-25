@@ -59,10 +59,8 @@ export default async function MentorsPage() {
     (contractsByUser[c.userId] ??= []).push(c);
   }
 
+  // 페이지 머리(PageHeader · 직원 추가 버튼)는 MentorManager 가 그린다 — 추가 다이얼로그 상태를 함께 쓰기 때문
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-bold">직원 관리</h1>
-      <MentorManager mentors={mentors} schedules={schedules} linksByUser={linksByUser} contractsByUser={contractsByUser} currentUserId={session?.user?.id ?? ""} />
-    </div>
+    <MentorManager mentors={mentors} schedules={schedules} linksByUser={linksByUser} contractsByUser={contractsByUser} currentUserId={session?.user?.id ?? ""} />
   );
 }

@@ -4,23 +4,44 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Moon } from "lucide-react";
+import { Fieldset } from "@seed-design/react";
 import { requestNap, type NapView } from "@/actions/nap";
-import { TimePickerInput } from "@/components/ui/time-picker";
-import type { NapStatus } from "@/generated/prisma/enums";
+import { PortalTimeField } from "@/components/portal/time-field";
+import {
+  Badge,
+  BottomCTA,
+  Button,
+  EmptyState,
+  IconTile,
+  ListRow,
+  Notice,
+  ProgressBar,
+  Section,
+  Segmented,
+} from "@/components/portal/ui";
+import { REQUEST_STATUS } from "@/components/portal/status";
+import { cn } from "@/lib/utils";
 
-const STATUS_LABEL: Record<NapStatus, string> = {
-  PENDING: "대기",
-  APPROVED: "승인",
-  REJECTED: "거절",
-};
-const STATUS_TONE: Record<NapStatus, string> = {
-  PENDING: "bg-warn-soft text-warn-ink",
-  APPROVED: "bg-ok-soft text-ok-ink",
-  REJECTED: "bg-bad-soft text-bad-ink",
-};
+const DURATIONS = [
+  { value: "20", label: "20분" },
+  { value: "30", label: "30분" },
+];
+
+const DOW = ["일", "월", "화", "수", "목", "금", "토"];
 
 function nowKST(): string {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(11, 16);
+}
+
+function todayKSTStr(): string {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/** "YYYY-MM-DD" → "9월 24일 (수)" */
+function fmtDate(date: string): string {
+  const [, m, d] = date.split("-").map(Number);
+  const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return `${m}월 ${d}일 (${DOW[dow]})`;
 }
 
 export function NapPanel({
@@ -39,6 +60,7 @@ export function NapPanel({
   const [durationMin, setDurationMin] = useState(20);
   const [pending, startTransition] = useTransition();
   const remaining = Math.max(0, limit - todayCount);
+  const today = todayKSTStr();
 
   function submit() {
     startTransition(async () => {
@@ -53,95 +75,127 @@ export function NapPanel({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-[18px] font-bold tracking-[-0.02em] text-ink">쪽잠 신청</h1>
-        <span className="rounded-full bg-canvas-2 px-3 py-1 text-[12px] font-semibold tabular-nums text-ink-3">
-          오늘 {todayCount}/{limit}회
-        </span>
-      </div>
+    <div className="flex flex-col gap-x3">
+      {/* 오늘 남은 횟수 */}
+      <Section>
+        <div className="flex items-start justify-between gap-x4">
+          <div>
+            <p className="t4-bold text-fg-neutral-muted">오늘 남은 쪽잠</p>
+            <p className="mt-x1 t11-bold text-fg-neutral tabular-nums">
+              {remaining}회
+              <span className="ml-x1 t6-bold text-fg-placeholder">/ {limit}회</span>
+            </p>
+          </div>
+          <IconTile icon={Moon} tone="violet" size={48} round />
+        </div>
+
+        {limit > 0 && limit <= 8 ? (
+          <div className="mt-x4 flex gap-x1_5" aria-hidden>
+            {Array.from({ length: limit }, (_, i) => (
+              <span
+                key={i}
+                className={cn(
+                  "h-x2 flex-1 rounded-full transition-colors duration-d6",
+                  i < remaining ? "bg-bg-brand-solid" : "bg-bg-neutral-weak"
+                )}
+              />
+            ))}
+          </div>
+        ) : (
+          <ProgressBar value={limit > 0 ? remaining / limit : 0} className="mt-x4" />
+        )}
+        <p className="mt-x2_5 t3-regular text-fg-neutral-subtle tabular-nums">
+          하루 {limit}회까지 신청할 수 있어요 · 오늘 {todayCount}회 신청
+        </p>
+
+        {remaining === 0 && (
+          <Notice tone="gray" title="오늘은 모두 신청했어요" className="mt-x4">
+            쪽잠은 하루 {limit}회까지 신청할 수 있어요. 내일 다시 신청해 주세요.
+          </Notice>
+        )}
+      </Section>
 
       {/* 신청 폼 */}
-      <div className="rounded-[14px] border border-line bg-panel p-4">
-        {remaining === 0 ? (
-          <p className="rounded-lg bg-canvas-2 px-3 py-2.5 text-[13px] text-ink-3">
-            쪽잠은 하루 {limit}회까지 신청할 수 있어요. 내일 다시 신청해 주세요.
-          </p>
-        ) : (
-          <>
-            <label className="mb-1 block text-[12px] font-medium text-ink-3">시작 시간</label>
-            <TimePickerInput value={startTime} onChange={setStartTime} className="mb-3" />
-
-            <label className="mb-1 block text-[12px] font-medium text-ink-3">쪽잠 시간</label>
-            <div className="mb-3 flex gap-1.5">
-              {[20, 30].map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setDurationMin(m)}
-                  className={`rounded-full border px-4 py-1.5 text-[13px] font-medium ${
-                    durationMin === m
-                      ? "border-brand bg-brand text-white"
-                      : "border-line bg-panel text-ink-3 hover:bg-canvas-2"
-                  }`}
-                >
-                  {m}분
-                </button>
-              ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={submit}
-              disabled={pending}
-              className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-brand text-[15px] font-semibold text-white disabled:opacity-50"
-            >
-              <Moon className="h-4 w-4" strokeWidth={2.5} />
-              쪽잠 신청하기
-            </button>
-            <p className="mt-2 text-center text-[11.5px] text-ink-4">
-              직원 승인 후 이용할 수 있어요 · 오늘 {remaining}회 남음
-            </p>
-          </>
-        )}
-      </div>
+      {remaining > 0 && (
+        <Section>
+          <div className="flex flex-col gap-x6">
+            <Fieldset.Root>
+              <Fieldset.Header>
+                <Fieldset.Label>시작 시간</Fieldset.Label>
+              </Fieldset.Header>
+              <PortalTimeField value={startTime} onChange={setStartTime} align="start" />
+            </Fieldset.Root>
+            <Fieldset.Root>
+              <Fieldset.Header>
+                <Fieldset.Label>쪽잠 시간</Fieldset.Label>
+              </Fieldset.Header>
+              <Segmented<string>
+                options={DURATIONS}
+                value={String(durationMin)}
+                onChange={(v) => setDurationMin(Number(v))}
+                aria-label="쪽잠 시간"
+              />
+            </Fieldset.Root>
+          </div>
+        </Section>
+      )}
 
       {/* 신청 내역 (오늘 + 최근 7일) */}
       {naps.length === 0 ? (
-        <div className="rounded-[14px] border border-dashed border-line bg-canvas-2/40 px-5 py-10 text-center">
-          <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-panel text-ink-4">
-            <Moon className="h-6 w-6" />
-          </span>
-          <p className="mt-3 text-[13.5px] font-semibold text-ink-2">아직 신청 내역이 없어요</p>
-          <p className="mt-1 text-[12px] text-ink-4">피곤할 땐 무리하지 말고 쪽잠을 신청하세요.</p>
-        </div>
+        <Section>
+          <EmptyState
+            icon={Moon}
+            title="아직 신청 내역이 없어요"
+            description="피곤할 땐 무리하지 말고 쪽잠을 신청해 보세요."
+            className="py-x8"
+          />
+        </Section>
       ) : (
-        <ul className="space-y-2">
-          {naps.map((n) => (
-            <li key={n.id} className="rounded-[14px] border border-line bg-panel p-3.5">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${STATUS_TONE[n.status]}`}
-                >
-                  {STATUS_LABEL[n.status]}
-                </span>
-                <span className="text-[13.5px] font-semibold tabular-nums text-ink">
-                  {n.startTime} · {n.durationMin}분
-                </span>
-                <span className="ml-auto text-[11.5px] tabular-nums text-ink-4">
-                  {n.date.slice(5).replace("-", "/")}
-                </span>
-              </div>
-              {n.note && (
-                <p className="mt-2 rounded-lg bg-canvas-2 px-3 py-2 text-[12px] text-ink-3">
-                  {n.note}
-                  {n.decidedByName ? ` — ${n.decidedByName}` : ""}
-                </p>
-              )}
-            </li>
-          ))}
-        </ul>
+        <Section title="최근 신청" flush>
+          {naps.map((n) => {
+            const status = REQUEST_STATUS[n.status];
+            return (
+              <ListRow
+                key={n.id}
+                title={
+                  <span className="tabular-nums">
+                    {n.startTime} · {n.durationMin}분
+                  </span>
+                }
+                description={
+                  <>
+                    <span className="tabular-nums">
+                      {n.date === today ? "오늘" : fmtDate(n.date)}
+                    </span>
+                    {n.note && (
+                      <span className="mt-x1 block text-fg-neutral-muted">
+                        {n.note}
+                        {n.decidedByName ? ` — ${n.decidedByName}` : ""}
+                      </span>
+                    )}
+                  </>
+                }
+                trailing={<Badge tone={status.tone}>{status.label}</Badge>}
+              />
+            );
+          })}
+        </Section>
       )}
+
+      <BottomCTA
+        note={remaining > 0 ? `직원 승인 후 이용할 수 있어요 · 오늘 ${remaining}회 남음` : undefined}
+      >
+        <Button
+          variant="primary"
+          size="xl"
+          block
+          loading={pending}
+          disabled={remaining === 0}
+          onClick={submit}
+        >
+          쪽잠 신청하기
+        </Button>
+      </BottomCTA>
     </div>
   );
 }

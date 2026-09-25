@@ -4,6 +4,9 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { GraduationCap, Loader2 } from "lucide-react";
+import { inputBaseClass } from "@/components/ui/input";
+import { Skeleton } from "@/components/backoffice/ui";
+import { cn } from "@/lib/utils";
 import { listSelectableExamSessions, setMonthlyReportExamSession } from "@/actions/online/parent-reports";
 
 type ExamOption = { id: string; title: string; examDate: string };
@@ -44,30 +47,41 @@ export function MonthlyExamSelector({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-[12px] border border-ink/10 bg-panel p-3">
-      <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink">
-        <GraduationCap className="h-4 w-4 text-ink-3" />
-        모의고사 성적 포함
-      </span>
-      {loading ? (
-        <Loader2 className="h-4 w-4 animate-spin text-ink-3" />
-      ) : (
-        <select
-          defaultValue={currentSessionId ?? ""}
-          disabled={pending}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-8 rounded-md border border-ink/15 bg-background px-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
-        >
-          <option value="">포함 안 함</option>
-          {options.map((o) => (
-            <option key={o.id} value={o.id}>{o.title} ({o.examDate})</option>
-          ))}
-        </select>
-      )}
-      {pending && <Loader2 className="h-4 w-4 animate-spin text-ink-3" />}
-      {!loading && options.length === 0 && (
-        <span className="text-[12px] text-ink-4">이 학생의 모의고사 성적이 없습니다</span>
-      )}
-    </div>
+    <section className="flex flex-col gap-x3 rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default px-x5 py-x4 sm:flex-row sm:items-center">
+      <div className="flex min-w-0 flex-1 items-start gap-x3">
+        <GraduationCap className="mt-x0_5 size-5 shrink-0 text-fg-neutral-subtle" aria-hidden />
+        <div className="min-w-0">
+          <label htmlFor={`exam-${reportId}`} className="t4-bold text-fg-neutral">
+            모의고사 성적 포함
+          </label>
+          <p className="mt-x0_5 t3-regular text-fg-neutral-subtle">
+            {!loading && options.length === 0
+              ? "이 학생의 모의고사 성적이 없어요."
+              : "바꾸면 선택한 성적을 반영해 초안을 다시 만들어요."}
+          </p>
+        </div>
+      </div>
+      <div className="flex items-center gap-x2 sm:w-72">
+        {loading ? (
+          <Skeleton className="h-x10 w-full rounded-r2" />
+        ) : (
+          <select
+            id={`exam-${reportId}`}
+            defaultValue={currentSessionId ?? ""}
+            disabled={pending}
+            onChange={(e) => onChange(e.target.value)}
+            className={cn(inputBaseClass, "h-x10 min-w-0 flex-1 cursor-pointer")}
+          >
+            <option value="">포함 안 함</option>
+            {options.map((o) => (
+              <option key={o.id} value={o.id}>{o.title} ({o.examDate})</option>
+            ))}
+          </select>
+        )}
+        {pending && (
+          <Loader2 className="size-4 shrink-0 animate-spin text-fg-neutral-subtle" aria-label="재생성 중" />
+        )}
+      </div>
+    </section>
   );
 }

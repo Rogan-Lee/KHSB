@@ -1,14 +1,13 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
-import { isAnyStaff, isFullAccess } from "@/lib/roles";
+import { isAnyStaff, isFullAccess, isOnlineStaff } from "@/lib/roles";
 import { isResponsibleFor } from "@/lib/student-access";
 import {
   PerformanceTaskList,
   type PerformanceTaskRow,
 } from "@/components/online/performance-task-list";
+import { StudentDetailHeader } from "../_components/student-detail-header";
 
 export default async function StudentPerformanceTasksPage({
   params,
@@ -26,6 +25,8 @@ export default async function StudentPerformanceTasksPage({
       id: true,
       name: true,
       grade: true,
+      status: true,
+      isOnlineManaged: true,
       mentorId: true,
       assignedMentorId: true,
       assignedConsultantId: true,
@@ -73,25 +74,13 @@ export default async function StudentPerformanceTasksPage({
   });
 
   return (
-    <div className="space-y-5">
-      <div>
-        <Link
-          href={`/online/students/${id}`}
-          className="inline-flex items-center gap-1 text-[12px] text-ink-4 hover:text-ink"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          학생 상세
-        </Link>
-      </div>
-
-      <header>
-        <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
-          {student.name} — 수행평가
-        </h1>
-        <p className="mt-1 text-[13px] text-ink-4">
-          {student.grade} · 총 {rows.length}건
-        </p>
-      </header>
+    <div>
+      <StudentDetailHeader
+        student={student}
+        current="tasks"
+        description={`${student.grade} · 총 ${rows.length}건`}
+        showTabs={isOnlineStaff(user?.role) && student.isOnlineManaged}
+      />
 
       <PerformanceTaskList studentId={id} tasks={rows} canManage={canManage} />
     </div>

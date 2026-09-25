@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>학습 관리 | 강한선배</title>
+  <meta name="description" content="담임 멘토링, 과제, 영단어 시험, 사진 질의응답, 매달 수능처럼 치르는 실전 모의고사까지. 강한선배가 아이 공부를 어떻게 관리하는지 실제 앱 화면으로 보여드립니다.">
+  <meta name="theme-color" content="#0b0c0f">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="학습 관리 | 강한선배">
+  <meta property="og:description" content="공부한 시간보다 무엇을 했는지 봅니다.">
+  <meta property="og:image" content="photos/bx/hall-2.jpg">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="landing.css?v=seed3">
+  <link rel="stylesheet" href="bx-core.css?v=bx20">
+  <link rel="stylesheet" href="bx-scenes.css?v=bx20">
+  <style>
+    /* ── 학습 관리 페이지 전용 (st-) ── */
+    .st-first { padding-top: 96px; }
+    /* 모바일에서 챕터 탭이 화면 밖으로 잘리지 않도록 좌우 음수 여백 제거 */
+    @media (max-width: 860px) { .chap-nav.st-chapnav { margin-left: 0; margin-right: 0; } .st-first { padding-top: 72px; } }
+
+    /* 한눈에 보기 · 목차 칩 */
+    .st-toc { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 28px; }
+    .st-toc li { display: inline-flex; align-items: center; gap: 8px; font-size: 14.5px; font-weight: 700; letter-spacing: -.02em; color: var(--ink-2); background: #fff; border: 1px solid var(--hair); border-radius: 999px; padding: 7px 16px 7px 7px; }
+    .st-toc li i { font-style: normal; font-size: 11.5px; font-weight: 800; color: var(--brand); background: var(--brand-soft); border-radius: 999px; padding: 4px 8px; }
+    .st-toc li.hl { background: var(--night); border-color: var(--night); color: #fff; }
+    .st-toc li.hl i { background: var(--brand); color: #fff; }
+
+    /* 기능 탐색기 설명 (button 안이라 p 대신 span) */
+    .fx-item .st-fxd { display: block; font-size: 15px; color: var(--dim); line-height: 1.7; margin-top: 6px; max-height: 0; opacity: 0; overflow: hidden; transition: max-height .45s var(--ease-out), opacity .3s; }
+    .fx-item.on .st-fxd { max-height: 160px; opacity: 1; }
+    .fx-stage .pf-cap[data-fx-cap] { font-size: 15px; font-weight: 800; letter-spacing: -.03em; color: var(--ink); }
+    .fx-stage .ui-note { margin-top: 8px; }
+
+    /* 실제 화면이 없을 때 폰 대신 HTML 예시 카드 */
+    .st-fb { display: none; }
+    .st-shot.noshot .pf { display: none; }
+    .st-shot.noshot .st-fb { display: block; }
+    .visual.st-shot { flex-direction: column; }
+    .st-fb.vcard { color: var(--ink); max-width: 340px; text-align: left; }
+    .fx-stage .st-fb, .exam-shot .st-fb { width: 320px; max-width: 100%; }
+    .exam-shot .pf { margin-left: auto; margin-right: auto; }
+    .st-fxfb > div { display: none; }
+    .fx:has(.fx-item[data-k="schedule"].on) [data-fb="schedule"],
+    .fx:has(.fx-item[data-k="tasks"].on) [data-fb="tasks"],
+    .fx:has(.fx-item[data-k="feedback"].on) [data-fb="feedback"],
+    .fx:has(.fx-item[data-k="vocab"].on) [data-fb="vocab"],
+    .fx:has(.fx-item[data-k="qna"].on) [data-fb="qna"] { display: block; }
+    .st-tint-o { background: #fff4ec; }
+    .st-tint-b { background: #f1f5ff; }
+    .st-tint-g { background: #eef7f1; }
+
+    /* 예시 카드 내부 */
+    .st-mk { font-size: 12px; font-weight: 700; color: var(--brand); }
+    .st-mt { font-size: 18px; font-weight: 800; letter-spacing: -.035em; line-height: 1.4; color: var(--ink); margin-top: 4px; }
+    .st-ms { font-size: 12.5px; color: var(--dim); line-height: 1.5; margin-top: 3px; }
+    .st-rows { margin-top: 12px; }
+    .st-row { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid #f0f1f3; font-size: 14px; line-height: 1.45; color: var(--ink-2); }
+    .st-row:first-child { border-top: 0; }
+    .st-row b { font-weight: 700; color: var(--ink); }
+    .st-row .st-end { margin-left: auto; flex-shrink: 0; font-size: 12.5px; font-weight: 800; color: var(--brand); }
+    .st-pill { flex-shrink: 0; font-style: normal; font-size: 11.5px; font-weight: 700; padding: 4px 8px; border-radius: 7px; background: var(--paper-2); color: var(--dim); white-space: nowrap; }
+    .st-pill.warn { background: #fff4e6; color: #d9480f; }
+    .st-pill.ok { background: #dcfce7; color: #15803d; }
+    .st-pill.go { background: #e7f5ff; color: #1c7ed6; }
+    .st-bubble { margin-top: 10px; border-radius: 16px; background: var(--paper-2); padding: 12px 14px; font-size: 13.5px; line-height: 1.6; color: var(--ink-2); }
+    .st-bubble span { display: block; font-size: 12px; font-weight: 700; color: var(--brand); margin-bottom: 3px; }
+    .st-bubble.me { background: var(--brand); color: #fff; margin-left: 28px; }
+    .st-bubble.me span { color: rgba(255, 255, 255, .82); }
+    .st-bubble.mentor { background: #e8f5ee; margin-right: 28px; }
+    .st-bubble.mentor span { color: #1f7a4f; }
+    .st-thumbs { display: flex; gap: 6px; margin-top: 8px; }
+    .st-thumbs i { width: 54px; height: 54px; border-radius: 10px; background: rgba(255, 255, 255, .9) repeating-linear-gradient(0deg, transparent 0 7px, rgba(0, 0, 0, .08) 7px 8px); }
+    .st-score { margin-top: 14px; border-radius: 18px; background: #2f9e6a; color: #fff; text-align: center; padding: 18px 16px; }
+    .st-score b { display: block; font-size: 40px; font-weight: 800; letter-spacing: -.04em; line-height: 1; }
+    .st-score b small { font-size: 18px; margin-left: 2px; }
+    .st-score span { display: block; font-size: 13px; opacity: .92; margin-top: 6px; }
+    .st-check { list-style: none; margin-top: 12px; display: grid; gap: 9px; }
+    .st-check li { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink-2); }
+    .st-check li::before { content: ""; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 6px; border: 2px solid var(--hair); flex-shrink: 0; font-size: 11px; font-weight: 800; color: #fff; }
+    .st-check li.done { color: var(--faint); text-decoration: line-through; }
+    .st-check li.done::before { content: "✓"; background: var(--brand); border-color: var(--brand); }
+    .st-rec { margin-top: 14px; display: grid; gap: 8px; }
+    .st-rec div { background: var(--paper-2); border-radius: 14px; padding: 11px 13px; }
+    .st-rec dt { font-size: 12px; font-weight: 700; color: var(--brand); }
+    .st-rec dd { font-size: 13.5px; line-height: 1.55; color: var(--ink-2); margin-top: 2px; }
+    .st-sess { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border: 1px solid var(--hair); border-radius: 16px; padding: 14px; margin-top: 10px; }
+    .st-sess b { display: block; font-size: 14.5px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); }
+    .st-sess span { display: block; font-size: 12px; color: var(--dim); line-height: 1.5; margin-top: 3px; }
+    .st-btn { display: block; text-align: center; margin-top: 12px; border-radius: 12px; background: var(--brand); color: #fff; font-size: 14px; font-weight: 700; padding: 12px; }
+    .st-line { display: block; width: 100%; height: 90px; margin-top: 12px; }
+
+    /* 스플릿 본문 보조 */
+    .st-parent { margin-top: 22px; border-radius: 20px; background: var(--paper-2); padding: 18px 20px; font-size: 15px; line-height: 1.7; color: var(--ink-2); }
+    .st-parent b { display: block; font-size: 13px; font-weight: 800; color: var(--brand); margin-bottom: 4px; }
+    .st-mentors { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 28px; }
+    .st-mstack { display: flex; }
+    .st-mstack:empty { display: none; }
+    .st-mstack a { position: relative; width: 48px; height: 48px; margin-left: -12px; border-radius: 50%; border: 3px solid #fff; overflow: hidden; display: grid; place-items: center; background: var(--paper-2); color: #fff; font-size: 16px; font-weight: 800; box-shadow: 0 6px 14px -8px rgba(16, 24, 40, .45); transition: transform .25s var(--ease-out); }
+    .st-mstack a:first-child { margin-left: 0; }
+    .st-mstack a:hover, .st-mstack a:focus-visible { transform: translateY(-3px); z-index: 1; }
+    .st-mstack img { width: 100%; height: 100%; object-fit: cover; }
+    .st-mlink { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 800; color: var(--ink); }
+    .st-mlink svg { width: 16px; height: 16px; transition: transform .2s var(--ease-out); }
+    .st-mlink:hover svg { transform: translateX(3px); }
+
+    /* 실전 모의고사 밴드 */
+    .st-no-dark { color: var(--brand-2); }
+    .st-exam .bx-sub b { color: #fff; }
+    .st-seatbox { margin-top: 36px; max-width: 520px; border-radius: 24px; background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .09); padding: 22px 22px 20px; }
+    .st-seathead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .st-seathead b { font-size: 16px; font-weight: 800; letter-spacing: -.02em; color: #fff; }
+    .st-seathead span { font-size: 12.5px; color: rgba(255, 255, 255, .5); }
+    .st-seats { display: grid; grid-template-columns: repeat(11, 1fr); gap: 6px; margin-top: 16px; }
+    .st-seats i { aspect-ratio: 1; border-radius: 6px; background: rgba(255, 255, 255, .1); transition: background .5s var(--ease-out); }
+    .st-seats i:nth-child(odd) { transition-delay: .2s; }
+    .st-seats i:nth-child(3n) { transition-delay: .4s; }
+    .st-seats i:nth-child(4n+1) { transition-delay: .6s; }
+    .st-seats i:nth-child(5n+2) { transition-delay: .8s; }
+    .st-seatbox.in .st-seats i.on { background: var(--brand); }
+    .st-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 14px; font-size: 12.5px; color: rgba(255, 255, 255, .6); }
+    .st-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .st-legend span::before { content: ""; width: 10px; height: 10px; border-radius: 3px; background: rgba(255, 255, 255, .14); }
+    .st-legend span.on::before { background: var(--brand); }
+    .st-seatbox p { font-size: 14px; line-height: 1.65; color: rgba(255, 255, 255, .7); margin-top: 12px; }
+    .st-band-h { font-size: clamp(22px, 2.4vw, 30px); font-weight: 800; letter-spacing: -.04em; line-height: 1.3; color: #fff; margin-top: 110px; }
+    .st-band-h + .exam-steps { margin-top: 28px; }
+    .exam-steps.st-steps5 { grid-template-columns: repeat(5, 1fr); }
+    .st-steps5 i { display: block; font-style: normal; font-size: 12.5px; font-weight: 800; color: var(--brand-2); margin-bottom: 10px; }
+    .st-steps5 li.hl { background: rgba(255, 102, 0, .14); border-color: rgba(255, 102, 0, .34); }
+    .st-xcols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 28px; }
+    .st-xcard { border-radius: 28px; background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .1); padding: 34px 32px; }
+    .st-xcard.alt { background: linear-gradient(160deg, rgba(255, 102, 0, .17), rgba(255, 102, 0, .04)); border-color: rgba(255, 102, 0, .3); }
+    .st-xtag { display: inline-block; font-size: 12.5px; font-weight: 800; color: var(--brand-2); background: rgba(255, 138, 61, .12); border-radius: 999px; padding: 6px 11px; }
+    .st-xcard h4 { font-size: 22px; font-weight: 800; letter-spacing: -.04em; line-height: 1.35; color: #fff; margin-top: 16px; }
+    .st-xlist { list-style: none; display: grid; gap: 12px; margin-top: 18px; }
+    .st-xlist li { position: relative; padding-left: 30px; font-size: 15.5px; line-height: 1.65; color: rgba(255, 255, 255, .76); }
+    .st-xlist li::before { content: "✓"; position: absolute; left: 0; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: rgba(255, 255, 255, .12); color: #fff; font-size: 11px; font-weight: 800; display: grid; place-items: center; }
+    .st-xcard.alt .st-xlist li::before { background: var(--brand); }
+    .st-xlist b { color: #fff; font-weight: 700; }
+    .st-xnote { font-size: 13px; line-height: 1.6; color: rgba(255, 255, 255, .45); text-align: center; margin-top: 22px; }
+
+    /* 성적 추이 */
+    .st-subh { font-size: clamp(20px, 2vw, 26px); font-weight: 800; letter-spacing: -.04em; text-align: center; margin-top: 120px; color: var(--ink); }
+    .st-subh + p { font-size: 15px; color: var(--dim); text-align: center; margin-top: 10px; line-height: 1.7; }
+    .st-grades { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 40px; }
+    .st-grades .rise-card { width: auto; border-radius: 26px; }
+    .st-gnote { font-size: 13px; color: var(--faint); text-align: center; margin-top: 18px; }
+
+    /* 아티클 · 후기 */
+    .st-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .st-rvg { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
+    .st-rvg .rv-tag { font-style: normal; }
+
+    @media (max-width: 1000px) {
+      .st-grades { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 860px) {
+      .exam-steps.st-steps5 { grid-template-columns: 1fr 1fr; }
+      .st-steps5 li:last-child { grid-column: 1 / -1; }
+      .st-band-h { margin-top: 80px; }
+      .st-xcols { grid-template-columns: 1fr; }
+      .st-xcard { padding: 28px 24px; }
+      .st-rvg { grid-template-columns: 1fr; }
+      .st-subh { margin-top: 88px; }
+      .st-toc li { font-size: 13.5px; }
+    }
+    @media (max-width: 600px) {
+      .exam-steps.st-steps5 { grid-template-columns: 1fr; }
+      .st-grades { grid-template-columns: 1fr; }
+      .st-seatbox { padding: 18px 16px; }
+      .st-seats { gap: 4px; }
+      .st-seats i { border-radius: 4px; }
+    }
+  </style>
+</head>
+<body class="bx" data-page="program" data-chapter="study">
+<script src="bx-data.js?v=bx20"></script>
+<script src="bx-shell.js?v=bx20"></script>
+
+<main id="main">
+  <header class="ph">
+    <p class="eyebrow">관리 시스템 · 02 학습 관리</p>
+    <h1 class="ph-title"><span class="ln"><span>공부한 시간보다</span></span><span class="ln"><span><em>무엇을</em> 했는지 봅니다.</span></span></h1>
+    <p class="ph-lead">그 시간에 무엇을 풀었고 어디서 막혔는지 알아야 다음 계획을 세울 수 있습니다. 강한선배는 담임 멘토링, 과제, 영단어 시험, 질의응답, 실전 모의고사를 모두 기록으로 남기고, 풀리지 않는 부분은 선배 멘토와 같이 짚고 넘어갑니다.</p>
+  </header>
+
+  <div class="chap-nav st-chapnav" data-chap-nav></div>
+
+  <!-- 한눈에 보기 -->
+  <section class="bx-sec st-first">
+    <div class="bx-head r">
+      <p class="eyebrow">한눈에 보기</p>
+      <h2 class="bx-h2">계획하고, 풀고, 묻고,<br>실전으로 확인합니다.</h2>
+      <p class="bx-sub">공부는 결국 아이가 합니다. 계획을 세울 때, 문제가 안 풀릴 때, 시험을 보고 난 뒤처럼 혼자 하기 버거운 순간에 선배 멘토와 관리 시스템이 거듭니다.</p>
+    </div>
+    <div class="kpis">
+      <div class="kpi dark r"><p class="k-label">담임 멘토링</p><b>1:1</b><p class="k-sub">회차마다 나눈 이야기, 나아진 점, 보완할 점, 다음 목표를 기록해 둡니다.</p></div>
+      <div class="kpi r d1"><p class="k-label">사진 질문</p><b><span data-count="6">6</span><i>장</i></b><p class="k-sub">모르는 문제는 한 번에 최대 6장까지 찍어 올리고, 멘토의 답을 받습니다.</p></div>
+      <div class="kpi r d2"><p class="k-label">영단어 시험</p><b><span data-count="10">10</span><i>초</i></b><p class="k-sub">문항당 기본 제한시간. 자동으로 채점하고, 틀린 단어만 모아 다시 봅니다.</p></div>
+      <div class="kpi brand r d3"><p class="k-label">실전 모의고사 시험실</p><b><span data-count="33">33</span><i>석</i></b><p class="k-sub">응시가 확정된 학생에게 원내 시험실 좌석을 무작위로 배정합니다.</p></div>
+    </div>
+    <ul class="st-toc r" aria-label="학습 관리 구성">
+      <li><i>01</i>담임 멘토링</li>
+      <li><i>02</i>과제 관리</li>
+      <li><i>03</i>영단어 시험</li>
+      <li><i>04</i>사진 질의응답</li>
+      <li class="hl"><i>05</i>실전 모의고사</li>
+      <li><i>06</i>성적 추이 관리</li>
+    </ul>
+  </section>
+
+  <!-- 학생 화면 탐색기 -->
+  <section class="bx-sec">
+    <div class="bx-head r">
+      <p class="eyebrow">강한선배 앱 · 학생 화면</p>
+      <h2 class="bx-h2">학생이 매일 여는<br>강한선배 앱입니다.</h2>
+      <p class="bx-sub">일정, 수행평가, 받은 피드백, 영단어 시험, 사진 질문을 학생은 이 앱 하나로 관리해요. 항목을 누르면 해당 화면을 볼 수 있어요.</p>
+    </div>
+    <div class="fx r" data-fx>
+      <div class="fx-list" role="group" aria-label="학생 화면 둘러보기">
+        <button type="button" class="fx-item" data-k="schedule" data-shot="photos/ui/portal-schedule.png?v=ui3" data-alt="내 일정 · 공부 계획 화면" data-cap="내 일정 · 오늘의 공부 계획 체크"><b>내 일정 · 공부 계획</b><span class="st-fxd">이번 주 시간표와 학교 시험 · 행사 일정, 오늘과 내일의 공부 계획을 체크리스트로 확인해요.</span></button>
+        <button type="button" class="fx-item" data-k="tasks" data-shot="photos/ui/portal-tasks.png?v=ui3" data-alt="수행평가 목록 화면" data-cap="수행평가 · 과목별 마감일과 진행 상태"><b>수행평가 <em>D-day</em></b><span class="st-fxd">과목 · 마감일 · 배점을 한눈에 보고, 파일이나 사진으로 바로 제출해요. 고칠 부분이 생기면 새 버전으로 다시 내요.</span></button>
+        <button type="button" class="fx-item" data-k="feedback" data-shot="photos/ui/portal-feedback.png?v=ui3" data-alt="받은 피드백 화면" data-cap="받은 피드백 · 수정 요청과 승인"><b>받은 피드백</b><span class="st-fxd">제출한 과제에 달린 멘토의 코멘트 · 수정 요청 · 승인을 한곳에 모아 봐요.</span></button>
+        <button type="button" class="fx-item" data-k="vocab" data-shot="photos/ui/portal-vocab.png?v=ui3" data-alt="영단어 시험 화면" data-cap="영단어 시험 · 응시할 시험과 지난 결과"><b>영단어 시험 <em>자동 채점</em></b><span class="st-fxd">배정된 시험을 바로 풀고, 점수와 틀린 단어를 곧바로 확인해요.</span></button>
+        <button type="button" class="fx-item" data-k="qna" data-shot="photos/ui/portal-qna.png?v=ui3" data-alt="질의응답 목록 화면" data-cap="질의응답 · 과목별 질문과 답변 상태"><b>사진 질문 <em>최대 6장</em></b><span class="st-fxd">모르는 문제를 찍어 올리면 근무 중인 멘토가 맡아 답해요. 답을 보고 이어서 다시 물을 수도 있어요.</span></button>
+      </div>
+      <div class="fx-stage">
+        <div class="st-shot">
+          <figure class="pf"><img src="photos/ui/portal-schedule.png?v=ui3" alt="내 일정 · 공부 계획 화면" onerror="this.closest('.st-shot').classList.add('noshot')" onload="this.closest('.st-shot').classList.remove('noshot')"></figure>
+          <div class="vcard st-fb st-fxfb">
+            <div data-fb="schedule">
+              <p class="st-mk">내 일정 · 예시 화면</p>
+              <p class="st-mt">오늘의 공부 계획</p>
+              <ul class="st-check">
+                <li class="done">수학 · 미적분 오답 정리</li>
+                <li class="done">영어 · 영단어 Day 20</li>
+                <li>국어 · 비문학 2지문</li>
+                <li>탐구 · 기출 1회분</li>
+              </ul>
+              <div class="st-rows"><div class="st-row"><b>학교 일정</b><span>2학기 중간고사</span><span class="st-end">D-18</span></div></div>
+            </div>
+            <div data-fb="tasks">
+              <p class="st-mk">수행평가 · 예시 화면</p>
+              <p class="st-mt">마감이 다가오는 과제</p>
+              <div class="st-rows">
+                <div class="st-row"><em class="st-pill warn">수정 필요</em><b>생활과 윤리 · 탐구 보고서</b><span class="st-end">D-8</span></div>
+                <div class="st-row"><em class="st-pill go">제출 완료</em><b>국어 · 문학 감상문</b><span class="st-end">D-12</span></div>
+                <div class="st-row"><em class="st-pill ok">최종 완료</em><b>영어 · 에세이</b></div>
+              </div>
+            </div>
+            <div data-fb="feedback">
+              <p class="st-mk">받은 피드백 · 예시 화면</p>
+              <p class="st-mt">탐구 보고서 v1</p>
+              <p class="st-bubble"><span>멘토 · 수정 요청</span>결론의 근거를 하나만 더 보강해서 새 버전으로 올려 줘!</p>
+              <p class="st-bubble"><span>멘토 · 승인</span>영어 에세이는 이대로 제출해도 좋아요.</p>
+            </div>
+            <div data-fb="vocab">
+              <p class="st-mk">영단어 시험 · 예시 화면</p>
+              <p class="st-mt">Day 20 · 수능 필수 영단어</p>
+              <div class="st-rows">
+                <div class="st-row"><span>문항</span><b class="st-end">20문항 · 영→한</b></div>
+                <div class="st-row"><span>제한시간</span><b class="st-end">문항당 10초</b></div>
+                <div class="st-row"><span>지난 시험</span><b class="st-end">85점</b></div>
+              </div>
+              <span class="st-btn">시험 시작하기</span>
+            </div>
+            <div data-fb="qna">
+              <p class="st-mk">질의응답 · 예시 화면</p>
+              <p class="st-mt">내 질문</p>
+              <div class="st-rows">
+                <div class="st-row"><em class="st-pill ok">답변 완료</em><b>수학 · 치환적분 구간</b></div>
+                <div class="st-row"><em class="st-pill warn">답변 대기</em><b>영어 · 빈칸 추론 34번</b></div>
+                <div class="st-row"><em class="st-pill">해결됨</em><b>국어 · 문법 음운 변동</b></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="pf-cap" data-fx-cap>내 일정 · 오늘의 공부 계획 체크</p>
+        <p class="ui-note">화면 속 이름과 기록은 예시 데이터입니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 하나씩 자세히 -->
+  <section class="bx-sec">
+    <div class="bx-head r">
+      <p class="eyebrow">하나씩 자세히</p>
+      <h2 class="bx-h2">공부의 모든 과정을<br>옆에서 관리합니다.</h2>
+    </div>
+
+    <!-- 01 담임 멘토링 -->
+    <div class="split r">
+      <div>
+        <span class="split-no">01 · 담임 멘토링</span>
+        <h3>최상위권 대학 재학생이<br>담임 멘토를 맡습니다.</h3>
+        <p class="lead">성적과 성향, 입시 전략에 맞춰 학생마다 담임 멘토 한 명이 배정되고, 정기적으로 1:1 멘토링을 하며 지난 공부를 같이 돌아봅니다. 멘토링이 끝나면 그날 나눈 이야기, 나아진 점, 보완할 점, 다음 목표를 기록해 둡니다.</p>
+        <div class="st-parent"><b>학부모님께는</b>이 기록을 회차별 멘토링 리포트와 한 달치를 묶은 월간 리포트로 정리해 드립니다. 담당 선생님이 검토한 뒤 카카오톡으로 보내드리고, 멘토링 리포트는 강한선배 앱 학부모님 화면의 리포트 탭에도 회차별로 남습니다. 열어 보실 때는 학부모님 본인 확인을 거칩니다.</div>
+        <ul class="chips"><li>멘토링 내용</li><li>나아진 점 · 보완할 점</li><li>다음 목표</li><li>공부 계획</li><li>영단어 결과</li><li>성적 현황</li></ul>
+        <div class="st-mentors">
+          <div class="st-mstack" data-st-mentors></div>
+          <a class="st-mlink" href="mentors.html">선배 멘토진 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        </div>
+      </div>
+      <div class="visual st-shot st-tint-o">
+        <figure class="pf sm"><img src="photos/ui/parent-mentoring-2.png?v=ui3" alt="회차별 멘토링 리포트 — 개선된 점, 보완할 점, 다음 멘토링 목표 화면" loading="lazy" onerror="this.closest('.st-shot').classList.add('noshot')"></figure>
+        <div class="vcard st-fb">
+          <p class="st-mk">멘토링 리포트 · 예시</p>
+          <p class="st-mt">김OO 학생 · 9월 22일 멘토링</p>
+          <dl class="st-rec">
+            <div><dt>나아진 점</dt><dd>수학 오답을 유형별로 다시 정리하는 습관이 자리 잡았어요.</dd></div>
+            <div><dt>보완할 점</dt><dd>국어 문학은 선지를 판단하는 시간이 길어요.</dd></div>
+            <div><dt>다음 목표</dt><dd>다음 달에는 시간 제한 풀이 훈련을 함께 합니다.</dd></div>
+          </dl>
+        </div>
+        <p class="pf-cap"><b>멘토링 리포트 · 회차마다</b><span>개선된 점 · 보완할 점 · 다음 목표</span></p>
+      </div>
+    </div>
+
+    <!-- 02 과제 관리 -->
+    <div class="split flip r">
+      <div>
+        <span class="split-no">02 · 과제 관리</span>
+        <h3>고칠 곳을 짚어 주면<br>새 버전으로 다시 냅니다.</h3>
+        <p class="lead">학교 수행평가를 과목, 마감일, 배점과 함께 등록해 두면 학생은 앱에서 파일이나 사진으로 제출합니다. 담당 컨설턴트나 멘토가 코멘트나 수정 요청을 남기면 고쳐서 다시 올리고, 승인이 나면 ‘최종 완료’로 바뀝니다. 몇 번 고쳤는지 버전별 제출 이력도 남습니다.</p>
+        <p class="lead">멘토링 때 내준 과제도 회차별로 완료 여부를 확인합니다.</p>
+        <ul class="chips"><li>마감 D-day 표시</li><li>파일 · 사진 제출</li><li>코멘트 · 수정 요청</li><li>버전별 재제출</li><li>승인 · 최종 완료</li></ul>
+      </div>
+      <div class="visual st-shot">
+        <figure class="pf sm"><img src="photos/ui/portal-task-detail.png?v=ui3" alt="과제 상세 화면: 수정 필요 상태와 새 버전 제출, 제출 히스토리" loading="lazy" onerror="this.closest('.st-shot').classList.add('noshot')"></figure>
+        <div class="vcard st-fb">
+          <p class="st-mk">과제 상세 · 예시</p>
+          <p class="st-mt">생활과 윤리 · 탐구 보고서</p>
+          <div class="st-rows">
+            <div class="st-row"><em class="st-pill warn">수정 필요</em><span>v1 제출됨</span><span class="st-end">D-8</span></div>
+          </div>
+          <p class="st-bubble"><span>멘토 코멘트</span>결론의 근거를 하나만 더 보강해서 새 버전으로 다시 올려 줘!</p>
+          <span class="st-btn">수정본 제출 (새 버전)</span>
+        </div>
+        <p class="pf-cap"><b>과제 제출 · 피드백</b><span>수정 요청을 받으면 새 버전으로 다시 제출해요</span></p>
+      </div>
+    </div>
+
+    <!-- 03 영단어 시험 -->
+    <div class="split r">
+      <div>
+        <span class="split-no">03 · 영단어 시험</span>
+        <h3>외운 줄 알았던 단어,<br>시험으로 확인합니다.</h3>
+        <p class="lead">단어장에서 범위와 문항 수를 정해 온라인 시험을 냅니다. 영→한, 한→영, 또는 둘을 섞어 출제하고 문항마다 제한시간(기본 10초)이 있어서, 바로 떠오르는 단어만 맞힐 수 있습니다. 채점은 자동이고, 틀린 단어만 모아 다시 시험을 봅니다.</p>
+        <p class="lead">대상은 학부모님 신청이나 담임 멘토 지정으로 정하고, 고3 중 영어 3등급 이하 학생은 시스템이 먼저 추천합니다.</p>
+        <div class="st-parent"><b>학부모님께는</b>영단어 점수 추이가 멘토링 리포트와 월간 리포트에 그래프로 함께 담깁니다.</div>
+        <ul class="chips"><li>영→한 · 한→영 · 혼합</li><li>문항별 제한시간</li><li>자동 채점 · 복수 정답 인정</li><li>오답만 모아 재시험</li></ul>
+      </div>
+      <div class="visual st-shot st-tint-g">
+        <figure class="pf sm"><img src="photos/ui/portal-vocab-result.png?v=ui3" alt="영단어 시험 결과 화면: 85점, 틀린 단어 3개" loading="lazy" onerror="this.closest('.st-shot').classList.add('noshot')"></figure>
+        <div class="vcard st-fb">
+          <p class="st-mk">영단어 시험 결과 · 예시</p>
+          <p class="st-mt">Day 20 · 수능 필수 영단어</p>
+          <div class="st-score"><b>85<small>점</small></b><span>17 / 20 정답</span></div>
+          <div class="st-rows">
+            <div class="st-row"><b>accumulate</b><span class="st-end">축적하다</span></div>
+            <div class="st-row"><b>analogy</b><span class="st-end">유추, 비유</span></div>
+            <div class="st-row"><b>attribute</b><span class="st-end">~의 탓으로 돌리다</span></div>
+          </div>
+        </div>
+        <p class="pf-cap"><b>영단어 시험 결과</b><span>점수와 틀린 단어를 바로 확인해요</span></p>
+      </div>
+    </div>
+
+    <!-- 04 사진 질의응답 -->
+    <div class="split flip r">
+      <div>
+        <span class="split-no">04 · 사진 질의응답</span>
+        <h3>막힌 문제는<br>찍어서 올리면 됩니다.</h3>
+        <p class="lead">모르는 문제를 사진으로 찍어 올리면(한 번에 최대 6장), 근무 중인 멘토가 질문을 맡아 풀이를 달아 줍니다. 답을 보고도 헷갈리면 같은 질문에 이어서 다시 물으면 됩니다.</p>
+        <p class="lead">질문마다 답변 대기 · 답변 완료 · 해결됨 상태가 표시되고, 새 답변이 오면 앱에 배지와 알림으로 알려 줍니다. 모르는 채로 넘어가는 문제가 쌓이지 않게요.</p>
+        <ul class="chips"><li>사진 최대 6장</li><li>근무 멘토 답변</li><li>이어서 다시 묻기</li><li>해결 여부 표시</li></ul>
+      </div>
+      <div class="visual st-shot st-tint-b">
+        <figure class="pf sm"><img src="photos/ui/portal-qna-thread.png?v=ui3" alt="사진 질문과 멘토 풀이 답변 화면" loading="lazy" onerror="this.closest('.st-shot').classList.add('noshot')"></figure>
+        <div class="vcard st-fb">
+          <p class="st-mk">사진 질문 · 예시</p>
+          <p class="st-mt">치환적분할 때 적분 구간도 바꿔야 하나요?</p>
+          <div class="st-bubble me"><span>학생</span>t = x²으로 치환하면 구간도 바뀌나요? 답이 헷갈려요.<div class="st-thumbs" aria-hidden="true"><i></i><i></i></div></div>
+          <p class="st-bubble mentor"><span>멘토 답변</span>치환하면 구간도 t 기준으로 바꿔야 해요. 풀이 사진 첨부할게요!</p>
+        </div>
+        <p class="pf-cap"><b>사진 질문 · 멘토 답변</b><span>모르는 문제를 올리면 멘토가 풀이로 답해요</span></p>
+      </div>
+    </div>
+    <p class="ui-note r">화면 속 이름과 기록은 예시 데이터입니다.</p>
+  </section>
+
+  <!-- 05 실전 모의고사 -->
+  <section class="kband on-dark exam-band st-exam">
+    <div class="kband-inner">
+      <div class="exam-grid">
+        <div>
+          <span class="chap-sec-no st-no-dark r">05 · 실전 모의고사</span>
+          <h2 class="bx-h2 r">매달 한 번,<br>수능처럼 치릅니다.</h2>
+          <p class="bx-sub r">자기 자리에서 푸는 모의고사로는 실전 감각이 잘 생기지 않습니다. 그래서 매달 <b>대성 더프리미엄 모의고사</b>를 원내 시험실에서 봅니다. 시간표, 수험표, 가채점표까지 수능 날과 똑같이 맞추고, 틀린 문제는 질의응답과 담임 멘토링에서 다시 짚고 넘어갑니다.</p>
+          <div class="st-seatbox r d1">
+            <div class="st-seathead"><b>원내 시험실 · 33석</b><span>좌석 배정 예시</span></div>
+            <div class="st-seats" aria-hidden="true">
+              <i class="on"></i><i class="on"></i><i></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i><i class="on"></i><i class="on"></i>
+              <i></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i><i class="on"></i><i class="on"></i>
+              <i></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i><i class="on"></i><i></i>
+            </div>
+            <div class="st-legend"><span class="on">배정 완료</span><span>빈 좌석</span></div>
+            <p>운영진이 응시를 확정한 학생들에게 좌석을 무작위로 배정합니다. 실제 시험장에서처럼 자리는 고를 수 없습니다.</p>
+          </div>
+        </div>
+        <figure class="exam-shot st-shot r d2">
+          <div class="pf"><img src="photos/ui/portal-exam.png?v=ui3" alt="모의고사 신청 화면: 회차별 신청과 확정 상태" loading="lazy" onerror="this.closest('.st-shot').classList.add('noshot')"></div>
+          <div class="vcard st-fb">
+            <p class="st-mk">모의고사 신청 · 예시 화면</p>
+            <p class="st-mt">응시할 모의고사를 골라 주세요</p>
+            <div class="st-sess"><div><b>10월 더프리미엄 모의고사</b><span>더프 모의고사 · 국어, 수학, 영어, 한국사, 탐구</span></div><em class="st-pill ok">확정</em></div>
+            <div class="st-sess"><div><b>11월 실전 모의고사</b><span>사설 모의고사 · 국어, 수학, 영어, 탐구</span></div><em class="st-pill warn">신청 접수됨</em></div>
+            <span class="st-btn">신청하기</span>
+          </div>
+          <figcaption class="pf-cap"><b>모의고사 신청</b><span>신청하고, 확정 여부를 바로 확인해요</span></figcaption>
+        </figure>
+      </div>
+
+      <h3 class="st-band-h r">모의고사 한 회차는 이렇게 진행돼요</h3>
+      <ol class="exam-steps st-steps5 r d1">
+        <li><i>01</i><b>응시 신청</b><span>학생 앱에서 신청해요. 학부모님은 운영진이 카카오톡으로 보내드리는 신청 안내에서 휴대폰 본인인증 후 직접 신청할 수도 있어요.</span></li>
+        <li><i>02</i><b>좌석 배정</b><span>운영진이 신청을 확정하면, 원내 시험실 33석에 좌석을 무작위로 배정해요.</span></li>
+        <li class="hl"><i>03</i><b>실전 응시</b><span>수험표, 가채점표까지 수능 날과 똑같이 갖춘 시험실에서 풀어요.</span></li>
+        <li><i>04</i><b>성적 기록</b><span>과목별 원점수, 등급, 백분위를 회차마다 기록해요.</span></li>
+        <li><i>05</i><b>오답 해결</b><span>틀린 문제는 사진 질문으로 묻고, 담임 멘토링에서 함께 짚어요.</span></li>
+      </ol>
+
+      <h3 class="st-band-h r">앱으로 관리하는 것과 현장에서 관리하는 것</h3>
+      <div class="st-xcols">
+        <div class="st-xcard r">
+          <span class="st-xtag">강한선배 시스템</span>
+          <h4>신청, 좌석, 성적은 앱에서</h4>
+          <ul class="st-xlist">
+            <li><b>학생 앱</b>에서 응시할 시험을 골라 신청하고, 확정 전에는 직접 취소할 수 있어요.</li>
+            <li><b>학부모님</b>도 운영진이 카카오톡으로 보내드리는 신청 안내에서 휴대폰 본인인증 후 신청할 수 있어요.</li>
+            <li>운영진이 신청을 확정하면 <b>원내 시험실 33석</b>에 좌석을 무작위로 배정해요.</li>
+            <li>시험이 끝나면 과목별 <b>원점수 · 등급 · 백분위</b>를 입력해 회차별 흐름을 관리해요.</li>
+          </ul>
+        </div>
+        <div class="st-xcard alt r d1">
+          <span class="st-xtag">현장 운영 프로그램</span>
+          <h4>시험 당일과 끝난 뒤</h4>
+          <ul class="st-xlist">
+            <li>매월 <b>대성 더프리미엄 모의고사</b>를 원내에서 실전처럼 응시해요.</li>
+            <li><b>수험표 · 가채점표</b>까지 수능 날과 똑같이 준비해요.</li>
+            <li>시험이 끝나면 <b>오답 질의응답</b>과 담임 멘토링으로 이어져요.</li>
+            <li>강한선배 전용 <b>모의고사 분석 자료집 · 플래너 · 수능 가이드</b>를 드려요.</li>
+          </ul>
+        </div>
+      </div>
+      <p class="st-xnote">현장 운영 프로그램의 구성과 일정은 입회 상담 때 자세히 안내해 드립니다. 화면 속 이름과 기록은 예시 데이터입니다.</p>
+    </div>
+  </section>
+
+  <!-- 06 성적 추이 관리 -->
+  <section class="bx-sec">
+    <div class="split r">
+      <div>
+        <span class="chap-sec-no">06 · 성적 추이 관리</span>
+        <h2 class="bx-h2">성적은 몇 달을<br>이어서 봐야 보입니다.</h2>
+        <p class="bx-sub">모의고사와 학교 내신 성적을 과목별 원점수, 등급, 백분위로 기록합니다. 시험 한 번 잘 보고 못 본 것보다 어느 과목이 오르고 어느 과목이 멈춰 있는지를 보고 다음 계획을 세웁니다.</p>
+        <div class="st-parent"><b>학부모님께는</b>월간 리포트에 모의고사 성적 추이 그래프와 직전 · 이번 달 시험의 과목별 등급이 담기고, 멘토링 리포트에는 과목별 ‘처음 → 최근’ 등급 변화가 함께 정리됩니다.</div>
+        <ul class="chips"><li>원점수 · 등급 · 백분위</li><li>시험 종류별 · 과목별 추이</li><li>직전 시험과 나란히 비교</li><li>처음 → 최근 등급 변화</li></ul>
+      </div>
+      <div class="visual st-shot st-tint-b">
+        <figure class="pf sm"><img src="photos/ui/parent-monthly.png?v=ui3" alt="월간 학부모 리포트의 모의고사 성적 추이 차트 화면" loading="lazy" onerror="this.closest('.st-shot').classList.add('noshot')"></figure>
+        <div class="vcard st-fb">
+          <p class="st-mk">모의고사 성적 추이 · 예시</p>
+          <p class="st-mt">김OO 학생 · 월간 리포트</p>
+          <svg class="st-line" viewBox="0 0 300 90" preserveAspectRatio="none" aria-hidden="true"><polyline points="10,70 90,62 170,44 250,30 290,22" fill="none" stroke="#3b5bdb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>
+          <div class="st-rows">
+            <div class="st-row"><span>직전 시험</span><b class="st-end">국어 2 · 수학 2 · 영어 1</b></div>
+            <div class="st-row"><span>이번 달</span><b class="st-end">국어 1 · 수학 2 · 영어 1</b></div>
+          </div>
+        </div>
+        <p class="pf-cap"><b>월간 학부모 리포트</b><span>모의고사 성적 추이 차트</span></p>
+      </div>
+    </div>
+
+    <p class="st-subh r">관리받은 몇 달 동안 등급은 이렇게 움직였어요</p>
+    <p class="r">관리 기간 동안의 월별 등급 추이입니다. 선이 위로 갈수록 성적이 오른 것입니다.</p>
+    <div class="st-grades r d1" data-grades></div>
+    <p class="st-gnote">개인정보 보호를 위해 이름은 가렸으며, 화면의 사례는 예시입니다.</p>
+  </section>
+
+  <!-- 선배 아티클 (발행된 글이 없으면 섹션 전체 숨김) -->
+  <section class="bx-sec" data-stories-section>
+    <div class="bx-head-row">
+      <div class="bx-head left r">
+        <p class="eyebrow">선배 아티클</p>
+        <h2 class="bx-h2">최상위권 대학 선배들이<br>직접 쓴 글입니다.</h2>
+        <p class="bx-sub">선배 멘토들이 수험생 시절 직접 해 본 공부법과 입시를 준비하며 겪은 이야기를 씁니다.</p>
+      </div>
+      <div class="st-actions r">
+        <a class="btn btn-line" href="stories.html?type=mentor">아티클 전체 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a class="btn btn-soft" href="mentors.html">선배 멘토진 보기</a>
+      </div>
+    </div>
+    <div class="stg" data-stories="mentor" data-limit="3" data-empty="hide">
+      <div class="stc st-skel" aria-hidden="true"><div class="stc-cover"></div><p class="stc-title"></p></div>
+      <div class="stc st-skel" aria-hidden="true"><div class="stc-cover"></div><p class="stc-title"></p></div>
+      <div class="stc st-skel" aria-hidden="true"><div class="stc-cover"></div><p class="stc-title"></p></div>
+    </div>
+  </section>
+
+  <!-- 후기 -->
+  <section class="bx-sec">
+    <div class="bx-head-row">
+      <div class="bx-head left r">
+        <p class="eyebrow">후기</p>
+        <h2 class="bx-h2">하는 게 보이면<br>잔소리가 줄어듭니다.</h2>
+      </div>
+      <a class="btn btn-line r" href="stories.html?type=review">후기 전체 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+    </div>
+    <div class="st-rvg">
+      <figure class="rvc feat r"><blockquote class="rv-q">슬럼프로 포기하고 싶었는데 담임 멘토 선배가 멘탈까지 챙겨주셔서 끝까지 갈 수 있었어요.</blockquote><figcaption class="rv-by"><span>고3 · 이OO</span><em class="rv-tag">담임 멘토링</em></figcaption></figure>
+      <figure class="rvc r d1"><blockquote class="rv-q">매달 오는 리포트로 아이가 뭘 하는지 다 보여요. 잔소리가 줄고 응원이 늘었습니다. 그게 의외로 큰 힘이 됐어요.</blockquote><figcaption class="rv-by"><span>고2 학부모 · 김OO님</span><em class="rv-tag">월간 리포트</em></figcaption></figure>
+    </div>
+  </section>
+
+  <nav class="chap-next" data-chap-next aria-label="다른 관리 보기"></nav>
+
+  <section class="ctab r">
+    <div class="ctab-media"><img src="photos/bx/hall-2.jpg" alt="" loading="lazy"></div>
+    <div class="ctab-in">
+      <p class="eyebrow">무료 입회 상담</p>
+      <h2>우리 아이는 지금<br>어디서 막혀 있을까요?</h2>
+      <p>지금 공부 상황을 같이 살펴보고, 담임 멘토링과 실전 모의고사가 어떻게 운영되는지 직접 보여드립니다. 상담은 무료입니다.</p>
+      <div class="ctab-actions">
+        <a class="btn btn-brand" href="https://khsb.vercel.app/apply" target="_blank" rel="noopener">무료 입회 상담<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a class="btn btn-glass" href="mentors.html">선배 멘토진 보기</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="mentors-data.js?v=seed4"></script>
+<script src="bx-core.js?v=bx20"></script>
+<script>
+  // 담임 멘토링: 실제 선배 멘토 사진 (mentors-data.js 의 MENTORS · MENTOR_ORDER)
+  (() => {
+    const box = document.querySelector('[data-st-mentors]');
+    if (!box || typeof MENTORS === 'undefined' || typeof MENTOR_ORDER === 'undefined') return;
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    box.innerHTML = MENTOR_ORDER.filter(id => MENTORS[id]).map(id => {
+      const m = MENTORS[id];
+      const inner = m.photo ? `<img src="${esc(m.photo)}" alt="" loading="lazy">` : esc(m.avatar || '');
+      const bg = m.photo ? '' : ` style="background:${esc(m.grad || 'var(--brand)')}"`;
+      return `<a href="mentor.html?id=${encodeURIComponent(id)}" aria-label="${esc(m.name)} 소개 보기" title="${esc(m.name)}"${bg}>${inner}</a>`;
+    }).join('');
+  })();
+</script>
+</body>
+</html>

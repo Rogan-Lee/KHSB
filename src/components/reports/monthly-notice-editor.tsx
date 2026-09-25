@@ -6,7 +6,8 @@ import { createAnnouncement, updateAnnouncement } from "@/actions/announcements"
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { Button } from "@/components/ui/button";
-import { Pencil, X, Check, Loader2 } from "lucide-react";
+import { Pencil, Check, Loader2, FileText } from "lucide-react";
+import { EmptyState } from "@/components/backoffice/ui";
 import { toast } from "sonner";
 
 interface Props {
@@ -42,11 +43,11 @@ export function MonthlyNoticeEditor({ page, label, initial }: Props) {
 
   if (editing) {
     return (
-      <div className="space-y-2">
+      <div className="flex flex-col gap-x2">
         <MarkdownEditor value={content} onChange={setContent} placeholder={`${label} 작성...`} />
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-x2">
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={() => {
               setContent(initial?.content ?? "");
@@ -54,12 +55,11 @@ export function MonthlyNoticeEditor({ page, label, initial }: Props) {
             }}
             disabled={saving}
           >
-            <X className="h-3.5 w-3.5 mr-1" />
             취소
           </Button>
           <Button size="sm" onClick={handleSave} disabled={saving || !content.trim()}>
-            {saving ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1" />}
-            저장
+            {saving ? <Loader2 className="animate-spin" /> : <Check />}
+            {saving ? "저장 중…" : "저장"}
           </Button>
         </div>
       </div>
@@ -68,25 +68,33 @@ export function MonthlyNoticeEditor({ page, label, initial }: Props) {
 
   if (!initial) {
     return (
-      <div className="rounded-md border border-dashed p-4 text-center">
-        <p className="text-sm text-muted-foreground mb-2">작성된 내용이 없습니다</p>
-        <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-          <Pencil className="h-3.5 w-3.5 mr-1" />
-          작성
-        </Button>
+      <div className="rounded-r3 border border-dashed border-stroke-neutral-weak">
+        <EmptyState
+          compact
+          icon={FileText}
+          title="작성된 내용이 없어요"
+          action={
+            <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
+              <Pencil />
+              작성하기
+            </Button>
+          }
+        />
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="rounded-md border bg-muted/30 p-3">
+    <div className="flex flex-col gap-x2">
+      <div className="rounded-r3 bg-bg-layer-fill p-x4">
         <MarkdownViewer source={initial.content} />
       </div>
-      <Button variant="ghost" size="sm" onClick={() => setEditing(true)} className="mt-2">
-        <Pencil className="h-3.5 w-3.5 mr-1" />
-        수정
-      </Button>
+      <div className="flex justify-end">
+        <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+          <Pencil />
+          수정
+        </Button>
+      </div>
     </div>
   );
 }

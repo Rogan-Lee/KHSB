@@ -3,10 +3,11 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { FormActions, FormField, Notice, Section } from "@/components/backoffice/ui";
 import {
   saveMonthlyPlan,
   type MonthlyGoals,
@@ -98,150 +99,145 @@ export function MonthlyPlanEditor({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-x4">
       {/* 월 selector */}
-      <header className="flex items-center justify-between rounded-[12px] border border-line bg-panel px-3 py-2">
-        <button
+      <div className="flex items-center gap-x3">
+        <Button
           type="button"
+          size="icon"
+          variant="outline"
           onClick={() => goToMonth(-1)}
-          className="p-1.5 rounded-[6px] text-ink-3 hover:text-ink hover:bg-canvas-2"
-          title="이전 달"
+          aria-label="이전 달"
         >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <div className="text-[13px] font-semibold text-ink tabular-nums">
-          {formatYearMonth(initialYearMonth)}
-        </div>
-        <button
+          <ChevronLeft />
+        </Button>
+        <div className="t6-bold tabular-nums text-fg-neutral">{formatYearMonth(initialYearMonth)}</div>
+        <Button
           type="button"
+          size="icon"
+          variant="outline"
           onClick={() => goToMonth(1)}
-          className="p-1.5 rounded-[6px] text-ink-3 hover:text-ink hover:bg-canvas-2"
-          title="다음 달"
+          aria-label="다음 달"
         >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </header>
+          <ChevronRight />
+        </Button>
+      </div>
+
+      {!canEdit && (
+        <Notice tone="gray" icon={Eye}>
+          보기 전용이에요 — 관리 멘토와 원장만 수정할 수 있어요.
+        </Notice>
+      )}
 
       {/* 마일스톤 */}
-      <section className="rounded-[12px] border border-line bg-panel p-4 space-y-3">
-        <h3 className="text-[12px] font-semibold text-ink-4 uppercase tracking-wide">
-          마일스톤 · 이벤트
-        </h3>
-        {sortedMilestones.length === 0 ? (
-          <p className="text-[12px] text-ink-5">
-            모의고사 · 수행평가 · 내신시험 등 월내 중요 일정을 날짜와 함께 추가하세요.
-          </p>
-        ) : (
-          <ul className="space-y-1.5">
-            {sortedMilestones.map(([date, label]) => (
-              <li
-                key={date}
-                className="flex items-center gap-2 rounded-[8px] bg-canvas-2 px-3 py-1.5 text-[12.5px]"
-              >
-                <span className="text-ink-3 tabular-nums shrink-0">
-                  {date.slice(5)}
-                </span>
-                <span className="flex-1 text-ink">{label}</span>
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={() => removeMilestone(date)}
-                    className="p-1 text-red-400 hover:text-red-600"
-                    title="삭제"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+      <Section title="마일스톤 · 이벤트" count={sortedMilestones.length || undefined}>
+        <div className="flex flex-col gap-x4">
+          {sortedMilestones.length === 0 ? (
+            <p className="t4-regular text-fg-neutral-subtle">
+              모의고사 · 수행평가 · 내신시험 등 월내 중요 일정을 날짜와 함께 추가하세요.
+            </p>
+          ) : (
+            <ul className="divide-y divide-stroke-neutral-muted">
+              {sortedMilestones.map(([date, label]) => (
+                <li key={date} className="flex min-h-12 items-center gap-x3 py-x2">
+                  <span className="w-x12 shrink-0 t4-medium tabular-nums text-fg-neutral-subtle">
+                    {date.slice(5)}
+                  </span>
+                  <span className="min-w-0 flex-1 break-words t4-regular text-fg-neutral">{label}</span>
+                  {canEdit && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => removeMilestone(date)}
+                      aria-label="마일스톤 삭제"
+                      className="text-fg-neutral-subtle hover:text-fg-critical"
+                    >
+                      <Trash2 />
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
 
-        {canEdit && (
-          <div className="flex items-center gap-2">
-            <Input
-              type="date"
-              value={newMilestoneDate}
-              onChange={(e) => setNewMilestoneDate(e.target.value)}
-              className="max-w-[160px] text-[12.5px]"
-              min={`${initialYearMonth}-01`}
-              max={`${initialYearMonth}-31`}
-            />
-            <Input
-              value={newMilestoneLabel}
-              onChange={(e) => setNewMilestoneLabel(e.target.value)}
-              placeholder="예: 6월 모의고사"
-              className="flex-1 text-[12.5px]"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addMilestone();
-                }
-              }}
-            />
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={addMilestone}
-              disabled={!newMilestoneDate || !newMilestoneLabel.trim()}
-            >
-              <Plus className="h-3 w-3 mr-1" />
-              추가
-            </Button>
-          </div>
-        )}
-      </section>
+          {canEdit && (
+            <div className="flex flex-col gap-x2 sm:flex-row sm:items-center">
+              <Input
+                type="date"
+                aria-label="마일스톤 날짜"
+                value={newMilestoneDate}
+                onChange={(e) => setNewMilestoneDate(e.target.value)}
+                className="tabular-nums sm:w-44"
+                min={`${initialYearMonth}-01`}
+                max={`${initialYearMonth}-31`}
+              />
+              <Input
+                aria-label="마일스톤 내용"
+                value={newMilestoneLabel}
+                onChange={(e) => setNewMilestoneLabel(e.target.value)}
+                placeholder="예: 6월 모의고사"
+                className="min-w-0 sm:flex-1"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addMilestone();
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={addMilestone}
+                disabled={!newMilestoneDate || !newMilestoneLabel.trim()}
+              >
+                <Plus />
+                추가
+              </Button>
+            </div>
+          )}
+        </div>
+      </Section>
 
       {/* 과목별 월간 목표 */}
-      <section className="space-y-2">
-        <h3 className="text-[12px] font-semibold text-ink-4 uppercase tracking-wide">
-          과목별 월간 목표
-        </h3>
-        {subjects.map((subject) => (
-          <div
-            key={subject}
-            className="rounded-[10px] border border-line bg-panel p-3"
-          >
-            <label className="block">
-              <span className="text-[12px] font-semibold text-ink block mb-1">
-                {subject}
-              </span>
+      <Section title="과목별 월간 목표">
+        <div className="flex flex-col gap-x5">
+          {subjects.map((subject) => (
+            <FormField key={subject} label={subject} htmlFor={`monthly-goal-${subject}`}>
               <Textarea
+                id={`monthly-goal-${subject}`}
                 value={subjectGoals[subject] ?? ""}
                 onChange={(e) => setGoal(subject, e.target.value)}
                 disabled={!canEdit}
                 rows={2}
                 placeholder={`${subject} 이번 달 목표 (주차 배분 포함)`}
-                className="text-[12.5px] resize-y disabled:opacity-60"
+                className="resize-y"
               />
-            </label>
-          </div>
-        ))}
-      </section>
+            </FormField>
+          ))}
+        </div>
+      </Section>
 
       {/* 회고 */}
-      <section className="rounded-[10px] border border-line bg-panel p-3">
-        <label className="block">
-          <span className="text-[12px] font-semibold text-ink block mb-1">
-            월간 회고
-          </span>
-          <Textarea
-            value={retrospective}
-            onChange={(e) => setRetrospective(e.target.value)}
-            disabled={!canEdit}
-            rows={4}
-            placeholder="달성률 / 핵심 이슈 / 다음 달 조정 사항"
-            className="text-[12.5px] resize-y disabled:opacity-60"
-          />
-        </label>
-      </section>
+      <Section title="월간 회고">
+        <Textarea
+          aria-label="월간 회고"
+          value={retrospective}
+          onChange={(e) => setRetrospective(e.target.value)}
+          disabled={!canEdit}
+          rows={4}
+          placeholder="달성률 / 핵심 이슈 / 다음 달 조정 사항"
+          className="resize-y"
+        />
+      </Section>
 
       {canEdit && (
-        <div className="flex justify-end">
-          <Button onClick={onSave} disabled={saving}>
-            {saving ? "저장 중..." : "월간 계획 저장"}
+        <FormActions>
+          <Button type="button" onClick={onSave} disabled={saving} className="w-full sm:w-auto">
+            {saving ? "저장 중…" : "월간 계획 저장"}
           </Button>
-        </div>
+        </FormActions>
       )}
     </div>
   );

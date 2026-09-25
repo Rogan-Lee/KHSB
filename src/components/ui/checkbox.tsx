@@ -3,9 +3,9 @@
 import * as React from "react"
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox"
 import { Check, Minus } from "lucide-react"
-
 import { cn } from "@/lib/utils"
 
+// SEED Checkmark(square · neutral) 규격 — 1.5px stroke-neutral-weak 테두리, 체크 시 bg-neutral-inverted
 const Checkbox = React.forwardRef<
   React.ElementRef<typeof CheckboxPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
@@ -13,18 +13,20 @@ const Checkbox = React.forwardRef<
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
-      "grid place-content-center peer h-4 w-4 shrink-0 rounded-sm border border-primary ring-offset-background transition-colors hover:border-primary/80 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground",
+      "peer grid size-[18px] shrink-0 place-content-center rounded-r1 bg-bg-layer-default shadow-[inset_0_0_0_1.5px_var(--seed-color-stroke-neutral-weak)] transition-colors",
+      "hover:shadow-[inset_0_0_0_1.5px_var(--seed-color-stroke-neutral-solid)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
+      "disabled:cursor-not-allowed disabled:bg-bg-disabled disabled:shadow-none",
+      "data-[state=checked]:bg-bg-neutral-inverted data-[state=checked]:text-fg-neutral-inverted data-[state=checked]:shadow-none",
+      "data-[state=indeterminate]:bg-bg-neutral-inverted data-[state=indeterminate]:text-fg-neutral-inverted data-[state=indeterminate]:shadow-none",
       className
     )}
     {...props}
   >
-    <CheckboxPrimitive.Indicator
-      className={cn("grid place-content-center text-current")}
-    >
+    <CheckboxPrimitive.Indicator className="grid place-content-center text-current">
       {props.checked === "indeterminate" ? (
-        <Minus className="h-3.5 w-3.5" />
+        <Minus className="size-3.5" strokeWidth={3} />
       ) : (
-        <Check className="h-4 w-4" />
+        <Check className="size-3.5" strokeWidth={3} />
       )}
     </CheckboxPrimitive.Indicator>
   </CheckboxPrimitive.Root>

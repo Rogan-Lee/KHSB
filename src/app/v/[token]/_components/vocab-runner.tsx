@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { CircleAlert, History, Lock, PencilLine, SpellCheck, Timer, type LucideIcon } from "lucide-react";
 import { startVocabAttempt, submitVocabAnswer, finalizeVocabAttempt, type RunnerItem } from "@/actions/vocab-online";
-import { ArrowRight, Loader2, Timer } from "lucide-react";
+import { Badge, BottomCTA, Button, IconTile, Notice, ProgressBar } from "@/components/portal/ui";
+import { cn } from "@/lib/utils";
+import { VocabTopBar } from "./vocab-top-bar";
 
 // ───────────────────────────── 진입(인트로) ─────────────────────────────
 
 export function VocabExperience({
-  token, studentName, examTitle, questionCount, perQuestionSeconds, resuming,
+  token, studentName, examTitle, questionCount, perQuestionSeconds, resuming, portalHref,
 }: {
   token: string;
   studentName: string;
@@ -16,6 +19,8 @@ export function VocabExperience({
   questionCount: number;
   perQuestionSeconds: number;
   resuming: boolean;
+  /** 학생 포털 영단어 탭 — 히스토리 없이 들어왔을 때 뒤로 가기 대상 */
+  portalHref?: string;
 }) {
   const router = useRouter();
   const [phase, setPhase] = useState<"intro" | "loading" | "running">("intro");
@@ -44,7 +49,7 @@ export function VocabExperience({
         setPhase("running");
       })
       .catch((e) => {
-        setError(e instanceof Error ? e.message : "시험을 시작할 수 없습니다");
+        setError(e instanceof Error ? e.message : "시험을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.");
         setPhase("intro");
       });
   };
@@ -53,45 +58,89 @@ export function VocabExperience({
     return <VocabRunner token={token} items={items} startIndex={startAt} perQuestionSeconds={perQ} />;
   }
 
-  return (
-    <div className="mx-auto flex min-h-[88svh] max-w-[560px] flex-col justify-center px-6 py-10">
-      <p className="text-[13px] font-medium text-ink-4">{studentName} 학생</p>
-      <h1 className="mt-1 text-[24px] font-bold tracking-[-0.02em] text-ink">{examTitle}</h1>
+  const timed = perQuestionSeconds > 0;
+  const loading = phase === "loading";
 
-      <div className="mt-6 space-y-2.5 rounded-[16px] border border-line bg-panel p-5">
-        <Rule label="문항 수" value={`${questionCount}문항`} />
-        <Rule label="문항당 제한시간" value={perQuestionSeconds > 0 ? `${perQuestionSeconds}초` : "제한 없음"} />
-        {perQuestionSeconds > 0 && (
-          <p className="pt-1 text-[12.5px] leading-relaxed text-ink-4">
-            제한시간이 지나면 그 문항은 <b className="text-bad-ink">오답</b>으로 처리되고 다음 문항으로 넘어갑니다. 답은 한 가지만 입력해도 됩니다.
-          </p>
+  return (
+    <>
+      <VocabTopBar leading="back" fallbackHref={portalHref} />
+
+      <div className="mx-auto max-w-[480px] px-x5 pt-x4">
+        <IconTile icon={SpellCheck} tone="brand" size={56} round />
+
+        <p className="mt-x5 t4-regular text-fg-neutral-subtle">{studentName} 학생</p>
+        <h1 className="mt-x1 break-keep t9-bold text-fg-neutral">{examTitle}</h1>
+
+        {/* 시험 요약 */}
+        <dl className="mt-x6 grid grid-cols-3 divide-x divide-stroke-neutral-subtle rounded-r4 bg-bg-layer-fill py-x4">
+          <SummaryCell label="문항 수" value={`${questionCount}문항`} />
+          <SummaryCell label="문항당" value={timed ? `${perQuestionSeconds}초` : "제한 없음"} />
+          <SummaryCell
+            label="예상 시간"
+            value={timed ? `약 ${Math.ceil((questionCount * perQuestionSeconds) / 60)}분` : "—"}
+          />
+        </dl>
+
+        {error && (
+          <Notice tone="bad" icon={CircleAlert} className="mt-x6">
+            {error}
+          </Notice>
         )}
-        <p className="text-[12.5px] leading-relaxed text-ink-4">
-          제출 후에는 다시 풀 수 없어요. 조용한 곳에서 준비가 되면 시작하세요.
-        </p>
+
+        {resuming && (
+          <Notice tone="info" icon={History} title="풀던 시험이 있어요" className="mt-x6">
+            마지막으로 푼 문항 다음부터 이어서 풀어요.
+          </Notice>
+        )}
+
+        {/* 안내 */}
+        <h2 className="mt-x8 t5-bold text-fg-neutral">시험 전에 확인해 주세요</h2>
+        <ul className="mt-x4 flex flex-col gap-x3">
+          {timed && (
+            <RuleItem icon={Timer}>
+              문항마다 {perQuestionSeconds}초가 주어져요. 시간이 지나면{" "}
+              <span className="t4-medium text-fg-critical">오답</span>으로 처리되고 다음 문항으로 넘어가요.
+            </RuleItem>
+          )}
+          <RuleItem icon={PencilLine}>뜻이 여러 개여도 하나만 적으면 돼요.</RuleItem>
+          <RuleItem icon={Lock}>제출하면 다시 풀 수 없어요. 조용한 곳에서 시작해 주세요.</RuleItem>
+        </ul>
       </div>
 
-      {error && <p className="mt-3 text-[13px] text-bad-ink">{error}</p>}
+      <BottomCTA>
+        <Button
+          variant="primary"
+          size="xl"
+          block
+          loading={loading}
+          aria-disabled={loading || undefined}
+          // SEED loading 상태는 클릭을 막지 않으므로 중복 시작 방지
+          onClick={() => {
+            if (!loading) begin();
+          }}
+        >
+          {resuming ? "이어서 풀기" : "시작하기"}
+        </Button>
+      </BottomCTA>
+    </>
+  );
+}
 
-      <button
-        type="button"
-        onClick={begin}
-        disabled={phase === "loading"}
-        className="mt-6 inline-flex h-14 items-center justify-center gap-2 rounded-[14px] bg-brand text-[16px] font-semibold text-white active:scale-[0.99] transition-transform disabled:opacity-60"
-      >
-        {phase === "loading" ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
-        {resuming ? "이어서 풀기" : "시작하기"}
-      </button>
+function SummaryCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 flex-col items-center gap-x1 px-x2 text-center">
+      <dt className="t3-regular text-fg-neutral-subtle">{label}</dt>
+      <dd className="t6-bold text-fg-neutral tabular-nums">{value}</dd>
     </div>
   );
 }
 
-function Rule({ label, value }: { label: string; value: string }) {
+function RuleItem({ icon: Icon, children }: { icon: LucideIcon; children: ReactNode }) {
   return (
-    <div className="flex items-center justify-between text-[14px]">
-      <span className="text-ink-4">{label}</span>
-      <span className="font-semibold text-ink">{value}</span>
-    </div>
+    <li className="flex items-start gap-x3">
+      <Icon className="mt-x0_5 size-x4 shrink-0 text-fg-neutral-subtle" strokeWidth={2.2} aria-hidden />
+      <p className="min-w-0 flex-1 break-keep t4-regular text-fg-neutral-muted">{children}</p>
+    </li>
   );
 }
 
@@ -176,91 +225,122 @@ function VocabRunner({
     void goNext(value);
   };
 
+  // 모르겠어요 — 빈 답으로 제출(시간 초과와 같은 처리)
+  const skip = () => {
+    if (busy) return;
+    void goNext("");
+  };
+
+  // 버튼을 눌러도 입력창 포커스를 유지해 모바일 키보드가 닫히지 않게
+  const keepFocus = (e: MouseEvent) => e.preventDefault();
+
   const pct = timed ? Math.max(0, Math.min(1, remaining / perQuestionSeconds)) : 1;
   const dangerTime = timed && remaining <= 3;
+  const enToKo = current.direction === "EN_TO_KO";
+  const isLast = index + 1 === total;
 
   return (
-    <div className="mx-auto flex min-h-[88svh] max-w-[680px] flex-col px-6 py-6 sm:py-10">
-      {/* 진행 상태 */}
-      <div className="flex items-center gap-3">
-        <span className="text-[13px] font-semibold tabular-nums text-ink-3">{index + 1} / {total}</span>
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-canvas-2">
-          <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${((index) / total) * 100}%` }} />
-        </div>
-        {timed && (
-          <span className={`inline-flex items-center gap-1 text-[13px] font-semibold tabular-nums ${dangerTime ? "text-bad-ink" : "text-ink-3"}`}>
-            <Timer className="h-3.5 w-3.5" /> {Math.ceil(remaining)}s
+    <>
+      <VocabTopBar leading={null}>
+        <div className="flex min-w-0 flex-1 items-center px-x1">
+          <span className="shrink-0" aria-label={`전체 ${total}문항 중 ${index + 1}번째`}>
+            <span className="t5-bold text-fg-neutral tabular-nums">{index + 1}</span>
+            <span className="t5-regular text-fg-neutral-subtle tabular-nums">/{total}</span>
           </span>
-        )}
-      </div>
+          <ProgressBar value={index / total} className="ml-x3 flex-1" />
+        </div>
+      </VocabTopBar>
 
-      {/* 문제 */}
-      <div className="mt-10 flex flex-1 flex-col items-center justify-center text-center sm:mt-16">
-        {timed && (
-          <CountdownRing pct={pct} danger={dangerTime} seconds={Math.ceil(remaining)} />
-        )}
-        <p className="mt-6 text-[13px] font-medium uppercase tracking-wider text-ink-4">
-          {current.direction === "EN_TO_KO" ? "이 단어의 뜻은?" : "이 뜻의 영단어는?"}
-        </p>
-        <p className="mt-2 break-keep text-[30px] font-bold leading-tight tracking-[-0.02em] text-ink sm:text-[38px]">
-          {current.prompt}
-        </p>
+      <div className="mx-auto max-w-[480px] px-x5 pt-x8 pb-x6">
+        {/* 문제 — 문항마다 새로 페이드인. 입력창은 이 블록 밖에 둬서 리마운트(=키보드 닫힘)되지 않게 한다 */}
+        <div key={index} className="portal-enter flex flex-col items-center text-center">
+          {timed && <CountdownRing pct={pct} danger={dangerTime} seconds={Math.ceil(remaining)} />}
+          <div className={cn("flex items-center justify-center gap-x2", timed && "mt-x5")}>
+            <Badge tone={enToKo ? "brand" : "info"}>{enToKo ? "영→한" : "한→영"}</Badge>
+            <p className="t5-medium text-fg-neutral-subtle">
+              {enToKo ? "이 단어의 뜻은?" : "이 뜻의 영단어는?"}
+            </p>
+          </div>
+          <p
+            className={cn(
+              "mt-x3 w-full break-keep break-words text-fg-neutral",
+              current.prompt.length > 14 ? "t9-bold" : "t12-bold"
+            )}
+          >
+            {current.prompt}
+          </p>
+        </div>
 
-        <div className="mt-8 w-full max-w-[420px]">
-          <input
-            ref={inputRef}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onCompositionStart={() => { composingRef.current = true; }}
-            onCompositionEnd={() => { composingRef.current = false; }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !composingRef.current && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                onSubmit();
-              }
-            }}
-            inputMode={current.direction === "KO_TO_EN" ? "text" : undefined}
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            disabled={busy}
-            placeholder={current.direction === "EN_TO_KO" ? "뜻을 입력하세요" : "영단어를 입력하세요"}
-            // 포커스(커서 깜빡임) 즉시 placeholder 숨김
-            className="w-full rounded-[14px] border-2 border-line bg-panel px-4 py-4 text-center text-[20px] font-medium text-ink outline-none focus:border-brand focus:placeholder:text-transparent disabled:opacity-60"
-          />
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onCompositionStart={() => { composingRef.current = true; }}
+          onCompositionEnd={() => { composingRef.current = false; }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !composingRef.current && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              onSubmit();
+            }
+          }}
+          inputMode={current.direction === "KO_TO_EN" ? "text" : undefined}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          // disabled 대신 readOnly — disabled 는 포커스를 잃어 문항 사이에 모바일 키보드가 닫힌다
+          readOnly={busy}
+          aria-label={enToKo ? "뜻 입력" : "영단어 입력"}
+          placeholder={enToKo ? "뜻을 입력해 주세요" : "영단어를 입력해 주세요"}
+          // 포커스(커서 깜빡임) 즉시 placeholder 숨김
+          className="mt-x8 block h-x16 w-full rounded-r4 border border-stroke-neutral-weak bg-bg-layer-default px-x4 text-center t7-medium text-fg-neutral outline-none transition-[border-color,box-shadow] duration-color-transition placeholder:text-fg-placeholder focus:border-stroke-neutral-contrast focus:shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-contrast)] focus:placeholder:text-transparent disabled:bg-bg-disabled disabled:text-fg-disabled"
+        />
+
+        {/* 입력창 바로 아래(흐름 안) — iOS 키보드 위로 항상 보이게 */}
+        <div className="mt-x3 flex gap-x2">
+          <Button variant="gray" size="xl" onMouseDown={keepFocus} onClick={skip} disabled={busy}>
+            모르겠어요
+          </Button>
+          <Button
+            variant="primary"
+            size="xl"
+            className="flex-1"
+            loading={busy}
+            onMouseDown={keepFocus}
+            onClick={onSubmit}
+          >
+            {isLast ? "제출하기" : "다음"}
+          </Button>
         </div>
       </div>
-
-      {/* 다음 버튼 */}
-      <button
-        type="button"
-        onClick={onSubmit}
-        disabled={busy}
-        className="mt-6 inline-flex h-14 items-center justify-center gap-2 rounded-[14px] bg-ink text-[16px] font-semibold text-white active:scale-[0.99] transition-transform disabled:opacity-60"
-      >
-        {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <>{index + 1 === total ? "제출하기" : "다음"}<ArrowRight className="h-5 w-5" /></>}
-      </button>
-    </div>
+    </>
   );
 }
 
 function CountdownRing({ pct, danger, seconds }: { pct: number; danger: boolean; seconds: number }) {
-  const r = 34;
+  const r = 32;
   const c = 2 * Math.PI * r;
   return (
-    <div className="relative h-[88px] w-[88px]">
-      <svg viewBox="0 0 80 80" className="h-full w-full -rotate-90">
-        <circle cx="40" cy="40" r={r} fill="none" stroke="currentColor" strokeWidth="6" className="text-canvas-2" />
+    <div className="relative size-[72px]" role="timer" aria-label={`남은 시간 ${seconds}초`}>
+      <svg viewBox="0 0 72 72" className="size-full -rotate-90" aria-hidden>
+        <circle cx="36" cy="36" r={r} fill="none" strokeWidth="5" className="stroke-bg-neutral-weak" />
         <circle
-          cx="40" cy="40" r={r} fill="none" strokeWidth="6" strokeLinecap="round"
-          stroke="currentColor"
-          className={danger ? "text-bad-ink transition-[stroke-dashoffset] duration-100" : "text-brand transition-[stroke-dashoffset] duration-100"}
+          cx="36" cy="36" r={r} fill="none" strokeWidth="5" strokeLinecap="round"
+          className={cn(
+            "transition-[stroke-dashoffset,stroke] duration-100 ease-linear",
+            danger ? "stroke-bg-critical-solid" : "stroke-bg-brand-solid"
+          )}
           strokeDasharray={c}
           strokeDashoffset={c * (1 - pct)}
         />
       </svg>
-      <span className={`absolute inset-0 flex items-center justify-center text-[22px] font-bold tabular-nums ${danger ? "text-bad-ink" : "text-ink"}`}>
+      <span
+        className={cn(
+          "absolute inset-0 flex items-center justify-center t7-bold tabular-nums",
+          danger ? "text-fg-critical" : "text-fg-neutral"
+        )}
+        aria-hidden
+      >
         {seconds}
       </span>
     </div>

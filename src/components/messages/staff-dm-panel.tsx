@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Send } from "lucide-react";
+import { MessagesSquare, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { Avatar, CountBadge, EmptyState } from "@/components/backoffice/ui";
+import { cn } from "@/lib/utils";
 import { ROLE_DISPLAY } from "@/lib/roles";
 import {
   getThread,
@@ -73,6 +75,8 @@ export function StaffDmPanel({ staff }: { staff: StaffOption[] }) {
 
   // 초기 로드 + 5초 폴링 (열린 대화 갱신 + 목록 갱신)
   useEffect(() => {
+    // setThreads 는 await 이후(비동기)에 호출돼 연쇄 렌더를 만들지 않는다
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshThreads();
   }, [refreshThreads]);
 
@@ -125,10 +129,10 @@ export function StaffDmPanel({ staff }: { staff: StaffOption[] }) {
   };
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex flex-col lg:h-full lg:min-h-0 lg:flex-row">
       {/* 좌측: 스레드 목록 */}
-      <div className="flex w-72 shrink-0 flex-col border-r">
-        <div className="border-b p-3">
+      <div className="flex shrink-0 flex-col border-b border-stroke-neutral-muted lg:w-72 lg:border-b-0 lg:border-r">
+        <div className="border-b border-stroke-neutral-muted p-x3">
           <SearchableSelect
             options={staff.map((s) => ({
               value: s.id,
@@ -139,96 +143,110 @@ export function StaffDmPanel({ staff }: { staff: StaffOption[] }) {
             placeholder="새 대화 — 직원 선택"
           />
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="max-h-56 overflow-y-auto lg:max-h-none lg:flex-1">
           {threads.length === 0 ? (
-            <p className="p-4 text-center text-sm text-muted-foreground">
-              대화가 없습니다
-            </p>
+            <EmptyState
+              compact
+              icon={MessagesSquare}
+              title="아직 대화가 없어요"
+              description="위에서 직원을 골라 대화를 시작해요."
+            />
           ) : (
-            threads.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => openThread(t.other.id)}
-                className={`flex w-full items-start gap-2 border-b px-3 py-2.5 text-left transition-colors hover:bg-muted/60 ${
-                  selectedUserId === t.other.id ? "bg-muted" : ""
-                }`}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="truncate text-sm font-semibold">
-                      {t.other.name}
-                      <span className="ml-1 text-[11px] font-normal text-muted-foreground">
-                        {ROLE_DISPLAY[t.other.role ?? ""] ?? ""}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-[11px] text-muted-foreground">
-                      {dateLabel(t.lastMessageAt)}
-                    </span>
-                  </div>
-                  <div className="mt-0.5 flex items-center justify-between gap-2">
-                    <span className="truncate text-xs text-muted-foreground">
-                      {t.lastMessage
-                        ? `${t.lastMessage.mine ? "나: " : ""}${t.lastMessage.content}`
-                        : "메시지 없음"}
-                    </span>
-                    {t.unread > 0 && (
-                      <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
-                        {t.unread}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </button>
-            ))
+            <ul>
+              {threads.map((t) => {
+                const active = selectedUserId === t.other.id;
+                return (
+                  <li key={t.id}>
+                    <button
+                      type="button"
+                      onClick={() => openThread(t.other.id)}
+                      aria-current={active ? "true" : undefined}
+                      className={cn(
+                        "flex w-full items-center gap-x3 px-x4 py-x3 text-left transition-colors",
+                        active ? "bg-bg-neutral-weak" : "hover:bg-bg-layer-default-pressed"
+                      )}
+                    >
+                      <Avatar name={t.other.name} size={40} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-x2">
+                          <span className="min-w-0 truncate t4-bold text-fg-neutral">
+                            {t.other.name}
+                            <span className="ml-x1 t2-regular text-fg-neutral-subtle">
+                              {ROLE_DISPLAY[t.other.role ?? ""] ?? ""}
+                            </span>
+                          </span>
+                          <span className="shrink-0 t2-regular tabular-nums text-fg-neutral-subtle">
+                            {dateLabel(t.lastMessageAt)}
+                          </span>
+                        </div>
+                        <div className="mt-x0_5 flex items-center justify-between gap-x2">
+                          <span className="truncate t3-regular text-fg-neutral-subtle">
+                            {t.lastMessage
+                              ? `${t.lastMessage.mine ? "나: " : ""}${t.lastMessage.content}`
+                              : "메시지 없음"}
+                          </span>
+                          <CountBadge count={t.unread} />
+                        </div>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       </div>
 
       {/* 우측: 대화 뷰 */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex h-[60dvh] min-h-[420px] min-w-0 flex-1 flex-col lg:h-auto lg:min-h-0">
         {!detail ? (
-          <div className="grid flex-1 place-items-center text-sm text-muted-foreground">
-            대화를 선택하거나 새 대화를 시작하세요
+          <div className="grid flex-1 place-items-center">
+            <EmptyState
+              icon={MessagesSquare}
+              title="대화를 선택하세요"
+              description="목록에서 대화를 고르거나 새 대화를 시작해요."
+            />
           </div>
         ) : (
           <>
-            <div className="border-b px-4 py-2.5">
-              <p className="text-sm font-semibold">{detail.other.name}</p>
-              <p className="text-[11px] text-muted-foreground">
-                {ROLE_DISPLAY[detail.other.role] ?? detail.other.role}
-              </p>
+            <div className="flex items-center gap-x3 border-b border-stroke-neutral-muted px-x5 py-x3">
+              <Avatar name={detail.other.name} size={32} />
+              <div className="min-w-0">
+                <p className="truncate t4-bold text-fg-neutral">{detail.other.name}</p>
+                <p className="t2-regular text-fg-neutral-subtle">
+                  {ROLE_DISPLAY[detail.other.role] ?? detail.other.role}
+                </p>
+              </div>
             </div>
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto bg-bg-layer-fill px-x5 py-x4">
               {detail.messages.length === 0 ? (
-                <p className="mt-8 text-center text-sm text-muted-foreground">
+                <p className="mt-x8 text-center t4-regular text-fg-neutral-subtle">
                   대화를 시작해 보세요
                 </p>
               ) : (
-                <div className="space-y-1.5">
+                <div className="flex flex-col gap-x1_5">
                   {detail.messages.map((m) => (
                     <div
                       key={m.id}
-                      className={`flex items-end gap-1.5 ${
-                        m.mine ? "justify-end" : "justify-start"
-                      }`}
+                      className={cn("flex items-end gap-x1_5", m.mine ? "justify-end" : "justify-start")}
                     >
                       {m.mine && (
-                        <span className="text-[10.5px] tabular-nums text-muted-foreground">
+                        <span className="t2-regular tabular-nums text-fg-neutral-subtle">
                           {timeShort(m.createdAt)}
                         </span>
                       )}
                       <div
-                        className={`max-w-[75%] whitespace-pre-wrap break-words rounded-[14px] px-3 py-2 text-sm leading-relaxed ${
+                        className={cn(
+                          "max-w-[75%] whitespace-pre-wrap break-words rounded-r4 px-x3_5 py-x2 t4-regular",
                           m.mine
-                            ? "bg-primary text-primary-foreground"
-                            : "border bg-muted/40"
-                        }`}
+                            ? "bg-bg-brand-solid text-palette-static-white"
+                            : "bg-bg-layer-default text-fg-neutral shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-muted)]"
+                        )}
                       >
                         {m.content}
                       </div>
                       {!m.mine && (
-                        <span className="text-[10.5px] tabular-nums text-muted-foreground">
+                        <span className="t2-regular tabular-nums text-fg-neutral-subtle">
                           {timeShort(m.createdAt)}
                         </span>
                       )}
@@ -237,7 +255,7 @@ export function StaffDmPanel({ staff }: { staff: StaffOption[] }) {
                 </div>
               )}
             </div>
-            <div className="flex items-end gap-2 border-t p-3">
+            <div className="flex items-end gap-x2 border-t border-stroke-neutral-muted p-x3">
               <Textarea
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
@@ -248,7 +266,8 @@ export function StaffDmPanel({ staff }: { staff: StaffOption[] }) {
                   }
                 }}
                 placeholder="메시지 입력 (Enter 전송, Shift+Enter 줄바꿈)"
-                className="max-h-32 min-h-10 flex-1 resize-none"
+                aria-label="메시지 입력"
+                className="max-h-32 min-h-10 flex-1 resize-none py-x2"
                 rows={1}
               />
               <Button
@@ -257,7 +276,7 @@ export function StaffDmPanel({ staff }: { staff: StaffOption[] }) {
                 disabled={isPending || !content.trim()}
                 aria-label="전송"
               >
-                <Send className="h-4 w-4" />
+                <Send />
               </Button>
             </div>
           </>

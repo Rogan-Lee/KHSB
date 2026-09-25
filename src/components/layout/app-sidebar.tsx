@@ -3,414 +3,331 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { IconChevronUpSmallFill } from "@karrotmarket/react-monochrome-icon";
+import {
+  NavigationMenu as SeedNavigationMenu,
+  NotificationBadge,
+  SideNavigation as SeedSideNavigation,
+} from "@seed-design/react";
+import { useSideNavigationContext } from "@seed-design/react/primitive";
+import { Lock } from "lucide-react";
+import {
+  SideNavigationContent,
+  SideNavigationFooter,
+  SideNavigationHeader,
+  SideNavigationRoot,
+  SideNavigationTrigger,
+} from "seed-design/ui/side-navigation";
+import { HelpBubbleTooltipTriggerPortal } from "seed-design/ui/help-bubble-tooltip";
+import {
+  NavigationMenuContent,
+  NavigationMenuGroup,
+  NavigationMenuGroupLabel,
+} from "seed-design/ui/navigation-menu";
+import { hasFeature, getMinimumPlan, PLAN_LABELS, type PlanTier } from "@/lib/features";
 import { cn } from "@/lib/utils";
-import { useModKey } from "@/lib/nav-shortcuts";
-import {
-  hasFeature, getMinimumPlan, PLAN_LABELS,
-  type PlanTier, type FeatureKey,
-} from "@/lib/features";
-import { canViewMentoringTime, isFullAccess, isOnlineStaff, isStaff } from "@/lib/roles";
-import {
-  BookOpen,
-  Users,
-  ClipboardList,
-  Star,
-  MessageSquare,
-  ClipboardCheck,
-  FileText,
-  MessageCircle,
-  BarChart3,
-  TrendingUp,
-  LayoutDashboard,
-  Calendar,
-  CalendarDays,
-  UserCog,
-  LayoutList,
-  ArrowLeftRight,
-  ListTodo,
-  NotebookText,
-  CalendarClock,
-  Clock,
-  MapPin,
-  Megaphone,
-  Utensils,
-  GraduationCap,
-  Wallet,
-  Building2,
-  Globe,
-  Lock,
-  ChevronRight,
-  ChevronsLeft,
-  Video,
-  HelpCircle,
-  ScanLine,
-  Smartphone,
-  MessageSquarePlus,
-  UserPlus,
-  KeyRound,
-  Inbox,
-  Podcast,
-} from "lucide-react";
+import { matchNavHref, visibleGroups, visiblePrimary, type NavGroup, type NavItem } from "./nav-config";
+import { useStoredValue } from "./use-stored-value";
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: React.ElementType;
-  feature?: FeatureKey;
-  // 역할별 노출 제어. 미지정 시 섹션이 렌더되는 모든 역할에 노출.
-  show?: (role?: string | null) => boolean;
-};
-type NavSection = { label?: string; items: NavItem[] };
+const OPEN_GROUPS_KEY = "sidebarOpenGroups";
 
-const navSections: NavSection[] = [
-  {
-    label: "자주 사용",
-    items: [
-      { href: "/", label: "대시보드", icon: LayoutDashboard },
-      { href: "/attendance", label: "입퇴실 관리", icon: ClipboardList, feature: "attendance" },
-      { href: "/phone-check", label: "휴대폰 검사", icon: Smartphone },
-      { href: "/handover", label: "인수인계", icon: ArrowLeftRight, feature: "handover" },
-      { href: "/todos", label: "투두리스트", icon: ListTodo, feature: "todos" },
-    ],
-  },
-  {
-    label: "원생",
-    items: [
-      { href: "/students", label: "원생 관리", icon: Users, feature: "students" },
-      { href: "/waitlist", label: "대기자 관리", icon: UserPlus },
-      { href: "/seat-map", label: "좌석 배치도", icon: MapPin, feature: "seat-map" },
-      { href: "/merit-demerit", label: "상벌점", icon: Star, feature: "merit-demerit" },
-      { href: "/vocab-test", label: "영단어 시험", icon: BookOpen, feature: "vocab-test" },
-      { href: "/questions", label: "학생 질문", icon: HelpCircle },
-      { href: "/suggestions", label: "학생 건의사항", icon: MessageSquarePlus },
-      // 쪽잠·네트워크 사용 신청 승인함
-      { href: "/approvals", label: "신청함", icon: Inbox },
-      { href: "/online/inbox", label: "학생 메시지", icon: MessageSquare },
-      { href: "/assignments", label: "과제 관리", icon: ClipboardCheck, feature: "assignments" },
-      { href: "/online/performance", label: "수행평가", icon: ClipboardCheck },
-      { href: "/exams", label: "시험 관리", icon: GraduationCap, feature: "exam-scores" },
-      // 등원 스케줄(시간표 제안→학부모 승인 검토) — 자습실 운영진 전체.
-      { href: "/online/schedules", label: "등원 스케줄", icon: CalendarClock, show: isStaff },
-    ],
-  },
-  {
-    label: "멘토링",
-    items: [
-      { href: "/mentoring", label: "멘토링", icon: MessageSquare, feature: "mentoring", show: isStaff },
-      { href: "/mentoring-plan", label: "주간 멘토링 계획", icon: CalendarClock, feature: "mentoring-plan" },
-      { href: "/timetable", label: "시간표", icon: LayoutList, feature: "timetable" },
-      { href: "/consultations", label: "면담 관리", icon: FileText, feature: "consultations" },
-      { href: "/mentoring/schedule", label: "멘토 스케줄", icon: Calendar, feature: "mentoring" },
-      // 원장/SUPER_ADMIN + 총괄 멘토만. 그룹 맨 아래 배치.
-      { href: "/mentoring/time", label: "멘토링 시간 관리", icon: Clock, feature: "mentoring", show: canViewMentoringTime },
-    ],
-  },
-  {
-    label: "운영",
-    items: [
-      { href: "/patrol", label: "순찰 관리", icon: ScanLine },
-      { href: "/lunch", label: "점심 도시락", icon: Utensils },
-      { href: "/calendar", label: "캘린더", icon: CalendarDays, feature: "calendar" },
-      { href: "/meeting-minutes", label: "회의록", icon: NotebookText, feature: "meeting-minutes" },
-      { href: "/messages", label: "카카오 메시지", icon: MessageCircle, feature: "kakao-messages" },
-      { href: "/contents", label: "콘텐츠", icon: Podcast, show: isStaff },
-      { href: "/requests", label: "요청사항", icon: Megaphone, feature: "requests" },
-    ],
-  },
-];
+type Badges = Record<string, number> | undefined;
 
-// 온라인 관리 모듈. ONLINE_ROLES(원장·SUPER_ADMIN·CONSULTANT·MANAGER_MENTOR) 에만 노출.
-// 등원 스케줄·수행평가·학생 메시지는 전체 학생 대상이므로 navSections(일반 그룹)로 이동함.
-const onlineSection: NavSection = {
-  label: "온라인 관리",
-  items: [
-    { href: "/online", label: "온라인 대시보드", icon: Globe },
-    { href: "/online/students", label: "온라인 학생", icon: Users },
-    { href: "/online/sessions", label: "화상 1:1 세션", icon: Video },
-    { href: "/online/daily-log", label: "일일 보고", icon: MessageSquare },
-    { href: "/online/reports", label: "학부모 보고서", icon: FileText },
-  ],
-};
+function badgeLabel(n: number) {
+  return n > 99 ? "99+" : String(n);
+}
 
-// 전 직원 접근 가능 — 운영조교/멘토/총괄멘토/원장/SA 모두 노출
-const insightsSection: NavSection = {
-  label: "리포트·분석",
-  items: [
-    { href: "/reports/monthly", label: "월간 리포트", icon: BarChart3, feature: "reports" },
-    { href: "/analytics", label: "성과 분석", icon: TrendingUp, feature: "analytics" },
-  ],
-};
-
-// 원장/SA 전용 — 급여·시스템 관리
-const directorSection: NavSection = {
-  label: "관리자",
-  items: [
-    { href: "/mentors", label: "직원 관리", icon: UserCog, feature: "mentors" },
-    { href: "/admin/auth", label: "계정 초대", icon: KeyRound },
-    { href: "/payroll", label: "급여 정산", icon: Wallet, feature: "payroll" },
-    { href: "/payroll/me", label: "내 출퇴근", icon: Wallet, feature: "payroll" },
-    { href: "/admin/school-stats", label: "학교별 통계", icon: Building2, feature: "school-stats" },
-  ],
-};
-
+/**
+ * SEED SideNavigation 기반 사이드바.
+ * - 매일 쓰는 화면은 맨 위 평면 목록, 나머지는 접이식 그룹(현재 화면이 속한 그룹은 자동으로 펼침)
+ * - 접힌 상태(56px)에선 그룹이 플라이아웃 메뉴로, 항목은 툴팁으로 보인다
+ * - 미확인 건수는 SEED NotificationBadge
+ */
 export function AppSidebar({
   role,
   plan = "PREMIUM",
-  mobile,
-  onClose,
-  collapsed = false,
-  onToggle,
   badges,
+  footer,
+  onNavigate,
+  collapsible = true,
+  className,
 }: {
   role?: string;
   plan?: PlanTier;
-  mobile?: boolean;
-  onClose?: () => void;
-  collapsed?: boolean;
-  onToggle?: () => void;
-  badges?: Record<string, number>;
+  badges?: Badges;
+  /** 프로필 메뉴 등 하단 영역 */
+  footer?: React.ReactNode;
+  /** 모바일 시트에서 링크를 누르면 닫기 */
+  onNavigate?: () => void;
+  /** 접기 버튼 노출 (모바일 시트에선 끔) */
+  collapsible?: boolean;
+  className?: string;
 }) {
   const pathname = usePathname();
-  const mod = useModKey();
+  const currentHref = matchNavHref(pathname);
+  const groups = visibleGroups(role);
+  const primary = visiblePrimary(role);
+  const currentGroupId = groups.find((g) => g.items.some((it) => it.href === currentHref))?.id;
 
-  // Sidebar nav 스크롤 위치 유지 — (dashboard) ↔ /online 이동 시 layout 리마운트로 인한 리셋 방지
-  const navRef = useRef<HTMLElement>(null);
+  // 그룹 펼침 — 사용자가 열고 닫은 상태는 기억하고(localStorage), 현재 화면이 속한 그룹은 기본으로 연다.
+  // 현재 그룹을 사용자가 닫으면 그 화면에 있는 동안만 닫힌 채로 둔다.
+  const [openGroupsRaw, setOpenGroupsRaw] = useStoredValue(OPEN_GROUPS_KEY, "{}");
+  const openGroups = useMemo<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(openGroupsRaw);
+    } catch {
+      return {};
+    }
+  }, [openGroupsRaw]);
+  const [closedCurrent, setClosedCurrent] = useState<{ group: string; path: string } | null>(null);
+  function isGroupOpen(id: string) {
+    if (id === currentGroupId) return !(closedCurrent?.group === id && closedCurrent.path === pathname);
+    return !!openGroups[id];
+  }
+  function setGroupOpen(id: string, open: boolean) {
+    if (id === currentGroupId) setClosedCurrent(open ? null : { group: id, path: pathname });
+    setOpenGroupsRaw(JSON.stringify({ ...openGroups, [id]: open }));
+  }
+
+  // 스크롤 위치 유지 — (dashboard) ↔ /online 이동 시 레이아웃 리마운트로 리셋되는 것 방지
+  const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const el = navRef.current;
+    const el = contentRef.current;
     if (!el) return;
     const saved = sessionStorage.getItem("sidebarScroll");
     if (saved) el.scrollTop = Number(saved);
   }, []);
 
-  const allNavItems = [
-    ...navSections.flatMap((s) => s.items),
-    ...insightsSection.items,
-    ...onlineSection.items,
-    ...directorSection.items,
-  ];
+  return (
+    <SideNavigationRoot className={cn("h-full", className)}>
+      <SideNavigationHeader>
+        <SidebarBrand plan={plan} />
+        {collapsible && <SideNavigationTrigger />}
+      </SideNavigationHeader>
 
-  const isActiveLink = (href: string) => {
-    if (href === "/") return pathname === "/";
-    const matches = pathname === href || pathname.startsWith(href + "/");
-    if (!matches) return false;
-    return !allNavItems.some(
-      (item) =>
-        item.href !== href &&
-        item.href.length > href.length &&
-        (pathname === item.href || pathname.startsWith(item.href + "/"))
-    );
-  };
-
-  const renderLink = ({ href, label, icon: Icon, feature }: NavItem) => {
-    const isActive = isActiveLink(href);
-    const locked = feature ? !hasFeature(plan, feature) : false;
-    const minPlan = feature ? getMinimumPlan(feature) : null;
-
-    if (locked) {
-      return (
-        <div
-          key={href}
-          className={cn(
-            "flex items-center gap-2.5 px-2.5 py-[7px] rounded-[8px] text-[12.5px] font-medium text-ink-5 cursor-not-allowed",
-            collapsed && "justify-center px-2"
-          )}
-          title={collapsed ? label : (minPlan ? `${PLAN_LABELS[minPlan].label} 플랜부터 사용 가능` : undefined)}
-        >
-          <Icon className="h-4 w-4 shrink-0 text-ink-6" />
-          {!collapsed && (
-            <>
-              <span className="flex-1">{label}</span>
-              <Lock className="h-3 w-3 text-ink-6" />
-            </>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <Link
-        key={href}
-        href={href}
-        onClick={mobile ? onClose : undefined}
-        title={collapsed ? label : undefined}
-        className={cn(
-          "relative flex items-center gap-2.5 px-2.5 py-[7px] rounded-[8px] text-[12.5px] font-medium transition-colors duration-100",
-          collapsed && "justify-center px-2",
-          isActive
-            ? "bg-panel text-ink font-semibold shadow-[inset_0_0_0_1px_var(--line),var(--shadow-xs)]"
-            : "text-ink-2 hover:bg-[rgba(20,20,25,0.04)]"
-        )}
+      <SideNavigationContent
+        ref={contentRef}
+        onScroll={(e) => sessionStorage.setItem("sidebarScroll", String(e.currentTarget.scrollTop))}
       >
-        <Icon
-          className={cn(
-            "h-4 w-4 shrink-0",
-            isActive ? "text-ink" : "text-ink-3"
-          )}
-        />
-        {!collapsed && (
-          <>
-            <span className="flex-1">{label}</span>
-            {(badges?.[href] ?? 0) > 0 && (
-              <span
-                className="inline-flex items-center justify-center rounded-full bg-amber-500 text-white text-[10px] font-bold min-w-[16px] h-4 px-1"
-                title={`미확인 ${badges?.[href]}건`}
-              >
-                {badges?.[href]}
-              </span>
-            )}
-          </>
-        )}
-        {collapsed && (badges?.[href] ?? 0) > 0 && (
-          <span
-            className="absolute top-0 right-0 inline-block h-2 w-2 rounded-full bg-amber-500"
-            title={`미확인 ${badges?.[href]}건`}
-          />
-        )}
+        <SeedSideNavigation.Group>
+          {primary.map((item) => (
+            <NavLink
+              key={item.href}
+              item={item}
+              plan={plan}
+              current={item.href === currentHref}
+              badge={badges?.[item.href]}
+              onNavigate={onNavigate}
+              withIcon
+            />
+          ))}
+        </SeedSideNavigation.Group>
+
+        <SeedSideNavigation.Group>
+          {groups.map((group) => (
+            <NavGroupItem
+              key={group.id}
+              group={group}
+              plan={plan}
+              currentHref={currentHref}
+              badges={badges}
+              open={isGroupOpen(group.id)}
+              onOpenChange={(open) => setGroupOpen(group.id, open)}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </SeedSideNavigation.Group>
+      </SideNavigationContent>
+
+      {footer && <SideNavigationFooter>{footer}</SideNavigationFooter>}
+    </SideNavigationRoot>
+  );
+}
+
+function SidebarBrand({ plan }: { plan: PlanTier }) {
+  const { collapsed } = useSideNavigationContext();
+  return (
+    <Link
+      href="/"
+      aria-label="홈으로"
+      className={cn(
+        "flex h-12 items-center gap-x2_5 rounded-r2_5 px-x2 transition-opacity",
+        collapsed && "pointer-events-none opacity-0",
+      )}
+    >
+      <Image src="/khsb-logo.png" alt="KHSB" width={640} height={242} priority className="h-6 w-auto shrink-0" />
+      <span className="min-w-0">
+        <span className="block truncate t4-bold text-fg-neutral">BackOffice</span>
+        <span className="block truncate t2-regular text-fg-neutral-subtle">{PLAN_LABELS[plan].label}</span>
+      </span>
+    </Link>
+  );
+}
+
+/** 단일 메뉴 링크. 그룹 안에서는 아이콘 없이(들여쓰기) 그린다 */
+function NavLink({
+  item,
+  plan,
+  current,
+  badge,
+  onNavigate,
+  withIcon,
+}: {
+  item: NavItem;
+  plan: PlanTier;
+  current: boolean;
+  badge?: number;
+  onNavigate?: () => void;
+  withIcon?: boolean;
+}) {
+  const { collapsed, transitioning } = useSideNavigationContext();
+  const isFlyout = collapsed && !transitioning;
+  const locked = item.feature ? !hasFeature(plan, item.feature) : false;
+  const Icon = item.icon;
+  const count = badge ?? 0;
+
+  const inner = (
+    <>
+      {withIcon && <SeedSideNavigation.ItemPrefixIcon svg={<Icon />} />}
+      <SeedSideNavigation.ItemLabel>{item.label}</SeedSideNavigation.ItemLabel>
+      {locked && !collapsed && <SeedSideNavigation.ItemSuffixIcon svg={<Lock />} />}
+      {count > 0 && !collapsed && (
+        <NotificationBadge size="large" aria-label={`미확인 ${count}건`} className="shrink-0">
+          {badgeLabel(count)}
+        </NotificationBadge>
+      )}
+      {count > 0 && collapsed && (
+        <NotificationBadge size="small" aria-label={`미확인 ${count}건`} className="absolute right-2 top-2" />
+      )}
+    </>
+  );
+
+  const node = locked ? (
+    <SeedSideNavigation.Item
+      disabled
+      title={`${PLAN_LABELS[getMinimumPlan(item.feature!)].label} 플랜부터 사용할 수 있어요`}
+    >
+      {inner}
+    </SeedSideNavigation.Item>
+  ) : (
+    <SeedSideNavigation.Item asChild current={current}>
+      <Link href={item.href} onClick={onNavigate} aria-current={current ? "page" : undefined}>
+        {inner}
       </Link>
-    );
-  };
+    </SeedSideNavigation.Item>
+  );
 
-  const renderSection = ({ label, items }: NavSection, idx: number) => {
-    const visible = items.filter((it) => (it.show ? it.show(role) : true));
-    if (visible.length === 0) return null;
+  if (!isFlyout || !withIcon) return node;
+  return (
+    <HelpBubbleTooltipTriggerPortal title={item.label} placement="right">
+      {node}
+    </HelpBubbleTooltipTriggerPortal>
+  );
+}
+
+/** 접이식 그룹 — 펼친 상태에선 SEED ItemCollapsible, 접힌 사이드바에선 플라이아웃 메뉴 */
+function NavGroupItem({
+  group,
+  plan,
+  currentHref,
+  badges,
+  open,
+  onOpenChange,
+  onNavigate,
+}: {
+  group: NavGroup;
+  plan: PlanTier;
+  currentHref: string | null;
+  badges?: Badges;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onNavigate?: () => void;
+}) {
+  const { collapsed, transitioning } = useSideNavigationContext();
+  const isFlyout = collapsed && !transitioning;
+  const GroupIcon = group.icon;
+  const hasCurrent = group.items.some((it) => it.href === currentHref);
+  const unread = group.items.reduce((sum, it) => sum + (badges?.[it.href] ?? 0), 0);
+
+  if (isFlyout) {
     return (
-      <div key={idx} className={cn("space-y-[1px]", idx > 0 && "pt-[18px]")}>
-        {label && !collapsed && (
-          <p className="px-2 pb-1.5 text-[11px] font-semibold text-ink-4 tracking-[-0.005em]">
-            {label}
-          </p>
-        )}
-        {visible.map(renderLink)}
-      </div>
+      <SeedNavigationMenu.Root value={`nav-group:${group.id}`}>
+        <SeedNavigationMenu.Trigger asChild>
+          <SeedSideNavigation.Item current={hasCurrent}>
+            <SeedSideNavigation.ItemPrefixIcon svg={<GroupIcon />} />
+            <SeedSideNavigation.ItemLabel>{group.label}</SeedSideNavigation.ItemLabel>
+            {unread > 0 && (
+              <NotificationBadge size="small" aria-label={`미확인 ${unread}건`} className="absolute right-2 top-2" />
+            )}
+          </SeedSideNavigation.Item>
+        </SeedNavigationMenu.Trigger>
+        <NavigationMenuContent>
+          <NavigationMenuGroup>
+            <NavigationMenuGroupLabel>{group.label}</NavigationMenuGroupLabel>
+            {group.items.map((item) => {
+              const locked = item.feature ? !hasFeature(plan, item.feature) : false;
+              const count = badges?.[item.href] ?? 0;
+              return (
+                <SeedNavigationMenu.Item
+                  key={item.href}
+                  asChild={!locked}
+                  disabled={locked}
+                  current={item.href === currentHref}
+                >
+                  {locked ? (
+                    <FlyoutItemBody label={item.label} count={0} />
+                  ) : (
+                    <Link href={item.href} onClick={onNavigate}>
+                      <FlyoutItemBody label={item.label} count={count} />
+                    </Link>
+                  )}
+                </SeedNavigationMenu.Item>
+              );
+            })}
+          </NavigationMenuGroup>
+        </NavigationMenuContent>
+      </SeedNavigationMenu.Root>
     );
-  };
-
-  const isCollapsed = !mobile && collapsed;
+  }
 
   return (
-    <aside className={cn(
-      "group/sb h-screen bg-sidebar flex flex-col transition-[width] duration-300 p-2.5",
-      isCollapsed ? "w-16" : "w-[240px]",
-      !mobile && "fixed left-0 top-0"
-    )}>
-      {/* Workspace / logo — icon-only when collapsed, full card when expanded */}
-      <div className="shrink-0">
-        {isCollapsed ? (
-          <button
-            type="button"
-            onClick={onToggle}
-            disabled={!onToggle}
-            title="사이드바 펼치기"
-            aria-label="사이드바 펼치기"
-            className={cn(
-              "relative w-8 h-8 mx-auto grid place-items-center rounded-[9px] bg-ink text-white",
-              "text-[13px] font-bold tracking-[-0.02em] overflow-visible",
-              onToggle && "cursor-pointer transition-transform group-hover/sb:scale-[1.04]"
-            )}
-          >
-            <span className="relative w-full h-full grid place-items-center rounded-[9px] overflow-hidden">
-              K
-              <span className="absolute inset-[2px] rounded-[7px] bg-[linear-gradient(135deg,rgba(255,255,255,0.08),transparent_60%)] pointer-events-none" />
-            </span>
-            {/* Expand affordance — small pulsing chevron attached to the logo */}
-            {onToggle && (
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "absolute -right-[9px] top-1/2 -translate-y-1/2",
-                  "w-4 h-4 rounded-full bg-panel border border-line shadow-[var(--shadow-sm)]",
-                  "grid place-items-center text-ink-3",
-                  "opacity-60 group-hover/sb:opacity-100 group-hover/sb:text-ink",
-                  "transition-all"
-                )}
-              >
-                <ChevronRight className="h-3 w-3" />
-              </span>
-            )}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onToggle}
-            disabled={!onToggle}
-            title="사이드바 접기"
-            className={cn(
-              "w-full flex items-center gap-2.5 p-2.5 rounded-[10px] bg-panel border border-line shadow-[var(--shadow-xs)]",
-              onToggle && "hover:border-line-strong cursor-pointer"
-            )}
-          >
-            <Image
-              src="/khsb-logo.png"
-              alt="KHSB"
-              width={640}
-              height={242}
-              priority
-              className="h-7 w-auto shrink-0"
-            />
-            <span className="min-w-0 text-left flex-1">
-              <span className="block font-semibold text-[12.5px] text-ink tracking-[-0.015em] truncate">BackOffice</span>
-              <span className="block text-[11px] text-ink-4 leading-none mt-0.5">원장 · {PLAN_LABELS[plan].label}</span>
-            </span>
-            {onToggle && <ChevronsLeft className="h-3.5 w-3.5 text-ink-4 shrink-0" />}
-          </button>
+    <SeedSideNavigation.ItemCollapsibleRoot open={open} onOpenChange={onOpenChange}>
+      <SeedSideNavigation.ItemCollapsibleTrigger current={collapsed && hasCurrent}>
+        <SeedSideNavigation.ItemPrefixIcon svg={<GroupIcon />} />
+        <SeedSideNavigation.ItemLabel>{group.label}</SeedSideNavigation.ItemLabel>
+        {unread > 0 && !open && (
+          <NotificationBadge size="small" aria-label={`미확인 ${unread}건`} className="shrink-0" />
         )}
-      </div>
+        <SeedSideNavigation.ItemSuffixIcon svg={<IconChevronUpSmallFill />} />
+      </SeedSideNavigation.ItemCollapsibleTrigger>
+      <SeedSideNavigation.ItemCollapsibleContent>
+        {group.items.map((item) => (
+          <NavLink
+            key={item.href}
+            item={item}
+            plan={plan}
+            current={item.href === currentHref}
+            badge={badges?.[item.href]}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </SeedSideNavigation.ItemCollapsibleContent>
+    </SeedSideNavigation.ItemCollapsibleRoot>
+  );
+}
 
-      {/* Search trigger */}
-      <div className="pt-2.5">
-        {isCollapsed ? (
-          <button
-            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}
-            title={`빠른 이동 · 원생 검색 (${mod}K)`}
-            aria-label="검색"
-            className="w-8 h-8 mx-auto grid place-items-center rounded-[8px] text-ink-3 hover:bg-canvas-2 hover:text-ink transition-colors cursor-pointer"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" strokeLinecap="round" />
-            </svg>
-          </button>
-        ) : (
-          <button
-            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}
-            className="flex items-center gap-2 w-full rounded-[10px] bg-panel border border-line shadow-[var(--shadow-xs)] hover:border-line-strong transition-colors cursor-text px-3 py-2"
-          >
-            <svg className="h-3.5 w-3.5 text-ink-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" strokeLinecap="round" />
-            </svg>
-            <span className="flex-1 text-left text-[12.5px] text-ink-4">빠른 이동 · 원생 검색</span>
-            <kbd className="font-mono text-[10px] text-ink-4 bg-canvas-2 px-1.5 py-px rounded-[4px]">{mod}K</kbd>
-          </button>
-        )}
-      </div>
-
-      {/* Nav */}
-      <nav
-        ref={navRef}
-        onScroll={(e) => sessionStorage.setItem("sidebarScroll", String(e.currentTarget.scrollTop))}
-        className={cn("flex-1 overflow-y-auto pt-[18px]", isCollapsed && "px-0")}
-      >
-        {navSections.map(renderSection)}
-        {isStaff(role) &&
-          renderSection(insightsSection, navSections.length)}
-        {isOnlineStaff(role) &&
-          renderSection(onlineSection, navSections.length + 1)}
-        {isFullAccess(role) &&
-          renderSection(directorSection, navSections.length + 2)}
-      </nav>
-
-      {/* Footer — plan badge */}
-      {!isCollapsed && (
-        <div className="pt-2 shrink-0 flex items-center justify-center gap-1.5">
-          <span className={cn(
-            "text-[10px] font-semibold rounded-full px-2 py-0.5 border",
-            PLAN_LABELS[plan].color,
-          )}>
-            {PLAN_LABELS[plan].label}
-          </span>
-          <span className="text-[11px] text-ink-5 font-mono">v4</span>
-        </div>
+function FlyoutItemBody({ label, count }: { label: string; count: number }) {
+  return (
+    <>
+      <SeedNavigationMenu.ItemBody>
+        <SeedNavigationMenu.ItemLabel>{label}</SeedNavigationMenu.ItemLabel>
+      </SeedNavigationMenu.ItemBody>
+      {count > 0 && (
+        <NotificationBadge size="large" aria-label={`미확인 ${count}건`}>
+          {badgeLabel(count)}
+        </NotificationBadge>
       )}
-    </aside>
+    </>
   );
 }

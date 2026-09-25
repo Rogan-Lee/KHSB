@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { CalendarDays, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Props {
   connected: boolean;
@@ -37,32 +38,30 @@ export function GoogleCalendarConnectButton({ connected, connectedBy, justConnec
 
   if (isConnected) {
     return (
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1.5 text-xs text-[#1a73e8] bg-[#e8f0fe] border border-[#c5d8fd] rounded-full px-3 py-1.5">
-          <span className="font-bold">G</span>
-          <span>연동됨{connectedBy ? ` · ${connectedBy}` : ""}</span>
-        </div>
-        <button
+      <div className="flex flex-wrap items-center gap-x2">
+        <span className="inline-flex h-8 items-center gap-x1_5 rounded-full bg-bg-informative-weak px-x3 t3-medium text-fg-informative">
+          <Check className="size-3.5" aria-hidden />
+          Google Calendar 연동됨{connectedBy ? ` · ${connectedBy}` : ""}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={handleDisconnect}
           disabled={disconnecting}
-          className="text-xs text-muted-foreground hover:text-destructive transition-colors px-2 py-1 rounded border border-transparent hover:border-destructive/30"
+          className="text-fg-neutral-subtle hover:text-fg-critical"
         >
-          {disconnecting ? "해제 중..." : "연동 해제"}
-        </button>
+          {disconnecting ? "해제 중…" : "연동 해제"}
+        </Button>
       </div>
     );
   }
 
   return (
-    <a
-      href="/api/google-calendar/auth"
-      className={cn(
-        "flex items-center gap-1.5 text-xs border rounded-full px-3 py-1.5 transition-colors",
-        "border-border text-muted-foreground hover:bg-[#e8f0fe] hover:border-[#c5d8fd] hover:text-[#1a73e8]"
-      )}
-    >
-      <span className="font-bold">G</span>
-      <span>Google Calendar 연동</span>
-    </a>
+    <Button variant="outline" asChild>
+      <a href="/api/google-calendar/auth">
+        <CalendarDays aria-hidden />
+        Google Calendar 연동
+      </a>
+    </Button>
   );
 }

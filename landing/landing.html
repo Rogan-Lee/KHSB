@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>강한선배 | 동탄 관리형 프리미엄 독서실</title>
+  <meta name="description" content="출결, 순찰, 상벌점, 멘토링 기록을 매달 리포트로 정리해 학부모님께 보내드립니다. 최상위권 대학 재학생 멘토가 1:1로 관리하는 동탄 관리형 독서실, 강한선배.">
+  <meta name="keywords" content="관리형 독서실, 강한선배, 입시 독서실, 멘토링, 학부모 리포트, 출결 알림, 자기주도학습">
+  <meta name="author" content="강한선배">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#0c0d10">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="강한선배 | 동탄 관리형 프리미엄 독서실">
+  <meta property="og:description" content="출결, 순찰, 상벌점, 멘토링 기록을 매달 리포트로 정리해 학부모님께 보내드립니다.">
+  <meta property="og:image" content="photos/bx/hero-mentoring.jpg">
+  <meta property="og:locale" content="ko_KR">
+  <script type="application/ld+json">
+  { "@context": "https://schema.org", "@type": "LocalBusiness", "name": "강한선배",
+    "description": "동탄 관리형 프리미엄 독서실. 상벌점·순찰·멘토링 기록을 담은 월간 학부모 리포트, 1:1 멘토링, 학습·성적 관리.", "areaServed": "KR" }
+  </script>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="preload" as="image" href="photos/bx/hero-mentoring.jpg" fetchpriority="high">
+  <link rel="stylesheet" href="landing.css?v=seed3">
+  <link rel="stylesheet" href="bx-core.css?v=bx20">
+  <link rel="stylesheet" href="bx-scenes.css?v=bx20">
+</head>
+<body class="bx" data-page="home" data-gnb="dark">
+<script src="bx-data.js?v=bx20"></script>
+<script src="bx-shell.js?v=bx20"></script>
+
+<!-- 좌측 섹션 인디케이터 (표시 전용) — bx-scenes.js 가 [data-rail] 섹션으로 채움 -->
+<div class="bx-rail" id="bxRail" role="navigation" aria-label="섹션 바로가기"></div>
+
+<main id="main">
+
+<!-- ① HERO — 라운드 카드가 풀블리드로 확장 → 카메라 푸시인 -->
+<section class="sc sc-hero" data-scene="hero" data-rail="소개" data-gnb-dark data-gnb-sticky>
+  <div class="sticky">
+    <div class="hero-media" id="heroMedia">
+      <img src="photos/bx/hero-mentoring.jpg" alt="담임 멘토가 학생과 1:1로 학습 계획을 점검하는 모습" width="1672" height="941" fetchpriority="high">
+      <div class="hero-shade"></div>
+    </div>
+    <div class="hero-copy hero-copy-1">
+      <p class="hero-eyebrow">동탄 관리형 프리미엄 독서실</p>
+      <h1 class="hero-h1"><span class="ln"><span>엄격한 관리가</span></span><span class="ln"><span>성적을 만듭니다.</span></span></h1>
+    </div>
+    <div class="hero-copy hero-copy-2">
+      <p class="hero-h2">각자의 상황에 맞추어<br>진심을 다해 관리합니다.</p>
+      <p class="hero-sub">매 교시 출결 확인, 20분 단위 순찰, 상벌점, 1:1 멘토링까지 <br class="pc">모든 관리 기록을 매달 리포트로 보내드립니다.</p>
+      <div class="hero-ctas">
+        <a href="https://khsb.vercel.app/apply" target="_blank" rel="noopener" class="btn btn-brand">무료 상담 받기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a href="recruit.html" class="btn btn-glass">2027 윈터스쿨 모집 안내</a>
+      </div>
+    </div>
+    <div class="scroll-cue" aria-hidden="true"><span>Scroll</span><i></i></div>
+  </div>
+</section>
+
+<!-- ② MANIFESTO — 스크롤에 따라 단어가 차례로 켜짐 -->
+<section class="sc sc-manifesto" data-scene="manifesto">
+  <div class="sticky">
+    <div class="mf-wrap">
+      <p class="mf-kicker"><span class="logo-mark">강</span>강한선배는</p>
+      <p class="mf-text" id="mfText">자리만 빌려주는 곳이 아닙니다. 최상위권 대학 재학생 멘토와 운영 조교가 아이가 언제 왔고 무엇을 공부했는지 매일 확인하고, 그 기록을 <em>부모님께 전부 보여드립니다.</em></p>
+    </div>
+  </div>
+</section>
+
+<!-- ③ 아이의 하루 — 스티키 폰: 단계마다 그 기록이 남는 실제 화면으로 바뀌고, 마지막에 월간 리포트 -->
+<section class="sc sc-day" id="day" data-scene="day" data-rail="아이의 하루">
+  <div class="sticky">
+    <div class="day-grid">
+      <div class="day-copy">
+        <p class="eyebrow">강한선배의 하루 관리</p>
+        <h2 class="day-title">아이의 하루는<br>이렇게 기록됩니다.</h2>
+        <ol class="day-steps" id="daySteps">
+          <li data-i="0"><span class="ds-time">08:52 · 출결</span><b>들어오면 휴대폰부터 맡깁니다</b><p>휴대폰은 관리실에 보관하고, 교시가 시작될 때마다 자리에 있는지 확인합니다.</p></li>
+          <li data-i="1"><span class="ds-time">11:20 · 순찰</span><b>20분마다 자리를 확인합니다</b><p>조는지, 자리를 비웠는지, 바른 자세로 공부하고 있는지 돌면서 봅니다.</p></li>
+          <li data-i="2"><span class="ds-time">15:40 · 상벌점</span><b>생활 규정은 상벌점으로 엄격하게</b><p>지각, 잡담, 자리 이탈은 바로 벌점으로 기록하고, 끝까지 집중한 학생에게는 상점을 줍니다. 모든 상벌점에는 사유와 날짜가 남습니다.</p></li>
+          <li data-i="3"><span class="ds-time">19:30 · 멘토링</span><b>담임 멘토와 1:1 멘토링</b><p>최상위권 대학 재학생 담임 멘토가 매주 공부 계획과 컨디션을 점검합니다.</p></li>
+          <li data-i="4"><span class="ds-time">24:00 · 하원</span><b>마지막 교시까지 같이 있습니다</b><p>방학에는 오전 9시부터 밤 12시까지 관리하고, 아이는 앱에서 오늘의 공부 계획을 끝까지 체크합니다.</p></li>
+          <li data-i="5"><span class="ds-time">매달 · 리포트</span><b>모든 관리는 리포트에 기록됩니다</b><p>한 달 동안의 출결, 순찰, 상벌점, 멘토링 기록을 월간 리포트로 정리해 카카오톡으로 보내드립니다.</p></li>
+        </ol>
+      </div>
+      <div class="day-visual">
+        <div class="phone-wrap">
+        <div class="day-clock" aria-hidden="true">
+          <svg viewBox="0 0 120 120"><circle class="dc-track" cx="60" cy="60" r="52"/><circle class="dc-fill" id="dcFill" cx="60" cy="60" r="52"/></svg>
+          <div class="dc-txt"><b id="dcTime">08:52</b><span id="dcLabel">입실</span></div>
+        </div>
+        <!-- 단계마다 그 기록이 실제로 남는 화면 (photos/ui) -->
+        <figure class="pf day-pf">
+          <img class="on" src="photos/ui/parent-monthly-3.png?v=ui3" alt="월간 리포트의 원생 기록 — 출석과 하루 루틴" loading="lazy">
+          <img src="photos/ui/parent-monthly-4.png?v=ui3" alt="월간 리포트의 순찰 점검 기록" loading="lazy">
+          <img src="photos/ui/portal-points-history.png?v=ui3" alt="학생 앱의 상벌점 · 포인트 내역" loading="lazy">
+          <img src="photos/ui/parent-mentoring.png?v=ui3" alt="담임 멘토가 쓴 멘토링 리포트" loading="lazy">
+          <img src="photos/ui/portal-schedule.png?v=ui3" alt="학생 앱의 내 일정과 공부 계획" loading="lazy">
+          <img src="photos/ui/parent-monthly-top.png?v=ui3" alt="월간 리포트 첫 화면" loading="lazy">
+        </figure>
+        </div>
+        <p class="day-note"><b id="dayCap">월간 리포트 · 원생 기록</b><span>실제 화면 · 이름과 기록은 예시입니다</span></p>
+      </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ④ 결과 — 검은 필이 화면 전체로 확장 → 다크 통계 -->
+<section class="sc sc-proof" id="proof" data-scene="pill" data-rail="결과">
+  <div class="sticky">
+    <h2 class="pill-head" aria-label="관리한 만큼 오릅니다">
+      <span class="pl-a">관리한 만큼</span><i class="pill-shape" id="pillShape"></i><span class="pl-b">오릅니다</span>
+    </h2>
+    <div class="proof-dark">
+      <p class="eyebrow">숫자로 보는 강한선배</p>
+      <h3 class="proof-title">동탄 상위 1% 학생들이<br>다니는 독서실.</h3>
+      <div class="proof-big">
+        <div><b><span class="bx-cnt" data-to="93.3" data-dec="1">0</span><i>%</i></b><span>재등록률 · 한 번 온 학생은 대부분 계속 다닙니다</span></div>
+        <div><b><span class="bx-cnt" data-to="90">0</span><i>%</i></b><span>재원생 10명 중 9명은 성적이 올랐습니다</span></div>
+        <div><b><span class="bx-cnt" data-to="67">0</span><i>%</i></b><span>재원생 3명 중 2명이 인서울 대학에 합격했고<br>의·치·약 합격생도 여럿 나왔습니다</span></div>
+      </div>
+      <div class="proof-small">
+        <div><b><span class="bx-cnt" data-to="92">0</span>명</b><span>현재 재원생 · 대기 50석</span></div>
+        <div><b><span class="bx-cnt" data-to="1031">0</span>회</b><span>누적 1:1 멘토링</span></div>
+        <div><b><span class="bx-cnt" data-to="710">0</span>건</b><span>보내드린 관리 리포트</span></div>
+        <div><b><span class="bx-cnt" data-to="1227">0</span>건</b><span>생활 관리 기록</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 합격·재학 대학 — 2행 타일 마퀴 (bx-core.js 가 화면 폭만큼 반복 채움) -->
+<section class="uni-sec">
+  <div class="bx-head r">
+    <p class="eyebrow">합격 · 재학 대학</p>
+    <h2 class="bx-h2">강한선배에서<br>국내 최상위권 대학으로.</h2>
+    <p class="bx-sub">서울대부터 의·치·약 계열까지, 강한선배에서 수험생활을 보낸 선배들이 합격한 학교입니다.</p>
+  </div>
+  <div class="lmq-wrap r d1">
+    <div class="lmq" data-logos data-special data-speed="44"></div>
+    <div class="lmq" data-logos="rev" data-dir="right" data-special data-speed="36"></div>
+  </div>
+  <div class="bx-more r d2"><a class="btn btn-line" href="results.html">합격 결과 자세히 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+</section>
+
+<!-- 실제 앱 화면 — 강한선배 앱 학생 · 학부모님 화면 (photos/ui/manifest.json, 화면이 없으면 섹션 숨김) -->
+<section class="bx-sec" data-ui-section data-rail="앱 · 실전">
+  <div class="bx-head r">
+    <p class="eyebrow">강한선배 앱</p>
+    <h2 class="bx-h2">학생, 학부모님, 선생님이<br>같은 앱을 씁니다.</h2>
+    <p class="bx-sub">학생은 상벌점 확인부터 과제, 영단어 시험, 질문, 도시락 신청까지 앱으로 하고, 학부모님은 출결과 리포트를, 선생님은 기록과 답변을 같은 앱에서 봅니다. 아래는 모두 실제 앱 화면입니다.</p>
+  </div>
+  <div class="ui-rail" data-ui-rail="portal,parent,app"></div>
+  <div class="ui-rail-ctl"><button type="button" data-dir="-1" aria-label="이전 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></button><button type="button" data-dir="1" aria-label="다음 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></button></div>
+  <div class="bx-more r"><a class="btn btn-line" href="care-ops.html">운영 관리 자세히 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+</section>
+
+<!-- 실전 모의고사 — 매달 수능처럼 -->
+<section class="kband on-dark exam-band">
+  <div class="kband-inner exam-grid">
+    <div>
+      <p class="eyebrow r">실전 훈련</p>
+      <h2 class="bx-h2 r">매달 한 번,<br>수능처럼.</h2>
+      <p class="bx-sub r">매달 <b style="color:#fff">대성 더프리미엄 모의고사</b>를 원내 시험실에서 봅니다. 시간표, 수험표, 가채점표까지 수능 날과 똑같이 맞추고, 틀린 문제는 질의응답과 담임 멘토링에서 다시 짚고 넘어갑니다.</p>
+      <ul class="exam-steps r d1">
+        <li><b>신청</b><span>앱에서 신청하면 원내 시험실 자리 배정</span></li>
+        <li><b>실전 응시</b><span>수능과 같은 시간표 · 수험표 · 가채점표</span></li>
+        <li><b>성적 관리</b><span>회차별 성적 기록 · 틀린 문제는 질의응답과 멘토링에서</span></li>
+      </ul>
+      <a class="btn btn-brand r d2" href="care-study.html" style="margin-top:34px">학습 관리 · 실전 훈련 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+    </div>
+    <figure class="exam-shot r d2" data-ui-fallback><div class="pf"><img src="photos/ui/portal-exam.png?v=ui3" alt="모의고사 신청 화면" loading="lazy" onerror="this.closest('[data-ui-fallback]').remove()"></div><figcaption class="pf-cap"><b>모의고사 신청</b><span>실제 학생 앱 화면</span></figcaption></figure>
+  </div>
+</section>
+
+<!-- ⑥ 학습 공간 — 포토 그리드 → 한 장이 화면 전체로 줌 -->
+<section class="sc sc-space" id="space" data-scene="space" data-rail="학습 공간">
+  <div class="sticky">
+    <div class="sp-stage">
+      <div class="sp-grid" id="spGrid">
+        <button class="sp-tile" data-gal="1"><img src="photos/space4.jpg" alt="강한선배 입구 · 개인 락커" loading="lazy"></button>
+        <button class="sp-tile" data-gal="2"><img src="photos/space5.jpg" alt="1인 집중 부스" loading="lazy"></button>
+        <button class="sp-tile" data-gal="3"><img src="photos/space8.jpg" alt="프리미엄 집중석" loading="lazy"></button>
+        <button class="sp-tile" data-gal="4"><img src="photos/space3.jpg" alt="휴식 라운지" loading="lazy"></button>
+        <button class="sp-tile sp-center" data-gal="0"><img src="photos/bx/hall-2.jpg" alt="정자세 자습실" loading="lazy"></button>
+        <button class="sp-tile" data-gal="5"><img src="photos/space9.jpg" alt="자습실 전경" loading="lazy"></button>
+        <button class="sp-tile" data-gal="6"><img src="photos/space7.jpg" alt="자습실 좌석" loading="lazy"></button>
+        <button class="sp-tile" data-gal="7"><img src="photos/space10.jpg" alt="집중 부스 존" loading="lazy"></button>
+        <button class="sp-tile" data-gal="8"><img src="photos/space6.jpg" alt="자습실 전경 2" loading="lazy"></button>
+      </div>
+    </div>
+    <div class="sp-caption">
+      <p class="eyebrow">학습 공간</p>
+      <h2>하루 14시간을 보내도<br><span class="nw">편안하게 집중할 수 있도록.</span></h2>
+      <p>정자세 자습실, 1인 집중 부스, 휴식 라운지를 따로 나눠 두었습니다. <br class="pc">공부할 땐 공부만, 쉴 땐 제대로 쉬도록요.</p>
+      <button class="btn btn-glass" data-gal="0">공간 사진 크게 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+    </div>
+  </div>
+</section>
+
+<!-- ⑦ 강한 관리 시스템 — 스택 카드 -->
+<section class="bx-sec" id="program" data-rail="관리 시스템">
+  <div class="bx-head r">
+    <p class="eyebrow">강한 관리 시스템</p>
+    <h2 class="bx-h2">엄격한 규칙 하에<br>관리가 진행됩니다.</h2>
+  </div>
+  <div class="stack" id="stack">
+    <article class="stack-card" style="--i:0">
+      <div class="sc-copy">
+        <span class="sc-no">01</span>
+        <h3>생활 관리</h3>
+        <p class="sc-lead">생활 규정은 누구에게나 똑같이, 엄격하게 적용합니다.</p>
+        <p>출결, 순찰, 상벌점 기록을 매일 남기고, 한 달 치를 모아 리포트로 보내드립니다.</p>
+        <ul class="sc-list"><li>매 교시 출결 확인</li><li>20분 단위 순찰</li><li>상벌점 생활 기록</li></ul>
+        <a class="sc-link" href="care-life.html">생활 관리 자세히 보기 →</a>
+      </div>
+      <div class="sc-vis sc-shot"><div class="pf sm"><img src="photos/ui/portal-points-history.png?v=ui3" alt="상벌점 내역 화면" loading="lazy"></div></div>
+    </article>
+    <article class="stack-card" style="--i:1">
+      <div class="sc-copy">
+        <span class="sc-no">02</span>
+        <h3>담임제 1:1 멘토링</h3>
+        <p class="sc-lead">최상위권 대학 재학생이 매주 1:1로 멘토링합니다.</p>
+        <p>성적과 성향, 입시 전략에 맞는 담임 멘토를 배정하고, 공부 계획부터 슬럼프까지 매주 1:1로 관리합니다. 나눈 이야기는 매번 기록으로 남깁니다.</p>
+        <ul class="sc-list"><li>입실 전 1:1 공부 PT · 목표 진단</li><li>주간 학습 계획 점검</li><li>슬럼프·멘탈 코칭</li></ul>
+        <a class="sc-link" href="care-study.html">학습 관리 자세히 보기 →</a>
+      </div>
+      <div class="sc-vis sc-shot"><div class="pf sm"><img src="photos/ui/portal-qna-thread.png?v=ui3" alt="사진 질문과 멘토 답변 화면" loading="lazy"></div></div>
+    </article>
+    <article class="stack-card" style="--i:2">
+      <div class="sc-copy">
+        <span class="sc-no">03</span>
+        <h3>교시제 · 집중 환경 관리</h3>
+        <p class="sc-lead">앉아만 있는 시간은 공부 시간으로 치지 않습니다.</p>
+        <p>교시제로 공부할 때와 쉴 때를 나누고, 휴대폰은 맡겨 두고, 자세는 순찰과 CCTV로 확인합니다.</p>
+        <ul class="sc-list"><li>입실 시 휴대폰 보관</li><li>정자세 점검</li><li>학습 목적 사이트만 허용</li></ul>
+        <a class="sc-link" href="care-life.html">생활 관리 자세히 보기 →</a>
+      </div>
+      <div class="sc-vis sc-shot"><div class="pf sm"><img src="photos/ui/portal-nap.png?v=ui3" alt="쪽잠 신청 화면" loading="lazy"></div></div>
+    </article>
+    <article class="stack-card" style="--i:3">
+      <div class="sc-copy">
+        <span class="sc-no">04</span>
+        <h3>월간 리포트 · 입시 전략</h3>
+        <p class="sc-lead">성적을 보고, 다음 달 계획을 세웁니다.</p>
+        <p>모의고사 성적 추이, 멘토링 종합의견, 상벌점, 순찰 점검을 한 장에 모아 담당 선생님이 매달 카카오톡으로 보내드립니다. 이 성적을 바탕으로 희망 대학·학과에 맞춘 입시 전략을 함께 세웁니다.</p>
+        <ul class="sc-list"><li>모의고사 성적 추이</li><li>멘토링 종합의견</li><li>상벌점 · 순찰 점검</li></ul>
+        <div class="sc-actions">
+          <button class="btn btn-dark" data-modal="reportModal">리포트 샘플 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+          <a class="sc-link" href="care-ops.html">학부모 리포트 자세히 보기 →</a>
+        </div>
+      </div>
+      <div class="sc-vis sc-shot"><div class="pf sm"><img src="photos/ui/parent-monthly-3.png?v=ui3" alt="월간 리포트 상벌점 화면" loading="lazy"></div></div>
+    </article>
+  </div>
+  <div class="bx-more r"><a href="program.html" class="btn btn-line">관리 시스템 전체 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+</section>
+
+<!-- 차별점 — 비교표 -->
+<section class="bx-sec bx-compare">
+  <div class="bx-head r">
+    <p class="eyebrow">평범한 독서실과</p>
+    <h2 class="bx-h2">이런 점이 다릅니다.</h2>
+  </div>
+  <div class="cmp r d1" role="table" aria-label="자리만 제공하는 독서실과 강한선배 비교">
+    <div class="cmp-row cmp-head" role="row"><span role="columnheader"></span><span role="columnheader">자리만 제공하는 독서실</span><span role="columnheader" class="cmp-us"><span class="logo-mark">강</span>강한선배</span></div>
+    <div class="cmp-row" role="row"><span role="rowheader">출결</span><span role="cell">본인 자율</span><span role="cell" class="cmp-us">매 교시 출결 확인</span></div>
+    <div class="cmp-row" role="row"><span role="rowheader">순찰</span><span role="cell">별도 없음</span><span role="cell" class="cmp-us">20분 단위 순찰</span></div>
+    <div class="cmp-row" role="row"><span role="rowheader">상담</span><span role="cell">별도 없음</span><span role="cell" class="cmp-us">담임 멘토가 매주 1:1 멘토링</span></div>
+    <div class="cmp-row" role="row"><span role="rowheader">집중 환경</span><span role="cell">개인 자율</span><span role="cell" class="cmp-us">휴대폰 보관 · 정자세 · 교시제</span></div>
+    <div class="cmp-row" role="row"><span role="rowheader">학부모 공유</span><span role="cell">확인 어려움</span><span role="cell" class="cmp-us">월간 종합 리포트 (카카오톡)</span></div>
+  </div>
+</section>
+
+<!-- 등록 절차 -->
+<section class="bx-sec" id="steps">
+  <div class="bx-head r">
+    <p class="eyebrow">등록 절차</p>
+    <h2 class="bx-h2">상담부터 입실까지<br>이렇게 진행됩니다.</h2>
+  </div>
+  <ol class="steps3" id="steps3">
+    <li class="r"><span class="s3-no">1</span><h4>상담 신청</h4><p>온라인이나 전화로 신청하시면 영업일 기준 24시간 안에 연락드립니다.</p></li>
+    <li class="r d1"><span class="s3-no">2</span><h4>방문 상담</h4><p>지금 공부 상황을 살펴보고, 자리와 관리 방식을 직접 보여드립니다.</p></li>
+    <li class="r d2"><span class="s3-no">3</span><h4>입실 · 관리 시작</h4><p>성적과 성향에 맞는 담임 멘토를 배정하고 공부 계획을 짠 뒤, 그날부터 관리가 시작됩니다.</p></li>
+  </ol>
+</section>
+
+<!-- 후기 -->
+<section class="bx-sec" id="voices" data-rail="후기">
+  <div class="bx-head r">
+    <p class="eyebrow">합격생 · 재원생 후기</p>
+    <h2 class="bx-h2">다녀 본 학생과<br>학부모님 이야기.</h2>
+  </div>
+  <div class="rvg" data-stories="review" data-mode="reviews" data-limit="5" data-feature></div>
+  <div class="bx-more r"><a class="btn btn-line" href="stories.html?type=review">후기 더 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+</section>
+<div class="tm-wrap r">
+  <div class="tm-row"><div class="tm-track tm-right" id="grTrack"></div></div>
+</div>
+
+<!-- 대표 인사말 — 풀 인물 사진 + 패럴랙스 -->
+<section class="bx-sec leader-bx" id="leader" data-rail="원장">
+  <div class="lb-grid">
+    <div class="lb-photo" data-parallax>
+      <img src="photos/bx/director.jpg" alt="강한지 대표원장" loading="lazy">
+    </div>
+    <div class="lb-body">
+      <p class="eyebrow">LEADERSHIP</p>
+      <h2 class="bx-h2 r">성적표 숫자보다<br>아이를 먼저 봅니다.</h2>
+      <div class="lb-text">
+        <p class="r">같은 3등급이어도 <b>아이마다 막히는 곳</b>이 다릅니다. 점수만 봐서는 알 수 없는 것들을 매일 가까이에서 보려고 합니다.</p>
+        <p class="r">그래서 최상위권 대학 재학생 멘토와 운영 조교가 출결과 공부, 컨디션까지 관리하고, 그 기록을 매달 <b>한 장의 리포트</b>로 부모님께 보내드립니다.</p>
+        <p class="r lb-quote">부모님께 보여드리지 못할 관리라면<br>애초에 하지 않습니다.</p>
+      </div>
+      <div class="lb-foot r">
+        <span>강한선배 대표원장 <b>강한지</b></span>
+        <a href="director.html" class="lb-more">대표 인사말 전체 보기 →</a>
+      </div>
+    </div>
+  </div>
+  <!-- 총괄 -->
+  <div class="chief-bx r">
+    <img src="photos/jihoon.jpg" alt="정지훈 총괄" loading="lazy">
+    <div>
+      <p class="eyebrow">CHIEF DIRECTOR</p>
+      <h3>성적이 오르내려도, 이번 주 할 일은 분명하게.</h3>
+      <p>강한선배 <b>운영 전체</b>를 맡고 있습니다. 멘토진의 학습 지도와 운영진의 생활 관리가 따로 놀지 않도록 매주 맞춰 보고, 목표 대학에서 거꾸로 계산해 지금 해야 할 공부를 정합니다.</p>
+      <a href="mentor.html?id=jihoon" class="lb-more">정지훈 총괄 소개 전체 보기 →</a>
+    </div>
+  </div>
+</section>
+
+<!-- 선배 멘토진 -->
+<section id="mentors" class="bx-sec" data-rail="멘토진">
+  <div class="bx-head r">
+    <p class="eyebrow">선배 멘토진 · 2027 합격 멘토링 시스템</p>
+    <h2 class="bx-h2">최상위권 대학 재학생이<br>합격까지 1:1로 지도합니다.</h2>
+    <p class="bx-sub">성적, 성향, 입시 전략에 맞춰 서울대·연세대·고려대 재학생 중 가장 잘 맞는 멘토를 담임으로 배정합니다. 희망 대학 설정부터 성적 분석, 주간 계획까지 담임 멘토가 1:1로 전담합니다.</p>
+  </div>
+  <div class="mentor-strip r d1" id="mentorCards"></div>
+  <div class="bx-more r"><a href="mentors.html" class="btn btn-line">전체 멘토 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+</section>
+
+<!-- 운영진 -->
+<section id="team" class="bx-sec">
+  <div class="bx-head r">
+    <p class="eyebrow">운영진</p>
+    <h2 class="bx-h2">작은 흐트러짐 하나도<br>놓치지 않는 운영 조교.</h2>
+    <p class="bx-sub">매 교시 출결 확인, 20분 단위 순찰, 자세와 생활 태도까지. 운영 조교가 아이의 하루를 꼼꼼하게 확인하고 기록합니다.</p>
+  </div>
+  <div class="mentor-grid team-grid r d1" id="staffTeam"></div>
+</section>
+
+<!-- 강한 이야기 미리보기 — 어드민에서 발행한 선배 아티클·원장 칼럼 (0개면 섹션 숨김) -->
+<section class="bx-sec" data-stories-section>
+  <div class="bx-head-row">
+    <div class="bx-head left r">
+      <p class="eyebrow">강한 이야기</p>
+      <h2 class="bx-h2">공부법부터 입시 전략까지,<br>강한선배 인사이트.</h2>
+    </div>
+    <a class="btn btn-line r" href="stories.html">전체 이야기 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+  </div>
+  <div class="stg" data-stories="mentor,director,article,podcast" data-limit="3" data-empty="hide"></div>
+</section>
+
+<!-- 시즌 모집 -->
+<section class="bx-sec" id="recruit" data-rail="시즌 모집">
+  <div class="bx-head r">
+    <p class="eyebrow">시즌 특별 모집</p>
+    <h2 class="bx-h2">겨울방학 두 달이면<br>3월이 달라집니다.</h2>
+  </div>
+  <div class="price-grid r d1">
+    <div class="price-card">
+      <h4>정기 등록</h4>
+      <div class="p-num">상시 모집</div>
+      <p class="p-cap">학기 중에도 교시제로 관리합니다. 상담 후 자리를 배정해 드립니다.</p>
+      <div class="p-feats">
+        <span>전 좌석 지정 좌석제</span>
+        <span>담임 멘토 주간 멘토링</span>
+        <span>월간 학부모 리포트</span>
+      </div>
+      <a href="https://khsb.vercel.app/apply" target="_blank" rel="noopener" class="pill pill-lav">입회 상담</a>
+    </div>
+    <div class="price-card price-main">
+      <span class="price-pop">2027 윈터스쿨 모집 중</span>
+      <h4>1/1(금) ~ 2/28(일) · 2개월</h4>
+      <div class="p-num">월 69<small>만 원</small></div>
+      <p class="p-cap">2개월 총 138만 원 · 지역화폐 결제 가능 · 등록 대기금 20만 원</p>
+      <div class="p-feats">
+        <span>방학 교시제 09:00 ~ 24:00 연중무휴</span>
+        <span>매 교시 출결 확인 + 20분 단위 순찰</span>
+        <span>매월 대성 더프리미엄 모의고사 실전 응시</span>
+        <span>주간 멘토링 보고서 + 월간 성적 리포트</span>
+      </div>
+      <a href="recruit.html" class="pill pill-dark">윈터스쿨 자세히 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
+    </div>
+    <div class="price-card">
+      <h4>2027 섬머스쿨</h4>
+      <div class="p-num">모집 예정</div>
+      <p class="p-cap">2027년 7월 여름방학에 열 예정입니다. 미리 문의를 남겨 주시면 모집이 시작될 때 먼저 연락드립니다.</p>
+      <div class="p-feats">
+        <span>여름방학 집중 관리 과정</span>
+        <span>모집 시작 시 먼저 안내</span>
+      </div>
+      <a href="https://khsb.vercel.app/apply" target="_blank" rel="noopener" class="pill pill-lav">미리 상담 남기기</a>
+    </div>
+  </div>
+</section>
+
+<!-- 페르소나 -->
+<section class="bx-sec" id="persona">
+  <div class="persona-bx r">
+    <h2>이런 학생에게<br><b>강한선배</b>가 필요합니다.</h2>
+    <ul>
+      <li>집에서는 도무지 집중이 안 되는 학생</li>
+      <li>혼자서는 계획이 자꾸 무너지는 학생</li>
+      <li>공부량에 비해 성적이 안 오르는 학생</li>
+      <li>재수, 삼수를 하며 많이 지친 학생</li>
+      <li>옆에서 잡아 줄 사람이 필요한 학생</li>
+    </ul>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq" class="bx-sec" data-rail="FAQ">
+  <div class="fx-faq r d1">
+    <div class="fx-faq-left">
+      <p class="eyebrow">자주 묻는 질문</p>
+      <h2 class="bx-h2">궁금한 점이<br>남아 있으신가요?</h2>
+      <p>더 궁금한 점은 전화나 방문 상담 때 편하게 물어보세요. 상담은 무료입니다.</p>
+    </div>
+    <div class="faq-list">
+      <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">윈터스쿨·섬머스쿨 시즌 모집은 무엇인가요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">방학 기간에만 따로 받는 모집입니다. 방학용 교시제 시간표로 하루 14시간을 관리하고, 자리가 다 차면 일찍 마감합니다. 입회 상담을 신청해 주시면 접수한 순서대로 연락드립니다.</div></div></div>
+      <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">일반 독서실과 무엇이 다른가요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">일반 독서실이 자리를 내어 주는 곳이라면, 강한선배는 출결과 생활 태도, 공부 계획, 컨디션까지 선배 멘토와 운영진이 챙깁니다. 1:1 멘토링과 월간 학부모 리포트는 기본으로 들어가 있습니다.</div></div></div>
+      <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">멘토 선생님은 어떤 분들인가요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">서울대·연세대·고려대 등 최상위권 대학에 다니거나 졸업한 선배들입니다. 몇 년 전 같은 입시를 직접 치렀기 때문에 공부법은 물론이고, 슬럼프가 왔을 때 어떻게 버텼는지도 자기 경험으로 이야기해 줍니다. 학생마다 성적과 성향에 가장 잘 맞는 멘토 한 명이 담임으로 배정됩니다.</div></div></div>
+      <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">학부모도 아이 상황을 볼 수 있나요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">네. 매달 출결, 공부, 멘토링, 성적에 상벌점과 순찰 기록까지 정리한 리포트를 카카오톡으로 보내드립니다. 좋은 기록만 골라서 보내지 않습니다.</div></div></div>
+      <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">수강료와 등록 절차가 궁금합니다.<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">학년과 관리 범위에 따라 달라서, 상담 때 자리와 관리 방식을 보여드리면서 자세히 안내해 드립니다. 상담은 무료입니다.</div></div></div>
+      <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">휴대폰은 언제 돌려주나요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">들어올 때 맡기고, 집에 갈 때 돌려드립니다. 공부하는 동안 휴대폰만 없어도 집중이 확실히 달라집니다. 급한 연락은 관리실을 통해 하실 수 있습니다.</div></div></div>
+      <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">지각·결석이 누적되면 강퇴되나요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">바로 내보내지는 않습니다. 다만 지각과 결석은 벌점으로 기록되고 학부모님께도 전달됩니다. 반복되면 담임 멘토가 먼저 아이와 이야기해 이유를 찾아봅니다.</div></div></div>
+      <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">학습 외 사이트 접속이 필요할 때는 어떻게 하나요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">인강이나 과제처럼 공부에 필요한 사이트는 앱으로 신청하면 선생님이 확인한 뒤 열어 드립니다. 공부와 관계없는 사용은 막혀 있습니다.</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ⑧ CLOSING — 풀블리드 입구 사진 + 입회 상담 -->
+<section class="sc sc-close" id="contact" data-scene="close" data-rail="입회 상담" data-anchor-p="0.72">
+  <div class="sticky">
+    <div class="close-media" id="closeMedia">
+      <img src="photos/bx/entrance.jpg" alt="강한선배 입구" loading="lazy">
+      <div class="close-shade"></div>
+    </div>
+    <div class="close-copy">
+      <p class="eyebrow">입회 상담</p>
+      <h2>혼자 두지 않는 독서실,<br>무료로 상담 받아보세요.</h2>
+      <p>우리 아이와 맞는 곳인지부터 솔직하게 말씀드립니다. <br class="pc">지금 공부 상황을 같이 살펴보고, 자리와 관리 방식을 직접 보여드립니다. 상담은 무료입니다.</p>
+      <div class="close-ctas">
+        <a href="https://khsb.vercel.app/apply" target="_blank" rel="noopener" class="btn btn-brand">무료 입회 상담 신청<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a href="tel:010-3145-5767" class="btn btn-glass">전화 상담하기</a>
+      </div>
+      <ul class="close-points"><li>방문 또는 전화 상담</li><li>상담 후 즉시 입회 가능</li><li>공부 계획 세팅까지 함께</li><li>영업일 24시간 이내 연락</li></ul>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- 모달: 월간 리포트 샘플 -->
+<dialog class="bx-modal report-modal" id="reportModal" aria-labelledby="rmTitle">
+  <button class="md-close" data-close aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div class="rmx">
+    <p class="rmx-kicker">실제 월간 학부모 리포트 화면</p>
+    <h3 class="rmx-title" id="rmTitle">매달 받아보시는 화면입니다</h3>
+    <p class="rmx-sub">학부모님 휴대폰 뒷 4자리를 입력해야 열리는 실제 화면입니다. 옆으로 넘기며 보세요. <span>이름과 기록은 예시입니다.</span></p>
+    <div class="rmx-rail">
+      <figure><div class="pf sm"><img src="photos/ui/parent-monthly-top.png?v=ui3" alt="월간 리포트 첫 화면 — 한 달 요약과 멘토링 종합 의견" loading="lazy"></div><figcaption class="pf-cap"><b>리포트 첫 화면</b><span>한 달 요약 · 멘토링 종합 의견</span></figcaption></figure>
+      <figure><div class="pf sm"><img src="photos/ui/parent-monthly.png?v=ui3" alt="월간 리포트 — 모의고사 성적 추이" loading="lazy"></div><figcaption class="pf-cap"><b>모의고사 성적 추이</b><span>직전 → 이번 달 등급 변화</span></figcaption></figure>
+      <figure><div class="pf sm"><img src="photos/ui/parent-monthly-2.png?v=ui3" alt="월간 리포트 — 멘토링 종합의견" loading="lazy"></div><figcaption class="pf-cap"><b>멘토링 종합의견</b><span>종합 의견 · 원장님 한마디</span></figcaption></figure>
+      <figure><div class="pf sm"><img src="photos/ui/parent-monthly-3.png?v=ui3" alt="월간 리포트 — 원생 기록과 상벌점" loading="lazy"></div><figcaption class="pf-cap"><b>원생 기록 · 상벌점</b><span>벌점도 사유·날짜와 함께</span></figcaption></figure>
+      <figure><div class="pf sm"><img src="photos/ui/parent-monthly-4.png?v=ui3" alt="월간 리포트 — 순찰 점검" loading="lazy"></div><figcaption class="pf-cap"><b>순찰 점검</b><span>특이사항 · 자리비움 기록</span></figcaption></figure>
+      <figure><div class="pf sm"><img src="photos/ui/parent-monthly-5.png?v=ui3" alt="월간 리포트 — 이달의 시상과 권장 과목" loading="lazy"></div><figcaption class="pf-cap"><b>시상 · 권장 과목</b><span>이달의 칭찬과 다음 달 공부 방향</span></figcaption></figure>
+    </div>
+  </div>
+</dialog>
+
+<script src="mentors-data.js?v=seed4"></script>
+<script src="landing.js?v=bx20"></script>
+<script>
+  // 학습 공간 라이트박스 (bx-core.js 가 모달을 생성)
+  window.BX_GALLERY = [
+    ['photos/bx/hall-2.jpg', '정자세 자습실'], ['photos/space4.jpg', '강한선배 입구 · 개인 락커'], ['photos/space5.jpg', '1인 집중 부스'],
+    ['photos/space8.jpg', '프리미엄 집중석'], ['photos/space3.jpg', '휴식 라운지'], ['photos/space9.jpg', '자습실 전경'],
+    ['photos/space7.jpg', '자습실 좌석'], ['photos/space10.jpg', '집중 부스 존'], ['photos/space6.jpg', '자습실 전경'],
+  ];
+</script>
+<script src="bx-core.js?v=bx20"></script>
+<script src="bx-scenes.js?v=bx20"></script>
+</body>
+</html>

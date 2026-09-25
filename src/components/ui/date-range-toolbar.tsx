@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Loader2, RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function getToday() {
   const now = new Date();
@@ -61,44 +62,49 @@ export function DateRangeToolbar({ initialFrom, initialTo, basePath, extraParams
   const today = getToday();
 
   return (
-    <div className={`flex items-center gap-2 ${className ?? ""}`}>
-      <span className="text-sm text-muted-foreground">날짜</span>
-      <DatePicker value={dateFrom || null} onChange={(d) => setDateFrom(d ?? "")} placeholder="시작" />
-      <span className="text-sm text-muted-foreground">~</span>
-      <DatePicker value={dateTo || null} onChange={(d) => setDateTo(d ?? "")} placeholder="종료" />
+    <div className={cn("flex items-center gap-x2", className)}>
+      <span className="t4-medium text-fg-neutral-muted">기간</span>
+      <div className="flex items-center gap-x1_5">
+        <DatePicker value={dateFrom || null} onChange={(d) => setDateFrom(d ?? "")} placeholder="시작일" />
+        <span className="t4-regular text-fg-neutral-subtle" aria-hidden>
+          ~
+        </span>
+        <DatePicker value={dateTo || null} onChange={(d) => setDateTo(d ?? "")} placeholder="종료일" />
+      </div>
       <Button
         type="button"
-        size="sm"
-        className="h-8 gap-1.5"
+        variant="ink"
         onClick={() => applyRange(dateFrom, dateTo)}
         disabled={isRefetching || !datesDirty}
         title={datesDirty ? "변경된 날짜로 조회" : "현재 범위로 조회 중"}
       >
-        {isRefetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-        조회
+        {isRefetching ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+        {isRefetching ? "조회 중…" : "조회"}
       </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 px-2 text-xs"
-        onClick={() => applyRange(today, today)}
-        disabled={isRefetching}
-      >
-        오늘만
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-8 px-2 text-xs"
-        onClick={() => {
-          const n = new Date();
-          const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-          applyRange(iso(new Date(n.getFullYear(), n.getMonth(), n.getDate() - 7)), iso(new Date(n.getFullYear(), n.getMonth(), n.getDate() + 14)));
-        }}
-        disabled={isRefetching}
-      >
-        최근 1주일
-      </Button>
+      <div className="flex items-center gap-x1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => applyRange(today, today)}
+          disabled={isRefetching}
+        >
+          오늘만
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            const n = new Date();
+            const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            applyRange(iso(new Date(n.getFullYear(), n.getMonth(), n.getDate() - 7)), iso(new Date(n.getFullYear(), n.getMonth(), n.getDate() + 14)));
+          }}
+          disabled={isRefetching}
+        >
+          최근 1주일
+        </Button>
+      </div>
     </div>
   );
 }

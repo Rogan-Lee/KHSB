@@ -1,30 +1,46 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Utensils, Check, Clock, Landmark } from "lucide-react";
 import {
-  Utensils,
-  Check,
-  Wallet,
-  Copy,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  CheckCircle2,
-  Pencil,
-  Send,
-  Lock,
-} from "lucide-react";
+  IconChevronLeftLine,
+  IconChevronRightLine,
+  IconPaperplaneLine,
+  IconPencilLine,
+  IconSquare2StackedLine,
+} from "@karrotmarket/react-monochrome-icon";
+import { Icon, PrefixIcon } from "@seed-design/react";
 import {
   submitLunchOrder,
   claimLunchDeposit,
   requestLunchChange,
 } from "@/actions/lunch";
 import type { LunchFormProps, LunchOrderState, LunchChangeThread } from "@/lib/lunch-data";
+import {
+  Badge,
+  BottomCTA,
+  Button,
+  EmptyState,
+  IconTile,
+  Notice,
+  Section,
+} from "@/components/portal/ui";
+import { ActionButton } from "seed-design/ui/action-button";
+import { Chip } from "seed-design/ui/chip";
+import {
+  CheckSelectBox,
+  CheckSelectBoxCheckmark,
+  CheckSelectBoxGroup,
+} from "seed-design/ui/select-box";
+import { TextField, TextFieldTextarea } from "seed-design/ui/text-field";
+import { cn } from "@/lib/utils";
+
+// 학생 포털(/s/[token]/lunch)과 학부모 전용(/meal/[token]) 공용 — 둘 다 모바일, SEED Design.
+// /meal 페이지도 루트에 data-portal · --portal-surface 를 지정해 SEED 토큰/폰트와 BottomCTA 배경이 맞는다.
 
 const WON = (n: number) => n.toLocaleString("ko-KR") + "원";
 
@@ -65,6 +81,27 @@ function weekRangeLabel(monday: string): string {
   return `${f(m)}~${f(s)}`;
 }
 
+/**
+ * 자유 입력 계좌 문자열("국민 123-45-6789 (홍길동)")을 표시용으로 분해.
+ * 숫자 덩어리를 찾지 못하면 null → 원문 그대로 표시.
+ */
+function parseBankInfo(raw: string): { bank: string; account: string; holder: string } | null {
+  const m = raw.match(/\d[\d\s-]{5,}\d/);
+  if (!m || m.index == null) return null;
+  const bank = raw
+    .slice(0, m.index)
+    .replace(/[\s:|·,/-]+$/, "")
+    .trim();
+  const holder = raw
+    .slice(m.index + m[0].length)
+    .trim()
+    .replace(/^[\s:|·,/-]+/, "")
+    .replace(/^\((.*)\)$/, "$1")
+    .replace(/^예금주\s*[:：]?\s*/, "")
+    .trim();
+  return { bank, account: m[0].trim(), holder };
+}
+
 type View = "order" | "payment" | "confirmed";
 
 export function LunchOrderForm(props: LunchFormProps) {
@@ -74,20 +111,25 @@ export function LunchOrderForm(props: LunchFormProps) {
   const view = override ?? derived;
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-[18px] bg-gradient-to-br from-brand to-brand-2 p-5 text-white shadow-md">
-        <div className="flex items-center gap-2">
-          <Utensils className="h-5 w-5" strokeWidth={2.4} />
-          <h2 className="text-[18px] font-bold tracking-[-0.02em]">점심 도시락</h2>
+    <div className="flex flex-col gap-x3">
+      <div className="px-x1 pb-x2 pt-x3">
+        <div className="flex items-center gap-x2">
+          <h2 className="t8-bold text-fg-neutral">점심 도시락</h2>
+          {view === "payment" && pending && (
+            <Badge tone="warn" size="md">
+              {pending.depositClaimed ? "입금 확인 중" : "입금 대기"}
+            </Badge>
+          )}
+          {view === "confirmed" && <Badge tone="ok" size="md">신청 확정</Badge>}
         </div>
-        <p className="mt-2 text-[13px] leading-relaxed opacity-95">
+        <p className="mt-x1_5 t5-regular text-fg-neutral-muted">
           {view === "order"
-            ? "주차를 선택해 먹을 날짜를 골라 신청해 주세요."
+            ? "주차를 고르고 먹을 날짜를 선택해 신청해 주세요."
             : view === "payment"
-              ? "아래 계좌로 입금 후 ‘입금했어요’를 눌러 주세요."
-              : "신청이 확정되었습니다. 내역을 확인하세요."}
+              ? "아래 계좌로 입금한 뒤 ‘입금했어요’를 눌러 주세요."
+              : "신청이 확정됐어요. 내역을 확인해 주세요."}
         </p>
-      </section>
+      </div>
 
       {view === "order" && (
         <OrderView {...props} onSubmitted={() => setOverride(null)} />
@@ -213,226 +255,245 @@ function OrderView({
 
   if (weeks.length === 0) {
     return (
-      <section className="rounded-[14px] border border-line bg-panel p-6 text-center text-[13px] text-ink-4">
-        아직 신청 가능한 도시락 메뉴가 없어요.
-      </section>
+      <Section>
+        <EmptyState
+          icon={Utensils}
+          title="아직 신청할 수 있는 메뉴가 없어요"
+          description="메뉴가 등록되면 여기에서 신청할 수 있어요."
+          className="py-x8"
+        />
+      </Section>
     );
   }
 
   return (
     <>
-      {/* 주차 선택 스트립 — 열린 주가 한눈에 (초록 점 = 신청 가능) */}
-      <section className="rounded-[14px] border border-line bg-panel p-3">
-        <p className="mb-2 text-[11px] font-semibold text-ink-4">신청 주차</p>
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
+      {/* 주차 선택 — SEED Chip(단일 선택). 초록 점 = 신청 가능한 주 */}
+      <section className="rounded-r5 bg-bg-layer-default py-x4">
+        <div className="flex items-center justify-between px-x5">
+          <p className="t4-bold text-fg-neutral-muted">신청 주차</p>
+          <span className="inline-flex items-center gap-x1_5 t2-regular text-fg-neutral-subtle">
+            <span className="size-x1_5 rounded-full bg-bg-positive-solid" aria-hidden />
+            신청 가능
+          </span>
+        </div>
+        <Chip.RadioRoot
+          value={String(weekIdx)}
+          onValueChange={(v) => setWeekIdx(Number(v))}
+          aria-label="신청 주차"
+          className="mt-x3 flex gap-x2 overflow-x-auto px-x5 pb-x0_5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           {weeks.map((w, i) => {
             const open = weekOpen.get(w);
-            const active = i === weekIdx;
             return (
-              <button
-                key={w}
-                onClick={() => setWeekIdx(i)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-medium transition-colors ${
-                  active ? "border-brand bg-brand text-white" : "border-line bg-canvas-2/40 text-ink-2"
-                }`}
-              >
-                <span
-                  className={`inline-block h-1.5 w-1.5 rounded-full ${
-                    active ? "bg-white" : open ? "bg-ok" : "bg-ink-4/40"
-                  }`}
-                />
-                {weekRangeLabel(w)}
-              </button>
+              <Chip.RadioItem key={w} value={String(i)} variant="outlineStrong" size="medium">
+                <span aria-hidden className="inline-flex items-center pl-x1_5">
+                  <span
+                    className={cn(
+                      "size-x1_5 rounded-full",
+                      open ? "bg-bg-positive-solid" : "bg-fg-placeholder"
+                    )}
+                  />
+                </span>
+                <Chip.Label className="tabular-nums">{weekRangeLabel(w)}</Chip.Label>
+              </Chip.RadioItem>
             );
           })}
-        </div>
+        </Chip.RadioRoot>
       </section>
 
-      {/* 현재 주 헤더 + 상태 + 요일별 카드 */}
-      <section className="rounded-[14px] border border-line bg-panel p-3">
-        <div className="mb-2 flex items-center justify-between">
-          <button
+      {/* 현재 주 헤더 + 상태 + 요일별 선택 */}
+      <section className="rounded-r5 bg-bg-layer-default px-x3 pb-x3 pt-x4">
+        <div className="flex items-center justify-between">
+          <ActionButton
+            type="button"
+            variant="ghost"
+            size="medium"
+            layout="iconOnly"
             onClick={() => setWeekIdx((i) => Math.max(0, i - 1))}
             disabled={weekIdx === 0}
-            className="rounded-lg p-1.5 text-ink-4 active:bg-canvas-2 disabled:opacity-30"
             aria-label="이전 주"
           >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-1.5 text-[14px] font-bold text-ink">
-              <CalendarDays className="h-4 w-4 text-ink-4" />
-              {weekRangeLabel(weekStart)}
-            </div>
-            <span
-              className={`mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                weekLocked ? "bg-canvas-2 text-ink-4" : "bg-ok-soft/60 text-ok-ink"
-              }`}
-            >
-              {weekLocked ? (
-                <>
-                  <Lock className="h-3 w-3" /> 신청 마감
-                </>
-              ) : (
-                "신청 가능"
-              )}
-            </span>
+            <Icon svg={<IconChevronLeftLine />} />
+          </ActionButton>
+          <div className="flex flex-col items-center">
+            <p className="t6-bold tabular-nums text-fg-neutral">{weekRangeLabel(weekStart)}</p>
+            {weekLocked ? (
+              <Badge tone="gray" size="xs" className="mt-x1">
+                신청 마감
+              </Badge>
+            ) : (
+              <Badge tone="ok" size="xs" className="mt-x1">
+                신청 가능
+              </Badge>
+            )}
           </div>
-          <button
+          <ActionButton
+            type="button"
+            variant="ghost"
+            size="medium"
+            layout="iconOnly"
             onClick={() => setWeekIdx((i) => Math.min(weeks.length - 1, i + 1))}
             disabled={weekIdx === weeks.length - 1}
-            className="rounded-lg p-1.5 text-ink-4 active:bg-canvas-2 disabled:opacity-30"
             aria-label="다음 주"
           >
-            <ChevronRight className="h-5 w-5" />
-          </button>
+            <Icon svg={<IconChevronRightLine />} />
+          </ActionButton>
         </div>
 
-        {/* 이번 주 빠른 선택 */}
+        {/* 이번 주 빠른 선택 — SEED ActionButton xsmall(pill) */}
         {!weekLocked && weekSelectable.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-1.5">
+          <div className="mt-x3 flex flex-wrap justify-center gap-x1_5 px-x1">
             {[
               { label: "이번 주 전체", fn: () => bulkAdd(() => true) },
               { label: "주중", fn: () => bulkAdd((d) => d >= 1 && d <= 5) },
               { label: "주말", fn: () => bulkAdd((d) => d === 0 || d === 6) },
               { label: "해제", fn: clearWeek },
             ].map((b) => (
-              <button
-                key={b.label}
-                onClick={b.fn}
-                className="rounded-full border border-line bg-canvas-2/50 px-3 py-1.5 text-[12px] font-medium text-ink-2 active:bg-canvas-2"
-              >
+              <Button key={b.label} variant="gray" size="xs" onClick={b.fn}>
                 {b.label}
-              </button>
+              </Button>
             ))}
           </div>
         )}
 
-        {/* 요일별 큰 카드 리스트 */}
-        <ul className="space-y-1.5">
+        {/* 요일별 선택 — SEED CheckSelectBox (결제 완료·마감은 disabled) */}
+        <CheckSelectBoxGroup
+          aria-label={`${weekRangeLabel(weekStart)} 신청 날짜`}
+          className="mt-x3"
+        >
           {weekMenus.map((menu) => {
             const isPaid = paidSet.has(menu.id);
             const isLocked = lockedSet.has(menu.id);
             const isSel = selected.has(menu.id) || isPaid;
             const disabled = isPaid || isLocked;
-            const onBrand = isSel && !isPaid;
             return (
-              <li key={menu.id}>
-                <button
-                  disabled={disabled}
-                  onClick={() => toggle(menu.id)}
-                  className={`flex w-full items-center gap-3 rounded-[12px] border p-3 text-left transition-colors ${
-                    isPaid
-                      ? "border-ok/40 bg-ok-soft/40"
-                      : isLocked
-                        ? "border-line bg-canvas-2/40"
-                        : isSel
-                          ? "border-brand bg-brand text-white"
-                          : "border-brand/30 bg-brand/5 active:bg-brand/10"
-                  }`}
-                >
-                  <span
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
-                      onBrand
-                        ? "border-white bg-white/20"
-                        : isPaid
-                          ? "border-ok/50 bg-ok/10"
-                          : "border-brand/40"
-                    }`}
-                  >
-                    {isSel && <Check className={`h-3.5 w-3.5 ${isPaid ? "text-ok-ink" : "text-white"}`} strokeWidth={3} />}
-                    {isLocked && !isSel && <Lock className="h-3 w-3 text-ink-4/60" />}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-[14px] font-semibold ${onBrand ? "text-white" : "text-ink"}`}>
-                      {dateLabel(menu.date)}
-                    </p>
-                    <p className={`truncate text-[12px] ${onBrand ? "text-white/85" : "text-ink-3"}`}>
-                      {menu.name}
-                    </p>
+              <CheckSelectBox
+                key={menu.id}
+                checked={isSel}
+                disabled={disabled}
+                onCheckedChange={() => toggle(menu.id)}
+                label={dateLabel(menu.date)}
+                description={<span className="line-clamp-2">{menu.name}</span>}
+                suffix={
+                  <div className="flex shrink-0 items-center gap-x3">
+                    <div className="flex flex-col items-end gap-x1">
+                      <span
+                        className={cn(
+                          "t5-bold tabular-nums",
+                          isPaid
+                            ? "text-fg-positive"
+                            : isSel
+                              ? "text-fg-neutral"
+                              : "text-fg-neutral-muted"
+                        )}
+                      >
+                        {WON(menu.price)}
+                      </span>
+                      {isPaid && (
+                        <Badge tone="ok" size="xs">
+                          결제 완료
+                        </Badge>
+                      )}
+                      {isLocked && !isPaid && (
+                        <Badge tone="gray" size="xs">
+                          마감
+                        </Badge>
+                      )}
+                    </div>
+                    <CheckSelectBoxCheckmark />
                   </div>
-                  <span className={`shrink-0 text-[13px] font-semibold tabular-nums ${onBrand ? "text-white" : "text-ink-2"}`}>
-                    {WON(menu.price)}
-                  </span>
-                  {isPaid && <span className="shrink-0 text-[10px] font-bold text-ok-ink">결제완료</span>}
-                  {isLocked && !isPaid && <span className="shrink-0 text-[10px] font-medium text-ink-4">마감</span>}
-                </button>
-              </li>
+                }
+              />
             );
           })}
-        </ul>
+        </CheckSelectBoxGroup>
       </section>
 
       {/* 선택 요약 (전체 주 통합) */}
       {selectedLines.length > 0 && (
-        <section className="rounded-[14px] border border-brand/30 bg-panel p-4">
-          <p className="mb-2 text-[12px] font-semibold text-ink-2">
-            선택한 날짜 {selectedLines.length}일
-          </p>
-          <ul className="space-y-1.5">
+        <Section title={`선택한 날짜 ${selectedLines.length}일`}>
+          <ul className="flex flex-col gap-x2_5">
             {selectedLines.map((m) => (
-              <li key={m.id} className="flex items-center justify-between text-[13px]">
-                <span className="text-ink">
-                  <b className="font-semibold">{dateLabel(m.date)}</b>
-                  <span className="ml-1.5 text-ink-3">{m.name}</span>
+              <li key={m.id} className="flex items-start justify-between gap-x3">
+                <div className="min-w-0">
+                  <p className="t5-medium text-fg-neutral">{dateLabel(m.date)}</p>
+                  <p className="mt-x0_5 line-clamp-1 t4-regular text-fg-neutral-subtle">{m.name}</p>
+                </div>
+                <span className="shrink-0 t5-regular tabular-nums text-fg-neutral-muted">
+                  {WON(m.price)}
                 </span>
-                <span className="tabular-nums text-ink-2">{WON(m.price)}</span>
               </li>
             ))}
           </ul>
-          <div className="mt-3 flex items-center justify-between border-t border-line pt-2.5">
-            <span className="text-[13px] font-medium text-ink-3">합계</span>
-            <span className="text-[18px] font-bold tabular-nums text-ink">{WON(total)}</span>
+          <div className="mt-x4 flex items-center justify-between border-t border-stroke-neutral-subtle pt-x4">
+            <span className="t5-medium text-fg-neutral-muted">합계</span>
+            <span className="t8-bold tabular-nums text-fg-neutral">{WON(total)}</span>
           </div>
-        </section>
+        </Section>
       )}
 
-      <textarea
-        value={memo}
-        onChange={(e) => setMemo(e.target.value)}
-        placeholder="요청사항 (선택) — 알레르기, 수령 관련 등"
-        rows={2}
-        maxLength={300}
-        className="w-full resize-none rounded-[12px] border border-line bg-panel px-3 py-2.5 text-[13px] text-ink placeholder:text-ink-4 focus:border-brand focus:outline-none"
-      />
+      <Section>
+        <TextField
+          label="요청사항"
+          indicator="선택"
+          value={memo}
+          onValueChange={({ slicedValue }) => setMemo(slicedValue)}
+          maxGraphemeCount={300}
+        >
+          <TextFieldTextarea placeholder="알레르기, 수령 관련 등" maxLength={300} />
+        </TextField>
+      </Section>
 
-      <button
-        onClick={submit}
-        disabled={busy}
-        className="w-full rounded-[12px] bg-brand px-4 py-3.5 text-[15px] font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-50"
-      >
-        {busy ? "처리 중…" : selected.size === 0 ? "신청 취소" : `${selected.size}일 · ${WON(total)} 신청하기`}
-      </button>
+      <BottomCTA>
+        <Button
+          variant={selected.size === 0 ? "gray" : "primary"}
+          size="xl"
+          block
+          loading={busy}
+          onClick={submit}
+        >
+          {selected.size === 0 ? "신청 취소" : `${selected.size}일 · ${WON(total)} 신청하기`}
+        </Button>
+      </BottomCTA>
     </>
   );
 }
 
 // ─────────────────────────── 입금 안내 ───────────────────────────
 
-function OrderSummaryCard({ order }: { order: LunchOrderState }) {
+function OrderSummaryCard({
+  order,
+  totalLabel,
+  footer,
+}: {
+  order: LunchOrderState;
+  totalLabel: string;
+  footer?: ReactNode;
+}) {
   return (
-    <section className="rounded-[14px] border border-line bg-panel p-4">
-      <p className="mb-2.5 text-[12px] font-semibold text-ink-2">신청 내역 {order.items.length}일</p>
-      <ul className="space-y-1.5">
+    <Section title={`신청 내역 ${order.items.length}일`}>
+      <ul className="flex flex-col gap-x2">
         {order.items.map((it) => (
-          <li key={it.date} className="rounded-[10px] bg-canvas-2/50 px-3 py-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <b className="text-[13.5px] font-bold text-ink">{dateLabel(it.date)}</b>
-              <span className="shrink-0 tabular-nums text-[13px] font-semibold text-ink-2">
+          <li key={it.date} className="rounded-r3_5 bg-bg-layer-fill px-x4 py-x3">
+            <div className="flex items-baseline justify-between gap-x2">
+              <p className="t5-medium text-fg-neutral">{dateLabel(it.date)}</p>
+              <span className="shrink-0 t5-medium tabular-nums text-fg-neutral-muted">
                 {WON(it.price)}
               </span>
             </div>
-            <p className="mt-1 text-[12px] leading-relaxed text-ink-3">
+            <p className="mt-x1 t4-regular text-fg-neutral-muted">
               {it.name.replace(/,/g, ", ")}
             </p>
           </li>
         ))}
       </ul>
-      <div className="mt-3 flex items-center justify-between border-t border-line pt-2.5">
-        <span className="text-[13px] font-medium text-ink-3">입금하실 금액</span>
-        <span className="text-[20px] font-bold tabular-nums text-brand">{WON(order.total)}</span>
+      <div className="mt-x4 flex items-center justify-between border-t border-stroke-neutral-subtle pt-x4">
+        <span className="t5-medium text-fg-neutral-muted">{totalLabel}</span>
+        <span className="t8-bold tabular-nums text-fg-neutral">{WON(order.total)}</span>
       </div>
-    </section>
+      {footer != null && <div className="mt-x4">{footer}</div>}
+    </Section>
   );
 }
 
@@ -451,6 +512,7 @@ function PaymentView({
 }) {
   const router = useRouter();
   const [busy, startTransition] = useTransition();
+  const bank = useMemo(() => (bankInfo ? parseBankInfo(bankInfo) : null), [bankInfo]);
 
   function copyAccount() {
     if (!bankInfo) return;
@@ -474,67 +536,74 @@ function PaymentView({
   return (
     <>
       {order.depositClaimed && (
-        <section className="flex items-center gap-2.5 rounded-[14px] border border-warn/30 bg-warn-soft/50 p-4">
-          <Clock className="h-5 w-5 shrink-0 text-warn-ink" />
-          <p className="text-[13px] text-ink-2">
-            <b className="text-warn-ink">입금 확인 대기중</b> — 관리자가 확인하면 알려드려요.
-            입금 정보가 다르면 아래에서 다시 알려 주세요.
-          </p>
-        </section>
+        <Notice tone="warn" icon={Clock} title="입금 확인 중이에요">
+          관리자가 확인하면 알려드려요. 입금 정보가 다르면 아래에서 다시 알려 주세요.
+        </Notice>
       )}
 
-      <OrderSummaryCard order={order} />
+      {/* 송금 카드 — 금액 + 입금 계좌(복사) */}
+      <Section>
+        <p className="t4-medium text-fg-neutral-muted">입금하실 금액</p>
+        <p className="mt-x1 t11-bold tabular-nums text-fg-neutral">{WON(order.total)}</p>
+        {bankInfo && (
+          <div className="mt-x5 flex items-center gap-x3 rounded-r4 bg-bg-layer-fill py-x3_5 pl-x4 pr-x3">
+            <IconTile icon={Landmark} tone="brand" size={40} round />
+            <div className="min-w-0 flex-1">
+              {bank ? (
+                <>
+                  <p className="truncate t3-regular text-fg-neutral-subtle">
+                    {bank.bank || "입금 계좌"}
+                    {bank.holder && ` · ${bank.holder}`}
+                  </p>
+                  <p className="mt-x0_5 break-all t6-bold tabular-nums text-fg-neutral">
+                    {bank.account}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="t3-regular text-fg-neutral-subtle">입금 계좌</p>
+                  <p className="mt-x0_5 break-all t5-bold text-fg-neutral">{bankInfo}</p>
+                </>
+              )}
+            </div>
+            <Button variant="weak" size="sm" onClick={copyAccount} className="shrink-0">
+              <PrefixIcon svg={<IconSquare2StackedLine />} />
+              복사
+            </Button>
+          </div>
+        )}
+      </Section>
 
-      {/* 입금 계좌 (복사) */}
-      {bankInfo && (
-        <section className="rounded-[14px] border border-brand/30 bg-panel p-4 ring-1 ring-brand/10">
-          <div className="flex items-center gap-1.5">
-            <Wallet className="h-4 w-4 text-brand" />
-            <p className="text-[12px] font-semibold text-ink-4">입금 계좌</p>
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <p className="flex-1 text-[15px] font-bold text-ink">{bankInfo}</p>
-            <button
-              onClick={copyAccount}
-              className="inline-flex items-center gap-1 rounded-[10px] bg-brand px-3 py-2 text-[12px] font-semibold text-white active:scale-95"
-            >
-              <Copy className="h-3.5 w-3.5" /> 복사
-            </button>
-          </div>
-        </section>
-      )}
+      <OrderSummaryCard
+        order={order}
+        totalLabel="합계"
+        footer={
+          <Button variant="weak" size="lg" block onClick={onEdit}>
+            <PrefixIcon svg={<IconPencilLine />} />
+            신청 날짜·메뉴 수정하기
+          </Button>
+        }
+      />
 
       {/* 안내문 (마크다운) */}
       {guideText && (
-        <section className="rounded-[14px] border border-line bg-canvas-2/40 p-4">
+        <Section title="입금 안내">
           <Markdown>{guideText}</Markdown>
-        </section>
+        </Section>
       )}
 
       {/* 액션 */}
-      {!order.depositClaimed ? (
-        <button
-          onClick={claim}
-          disabled={busy}
-          className="w-full rounded-[12px] bg-ok px-4 py-3.5 text-[15px] font-semibold text-white transition-transform active:scale-[0.98] disabled:opacity-50"
-        >
-          {busy ? "전송 중…" : "입금했어요 — 확인 요청"}
-        </button>
-      ) : (
-        <button
-          onClick={claim}
-          disabled={busy}
-          className="w-full rounded-[12px] border border-line bg-panel px-4 py-3 text-[13px] font-medium text-ink-3 active:bg-canvas-2 disabled:opacity-50"
-        >
-          다시 알림 보내기
-        </button>
-      )}
-      <button
-        onClick={onEdit}
-        className="flex w-full items-center justify-center gap-2 rounded-[12px] border-[1.5px] border-brand bg-brand/10 px-4 py-3.5 text-[15px] font-bold text-brand transition-transform active:scale-[0.98] active:bg-brand/15"
-      >
-        <Pencil className="h-[18px] w-[18px]" strokeWidth={2.4} /> 신청 날짜·메뉴 수정하기
-      </button>
+      <BottomCTA>
+        {!order.depositClaimed ? (
+          <Button variant="primary" size="xl" block loading={busy} onClick={claim}>
+            입금했어요
+          </Button>
+        ) : (
+          <Button variant="gray" size="xl" block loading={busy} onClick={claim}>
+            다시 알림 보내기
+          </Button>
+        )}
+      </BottomCTA>
     </>
   );
 }
@@ -570,74 +639,97 @@ function ConfirmedView({
 
   return (
     <>
-      <section className="flex items-center gap-2.5 rounded-[14px] border border-ok/40 bg-ok-soft/50 p-4">
-        <CheckCircle2 className="h-6 w-6 shrink-0 text-ok-ink" />
-        <div>
-          <p className="text-[15px] font-bold text-ok-ink">입금이 확인되었습니다</p>
-          <p className="text-[12.5px] text-ink-3">신청이 최종 확정되었어요. 감사합니다!</p>
+      <Section>
+        <div className="flex items-center gap-x3_5">
+          <IconTile icon={Check} tone="ok" solid size={44} round />
+          <div className="min-w-0">
+            <p className="t6-bold text-fg-neutral">입금이 확인됐어요</p>
+            <p className="mt-x0_5 t4-regular text-fg-neutral-subtle">
+              신청이 최종 확정됐어요. 감사합니다!
+            </p>
+          </div>
         </div>
-      </section>
+      </Section>
 
-      <OrderSummaryCard order={order} />
+      <OrderSummaryCard order={order} totalLabel="결제 금액" />
 
       {/* 변경 요청 보내기 */}
-      <section className="rounded-[14px] border border-line bg-panel p-4">
-        <p className="text-[13px] font-semibold text-ink-2">변경이 필요하신가요?</p>
-        <p className="mt-0.5 text-[12px] text-ink-4">
-          날짜·메뉴 변경, 취소 등 요청을 남기면 관리자가 확인 후 처리해 드려요.
-        </p>
-        <textarea
+      <Section
+        title="변경이 필요하신가요?"
+        description="날짜·메뉴 변경, 취소 등 요청을 남기면 관리자가 확인 후 처리해 드려요."
+      >
+        <TextField
           value={msg}
-          onChange={(e) => setMsg(e.target.value)}
-          rows={3}
-          maxLength={500}
-          placeholder="예: 7월 15일 신청을 취소하고 싶어요."
-          className="mt-2 w-full resize-none rounded-[10px] border border-line bg-canvas-2/40 px-3 py-2 text-[13px] focus:border-brand focus:outline-none"
-        />
-        <button
-          onClick={sendChange}
-          disabled={busy}
-          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-brand px-4 py-3 text-[14px] font-semibold text-white disabled:opacity-50"
+          onValueChange={({ slicedValue }) => setMsg(slicedValue)}
+          maxGraphemeCount={500}
         >
-          <Send className="h-4 w-4" /> 변경 요청 보내기
-        </button>
-      </section>
+          <TextFieldTextarea
+            maxLength={500}
+            placeholder="예: 7월 15일 신청을 취소하고 싶어요."
+            aria-label="변경 요청 내용"
+          />
+        </TextField>
+        <Button
+          variant="primary"
+          size="lg"
+          block
+          loading={busy}
+          onClick={sendChange}
+          className="mt-x3"
+        >
+          <PrefixIcon svg={<IconPaperplaneLine />} />
+          변경 요청 보내기
+        </Button>
+      </Section>
 
       {/* 요청 히스토리 (요청 ↔ 반영 답변) */}
       {threads.length > 0 && (
-        <section className="rounded-[14px] border border-line bg-panel p-4">
-          <p className="mb-2.5 text-[12px] font-semibold text-ink-2">
-            변경 요청 내역 ({threads.length})
-          </p>
-          <ul className="space-y-3">
+        <Section
+          title={
+            <>
+              변경 요청 내역{" "}
+              <span className="tabular-nums text-fg-neutral-subtle">{threads.length}</span>
+            </>
+          }
+        >
+          <ul className="flex flex-col gap-x2_5">
             {threads.map((t) => (
-              <li key={t.id} className="rounded-[12px] border border-line bg-canvas-2/30 p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-medium text-ink-4">내 요청</span>
-                  <span className="text-[10.5px] text-ink-4">{dateTimeLabel(t.createdAt)}</span>
+              <li key={t.id} className="rounded-r4 bg-bg-layer-fill p-x4">
+                <div className="flex items-center justify-between gap-x2">
+                  <span className="t3-bold text-fg-neutral-muted">내 요청</span>
+                  <span className="t2-regular tabular-nums text-fg-neutral-subtle">
+                    {dateTimeLabel(t.createdAt)}
+                  </span>
                 </div>
-                <p className="mt-1 whitespace-pre-wrap text-[13px] text-ink">{t.message}</p>
+                <p className="mt-x1_5 whitespace-pre-wrap t5-regular text-fg-neutral">
+                  {t.message}
+                </p>
                 {t.reply ? (
-                  <div className="mt-2 rounded-[10px] border border-ok/30 bg-ok-soft/40 p-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-semibold text-ok-ink">
-                        운영자 반영 {t.repliedByName ? `· ${t.repliedByName}` : ""}
+                  <div className="mt-x3 rounded-r3 bg-bg-layer-default p-x3_5">
+                    <div className="flex items-center justify-between gap-x2">
+                      <span className="inline-flex items-center gap-x1 t3-bold text-fg-positive">
+                        <Check className="h-3.5 w-3.5" strokeWidth={2.8} />
+                        운영자 반영{t.repliedByName ? ` · ${t.repliedByName}` : ""}
                       </span>
                       {t.repliedAt && (
-                        <span className="text-[10.5px] text-ink-4">{dateTimeLabel(t.repliedAt)}</span>
+                        <span className="t2-regular tabular-nums text-fg-neutral-subtle">
+                          {dateTimeLabel(t.repliedAt)}
+                        </span>
                       )}
                     </div>
-                    <p className="mt-1 whitespace-pre-wrap text-[13px] text-ink-2">{t.reply}</p>
+                    <p className="mt-x1_5 whitespace-pre-wrap t4-regular text-fg-neutral-muted">
+                      {t.reply}
+                    </p>
                   </div>
                 ) : (
-                  <p className="mt-2 flex items-center gap-1 text-[11.5px] text-warn-ink">
-                    <Clock className="h-3 w-3" /> 확인 대기중
-                  </p>
+                  <Badge tone="warn" className="mt-x3">
+                    확인 대기중
+                  </Badge>
                 )}
               </li>
             ))}
           </ul>
-        </section>
+        </Section>
       )}
     </>
   );
@@ -647,21 +739,25 @@ function ConfirmedView({
 
 function Markdown({ children }: { children: string }) {
   return (
-    <div className="space-y-2 text-[13px] leading-relaxed text-ink-2">
+    <div className="space-y-2 t4-regular text-fg-neutral-muted">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: (p) => <h1 className="text-[15px] font-bold text-ink" {...p} />,
-          h2: (p) => <h2 className="text-[14px] font-bold text-ink" {...p} />,
-          h3: (p) => <h3 className="text-[13px] font-semibold text-ink" {...p} />,
-          p: (p) => <p className="text-[13px] leading-relaxed" {...p} />,
-          ul: (p) => <ul className="list-disc space-y-1 pl-5" {...p} />,
-          ol: (p) => <ol className="list-decimal space-y-1 pl-5" {...p} />,
-          li: (p) => <li className="text-[13px]" {...p} />,
-          strong: (p) => <strong className="font-semibold text-ink" {...p} />,
-          a: (p) => <a className="text-brand underline" target="_blank" rel="noopener" {...p} />,
-          hr: () => <hr className="border-line" />,
-          code: (p) => <code className="rounded bg-canvas-2 px-1 py-0.5 text-[12px]" {...p} />,
+          h1: (p) => <h1 className="t5-bold text-fg-neutral" {...p} />,
+          h2: (p) => <h2 className="t5-bold text-fg-neutral" {...p} />,
+          h3: (p) => <h3 className="t4-bold text-fg-neutral" {...p} />,
+          p: (p) => <p className="t4-regular" {...p} />,
+          ul: (p) => <ul className="list-disc space-y-1 pl-x5" {...p} />,
+          ol: (p) => <ol className="list-decimal space-y-1 pl-x5" {...p} />,
+          li: (p) => <li className="t4-regular" {...p} />,
+          strong: (p) => <strong className="font-bold text-fg-neutral" {...p} />,
+          a: (p) => (
+            <a className="text-fg-brand-contrast underline" target="_blank" rel="noopener" {...p} />
+          ),
+          hr: () => <hr className="border-stroke-neutral-subtle" />,
+          code: (p) => (
+            <code className="rounded-r1 bg-bg-neutral-weak px-x1 py-x0_5 t3-regular" {...p} />
+          ),
         }}
       >
         {children}

@@ -1,5 +1,32 @@
 import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+// SEED Design(@seed-design/tailwind4-theme) 유틸을 tailwind-merge 가 인식하도록 확장.
+// 예: cn("py-x12", "py-x8") → "py-x8", cn("t5-regular", "t6-bold") → "t6-bold".
+const SEED_DIMENSIONS = [
+  "x0_5", "x1", "x1_5", "x2", "x2_5", "x3", "x3_5", "x4", "x4_5", "x5",
+  "x6", "x7", "x8", "x9", "x10", "x12", "x13", "x14", "x16",
+];
+const SEED_RADII = ["r0_5", "r1", "r1_5", "r2", "r2_5", "r3", "r3_5", "r4", "r5", "r6"];
+const SEED_TEXT_STYLES = Array.from({ length: 14 }, (_, i) => `t${i + 1}`).flatMap((t) =>
+  ["", "-static"].flatMap((s) => ["regular", "medium", "bold"].map((w) => `${t}${s}-${w}`))
+);
+
+const twMerge = extendTailwindMerge<"seed-text-style">({
+  extend: {
+    theme: {
+      spacing: SEED_DIMENSIONS,
+      radius: SEED_RADII,
+    },
+    classGroups: {
+      "seed-text-style": [...SEED_TEXT_STYLES, "screen-title", "article-body", "article-note"],
+    },
+    conflictingClassGroups: {
+      "seed-text-style": ["font-size", "font-weight", "leading", "tracking"],
+      "font-size": ["seed-text-style"],
+    },
+  },
+});
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

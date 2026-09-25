@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>강한 이야기 | 강한선배</title>
+  <meta name="description" content="강한선배가 전하는 후기 · 선배 아티클 · 원장 칼럼.">
+  <meta name="theme-color" content="#0b0c0f">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="강한 이야기 | 강한선배">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="landing.css?v=seed3">
+  <link rel="stylesheet" href="bx-core.css?v=bx20">
+  <style>
+    .ar { max-width: 780px; margin: 0 auto; padding: calc(var(--gnb-h) + 80px) 28px 0; }
+    .ar-back { display: inline-flex; align-items: center; gap: 6px; font-size: 14.5px; font-weight: 700; color: var(--dim); }
+    .ar-back:hover { color: var(--ink); }
+    .ar-type { display: inline-block; margin-top: 36px; font-size: 13.5px; font-weight: 800; color: var(--brand); background: var(--brand-soft); border-radius: 999px; padding: 7px 13px; }
+    .ar-title { font-size: clamp(32px, 4.6vw, 54px); font-weight: 800; letter-spacing: -.05em; line-height: 1.2; margin-top: 18px; color: var(--ink); }
+    .ar-sum { font-size: clamp(17px, 1.7vw, 20px); color: var(--dim); line-height: 1.75; margin-top: 20px; }
+    .ar-meta { display: flex; align-items: center; gap: 14px; margin-top: 34px; padding-top: 26px; border-top: 1px solid var(--hair); }
+    .ar-ava { width: 48px; height: 48px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 18px; }
+    .ar-ava img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
+    .ar-by b { display: block; font-size: 15.5px; font-weight: 800; color: var(--ink); }
+    .ar-by span { font-size: 13.5px; color: var(--faint); }
+    .ar-share { margin-left: auto; }
+    .ar-cover { max-width: 1180px; margin: 48px auto 0; padding: 0 28px; }
+    .ar-cover img { width: 100%; max-height: 640px; object-fit: cover; border-radius: 32px; display: block; }
+    .ar-body { max-width: 780px; margin: 56px auto 0; padding: 0 28px; }
+    .ar-ext { margin-top: 28px; }
+    .ar-author { max-width: 780px; margin: 72px auto 0; padding: 0 28px; }
+    .ar-author a { display: flex; align-items: center; gap: 18px; border-radius: 26px; background: var(--paper-2); padding: 24px 26px; transition: box-shadow .3s; }
+    .ar-author a:hover { box-shadow: var(--sh-md); }
+    .ar-author .ar-ava { width: 64px; height: 64px; }
+    .ar-author p { font-size: 14.5px; color: var(--dim); line-height: 1.6; margin-top: 4px; }
+    .ar-author em { font-style: normal; margin-left: auto; font-size: 14px; font-weight: 700; color: var(--brand); white-space: nowrap; }
+    .ar-related { max-width: 1236px; margin: 120px auto 0; padding: 0 28px; }
+    .ar-state { max-width: 780px; margin: 0 auto; padding: calc(var(--gnb-h) + 140px) 28px 40px; text-align: center; }
+    .ar-state h1 { font-size: 30px; font-weight: 800; letter-spacing: -.04em; }
+    .ar-state p { color: var(--dim); margin-top: 12px; line-height: 1.7; }
+    .ar-state .btn { margin-top: 28px; }
+    .ar-skel i { display: block; height: 18px; border-radius: 8px; background: #f1f2f4; margin-top: 14px; }
+    .ar-toast { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--ink); color: #fff; font-size: 14px; font-weight: 700; padding: 12px 18px; border-radius: 999px; transition: .3s var(--ease-out); z-index: 300; pointer-events: none; }
+    .ar-toast.on { opacity: 1; transform: translateX(-50%); }
+    @media (max-width: 860px) { .ar-author a { flex-wrap: wrap; } .ar-author em { margin-left: 0; } .ar-cover img { border-radius: 22px; } }
+  </style>
+</head>
+<body class="bx" data-page="stories">
+<script src="bx-data.js?v=bx20"></script>
+<script src="bx-shell.js?v=bx20"></script>
+
+<main id="main">
+  <div id="arRoot">
+    <div class="ar ar-skel" aria-busy="true"><i style="width:30%"></i><i style="height:44px;width:90%;margin-top:40px"></i><i style="height:44px;width:60%"></i><i style="width:80%;margin-top:30px"></i><i style="width:70%"></i></div>
+  </div>
+</main>
+<div class="ar-toast" id="arToast" role="status">링크를 복사했어요</div>
+
+<script src="mentors-data.js?v=seed4"></script>
+<script src="bx-core.js?v=bx20"></script>
+<script>
+  // 강한 이야기 상세 — /api/public/content/:id (본문은 서버에서 안전한 HTML로 렌더됨)
+  (() => {
+    const root = document.getElementById('arRoot');
+    const id = new URLSearchParams(location.search).get('id');
+    const { esc, fmtDate, TYPE_LABEL } = KHSB;
+    const ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+
+    function authorInfo(p) {
+      const key = p.authorKey;
+      if (key === 'director') return { photo: 'photos/bx/director.jpg', href: 'director.html', blurb: '강한선배 대표원장 · 관리형 독서실을 만들고 운영합니다.' };
+      if (key && typeof MENTORS !== 'undefined' && MENTORS[key]) {
+        const m = MENTORS[key];
+        return { photo: m.photo || '', href: `mentor.html?id=${encodeURIComponent(key)}`, blurb: m.cardLine || m.role || '' };
+      }
+      return null;
+    }
+    function fail(title, msg) {
+      root.innerHTML = `<div class="ar-state"><h1>${title}</h1><p>${msg}</p><a class="btn btn-dark" href="stories.html">강한 이야기 전체 보기${ARROW}</a></div>`;
+    }
+    if (!id) { fail('글을 찾을 수 없습니다', '주소가 올바른지 확인해 주세요.'); return; }
+
+    KHSB.api(`/api/public/content/${encodeURIComponent(id)}`).then(({ post: p, related }) => {
+      const type = TYPE_LABEL[p.type] || '이야기';
+      const who = authorInfo(p);
+      const initial = (p.authorName || '강').trim().charAt(0);
+      const ava = who && who.photo ? `<span class="ar-ava"><img src="${esc(who.photo)}" alt=""></span>` : `<span class="ar-ava">${esc(initial)}</span>`;
+      document.title = `${p.title} | 강한선배`;
+      const setMeta = (sel, attr, val) => { let m = document.querySelector(sel); if (m) m.setAttribute(attr, val); };
+      setMeta('meta[name="description"]', 'content', p.summary || `${type} · 강한선배`);
+      setMeta('meta[property="og:title"]', 'content', `${p.title} | 강한선배`);
+
+      const body = p.bodyHtml
+        ? `<div class="ar-body prose r">${p.bodyHtml}</div>`
+        : '';
+      const ext = p.url
+        ? `<div class="ar-body ar-ext"><a class="btn btn-dark" href="${esc(p.url)}" target="_blank" rel="noopener">${p.type === 'podcast' ? '팟캐스트 듣기' : '원문 보기'} ↗</a></div>`
+        : '';
+      const author = p.authorName ? `
+        <div class="ar-author r">${who ? `<a href="${esc(who.href)}">` : '<a>'}${ava}
+          <div><b>${esc(p.authorName)}</b><p>${esc(p.authorRole || '')}${who && who.blurb ? ` · ${esc(who.blurb)}` : ''}</p></div>
+          ${who ? '<em>프로필 보기 →</em>' : ''}</a></div>` : '';
+      const rel = related && related.length ? `
+        <section class="ar-related">
+          <div class="bx-head-row"><div class="bx-head left"><p class="eyebrow">${type}</p><h2 class="bx-h2">함께 읽으면 좋은 이야기</h2></div>
+          <a class="btn btn-line" href="stories.html?type=${esc(p.type)}">${type} 더 보기${ARROW}</a></div>
+          <div class="stg">${related.map(r => KHSB.storyCard({ ...r, hasBody: true })).join('')}</div>
+        </section>` : '';
+
+      root.innerHTML = `
+        <article>
+          <header class="ar">
+            <a class="ar-back" href="stories.html${p.type ? `?type=${esc(p.type)}` : ''}">← 강한 이야기</a><br>
+            <span class="ar-type">${type}</span>
+            <h1 class="ar-title">${esc(p.title)}</h1>
+            ${p.summary ? `<p class="ar-sum">${esc(p.summary)}</p>` : ''}
+            <div class="ar-meta">${ava}
+              <div class="ar-by"><b>${esc(p.authorName || '강한선배')}</b><span>${fmtDate(p.publishedAt)}${p.bodyHtml ? ` · ${p.readingMinutes || 1}분 읽기` : ''}</span></div>
+              <button class="btn btn-soft btn-sm ar-share" type="button" id="arShare">링크 복사</button>
+            </div>
+          </header>
+          ${p.coverImageUrl ? `<figure class="ar-cover r"><img src="${esc(p.coverImageUrl)}" alt="" onerror="this.parentNode.remove()"></figure>` : ''}
+          ${body}${ext}
+          ${author}
+        </article>
+        ${rel}
+        <section class="ctab r">
+          <div class="ctab-media"><img src="photos/bx/hall.jpg" alt="" loading="lazy"></div>
+          <div class="ctab-in"><p class="eyebrow">강한선배</p><h2>우리 아이에게도<br>맞을지 궁금하시다면.</h2>
+          <p>지금 공부 상황을 같이 살펴보고, 자리와 관리 방식을 직접 보여드립니다. 상담은 무료입니다.</p>
+          <div class="ctab-actions"><a class="btn btn-brand" href="${SITE.apply}" target="_blank" rel="noopener">무료 입회 상담${ARROW}</a></div></div>
+        </section>`;
+      KHSB.observeNew(root);
+      document.getElementById('arShare').addEventListener('click', async () => {
+        try {
+          if (navigator.share && matchMedia('(pointer: coarse)').matches) await navigator.share({ title: p.title, url: location.href });
+          else { await navigator.clipboard.writeText(location.href); const t = document.getElementById('arToast'); t.classList.add('on'); setTimeout(() => t.classList.remove('on'), 1800); }
+        } catch (e) { /* 공유 취소 */ }
+      });
+    }).catch(err => {
+      if (String(err.message) === '404') fail('글을 찾을 수 없습니다', '삭제되었거나 비공개로 전환된 글입니다.');
+      else fail('글을 불러오지 못했습니다', '잠시 후 다시 시도해 주세요.');
+    });
+  })();
+</script>
+</body>
+</html>

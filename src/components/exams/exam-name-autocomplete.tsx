@@ -24,6 +24,8 @@ interface ExamNameAutocompleteProps {
   className?: string;
   inputClassName?: string;
   name?: string;
+  /** 입력 id — 라벨(htmlFor) 연결용 */
+  id?: string;
   /** 디바운스(ms). 기본 200. */
   debounceMs?: number;
   /** Enter 처리 콜백 (자유 입력 확정 시). 없으면 폼 default 동작. */
@@ -48,6 +50,7 @@ export function ExamNameAutocomplete({
   className,
   inputClassName,
   name,
+  id,
   debounceMs = 200,
   onSubmit,
 }: ExamNameAutocompleteProps) {
@@ -139,6 +142,7 @@ export function ExamNameAutocomplete({
         <PopoverAnchor asChild>
           <Input
             ref={inputRef}
+            id={id}
             type="text"
             name={name}
             value={value}
@@ -164,7 +168,7 @@ export function ExamNameAutocomplete({
           <Command shouldFilter={false}>
             <CommandList>
               {loading && suggestions === null ? (
-                <div className="px-3 py-4 text-xs text-muted-foreground">
+                <div className="px-x3 py-x4 t3-regular text-fg-neutral-subtle">
                   최근 시험명 불러오는 중…
                 </div>
               ) : filtered.length === 0 ? (
@@ -180,7 +184,7 @@ export function ExamNameAutocomplete({
                       key={s}
                       value={s}
                       onSelect={() => pick(s)}
-                      className={cn("text-xs", s === value && "font-medium")}
+                      className={cn("t4-regular", s === value && "t4-medium")}
                     >
                       {s}
                     </CommandItem>

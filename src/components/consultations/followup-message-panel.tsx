@@ -2,11 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { KakaoButton } from "@/components/ui/kakao-button";
 import { Textarea } from "@/components/ui/textarea";
 import { generateFollowUpMessage } from "@/actions/ai-followup";
 import { toast } from "sonner";
-import { Sparkles, Send, Copy, RefreshCw, MessageSquare } from "lucide-react";
+import { Sparkles, Copy, RefreshCw, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EmptyState, IconTile, Section } from "@/components/backoffice/ui";
 
 interface Props {
   consultationId: string;
@@ -55,99 +57,78 @@ export function FollowUpMessagePanel({ consultationId, recipientName, prospectPh
   if (!open) {
     return (
       <button
+        type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-4 py-2.5 w-full rounded-lg border border-violet-200 bg-violet-50 hover:bg-violet-100 transition-colors text-left"
+        className="flex w-full items-center gap-x3 rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default px-x5 py-x4 text-left transition-colors hover:bg-bg-layer-default-pressed"
       >
-        <Sparkles className="h-4 w-4 text-violet-600 shrink-0" />
-        <div>
-          <p className="text-sm font-medium text-violet-800">AI 팔로업 메시지</p>
-          <p className="text-xs text-violet-600">상담 내용을 기반으로 카카오톡 메시지를 자동 생성합니다</p>
+        <IconTile icon={Sparkles} tone="violet" size={40} />
+        <div className="min-w-0 flex-1">
+          <p className="t4-bold text-fg-neutral">AI 팔로업 메시지</p>
+          <p className="mt-x0_5 t3-regular text-fg-neutral-subtle">상담 내용을 바탕으로 카카오톡 메시지를 자동으로 만들어요</p>
         </div>
+        <ChevronRight className="size-5 shrink-0 text-fg-placeholder" aria-hidden />
       </button>
     );
   }
 
   return (
-    <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-violet-600" />
-          <span className="text-sm font-medium text-violet-800">AI 팔로업 메시지</span>
-          <span className="text-xs text-violet-500">→ {recipientName}</span>
-        </div>
-        <button
+    <Section
+      title="AI 팔로업 메시지"
+      description={`받는 사람 · ${recipientName}`}
+      actions={
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => { setOpen(false); setMessage(""); setGenerated(false); }}
-          className="text-xs text-muted-foreground hover:text-foreground"
         >
           닫기
-        </button>
-      </div>
-
+        </Button>
+      }
+    >
       {/* 메시지 영역 */}
-      <div className="space-y-2">
-        {!generated ? (
-          <div className="flex flex-col items-center gap-3 py-6">
-            <MessageSquare className="h-8 w-8 text-violet-300" />
-            <p className="text-sm text-muted-foreground">상담 내용을 분석하여 메시지를 생성합니다</p>
-            <Button
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className="bg-violet-600 hover:bg-violet-700 text-white gap-2"
-            >
-              {isGenerating ? (
-                <><RefreshCw className="h-4 w-4 animate-spin" />생성 중...</>
-              ) : (
-                <><Sparkles className="h-4 w-4" />메시지 생성</>
-              )}
+      {!generated ? (
+        <EmptyState
+          compact
+          icon={Sparkles}
+          title="상담 내용을 분석해 메시지를 만들어요"
+          description="생성된 메시지는 보내기 전에 고칠 수 있어요"
+          action={
+            <Button onClick={handleGenerate} disabled={isGenerating}>
+              {isGenerating ? <RefreshCw className="animate-spin" aria-hidden /> : <Sparkles aria-hidden />}
+              {isGenerating ? "생성 중…" : "메시지 생성"}
             </Button>
-          </div>
-        ) : (
-          <>
-            <Textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={6}
-              className="bg-white text-sm resize-none"
-              placeholder="생성된 메시지를 편집하세요..."
-            />
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleGenerate}
-                disabled={isGenerating}
-                className="gap-1.5"
-              >
-                <RefreshCw className={cn("h-3.5 w-3.5", isGenerating && "animate-spin")} />
-                재생성
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleCopy}
-                className="gap-1.5"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                복사
-              </Button>
-              <div className="ml-auto flex items-center gap-2">
-                {prospectPhone && (
-                  <span className="text-xs text-muted-foreground">{prospectPhone}</span>
-                )}
-                <Button
-                  size="sm"
-                  onClick={handleSendKakao}
-                  disabled={!message.trim()}
-                  className="bg-[#FEE500] hover:bg-[#FDD835] text-[#3C1E1E] gap-1.5"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  카카오톡 전송
-                </Button>
-              </div>
+          }
+        />
+      ) : (
+        <div className="flex flex-col gap-x3">
+          <Textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            rows={6}
+            aria-label="팔로업 메시지"
+            className="resize-none"
+            placeholder="생성된 메시지를 편집하세요..."
+          />
+          <div className="flex flex-wrap items-center gap-x2">
+            <Button variant="outline" size="sm" onClick={handleGenerate} disabled={isGenerating}>
+              <RefreshCw className={cn(isGenerating && "animate-spin")} aria-hidden />
+              재생성
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleCopy}>
+              <Copy aria-hidden />
+              복사
+            </Button>
+            <div className="ml-auto flex items-center gap-x2">
+              {prospectPhone && (
+                <span className="t3-regular tabular-nums text-fg-neutral-subtle">{prospectPhone}</span>
+              )}
+              <KakaoButton size="sm" onClick={handleSendKakao} disabled={!message.trim()}>
+                카카오톡 전송
+              </KakaoButton>
             </div>
-          </>
-        )}
-      </div>
-    </div>
+          </div>
+        </div>
+      )}
+    </Section>
   );
 }

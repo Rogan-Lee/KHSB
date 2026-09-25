@@ -2,11 +2,20 @@ import { prisma } from "@/lib/prisma";
 import { hasGatePass } from "@/lib/token-auth";
 import { ParentGate } from "@/components/magic-link-gate/parent-gate";
 import { TokenNotice, reasonToNotice } from "@/components/magic-link-gate/token-notice";
-import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { MonthlyExamTrendChart } from "@/components/reports/monthly-exam-trend-chart";
 import { NotesSection } from "@/components/reports/notes-section";
 import { VocabTrendMiniChart } from "@/components/reports/vocab-trend-mini-chart";
-import { User, TrendingUp, Award, BookOpen, Bell, GraduationCap, Trophy, Image as ImageIcon, ShieldCheck } from "lucide-react";
+import { ReportHero, ReportShell } from "@/components/parent-report/report-shell";
+import {
+  AwardList,
+  DirectorNote,
+  MonthlySummary,
+  PatrolSection,
+  PhotoGrid,
+  RecentExamGroups,
+} from "@/components/parent-report/monthly-sections";
+import { GroupLabel, Section } from "@/components/portal/ui";
+import { Prose } from "@/components/portal/prose";
 
 export default async function MonthlyParentReportPage({
   params,
@@ -159,264 +168,126 @@ export default async function MonthlyParentReportPage({
     .map((pid) => attachedPhotos.find((p) => p.id === pid))
     .filter((p): p is (typeof attachedPhotos)[number] => !!p);
 
+  // 첫 화면 요약용 — 리포트에 보이는 상벌점 합계
+  const meritSum = merits.filter((m) => m.type === "MERIT").reduce((sum, m) => sum + m.points, 0);
+  const demeritSum = merits.filter((m) => m.type === "DEMERIT").reduce((sum, m) => sum + m.points, 0);
+  const hasNotices = !!operationsNotice || awards.length > 0 || !!recommendation;
+
   return (
-    <div className="min-h-screen bg-[#f5f6fa] pb-10">
-      {/* 헤더 */}
-      <div className="bg-white border-b border-gray-100">
-        <div className="max-w-3xl mx-auto px-4 py-6">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-            <span>{year}년 {month}월 학부모 리포트</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <User className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold">{student.name} 학생</h1>
-              <p className="text-xs text-muted-foreground">
-                {student.school ?? ""} {student.grade}
-                {student.targetUniversity && ` · 목표: ${student.targetUniversity}`}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-3xl mx-auto px-4 py-5 space-y-4">
-        {/* 1. 성적 추이 (학습 정량 분석은 멘토링 페이지로 이전) */}
-        {examScores.length > 0 && (
-          <section className="bg-white rounded-xl border p-5">
-            <h2 className="flex items-center gap-2 text-base font-semibold mb-3">
-              <TrendingUp className="h-4 w-4 text-purple-600" />
-              모의고사 성적 추이
-            </h2>
-            <MonthlyExamTrendChart
-              scores={examScores.map((s) => ({
-                examDate: s.examDate.toISOString(),
-                examName: s.examName,
-                subject: s.subject,
-                grade: s.grade,
-                percentile: s.percentile,
-                examType: s.examType,
-              }))}
-            />
-
-            {/* 최근 응시 시험 명시 (직전 → 당월) */}
-            {recentExamGroups.length > 0 && (
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                {recentExamGroups.map((g, i) => (
-                  <div key={`${g.examName}-${i}`} className={`rounded-lg border p-3 ${g.isThisMonth ? "border-purple-200 bg-purple-50/50" : "bg-gray-50"}`}>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="rounded bg-white border px-1.5 py-0.5 text-[10px] text-gray-500">{examTypeLabel[g.examType] ?? g.examType}</span>
-                      <span className="text-sm font-semibold">{g.examName}</span>
-                      <span className="text-[11px] text-muted-foreground">
-                        {g.examDate.toLocaleDateString("ko-KR", { year: "2-digit", month: "numeric" })}
-                      </span>
-                      {recentExamGroups.length === 2 && (
-                        <span className={`ml-auto text-[10px] font-medium ${g.isThisMonth ? "text-purple-600" : "text-gray-400"}`}>
-                          {i === 0 ? "직전" : "당월"}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      {g.subjects.map((s, si) => (
-                        <span key={si} className="inline-flex items-center gap-1 rounded bg-white border px-1.5 py-0.5 text-[11px]">
-                          <span className="text-gray-500">{s.subject}</span>
-                          <span className="font-semibold">
-                            {s.grade != null ? `${s.grade}등급` : s.rawScore != null ? `${s.rawScore}점` : "—"}
-                          </span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* 3. 월간 멘토링 종합 의견 */}
-        {report.mentoringSummary && (
-          <section className="bg-white rounded-xl border p-5">
-            <h2 className="flex items-center gap-2 text-base font-semibold mb-3">
-              <BookOpen className="h-4 w-4 text-emerald-600" />
-              월간 멘토링 종합 의견
-              <span className="text-xs font-normal text-muted-foreground ml-auto">
-                총 {report.mentoringCount}회 진행
-              </span>
-            </h2>
-            <MarkdownViewer source={report.mentoringSummary} />
-          </section>
-        )}
-
-        {/* 3.1 영단어 학습 추이 (Sprint 1 PR 1.3) — 스코어 없으면 자동 hide */}
-        <VocabTrendMiniChart
-          studentId={student.id}
-          fromDate={start}
-          toDate={end}
+    <ReportShell
+      label="월간 리포트"
+      footer={
+        <>
+          {year}년 {month}월 기준으로 작성된 리포트예요.
+          <br />
+          학부모님께만 공유된 리포트이니 링크를 다른 사람에게 전달하지 말아 주세요.
+        </>
+      }
+    >
+      <ReportHero
+        eyebrow={`${year}년 ${month}월 월간 리포트`}
+        title={`${student.name} 학생`}
+        meta={[
+          student.school,
+          student.grade,
+          student.targetUniversity && `목표 ${student.targetUniversity}`,
+        ]}
+      >
+        <MonthlySummary
+          mentoringCount={report.mentoringCount}
+          meritSum={meritSum}
+          demeritSum={demeritSum}
+          meritCount={merits.length}
+          patrolNoteCount={report.patrolNoteCount}
         />
+      </ReportHero>
 
-        {/* 3.2 원생 기록 + 상벌점 (Sprint 1 PR 1.4) */}
-        <NotesSection
-          studentId={student.id}
-          year={year}
-          month={month}
-          monthlyNote={monthlyNote}
-          merits={merits}
-        />
+      {/* ① 월간 멘토링 종합 의견 */}
+      {report.mentoringSummary && (
+        <Section
+          title="월간 멘토링 종합 의견"
+          description={report.mentoringCount > 0 ? `이번 달 멘토링 총 ${report.mentoringCount}회 진행했어요` : undefined}
+        >
+          <Prose source={report.mentoringSummary} />
+        </Section>
+      )}
 
-        {/* 3.3 순찰 점검 — 이상 기록(특이사항·자리비움) 요약 */}
-        <section className="bg-white rounded-xl border p-5">
-          <h2 className="flex items-center gap-2 text-base font-semibold mb-3">
-            <ShieldCheck className="h-4 w-4 text-emerald-600" />
-            순찰 점검
-          </h2>
-          {report.patrolNoteCount + report.patrolAbsentCount === 0 ? (
-            <p className="text-sm text-emerald-700">이달 순찰 중 특이사항이 없었습니다. 👍</p>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2 text-sm">
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 font-medium text-amber-800 border border-amber-200">
-                  특이사항 {report.patrolNoteCount}회
-                </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-700 border border-gray-200">
-                  자리비움 {report.patrolAbsentCount}회
-                </span>
-              </div>
-              {patrolNotes.length > 0 && (
-                <ul className="space-y-1.5 rounded-lg bg-amber-50/60 border border-amber-100 px-3 py-2.5">
-                  {patrolNotes.map((n) => (
-                    <li key={n.id} className="flex gap-2 text-sm text-gray-700">
-                      <span className="shrink-0 pt-0.5 font-mono text-xs tabular-nums text-amber-700">{n.date}</span>
-                      <span className="flex-1 whitespace-pre-wrap">{n.note}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+      {/* ② 원장님 한마디 */}
+      {report.overallComment && (
+        <DirectorNote studentName={student.name} source={report.overallComment} />
+      )}
+
+      {/* ③ 모의고사 성적 — 최근 응시 시험(직전 → 당월) + 추이 차트 */}
+      {examScores.length > 0 && (
+        <Section title="모의고사 성적">
+          {recentExamGroups.length > 0 && (
+            <div className="mb-x6">
+              <h3 className="mb-x3 t5-bold text-fg-neutral">최근 응시한 시험</h3>
+              <RecentExamGroups groups={recentExamGroups} typeLabels={examTypeLabel} />
             </div>
           )}
-        </section>
+          <h3 className="mb-x3 t5-bold text-fg-neutral">성적 추이</h3>
+          <MonthlyExamTrendChart
+            scores={examScores.map((s) => ({
+              examDate: s.examDate.toISOString(),
+              examName: s.examName,
+              subject: s.subject,
+              grade: s.grade,
+              percentile: s.percentile,
+              examType: s.examType,
+            }))}
+          />
+        </Section>
+      )}
 
-        {/* 3.5 이달의 사진 (§2.22 자동 첨부) */}
-        {orderedPhotos.length > 0 && (
-          <section className="bg-white rounded-xl border p-5">
-            <h2 className="flex items-center gap-2 text-base font-semibold mb-3">
-              <ImageIcon className="h-4 w-4 text-blue-600" />
-              이달의 기록 사진
-              <span className="text-xs font-normal text-muted-foreground ml-auto">
-                {orderedPhotos.length}장
-              </span>
-            </h2>
-            <div className="grid grid-cols-3 gap-2">
-              {orderedPhotos.map((p) => (
-                <a
-                  key={p.id}
-                  href={p.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block aspect-square rounded-lg overflow-hidden bg-muted hover:opacity-90 transition-opacity"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={p.thumbnailUrl ?? p.url}
-                    alt={p.fileName}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                </a>
-              ))}
-            </div>
-          </section>
-        )}
+      {/* ④ 영단어 학습 추이 — 스코어 없으면 자동 hide */}
+      <VocabTrendMiniChart studentId={student.id} fromDate={start} toDate={end} />
 
-        {/* 4. 익월 주요 입시 정보 */}
-        {admissionInfo && (
-          <section className="bg-white rounded-xl border p-5">
-            <h2 className="flex items-center gap-2 text-base font-semibold mb-3">
-              <GraduationCap className="h-4 w-4 text-indigo-600" />
-              주요 입시 정보
-            </h2>
-            <MarkdownViewer source={admissionInfo.content} />
-          </section>
-        )}
+      {/* ⑤ 원생 기록 + 상벌점 */}
+      <NotesSection
+        studentId={student.id}
+        year={year}
+        month={month}
+        monthlyNote={monthlyNote}
+        merits={merits}
+      />
 
-        {/* 5. 독서실 공지사항 */}
-        {(operationsNotice || awards.length > 0 || recommendation) && (
-          <section className="bg-white rounded-xl border p-5 space-y-4">
-            <h2 className="flex items-center gap-2 text-base font-semibold">
-              <Bell className="h-4 w-4 text-orange-600" />
-              독서실 공지사항
-            </h2>
+      {/* ⑥ 순찰 점검 — 이상 기록(특이사항·자리비움) 요약 */}
+      <PatrolSection
+        noteCount={report.patrolNoteCount}
+        absentCount={report.patrolAbsentCount}
+        notes={patrolNotes}
+      />
 
+      {/* ⑦ 이달의 기록 사진 (§2.22 자동 첨부) */}
+      {orderedPhotos.length > 0 && <PhotoGrid month={month} photos={orderedPhotos} />}
+
+      {/* ⑧ 주요 입시 정보 */}
+      {admissionInfo && (
+        <Section title="주요 입시 정보">
+          <Prose source={admissionInfo.content} />
+        </Section>
+      )}
+
+      {/* ⑨ 독서실 공지사항 */}
+      {hasNotices && (
+        <div className="mt-x3 flex flex-col">
+          <GroupLabel>독서실 공지사항</GroupLabel>
+          <div className="flex flex-col gap-x3">
             {operationsNotice && (
-              <div>
-                <h3 className="text-sm font-medium mb-2">운영 일정</h3>
-                <div className="rounded-md bg-gray-50 p-3">
-                  <MarkdownViewer source={operationsNotice.content} />
-                </div>
-              </div>
+              <Section title="운영 일정">
+                <Prose source={operationsNotice.content} />
+              </Section>
             )}
-
-            {awards.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium mb-2 flex items-center gap-1">
-                  <Trophy className="h-3.5 w-3.5 text-amber-500" />
-                  이달의 시상
-                </h3>
-                <div className="space-y-2">
-                  {awards.map((a) => {
-                    const isMe = a.studentId === student.id;
-                    const label =
-                      a.category === "ATTITUDE"
-                        ? "학습 태도 우수자"
-                        : a.category === "MENTOR_PICK"
-                        ? "멘토 선정 우수자"
-                        : "진보상";
-                    return (
-                      <div
-                        key={a.id}
-                        className={`rounded-md border p-3 flex items-center gap-2 ${
-                          isMe ? "bg-amber-50 border-amber-200" : "bg-gray-50"
-                        }`}
-                      >
-                        <Award className={`h-4 w-4 ${isMe ? "text-amber-600" : "text-gray-400"}`} />
-                        <div className="flex-1">
-                          <p className="text-xs text-muted-foreground">{label}</p>
-                          <p className="text-sm font-medium">
-                            {a.student.name} {isMe && <span className="text-amber-600 text-xs ml-1">★ 우리 아이!</span>}
-                          </p>
-                          {a.description && <p className="text-xs text-muted-foreground mt-0.5">{a.description}</p>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
+            {awards.length > 0 && <AwardList studentId={student.id} awards={awards} />}
             {recommendation && (
-              <div>
-                <h3 className="text-sm font-medium mb-2">이달의 권장 과목 · 인강 · 교재</h3>
-                <div className="rounded-md bg-gray-50 p-3">
-                  <MarkdownViewer source={recommendation.content} />
-                </div>
-              </div>
+              <Section title="이달의 권장 과목 · 인강 · 교재">
+                <Prose source={recommendation.content} />
+              </Section>
             )}
-          </section>
-        )}
-
-        {/* 추가 코멘트 */}
-        {report.overallComment && (
-          <section className="bg-white rounded-xl border p-5">
-            <h2 className="text-base font-semibold mb-3">원장님 한마디</h2>
-            <MarkdownViewer source={report.overallComment} />
-          </section>
-        )}
-
-        <p className="text-center text-xs text-muted-foreground py-4">
-          이 리포트는 {year}년 {month}월 기준으로 생성되었습니다.
-        </p>
-      </div>
-    </div>
+          </div>
+        </div>
+      )}
+    </ReportShell>
   );
 }

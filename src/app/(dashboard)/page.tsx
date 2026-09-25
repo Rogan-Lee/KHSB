@@ -3,21 +3,18 @@ export const revalidate = 30;
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDate, formatTime, todayKST } from "@/lib/utils";
-import { IntroBand } from "@/components/ui/intro-band";
-import { KpiTile, KpiStrip } from "@/components/ui/kpi-tile";
-import { AlertCard, AlertStrip } from "@/components/ui/alert-card";
-import { TagPill } from "@/components/ui/tag-pill";
+import { Activity, CalendarDays, MessageSquare } from "lucide-react";
 import {
-  Star,
-  MessageSquare,
-  CalendarDays,
-  AlertTriangle,
-  Bell,
-  FileText,
-} from "lucide-react";
-import Link from "next/link";
+  EmptyState,
+  ListItem,
+  Section,
+  SectionLink,
+  StatCard,
+  StatCards,
+  StatusBadge,
+  type Tone,
+} from "@/components/backoffice/ui";
 import { getRecentHandovers, getStaffList } from "@/actions/handover";
 import { getChecklistTemplates } from "@/actions/checklist-templates";
 import { getMonthlyNotes } from "@/actions/monthly-notes";
@@ -30,6 +27,16 @@ import { AllAssignmentsWidget } from "@/components/dashboard/all-assignments-wid
 import { EnrollmentDeltaWidget } from "@/components/dashboard/enrollment-delta-widget";
 import { PatrolStartWidget } from "@/components/dashboard/patrol-start-widget";
 import { AttentionWidget } from "@/components/dashboard/attention-widget";
+
+/** "9월 26일 (금)" — 예정 일정 날짜 표시용 */
+function formatMonthDay(date: Date | string) {
+  return new Date(date).toLocaleDateString("ko-KR", {
+    month: "short",
+    day: "numeric",
+    weekday: "short",
+    timeZone: "Asia/Seoul",
+  });
+}
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -111,11 +118,11 @@ export default async function DashboardPage() {
 
   const attendanceRate = totalActive > 0 ? Math.round((normalCount / totalActive) * 100) : 0;
   const upcomingCount = upcomingMentorings.length;
+  const lateOrAbsent = tardyCount + absentCount;
+  const showMentorName = session?.user?.role === "DIRECTOR" || session?.user?.role === "SUPER_ADMIN";
   const dateLabel = today.toLocaleDateString("ko-KR", {
     year: "numeric", month: "long", day: "numeric", weekday: "long", timeZone: "Asia/Seoul",
   });
-
-  const greeting = `안녕하세요, ${session?.user?.name ?? "관리자"}님`;
 
   // Merge today's check-ins + recent merits into a unified activity feed
   type ActivityRow = {
@@ -140,253 +147,204 @@ export default async function DashboardPage() {
   activity.sort((a, b) => b.time.getTime() - a.time.getTime());
   const activityRows = activity.slice(0, 10);
 
+  const checkIns = todayAttendances
+    .filter((a) => a.checkIn)
+    .sort((a, b) => new Date(a.checkIn!).getTime() - new Date(b.checkIn!).getTime());
+
+  // 예전 상단 알림 줄(미확인 인수인계·지각/결석·예정 면담)은 요약 카드(sub·링크)와 오른쪽 일정 섹션으로 합쳤다.
   const dashboardContent = (
-    <div className="space-y-4">
-      {/* Greeting band */}
-      <IntroBand
-        greeting={greeting}
-        context={dateLabel}
-        stats={[
-          { label: "현재 재실", value: normalCount, tone: "ink" },
-          { label: "예정 멘토링", value: upcomingCount, tone: "brand" },
-          { label: "미읽음 인수인계", value: unreadCount, tone: unreadCount > 0 ? "warn" : "ink" },
-        ]}
-      />
+    <div className="flex flex-col gap-x6">
+      {/* 오늘 요약 — 각 카드는 해당 화면으로 이동 */}
+      <StatCards cols={5}>
+        <StatCard label="재원생" value={totalActive} unit="명" href="/students" />
+        <StatCard
+          label="오늘 출석"
+          value={normalCount}
+          unit={`/ ${totalActive}명`}
+          sub={
+            <span className={attendanceRate >= 80 ? "text-fg-positive" : "text-fg-critical"}>
+              출석률 {attendanceRate}%
+            </span>
+          }
+          href="/attendance"
+        />
+        <StatCard
+          label="지각·결석"
+          value={lateOrAbsent}
+          unit="명"
+          tone={lateOrAbsent > 0 ? "bad" : "gray"}
+          sub={`지각 ${tardyCount} · 결석 ${absentCount}`}
+          href="/attendance"
+        />
+        <StatCard label="예정 멘토링" value={upcomingCount} unit="건" href="/mentoring" />
+        <StatCard
+          label="미확인 인수인계"
+          value={unreadCount}
+          unit="건"
+          tone={unreadCount > 0 ? "warn" : "gray"}
+          sub="최근 7일 기준"
+          href="/handover"
+          className="col-span-2 lg:col-span-1"
+        />
+      </StatCards>
 
       {/* 순찰 시작 — 클릭 시 앱 내 순찰 모드 진입 (출퇴근 태깅 대체) */}
       <PatrolStartWidget active={activePatrolRound} />
 
-      {/* KPI strip — 5 tiles */}
-      <KpiStrip className="grid-cols-2 md:grid-cols-5">
-        <KpiTile label="재원생" value={totalActive} unit="명" accent="var(--brand)" />
-        <KpiTile
-          label="오늘 출석"
-          value={normalCount}
-          unit={`/${totalActive}`}
-          dir={attendanceRate >= 80 ? "up" : "down"}
-          delta={`${attendanceRate}%`}
-          accent="var(--ok)"
-        />
-        <KpiTile
-          label="지각·결석"
-          value={tardyCount + absentCount}
-          unit="명"
-          dir={tardyCount + absentCount > 0 ? "down" : null}
-          delta={tardyCount + absentCount > 0 ? `+${tardyCount + absentCount}` : null}
-          accent="var(--bad)"
-        />
-        <KpiTile label="예정 멘토링" value={upcomingCount} unit="건" accent="var(--info)" />
-        <KpiTile label="인수인계" value={unreadCount} unit="건 미읽음" accent="var(--warn)" />
-      </KpiStrip>
+      <div className="grid grid-cols-1 items-start gap-x4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        {/* 왼쪽 — 주의가 필요한 것 · 과제 · 활동 */}
+        <div className="flex min-w-0 flex-col gap-x4">
+          {/* 유의 관찰 학생 — 수동 플래그 + 자동 판별 */}
+          <AttentionWidget students={attentionStudents} />
 
-      {/* Alert strip — render only alerts that actually have content */}
-      {(() => {
-        const alerts = [
-          unreadCount > 0 && (
-            <AlertCard
-              key="handover"
-              tone="info"
-              icon={<FileText className="h-4 w-4" />}
-              title={`인수인계 ${unreadCount}건 미읽음`}
-              sub="최근 7일 인수인계를 확인하세요"
-              cta="확인"
-              href="/handover"
-            />
-          ),
-          tardyCount + absentCount > 0 && (
-            <AlertCard
-              key="attendance"
-              tone="warn"
-              icon={<AlertTriangle className="h-4 w-4" />}
-              title={`오늘 지각·결석 ${tardyCount + absentCount}명`}
-              sub={`지각 ${tardyCount} · 결석 ${absentCount}`}
-              cta="출결 보기"
-              href="/attendance"
-            />
-          ),
-          upcomingConsultations.length > 0 && (
-            <AlertCard
-              key="consultations"
-              tone="bad"
-              icon={<Bell className="h-4 w-4" />}
-              title={`예정 면담 ${upcomingConsultations.length}건`}
-              sub={upcomingConsultations[0]?.scheduledAt ? `가장 빠른 일정 · ${formatDate(upcomingConsultations[0].scheduledAt)}` : ""}
-              cta="면담 보기"
-              href="/consultations"
-            />
-          ),
-        ].filter(Boolean);
-        if (alerts.length === 0) return null;
-        return <AlertStrip cols={alerts.length} className="mb-0">{alerts}</AlertStrip>;
-      })()}
+          {/* §2.12 위젯: 과제 현황 */}
+          <AllAssignmentsWidget rows={allAssignments} />
 
-      {/* 유의 관찰 학생 — 수동 플래그 + 자동 판별 */}
-      <AttentionWidget students={attentionStudents} />
-
-      {/* 1.5fr / 1fr layout — activity left, today stack right */}
-      <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr] gap-4">
-        {/* Activity feed */}
-        <Card className="rounded-[12px] border-line shadow-[var(--shadow-xs)] overflow-hidden">
-          <CardHeader className="flex flex-row items-center gap-2 py-[14px] px-[18px] border-b border-line-2">
-            <CardTitle className="text-[13.5px] font-[650] tracking-[-0.015em] text-ink m-0">실시간 활동</CardTitle>
-            <span className="text-[11.5px] text-ink-4">오늘 {activity.length}건</span>
-          </CardHeader>
-          <CardContent className="p-0">
+          {/* 실시간 활동 */}
+          <Section title="실시간 활동" description={`오늘 ${activity.length}건`} flush>
             {activityRows.length === 0 ? (
-              <p className="text-[12.5px] text-ink-4 py-6 text-center">오늘 활동 내역이 없습니다</p>
+              <EmptyState compact icon={Activity} title="오늘 활동이 아직 없어요" description="입실·퇴실과 상벌점 기록이 여기에 쌓여요" />
             ) : (
-              <div>
+              <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
                 {activityRows.map((row, i) => (
-                  <div
-                    key={i}
-                    className="grid items-center gap-[14px] px-[18px] py-[10px] border-b border-line-2 last:border-b-0 hover:bg-panel-2 text-[12.5px]"
-                    style={{ gridTemplateColumns: "54px 1fr auto" }}
-                  >
-                    <span className="font-mono text-[11px] text-ink-4 tabular-nums">{formatTime(row.time)}</span>
-                    <div>
-                      <span className="font-semibold text-ink tracking-[-0.01em]">{row.who}</span>
-                      <span className="text-ink-3 ml-1.5">
-                        {row.kind === "check-in" && "입실"}
-                        {row.kind === "check-out" && "퇴실"}
-                        {row.kind === "merit" && "상점 획득"}
-                        {row.kind === "demerit" && "벌점 부여"}
-                      </span>
-                    </div>
-                    <ActivityTag kind={row.kind} detail={row.detail} />
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Right stack */}
-        <div className="flex flex-col gap-4">
-          {/* Today mentoring */}
-          <Card className="rounded-[12px] border-line shadow-[var(--shadow-xs)] overflow-hidden">
-            <CardHeader className="flex flex-row items-center gap-2 py-[14px] px-[18px] border-b border-line-2">
-              <MessageSquare className="h-4 w-4 text-ink-4" />
-              <CardTitle className="text-[13.5px] font-[650] tracking-[-0.015em] text-ink m-0">예정된 멘토링</CardTitle>
-              <span className="ml-auto text-[11.5px] text-ink-4 font-mono tabular-nums">{upcomingCount}건</span>
-            </CardHeader>
-            <CardContent className="p-0">
-              {upcomingCount === 0 ? (
-                <p className="text-[12.5px] text-ink-4 py-5 text-center">예정된 멘토링이 없습니다</p>
-              ) : (
-                <div>
-                  {upcomingMentorings.slice(0, 5).map((m) => (
-                    <Link key={m.id} href={`/mentoring/${m.id}`}>
-                      <div className="flex items-center gap-2.5 px-[18px] py-[9px] border-b border-line-2 last:border-b-0 hover:bg-panel-2 text-[12.5px]">
-                        <span className="w-[38px] font-mono text-[10.5px] text-ink-4 tabular-nums">
-                          {formatTime(m.scheduledAt)}
+                  <li key={i}>
+                    <ListItem
+                      leading={
+                        <span className="w-18 shrink-0 t3-regular tabular-nums text-fg-neutral-subtle">
+                          {formatTime(row.time)}
                         </span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-brand" />
-                        <span className="font-semibold text-ink tracking-[-0.01em]">{m.student.name}</span>
-                        <span className="text-[11px] text-ink-4">{m.student.grade}</span>
-                        {(session?.user?.role === "DIRECTOR" || session?.user?.role === "SUPER_ADMIN") && (
-                          <span className="ml-auto text-[11px] text-ink-4">{m.mentor.name}</span>
-                        )}
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                      }
+                      title={
+                        <>
+                          {row.who}
+                          <span className="ml-x1_5 t4-regular text-fg-neutral-muted">
+                            {row.kind === "check-in" && "입실"}
+                            {row.kind === "check-out" && "퇴실"}
+                            {row.kind === "merit" && "상점 획득"}
+                            {row.kind === "demerit" && "벌점 부여"}
+                          </span>
+                        </>
+                      }
+                      trailing={<ActivityTag kind={row.kind} detail={row.detail} />}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+        </div>
 
-          {/* Upcoming consultations */}
-          <Card className="rounded-[12px] border-line shadow-[var(--shadow-xs)] overflow-hidden">
-            <CardHeader className="flex flex-row items-center gap-2 py-[14px] px-[18px] border-b border-line-2">
-              <CalendarDays className="h-4 w-4 text-ink-4" />
-              <CardTitle className="text-[13.5px] font-[650] tracking-[-0.015em] text-ink m-0">예정된 원장 면담</CardTitle>
-              <span className="ml-auto text-[11.5px] text-ink-4 font-mono tabular-nums">{upcomingConsultations.length}건</span>
-            </CardHeader>
-            <CardContent className="p-0">
-              {upcomingConsultations.length === 0 ? (
-                <p className="text-[12.5px] text-ink-4 py-5 text-center">예정된 면담이 없습니다</p>
-              ) : (
-                <div>
-                  {upcomingConsultations.map((c) => (
-                    <div key={c.id} className="flex items-center gap-2.5 px-[18px] py-[9px] border-b border-line-2 last:border-b-0 text-[12.5px]">
-                      <span className="w-[38px] font-mono text-[10.5px] text-ink-4 tabular-nums">
-                        {c.scheduledAt ? formatTime(c.scheduledAt) : "-"}
-                      </span>
-                      <span className="w-1.5 h-1.5 rounded-full bg-info" />
-                      <span className="font-semibold text-ink tracking-[-0.01em]">
-                        {c.student?.name ?? c.prospectName ?? "—"}
-                      </span>
-                      <span className="text-[11px] text-ink-4">{c.student?.grade ?? c.prospectGrade}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+        {/* 오른쪽 — 다가오는 일정 · 원생 증감 · 오늘 기록 */}
+        <div className="flex min-w-0 flex-col gap-x4">
+          <Section
+            title="예정된 멘토링"
+            count={upcomingCount}
+            actions={<SectionLink href="/mentoring">전체 보기</SectionLink>}
+            flush
+          >
+            {upcomingCount === 0 ? (
+              <EmptyState compact icon={MessageSquare} title="예정된 멘토링이 없어요" />
+            ) : (
+              <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+                {upcomingMentorings.slice(0, 5).map((m) => (
+                  <li key={m.id}>
+                    <ListItem
+                      href={`/mentoring/${m.id}`}
+                      leading={<ScheduleTime at={m.scheduledAt} />}
+                      title={m.student.name}
+                      description={m.student.grade}
+                      trailing={showMentorName ? m.mentor.name : undefined}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+
+          <Section
+            title="예정된 원장 면담"
+            count={upcomingConsultations.length}
+            actions={<SectionLink href="/consultations">전체 보기</SectionLink>}
+            flush
+          >
+            {upcomingConsultations.length === 0 ? (
+              <EmptyState compact icon={CalendarDays} title="예정된 면담이 없어요" />
+            ) : (
+              <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+                {upcomingConsultations.map((c) => (
+                  <li key={c.id}>
+                    <ListItem
+                      href={`/consultations/${c.id}`}
+                      leading={<ScheduleTime at={c.scheduledAt} />}
+                      title={c.student?.name ?? c.prospectName ?? "—"}
+                      description={c.student?.grade ?? c.prospectGrade ?? undefined}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+
+          {/* §2.12 위젯: 원생 증감 */}
+          <EnrollmentDeltaWidget data={enrollmentDelta} year={year} month={month} canEdit={isFullAccess(session?.user?.role)} />
+
+          {/* 오늘 입실 현황 */}
+          {checkInCount > 0 && (
+            <Section title="오늘 입실 현황" count={checkInCount} flush>
+              <ul className="max-h-72 divide-y divide-stroke-neutral-muted overflow-y-auto border-t border-stroke-neutral-muted">
+                {checkIns.map((a) => (
+                  <li key={a.id}>
+                    <ListItem
+                      title={a.student.name}
+                      trailing={
+                        <>
+                          {a.student.seat && <StatusBadge>{a.student.seat}</StatusBadge>}
+                          <span className="tabular-nums">
+                            {formatTime(a.checkIn!)}
+                            {a.checkOut && ` → ${formatTime(a.checkOut)}`}
+                          </span>
+                        </>
+                      }
+                    />
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
+          {/* 최근 상벌점 */}
+          {recentMerits.length > 0 && (
+            <Section
+              title="최근 상벌점"
+              actions={<SectionLink href="/merit-demerit">전체 보기</SectionLink>}
+              flush
+            >
+              <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+                {recentMerits.map((m) => (
+                  <li key={m.id}>
+                    <ListItem
+                      leading={
+                        <StatusBadge tone={m.type === "MERIT" ? "ok" : "bad"}>
+                          {m.type === "MERIT" ? "상점" : "벌점"}
+                        </StatusBadge>
+                      }
+                      title={m.student.name}
+                      trailing={
+                        <>
+                          <span className={`t4-bold tabular-nums ${m.type === "MERIT" ? "text-fg-positive" : "text-fg-critical"}`}>
+                            {m.type === "MERIT" ? "+" : "-"}{m.points}
+                          </span>
+                          <span className="tabular-nums">{formatDate(m.date)}</span>
+                        </>
+                      }
+                    />
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
         </div>
       </div>
-
-      {/* §2.12 위젯: 과제 현황 + 원생 증감 */}
-      <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-4">
-        <AllAssignmentsWidget rows={allAssignments} />
-        <EnrollmentDeltaWidget data={enrollmentDelta} year={year} month={month} canEdit={isFullAccess(session?.user?.role)} />
-      </div>
-
-      {/* 오늘 입실 (유지, 하단 전체폭) */}
-      {checkInCount > 0 && (
-        <Card className="rounded-[12px] border-line shadow-[var(--shadow-xs)] overflow-hidden">
-          <CardHeader className="flex flex-row items-center gap-2 py-[14px] px-[18px] border-b border-line-2">
-            <CardTitle className="text-[13.5px] font-[650] tracking-[-0.015em] text-ink m-0">오늘 입실 현황</CardTitle>
-            <span className="ml-auto text-[11.5px] text-ink-4 font-mono tabular-nums">{checkInCount}명</span>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="max-h-56 overflow-y-auto">
-              {todayAttendances
-                .filter((a) => a.checkIn)
-                .sort((a, b) => new Date(a.checkIn!).getTime() - new Date(b.checkIn!).getTime())
-                .map((a) => (
-                  <div key={a.id} className="flex items-center justify-between px-[18px] py-[7px] border-b border-line-2 last:border-b-0 text-[12.5px]">
-                    <span className="font-semibold text-ink tracking-[-0.01em]">{a.student.name}</span>
-                    <div className="flex items-center gap-2 text-ink-4 font-mono tabular-nums">
-                      {a.student.seat && (
-                        <span className="text-[10.5px] bg-canvas-2 text-ink-3 px-1.5 py-0.5 rounded-[4px] font-sans">{a.student.seat}</span>
-                      )}
-                      <span>{formatTime(a.checkIn!)}</span>
-                      {a.checkOut && <span>→ {formatTime(a.checkOut)}</span>}
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Recent merits (유지, compact) */}
-      {recentMerits.length > 0 && (
-        <Card className="rounded-[12px] border-line shadow-[var(--shadow-xs)] overflow-hidden">
-          <CardHeader className="flex flex-row items-center gap-2 py-[14px] px-[18px] border-b border-line-2">
-            <Star className="h-4 w-4 text-ink-4" />
-            <CardTitle className="text-[13.5px] font-[650] tracking-[-0.015em] text-ink m-0">최근 상벌점</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {recentMerits.map((m) => (
-              <div key={m.id} className="flex items-center justify-between px-[18px] py-[9px] border-b border-line-2 last:border-b-0 text-[12.5px]">
-                <div className="flex items-center gap-2.5">
-                  <TagPill variant={m.type === "MERIT" ? "ok" : "bad"} dot>
-                    {m.type === "MERIT" ? "상점" : "벌점"}
-                  </TagPill>
-                  <span className="font-semibold text-ink tracking-[-0.01em]">{m.student.name}</span>
-                </div>
-                <div className="flex items-center gap-2 text-ink-4 font-mono tabular-nums">
-                  <span className={m.type === "MERIT" ? "text-ok font-semibold" : "text-bad font-semibold"}>
-                    {m.type === "MERIT" ? "+" : "-"}{m.points}
-                  </span>
-                  <span className="text-[10.5px]">{formatDate(m.date)}</span>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 
@@ -399,20 +357,35 @@ export default async function DashboardPage() {
       staffList={staffList}
       currentUserId={session?.user?.id ?? ""}
       currentUserName={session?.user?.name ?? ""}
-      userName={session?.user?.name ?? ""}
+      userName={session?.user?.name ?? "관리자"}
       year={year}
       month={month}
       unreadCount={unreadCount}
       todos={todos as Parameters<typeof DashboardWrapper>[0]["todos"]}
+      dateLabel={dateLabel}
     >
       {dashboardContent}
     </DashboardWrapper>
   );
 }
 
+/** 예정 일정 왼쪽 칸 — 시각(굵게) + 날짜 */
+function ScheduleTime({ at }: { at: Date | null }) {
+  return (
+    <div className="w-20 shrink-0">
+      <div className="t4-bold tabular-nums text-fg-neutral">{at ? formatTime(at) : "-"}</div>
+      {at && <div className="t2-regular tabular-nums text-fg-neutral-subtle">{formatMonthDay(at)}</div>}
+    </div>
+  );
+}
+
+const ACTIVITY_TONE: Record<"check-in" | "check-out" | "merit" | "demerit", Tone> = {
+  "check-in": "brand",
+  "check-out": "gray",
+  merit: "ok",
+  demerit: "bad",
+};
+
 function ActivityTag({ kind, detail }: { kind: "check-in" | "check-out" | "merit" | "demerit"; detail: string }) {
-  if (kind === "merit") return <TagPill variant="ok">{detail}</TagPill>;
-  if (kind === "demerit") return <TagPill variant="bad">{detail}</TagPill>;
-  if (kind === "check-in") return <TagPill variant="brand">{detail}</TagPill>;
-  return <TagPill variant="neutral">{detail}</TagPill>;
+  return <StatusBadge tone={ACTIVITY_TONE[kind]}>{detail}</StatusBadge>;
 }

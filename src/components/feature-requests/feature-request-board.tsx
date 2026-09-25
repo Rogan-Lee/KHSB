@@ -1,56 +1,70 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { toast } from "sonner";
+import {
+  CheckCircle2, CirclePause, CirclePlay, Clock, Inbox, MessageSquare, MoreHorizontal, Plus, SearchX,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  EmptyState, FilterChip, Section, StatusBadge, Toolbar, type Tone,
+} from "@/components/backoffice/ui";
 import { updateRequestStatus } from "@/actions/feature-requests";
 import {
-  CATEGORY_OPTIONS, PRIORITY_OPTIONS, RELATED_PAGE_OPTIONS,
+  CATEGORY_OPTIONS, RELATED_PAGE_OPTIONS,
 } from "@/lib/feature-request-constants";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import {
-  Plus, MoreHorizontal, Clock, Loader2, CheckCircle2, Pause, MessageSquare,
-} from "lucide-react";
-import Link from "next/link";
 import type { FeatureRequest, RequestStatus } from "@/generated/prisma";
 
 type FeatureRequestWithCount = FeatureRequest & {
   _count: { comments: number };
 };
 
-const STATUS_CONFIG: Record<RequestStatus, {
-  label: string; icon: React.ElementType; style: string;
-  badgeVariant: "default" | "secondary" | "outline" | "destructive";
-}> = {
-  PENDING: { label: "대기", icon: Clock, style: "text-amber-600", badgeVariant: "outline" },
-  IN_PROGRESS: { label: "진행중", icon: Loader2, style: "text-white", badgeVariant: "default" },
-  DONE: { label: "완료", icon: CheckCircle2, style: "text-green-600", badgeVariant: "secondary" },
-  ON_HOLD: { label: "보류", icon: Pause, style: "text-gray-500", badgeVariant: "outline" },
+const STATUS_CONFIG: Record<RequestStatus, { label: string; tone: Tone; icon: LucideIcon }> = {
+  PENDING: { label: "대기", tone: "warn", icon: Clock },
+  IN_PROGRESS: { label: "진행중", tone: "info", icon: CirclePlay },
+  DONE: { label: "완료", tone: "ok", icon: CheckCircle2 },
+  ON_HOLD: { label: "보류", tone: "gray", icon: CirclePause },
 };
 
 const STATUS_ORDER: RequestStatus[] = ["PENDING", "IN_PROGRESS", "DONE", "ON_HOLD"];
 
-function StatusBadge({ status }: { status: RequestStatus }) {
+/** 분류 배지 색 — 버그만 위험색, 나머지는 정보 계열 */
+const CATEGORY_TONE: Record<string, Tone> = {
+  BUG: "bad",
+  FEATURE: "violet",
+  IMPROVEMENT: "info",
+};
+// kit StatusBadge 는 violet 을 informative(파랑)로 그려 '개선'과 겹친다 → SEED 보라 팔레트로 구분
+const VIOLET_BADGE = "bg-palette-purple-100 text-palette-purple-700";
+
+function RequestStatusBadge({ status }: { status: RequestStatus }) {
   const cfg = STATUS_CONFIG[status];
-  const Icon = cfg.icon;
-  return (
-    <Badge variant={cfg.badgeVariant} className={cn("gap-1 text-xs", cfg.style)}>
-      <Icon className={cn("h-3 w-3", status === "IN_PROGRESS" && "animate-spin")} />
-      {cfg.label}
-    </Badge>
-  );
+  return <StatusBadge tone={cfg.tone}>{cfg.label}</StatusBadge>;
 }
 
-function RequestCard({
+/** 목록 미리보기 — 마크다운 이미지·제목 기호를 걷어낸 한 줄 */
+function previewText(md: string | null) {
+  if (!md) return "";
+  return md
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+\.)\s+/gm, "")
+    .replace(/(\*\*|__|`)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function RequestRow({
   request,
   onRefresh,
 }: {
@@ -61,6 +75,8 @@ function RequestCard({
 
   const categoryCfg = CATEGORY_OPTIONS.find((c) => c.value === request.category);
   const relatedPageCfg = RELATED_PAGE_OPTIONS.find((p) => p.value === request.relatedPage);
+  const subdued = request.status === "DONE" || request.status === "ON_HOLD";
+  const preview = previewText(request.description);
 
   function handleStatusChange(status: RequestStatus) {
     startTransition(async () => {
@@ -73,79 +89,87 @@ function RequestCard({
     });
   }
 
+  const meta: ReactNode[] = [
+    new Date(request.createdAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric" }),
+    request.authorName,
+    request.requester ? `요청자 ${request.requester}` : null,
+    relatedPageCfg?.label ?? null,
+    request._count.comments > 0 ? (
+      <span className="inline-flex items-center gap-x0_5">
+        <MessageSquare className="size-3.5" aria-hidden />
+        <span className="sr-only">댓글</span>
+        {request._count.comments}
+      </span>
+    ) : null,
+  ].filter(Boolean);
+
   return (
-    <Card className={cn(
-      "transition-colors hover:border-primary/30",
-      request.status === "DONE" && "opacity-60",
-      request.status === "ON_HOLD" && "opacity-50",
-    )}>
-      <CardContent className="pt-4">
-        <div className="flex items-start justify-between gap-3">
-          <Link href={`/requests/${request.id}`} className="flex-1 min-w-0 space-y-1.5">
-            {/* Title + badges */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className={cn(
-                "font-medium text-sm",
-                request.status === "DONE" && "line-through text-muted-foreground",
-              )}>
-                {request.title}
-              </h3>
-              <StatusBadge status={request.status} />
-              {categoryCfg && (
-                <Badge variant="outline" className={cn("text-[10px] border", categoryCfg.bg, categoryCfg.color)}>
-                  {categoryCfg.label}
-                </Badge>
-              )}
-              {request.priority === "URGENT" && (
-                <Badge variant="outline" className="text-[10px] border-red-200 bg-red-50 text-red-600">
-                  긴급
-                </Badge>
-              )}
-            </div>
-
-            {/* Description preview */}
-            {request.description && (
-              <p className="text-xs text-muted-foreground line-clamp-2">{request.description}</p>
+    <li className="relative flex items-start transition-colors hover:bg-bg-layer-default-pressed">
+      <Link
+        href={`/requests/${request.id}`}
+        className="flex min-w-0 flex-1 flex-col gap-x1 py-x4 pl-x5 pr-x2 outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-stroke-focus-ring"
+      >
+        <div className="flex flex-wrap items-center gap-x-x2 gap-y-x1">
+          <span
+            className={cn(
+              "min-w-0 break-words t5-medium",
+              subdued ? "text-fg-neutral-subtle" : "text-fg-neutral",
             )}
-
-            {/* Meta row */}
-            <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-              {relatedPageCfg && <span>{relatedPageCfg.label}</span>}
-              {request.requester && <span>{request.requester}</span>}
-              <span>{new Date(request.createdAt).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}</span>
-              <span>{request.authorName}</span>
-              {request._count.comments > 0 && (
-                <span className="flex items-center gap-0.5">
-                  <MessageSquare className="h-3 w-3" />
-                  {request._count.comments}
-                </span>
-              )}
-            </div>
-          </Link>
-
-          {/* Quick status */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" disabled={isPending}>
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {STATUS_ORDER.filter((s) => s !== request.status).map((s) => {
-                const cfg = STATUS_CONFIG[s];
-                const Icon = cfg.icon;
-                return (
-                  <DropdownMenuItem key={s} onClick={() => handleStatusChange(s)}>
-                    <Icon className={cn("h-3.5 w-3.5 mr-2", cfg.style)} />
-                    {cfg.label}로 변경
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          >
+            {request.title}
+          </span>
+          <span className="flex flex-wrap items-center gap-x1">
+            <RequestStatusBadge status={request.status} />
+            {categoryCfg && (
+              <StatusBadge
+                tone={CATEGORY_TONE[categoryCfg.value] ?? "gray"}
+                className={CATEGORY_TONE[categoryCfg.value] === "violet" ? VIOLET_BADGE : undefined}
+              >
+                {categoryCfg.label}
+              </StatusBadge>
+            )}
+            {request.priority === "URGENT" && <StatusBadge tone="bad">긴급</StatusBadge>}
+          </span>
         </div>
-      </CardContent>
-    </Card>
+
+        {preview && (
+          <p className="line-clamp-1 t4-regular text-fg-neutral-muted">{preview}</p>
+        )}
+
+        <div className="mt-x0_5 flex flex-wrap items-center gap-x-x1_5 gap-y-x0_5 t3-regular text-fg-neutral-subtle tabular-nums">
+          {meta.map((m, i) => (
+            <span key={i} className="inline-flex items-center gap-x1_5">
+              {i > 0 && <span aria-hidden>·</span>}
+              {m}
+            </span>
+          ))}
+        </div>
+      </Link>
+
+      {/* Quick status */}
+      <div className="relative z-10 shrink-0 py-x3 pr-x3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" disabled={isPending} aria-label="상태 변경">
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>상태 변경</DropdownMenuLabel>
+            {STATUS_ORDER.filter((s) => s !== request.status).map((s) => {
+              const cfg = STATUS_CONFIG[s];
+              const Icon = cfg.icon;
+              return (
+                <DropdownMenuItem key={s} onClick={() => handleStatusChange(s)}>
+                  <Icon className="text-fg-neutral-subtle" aria-hidden />
+                  {cfg.label}로 변경
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </li>
   );
 }
 
@@ -160,63 +184,99 @@ export function FeatureRequestBoard({ requests }: { requests: FeatureRequestWith
     return true;
   });
 
-  const counts = {
+  const counts: Record<string, number> = {
     ALL: requests.length,
     PENDING: requests.filter((r) => r.status === "PENDING").length,
     IN_PROGRESS: requests.filter((r) => r.status === "IN_PROGRESS").length,
+    DONE: requests.filter((r) => r.status === "DONE").length,
+    ON_HOLD: requests.filter((r) => r.status === "ON_HOLD").length,
   };
 
+  const statusChips: { value: string; label: string }[] = [
+    { value: "ALL", label: "전체" },
+    ...STATUS_ORDER.map((s) => ({ value: s, label: STATUS_CONFIG[s].label })),
+  ];
+
+  function resetFilters() {
+    setStatusFilter("ALL");
+    setCategoryFilter("ALL");
+  }
+
+  if (requests.length === 0) {
+    return (
+      <Section>
+        <EmptyState
+          icon={Inbox}
+          title="아직 등록된 요청이 없어요"
+          description="불편한 점이나 필요한 기능을 요청으로 남겨 주세요."
+          action={
+            <Button asChild>
+              <Link href="/requests/new">
+                <Plus aria-hidden />
+                요청 등록
+              </Link>
+            </Button>
+          }
+        />
+      </Section>
+    );
+  }
+
   return (
-    <div className="space-y-4">
+    <div>
       {/* Toolbar */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-36 h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">전체 ({counts.ALL})</SelectItem>
-            <SelectItem value="PENDING">대기 ({counts.PENDING})</SelectItem>
-            <SelectItem value="IN_PROGRESS">진행중 ({counts.IN_PROGRESS})</SelectItem>
-            <SelectItem value="DONE">완료</SelectItem>
-            <SelectItem value="ON_HOLD">보류</SelectItem>
-          </SelectContent>
-        </Select>
+      <Toolbar>
+        <div className="flex flex-wrap items-center gap-x1_5" role="group" aria-label="상태 필터">
+          {statusChips.map((c) => (
+            <FilterChip
+              key={c.value}
+              selected={statusFilter === c.value}
+              count={counts[c.value]}
+              onClick={() => setStatusFilter(c.value)}
+            >
+              {c.label}
+            </FilterChip>
+          ))}
+        </div>
 
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-32 h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">전체 카테고리</SelectItem>
-            {CATEGORY_OPTIONS.map((c) => (
-              <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <span className="text-xs text-muted-foreground">{filtered.length}건</span>
-
-        <Link href="/requests/new" className="ml-auto">
-          <Button size="sm" className="h-8 gap-1.5 text-xs">
-            <Plus className="h-3.5 w-3.5" />
-            요청 등록
-          </Button>
-        </Link>
-      </div>
+        <div className="flex w-full items-center gap-x2 sm:ml-auto sm:w-auto">
+          <span className="t3-regular text-fg-neutral-subtle tabular-nums">{filtered.length}건</span>
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="ml-auto h-9 w-36 sm:ml-0" aria-label="분류 필터">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">전체 분류</SelectItem>
+              {CATEGORY_OPTIONS.map((c) => (
+                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </Toolbar>
 
       {/* List */}
-      <div className="space-y-2">
+      <Section flush className="overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground text-sm">
-            {requests.length === 0 ? "등록된 요청이 없습니다" : "해당 조건의 요청이 없습니다"}
-          </div>
+          <EmptyState
+            compact
+            icon={SearchX}
+            title="조건에 맞는 요청이 없어요"
+            description="다른 상태나 분류를 골라 보세요."
+            action={
+              <Button variant="ghost" size="sm" onClick={resetFilters}>
+                필터 초기화
+              </Button>
+            }
+          />
         ) : (
-          filtered.map((r) => (
-            <RequestCard key={r.id} request={r} onRefresh={() => router.refresh()} />
-          ))
+          <ul className="divide-y divide-stroke-neutral-muted">
+            {filtered.map((r) => (
+              <RequestRow key={r.id} request={r} onRefresh={() => router.refresh()} />
+            ))}
+          </ul>
         )}
-      </div>
+      </Section>
     </div>
   );
 }

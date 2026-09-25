@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2027 윈터스쿨 | 강한선배</title>
+  <meta name="description" content="강한선배 2027 윈터스쿨(1/1~2/28). 두 달 동안 하루 15시간, 매 교시 출결 확인과 주간 멘토링, 월간 리포트로 관리합니다. 재원생 3명 중 2명 인서울 합격.">
+  <meta name="theme-color" content="#0b0c0f">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="2027 윈터스쿨 | 강한선배">
+  <meta property="og:description" content="겨울방학 두 달이면 3월이 달라집니다. 1/1~2/28 · 09:00~24:00 연중무휴 운영.">
+  <meta property="og:image" content="photos/bx/hall.jpg">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="landing.css?v=seed3">
+  <link rel="stylesheet" href="bx-core.css?v=bx20">
+  <style>
+    /* ── 2027 윈터스쿨 전용 ── */
+    .w-hero .phd-media::after { background: linear-gradient(180deg, rgba(10, 16, 30, .7) 0%, rgba(10, 16, 30, .35) 40%, rgba(8, 9, 12, .9) 100%); }
+    .w-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 26px; animation: bx-fade .9s .1s both; }
+    .w-badge { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 999px; font-size: 14px; font-weight: 700; background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .22); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+    .w-badge.hot { background: var(--brand); border-color: var(--brand); }
+    .w-badge.hot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: w-pulse 1.6s ease-in-out infinite; }
+    @keyframes w-pulse { 50% { opacity: .3; } }
+    .w-note { font-size: 14px; color: rgba(255, 255, 255, .6); margin-top: 22px; animation: bx-fade 1s .5s both; }
+    .w-facts { position: relative; z-index: 2; max-width: 1180px; margin: -64px auto 0; display: grid; grid-template-columns: repeat(4, 1fr); background: #fff; border-radius: 28px; box-shadow: var(--sh-lg); overflow: hidden; }
+    .w-facts > div { padding: 30px 30px 28px; border-left: 1px solid var(--hair); }
+    .w-facts > div:first-child { border-left: 0; }
+    .w-facts span { font-size: 13.5px; font-weight: 700; color: var(--faint); }
+    .w-facts b { display: block; font-size: clamp(19px, 1.9vw, 24px); font-weight: 800; letter-spacing: -.04em; margin-top: 8px; color: var(--ink); }
+    .w-facts b small { font-size: 14px; color: var(--dim); font-weight: 600; margin-left: 4px; letter-spacing: -.01em; }
+    .w-facts .dd b { color: var(--brand); }
+    @media (max-width: 1236px) { .w-facts { margin-left: 28px; margin-right: 28px; } }
+    /* 결과 */
+    .w-kpis { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 16px; }
+    .w-kpis .kpi b.txt { font-size: clamp(36px, 4vw, 54px); }
+    .w-unis { margin-top: 56px; }
+    .w-unis-label { text-align: center; font-size: 14px; font-weight: 700; color: var(--dim); margin-bottom: 22px; }
+    .w-rvs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 56px; }
+    /* 관리 시스템 */
+    .w-sysband { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+    .w-sysband div { border-radius: 22px; background: var(--night); color: rgba(255, 255, 255, .7); padding: 22px 24px; font-size: 14.5px; line-height: 1.5; }
+    .w-sysband b { display: block; font-size: 19px; font-weight: 800; letter-spacing: -.03em; color: #fff; margin-bottom: 4px; }
+    .w-rules { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 28px; }
+    /* 등록 절차 */
+    .w-steps { list-style: none; counter-reset: ws; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 56px; }
+    .w-steps li { position: relative; border-radius: 26px; background: var(--paper-2); padding: 28px 26px; }
+    .w-steps li::before { counter-increment: ws; content: "STEP " counter(ws); display: block; font-size: 12.5px; font-weight: 800; letter-spacing: .06em; color: var(--brand); }
+    .w-steps li:not(:last-child)::after { content: ""; position: absolute; top: 50%; right: -12px; width: 8px; height: 8px; border-top: 2px solid var(--faint); border-right: 2px solid var(--faint); transform: translateY(-50%) rotate(45deg); z-index: 1; }
+    .w-steps h4 { font-size: 19px; font-weight: 800; letter-spacing: -.035em; margin-top: 12px; }
+    .w-steps p { font-size: 14.5px; color: var(--dim); line-height: 1.65; margin-top: 8px; }
+    .w-prior { display: flex; align-items: flex-start; gap: 14px; margin-top: 16px; border-radius: 22px; background: var(--brand-soft); padding: 22px 26px; font-size: 15px; line-height: 1.7; color: var(--ink-2); }
+    .w-prior b { color: var(--ink); }
+    .w-prior .pr { flex-shrink: 0; font-size: 12.5px; font-weight: 800; color: #fff; background: var(--brand); border-radius: 999px; padding: 5px 12px; margin-top: 2px; }
+    @media (max-width: 1000px) {
+      .w-facts { grid-template-columns: 1fr 1fr; }
+      .w-facts > div:nth-child(3) { border-left: 0; }
+      .w-facts > div:nth-child(n+3) { border-top: 1px solid var(--hair); }
+      .w-sysband { grid-template-columns: 1fr 1fr; }
+      .w-steps { grid-template-columns: 1fr 1fr; }
+      .w-steps li::after { display: none; }
+    }
+    @media (max-width: 860px) {
+      .w-kpis, .w-rvs { grid-template-columns: 1fr; }
+      .w-facts > div { padding: 22px 20px; }
+      .w-steps { grid-template-columns: 1fr; }
+      .w-prior { flex-direction: column; gap: 10px; }
+    }
+  </style>
+</head>
+<body class="bx" data-page="winter" data-gnb="dark">
+<script src="bx-data.js?v=bx20"></script>
+<script src="bx-shell.js?v=bx20"></script>
+
+<main id="main">
+
+<!-- HERO -->
+<header class="phd w-hero" data-gnb-dark>
+  <div class="phd-media"><img src="photos/bx/hall.jpg" alt="" fetchpriority="high"></div>
+  <div class="phd-inner">
+    <div class="w-badges">
+      <span class="w-badge hot">2027 윈터스쿨 모집 중</span>
+      <span class="w-badge">개강 <b data-dday="2027-01-01">D-</b></span>
+      <span class="w-badge">좌석 한정</span>
+    </div>
+    <h1 class="ph-title"><span class="ln"><span>겨울방학 두 달이면</span></span><span class="ln"><span>3월이 <em>달라집니다.</em></span></span></h1>
+    <p class="ph-lead">1월 1일부터 2월 28일까지, 하루 15시간을 관리합니다. <br class="pc">매 교시 출결을 확인하고 매주 1:1 멘토링을 하며, 그 기록을 학부모님께 보내드립니다.</p>
+    <div class="ph-actions">
+      <a class="btn btn-brand" href="https://khsb.vercel.app/apply" target="_blank" rel="noopener">온라인 사전 예약<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      <a class="btn btn-glass" href="tel:010-3145-5767">전화 상담하기</a>
+    </div>
+    <p class="w-note">예비 고1 · 고2 · 고3 · N수 대상 · 섬머스쿨은 2027년 여름 오픈 예정</p>
+  </div>
+</header>
+
+<div class="w-facts r">
+  <div><span>수강 기간</span><b>1/1(금) – 2/28(일)<small>2개월</small></b></div>
+  <div><span>운영 시간</span><b>09:00 – 24:00<small>연중무휴</small></b></div>
+  <div><span>수강 금액</span><b>월 69만 원<small>2개월 총 138만 원</small></b></div>
+  <div class="dd"><span>개강까지</span><b data-dday="2027-01-01">D-</b></div>
+</div>
+
+<!-- 결과 -->
+<section class="bx-sec" id="results">
+  <div class="bx-head r">
+    <p class="eyebrow">숫자로 보는 강한선배</p>
+    <h2 class="bx-h2">강한선배 학생들의<br>입시 결과입니다.</h2>
+    <p class="bx-sub">겨울 두 달을 자리만 지키다 보내면 남는 게 없습니다. 아래는 재원생들의 실제 기록입니다.</p>
+  </div>
+  <div class="w-kpis">
+    <div class="kpi dark r"><p class="k-label">인서울 대학 합격</p><b data-stat="inSeoul"></b><p class="k-sub">재원생 3명 중 2명이 인서울 대학에 합격했습니다.</p></div>
+    <div class="kpi r d1"><p class="k-label">성적 상승</p><b data-stat="rise"></b><p class="k-sub">재원생 10명 중 9명은 성적이 올랐습니다.</p></div>
+    <div class="kpi brand r d2"><p class="k-label">최상위 의약학 계열</p><b class="txt">의·치·약</b><p class="k-sub">합격생이 여러 명 나왔습니다.</p></div>
+  </div>
+  <div class="w-unis r">
+    <p class="w-unis-label">2026학년도 강한선배 2기 합격 · 재학 대학</p>
+    <div class="lmq" data-logos data-special data-speed="40"></div>
+  </div>
+  <div class="w-rvs">
+    <figure class="rvc feat r"><blockquote class="rv-q">타이트한 관리가 오히려 좋았어요. 매 교시 확인받다 보니 도망갈 곳이 없었고, 고2 11월 모의고사보다 3월 모의고사 성적이 크게 올랐어요.</blockquote><figcaption class="rv-by"><span>윈터스쿨 수료생 · 고3</span><em class="rv-tag" style="font-style:normal">성적 상승</em></figcaption></figure>
+    <figure class="rvc r d1"><blockquote class="rv-q">혼자서는 절대 못 지켰을 겨울 루틴을 두 달 내내 지키게 해 줬어요. 공부 습관이 잡힌 채로 3월을 시작하니 1년이 달라졌어요.</blockquote><figcaption class="rv-by"><span>윈터스쿨 수료생 · N수</span><em class="rv-tag" style="font-style:normal">습관 형성</em></figcaption></figure>
+  </div>
+</section>
+
+<!-- 실전 모의고사 — 매달 수능처럼 -->
+<section class="kband on-dark exam-band">
+  <div class="kband-inner exam-grid">
+    <div>
+      <p class="eyebrow r">실전 훈련</p>
+      <h2 class="bx-h2 r">매달 한 번,<br>수능처럼.</h2>
+      <p class="bx-sub r">매달 <b style="color:#fff">대성 더프리미엄 모의고사</b>를 원내 시험실에서 봅니다. 시간표, 수험표, 가채점표까지 수능 날과 똑같이 맞추고, 틀린 문제는 질의응답과 담임 멘토링에서 다시 짚고 넘어갑니다.</p>
+      <ul class="exam-steps r d1">
+        <li><b>신청</b><span>앱에서 신청하면 원내 시험실 자리 배정</span></li>
+        <li><b>실전 응시</b><span>수능과 같은 시간표 · 수험표 · 가채점표</span></li>
+        <li><b>성적 관리</b><span>회차별 성적 기록 · 틀린 문제는 질의응답과 멘토링에서</span></li>
+      </ul>
+      
+    </div>
+    <figure class="exam-shot r d2" data-ui-fallback><div class="pf"><img src="photos/ui/portal-exam.png?v=ui3" alt="모의고사 신청 화면" loading="lazy" onerror="this.closest('[data-ui-fallback]').remove()"></div><figcaption class="pf-cap"><b>모의고사 신청</b><span>실제 학생 앱 화면</span></figcaption></figure>
+  </div>
+</section>
+
+<!-- 실제 앱 화면 — 강한선배 앱 학생 · 학부모님 화면 (photos/ui/manifest.json, 화면이 없으면 섹션 숨김) -->
+<section class="bx-sec" data-ui-section>
+  <div class="bx-head r">
+    <p class="eyebrow">강한선배 앱</p>
+    <h2 class="bx-h2">강한선배 전용 앱으로<br>두 달을 빈틈없이 관리합니다.</h2>
+    <p class="bx-sub">출결과 상벌점, 과제, 질의응답, 도시락 신청까지 윈터스쿨 두 달의 관리가 모두 전용 앱에서 이뤄지고, 학부모님도 같은 앱에서 바로 확인하십니다. 아래는 모두 실제 앱 화면입니다.</p>
+  </div>
+  <div class="ui-rail" data-ui-rail="portal,parent,app"></div>
+  <div class="ui-rail-ctl"><button type="button" data-dir="-1" aria-label="이전 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></button><button type="button" data-dir="1" aria-label="다음 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></button></div>
+  
+</section>
+
+<!-- 관리 시스템 — 카드 → 시트 모달 -->
+<section class="bx-sec" id="system">
+  <div class="bx-head r">
+    <p class="eyebrow">밀착 학습 관리</p>
+    <h2 class="bx-h2">하루 15시간 동안<br>이렇게 관리합니다.</h2>
+    <p class="bx-sub">카드를 누르면 실제 운영 방식과 앱 화면을 볼 수 있습니다. 출결, 벌점, 멘토링 기록은 학부모님께도 모두 공유됩니다.</p>
+  </div>
+  <div class="w-sysband r">
+    <div><b>지정 좌석제</b>전 좌석</div>
+    <div><b>20분 단위</b>순찰</div>
+    <div><b>09:00 – 24:00</b>연중무휴</div>
+    <div><b>QR 기반</b>학습 태도 기록</div>
+  </div>
+  <div class="fcg">
+    <button type="button" class="fc r" data-modal="m-attend"><span class="fc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><h3>지문 출입 · 매 교시 출결</h3><p>입·퇴실은 지문으로 자동 기록되고, 교시마다 자리에 앉아 있는지 사람이 확인합니다.</p><span class="fc-more">자세히 보기 →</span></button>
+    <button type="button" class="fc r d1" data-modal="m-phone"><span class="fc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></span><h3>휴대폰 · 네트워크 관리</h3><p>휴대폰은 전원을 꺼서 잠가 두고, 네트워크는 학습 사이트만 열어 둡니다.</p><span class="fc-more">자세히 보기 →</span></button>
+    <button type="button" class="fc r d2" data-modal="m-exam"><span class="fc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><h3>모의고사 실전 훈련</h3><p>매달 대성 더프리미엄 모의고사를 수능 날과 똑같은 환경에서 봅니다.</p><span class="fc-more">자세히 보기 →</span></button>
+    <button type="button" class="fc r" data-modal="m-mentor"><span class="fc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/></svg></span><h3>주간 멘토링 · 월간 리포트</h3><p>주 1회 담임 멘토와 1:1로 상담합니다. 매주 보고서를, 매달 성적 추이 리포트를 보내드립니다.</p><span class="fc-more">자세히 보기 →</span></button>
+    <button type="button" class="fc r d1" data-modal="m-qna"><span class="fc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span><h3>질의응답 · 학습 지원</h3><p>앱으로 질문을 올리면 근무 중인 멘토가 답해 줍니다. 선배들의 수능 준비 사례집도 받을 수 있습니다.</p><span class="fc-more">자세히 보기 →</span></button>
+    <button type="button" class="fc dark r d2" data-modal="m-life"><span class="fc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></span><h3>라운지 · 도시락 · 생활</h3><p>휴식 라운지가 따로 있고 도시락도 신청할 수 있어서, 식사하러 밖에 나가지 않아도 됩니다.</p><span class="fc-more">자세히 보기 →</span></button>
+  </div>
+  <div class="w-rules r">
+    <button type="button" class="btn btn-line btn-sm" data-modal="m-rules">생활 규정 보기</button>
+    <button type="button" class="btn btn-line btn-sm" data-modal="m-penalty">벌점 · 퇴원 기준</button>
+    <button type="button" class="btn btn-line btn-sm" data-modal="m-refund">중도 퇴실 환불 기준</button>
+  </div>
+</section>
+
+<!-- 수강 안내 -->
+<section class="bx-sec" id="program">
+  <div class="bx-head r">
+    <p class="eyebrow">등록 안내 · 좌석 한정</p>
+    <h2 class="bx-h2">좌석이 차는 대로 마감됩니다.<br>순번부터 확보하세요.</h2>
+    <p class="bx-sub">수강 기간 2027년 1/1(금) ~ 2/28(일) · 설 연휴 휴무 없음 · 2개월 과정</p>
+  </div>
+  <div class="price-grid r d1">
+    <div class="price-card">
+      <h4>등록 대기금</h4>
+      <div class="p-num">20<small>만 원</small></div>
+      <p class="p-cap">11월 중에 납부하시면 대기 순번이 확정됩니다. 나머지 118만 원은 입실이 확정된 뒤 완납하시면 됩니다.</p>
+      <div class="p-feats"><span>대기금 납부 순 좌석 배정</span><span>등록 관련 별도 안내 연락</span></div>
+      <a href="https://khsb.vercel.app/apply" target="_blank" rel="noopener" class="pill pill-lav">사전 예약하기</a>
+    </div>
+    <div class="price-card price-main">
+      <span class="price-pop">2027 윈터스쿨 정규</span>
+      <h4>수강 금액 (2개월)</h4>
+      <div class="p-num">월 69<small>만 원</small></div>
+      <p class="p-cap">2개월 총 138만 원 · 지역화폐 결제 가능</p>
+      <div class="p-feats">
+        <span>전 좌석 지정 좌석제 · 09:00 ~ 24:00 연중무휴</span>
+        <span>매 교시 출결 확인 + 20분 단위 순찰</span>
+        <span>주 1회 담임 멘토 1:1 멘토링 (30분)</span>
+        <span>매월 대성 더프리미엄 모의고사 실전 응시</span>
+        <span>주간 멘토링 보고서 + 월간 성적 리포트</span>
+        <span>전용 앱 질의응답 · 도시락 신청 · 라운지</span>
+      </div>
+      <a href="https://khsb.vercel.app/apply" target="_blank" rel="noopener" class="pill pill-dark">온라인 사전 예약<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
+    </div>
+    <div class="price-card">
+      <h4>기존 재원생</h4>
+      <div class="p-num">자동 연장</div>
+      <p class="p-cap">2026년 12월 기준으로 강한선배 관리형 독서실을 이용 중인 재원생은 따로 대기 등록하지 않아도 자동으로 등록이 연장됩니다.</p>
+      <div class="p-feats"><span>대기 등록 절차 면제</span><span>좌석 우선 배정</span></div>
+      <a href="tel:010-3145-5767" class="pill pill-lav">전화 상담하기</a>
+    </div>
+  </div>
+  <ol class="w-steps">
+    <li class="r"><h4>온라인 사전 예약</h4><p>대기 등록을 남겨 주시면 등록 안내 연락을 드립니다.</p></li>
+    <li class="r d1"><h4>대기금 납부</h4><p>11월 중에 입학 대기금 20만 원을 내시면 순번이 확정됩니다.</p></li>
+    <li class="r d2"><h4>입학 전 OT</h4><p>가능하면 참석해 주세요. 일정이 안 맞으면 1월 입실 첫 주에 차례로 진행합니다.</p></li>
+    <li class="r d3"><h4>1/1 입실</h4><p>담임 멘토를 정하고 학습 계획을 잡은 다음, 두 달 관리를 시작합니다.</p></li>
+  </ol>
+  <div class="w-prior r"><span class="pr">우선순위</span><span>입실 배정은 <b>기존 재원생 자동 배정 → 대기금 납부 순서</b>로 진행됩니다. 확정 연락 시기는 원내 일정에 따라 달라질 수 있고, 일정이 바뀌면 따로 안내드립니다.</span></div>
+</section>
+
+<!-- FAQ -->
+<section class="bx-sec" id="faq">
+  <div class="fx-faq r">
+    <div class="fx-faq-left">
+      <p class="eyebrow">자주 묻는 질문</p>
+      <h2 class="bx-h2">궁금한 점이<br>남아 있으신가요?</h2>
+      <p>여기 없는 내용은 전화로 물어보셔도 되고, 온라인 사전 예약 후 상담 때 말씀해 주셔도 됩니다.</p>
+    </div>
+    <div class="faq-list">
+      <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">규칙이 너무 엄격한 것 아닌가요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">처음에는 그렇게 느끼실 수 있습니다. 규칙이 많은 건 다 같이 공부에 집중하는 분위기를 지키기 위해서입니다. 졸업생 후기에도 적응하고 나니 공부 습관을 바로잡는 데 큰 도움이 됐다는 이야기가 있습니다.</div></div></div>
+      <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">입·출결 알림이 오나요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">네, 입실하고 퇴실할 때마다 알림이 자동으로 갑니다. 말없이 자리를 비우면 관리자가 학생에게 먼저 연락하고, 답이 없으면 학부모님께 연락드립니다.</div></div></div>
+      <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">대기 등록 후 입실 확정은 언제 통보받나요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">기존 재원생을 먼저 자동 배정하고, 그다음 대기금을 낸 순서대로 입실을 배정합니다. 확정 연락 시기는 원내 일정에 따라 달라질 수 있어서, 신청하신 뒤 원내로 한 번 문의해 주시면 안내드리겠습니다.</div></div></div>
+      <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">윈터스쿨 운영 시간은 어떻게 되나요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">평일, 주말, 공휴일 상관없이 매일 오전 9:00부터 밤 12:00까지 운영합니다. 설 연휴에도 쉬지 않습니다.</div></div></div>
+      <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">기간 중 결석하면 어떻게 되나요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">결석을 당일에 알려 주시면 벌점이 부과됩니다. 최소 1일 전에만 미리 말씀해 주시면 벌점은 없습니다.</div></div></div>
+      <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">중도 퇴실하면 환불되나요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">관련 법령과 학원 교습비 반환 기준에 따라 환불해 드립니다. 교습 기간이 얼마나 지났는지에 따라 돌려받는 금액이 달라지니, 위쪽 '중도 퇴실 환불 기준' 버튼에서 구간별 기준표를 확인해 주세요.</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="ctab r">
+  <div class="ctab-media"><img src="photos/bx/entrance.jpg" alt="" loading="lazy"></div>
+  <div class="ctab-in">
+    <p class="eyebrow">좌석 한정 · 대기금 납부 순 배정</p>
+    <h2>이번 겨울방학은<br>강한선배에서 보내세요.</h2>
+    <p>온라인으로 사전 예약을 남겨 주시면 등록 안내 연락을 드립니다.</p>
+    <div class="ctab-actions">
+      <a class="btn btn-brand" href="https://khsb.vercel.app/apply" target="_blank" rel="noopener">온라인 사전 예약<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      <a class="btn btn-glass" href="tel:010-3145-5767">전화 상담하기</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ═══ 상세 시트 모달 ═══ -->
+<dialog class="bx-modal sheet" id="m-attend" aria-labelledby="t-attend"><button class="md-close" data-close aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div class="sheet-card"><p class="sh-kicker">밀착 학습 관리</p><h3 id="t-attend">지문 출입 · 매 교시 출결</h3>
+    <div class="sh-app"><p class="a-ttl">오늘의 출결 기록</p>
+      <div class="a-row"><span class="a-tag ok">입실</span>지문 인식 · 09:02<span class="a-time">자동 기록</span></div>
+      <div class="a-row"><span class="a-tag">1교시</span>착석 확인 완료<span class="a-time">09:10</span></div>
+      <div class="a-row"><span class="a-tag">2교시</span>착석 확인 완료<span class="a-time">10:45</span></div>
+      <div class="a-row"><span class="a-tag">알림</span>무단 부재 시 개별 연락<span class="a-time">즉시</span></div></div>
+    <ul><li><b>지문 인식 출입:</b> 입·퇴실이 자동으로 기록되고, 등록되지 않은 외부인은 들어올 수 없습니다.</li><li>매 교시 학생이 자리에 있는지 한 명씩 확인합니다.</li><li>자리에 앉은 학생과 휴대폰을 낸 학생 명단을 맞춰 봅니다.</li><li>말없이 자리를 비우면 관리자가 개별로 연락하고 벌점을 부과합니다.</li><li>매 교시 출결과 관리 기록은 전용 앱에서 실시간으로 볼 수 있습니다.</li></ul>
+  </div></dialog>
+<dialog class="bx-modal sheet" id="m-phone" aria-labelledby="t-phone"><button class="md-close" data-close aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div class="sheet-card"><p class="sh-kicker">밀착 학습 관리</p><h3 id="t-phone">휴대폰 · 네트워크 관리</h3>
+    <figure class="sh-shot"><div class="pf sm"><img src="photos/ui/portal-network.png?v=ui3" alt="네트워크 사용 신청" loading="lazy"></div><figcaption>네트워크 사용 신청 · 실제 화면 (예시 데이터)</figcaption></figure>
+    <ul><li>입실하면 휴대폰 전원을 끄고 개인 휴대폰 함에 넣어 잠급니다.</li><li>독서실 네트워크로는 지정된 학습 사이트에만 접속할 수 있습니다.</li><li>인강처럼 외부 사이트로 수강해야 할 때는 공용 태블릿 PC를 빌려 드립니다.</li><li>교시 중에 우회해서 학습 외 사이트에 접속하다 적발되면 벌점이 부과됩니다.</li></ul>
+    <div class="sh-warn">실제로 쓰는 휴대폰 대신 공기계를 제출하면 즉시 퇴원 조치됩니다.</div>
+  </div></dialog>
+<dialog class="bx-modal sheet" id="m-exam" aria-labelledby="t-exam"><button class="md-close" data-close aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div class="sheet-card"><p class="sh-kicker">밀착 학습 관리</p><h3 id="t-exam">모의고사 실전 훈련</h3>
+    <figure class="sh-shot"><div class="pf sm"><img src="photos/ui/portal-exam.png?v=ui3" alt="모의고사 신청" loading="lazy"></div><figcaption>모의고사 신청 · 실제 화면 (예시 데이터)</figcaption></figure>
+    <ul><li>매달 <b>대성 더프리미엄 모의고사</b>를 원내 시험실에서 봅니다.</li><li>수험표와 가채점표까지 수능 날과 똑같이 준비합니다.</li><li>시험이 끝나면 추가 질의응답으로 틀린 문제를 다시 짚어 줍니다.</li><li>강한선배 전용 모의고사 분석 자료집과 플래너, 수능 가이드도 드립니다.</li></ul>
+  </div></dialog>
+<dialog class="bx-modal sheet" id="m-mentor" aria-labelledby="t-mentor"><button class="md-close" data-close aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div class="sheet-card"><p class="sh-kicker">밀착 학습 관리</p><h3 id="t-mentor">주간 멘토링 · 월간 리포트</h3>
+    <figure class="sh-shot"><div class="pf sm"><img src="photos/ui/parent-monthly-2.png?v=ui3" alt="월간 리포트 · 멘토링 종합의견" loading="lazy"></div><figcaption>월간 리포트 · 멘토링 종합의견 · 실제 화면 (예시 데이터)</figcaption></figure>
+    <ul><li>매주 정해진 요일에 담임 멘토와 <b>1:1 상담(30분 내외)</b>을 합니다.</li><li>세운 계획을 얼마나 지켰는지, 안 된 부분은 왜 안 됐는지 같이 따져 봅니다.</li><li>멘토링 내용은 학생마다 주간 보고서로 정리해 드립니다.</li><li>매달 성적 추이와 학습 전반을 정리한 리포트를 학부모님께 보내드립니다.</li></ul>
+  </div></dialog>
+<dialog class="bx-modal sheet" id="m-qna" aria-labelledby="t-qna"><button class="md-close" data-close aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div class="sheet-card"><p class="sh-kicker">밀착 학습 관리</p><h3 id="t-qna">질의응답 · 학습 지원</h3>
+    <figure class="sh-shot"><div class="pf sm"><img src="photos/ui/portal-qna-thread.png?v=ui3" alt="사진 질문 · 멘토 답변" loading="lazy"></div><figcaption>사진 질문 · 멘토 답변 · 실제 화면 (예시 데이터)</figcaption></figure>
+    <ul><li>학생 전용 앱에 질문을 올리면 근무 중인 멘토가 실시간으로 답해 줍니다.</li><li>선배들이 수능을 어떻게 준비했는지 모은 사례집을 드립니다.</li><li><b>영단어 테스트:</b> 신청한 학생에 한해 매주 1회 시험을 보고 관리합니다. (교재: 워드마스터 수능 2000)</li><li>덥다, 춥다 같은 냉난방 건의도 앱으로 바로 보낼 수 있습니다.</li></ul>
+  </div></dialog>
+<dialog class="bx-modal sheet" id="m-life" aria-labelledby="t-life"><button class="md-close" data-close aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div class="sheet-card"><p class="sh-kicker">밀착 학습 관리</p><h3 id="t-life">라운지 · 도시락 · 생활</h3>
+    <figure class="sh-shot"><div class="pf sm"><img src="photos/ui/portal-lunch.png?v=ui3" alt="점심 도시락 신청" loading="lazy"></div><figcaption>점심 도시락 신청 · 실제 화면 (예시 데이터)</figcaption></figure>
+    <ul><li><b>라운지:</b> 밥이나 간단한 간식을 먹을 수 있는 휴식 라운지가 따로 있습니다.</li><li><b>도시락 신청:</b> 필요한 끼니만 골라 신청하면 독서실 안에서 식사할 수 있습니다.</li><li><b>외부 일정 관리:</b> 학원이나 과외 일정은 입실 전에 미리 등록해 둡니다.</li><li>정해진 일정 말고 지각, 결석, 조퇴를 할 때는 사유를 알려 주셔야 합니다.</li></ul>
+  </div></dialog>
+<dialog class="bx-modal sheet" id="m-rules" aria-labelledby="t-rules"><button class="md-close" data-close aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div class="sheet-card"><p class="sh-kicker">운영 규정</p><h3 id="t-rules">생활 규정</h3>
+    <ul><li>독서실 안에서는 어느 구역이든 사적인 대화를 엄격히 금지합니다.</li><li>학습실에는 음료만 가지고 들어갈 수 있고, 소리 나는 과자류는 먹을 수 없습니다.</li><li>학원, 과외 같은 외부 일정은 입실 전에 미리 등록하고, 그 밖의 지각·결석·조퇴는 사유를 알려 주셔야 합니다.</li><li>결석을 당일에 알리면 벌점이 부과되고, 최소 1일 전에 미리 알리면 벌점이 없습니다.</li></ul>
+    <p class="sh-note">규칙이 많아 보이실 수 있습니다. 하나하나가 다 같이 조용히 공부하는 분위기를 지키려고 정한 것들입니다.</p>
+  </div></dialog>
+<dialog class="bx-modal sheet" id="m-penalty" aria-labelledby="t-penalty"><button class="md-close" data-close aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div class="sheet-card"><p class="sh-kicker">운영 규정</p><h3 id="t-penalty">벌점 제도 · 퇴원 기준</h3>
+    <ul><li>받은 벌점은 전용 앱과 주간/월간 보고서에서 확인할 수 있습니다.</li><li>벌점 <b>30점 초과 시 강제 퇴소</b> 조치되며, 이 경우 수강료는 반환되지 않습니다. (벌점은 매월 1일 초기화)</li></ul>
+    <div class="sh-warn"><b>즉시 퇴원 대상</b><br>· 학습 분위기를 반복해서 해치는 경우 (관리자 지시를 계속 따르지 않으면 벌점과 관계없이 퇴소)<br>· 흡연 적발 또는 흡연 냄새 관련 민원 접수<br>· 실제로 쓰는 휴대폰 대신 공기계 제출</div>
+  </div></dialog>
+<dialog class="bx-modal sheet" id="m-refund" aria-labelledby="t-refund"><button class="md-close" data-close aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div class="sheet-card"><p class="sh-kicker">운영 규정</p><h3 id="t-refund">중도 퇴실 환불 기준</h3>
+    <p class="sh-note">방학 특강을 중간에 그만두시면 관련 법령과 학원 교습비 반환 기준에 따라 환불해 드립니다.</p>
+    <table class="rf-t">
+      <tr><th>구분</th><th>교습비 반환 기준</th></tr>
+      <tr><td>교습 시작 전</td><td>납부한 교습비 전액 반환</td></tr>
+      <tr><td>시작 후 ~ 총 교습시간 1/3 경과 전</td><td>납부 교습비의 2/3 반환</td></tr>
+      <tr><td>1/3 경과 후 ~ 1/2 경과 전</td><td>납부 교습비의 1/2 반환</td></tr>
+      <tr><td>1/2 경과 후</td><td>반환 금액 없음</td></tr>
+    </table>
+  </div></dialog>
+
+<script src="bx-core.js?v=bx20"></script>
+</body>
+</html>

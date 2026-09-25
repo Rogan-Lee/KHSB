@@ -14,7 +14,7 @@ export async function GET(
 
   const manifest = {
     name: `${studentName} 학생 포털`,
-    short_name: "내 포털",
+    short_name: "강한선배",
     description: "관리형 독서실 본인 전용 학생 포털",
     start_url: `/s/${token}`,
     scope: `/s/${token}`,
@@ -22,7 +22,7 @@ export async function GET(
     display: "standalone",
     orientation: "portrait",
     background_color: "#F4F4F2",
-    theme_color: "#FFFFFF",
+    theme_color: "#F4F4F2",
     lang: "ko-KR",
     dir: "ltr",
     icons: [

@@ -4,6 +4,8 @@ import { useId, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ImagePlus, Loader2, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "./confirm-dialog";
 import {
   attachSessionPhoto,
   deleteSessionPhoto,
@@ -35,7 +37,7 @@ export function SessionPhotoUploader({
 }) {
   const legacyKda = existing.filter((p) => p.tag === "KDA");
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-x5">
       {ZONES.map((zone) => (
         <ZoneBlock
           key={zone.tag}
@@ -80,6 +82,8 @@ function ZoneBlock({
   const [uploadingCount, setUploadingCount] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [, startTransition] = useTransition();
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function uploadOne(file: File) {
     if (!ALLOWED_EXT.test(file.name) && !file.type.startsWith("image/")) {
@@ -133,36 +137,39 @@ function ZoneBlock({
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("이 사진을 삭제할까요?")) return;
+    setDeleting(true);
     try {
       await deleteSessionPhoto(id);
       toast.success("삭제됨");
+      setDeleteId(null);
       startTransition(() => router.refresh());
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "삭제 실패");
+    } finally {
+      setDeleting(false);
     }
   }
 
   const busy = uploadingCount > 0;
 
   return (
-    <div className="rounded-[10px] border border-line bg-panel p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
+    <div>
+      <div className="mb-x2 flex items-start justify-between gap-x2">
         <div>
-          <h6 className="text-[12.5px] font-semibold text-ink">{label}</h6>
-          <p className="text-[11px] text-ink-4">{hint}</p>
+          <h4 className="t4-bold text-fg-neutral">{label}</h4>
+          <p className="mt-x0_5 t3-regular text-fg-neutral-subtle">{hint}</p>
         </div>
-        <span className="text-[11px] text-ink-5">
+        <span className="shrink-0 t3-regular tabular-nums text-fg-neutral-subtle">
           {photos.length}장{busy ? ` · 업로드 중…` : ""}
         </span>
       </div>
 
       {(photos.length > 0 || busy) && (
-        <ul className="mb-2 grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-2">
+        <ul className="mb-x3 grid grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-x2">
           {photos.map((p) => (
             <li
               key={p.id}
-              className="group relative aspect-square overflow-hidden rounded-[8px] border border-line bg-canvas-2"
+              className="group relative aspect-square overflow-hidden rounded-r2 bg-bg-neutral-weak"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -172,20 +179,20 @@ function ZoneBlock({
               />
               <button
                 type="button"
-                onClick={() => handleDelete(p.id)}
+                onClick={() => setDeleteId(p.id)}
                 aria-label="첨부 삭제"
-                className="absolute right-1 top-1 hidden h-6 w-6 items-center justify-center rounded-full bg-ink/80 text-white group-hover:inline-flex"
+                className="absolute right-1 top-1 grid size-7 place-items-center rounded-full bg-bg-overlay text-palette-static-white opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
               >
-                <Trash2 className="h-3 w-3" strokeWidth={2.5} />
+                <Trash2 className="size-3.5" strokeWidth={2.5} />
               </button>
             </li>
           ))}
           {Array.from({ length: uploadingCount }).map((_, i) => (
             <li
               key={`u-${i}`}
-              className="flex aspect-square items-center justify-center rounded-[8px] border border-dashed border-line bg-canvas-2 text-ink-4"
+              className="flex aspect-square items-center justify-center rounded-r2 border border-dashed border-stroke-neutral-weak bg-bg-layer-fill text-fg-neutral-subtle"
             >
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 className="size-5 animate-spin" aria-label="업로드 중" />
             </li>
           ))}
         </ul>
@@ -200,18 +207,20 @@ function ZoneBlock({
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
-        className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-[8px] border border-dashed px-3 py-3 text-[12px] transition-colors ${
+        className={cn(
+          "flex cursor-pointer items-center justify-center gap-x1_5 rounded-r2 border border-dashed px-x3 py-x4 t3-medium transition-colors",
           dragOver
-            ? "border-line-strong bg-canvas-2 text-ink"
-            : "border-line bg-canvas text-ink-3"
-        } ${busy ? "pointer-events-none opacity-60" : "hover:bg-canvas-2"}`}
+            ? "border-stroke-neutral-contrast bg-bg-neutral-weak text-fg-neutral"
+            : "border-stroke-neutral-weak bg-bg-layer-fill text-fg-neutral-muted",
+          busy ? "pointer-events-none opacity-60" : "hover:bg-bg-neutral-weak"
+        )}
       >
         {busy ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="size-4 animate-spin" aria-hidden />
         ) : (
-          <ImagePlus className="h-4 w-4" />
+          <ImagePlus className="size-4" aria-hidden />
         )}
-        <span>드래그해서 올리거나 클릭해서 사진 추가</span>
+        <span>드래그해서 올리거나 눌러서 사진 추가</span>
         <input
           id={inputId}
           type="file"
@@ -223,7 +232,15 @@ function ZoneBlock({
         />
       </label>
       )}
+
+      <ConfirmDialog
+        open={!!deleteId}
+        onOpenChange={(v) => { if (!v) setDeleteId(null); }}
+        title="사진 삭제"
+        description="이 사진을 삭제할까요? 삭제한 사진은 되돌릴 수 없어요."
+        pending={deleting}
+        onConfirm={() => deleteId && handleDelete(deleteId)}
+      />
     </div>
   );
 }
-

@@ -3,10 +3,9 @@ export const revalidate = 30;
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus } from "lucide-react";
-import { PageIntro } from "@/components/ui/page-intro";
+import { CountBadge, PageHeader, Section } from "@/components/backoffice/ui";
 import { StudentsScheduleTable } from "@/components/students/students-schedule-table";
 import { StudentsListView } from "@/components/students/students-list-view";
 import { CsvImport } from "@/components/students/csv-import";
@@ -65,102 +64,85 @@ export default async function StudentsPage({
   const graduated = students.filter((s) => s.status === "GRADUATED").length;
   const activeStudents = students.filter((s) => s.status === "ACTIVE");
 
+  const issuedLinks = portalLinkRows.filter((s) => s.token).length;
+
   return (
-    <div className="space-y-4">
-      <PageIntro
-        tag="STUDENTS · 02"
-        title={`원생 · ${active}명 재원 중`}
-        description="원생 정보 관리, 일정 확인, 성적 입력"
-        stats={[
-          { label: "재원", value: active },
-          { label: "휴원", value: inactive },
-          { label: "졸업", value: graduated },
-          { label: "퇴원", value: withdrawn },
-        ]}
+    <div>
+      <PageHeader
+        title="원생 관리"
+        description={
+          <span className="tabular-nums">
+            재원 {active}명 · 휴원 {inactive}명 · 졸업 {graduated}명 · 퇴원 {withdrawn}명
+          </span>
+        }
+        actions={
+          <>
+            {canFormalize && <GradePromotionDialog />}
+            <Button asChild>
+              <Link href="/students/new">
+                <Plus />
+                원생 등록
+              </Link>
+            </Button>
+          </>
+        }
       />
 
       <Tabs defaultValue={defaultTab}>
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <TabsList>
-            <TabsTrigger value="list">원생 목록</TabsTrigger>
-            <TabsTrigger value="schedule">입퇴실 일정</TabsTrigger>
-            <TabsTrigger value="pre-registration">
-              예비등록
-              {preRegistrations.length > 0 && (
-                <span className="ml-1.5 rounded-full bg-violet-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">{preRegistrations.length}</span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="portal-links">포털 링크</TabsTrigger>
-            <TabsTrigger value="import">원생 CSV 가져오기</TabsTrigger>
-            <TabsTrigger value="scores-import">성적 CSV 업로드</TabsTrigger>
-            <TabsTrigger value="sheets">구글 시트 연동</TabsTrigger>
-          </TabsList>
-          <div className="flex items-center gap-2">
-            {canFormalize && <GradePromotionDialog />}
-            <Link href="/students/new">
-              <Button variant="ink" size="compact">
-                <Plus className="h-3.5 w-3.5" />
-                원생 등록
-              </Button>
-            </Link>
-          </div>
-        </div>
+        <TabsList aria-label="원생 관리 메뉴">
+          <TabsTrigger value="list">원생 목록</TabsTrigger>
+          <TabsTrigger value="schedule">입퇴실 일정</TabsTrigger>
+          <TabsTrigger value="pre-registration">
+            예비등록
+            <CountBadge count={preRegistrations.length} />
+          </TabsTrigger>
+          <TabsTrigger value="portal-links">포털 링크</TabsTrigger>
+          <TabsTrigger value="import">원생 CSV 가져오기</TabsTrigger>
+          <TabsTrigger value="scores-import">성적 CSV 업로드</TabsTrigger>
+          <TabsTrigger value="sheets">구글 시트 연동</TabsTrigger>
+        </TabsList>
 
-        <TabsContent value="list" className="mt-3">
+        <TabsContent value="list">
           <StudentsListView students={students} />
         </TabsContent>
 
-        <TabsContent value="schedule" className="mt-3">
+        <TabsContent value="schedule">
           <StudentsScheduleTable students={activeStudents} />
         </TabsContent>
 
-        <TabsContent value="pre-registration" className="mt-3">
-          <Card className="rounded-[12px] border-line shadow-[var(--shadow-xs)]">
-            <CardContent className="pt-5">
-              <PreRegistrationPanel initial={preRegistrations} canFormalize={canFormalize} />
-            </CardContent>
-          </Card>
+        <TabsContent value="pre-registration">
+          <PreRegistrationPanel initial={preRegistrations} canFormalize={canFormalize} />
         </TabsContent>
 
-        <TabsContent value="portal-links" className="mt-3">
-          <Card className="rounded-[12px] border-line shadow-[var(--shadow-xs)]">
-            <CardContent className="pt-5">
-              <div className="mb-3 text-sm text-muted-foreground">
-                재원생에게 보낼 본인 전용 학생 포털 링크({portalLinkRows.filter((s) => s.token).length}/{portalLinkRows.length}명 발급됨).
-                링크는 30일 후 만료되며 재발급할 수 있어요.
-              </div>
-              <PortalLinksPanel students={portalLinkRows} canManage={canManagePortalLinks} />
-            </CardContent>
-          </Card>
+        <TabsContent value="portal-links">
+          <Section
+            variant="plain"
+            title="학생 포털 링크"
+            description={
+              <span className="tabular-nums">
+                재원생에게 보낼 본인 전용 학생 포털 링크예요 ({issuedLinks}/{portalLinkRows.length}명 발급됨). 링크는 30일 후 만료되며 재발급할 수 있어요.
+              </span>
+            }
+          >
+            <PortalLinksPanel students={portalLinkRows} canManage={canManagePortalLinks} />
+          </Section>
         </TabsContent>
 
-        <TabsContent value="import" className="mt-3">
-          <Card className="rounded-[12px] border-line shadow-[var(--shadow-xs)]">
-            <CardContent className="pt-5">
-              <CsvImport />
-            </CardContent>
-          </Card>
+        <TabsContent value="import">
+          <CsvImport />
         </TabsContent>
 
-        <TabsContent value="scores-import" className="mt-3">
-          <Card className="rounded-[12px] border-line shadow-[var(--shadow-xs)]">
-            <CardContent className="pt-5">
-              <CsvImportScores />
-            </CardContent>
-          </Card>
+        <TabsContent value="scores-import">
+          <CsvImportScores />
         </TabsContent>
 
-        <TabsContent value="sheets" className="mt-3">
-          <Card className="rounded-[12px] border-line shadow-[var(--shadow-xs)]">
-            <CardContent className="pt-5">
-              <SheetsImport
-                studentsConfig={studentsSheetConfig ? { sheetUrl: studentsSheetConfig.sheetUrl, sheetName: studentsSheetConfig.sheetName } : null}
-                scoresConfig={scoresSheetConfig ? { sheetUrl: scoresSheetConfig.sheetUrl, sheetName: scoresSheetConfig.sheetName } : null}
-                googleAuthUrl={googleAuthUrl}
-                isGoogleConnected={googleConnected}
-              />
-            </CardContent>
-          </Card>
+        <TabsContent value="sheets">
+          <SheetsImport
+            studentsConfig={studentsSheetConfig ? { sheetUrl: studentsSheetConfig.sheetUrl, sheetName: studentsSheetConfig.sheetName } : null}
+            scoresConfig={scoresSheetConfig ? { sheetUrl: scoresSheetConfig.sheetUrl, sheetName: scoresSheetConfig.sheetName } : null}
+            googleAuthUrl={googleAuthUrl}
+            isGoogleConnected={googleConnected}
+          />
         </TabsContent>
       </Tabs>
     </div>

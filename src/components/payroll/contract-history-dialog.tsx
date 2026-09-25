@@ -11,13 +11,14 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { TimePickerInput } from "@/components/ui/time-picker";
+import { EmptyState, FormActions, FormField, StatusBadge } from "@/components/backoffice/ui";
+import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { toast } from "sonner";
-import { Trash2, ChevronDown } from "lucide-react";
+import { Trash2, ChevronDown, FileText, Plus, AlertTriangle } from "lucide-react";
 import { createContract, deleteContract } from "@/actions/payroll";
 import { MIN_HOURLY_WAGE_2026 } from "@/lib/payroll";
 import { cn } from "@/lib/utils";
@@ -44,7 +45,7 @@ function formatYmd(d: Date | null | undefined): string {
 }
 
 function formatWon(n: number): string {
-  return `₩${n.toLocaleString("ko-KR")}`;
+  return `${n.toLocaleString("ko-KR")}원`;
 }
 
 const DOW = ["일", "월", "화", "수", "목", "금", "토"];
@@ -57,16 +58,16 @@ function formatWorkSchedule(days: number[], start: string | null, end: string | 
 
 function DetailRow({ label, value, full }: { label: string; value: string; full?: boolean }) {
   return (
-    <div className={cn("flex flex-col gap-0.5", full && "col-span-2")}>
-      <dt className="text-[11px] text-muted-foreground">{label}</dt>
-      <dd className="font-medium text-foreground break-words">{value}</dd>
+    <div className={cn("flex min-w-0 flex-col gap-x0_5", full && "col-span-2")}>
+      <dt className="t3-medium text-fg-neutral-subtle">{label}</dt>
+      <dd className="break-words t4-regular tabular-nums text-fg-neutral">{value}</dd>
     </div>
   );
 }
 
 /**
  * 근무자별 PayrollContract 이력 + 신규 계약 입력 다이얼로그.
- * Sprint 3 PR 3.2 — 아직 어떤 페이지에도 wire-up 되지 않음. PR 3.3 에서 admin board sheet 가 사용 예정.
+ * 직원 관리(계약 관리)와 급여 정산(급여 기준)에서 사용.
  */
 export function ContractHistoryDialog({
   open,
@@ -79,14 +80,11 @@ export function ContractHistoryDialog({
   const [showForm, setShowForm] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PayrollContract | null>(null);
   const [, startDelete] = useTransition();
 
+  // 확인은 ConfirmDialog 에서 받는다 (window.confirm 대체)
   function handleDelete(c: PayrollContract) {
-    const isActive = c.effectiveTo === null;
-    const msg = isActive
-      ? "현재 활성 계약을 삭제할까요? 직전 계약이 있으면 다시 활성화됩니다."
-      : "이 계약을 삭제할까요?";
-    if (!confirm(msg)) return;
     setDeletingId(c.id);
     startDelete(async () => {
       try {
@@ -97,6 +95,7 @@ export function ContractHistoryDialog({
         toast.error(err instanceof Error ? err.message : "계약 삭제에 실패했습니다");
       } finally {
         setDeletingId(null);
+        setDeleteTarget(null);
       }
     });
   }
@@ -114,91 +113,96 @@ export function ContractHistoryDialog({
     });
   }, [contracts]);
 
+  const deletingActive = deleteTarget?.effectiveTo === null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{userName} — 급여 계약 이력</DialogTitle>
+          <DialogTitle className="t7-bold">{userName}님의 급여 계약</DialogTitle>
           <DialogDescription>
-            시급·주휴·고정 수당 계약 버전. 신규 계약을 추가하면 직전 계약은 자동
-            종료됩니다.
+            시급·주휴·고정 수당 계약 이력이에요. 신규 계약을 추가하면 직전 계약은 자동으로 끝나요.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="flex flex-col gap-x3">
           {sorted.length === 0 ? (
-            <p className="rounded-md bg-muted px-3 py-6 text-center text-sm text-muted-foreground">
-              계약 이력이 없습니다. 신규 계약을 추가하세요.
-            </p>
+            !showForm && (
+              <div className="rounded-r3 bg-bg-layer-fill">
+                <EmptyState
+                  compact
+                  icon={FileText}
+                  title="계약 이력이 없어요"
+                  description="신규 계약을 추가해 급여 기준을 정하세요."
+                />
+              </div>
+            )
           ) : (
-            <ul className="space-y-2">
+            <ul className="flex flex-col gap-x2">
               {sorted.map((c) => {
                 const isActive = c.effectiveTo === null;
                 const isExpanded = expandedId === c.id;
                 const schedule = formatWorkSchedule(c.workDays, c.workStartTime, c.workEndTime);
+                const isMonthly = c.monthlySalary != null && c.monthlySalary > 0;
                 return (
                   <li
                     key={c.id}
-                    className={
-                      isActive
-                        ? "rounded-md border border-green-300 bg-green-50 px-3 py-2 dark:bg-green-950/30"
-                        : "rounded-md border bg-card px-3 py-2"
-                    }
+                    className={cn(
+                      "rounded-r3 border px-x4 py-x3",
+                      isActive ? "border-stroke-neutral-weak bg-bg-layer-default" : "border-stroke-neutral-muted bg-bg-layer-fill",
+                    )}
                   >
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-x2">
                       <button
                         type="button"
                         onClick={() => setExpandedId((cur) => (cur === c.id ? null : c.id))}
                         aria-expanded={isExpanded}
-                        className="flex min-w-0 items-center gap-1.5 text-sm font-medium"
+                        className="flex min-w-0 items-center gap-x1_5 rounded-r2 text-left"
                       >
                         <ChevronDown
+                          aria-hidden
                           className={cn(
-                            "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+                            "size-4 shrink-0 text-fg-neutral-subtle transition-transform",
                             isExpanded && "rotate-180",
                           )}
                         />
-                        <span className="truncate">
+                        <span className="truncate t4-bold tabular-nums text-fg-neutral">
                           {formatYmd(c.effectiveFrom)} ~ {formatYmd(c.effectiveTo)}
                         </span>
                       </button>
-                      <div className="flex items-center gap-1.5">
-                        {isActive && (
-                          <Badge variant="default" className="bg-green-600">
-                            활성
-                          </Badge>
-                        )}
-                        <button
+                      <div className="flex shrink-0 items-center gap-x1">
+                        {isActive && <StatusBadge tone="ok">적용 중</StatusBadge>}
+                        <Button
                           type="button"
-                          onClick={() => handleDelete(c)}
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setDeleteTarget(c)}
                           disabled={deletingId === c.id}
-                          title="계약 삭제"
-                          className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                          aria-label="계약 삭제"
+                          className="text-fg-neutral-subtle hover:text-fg-critical"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                          <Trash2 />
+                        </Button>
                       </div>
                     </div>
 
                     {/* 요약 (한 줄 미리보기) */}
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      {c.monthlySalary != null && c.monthlySalary > 0 ? (
-                        <span className="font-medium text-foreground">월급 {formatWon(c.monthlySalary)}</span>
-                      ) : (
-                        <span>시급 {formatWon(c.hourlyRate)}</span>
-                      )}
-                      <span>주휴 {c.weeklyHolidayPay ? "ON" : "OFF"}</span>
-                      {c.monthlyBonusKrw > 0 && <span>보너스 {formatWon(c.monthlyBonusKrw)}</span>}
-                      {schedule && <span className="text-foreground/70">근무 {schedule}</span>}
+                    <div className="mt-x1 flex flex-wrap items-baseline gap-x-x3 gap-y-x1 pl-5.5 t3-regular text-fg-neutral-subtle">
+                      <span className="t5-bold tabular-nums text-fg-neutral">
+                        {isMonthly ? `월급 ${formatWon(c.monthlySalary ?? 0)}` : `시급 ${formatWon(c.hourlyRate)}`}
+                      </span>
+                      <span>주휴 {c.weeklyHolidayPay ? "지급" : "미지급"}</span>
+                      {c.monthlyBonusKrw > 0 && <span className="tabular-nums">보너스 {formatWon(c.monthlyBonusKrw)}</span>}
+                      {schedule && <span>근무 {schedule}</span>}
                     </div>
 
                     {/* 전체 상세 (펼침) */}
                     {isExpanded && (
-                      <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t pt-2 text-xs">
+                      <dl className="mt-x3 grid grid-cols-2 gap-x-x4 gap-y-x3 border-t border-stroke-neutral-muted pt-x3">
                         <DetailRow label="적용 기간" value={`${formatYmd(c.effectiveFrom)} ~ ${formatYmd(c.effectiveTo)}`} />
                         <DetailRow label="시급" value={formatWon(c.hourlyRate)} />
-                        {c.monthlySalary != null && c.monthlySalary > 0 && (
-                          <DetailRow label="월 기본급" value={formatWon(c.monthlySalary)} />
+                        {isMonthly && (
+                          <DetailRow label="월 기본급" value={formatWon(c.monthlySalary ?? 0)} />
                         )}
                         <DetailRow label="주휴수당" value={c.weeklyHolidayPay ? "지급" : "미지급"} />
                         <DetailRow label="고정 보너스" value={c.monthlyBonusKrw > 0 ? formatWon(c.monthlyBonusKrw) : "없음"} />
@@ -223,27 +227,54 @@ export function ContractHistoryDialog({
               }}
             />
           ) : (
-            <div className="pt-1">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowForm(true)}
-              >
-                + 신규 계약
-              </Button>
-            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="self-start"
+              onClick={() => setShowForm(true)}
+            >
+              <Plus />
+              신규 계약
+            </Button>
           )}
         </div>
 
         <DialogFooter>
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             onClick={() => onOpenChange(false)}
           >
             닫기
           </Button>
         </DialogFooter>
+
+        <ConfirmDialog
+          open={deleteTarget !== null}
+          onOpenChange={(o) => {
+            if (!o) setDeleteTarget(null);
+          }}
+          title={deletingActive ? "현재 적용 중인 계약을 삭제할까요?" : "이 계약을 삭제할까요?"}
+          description={
+            deletingActive
+              ? "직전 계약이 있으면 그 계약이 다시 적용돼요."
+              : "삭제한 계약은 되돌릴 수 없어요."
+          }
+          tone="critical"
+          confirmLabel="삭제"
+          pendingLabel="삭제 중…"
+          pending={deletingId !== null}
+          onConfirm={() => deleteTarget && handleDelete(deleteTarget)}
+        >
+          {deleteTarget && (
+            <p className="rounded-r2 bg-bg-layer-fill px-x3 py-x2_5 t4-regular tabular-nums text-fg-neutral-muted">
+              {formatYmd(deleteTarget.effectiveFrom)} ~ {formatYmd(deleteTarget.effectiveTo)} ·{" "}
+              {deleteTarget.monthlySalary != null && deleteTarget.monthlySalary > 0
+                ? `월급 ${formatWon(deleteTarget.monthlySalary)}`
+                : `시급 ${formatWon(deleteTarget.hourlyRate)}`}
+            </p>
+          )}
+        </ConfirmDialog>
       </DialogContent>
     </Dialog>
   );
@@ -351,13 +382,17 @@ function NewContractForm({
     });
   }
 
-  return (
-    <div className="space-y-3 rounded-md border bg-muted/30 p-3">
-      <div className="text-sm font-medium">신규 계약</div>
+  const belowMinWage =
+    hourlyRate.trim() !== "" &&
+    Number(hourlyRate) > 0 &&
+    Number(hourlyRate) < MIN_HOURLY_WAGE_2026;
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label htmlFor="contract-from">시작월</Label>
+  return (
+    <div className="flex flex-col gap-x4 rounded-r3 border border-stroke-neutral-muted bg-bg-layer-fill p-x4 sm:p-x5">
+      <p className="t5-bold text-fg-neutral">신규 계약</p>
+
+      <div className="grid grid-cols-1 gap-x4 sm:grid-cols-2">
+        <FormField label="시작월" htmlFor="contract-from" required hint="매월 1일부터 적용돼요">
           <Input
             id="contract-from"
             type="month"
@@ -365,10 +400,8 @@ function NewContractForm({
             onChange={(e) => setYearMonth(e.target.value)}
             disabled={isPending}
           />
-          <p className="text-xs text-muted-foreground">매월 1일로 적용됩니다</p>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="contract-rate">시급 (원)</Label>
+        </FormField>
+        <FormField label="시급 (원)" htmlFor="contract-rate" required>
           <Input
             id="contract-rate"
             type="number"
@@ -378,20 +411,23 @@ function NewContractForm({
             value={hourlyRate}
             onChange={(e) => setHourlyRate(e.target.value)}
             placeholder="예: 12000"
+            className="tabular-nums"
             disabled={isPending}
           />
-          {hourlyRate.trim() !== "" &&
-            Number(hourlyRate) > 0 &&
-            Number(hourlyRate) < MIN_HOURLY_WAGE_2026 && (
-              <p className="text-xs text-amber-600">
-                ⚠️ 2026년 최저임금({MIN_HOURLY_WAGE_2026.toLocaleString("ko-KR")}원) 미만입니다.
-              </p>
-            )}
-        </div>
+          {belowMinWage && (
+            <p className="flex items-center gap-x1 t3-regular text-fg-warning">
+              <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
+              2026년 최저임금({MIN_HOURLY_WAGE_2026.toLocaleString("ko-KR")}원)보다 낮아요.
+            </p>
+          )}
+        </FormField>
       </div>
 
-      <div className="space-y-1">
-        <Label htmlFor="contract-salary">월 기본급 (원, 선택)</Label>
+      <FormField
+        label="월 기본급 (원)"
+        htmlFor="contract-salary"
+        hint="비워두면 시급제(시간×시급+주휴)로, 입력하면 근무시간과 상관없이 고정 월급으로 정산해요."
+      >
         <Input
           id="contract-salary"
           type="number"
@@ -400,28 +436,14 @@ function NewContractForm({
           step={10000}
           value={monthlySalary}
           onChange={(e) => setMonthlySalary(e.target.value)}
-          placeholder="입력 시 시급 대신 고정 월급으로 정산"
+          placeholder="선택 · 입력 시 고정 월급으로 정산"
+          className="tabular-nums"
           disabled={isPending}
         />
-        <p className="text-xs text-muted-foreground">
-          비워두면 시급제(시간×시급+주휴). 입력하면 근무시간과 무관하게 고정 월급으로 정산됩니다.
-        </p>
-      </div>
+      </FormField>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex items-center gap-2 pt-5">
-          <Checkbox
-            id="contract-whp"
-            checked={weeklyHolidayPay}
-            onCheckedChange={(v) => setWeeklyHolidayPay(v === true)}
-            disabled={isPending}
-          />
-          <Label htmlFor="contract-whp" className="text-sm">
-            주휴수당 포함
-          </Label>
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="contract-bonus">고정 보너스 (원, 선택)</Label>
+      <div className="grid grid-cols-1 gap-x4 sm:grid-cols-2">
+        <FormField label="고정 보너스 (원)" htmlFor="contract-bonus">
           <Input
             id="contract-bonus"
             type="number"
@@ -430,19 +452,33 @@ function NewContractForm({
             step={1000}
             value={monthlyBonus}
             onChange={(e) => setMonthlyBonus(e.target.value)}
-            placeholder="예: 식대 100000"
+            placeholder="선택 · 예: 식대 100000"
+            className="tabular-nums"
             disabled={isPending}
           />
+        </FormField>
+        <div className="flex items-center gap-x2 sm:pt-x7">
+          <Checkbox
+            id="contract-whp"
+            checked={weeklyHolidayPay}
+            onCheckedChange={(v) => setWeeklyHolidayPay(v === true)}
+            disabled={isPending}
+          />
+          <Label htmlFor="contract-whp">주휴수당 포함</Label>
         </div>
       </div>
 
       {/* 근무 조건 — 계약 등록 시 주간 일정(MentorSchedule)도 함께 설정됨 */}
-      <div className="space-y-2 rounded-md border bg-background p-3">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm">근무 요일 · 시간</Label>
-          <span className="text-[11px] text-muted-foreground">주간 일정에도 반영됩니다</span>
+      <div
+        role="group"
+        aria-labelledby="contract-work-label"
+        className="flex flex-col gap-x3 rounded-r3 border border-stroke-neutral-muted bg-bg-layer-default p-x4"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-x2">
+          <p id="contract-work-label" className="t4-medium text-fg-neutral">근무 요일 · 시간</p>
+          <span className="t3-regular text-fg-neutral-subtle">주간 근무 일정에도 반영돼요</span>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-x1_5">
           {DOW.map((label, d) => {
             const on = workDays.includes(d);
             const weekend = d === 0 || d === 6;
@@ -452,52 +488,56 @@ function NewContractForm({
                 type="button"
                 onClick={() => toggleDay(d)}
                 disabled={isPending}
-                className={
+                aria-pressed={on}
+                className={cn(
+                  "grid size-x9 place-items-center rounded-full t4-medium transition-colors disabled:opacity-50",
                   on
-                    ? "h-8 w-8 rounded-md bg-slate-900 text-sm font-medium text-white"
-                    : `h-8 w-8 rounded-md border text-sm ${weekend ? "text-red-500" : "text-muted-foreground"} hover:bg-accent`
-                }
+                    ? "bg-bg-neutral-inverted text-fg-neutral-inverted"
+                    : cn(
+                        "bg-bg-layer-default shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] hover:bg-bg-layer-default-pressed",
+                        weekend ? "text-fg-critical" : "text-fg-neutral-muted",
+                      ),
+                )}
               >
                 {label}
               </button>
             );
           })}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x2">
           <TimePickerInput value={workStart} onChange={setWorkStart} disabled={isPending} />
-          <span className="text-muted-foreground text-sm">~</span>
+          <span className="t4-regular text-fg-neutral-subtle">~</span>
           <TimePickerInput value={workEnd} onChange={setWorkEnd} disabled={isPending} />
         </div>
         {workDays.length === 0 && (
-          <p className="text-[11px] text-muted-foreground">요일을 선택하지 않으면 근무 일정은 변경되지 않습니다.</p>
+          <p className="t3-regular text-fg-neutral-subtle">요일을 고르지 않으면 근무 일정은 바뀌지 않아요.</p>
         )}
       </div>
 
-      <div className="space-y-1">
-        <Label htmlFor="contract-note">비고 (선택)</Label>
+      <FormField label="비고" htmlFor="contract-note">
         <Textarea
           id="contract-note"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={2}
-          placeholder="예: 2026-06 시급 인상"
+          placeholder="선택 · 예: 2026-06 시급 인상"
           disabled={isPending}
         />
-      </div>
+      </FormField>
 
-      <div className="flex justify-end gap-2">
+      <FormActions className="pt-0">
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           onClick={onCancel}
           disabled={isPending}
         >
           취소
         </Button>
         <Button type="button" onClick={handleSubmit} disabled={isPending}>
-          {isPending ? "등록 중..." : "등록"}
+          {isPending ? "등록 중…" : "계약 등록"}
         </Button>
-      </div>
+      </FormActions>
     </div>
   );
 }

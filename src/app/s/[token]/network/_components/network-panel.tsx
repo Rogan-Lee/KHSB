@@ -3,22 +3,24 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Wifi } from "lucide-react";
+import { Globe, Smartphone, Wifi, type LucideIcon } from "lucide-react";
+import { Fieldset } from "@seed-design/react";
+import { Chip } from "seed-design/ui/chip";
+import { TextField, TextFieldInput, TextFieldTextarea } from "seed-design/ui/text-field";
 import { requestNetwork, type NetworkRequestView } from "@/actions/network-requests";
 import { NETWORK_KIND_LABELS, NETWORK_KIND_ORDER } from "@/lib/network-requests";
-import { TimePickerInput } from "@/components/ui/time-picker";
-import type { NapStatus, NetworkRequestKind } from "@/generated/prisma/enums";
-
-const STATUS_LABEL: Record<NapStatus, string> = {
-  PENDING: "대기",
-  APPROVED: "승인",
-  REJECTED: "거절",
-};
-const STATUS_TONE: Record<NapStatus, string> = {
-  PENDING: "bg-warn-soft text-warn-ink",
-  APPROVED: "bg-ok-soft text-ok-ink",
-  REJECTED: "bg-bad-soft text-bad-ink",
-};
+import { PortalTimeField } from "@/components/portal/time-field";
+import {
+  Badge,
+  BottomCTA,
+  Button,
+  EmptyState,
+  IconTile,
+  ListRow,
+  Section,
+} from "@/components/portal/ui";
+import { REQUEST_STATUS } from "@/components/portal/status";
+import type { NetworkRequestKind } from "@/generated/prisma/enums";
 
 const TARGET_META: Partial<
   Record<NetworkRequestKind, { label: string; placeholder: string }>
@@ -27,27 +29,26 @@ const TARGET_META: Partial<
   APP_UNBLOCK: { label: "앱 이름", placeholder: "예: 클래스룸" },
 };
 
+const KIND_ICON: Record<NetworkRequestKind, LucideIcon> = {
+  WIFI_UNBLOCK: Wifi,
+  DOMAIN_ALLOW: Globe,
+  APP_UNBLOCK: Smartphone,
+};
+
 function todayKSTStr(): string {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+/** ISO → KST 월/일/시각 (서버·클라이언트 로케일 차이 없이 고정 포맷) */
+function kstParts(iso: string) {
+  const d = new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000);
+  return { m: d.getUTCMonth() + 1, day: d.getUTCDate(), hm: d.toISOString().slice(11, 16) };
+}
+
 function fmtRange(startIso: string, endIso: string): string {
-  const opt: Intl.DateTimeFormatOptions = {
-    timeZone: "Asia/Seoul",
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  };
-  const start = new Date(startIso).toLocaleString("ko-KR", opt);
-  const end = new Date(endIso).toLocaleTimeString("ko-KR", {
-    timeZone: "Asia/Seoul",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  return `${start} ~ ${end}`;
+  const s = kstParts(startIso);
+  const e = kstParts(endIso);
+  return `${s.m}월 ${s.day}일 ${s.hm} ~ ${e.hm}`;
 }
 
 export function NetworkPanel({
@@ -95,117 +96,136 @@ export function NetworkPanel({
   }
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-[18px] font-bold tracking-[-0.02em] text-ink">네트워크 사용 신청</h1>
-
+    <div className="flex flex-col gap-x3">
       {/* 신청 폼 */}
-      <div className="rounded-[14px] border border-line bg-panel p-4">
-        <label className="mb-1 block text-[12px] font-medium text-ink-3">신청 유형</label>
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          {NETWORK_KIND_ORDER.map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setKind(k)}
-              className={`rounded-full border px-3 py-1.5 text-[13px] ${
-                kind === k
-                  ? "border-brand bg-brand text-white"
-                  : "border-line bg-panel text-ink-3 hover:bg-canvas-2"
-              }`}
+      <Section>
+        <div className="flex flex-col gap-x6">
+          <Fieldset.Root>
+            <Fieldset.Header>
+              <Fieldset.Label>신청 유형</Fieldset.Label>
+            </Fieldset.Header>
+            <Chip.RadioRoot
+              value={kind}
+              onValueChange={(v) => setKind(v as NetworkRequestKind)}
+              aria-label="신청 유형"
+              className="flex flex-wrap gap-x2"
             >
-              {NETWORK_KIND_LABELS[k]}
-            </button>
-          ))}
-        </div>
+              {NETWORK_KIND_ORDER.map((k) => (
+                <Chip.RadioItem key={k} value={k} variant="outlineStrong" size="medium">
+                  <Chip.Label>{NETWORK_KIND_LABELS[k]}</Chip.Label>
+                </Chip.RadioItem>
+              ))}
+            </Chip.RadioRoot>
+          </Fieldset.Root>
 
-        {targetMeta && (
-          <>
-            <label className="mb-1 block text-[12px] font-medium text-ink-3">
-              {targetMeta.label}
-            </label>
-            <input
+          {targetMeta && (
+            <TextField
+              label={targetMeta.label}
               value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              placeholder={targetMeta.placeholder}
-              maxLength={200}
-              className="mb-3 w-full rounded-lg border border-line bg-panel px-3 py-2.5 text-[16px] focus:border-brand focus:outline-none"
-            />
-          </>
-        )}
+              onValueChange={({ value }) => setTarget(value)}
+            >
+              <TextFieldInput
+                placeholder={targetMeta.placeholder}
+                maxLength={200}
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
+            </TextField>
+          )}
 
-        <label className="mb-1 block text-[12px] font-medium text-ink-3">사용 시간</label>
-        <div className="mb-3 space-y-2">
-          <input
-            type="date"
+          <TextField
+            label="날짜"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full rounded-lg border border-line bg-panel px-3 py-2 text-[14px] focus:border-brand focus:outline-none"
-          />
-          <div className="flex items-center gap-2">
-            <TimePickerInput value={startTime} onChange={setStartTime} className="flex-1" />
-            <span className="text-[13px] text-ink-4">~</span>
-            <TimePickerInput value={endTime} onChange={setEndTime} className="flex-1" />
-          </div>
+            onValueChange={({ value }) => setDate(value)}
+            className="tabular-nums"
+          >
+            <TextFieldInput
+              type="date"
+              className="min-w-0 appearance-none [&::-webkit-date-and-time-value]:text-left"
+            />
+          </TextField>
+
+          <Fieldset.Root>
+            <Fieldset.Header>
+              <Fieldset.Label>사용 시간</Fieldset.Label>
+            </Fieldset.Header>
+            <div className="flex items-center gap-x2">
+              <PortalTimeField
+                value={startTime}
+                onChange={setStartTime}
+                placeholder="시작"
+                className="min-w-0 flex-1"
+              />
+              <span className="shrink-0 t5-regular text-fg-neutral-subtle">~</span>
+              <PortalTimeField
+                value={endTime}
+                onChange={setEndTime}
+                placeholder="종료"
+                className="min-w-0 flex-1"
+              />
+            </div>
+          </Fieldset.Root>
+
+          <TextField
+            label="사유"
+            value={reason}
+            onValueChange={({ value }) => setReason(value)}
+            maxGraphemeCount={500}
+          >
+            <TextFieldTextarea
+              maxLength={500}
+              placeholder="예: 인강 수강을 위해 필요해요"
+            />
+          </TextField>
         </div>
-
-        <label className="mb-1 block text-[12px] font-medium text-ink-3">사유</label>
-        <textarea
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          rows={3}
-          maxLength={500}
-          placeholder="예: 인강 수강을 위해 필요해요"
-          className="w-full rounded-lg border border-line bg-panel px-3 py-2.5 text-[16px] focus:border-brand focus:outline-none"
-        />
-
-        <button
-          type="button"
-          onClick={submit}
-          disabled={pending}
-          className="mt-3 inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-brand text-[15px] font-semibold text-white disabled:opacity-50"
-        >
-          <Wifi className="h-4 w-4" strokeWidth={2.5} />
-          사용 신청하기
-        </button>
-        <p className="mt-2 text-center text-[11.5px] text-ink-4">직원 승인 후 사용할 수 있어요</p>
-      </div>
+      </Section>
 
       {/* 신청 내역 */}
       {requests.length === 0 ? (
-        <div className="rounded-[14px] border border-dashed border-line bg-canvas-2/40 px-5 py-10 text-center">
-          <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-panel text-ink-4">
-            <Wifi className="h-6 w-6" />
-          </span>
-          <p className="mt-3 text-[13.5px] font-semibold text-ink-2">아직 신청 내역이 없어요</p>
-          <p className="mt-1 text-[12px] text-ink-4">
-            공부에 필요한 사이트·앱 사용을 신청해 보세요.
-          </p>
-        </div>
+        <Section>
+          <EmptyState
+            icon={Wifi}
+            title="아직 신청 내역이 없어요"
+            description="공부에 필요한 사이트·앱 사용을 신청해 보세요."
+            className="py-x8"
+          />
+        </Section>
       ) : (
-        <ul className="space-y-2">
-          {requests.map((r) => (
-            <li key={r.id} className="rounded-[14px] border border-line bg-panel p-3.5">
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${STATUS_TONE[r.status]}`}
-                >
-                  {STATUS_LABEL[r.status]}
-                </span>
-                <span className="rounded-full bg-canvas-2 px-2 py-0.5 text-[10.5px] font-medium text-ink-3">
-                  {NETWORK_KIND_LABELS[r.kind]}
-                </span>
-                {r.target && (
-                  <span className="truncate text-[12.5px] font-medium text-ink">{r.target}</span>
-                )}
-              </div>
-              <p className="mt-1.5 text-[12.5px] tabular-nums text-ink-2">
-                {fmtRange(r.startAt, r.endAt)}
-              </p>
-              <p className="mt-1 line-clamp-2 text-[12px] text-ink-4">{r.reason}</p>
-            </li>
-          ))}
-        </ul>
+        <Section title="신청 내역" flush>
+          {requests.map((r) => {
+            const status = REQUEST_STATUS[r.status];
+            return (
+              <ListRow
+                key={r.id}
+                leading={<IconTile icon={KIND_ICON[r.kind]} tone="gray" />}
+                meta={
+                  r.target ? (
+                    <Badge size="xs">{NETWORK_KIND_LABELS[r.kind]}</Badge>
+                  ) : undefined
+                }
+                title={
+                  <span className="block truncate">{r.target ?? NETWORK_KIND_LABELS[r.kind]}</span>
+                }
+                description={
+                  <>
+                    <span className="block tabular-nums text-fg-neutral-muted">
+                      {fmtRange(r.startAt, r.endAt)}
+                    </span>
+                    <span className="mt-x0_5 line-clamp-2 block">{r.reason}</span>
+                  </>
+                }
+                trailing={<Badge tone={status.tone}>{status.label}</Badge>}
+              />
+            );
+          })}
+        </Section>
       )}
+
+      <BottomCTA note="직원 승인 후 사용할 수 있어요">
+        <Button variant="primary" size="xl" block loading={pending} onClick={submit}>
+          사용 신청하기
+        </Button>
+      </BottomCTA>
     </div>
   );
 }

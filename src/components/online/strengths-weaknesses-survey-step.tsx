@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Plus, Trash2, BookOpen, Brain, Timer, AlertTriangle, Compass } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Check, History, Lock } from "lucide-react";
+import { IconPlusLine, IconTrashcanLine } from "@karrotmarket/react-monochrome-icon";
+import { Fieldset, PrefixIcon } from "@seed-design/react";
+import { ActionButton } from "seed-design/ui/action-button";
+import { Chip } from "seed-design/ui/chip";
+import { ProgressCircle } from "seed-design/ui/progress-circle";
+import { TextField, TextFieldInput } from "seed-design/ui/text-field";
 import { upsertSurveySection } from "@/actions/online/onboarding-survey";
+import { Button, Notice } from "@/components/portal/ui";
 import {
   SW_LEVEL_OPTIONS,
   SW_WEAK_AREA_OPTIONS,
@@ -11,11 +18,16 @@ import {
   isStrengthsWeaknessesComplete,
   type StrengthsWeaknessesAnswer,
   type SubjectStrength,
+  type SwLevel,
 } from "@/lib/online/survey-template";
 
 const AUTOSAVE_DELAY_MS = 800;
 
 type SaveState = "idle" | "saving" | "saved" | "error";
+
+/** 숫자 입력의 스핀 버튼 숨김 (SEED TextFieldInput 에 덧붙임) */
+const NO_SPIN =
+  "tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
 export function StrengthsWeaknessesSurveyStep({
   studentToken,
@@ -97,266 +109,317 @@ export function StrengthsWeaknessesSurveyStep({
     });
   }
 
-  const inputBase =
-    "w-full rounded-[8px] border border-line bg-canvas px-3 py-2 text-[12.5px] text-ink focus:outline-none focus:border-line-strong disabled:opacity-60";
-
   return (
-    <div className="space-y-5">
-      <div className="text-[11px] text-ink-5 text-right h-3">
-        {status === "saving" && "저장 중…"}
-        {status === "saved" && "저장됨"}
-        {status === "error" && <span className="text-red-600">저장 실패</span>}
-      </div>
+    <div className="relative">
+      <SaveStatus status={status} locked={isSubmitted} />
 
-      {value.legacyText && (
-        <div className="rounded-[10px] border border-amber-200 bg-amber-50 p-3">
-          <p className="text-[11px] font-semibold text-amber-900 mb-1">이전 자유 기술 답변</p>
-          <p className="text-[12px] text-amber-900 whitespace-pre-wrap">{value.legacyText}</p>
-          <p className="text-[10.5px] text-amber-800 mt-2">
-            참고용으로만 보입니다. 아래 항목별로 다시 작성해 주세요.
-          </p>
-        </div>
-      )}
-
-      {/* 1. 과목별 강·약 */}
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <BookOpen className="h-3.5 w-3.5 text-ink-3" />
-          <h3 className="text-[13px] font-semibold text-ink">과목별 강·약</h3>
-        </div>
-        {value.bySubject.map((s, i) => (
-          <div key={i} className="rounded-[10px] border border-line bg-panel p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-ink-4">과목 {i + 1}</span>
-              {value.bySubject.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeSubject(i)}
-                  disabled={isSubmitted}
-                  className="text-ink-5 hover:text-red-600 disabled:opacity-40"
-                  title="삭제"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-            <input
-              type="text"
-              value={s.subject}
-              onChange={(e) => updateSubject(i, { subject: e.target.value })}
-              disabled={isSubmitted}
-              placeholder="과목명 (예: 수학 / 국어 / 생명과학Ⅰ)"
-              className={inputBase}
-            />
-            <div>
-              <p className="text-[11px] text-ink-4 mb-1.5">강·중·약</p>
-              <div className="flex gap-1.5">
-                {SW_LEVEL_OPTIONS.map((opt) => {
-                  const checked = s.level === opt.value;
-                  return (
-                    <label
-                      key={opt.value}
-                      className={`cursor-pointer inline-flex items-center justify-center rounded-md border w-12 py-1.5 text-[12px] font-semibold ${
-                        checked ? "border-ink bg-ink text-white" : "border-line text-ink-3 hover:border-line-strong"
-                      } ${isSubmitted ? "pointer-events-none opacity-50" : ""}`}
-                    >
-                      <input
-                        type="radio"
-                        name={`level-${i}`}
-                        checked={checked}
-                        onChange={() => updateSubject(i, { level: opt.value })}
-                        disabled={isSubmitted}
-                        className="sr-only"
-                      />
-                      {opt.label}
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <label className="space-y-1">
-                <span className="text-[10.5px] text-ink-4">내신 등급</span>
-                <input
-                  type="number"
-                  step={0.1}
-                  min={1}
-                  max={9}
-                  value={s.internalGrade}
-                  onChange={(e) => updateSubject(i, { internalGrade: e.target.value })}
-                  disabled={isSubmitted}
-                  placeholder="-"
-                  className={inputBase}
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-[10.5px] text-ink-4">모의 등급</span>
-                <input
-                  type="number"
-                  step={1}
-                  min={1}
-                  max={9}
-                  value={s.mockGrade}
-                  onChange={(e) => updateSubject(i, { mockGrade: e.target.value })}
-                  disabled={isSubmitted}
-                  placeholder="-"
-                  className={inputBase}
-                />
-              </label>
-            </div>
-            <div>
-              <p className="text-[11px] text-ink-4 mb-1.5">약한 영역 (해당 모두 체크)</p>
-              <div className="flex flex-wrap gap-1.5">
-                {SW_WEAK_AREA_OPTIONS.map((area) => {
-                  const checked = s.weakAreas.includes(area);
-                  return (
-                    <label
-                      key={area}
-                      className={`cursor-pointer inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11.5px] ${
-                        checked ? "border-ink bg-ink text-white" : "border-line text-ink-3 hover:border-line-strong"
-                      } ${isSubmitted ? "pointer-events-none opacity-50" : ""}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleWeakArea(i, area)}
-                        disabled={isSubmitted}
-                        className="sr-only"
-                      />
-                      {area}
-                    </label>
-                  );
-                })}
-              </div>
-              {s.weakAreas.includes("기타") && (
-                <input
-                  type="text"
-                  value={s.weakAreaOther ?? ""}
-                  onChange={(e) => updateSubject(i, { weakAreaOther: e.target.value })}
-                  disabled={isSubmitted}
-                  placeholder="기타 약한 영역 직접 입력"
-                  className={`${inputBase} mt-2`}
-                />
-              )}
-            </div>
-            <input
-              type="text"
-              value={s.reason}
-              onChange={(e) => updateSubject(i, { reason: e.target.value })}
-              disabled={isSubmitted}
-              placeholder="사유 (1줄 — 예: 개념 정리 부족 / 기출 분석 안 함)"
-              className={inputBase}
-            />
-          </div>
-        ))}
-        {!isSubmitted && (
-          <button
-            type="button"
-            onClick={addSubject}
-            className="inline-flex items-center gap-1 rounded-md border border-dashed border-line px-3 py-1.5 text-[11.5px] text-ink-3 hover:border-line-strong hover:text-ink"
-          >
-            <Plus className="h-3 w-3" />
-            과목 추가
-          </button>
+      <div className="flex flex-col gap-x10">
+        {value.legacyText && (
+          <Notice tone="warn" icon={History} title="이전에 적은 답변">
+            <p className="whitespace-pre-wrap">{value.legacyText}</p>
+            <p className="mt-x2 t3-regular">참고용으로만 보여요. 아래 항목에 맞춰 다시 적어 주세요.</p>
+          </Notice>
         )}
-      </section>
 
-      {/* 2. 학습 습관 */}
-      <section className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Brain className="h-3.5 w-3.5 text-ink-3" />
-          <h3 className="text-[13px] font-semibold text-ink">학습 습관</h3>
-          <span className="text-[10.5px] text-ink-5">(해당 모두 체크)</span>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {SW_HABIT_OPTIONS.map((h) => {
-            const checked = value.studyHabits.includes(h);
-            return (
-              <label
+        {/* 1. 과목별 강·약 */}
+        <Group title="과목별 강·약" description="과목마다 수준과 약한 부분을 알려 주세요.">
+          <div className="flex flex-col gap-x2_5">
+            {value.bySubject.map((s, i) => (
+              <div key={i} className="rounded-r4 bg-bg-layer-fill p-x4">
+                <div className="flex h-x9 items-center justify-between gap-x2">
+                  <span className="t5-bold text-fg-neutral">과목 {i + 1}</span>
+                  {value.bySubject.length > 1 && (
+                    <ActionButton
+                      type="button"
+                      variant="ghost"
+                      size="small"
+                      color="fg.neutralSubtle"
+                      onClick={() => removeSubject(i)}
+                      disabled={isSubmitted}
+                      className="-mr-2"
+                      aria-label={`과목 ${i + 1} 삭제`}
+                    >
+                      <PrefixIcon svg={<IconTrashcanLine />} />
+                      삭제
+                    </ActionButton>
+                  )}
+                </div>
+
+                <div className="mt-x3 flex flex-col gap-x5">
+                  <TextField
+                    value={s.subject}
+                    onValueChange={({ value: subject }) => updateSubject(i, { subject })}
+                    disabled={isSubmitted}
+                    className="bg-bg-layer-default"
+                  >
+                    <TextFieldInput
+                      placeholder="과목명 (예: 수학, 국어, 생명과학Ⅰ)"
+                      aria-label={`과목 ${i + 1} 이름`}
+                    />
+                  </TextField>
+
+                  <Fieldset.Root>
+                    <Fieldset.Header>
+                      <Fieldset.Label>강·중·약</Fieldset.Label>
+                    </Fieldset.Header>
+                    <Chip.RadioRoot
+                      aria-label="강·중·약"
+                      name={`level-${i}`}
+                      value={s.level}
+                      onValueChange={(level) => updateSubject(i, { level: level as SwLevel })}
+                      disabled={isSubmitted}
+                      className="grid grid-cols-3 gap-x2"
+                    >
+                      {SW_LEVEL_OPTIONS.map((opt) => (
+                        <Chip.RadioItem
+                          key={opt.value}
+                          value={opt.value}
+                          variant="outlineStrong"
+                          size="large"
+                          className="w-full"
+                        >
+                          <Chip.Label>{opt.label}</Chip.Label>
+                        </Chip.RadioItem>
+                      ))}
+                    </Chip.RadioRoot>
+                  </Fieldset.Root>
+
+                  <div className="grid grid-cols-2 gap-x2">
+                    <TextField
+                      label="내신 등급"
+                      value={s.internalGrade}
+                      onValueChange={({ value: internalGrade }) => updateSubject(i, { internalGrade })}
+                      disabled={isSubmitted}
+                      className="bg-bg-layer-default"
+                    >
+                      <TextFieldInput
+                        type="number"
+                        inputMode="decimal"
+                        step={0.1}
+                        min={1}
+                        max={9}
+                        placeholder="-"
+                        className={NO_SPIN}
+                      />
+                    </TextField>
+                    <TextField
+                      label="모의 등급"
+                      value={s.mockGrade}
+                      onValueChange={({ value: mockGrade }) => updateSubject(i, { mockGrade })}
+                      disabled={isSubmitted}
+                      className="bg-bg-layer-default"
+                    >
+                      <TextFieldInput
+                        type="number"
+                        inputMode="numeric"
+                        step={1}
+                        min={1}
+                        max={9}
+                        placeholder="-"
+                        className={NO_SPIN}
+                      />
+                    </TextField>
+                  </div>
+
+                  <Fieldset.Root>
+                    <Fieldset.Header>
+                      <Fieldset.Label>
+                        약한 영역
+                        <Fieldset.IndicatorText>모두 골라 주세요</Fieldset.IndicatorText>
+                      </Fieldset.Label>
+                    </Fieldset.Header>
+                    <div className="flex flex-wrap gap-x1_5">
+                      {SW_WEAK_AREA_OPTIONS.map((area) => (
+                        <Chip.Toggle
+                          key={area}
+                          variant="outlineStrong"
+                          size="large"
+                          checked={s.weakAreas.includes(area)}
+                          onCheckedChange={() => toggleWeakArea(i, area)}
+                          disabled={isSubmitted}
+                        >
+                          <Chip.Label>{area}</Chip.Label>
+                        </Chip.Toggle>
+                      ))}
+                    </div>
+                    {s.weakAreas.includes("기타") && (
+                      <TextField
+                        value={s.weakAreaOther ?? ""}
+                        onValueChange={({ value: weakAreaOther }) => updateSubject(i, { weakAreaOther })}
+                        disabled={isSubmitted}
+                        className="bg-bg-layer-default"
+                      >
+                        <TextFieldInput
+                          placeholder="기타 약한 영역을 적어 주세요"
+                          aria-label="기타 약한 영역"
+                        />
+                      </TextField>
+                    )}
+                  </Fieldset.Root>
+
+                  <TextField
+                    label="이유"
+                    value={s.reason}
+                    onValueChange={({ value: reason }) => updateSubject(i, { reason })}
+                    disabled={isSubmitted}
+                    className="bg-bg-layer-default"
+                  >
+                    <TextFieldInput placeholder="한 줄로 (예: 개념 정리 부족, 기출 분석 안 함)" />
+                  </TextField>
+                </div>
+              </div>
+            ))}
+          </div>
+          {!isSubmitted && (
+            <Button variant="gray" size="md" block onClick={addSubject} className="mt-x2_5">
+              <PrefixIcon svg={<IconPlusLine />} />
+              과목 추가
+            </Button>
+          )}
+        </Group>
+
+        {/* 2. 학습 습관 */}
+        <Group title="학습 습관" description="해당하는 걸 모두 골라 주세요.">
+          <div className="flex flex-wrap gap-x2">
+            {SW_HABIT_OPTIONS.map((h) => (
+              <Chip.Toggle
                 key={h}
-                className={`cursor-pointer inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-[12px] ${
-                  checked ? "border-ink bg-ink text-white" : "border-line text-ink-3 hover:border-line-strong"
-                } ${isSubmitted ? "pointer-events-none opacity-50" : ""}`}
+                variant="outlineStrong"
+                size="large"
+                checked={value.studyHabits.includes(h)}
+                onCheckedChange={() => toggleHabit(h)}
+                disabled={isSubmitted}
               >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggleHabit(h)}
-                  disabled={isSubmitted}
-                  className="sr-only"
-                />
-                {h}
-              </label>
-            );
-          })}
-        </div>
-      </section>
+                <Chip.Label>{h}</Chip.Label>
+              </Chip.Toggle>
+            ))}
+          </div>
+        </Group>
 
-      {/* 3. 집중 가능 시간 */}
-      <section className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Timer className="h-3.5 w-3.5 text-ink-3" />
-          <h3 className="text-[13px] font-semibold text-ink">평균 집중 가능 시간</h3>
-          <span className="text-[10.5px] text-ink-5">(분)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            min={1}
-            max={300}
-            step={5}
+        {/* 3. 집중 가능 시간 */}
+        <Group title="평균 집중 가능 시간" description="한 번 앉으면 보통 몇 분 정도 집중할 수 있나요?">
+          <TextField
+            suffix="분"
             value={value.focusMinutes}
-            onChange={(e) => setValue((v) => ({ ...v, focusMinutes: e.target.value }))}
+            onValueChange={({ value: focusMinutes }) => setValue((v) => ({ ...v, focusMinutes }))}
             disabled={isSubmitted}
-            placeholder="예: 45"
-            className={`${inputBase} w-32`}
+          >
+            <TextFieldInput
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={300}
+              step={5}
+              placeholder="예: 45"
+              aria-label="평균 집중 가능 시간(분)"
+              className={NO_SPIN}
+            />
+          </TextField>
+        </Group>
+
+        {/* 4. 시험 불안도 */}
+        <Group title="시험 불안도">
+          <ScaleRow
+            label="시험 불안도"
+            value={value.testAnxiety}
+            onChange={(n) => setValue((v) => ({ ...v, testAnxiety: n }))}
+            disabled={isSubmitted}
+            leftLabel="낮음"
+            rightLabel="높음"
           />
-          <span className="text-[12px] text-ink-4">분</span>
-        </div>
-      </section>
+        </Group>
 
-      {/* 4. 시험 불안도 */}
-      <section className="space-y-2">
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="h-3.5 w-3.5 text-ink-3" />
-          <h3 className="text-[13px] font-semibold text-ink">시험 불안도</h3>
-          <span className="text-[10.5px] text-ink-5">(1=낮음, 5=높음)</span>
-        </div>
-        <ScaleRow
-          value={value.testAnxiety}
-          onChange={(n) => setValue((v) => ({ ...v, testAnxiety: n }))}
-          disabled={isSubmitted}
-          leftLabel="낮음"
-          rightLabel="높음"
-        />
-      </section>
-
-      {/* 5. 자기주도 수준 */}
-      <section className="space-y-2">
-        <div className="flex items-center gap-2">
-          <Compass className="h-3.5 w-3.5 text-ink-3" />
-          <h3 className="text-[13px] font-semibold text-ink">자기주도 수준</h3>
-          <span className="text-[10.5px] text-ink-5">(1=관리 필요, 5=완전 자기주도)</span>
-        </div>
-        <ScaleRow
-          value={value.selfDirection}
-          onChange={(n) => setValue((v) => ({ ...v, selfDirection: n }))}
-          disabled={isSubmitted}
-          leftLabel="관리 필요"
-          rightLabel="완전 자기주도"
-        />
-      </section>
+        {/* 5. 자기주도 수준 */}
+        <Group title="자기주도 수준">
+          <ScaleRow
+            label="자기주도 수준"
+            value={value.selfDirection}
+            onChange={(n) => setValue((v) => ({ ...v, selfDirection: n }))}
+            disabled={isSubmitted}
+            leftLabel="관리 필요"
+            rightLabel="완전 자기주도"
+          />
+        </Group>
+      </div>
     </div>
   );
 }
 
+// ─── Local UI ────────────────────────────────────────────────────────
+
+/** 답변 영역 위 우측의 작은 자동저장 상태 (부모의 질문 설명 아래 여백에 겹쳐 표시) */
+function SaveStatus({ status, locked }: { status: SaveState; locked: boolean }) {
+  let content: ReactNode = null;
+  if (locked) {
+    content = (
+      <span className="inline-flex items-center gap-x1 text-fg-neutral-subtle">
+        <Lock className="h-3.5 w-3.5" strokeWidth={2.4} />
+        제출 후 잠김
+      </span>
+    );
+  } else if (status === "saving") {
+    content = (
+      <span className="inline-flex items-center gap-x1_5 text-fg-neutral-subtle">
+        {/* SEED ProgressCircle — 글자 높이에 맞춰 size="inherit" + 14px */}
+        <ProgressCircle
+          tone="neutral"
+          size="inherit"
+          aria-label="저장 중"
+          className="[--size:14px] [--thickness:2px]"
+        />
+        저장 중
+      </span>
+    );
+  } else if (status === "saved") {
+    content = (
+      <span className="inline-flex items-center gap-x1 text-fg-positive">
+        <Check className="h-3.5 w-3.5" strokeWidth={2.8} />
+        저장됨
+      </span>
+    );
+  } else if (status === "error") {
+    content = <span className="text-fg-critical">저장 실패</span>;
+  }
+  return (
+    <div
+      aria-live="polite"
+      className="pointer-events-none absolute -top-6 right-0 flex h-x5 items-center t3-bold"
+    >
+      {content}
+    </div>
+  );
+}
+
+function Group({
+  title,
+  description,
+  children,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section>
+      <h3 className="t6-bold text-fg-neutral">{title}</h3>
+      {description != null && (
+        <p className="mt-x1 t4-regular text-fg-neutral-subtle">{description}</p>
+      )}
+      <div className="mt-x4">{children}</div>
+    </section>
+  );
+}
+
+/** 1~5 척도 — SEED Chip.RadioRoot / Chip.RadioItem (0 = 미선택) */
 function ScaleRow({
+  label,
   value,
   onChange,
   disabled,
   leftLabel,
   rightLabel,
 }: {
+  label: string;
   value: number;
   onChange: (n: number) => void;
   disabled: boolean;
@@ -364,28 +427,29 @@ function ScaleRow({
   rightLabel: string;
 }) {
   return (
-    <div className="space-y-1.5">
-      <div className="flex justify-between text-[10.5px] text-ink-5">
-        <span>{leftLabel}</span>
-        <span>{rightLabel}</span>
-      </div>
-      <div className="flex gap-1.5">
-        {[1, 2, 3, 4, 5].map((n) => {
-          const active = value === n;
-          return (
-            <button
-              key={n}
-              type="button"
-              onClick={() => onChange(n)}
-              disabled={disabled}
-              className={`h-9 w-9 rounded-md border text-[13px] font-semibold tabular-nums ${
-                active ? "border-ink bg-ink text-white" : "border-line text-ink-3 hover:border-line-strong"
-              } disabled:opacity-50`}
-            >
-              {n}
-            </button>
-          );
-        })}
+    <div>
+      <Chip.RadioRoot
+        aria-label={label}
+        value={value ? String(value) : ""}
+        onValueChange={(v) => onChange(Number(v))}
+        disabled={disabled}
+        className="grid grid-cols-5 gap-x2"
+      >
+        {[1, 2, 3, 4, 5].map((n) => (
+          <Chip.RadioItem
+            key={n}
+            value={String(n)}
+            variant="outlineStrong"
+            size="large"
+            className="w-full tabular-nums"
+          >
+            <Chip.Label>{n}</Chip.Label>
+          </Chip.RadioItem>
+        ))}
+      </Chip.RadioRoot>
+      <div className="mt-x2 flex justify-between px-x1 t3-regular text-fg-neutral-subtle">
+        <span>1 · {leftLabel}</span>
+        <span>{rightLabel} · 5</span>
       </div>
     </div>
   );

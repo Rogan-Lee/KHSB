@@ -1,51 +1,76 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { validateMagicLink } from "@/lib/student-auth";
 import { prisma } from "@/lib/prisma";
 import { SURVEY_SECTIONS } from "@/lib/online/survey-template";
 import {
-  ChevronRight,
-  ClipboardList,
-  FileText,
-  Video,
-  CalendarClock,
-  Sparkles,
-  ShieldAlert,
-  ArrowUpRight,
   Camera,
-  Utensils,
+  CalendarDays,
+  ChevronRight,
+  FileText,
   GraduationCap,
+  LayoutGrid,
+  Megaphone,
+  MessageCircle,
   Moon,
-  Wifi,
   Podcast,
+  ShieldAlert,
+  ShieldCheck,
+  SpellCheck,
+  Utensils,
+  Video,
+  Wifi,
+  type LucideIcon,
 } from "lucide-react";
-import type { PerformanceTaskStatus } from "@/generated/prisma";
-import { todayKST } from "@/lib/utils";
+import { todayKST, cn } from "@/lib/utils";
+import { calcPointBalance, pointsToKrw } from "@/lib/points";
+import { getPortalBadgeCounts } from "@/lib/portal-badges";
+import {
+  Badge,
+  ButtonLink,
+  IconTile,
+  ListRow,
+  Notice,
+  PRESS,
+  ProgressBar,
+  Section,
+  SectionAction,
+  buttonClass,
+  dueInfo,
+  type Tone,
+} from "@/components/portal/ui";
+import { TASK_STATUS } from "@/components/portal/status";
 import { PwaInstallPrompt } from "./_components/pwa-install-prompt";
-
-const STATUS_LABEL: Record<PerformanceTaskStatus, string> = {
-  OPEN: "진행 전",
-  IN_PROGRESS: "진행 중",
-  SUBMITTED: "제출 완료",
-  NEEDS_REVISION: "수정 필요",
-  DONE: "최종 완료",
-};
-
-const STATUS_TONE: Record<PerformanceTaskStatus, string> = {
-  OPEN: "bg-canvas-2 text-ink-3",
-  IN_PROGRESS: "bg-info-soft text-info-ink",
-  SUBMITTED: "bg-warn-soft text-warn-ink",
-  NEEDS_REVISION: "bg-bad-soft text-bad-ink",
-  DONE: "bg-ok-soft text-ok-ink",
-};
 
 function greeting(): string {
   const h = new Date(Date.now() + 9 * 60 * 60 * 1000).getUTCHours();
-  if (h < 5) return "늦은 시간이네요";
+  if (h < 5) return "늦은 시간까지 수고 많아요";
   if (h < 12) return "좋은 아침이에요";
-  if (h < 18) return "오후도 화이팅";
-  return "저녁이에요";
+  if (h < 18) return "오후도 힘내요";
+  return "오늘 하루도 고생했어요";
 }
+
+/** 오늘 KST 00:00 의 UTC 시각 */
+function kstDayStart(): Date {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  kst.setUTCHours(0, 0, 0, 0);
+  return new Date(kst.getTime() - 9 * 60 * 60 * 1000);
+}
+
+function daysUntil(d: Date): number {
+  return Math.max(0, Math.ceil((d.getTime() - Date.now()) / 86_400_000));
+}
+
+const KST_DATETIME: Intl.DateTimeFormatOptions = {
+  timeZone: "Asia/Seoul",
+  month: "long",
+  day: "numeric",
+  weekday: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+};
 
 export default async function StudentPortalHomePage({
   params,
@@ -58,11 +83,24 @@ export default async function StudentPortalHomePage({
 
   const { student } = session;
   const isOnline = student.isOnlineManaged;
+  const root = `/s/${token}`;
 
   // 홈 카드는 온라인/오프라인 구분 없이 데이터 유무로 표시(완전 통일).
   // 오프라인 학생은 보통 빈 결과 → 해당 카드만 자연스럽게 숨겨짐.
   // 단, 초기 설문 카드는 온라인 온보딩 전용이라 isOnline 일 때만 노출.
-  const [openQuestions, survey, taskCounts, nextTask, upcomingSessions, lunchMenuCount, examApplyOpenCount, contentCount] = await Promise.all([
+  const [
+    openQuestions,
+    survey,
+    taskCounts,
+    nextTask,
+    upcomingSessions,
+    lunchMenuCount,
+    examApplyOpenCount,
+    contentCount,
+    merits,
+    redemptions,
+    badges,
+  ] = await Promise.all([
     prisma.studentQuestion.count({
       where: { studentId: student.id, status: { in: ["OPEN", "ANSWERED"] } },
     }),
@@ -106,6 +144,15 @@ export default async function StudentPortalHomePage({
       where: { applicationOpen: true, examDate: { gte: todayKST() } },
     }),
     prisma.contentPost.count({ where: { visible: true } }),
+    prisma.meritDemerit.findMany({
+      where: { studentId: student.id },
+      select: { type: true, points: true },
+    }),
+    prisma.rewardRedemption.findMany({
+      where: { studentId: student.id },
+      select: { status: true, points: true },
+    }),
+    getPortalBadgeCounts(student.id),
   ]);
 
   const totalTasks = taskCounts.reduce((sum, c) => sum + c._count._all, 0);
@@ -119,383 +166,301 @@ export default async function StudentPortalHomePage({
     : 0;
   const surveySubmitted = !!survey?.submittedAt;
 
-  const todaysSession = upcomingSessions[0];
-  const todayKstStart = (() => {
-    const d = new Date();
-    const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
-    kst.setUTCHours(0, 0, 0, 0);
-    return new Date(kst.getTime() - 9 * 60 * 60 * 1000);
-  })();
+  const { balance } = calcPointBalance({ merits, redemptions });
+
+  const daysLeft = daysUntil(session.link.expiresAt);
+
+  const nextSession = upcomingSessions[0];
+  const todayKstStart = kstDayStart();
   const tomorrowKst = new Date(todayKstStart.getTime() + 24 * 60 * 60 * 1000);
   const isToday =
-    todaysSession &&
-    todaysSession.scheduledAt >= todayKstStart &&
-    todaysSession.scheduledAt < tomorrowKst;
+    !!nextSession &&
+    nextSession.scheduledAt >= todayKstStart &&
+    nextSession.scheduledAt < tomorrowKst;
+
+  const headline = isToday
+    ? "오늘 멘토링이 있어요"
+    : openTasks > 0
+      ? `진행 중인 수행평가가 ${openTasks}건 있어요`
+      : badges.qna > 0
+        ? `질문에 새 답변이 ${badges.qna}건 왔어요`
+        : "오늘도 한 걸음씩 가 봐요";
+
+  const shortcuts: Shortcut[] = [
+    { href: `${root}/nap`, label: "쪽잠 신청", icon: Moon, tone: "violet" },
+    { href: `${root}/network`, label: "네트워크", icon: Wifi, tone: "info" },
+    { href: `${root}/schedule`, label: "내 일정", icon: CalendarDays, tone: "ok" },
+    { href: `${root}/suggestions`, label: "건의하기", icon: Megaphone, tone: "warn", badge: badges.suggestions },
+  ];
+  if (badges.hasVocab)
+    shortcuts.push({ href: `${root}/vocab`, label: "영단어", icon: SpellCheck, tone: "info", badge: badges.vocab });
+  if (isOnline || badges.feedback > 0)
+    shortcuts.push({ href: `${root}/feedback`, label: "피드백", icon: MessageCircle, tone: "brand", badge: badges.feedback });
+  if (contentCount > 0)
+    shortcuts.push({ href: `${root}/contents`, label: "콘텐츠", icon: Podcast, tone: "violet" });
+  shortcuts.push({ href: `${root}/menu`, label: "전체", icon: LayoutGrid, tone: "gray" });
 
   return (
-    <div className="space-y-4">
-      {/* Greeting hero */}
-      <section className="rounded-[18px] bg-gradient-to-br from-brand to-brand-2 p-5 text-white shadow-md">
-        <p className="text-[12px] font-medium opacity-90">{greeting()}</p>
-        <h2 className="mt-1 text-[22px] font-bold tracking-[-0.02em]">{student.name}님 👋</h2>
-        <p className="mt-2 text-[13px] leading-relaxed opacity-95">
-          {openTasks > 0
-            ? `오늘 처리할 수행평가 ${openTasks}건이 있어요.`
-            : "모르는 문제가 있으면 사진으로 찍어 물어보세요."}
+    <div className="space-y-3">
+      {/* 인사 */}
+      <div className="px-1 pb-3 pt-2">
+        <p className="t5-medium text-fg-neutral-subtle">
+          {student.name}님, {greeting()}
         </p>
-      </section>
+        <h2 className="t9-bold mt-1 text-fg-neutral">
+          {headline}
+        </h2>
+      </div>
 
-      {/* 질문하기 — 전체 학생 */}
-      <Link
-        href={`/s/${token}/qna`}
-        className="block rounded-[14px] border border-brand/30 bg-panel p-4 ring-1 ring-brand/10 active:bg-canvas-2 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-white">
-            <Camera className="h-5 w-5" strokeWidth={2.2} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-[15px] font-semibold text-ink">모르는 문제 질문하기</p>
-            <p className="mt-0.5 text-[12px] text-ink-4">
-              {openQuestions > 0
-                ? `진행 중인 질문 ${openQuestions}건 — 멘토 답변을 확인해 보세요.`
-                : "문제 사진을 올리면 근무 멘토가 풀이를 답해드려요."}
-            </p>
-          </div>
-          <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" strokeWidth={2.5} />
-        </div>
-      </Link>
-
-      {/* 점심 도시락 신청 — 활성 메뉴가 있을 때만 (방학 시즌) */}
-      {lunchMenuCount > 0 && (
-        <Link
-          href={`/s/${token}/lunch`}
-          className="block rounded-[14px] border border-brand/30 bg-panel p-4 ring-1 ring-brand/10 active:bg-canvas-2 transition-colors"
+      {daysLeft <= 7 && (
+        <Notice
+          tone={daysLeft <= 3 ? "bad" : "warn"}
+          icon={ShieldAlert}
+          title={daysLeft === 0 ? "접속 링크가 오늘 만료돼요" : `접속 링크가 ${daysLeft}일 후 만료돼요`}
         >
-          <div className="flex items-center gap-3">
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-white">
-              <Utensils className="h-5 w-5" strokeWidth={2.2} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-semibold text-ink">점심 도시락 신청</p>
-              <p className="mt-0.5 text-[12px] text-ink-4">
-                먹을 날짜를 고르고 입금하면 신청이 확정돼요.
-              </p>
-            </div>
-            <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" strokeWidth={2.5} />
-          </div>
-        </Link>
+          원장님께 새 링크를 요청해 주세요.
+        </Notice>
       )}
 
-      {/* 콘텐츠 — 공개 콘텐츠가 있을 때만 */}
-      {contentCount > 0 && (
-        <Link
-          href={`/s/${token}/contents`}
-          className="block rounded-[14px] border border-brand/30 bg-panel p-4 ring-1 ring-brand/10 active:bg-canvas-2 transition-colors"
+      {/* 멘토링 */}
+      {nextSession && (
+        <Section
+          title={isToday ? "오늘의 멘토링" : "다음 멘토링"}
+          action={isToday ? <Badge tone="brand">오늘</Badge> : undefined}
         >
-          <div className="flex items-center gap-3">
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-white">
-              <Podcast className="h-5 w-5" strokeWidth={2.2} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-semibold text-ink">콘텐츠</p>
-              <p className="mt-0.5 text-[12px] text-ink-4">
-                강한선배의 팟캐스트·아티클 {contentCount}편을 만나보세요.
+          <div className="flex items-center gap-3.5">
+            <IconTile icon={Video} tone={isToday ? "brand" : "info"} solid={isToday} size={48} />
+            <div className="min-w-0">
+              <p className="t6-bold text-fg-neutral tabular-nums">
+                {nextSession.scheduledAt.toLocaleString("ko-KR", KST_DATETIME)}
+              </p>
+              <p className="t4-regular mt-0.5 text-fg-neutral-subtle">
+                {nextSession.durationMinutes}분 · {nextSession.host.name} 멘토
               </p>
             </div>
-            <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" strokeWidth={2.5} />
           </div>
-        </Link>
-      )}
-
-      {/* 모의고사 신청 — 접수중인 시험이 있을 때만 */}
-      {examApplyOpenCount > 0 && (
-        <Link
-          href={`/s/${token}/exam`}
-          className="block rounded-[14px] border border-brand/30 bg-panel p-4 ring-1 ring-brand/10 active:bg-canvas-2 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-white">
-              <GraduationCap className="h-5 w-5" strokeWidth={2.2} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-semibold text-ink">모의고사 신청</p>
-              <p className="mt-0.5 text-[12px] text-ink-4">
-                접수 중인 모의고사 {examApplyOpenCount}건 — 응시할 시험을 신청하세요.
-              </p>
-            </div>
-            <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" strokeWidth={2.5} />
-          </div>
-        </Link>
-      )}
-
-      {/* Today's session — prominent if happening today */}
-      {todaysSession && (
-        <section
-          className={`rounded-[14px] border bg-panel p-4 ${
-            isToday ? "border-brand/40 ring-1 ring-brand/20" : "border-line"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <span
-              className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${
-                isToday ? "bg-brand text-white" : "bg-info-soft text-info-ink"
-              }`}
+          {nextSession.meetUrl ? (
+            <ButtonLink
+              href={nextSession.meetUrl}
+              external
+              variant={isToday ? "primary" : "weak"}
+              size="lg"
+              block
+              className="mt-4"
             >
-              <CalendarClock className="h-3.5 w-3.5" strokeWidth={2.5} />
-            </span>
-            <p className="text-[11.5px] font-semibold uppercase tracking-wider text-ink-4">
-              {isToday ? "오늘의 멘토링" : "다음 멘토링"}
-            </p>
-          </div>
-          <p className="mt-2.5 text-[15px] font-semibold text-ink">
-            {todaysSession.scheduledAt.toLocaleString("ko-KR", {
-              timeZone: "Asia/Seoul",
-              month: "long",
-              day: "numeric",
-              weekday: "short",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            })}
-          </p>
-          <p className="mt-1 text-[12.5px] text-ink-4">
-            {todaysSession.durationMinutes}분 · {todaysSession.host.name} 멘토
-          </p>
-          {todaysSession.meetUrl ? (
-            <a
-              href={todaysSession.meetUrl}
-              target="_blank"
-              rel="noopener"
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[12px] bg-ok px-4 py-3 text-[14px] font-semibold text-white active:scale-[0.98] transition-transform"
-            >
-              <Video className="h-4 w-4" strokeWidth={2.5} />
+              <Video className="h-[18px] w-[18px]" strokeWidth={2.4} />
               Meet 입장하기
-            </a>
+            </ButtonLink>
           ) : (
-            <p className="mt-3 rounded-[10px] bg-canvas-2 px-3 py-2 text-[12px] text-ink-4">
-              Meet 링크가 곧 발급됩니다.
+            <p className="t4-regular mt-4 rounded-r3_5 bg-bg-neutral-weak px-4 py-3 text-fg-neutral-subtle">
+              Meet 링크는 곧 발급돼요.
             </p>
           )}
-        </section>
-      )}
-
-      {/* Next urgent task */}
-      {nextTask && (
-        <Link
-          href={`/s/${token}/tasks/${nextTask.id}`}
-          className="block rounded-[14px] border border-line bg-panel p-4 active:bg-canvas-2 transition-colors"
-        >
-          <div className="flex items-center justify-between">
-            <p className="text-[11.5px] font-semibold uppercase tracking-wider text-ink-4">
-              가장 급한 수행평가
-            </p>
-            <DueChip dueDate={nextTask.dueDate} />
-          </div>
-          <p className="mt-2 text-[15px] font-semibold text-ink leading-snug">{nextTask.title}</p>
-          <div className="mt-2 flex items-center gap-2">
-            <span className="rounded-full bg-canvas-2 px-2 py-0.5 text-[10.5px] font-medium text-ink-3">
-              {nextTask.subject}
-            </span>
-            <span
-              className={`rounded-full px-2 py-0.5 text-[10.5px] font-medium ${STATUS_TONE[nextTask.status]}`}
-            >
-              {STATUS_LABEL[nextTask.status]}
-            </span>
-            <span className="ml-auto inline-flex items-center text-[12px] font-medium text-brand">
-              열기
-              <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.5} />
-            </span>
-          </div>
-        </Link>
-      )}
-
-      {/* Progress widgets — 수행평가(데이터 있으면) + 초기설문(온라인 전용) */}
-      {(isOnline || totalTasks > 0) && (
-        <section className={`grid gap-3 ${isOnline ? "grid-cols-2" : "grid-cols-1"}`}>
-          <Link
-            href={`/s/${token}/tasks`}
-            className="rounded-[14px] border border-line bg-panel p-3.5 active:bg-canvas-2 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-info-soft text-info-ink">
-                <ClipboardList className="h-3.5 w-3.5" strokeWidth={2.5} />
-              </span>
-              <p className="text-[11px] font-semibold text-ink-4">수행평가</p>
-            </div>
-            <p className="mt-2.5 text-[20px] font-bold tracking-[-0.02em] text-ink tabular-nums">
-              {doneTasks}
-              <span className="text-[13px] font-medium text-ink-4"> / {totalTasks}</span>
-            </p>
-            <p className="mt-0.5 text-[11px] text-ink-4">
-              {openTasks > 0 ? `${openTasks}건 진행중` : "모두 완료"}
-            </p>
-            <ProgressBar value={totalTasks ? doneTasks / totalTasks : 0} />
-          </Link>
-
-          {isOnline && (
-            <Link
-              href={`/s/${token}/survey`}
-              className="rounded-[14px] border border-line bg-panel p-3.5 active:bg-canvas-2 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-soft text-violet-ink">
-                  <FileText className="h-3.5 w-3.5" strokeWidth={2.5} />
-                </span>
-                <p className="text-[11px] font-semibold text-ink-4">초기 설문</p>
-              </div>
-              <p className="mt-2.5 text-[20px] font-bold tracking-[-0.02em] text-ink tabular-nums">
-                {filledSections}
-                <span className="text-[13px] font-medium text-ink-4"> / {SURVEY_SECTIONS.length}</span>
-              </p>
-              <p className="mt-0.5 text-[11px] text-ink-4">
-                {surveySubmitted ? "제출 완료" : filledSections === 0 ? "작성 시작" : "이어서 작성"}
-              </p>
-              <ProgressBar value={filledSections / SURVEY_SECTIONS.length} />
-            </Link>
+          {upcomingSessions.length > 1 && (
+            <ul className="mt-4 space-y-1 border-t border-stroke-neutral-subtle pt-3">
+              {upcomingSessions.slice(1).map((s) => (
+                <li key={s.id} className="flex items-center justify-between gap-3 py-1.5">
+                  <div className="min-w-0">
+                    <p className="t5-medium text-fg-neutral-muted tabular-nums">
+                      {s.scheduledAt.toLocaleString("ko-KR", KST_DATETIME)}
+                    </p>
+                    <p className="t3-regular text-fg-neutral-subtle">
+                      {s.host.name} · {s.durationMinutes}분
+                    </p>
+                  </div>
+                  {s.meetUrl && (
+                    <ButtonLink href={s.meetUrl} external variant="gray" size="xs">
+                      Meet
+                    </ButtonLink>
+                  )}
+                </li>
+              ))}
+            </ul>
           )}
-        </section>
+        </Section>
       )}
 
-      {/* 쪽잠 · 네트워크 사용 신청 */}
-      <section className="grid grid-cols-2 gap-3">
-        <Link
-          href={`/s/${token}/nap`}
-          className="rounded-[14px] border border-line bg-panel p-3.5 active:bg-canvas-2 transition-colors"
-        >
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-violet-soft text-violet-ink">
-            <Moon className="h-4 w-4" strokeWidth={2.5} />
-          </span>
-          <p className="mt-2 text-[13px] font-semibold text-ink">쪽잠 신청</p>
-          <p className="mt-0.5 text-[11px] leading-snug text-ink-4">
-            하루 2회 · 20~30분, 승인 후 이용
-          </p>
-        </Link>
-        <Link
-          href={`/s/${token}/network`}
-          className="rounded-[14px] border border-line bg-panel p-3.5 active:bg-canvas-2 transition-colors"
-        >
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-info-soft text-info-ink">
-            <Wifi className="h-4 w-4" strokeWidth={2.5} />
-          </span>
-          <p className="mt-2 text-[13px] font-semibold text-ink">네트워크 사용</p>
-          <p className="mt-0.5 text-[11px] leading-snug text-ink-4">
-            와이파이·사이트·앱 사용 신청
-          </p>
-        </Link>
-      </section>
-
-      {/* 등원 스케줄 제출 */}
-      <Link
-        href={`/s/${token}/schedule`}
-        className="flex items-center gap-3 rounded-[14px] border border-line bg-panel p-3.5 active:bg-canvas-2 transition-colors"
-      >
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-info-soft text-info-ink">
-          <CalendarClock className="h-4 w-4" strokeWidth={2.5} />
-        </span>
-        <div className="min-w-0">
-          <p className="text-[13px] font-semibold text-ink">등원 스케줄 제출</p>
-          <p className="text-[11px] text-ink-4">주간 등하원·학원 일정을 보내면 학부모 승인 후 반영돼요</p>
+      {/* 질문하기 */}
+      <Link href={`${root}/qna`} className={cn("block rounded-r5 bg-bg-layer-default p-5", PRESS)}>
+        <div className="flex items-center gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="t6-bold text-fg-neutral">모르는 문제가 있나요?</p>
+            <p className="t4-regular mt-1 text-fg-neutral-subtle">
+              {openQuestions > 0
+                ? `질문 ${openQuestions}건이 진행 중이에요`
+                : "사진만 찍어 올리면 근무 멘토가 풀이해 드려요"}
+            </p>
+          </div>
+          <IconTile icon={Camera} tone="brand" solid size={48} round />
         </div>
-        <ChevronRight className="ml-auto h-4 w-4 text-ink-4" />
+        <span className={buttonClass({ variant: "weak", size: "md", block: true, className: "mt-4" })}>
+          {badges.qna > 0 ? `새 답변 ${badges.qna}건 보기` : "사진으로 질문하기"}
+        </span>
       </Link>
 
-      {/* Upcoming sessions list (excluding today's hero) */}
-      {upcomingSessions.length > 1 && (
-        <section className="rounded-[14px] border border-line bg-panel p-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-3.5 w-3.5 text-ink-4" />
-            <p className="text-[11.5px] font-semibold uppercase tracking-wider text-ink-4">
-              예정된 세션 {upcomingSessions.length - 1}건
-            </p>
-          </div>
-          <ul className="mt-3 space-y-2">
-            {upcomingSessions.slice(1).map((s) => (
-              <li
-                key={s.id}
-                className="flex items-center justify-between gap-2 rounded-[10px] bg-canvas-2 px-3 py-2.5"
-              >
-                <div className="min-w-0">
-                  <p className="text-[12.5px] font-semibold text-ink">
-                    {s.scheduledAt.toLocaleString("ko-KR", {
-                      timeZone: "Asia/Seoul",
-                      month: "numeric",
-                      day: "numeric",
-                      weekday: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      hour12: false,
-                    })}
-                  </p>
-                  <p className="text-[11px] text-ink-4">
-                    {s.host.name} · {s.durationMinutes}분
-                  </p>
-                </div>
-                {s.meetUrl && (
-                  <a
-                    href={s.meetUrl}
-                    target="_blank"
-                    rel="noopener"
-                    className="inline-flex items-center gap-1 rounded-[8px] border border-line bg-panel px-2.5 py-1.5 text-[11.5px] font-semibold text-ink active:bg-canvas-2"
-                  >
-                    Meet
-                    <ArrowUpRight className="h-3 w-3" />
-                  </a>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
+      {/* 지금 신청할 수 있어요 (시즌성) */}
+      {(lunchMenuCount > 0 || examApplyOpenCount > 0) && (
+        <Section title="지금 신청할 수 있어요" flush>
+          {lunchMenuCount > 0 && (
+            <ListRow
+              href={`${root}/lunch`}
+              leading={<IconTile icon={Utensils} tone="warn" />}
+              title="점심 도시락 신청"
+              description="먹을 날짜를 고르고 입금하면 확정돼요"
+            />
+          )}
+          {examApplyOpenCount > 0 && (
+            <ListRow
+              href={`${root}/exam`}
+              leading={<IconTile icon={GraduationCap} tone="violet" />}
+              title="모의고사 신청"
+              description={`접수 중인 시험 ${examApplyOpenCount}건`}
+              trailing={<Badge tone="brand">접수 중</Badge>}
+            />
+          )}
+        </Section>
       )}
 
-      {/* PWA install prompt */}
+      {/* 수행평가 */}
+      {(isOnline || totalTasks > 0) && (
+        <Section title="수행평가" action={<SectionAction href={`${root}/tasks`}>전체</SectionAction>}>
+          <p className="t10-bold text-fg-neutral tabular-nums">
+            {doneTasks}
+            <span className="t6-bold text-fg-neutral-subtle"> / {totalTasks}건 완료</span>
+          </p>
+          <ProgressBar className="mt-3" value={totalTasks ? doneTasks / totalTasks : 0} />
+          {nextTask && (
+            <NextTaskCard
+              href={`${root}/tasks/${nextTask.id}`}
+              subject={nextTask.subject}
+              title={nextTask.title}
+              dueDate={nextTask.dueDate}
+              status={nextTask.status}
+            />
+          )}
+        </Section>
+      )}
+
+      {/* 초기 설문 — 온라인 온보딩 전용, 제출 전까지만 */}
+      {isOnline && !surveySubmitted && (
+        <Section>
+          <div className="flex items-center gap-3.5">
+            <IconTile icon={FileText} tone="violet" size={48} />
+            <div className="min-w-0 flex-1">
+              <p className="t6-bold text-fg-neutral">초기 설문</p>
+              <p className="t4-regular mt-0.5 text-fg-neutral-subtle tabular-nums">
+                {filledSections === 0
+                  ? `${SURVEY_SECTIONS.length}개 질문 · 자동 저장돼요`
+                  : `${filledSections} / ${SURVEY_SECTIONS.length} 작성`}
+              </p>
+            </div>
+          </div>
+          <ProgressBar className="mt-4" value={filledSections / SURVEY_SECTIONS.length} />
+          <ButtonLink href={`${root}/survey`} variant="weak" size="md" block className="mt-4">
+            {filledSections === 0 ? "설문 시작하기" : "이어서 작성하기"}
+          </ButtonLink>
+        </Section>
+      )}
+
+      {/* 포인트 */}
+      <Link href={`${root}/points`} className={cn("block rounded-r5 bg-bg-layer-default p-5", PRESS)}>
+        <div className="flex items-center justify-between">
+          <p className="t5-medium text-fg-neutral-muted">내 포인트</p>
+          <ChevronRight className="h-5 w-5 text-fg-placeholder" />
+        </div>
+        <div className="mt-1 flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="t10-bold text-fg-neutral tabular-nums">
+              {balance.toLocaleString("ko-KR")}점
+            </p>
+            <p className="t4-regular mt-0.5 text-fg-neutral-subtle tabular-nums">
+              약 {pointsToKrw(balance).toLocaleString("ko-KR")}원 상당
+            </p>
+          </div>
+          <span className={buttonClass({ variant: "gray", size: "sm" })}>교환하기</span>
+        </div>
+      </Link>
+
+      {/* 바로가기 */}
+      <Section title="바로가기">
+        <ul className="grid grid-cols-4 gap-y-5">
+          {shortcuts.map((s) => (
+            <li key={s.href}>
+              <ShortcutTile {...s} />
+            </li>
+          ))}
+        </ul>
+      </Section>
+
       <PwaInstallPrompt />
 
-      {/* Safety notice */}
-      <section className="rounded-[14px] border border-line bg-canvas-2/50 p-3.5">
-        <div className="flex items-start gap-2.5">
-          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-ink-4" />
-          <div>
-            <p className="text-[12px] font-semibold text-ink-2">본인 전용 링크</p>
-            <p className="mt-1 text-[11.5px] leading-relaxed text-ink-4">
-              외부 공유 시 개인 정보가 노출될 수 있어요. 의심되는 상황이 생기면 즉시 원장님께 알려
-              주세요.
-            </p>
-          </div>
-        </div>
-      </section>
+      <p className="t2-regular flex items-start justify-center gap-1.5 px-6 pt-5 text-center text-fg-placeholder">
+        <ShieldCheck className="mt-[3px] h-3.5 w-3.5 shrink-0" />
+        <span>
+          본인 전용 링크예요. 다른 사람과 공유하지 말고,
+          <br />
+          의심되는 일이 생기면 바로 원장님께 알려 주세요.
+        </span>
+      </p>
     </div>
   );
 }
 
-function ProgressBar({ value }: { value: number }) {
-  const pct = Math.round(Math.min(1, Math.max(0, value)) * 100);
-  return (
-    <div className="mt-2 h-1 w-full rounded-full bg-canvas-2 overflow-hidden">
-      <div
-        className="h-full rounded-full bg-brand transition-all duration-500"
-        style={{ width: `${pct}%` }}
-      />
-    </div>
-  );
-}
+type Shortcut = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  tone: Tone;
+  badge?: number;
+};
 
-function DueChip({ dueDate }: { dueDate: Date }) {
-  const days = Math.ceil((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  const tone =
-    days < 0
-      ? "bg-bad-soft text-bad-ink"
-      : days <= 1
-        ? "bg-warn-soft text-warn-ink"
-        : days <= 3
-          ? "bg-warn-soft/70 text-warn-ink"
-          : "bg-canvas-2 text-ink-3";
-  const label = days < 0 ? `D+${-days}` : days === 0 ? "D-Day" : `D-${days}`;
+function ShortcutTile({ href, label, icon, tone, badge = 0 }: Shortcut) {
   return (
-    <span
-      className={`shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold tabular-nums ${tone}`}
+    <Link
+      href={href}
+      className="flex flex-col items-center gap-2 transition-transform duration-150 active:scale-[0.94]"
     >
-      {label}
-    </span>
+      <span className="relative">
+        <IconTile icon={icon} tone={tone} size={48} />
+        {badge > 0 && (
+          <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-bg-brand-solid ring-2 ring-bg-layer-default" />
+        )}
+      </span>
+      <span className="t3-medium text-fg-neutral-muted">{label}</span>
+    </Link>
+  );
+}
+
+function NextTaskCard({
+  href,
+  subject,
+  title,
+  dueDate,
+  status,
+}: {
+  href: string;
+  subject: string;
+  title: string;
+  dueDate: Date;
+  status: keyof typeof TASK_STATUS;
+}): ReactNode {
+  const due = dueInfo(dueDate);
+  return (
+    <Link
+      href={href}
+      className={cn("mt-4 flex items-center gap-3 rounded-r4 bg-bg-layer-fill px-4 py-3.5", PRESS)}
+    >
+      <div className="min-w-0 flex-1">
+        <p className="t3-medium text-fg-neutral-subtle">가장 급한 과제</p>
+        <p className="t5-bold mt-0.5 truncate text-fg-neutral">{title}</p>
+        <div className="mt-2 flex items-center gap-1">
+          <Badge>{subject}</Badge>
+          <Badge tone={TASK_STATUS[status].tone}>{TASK_STATUS[status].label}</Badge>
+        </div>
+      </div>
+      <Badge tone={due.tone} size="md">
+        {due.label}
+      </Badge>
+    </Link>
   );
 }

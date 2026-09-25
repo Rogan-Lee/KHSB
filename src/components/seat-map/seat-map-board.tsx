@@ -4,6 +4,17 @@ import { useState, useTransition, useOptimistic } from "react";
 import { cn } from "@/lib/utils";
 import { updateStudentSeat, swapStudentSeats } from "@/actions/students";
 import { X, ArrowRightLeft, Search, Check, Printer } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Notice, StatusBadge } from "@/components/backoffice/ui";
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
 
@@ -56,114 +67,105 @@ function AssignDialog({
     setQuery("");
   }
 
+  // 목록 한 줄(선택지) — 선택되면 브랜드 약한 배경 + 체크
+  const optionCls = (active: boolean) =>
+    cn(
+      "flex w-full items-center gap-x2 px-x3 py-x2_5 text-left t4-regular text-fg-neutral transition-colors hover:bg-bg-layer-default-pressed",
+      active && "bg-bg-brand-weak hover:bg-bg-brand-weak",
+    );
+  const groupCls = "border-t border-stroke-neutral-muted bg-bg-layer-fill px-x3 py-x1 t2-medium text-fg-neutral-subtle";
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-xl shadow-xl w-80 p-5 z-10">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-sm">
         {/* 헤더 */}
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-semibold text-[#1e2124]">{seatNum}번 좌석</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {current ? `현재: ${current.name} (${current.grade})` : "빈 좌석"}
-            </p>
-          </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-[#1e2124] transition-colors">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+        <DialogHeader>
+          <DialogTitle className="tabular-nums">{seatNum}번 좌석</DialogTitle>
+          <DialogDescription>
+            {current ? `현재: ${current.name} (${current.grade})` : "빈 좌석"}
+          </DialogDescription>
+        </DialogHeader>
 
         {/* 교환 안내 */}
         {isSwap && (
-          <div className="mb-3 p-2.5 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-2">
-            <ArrowRightLeft className="h-3.5 w-3.5 text-amber-600 flex-shrink-0" />
-            <span className="text-xs text-amber-800">
-              {current!.name}({seatNum}번) ↔ {selectedStudent!.name}({selectedStudent!.seat}번) 교환
-            </span>
-          </div>
+          <Notice tone="warn" icon={ArrowRightLeft}>
+            {current!.name}({seatNum}번) ↔ {selectedStudent!.name}({selectedStudent!.seat}번) 교환
+          </Notice>
         )}
 
         {/* 원생 선택 — 검색 가능 */}
-        <div className="space-y-1.5 mb-4">
-          <label className="text-xs text-muted-foreground font-medium">원생 선택</label>
+        <div className="flex flex-col gap-x2">
+          <p className="t4-medium text-fg-neutral">원생 선택</p>
 
           {/* 선택된 학생 표시 */}
           {selected && selectedStudent && (
-            <div className="flex items-center justify-between border border-[#E9541C]/30 bg-[#FBE9DE] rounded-lg px-3 py-2">
-              <span className="text-sm font-medium">
+            <div className="flex items-center justify-between gap-x2 rounded-r2 bg-bg-brand-weak px-x3 py-x2">
+              <span className="t4-bold text-fg-neutral">
                 {selectedStudent.name} ({selectedStudent.grade})
                 {selectedStudent.seat && selectedStudent.seat !== seatStr && (
-                  <span className="text-xs text-muted-foreground ml-1">[{selectedStudent.seat}번]</span>
+                  <span className="ml-x1 t3-regular tabular-nums text-fg-neutral-subtle">[{selectedStudent.seat}번]</span>
                 )}
               </span>
-              <button onClick={() => setSelected("")} className="text-muted-foreground hover:text-foreground">
-                <X className="h-3.5 w-3.5" />
+              <button
+                type="button"
+                onClick={() => setSelected("")}
+                aria-label="선택 해제"
+                className="grid size-7 shrink-0 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-transparent-pressed"
+              >
+                <X className="size-4" />
               </button>
             </div>
           )}
 
           {/* 검색 입력 */}
-          <div className="flex items-center gap-2 border border-[#e1e2e4] rounded-lg px-3 py-2">
-            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <label className="flex h-10 items-center gap-x2 rounded-r2 bg-bg-neutral-weak px-x3 transition-shadow focus-within:bg-bg-layer-default focus-within:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)]">
+            <Search className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
             <input
               type="text"
               placeholder="이름으로 검색..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="flex-1 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+              aria-label="원생 이름 검색"
+              className="h-full min-w-0 flex-1 bg-transparent t4-regular text-fg-neutral outline-none placeholder:text-fg-placeholder"
             />
             {query && (
-              <button onClick={() => setQuery("")} className="text-muted-foreground hover:text-foreground">
-                <X className="h-3 w-3" />
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="검색어 지우기"
+                className="grid size-6 shrink-0 place-items-center rounded-full text-fg-neutral-subtle transition-colors hover:text-fg-neutral"
+              >
+                <X className="size-4" />
               </button>
             )}
-          </div>
+          </label>
 
           {/* 학생 목록 */}
-          <div className="max-h-48 overflow-y-auto border border-[#e1e2e4] rounded-lg">
+          <div className="max-h-60 overflow-y-auto rounded-r3 border border-stroke-neutral-muted [&>*:first-child]:border-t-0">
             {/* 비우기 옵션 */}
             {!q && (
-              <button
-                onClick={() => pick("")}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left text-muted-foreground",
-                  !selected && "bg-muted/60"
-                )}
-              >
-                <Check className={cn("h-3.5 w-3.5 shrink-0", !selected ? "opacity-100" : "opacity-0")} />
-                — 비워두기 —
+              <button type="button" onClick={() => pick("")} className={cn(optionCls(!selected), "text-fg-neutral-muted")}>
+                <Check className={cn("size-4 shrink-0 text-fg-brand", !selected ? "opacity-100" : "opacity-0")} aria-hidden />
+                비워두기
               </button>
             )}
 
             {/* 현재 배정 학생 */}
             {!q && assignedHere && (
-              <button
-                onClick={() => pick(assignedHere.id)}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left",
-                  selected === assignedHere.id && "bg-accent/60"
-                )}
-              >
-                <Check className={cn("h-3.5 w-3.5 shrink-0 text-primary", selected === assignedHere.id ? "opacity-100" : "opacity-0")} />
+              <button type="button" onClick={() => pick(assignedHere.id)} className={optionCls(selected === assignedHere.id)}>
+                <Check className={cn("size-4 shrink-0 text-fg-brand", selected === assignedHere.id ? "opacity-100" : "opacity-0")} aria-hidden />
                 <span>{assignedHere.name} ({assignedHere.grade})</span>
-                <span className="text-[10px] text-muted-foreground ml-auto">현재</span>
+                <span className="ml-auto"><StatusBadge tone="brand">현재</StatusBadge></span>
               </button>
             )}
 
             {/* 미배정 */}
             {unassigned.length > 0 && (
               <>
-                <div className="px-3 py-1 text-[10px] font-medium text-muted-foreground bg-muted/40 border-t">미배정</div>
+                <div className={groupCls}>미배정</div>
                 {unassigned.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => pick(s.id)}
-                    className={cn(
-                      "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left",
-                      selected === s.id && "bg-accent/60"
-                    )}
-                  >
-                    <Check className={cn("h-3.5 w-3.5 shrink-0 text-primary", selected === s.id ? "opacity-100" : "opacity-0")} />
+                  <button type="button" key={s.id} onClick={() => pick(s.id)} className={optionCls(selected === s.id)}>
+                    <Check className={cn("size-4 shrink-0 text-fg-brand", selected === s.id ? "opacity-100" : "opacity-0")} aria-hidden />
                     <span className="truncate">{s.name} ({s.grade})</span>
                   </button>
                 ))}
@@ -173,39 +175,29 @@ function AssignDialog({
             {/* 다른 좌석 (교환) */}
             {assignedElsewhere.length > 0 && (
               <>
-                <div className="px-3 py-1 text-[10px] font-medium text-muted-foreground bg-muted/40 border-t">다른 좌석 (교환)</div>
+                <div className={groupCls}>다른 좌석 (교환)</div>
                 {assignedElsewhere.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => pick(s.id)}
-                    className={cn(
-                      "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left",
-                      selected === s.id && "bg-accent/60"
-                    )}
-                  >
-                    <Check className={cn("h-3.5 w-3.5 shrink-0 text-primary", selected === s.id ? "opacity-100" : "opacity-0")} />
+                  <button type="button" key={s.id} onClick={() => pick(s.id)} className={optionCls(selected === s.id)}>
+                    <Check className={cn("size-4 shrink-0 text-fg-brand", selected === s.id ? "opacity-100" : "opacity-0")} aria-hidden />
                     <span className="truncate">{s.name} ({s.grade})</span>
-                    <span className="text-[10px] text-muted-foreground ml-auto">{s.seat}번</span>
+                    <span className="ml-auto shrink-0 t3-regular tabular-nums text-fg-neutral-subtle">{s.seat}번</span>
                   </button>
                 ))}
               </>
             )}
 
             {q && unassigned.length === 0 && assignedElsewhere.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">검색 결과 없음</p>
+              <p className="py-x6 text-center t4-regular text-fg-neutral-subtle">검색 결과가 없어요</p>
             )}
           </div>
         </div>
 
         {/* 버튼 */}
-        <div className="flex gap-2">
-          <button
-            onClick={onClose}
-            className="flex-1 px-3 py-2 text-sm border border-[#e1e2e4] rounded-lg hover:bg-muted transition-colors"
-          >
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} className="sm:flex-1">
             취소
-          </button>
-          <button
+          </Button>
+          <Button
             disabled={isPending}
             onClick={() => {
               if (selected) {
@@ -215,18 +207,13 @@ function AssignDialog({
                 else onClose();
               }
             }}
-            className={cn(
-              "flex-1 px-3 py-2 text-sm text-white rounded-lg transition-colors disabled:opacity-50",
-              isSwap
-                ? "bg-amber-500 hover:bg-amber-600"
-                : "bg-[#E9541C] hover:bg-[#C5461A]"
-            )}
+            className="sm:flex-1"
           >
             {isPending ? "저장 중…" : isSwap ? "교환" : "저장"}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -247,34 +234,36 @@ function SeatCell({
   return (
     <div style={{ width: "100%", height: SEAT_H, flexShrink: 0 }} className="flex gap-0">
       {/* 체크박스 3개 — 인쇄용 (화면에서는 숨김, 인쇄 시 표시) */}
-      <div className="hidden print:flex flex-col justify-center gap-[3px] pr-[3px] flex-shrink-0">
+      <div className="hidden flex-shrink-0 flex-col justify-center gap-[3px] pr-[3px] print:flex">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="w-[10px] h-[10px] border border-[#4a90d9] bg-white" />
+          <div key={i} className="h-[10px] w-[10px] border border-palette-blue-600 bg-palette-static-white" />
         ))}
       </div>
       {/* 좌석 셀 */}
-      <div className="flex-1 relative" style={{ height: SEAT_H }}>
+      <div className="relative flex-1" style={{ height: SEAT_H }}>
         <button
+          type="button"
           onClick={onClick}
+          aria-label={student ? `${num}번 좌석, ${student.name}` : `${num}번 좌석, 빈 좌석`}
           style={{ height: SEAT_H, position: "absolute", inset: 0 }}
           className={cn(
-            "rounded-lg border flex flex-col items-center justify-center text-center",
-            "transition-all duration-150 select-none print:rounded-none print:border-[#333]",
+            "flex flex-col items-center justify-center rounded-r2 text-center select-none transition-colors duration-150",
+            "print:rounded-none print:border print:border-palette-gray-1000 print:bg-palette-static-white print:shadow-none",
             occupied
-              ? "border-[#E9541C] bg-[#FBE9DE] hover:bg-[#FEF5EF] hover:border-[#C5461A] print:bg-white"
-              : "border-[#d1d5db] bg-[#f9fafb] hover:border-[#9ca3af] hover:bg-[#f3f4f6] print:bg-white",
+              ? "bg-bg-brand-weak shadow-[inset_0_0_0_1px_var(--seed-color-stroke-brand-weak)] hover:bg-bg-brand-weak-pressed"
+              : "bg-bg-layer-fill shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-muted)] hover:bg-bg-neutral-weak",
             className
           )}
         >
           <span className={cn(
-            "text-[11px] font-bold leading-none print:text-black",
-            occupied ? "text-[#C5461A]" : "text-[#9ca3af] print:text-[#666]"
+            "t2-bold tabular-nums print:text-palette-static-black",
+            occupied ? "text-fg-brand" : "text-fg-neutral-subtle print:text-palette-gray-700"
           )}>
             {num}
           </span>
           <span className={cn(
-            "text-[11px] leading-tight mt-1 truncate px-1 max-w-full print:text-black",
-            occupied ? "text-[#1e2124] font-medium" : "text-[#d1d5db] print:text-[#ccc]"
+            "mt-x0_5 max-w-full truncate px-x1 t3-medium print:text-palette-static-black",
+            occupied ? "text-fg-neutral" : "text-fg-placeholder print:text-palette-gray-400"
           )}>
             {student?.name ?? "–"}
           </span>
@@ -294,7 +283,7 @@ function FacilityBlock({ label, h, flex }: { label: string; h?: number; flex?: n
   return (
     <div
       style={{ flex: flex ?? 1, height: h ?? 40, minWidth: 0 }}
-      className="rounded-lg border border-dashed border-[#d1d5db] bg-[#f9fafb] flex items-center justify-center text-[11px] text-[#9ca3af] font-medium"
+      className="flex items-center justify-center rounded-r2 border border-dashed border-stroke-neutral-weak bg-bg-layer-fill t3-medium text-fg-neutral-subtle"
     >
       {label}
     </div>
@@ -403,6 +392,12 @@ const H_COL_DEFS: (number | null)[][] = [
   [69, null, 72, 73, 74, 75, 76, null, null, 55],          // Col D
   [70, null, null, null, null, null, null, null, null, 54], // Col E
 ];
+
+// 룸별 좌석 번호 목록 — 탭의 배정 현황(배정/전체) 표시용. 배치 정의(위 상수)에서 그대로 뽑는다.
+const ROOM_SEATS: Record<"K" | "H", number[]> = {
+  K: [...K_COL_DEFS.flat(), 87, 88, 89].filter((n): n is number => n !== null),
+  H: [...H_COL_A, ...H_COL_66, ...H_COL_DEFS.flat(), 71].filter((n): n is number => n !== null),
+};
 
 function HRoom({
   seatMap,
@@ -575,80 +570,69 @@ export function SeatMapBoard({ students }: { students: StudentInfo[] }) {
     window.print();
   }
 
+  const roomOccupied = {
+    K: ROOM_SEATS.K.filter((n) => seatMap.has(String(n))).length,
+    H: ROOM_SEATS.H.filter((n) => seatMap.has(String(n))).length,
+  };
+
   return (
     <div>
-      {/* 요약 — 인쇄 시 숨김 */}
-      <div className="flex items-center gap-4 mb-5 flex-wrap print:hidden">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded border border-[#E9541C] bg-[#FBE9DE]" />
-          <span className="text-xs text-muted-foreground">배정됨 ({occupiedCount}석)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded border border-[#d1d5db] bg-[#f9fafb]" />
-          <span className="text-xs text-muted-foreground">빈 좌석 ({totalSeats - occupiedCount}석)</span>
-        </div>
-        <span className="text-xs text-muted-foreground">전체 {totalSeats}석</span>
-        <div className="flex items-center gap-2 ml-auto">
-          <span className="text-xs text-muted-foreground">
-            좌석을 클릭하면 원생을 배정/변경할 수 있습니다
-          </span>
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-lg hover:bg-muted transition-colors"
-          >
-            <Printer className="h-3.5 w-3.5" />
-            인쇄
-          </button>
-        </div>
+      {/* 요약·범례 — 인쇄 시 숨김 */}
+      <div className="mb-x4 flex flex-wrap items-center gap-x2 print:hidden">
+        <StatusBadge tone="brand" size="large">배정 {occupiedCount}석</StatusBadge>
+        <StatusBadge tone="gray" size="large">빈 좌석 {totalSeats - occupiedCount}석</StatusBadge>
+        <span className="t3-regular tabular-nums text-fg-neutral-subtle">전체 {totalSeats}석</span>
+        <Button variant="outline" size="sm" onClick={handlePrint} className="ml-auto">
+          <Printer />
+          인쇄
+        </Button>
       </div>
 
       {/* 탭 — 인쇄 시 숨김 */}
-      <div className="flex gap-1 mb-5 border-b print:hidden">
-        {(["K", "H"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={cn(
-              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-              activeTab === tab
-                ? "border-[#E9541C] text-[#E9541C]"
-                : "border-transparent text-[#6d7882] hover:text-[#1e2124]"
-            )}
-          >
-            {tab}룸
-          </button>
-        ))}
-      </div>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "K" | "H")} className="mb-x5 print:hidden">
+        <TabsList>
+          {(["K", "H"] as const).map((tab) => (
+            <TabsTrigger key={tab} value={tab}>
+              {tab}룸
+              <span className="t4-bold tabular-nums text-fg-neutral-subtle">
+                {roomOccupied[tab]}/{ROOM_SEATS[tab].length}
+              </span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
       {/* 인쇄 헤더 — 화면에서는 숨김, 인쇄 시 표시 */}
-      <div className="hidden print:flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold">{activeTab}룸</h2>
-        <span className="text-sm">날짜: {todayStr}</span>
+      <div className="mb-x4 hidden items-center justify-between print:flex">
+        <h2 className="t6-bold">{activeTab}룸</h2>
+        <span className="t4-regular">날짜: {todayStr}</span>
       </div>
 
-      {/* 룸 맵 */}
-      <div className="pb-6 print:pb-2">
-        {activeTab === "K" ? (
-          <KRoom seatMap={seatMap} onSeatClick={setDialogSeat} />
-        ) : (
-          <HRoom seatMap={seatMap} onSeatClick={setDialogSeat} />
-        )}
+      {/* 룸 맵 — 좁은 화면에서는 가로 스크롤(배치 비율 유지) */}
+      <div className="overflow-x-auto rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default p-x5 print:overflow-visible print:rounded-none print:border-0 print:p-0">
+        <div className="min-w-[720px] print:min-w-0">
+          {activeTab === "K" ? (
+            <KRoom seatMap={seatMap} onSeatClick={setDialogSeat} />
+          ) : (
+            <HRoom seatMap={seatMap} onSeatClick={setDialogSeat} />
+          )}
+        </div>
       </div>
 
       {/* 인쇄용 가이드 — 화면에서는 숨김 */}
-      <div className="hidden print:block border-t pt-3 mt-2">
-        <div className="flex items-center gap-6 text-xs">
-          <span className="font-bold">* Guide</span>
-          <div className="flex items-center gap-1">
-            <div className="w-[10px] h-[10px] border border-[#4a90d9]" />
+      <div className="mt-x2 hidden border-t border-palette-gray-1000 pt-x3 print:block">
+        <div className="flex items-center gap-x6 t2-regular">
+          <span className="t2-bold">* Guide</span>
+          <div className="flex items-center gap-x1">
+            <div className="h-[10px] w-[10px] border border-palette-blue-600" />
             <span>휴대폰</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-[10px] h-[10px] border border-[#4a90d9]" />
+          <div className="flex items-center gap-x1">
+            <div className="h-[10px] w-[10px] border border-palette-blue-600" />
             <span>플래너</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-[10px] h-[10px] border border-[#4a90d9]" />
+          <div className="flex items-center gap-x1">
+            <div className="h-[10px] w-[10px] border border-palette-blue-600" />
             <span>주간 학습 계획</span>
           </div>
         </div>

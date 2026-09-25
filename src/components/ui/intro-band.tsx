@@ -14,45 +14,35 @@ interface IntroBandProps {
 }
 
 const toneColors: Record<NonNullable<IntroStat["tone"]>, string> = {
-  ink: "text-ink",
-  brand: "text-brand",
-  ok: "text-ok",
-  warn: "text-warn",
-  bad: "text-bad",
+  ink: "text-fg-neutral",
+  brand: "text-fg-brand",
+  ok: "text-fg-positive",
+  warn: "text-fg-warning",
+  bad: "text-fg-critical",
 };
 
-// Dashboard greeting band — solid panel, subtle border, no gradient.
+// 대시보드 머리 띠 — 회색 채움 표면(StatCard 와 같은 bg-layer-fill), 그림자·그라데이션 없음.
 export function IntroBand({ greeting, context, stats, className }: IntroBandProps) {
   return (
-    <div className={cn(
-      "relative flex items-center gap-5 px-[22px] py-[18px] mb-[18px]",
-      "bg-panel-2 border border-line rounded-[12px] shadow-[var(--shadow-xs)] overflow-hidden",
-      className
-    )}>
-      <div className="flex-1 min-w-0">
-        <h3 className="text-[22px] font-[650] tracking-[-0.03em] text-ink m-0 leading-[1.1]">
-          {greeting}
-        </h3>
-        {context && (
-          <p className="text-[12.5px] text-ink-3 mt-1 m-0 leading-relaxed">
-            {context}
-          </p>
-        )}
+    <div
+      className={cn(
+        "flex flex-col gap-x5 rounded-r4 bg-bg-layer-fill px-x5 py-x5 md:flex-row md:items-center md:px-x6",
+        className
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <h3 className="t8-bold text-fg-neutral">{greeting}</h3>
+        {context && <p className="mt-x1 t4-regular text-fg-neutral-subtle">{context}</p>}
       </div>
       {stats && stats.length > 0 && (
-        <div className="flex items-center gap-6 shrink-0">
+        <dl className="flex shrink-0 items-center gap-x6">
           {stats.map((s, i) => (
-            <div key={i} className="text-right">
-              <div className={cn(
-                "text-[20px] font-[650] tracking-[-0.03em] tabular-nums font-mono leading-none",
-                toneColors[s.tone ?? "ink"]
-              )}>
-                {s.value}
-              </div>
-              <div className="text-[10.5px] text-ink-4 mt-1.5 font-medium">{s.label}</div>
+            <div key={i} className="flex flex-col-reverse md:items-end">
+              <dt className="mt-x1 t3-regular text-fg-neutral-subtle">{s.label}</dt>
+              <dd className={cn("t8-bold tabular-nums", toneColors[s.tone ?? "ink"])}>{s.value}</dd>
             </div>
           ))}
-        </div>
+        </dl>
       )}
     </div>
   );

@@ -9,7 +9,27 @@ import {
   listAssignmentFiles,
 } from "@/actions/assignments";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useConfirmDialog } from "@/components/exams/use-confirm-dialog";
 import type { AssignmentFile } from "@/generated/prisma";
+
+// 파일 행·업로드 영역 공통 스타일 (SEED)
+const FILE_ROW =
+  "flex items-center gap-x2 rounded-r2 border border-stroke-neutral-muted bg-bg-layer-default py-x1_5 pl-x3 pr-x1";
+const DROP_ZONE =
+  "flex cursor-pointer flex-col items-center justify-center gap-x1 rounded-r3 border border-dashed px-x3 py-x4 text-center transition-colors";
+
+function FilesHeader({ count }: { count: number }) {
+  return (
+    <div className="flex items-center gap-x1_5 t3-medium text-fg-neutral-muted">
+      <Paperclip className="size-3.5" aria-hidden />
+      첨부 파일
+      <span className="tabular-nums text-fg-neutral-subtle">
+        {count}/{MAX_FILES}
+      </span>
+    </div>
+  );
+}
 
 export const MAX_FILES = 5;
 const MAX_BYTES = 20 * 1024 * 1024; // 20MB
@@ -68,6 +88,7 @@ export function AssignmentFiles({ assignmentId }: { assignmentId: string }) {
   const [isPending, startTransition] = useTransition();
   const [dragActive, setDragActive] = useState(false);
   const inputId = useId();
+  const [confirm, confirmDialog] = useConfirmDialog();
 
   useEffect(() => {
     let cancelled = false;
@@ -130,8 +151,14 @@ export function AssignmentFiles({ assignmentId }: { assignmentId: string }) {
     if (picked.length > 0) void uploadFiles(picked);
   }
 
-  function handleDelete(id: string, name: string) {
-    if (!window.confirm(`"${name}" 파일을 삭제할까요?`)) return;
+  async function handleDelete(id: string, name: string) {
+    const ok = await confirm({
+      title: `"${name}" 파일을 삭제할까요?`,
+      description: "삭제하면 되돌릴 수 없어요.",
+      confirmLabel: "삭제",
+      destructive: true,
+    });
+    if (!ok) return;
     startTransition(async () => {
       try {
         await deleteAssignmentFile(id);
@@ -147,52 +174,48 @@ export function AssignmentFiles({ assignmentId }: { assignmentId: string }) {
   const busy = uploadingCount > 0;
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <Paperclip className="h-3.5 w-3.5" />
-        첨부 파일 ({files.length}/{MAX_FILES})
-      </div>
+    <div className="flex flex-col gap-x2">
+      <FilesHeader count={files.length} />
 
       {/* 파일 목록 */}
       {loaded && files.length > 0 && (
-        <ul className="space-y-1.5">
+        <ul className="flex flex-col gap-x1_5">
           {files.map((f) => (
-            <li
-              key={f.id}
-              className="flex items-center gap-2 rounded-md border bg-background px-2.5 py-1.5"
-            >
-              <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <li key={f.id} className={FILE_ROW}>
+              <FileText className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
               <a
                 href={f.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 download={f.fileName}
-                className="flex-1 min-w-0 text-xs hover:underline truncate"
+                className="min-w-0 flex-1 truncate t3-regular text-fg-neutral hover:underline"
                 title={f.fileName}
               >
                 {f.fileName}
               </a>
-              <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+              <span className="shrink-0 t2-regular tabular-nums text-fg-neutral-subtle">
                 {formatBytes(f.sizeBytes)}
               </span>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => handleDelete(f.id, f.fileName)}
                 disabled={isPending}
-                className="shrink-0 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
-                aria-label="파일 삭제"
+                className="size-x7 text-fg-neutral-subtle hover:text-fg-critical"
+                aria-label={`${f.fileName} 삭제`}
               >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+                <Trash2 />
+              </Button>
             </li>
           ))}
           {Array.from({ length: uploadingCount }).map((_, i) => (
             <li
               key={`u-${i}`}
-              className="flex items-center gap-2 rounded-md border border-dashed bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground"
+              className="flex items-center gap-x2 rounded-r2 border border-dashed border-stroke-neutral-weak bg-bg-layer-fill px-x3 py-x2 t3-regular text-fg-neutral-subtle"
             >
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              업로드 중...
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+              업로드 중…
             </li>
           ))}
         </ul>
@@ -209,22 +232,20 @@ export function AssignmentFiles({ assignmentId }: { assignmentId: string }) {
           onDragLeave={() => setDragActive(false)}
           onDrop={handleDrop}
           className={cn(
-            "flex flex-col items-center justify-center gap-1 rounded-md border border-dashed px-3 py-3 text-xs cursor-pointer transition-colors",
+            DROP_ZONE,
             dragActive
-              ? "border-primary bg-primary/5 text-primary"
-              : "border-muted-foreground/30 text-muted-foreground hover:bg-accent/40",
+              ? "border-stroke-brand-solid bg-bg-brand-weak text-fg-brand"
+              : "border-stroke-neutral-weak bg-bg-layer-default text-fg-neutral-muted hover:bg-bg-layer-default-pressed",
             busy && "pointer-events-none opacity-60"
           )}
         >
           {busy ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="size-5 animate-spin" aria-hidden />
           ) : (
-            <Upload className="h-4 w-4" />
+            <Upload className="size-5" aria-hidden />
           )}
-          <span className="font-medium">
-            파일 끌어다 놓기 또는 클릭해 업로드
-          </span>
-          <span className="text-[10px] text-muted-foreground">
+          <span className="t3-medium">파일을 끌어다 놓거나 눌러서 업로드</span>
+          <span className="t2-regular text-fg-neutral-subtle">
             PDF · PNG · JPG · HWP · DOCX · 최대 20MB · {MAX_FILES}개까지
           </span>
           <input
@@ -238,6 +259,8 @@ export function AssignmentFiles({ assignmentId }: { assignmentId: string }) {
           />
         </label>
       )}
+
+      {confirmDialog}
     </div>
   );
 }
@@ -296,35 +319,31 @@ export function PendingFilePicker({
   const full = files.length >= MAX_FILES;
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <Paperclip className="h-3.5 w-3.5" />
-        첨부 파일 ({files.length}/{MAX_FILES})
-      </div>
+    <div className="flex flex-col gap-x2">
+      <FilesHeader count={files.length} />
 
       {files.length > 0 && (
-        <ul className="space-y-1.5">
+        <ul className="flex flex-col gap-x1_5">
           {files.map((f, idx) => (
-            <li
-              key={`${f.name}-${idx}`}
-              className="flex items-center gap-2 rounded-md border bg-background px-2.5 py-1.5"
-            >
-              <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span className="flex-1 min-w-0 text-xs truncate" title={f.name}>
+            <li key={`${f.name}-${idx}`} className={FILE_ROW}>
+              <FileText className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
+              <span className="min-w-0 flex-1 truncate t3-regular text-fg-neutral" title={f.name}>
                 {f.name}
               </span>
-              <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+              <span className="shrink-0 t2-regular tabular-nums text-fg-neutral-subtle">
                 {formatBytes(f.size)}
               </span>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => onChange(files.filter((_, i) => i !== idx))}
                 disabled={disabled}
-                className="shrink-0 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
-                aria-label="파일 제거"
+                className="size-x7 text-fg-neutral-subtle hover:text-fg-critical"
+                aria-label={`${f.name} 제거`}
               >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+                <Trash2 />
+              </Button>
             </li>
           ))}
         </ul>
@@ -340,16 +359,16 @@ export function PendingFilePicker({
           onDragLeave={() => setDragActive(false)}
           onDrop={handleDrop}
           className={cn(
-            "flex flex-col items-center justify-center gap-1 rounded-md border border-dashed px-3 py-3 text-xs cursor-pointer transition-colors",
+            DROP_ZONE,
             dragActive
-              ? "border-primary bg-primary/5 text-primary"
-              : "border-muted-foreground/30 text-muted-foreground hover:bg-accent/40",
+              ? "border-stroke-brand-solid bg-bg-brand-weak text-fg-brand"
+              : "border-stroke-neutral-weak bg-bg-layer-default text-fg-neutral-muted hover:bg-bg-layer-default-pressed",
             disabled && "pointer-events-none opacity-60"
           )}
         >
-          <Upload className="h-4 w-4" />
-          <span className="font-medium">파일 끌어다 놓기 또는 클릭해 선택</span>
-          <span className="text-[10px] text-muted-foreground">
+          <Upload className="size-5" aria-hidden />
+          <span className="t3-medium">파일을 끌어다 놓거나 눌러서 선택</span>
+          <span className="t2-regular text-fg-neutral-subtle">
             PDF · PNG · JPG · HWP · DOCX · 최대 20MB · {MAX_FILES}개까지
           </span>
           <input
@@ -366,4 +385,3 @@ export function PendingFilePicker({
     </div>
   );
 }
-

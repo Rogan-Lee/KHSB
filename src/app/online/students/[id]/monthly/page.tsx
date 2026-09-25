@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { isOnlineStaff, isManagerMentor, isFullAccess } from "@/lib/roles";
@@ -11,6 +9,7 @@ import type {
 } from "@/actions/online/monthly-plans";
 import { currentYearMonthKST } from "@/lib/online/month";
 import { DEFAULT_SUBJECTS } from "@/lib/online/subjects";
+import { StudentDetailHeader } from "../_components/student-detail-header";
 
 export default async function StudentMonthlyPlanPage({
   params,
@@ -34,6 +33,7 @@ export default async function StudentMonthlyPlanPage({
       id: true,
       name: true,
       grade: true,
+      status: true,
       isOnlineManaged: true,
       selectedSubjects: true,
     },
@@ -59,28 +59,17 @@ export default async function StudentMonthlyPlanPage({
   const initialMilestones =
     (plan?.milestones as unknown as MonthlyMilestones | null) ?? {};
 
-  return (
-    <div className="space-y-5">
-      <div>
-        <Link
-          href={`/online/students/${id}`}
-          className="inline-flex items-center gap-1 text-[12px] text-ink-4 hover:text-ink"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          학생 상세
-        </Link>
-      </div>
+  const description = [
+    student.grade,
+    plan?.author && `작성자 ${plan.author.name}`,
+    plan?.updatedAt && `${plan.updatedAt.toLocaleDateString("ko-KR")} 수정`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
-      <header>
-        <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
-          {student.name} — 월간 계획
-        </h1>
-        <p className="mt-1 text-[13px] text-ink-4">
-          {student.grade}
-          {plan?.author && ` · 작성자: ${plan.author.name}`}
-          {plan?.updatedAt && ` · ${plan.updatedAt.toLocaleDateString("ko-KR")} 수정`}
-        </p>
-      </header>
+  return (
+    <div>
+      <StudentDetailHeader student={student} current="monthly" description={description} />
 
       <MonthlyPlanEditor
         studentId={id}

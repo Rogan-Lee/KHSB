@@ -1,9 +1,28 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ChevronLeft, CalendarClock } from "lucide-react";
+import { CalendarClock } from "lucide-react";
 import { getUser } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
 import { getQueueOverview } from "@/lib/online/report-queue";
+import { ReportsTypeNav } from "@/components/online/reports-type-nav";
+import { Button } from "@/components/ui/button";
+import {
+  EmptyState,
+  PageHeader,
+  StatCard,
+  StatCards,
+  StatusBadge,
+  TableCard,
+  type Tone,
+} from "@/components/backoffice/ui";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 // 예약 생성 대기열 — QUEUED 상태 보고서 목록.
 // 야간 Claude 루틴(5시간 간격, 회당 30건)이 오래 대기한 것부터 생성한다.
@@ -15,6 +34,12 @@ const TYPE_LABEL: Record<string, string> = {
   ADHOC: "수시",
 };
 
+const TYPE_TONE: Record<string, Tone> = {
+  WEEKLY: "gray",
+  MONTHLY: "info",
+  ADHOC: "gray",
+};
+
 export default async function ReportQueuePage() {
   const user = await getUser();
   if (!isFullAccess(user?.role)) redirect("/online");
@@ -24,81 +49,68 @@ export default async function ReportQueuePage() {
   const monthly = rows.filter((r) => r.type === "MONTHLY").length;
 
   return (
-    <div className="space-y-5">
-      <header className="space-y-2">
-        <Link
-          href="/online/reports"
-          className="inline-flex items-center gap-1 text-[13px] text-ink-4 hover:text-ink"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          보고서로 돌아가기
-        </Link>
-        <div className="flex items-center gap-2">
-          <CalendarClock className="h-5 w-5 text-violet-600" />
-          <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
-            예약 생성 대기열
-          </h1>
-        </div>
-        <p className="text-[13px] text-ink-4">
-          야간 Claude 루틴이 5시간 간격으로 회당 최대 30건씩, 오래 대기한 것부터 생성합니다.
-          생성되면 자동으로 <b>초안</b> 상태가 되어 검토·승인·발송할 수 있습니다.
-        </p>
-      </header>
+    <div>
+      <PageHeader
+        title="학부모 보고서"
+        description="야간 Claude 루틴이 5시간마다 최대 30건씩, 오래 기다린 것부터 초안을 만들어요. 만들어지면 ‘초안’ 상태가 되어 검토·승인·발송할 수 있어요."
+      />
+      <ReportsTypeNav current="QUEUE" />
 
-      <div className="flex flex-wrap gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[13px] text-violet-800">
-          대기 총 <b className="tabular-nums">{rows.length}</b>건
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[13px] text-ink-3">
-          주간 <b className="tabular-nums">{weekly}</b> · 월간{" "}
-          <b className="tabular-nums">{monthly}</b>
-        </span>
+      <div className="flex flex-col gap-x5">
+        <StatCards cols={3}>
+          <StatCard label="대기 중" value={rows.length} unit="건" tone={rows.length > 0 ? "brand" : "gray"} />
+          <StatCard label="주간" value={weekly} unit="건" />
+          <StatCard label="월간" value={monthly} unit="건" />
+        </StatCards>
+
+        <TableCard>
+          {rows.length === 0 ? (
+            <EmptyState
+              icon={CalendarClock}
+              title="대기 중인 예약이 없어요"
+              description="보고서 화면에서 예약 등록하면 여기에 쌓이고, 야간에 순서대로 만들어져요."
+              action={
+                <Button asChild variant="secondary">
+                  <Link href="/online/reports/monthly">월간 보고서로 이동</Link>
+                </Button>
+              }
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>학생</TableHead>
+                  <TableHead>학년</TableHead>
+                  <TableHead>종류</TableHead>
+                  <TableHead>기간</TableHead>
+                  <TableHead className="text-right">등록 시각</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow key={r.reportId}>
+                    <TableCell className="whitespace-nowrap t4-medium">{r.studentName}</TableCell>
+                    <TableCell className="whitespace-nowrap text-fg-neutral-muted">
+                      {r.studentGrade ?? "—"}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge tone={TYPE_TONE[r.type] ?? "gray"}>
+                        {TYPE_LABEL[r.type] ?? r.type}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-fg-neutral-muted">
+                      {r.periodStart} ~ {r.periodEnd}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-right text-fg-neutral-subtle">
+                      {new Date(r.queuedAt).toLocaleString("ko-KR")}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </TableCard>
       </div>
-
-      {rows.length === 0 ? (
-        <div className="rounded-[12px] border border-dashed border-line p-10 text-center text-[13px] text-ink-4">
-          대기 중인 예약 생성 항목이 없습니다.
-          <br />
-          보고서 화면에서 학생을 선택해 <b>예약 등록</b>하면 여기에 표시됩니다.
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-[12px] border border-line">
-          <table className="w-full text-[13px]">
-            <thead className="bg-muted/40 text-ink-4">
-              <tr>
-                <th className="px-4 py-2.5 text-left font-medium">학생</th>
-                <th className="px-4 py-2.5 text-left font-medium">학년</th>
-                <th className="px-4 py-2.5 text-left font-medium">종류</th>
-                <th className="px-4 py-2.5 text-left font-medium">기간</th>
-                <th className="px-4 py-2.5 text-left font-medium">등록 시각</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {rows.map((r) => (
-                <tr key={r.reportId} className="hover:bg-muted/20">
-                  <td className="px-4 py-2.5 font-medium text-ink">
-                    {r.studentName}
-                  </td>
-                  <td className="px-4 py-2.5 text-ink-3">
-                    {r.studentGrade ?? "—"}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <span className="inline-block rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700">
-                      {TYPE_LABEL[r.type] ?? r.type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5 text-ink-3 tabular-nums">
-                    {r.periodStart} ~ {r.periodEnd}
-                  </td>
-                  <td className="px-4 py-2.5 text-ink-4 tabular-nums">
-                    {new Date(r.queuedAt).toLocaleString("ko-KR")}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }

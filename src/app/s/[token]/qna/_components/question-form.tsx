@@ -3,9 +3,12 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
 import { createStudentQuestion, type QuestionAttachment } from "@/actions/student-questions";
+import { Fieldset } from "@seed-design/react";
+import { Chip } from "seed-design/ui/chip";
+import { TextField, TextFieldInput, TextFieldTextarea } from "seed-design/ui/text-field";
 import { PhotoUploader } from "@/components/questions/photo-uploader";
+import { BottomCTA, Button } from "@/components/portal/ui";
 
 const SUBJECTS = ["수학", "영어", "국어", "과학탐구", "사회탐구", "한국사", "기타"];
 
@@ -41,82 +44,93 @@ export function QuestionForm({ token }: { token: string }) {
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">제목</label>
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          maxLength={120}
-          placeholder="예) 미적분 28번 모르겠어요"
-          className="w-full rounded-[12px] border border-line bg-canvas-2 px-3.5 py-2.5 text-[14px] text-ink placeholder:text-ink-5 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
-        />
-      </div>
-
-      <div>
-        <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">
-          과목 <span className="font-normal text-ink-4">(선택)</span>
-        </label>
-        <div className="flex flex-wrap gap-1.5">
-          {SUBJECTS.map((s) => {
-            const active = subject === s;
-            return (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setSubject(active ? "" : s)}
-                className={`rounded-full px-3 py-1.5 text-[12.5px] font-medium transition-colors ${
-                  active
-                    ? "bg-brand text-white"
-                    : "border border-line bg-panel text-ink-3 active:bg-canvas-2"
-                }`}
-              >
-                {s}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div>
-        <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">
-          문제 사진 <span className="font-normal text-ink-4">(카메라 촬영 또는 갤러리)</span>
-        </label>
+    <div className="flex flex-col gap-x7">
+      <Fieldset.Root>
+        <Fieldset.Header>
+          <Fieldset.Label>문제 사진</Fieldset.Label>
+        </Fieldset.Header>
         <PhotoUploader
           attachments={attachments}
           onChange={setAttachments}
           studentToken={token}
           disabled={isPending}
           label="사진 추가"
+          variant="portal"
         />
-      </div>
+        <Fieldset.Footer>
+          <Fieldset.Description>
+            카메라로 찍거나 앨범에서 골라주세요. 영상·PDF도 올릴 수 있어요.
+          </Fieldset.Description>
+        </Fieldset.Footer>
+      </Fieldset.Root>
 
-      <div>
-        <label className="mb-1.5 block text-[12.5px] font-semibold text-ink-2">
-          내용 <span className="font-normal text-ink-4">(어디까지 풀었는지 / 막힌 부분)</span>
-        </label>
-        <textarea
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          maxLength={4000}
-          rows={4}
-          placeholder="여기까지는 풀었는데 이 부분이 이해가 안 돼요..."
-          className="w-full resize-none rounded-[12px] border border-line bg-canvas-2 px-3.5 py-2.5 text-[14px] leading-relaxed text-ink placeholder:text-ink-5 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
-        />
-      </div>
-
-      <button
-        type="button"
-        onClick={submit}
-        disabled={!canSubmit}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-[12px] bg-brand px-4 py-3 text-[14.5px] font-semibold text-white active:scale-[0.99] disabled:bg-ink-5 disabled:active:scale-100 transition-transform"
+      <TextField
+        label="제목"
+        value={title}
+        onValueChange={({ value }) => setTitle(value)}
+        maxGraphemeCount={120}
       >
-        {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-        질문 등록하기
-      </button>
-      <p className="text-center text-[11.5px] text-ink-4">
-        등록하면 당일 근무 멘토가 확인하고 풀이를 답해드려요.
-      </p>
+        <TextFieldInput maxLength={120} placeholder="예) 미적분 28번 모르겠어요" />
+      </TextField>
+
+      <Fieldset.Root>
+        <Fieldset.Header>
+          <Fieldset.Label>
+            과목
+            <Fieldset.IndicatorText>선택</Fieldset.IndicatorText>
+          </Fieldset.Label>
+        </Fieldset.Header>
+        <Chip.RadioRoot
+          value={subject}
+          onValueChange={setSubject}
+          aria-label="과목"
+          className="flex flex-wrap gap-x2"
+        >
+          {SUBJECTS.map((s) => (
+            <Chip.RadioItem
+              key={s}
+              value={s}
+              variant="outlineStrong"
+              size="medium"
+              // 선택된 과목을 다시 누르면 해제 (과목은 선택 항목)
+              inputProps={{
+                onClick: () => {
+                  if (subject === s) setSubject("");
+                },
+              }}
+            >
+              <Chip.Label>{s}</Chip.Label>
+            </Chip.RadioItem>
+          ))}
+        </Chip.RadioRoot>
+      </Fieldset.Root>
+
+      <TextField
+        label="설명"
+        description="사진이나 설명 중 하나는 꼭 있어야 해요."
+        value={content}
+        onValueChange={({ value }) => setContent(value)}
+      >
+        {/* 기존 rows={5} 높이 — SEED textarea 는 rows 대신 minHeight 로 지정(자동 높이 조절 유지) */}
+        <TextFieldTextarea
+          maxLength={4000}
+          placeholder="어디까지 풀었는지, 어느 부분에서 막혔는지 적어주면 더 정확하게 답해드릴 수 있어요"
+          style={{ minHeight: 138 }}
+        />
+      </TextField>
+
+      <BottomCTA note="등록하면 당일 근무 멘토가 풀이를 답해드려요">
+        <Button
+          variant="primary"
+          size="xl"
+          block
+          onClick={submit}
+          disabled={!canSubmit}
+          loading={isPending}
+        >
+          질문 등록하기
+        </Button>
+      </BottomCTA>
     </div>
   );
 }
