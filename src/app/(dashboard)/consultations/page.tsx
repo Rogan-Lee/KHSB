@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { ConsultationsList } from "@/components/consultations/consultations-table";
 import { ConsultationOwnerTabs } from "@/components/consultations/consultation-owner-tabs";
 import { Button } from "@/components/ui/button";
+import { PageHeader, StatCard, StatCards } from "@/components/backoffice/ui";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { resolveDateRange } from "@/lib/date-range";
@@ -57,43 +58,34 @@ export default async function ConsultationsPage({
   const total = consultations.length;
 
   const isHeadTeacher = owner === "HEAD_TEACHER";
-  const title = isHeadTeacher ? "책임T 면담" : "원장 면담";
 
   return (
-    <div className="space-y-5">
+    <>
+      <PageHeader
+        title="면담 관리"
+        description={
+          isHeadTeacher
+            ? "책임 선생님의 면담 일정을 관리하고 결과를 기록해요."
+            : "원생별 원장 면담 일정을 관리하고 결과를 기록해요."
+        }
+        actions={
+          <Button asChild>
+            <Link href={`/consultations/new?owner=${owner}`}>
+              <Plus aria-hidden />
+              면담 등록
+            </Link>
+          </Button>
+        }
+      />
+
       {/* Owner tabs */}
       <ConsultationOwnerTabs current={owner} />
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold">{title}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {isHeadTeacher
-              ? "책임 선생님의 면담 일정을 관리하고 결과를 기록합니다."
-              : "원생별 면담 일정을 관리하고 결과를 기록합니다."}
-          </p>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-100">
-              예정 {scheduled}
-            </span>
-            <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-medium border border-emerald-100">
-              완료 {completed}
-            </span>
-            <span className="px-2.5 py-1 rounded-full bg-muted text-muted-foreground font-medium border">
-              전체 {total}
-            </span>
-          </div>
-          <Link href={`/consultations/new?owner=${owner}`}>
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-1" />
-              면담 등록
-            </Button>
-          </Link>
-        </div>
-      </div>
+      <StatCards cols={3} className="mb-x6">
+        <StatCard label="예정" value={scheduled} unit="건" />
+        <StatCard label="완료" value={completed} unit="건" />
+        <StatCard label="전체" value={total} unit="건" sub="조회 기간 기준" />
+      </StatCards>
 
       {/* List */}
       <ConsultationsList
@@ -102,6 +94,6 @@ export default async function ConsultationsPage({
         initialDateFrom={initialFrom}
         initialDateTo={initialTo}
       />
-    </div>
+    </>
   );
 }

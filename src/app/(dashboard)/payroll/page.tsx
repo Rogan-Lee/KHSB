@@ -2,13 +2,12 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
 import { getAllPayrollData, getPayrollCandidates, getMonthlyWorkSheet } from "@/actions/payroll";
-import { PageIntro } from "@/components/ui/page-intro";
-import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader, StatusBadge } from "@/components/backoffice/ui";
 import { PayrollAdminBoard } from "@/components/payroll/payroll-admin-board";
 import { MonthlyWorkSheet } from "@/components/payroll/monthly-work-sheet";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { User } from "lucide-react";
+import { ChevronDown, User } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -37,51 +36,59 @@ export default async function PayrollPage({
   ]);
 
   return (
-    <div className="space-y-4">
-      <PageIntro
-        tag="PAYROLL · ADMIN"
+    <>
+      <PageHeader
         title="급여 정산"
-        description="근무자가 입력한 근무시간을 한 표에서 확인 · 수정하고, 월 급여를 산정합니다. 급여 기준(시급/월급)은 근무자별로 설정하세요."
-        accent="text-info"
+        description="근무자가 입력한 근무시간을 확인·수정하고 월 급여를 산정해요. 급여 기준(시급/월급)은 근무자별로 설정하세요."
+        actions={
+          <Button asChild variant="outline">
+            <Link href="/payroll/me">
+              <User />
+              내 기록 보기
+            </Link>
+          </Button>
+        }
       />
 
-      <div className="flex justify-end">
-        <Link href="/payroll/me">
-          <Button variant="outline" size="sm">
-            <User className="h-4 w-4 mr-1" />내 기록 보기
-          </Button>
-        </Link>
+      <div className="flex flex-col gap-x8">
+        {/* 메인: 월간 근무표 + 급여 산정 */}
+        <MonthlyWorkSheet initial={workSheet} />
+
+        {/* 레거시: 출퇴근 태그 기록 (참고용) */}
+        <details className="group rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-x3 rounded-r4 px-x5 py-x4 transition-colors group-open:rounded-b-none hover:bg-bg-layer-default-pressed [&::-webkit-details-marker]:hidden">
+            <span className="block min-w-0">
+              <span className="flex flex-wrap items-center gap-x2">
+                <span className="t5-bold text-fg-neutral">출퇴근 태그 기록</span>
+                <StatusBadge tone="gray">레거시 · 참고용</StatusBadge>
+              </span>
+              <span className="mt-x0_5 block t3-regular text-fg-neutral-subtle">
+                예전 출퇴근 태그 방식의 기록이에요. 필요할 때만 펼쳐서 확인하세요.
+              </span>
+            </span>
+            <ChevronDown
+              aria-hidden
+              className="size-5 shrink-0 text-fg-neutral-subtle transition-transform group-open:rotate-180"
+            />
+          </summary>
+          <div className="border-t border-stroke-neutral-muted p-x4 sm:p-x5">
+            <PayrollAdminBoard
+              year={year}
+              month={month}
+              staff={staff.map((s) => ({
+                id: s.id,
+                name: s.name,
+                role: s.role,
+                hourlyRate: s.payrollSetting?.hourlyRate ?? null,
+                weeklyHolidayPay: s.payrollSetting?.weeklyHolidayPay ?? true,
+                record: s.payrollRecords[0] ?? null,
+              }))}
+              tags={tags}
+              candidates={candidates}
+            />
+          </div>
+        </details>
       </div>
-
-      {/* 메인: 월간 근무표 + 급여 산정 */}
-      <Card>
-        <CardContent className="pt-4">
-          <MonthlyWorkSheet initial={workSheet} />
-        </CardContent>
-      </Card>
-
-      {/* 레거시: 출퇴근 태그 기록 (참고용) */}
-      <details className="rounded-xl border border-line bg-panel">
-        <summary className="cursor-pointer px-4 py-3 text-[13px] font-semibold text-ink-3">
-          출퇴근 태그 기록 (레거시 · 참고용)
-        </summary>
-        <div className="border-t border-line-2 p-4">
-          <PayrollAdminBoard
-            year={year}
-            month={month}
-            staff={staff.map((s) => ({
-              id: s.id,
-              name: s.name,
-              role: s.role,
-              hourlyRate: s.payrollSetting?.hourlyRate ?? null,
-              weeklyHolidayPay: s.payrollSetting?.weeklyHolidayPay ?? true,
-              record: s.payrollRecords[0] ?? null,
-            }))}
-            tags={tags}
-            candidates={candidates}
-          />
-        </div>
-      </details>
-    </div>
+    </>
   );
 }

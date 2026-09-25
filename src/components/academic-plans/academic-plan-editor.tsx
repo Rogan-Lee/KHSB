@@ -3,12 +3,13 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { upsertAcademicPlan } from "@/actions/academic-plans";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, Users } from "lucide-react";
 import type { AcademicPlan } from "@/generated/prisma";
+import { EmptyState, FormActions, FormField, StatusBadge } from "@/components/backoffice/ui";
+import { cn } from "@/lib/utils";
 
 interface Student {
   id: string;
@@ -55,78 +56,100 @@ export function AcademicPlanEditor({ students, planMap, year, month }: Props) {
     });
   }
 
+  if (students.length === 0) {
+    return (
+      <EmptyState
+        compact
+        icon={Users}
+        title="재원 중인 원생이 없어요"
+        description="원생을 등록하면 여기서 월간 플랜을 작성할 수 있어요"
+      />
+    );
+  }
+
   return (
-    <div className="space-y-2">
+    <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
       {students.map((student) => {
         const plan = planMap[student.id];
         const isExpanded = expandedId === student.id;
         const subjects = (plan?.subjects as Record<string, { goal: string; actual: string }>) || {};
 
         return (
-          <div key={student.id} className="border rounded-lg overflow-hidden">
+          <li key={student.id}>
             <button
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent transition-colors"
+              type="button"
+              aria-expanded={isExpanded}
+              className="flex w-full items-center gap-x3 px-x5 py-x3_5 text-left transition-colors hover:bg-bg-layer-default-pressed"
               onClick={() => setExpandedId(isExpanded ? null : student.id)}
             >
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{student.name}</span>
-                <span className="text-sm text-muted-foreground">{student.grade}</span>
+              <div className="flex min-w-0 flex-1 items-center gap-x2">
+                <span className="shrink-0 t4-medium text-fg-neutral">{student.name}</span>
+                <span className="shrink-0 t3-regular text-fg-neutral-subtle">{student.grade}</span>
                 {plan?.overallGoal && (
-                  <span className="text-xs text-muted-foreground line-clamp-1 max-w-48">
+                  <span className="hidden min-w-0 truncate t3-regular text-fg-neutral-muted sm:block">
                     {plan.overallGoal}
                   </span>
                 )}
               </div>
-              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {plan ? (
+                <StatusBadge tone="ok">작성됨</StatusBadge>
+              ) : (
+                <StatusBadge tone="gray">미작성</StatusBadge>
+              )}
+              <ChevronDown
+                className={cn("size-4 shrink-0 text-fg-neutral-subtle transition-transform", isExpanded && "rotate-180")}
+                aria-hidden
+              />
             </button>
 
             {isExpanded && (
               <form
                 action={(fd) => savePlan(student.id, fd)}
-                className="px-4 pb-4 pt-2 bg-muted/20 space-y-4"
+                className="flex flex-col gap-x5 bg-bg-layer-fill px-x5 py-x5"
               >
-                <div className="space-y-2">
-                  <Label htmlFor={`goal_${student.id}`}>이번 달 목표</Label>
+                <FormField label="이번 달 목표" htmlFor={`goal_${student.id}`}>
                   <Textarea
                     id={`goal_${student.id}`}
                     name="overallGoal"
                     defaultValue={plan?.overallGoal || ""}
                     placeholder="이번 달 전체 목표를 작성하세요..."
                     rows={2}
+                    className="min-h-0"
                   />
-                </div>
+                </FormField>
 
                 {/* Subject goals */}
-                <div>
-                  <Label className="mb-2 block">과목별 목표 / 실적</Label>
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground px-2">
+                <div className="flex flex-col gap-x2">
+                  <span className="t4-medium text-fg-neutral">과목별 목표 / 실적</span>
+                  <div className="overflow-hidden rounded-r3 border border-stroke-neutral-muted bg-bg-layer-default">
+                    <div className="grid grid-cols-[4.5rem_1fr_1fr] gap-x2 border-b border-stroke-neutral-muted bg-bg-layer-fill px-x3 py-x2 t3-medium text-fg-neutral-subtle sm:grid-cols-[6rem_1fr_1fr]">
                       <span>과목</span>
                       <span>목표</span>
                       <span>실적</span>
                     </div>
-                    {DEFAULT_SUBJECTS.map((subj) => (
-                      <div key={subj} className="grid grid-cols-3 gap-2 items-center">
-                        <span className="text-sm px-2">{subj}</span>
-                        <Input
-                          name={`subject_${subj}_goal`}
-                          defaultValue={subjects[subj]?.goal || ""}
-                          placeholder="목표"
-                          className="text-sm h-8"
-                        />
-                        <Input
-                          name={`subject_${subj}_actual`}
-                          defaultValue={subjects[subj]?.actual || ""}
-                          placeholder="실적"
-                          className="text-sm h-8"
-                        />
-                      </div>
-                    ))}
+                    <div className="flex flex-col gap-x2 p-x3">
+                      {DEFAULT_SUBJECTS.map((subj) => (
+                        <div key={subj} className="grid grid-cols-[4.5rem_1fr_1fr] items-center gap-x2 sm:grid-cols-[6rem_1fr_1fr]">
+                          <span className="t4-medium text-fg-neutral">{subj}</span>
+                          <Input
+                            name={`subject_${subj}_goal`}
+                            defaultValue={subjects[subj]?.goal || ""}
+                            placeholder="목표"
+                            aria-label={`${subj} 목표`}
+                          />
+                          <Input
+                            name={`subject_${subj}_actual`}
+                            defaultValue={subjects[subj]?.actual || ""}
+                            placeholder="실적"
+                            aria-label={`${subj} 실적`}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor={`reflection_${student.id}`}>월말 회고</Label>
+                <FormField label="월말 회고" htmlFor={`reflection_${student.id}`}>
                   <Textarea
                     id={`reflection_${student.id}`}
                     name="reflection"
@@ -134,16 +157,21 @@ export function AcademicPlanEditor({ students, planMap, year, month }: Props) {
                     placeholder="이번 달 학습 회고를 작성하세요..."
                     rows={3}
                   />
-                </div>
+                </FormField>
 
-                <Button type="submit" size="sm" disabled={isPending}>
-                  저장
-                </Button>
+                <FormActions className="pt-0">
+                  <Button type="button" variant="ghost" onClick={() => setExpandedId(null)}>
+                    접기
+                  </Button>
+                  <Button type="submit" disabled={isPending}>
+                    {isPending ? "저장 중…" : "저장"}
+                  </Button>
+                </FormActions>
               </form>
             )}
-          </div>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }

@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft, Paperclip, Download, FileCheck2 } from "lucide-react";
+import { ChevronRight, FolderOpen, Paperclip } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { isOnlineStaff } from "@/lib/roles";
 import type { UploadedFile } from "@/actions/online/task-submissions";
+import { EmptyState, Section, StatusBadge } from "@/components/backoffice/ui";
+import { StudentDetailHeader } from "../_components/student-detail-header";
 
 export default async function StudentPortfolioPage({
   params,
@@ -17,7 +19,7 @@ export default async function StudentPortfolioPage({
 
   const student = await prisma.student.findUnique({
     where: { id },
-    select: { id: true, name: true, grade: true, isOnlineManaged: true },
+    select: { id: true, name: true, grade: true, status: true, isOnlineManaged: true },
   });
   if (!student || !student.isOnlineManaged) notFound();
 
@@ -48,95 +50,87 @@ export default async function StudentPortfolioPage({
   const reportIncludedCount = results.filter((r) => r.includeInReport).length;
 
   return (
-    <div className="space-y-5">
-      <div>
-        <Link
-          href={`/online/students/${id}`}
-          className="inline-flex items-center gap-1 text-[12px] text-ink-4 hover:text-ink"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          학생 상세
-        </Link>
-      </div>
-
-      <header>
-        <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
-          {student.name} — 포트폴리오
-        </h1>
-        <p className="mt-1 text-[13px] text-ink-4">
-          {student.grade} · 완료된 수행평가 {results.length}건
-          {reportIncludedCount > 0 && ` · 학부모 보고서 포함 ${reportIncludedCount}건`}
-        </p>
-      </header>
+    <div>
+      <StudentDetailHeader
+        student={student}
+        current="portfolio"
+        description={
+          <>
+            {student.grade} · 완료된 수행평가 {results.length}건
+            {reportIncludedCount > 0 && ` · 학부모 보고서 포함 ${reportIncludedCount}건`}
+          </>
+        }
+      />
 
       {results.length === 0 ? (
-        <div className="rounded-[12px] border border-dashed border-line bg-canvas-2/50 p-8 text-center text-[13px] text-ink-5">
-          최종 완료된 수행평가가 없습니다.
-          <br />
-          <span className="text-[11.5px]">컨설턴트가 피드백을 "승인" 처리하면 여기에 결과물이 쌓입니다.</span>
-        </div>
+        <Section>
+          <EmptyState
+            icon={FolderOpen}
+            title="아직 최종 완료된 수행평가가 없어요"
+            description="컨설턴트가 피드백을 '승인' 처리하면 여기에 결과물이 쌓여요."
+          />
+        </Section>
       ) : (
-        <div className="space-y-5">
+        <div className="flex flex-col gap-x6">
           {subjects.map((subject) => (
-            <section key={subject}>
-              <h2 className="text-[13px] font-semibold text-ink-4 uppercase tracking-wide mb-2">
-                {subject} · {bySubject[subject].length}건
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Section
+              key={subject}
+              title={subject}
+              count={bySubject[subject].length}
+              flush
+              className="overflow-hidden"
+            >
+              <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
                 {bySubject[subject].map((r) => {
                   const files = Array.isArray(r.finalFiles)
                     ? (r.finalFiles as unknown as UploadedFile[])
                     : [];
                   return (
-                    <Link
-                      key={r.id}
-                      href={`/online/students/${id}/tasks/${r.task.id}`}
-                      className="block rounded-[12px] border border-line bg-panel p-4 hover:border-line-strong transition-colors"
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-[13px] font-semibold text-ink">
-                            {r.task.title}
-                          </h3>
-                          <p className="mt-0.5 text-[11.5px] text-ink-4">
+                    <li key={r.id}>
+                      <Link
+                        href={`/online/students/${id}/tasks/${r.task.id}`}
+                        className="flex items-start gap-x3 px-x5 py-x4 transition-colors hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="t4-medium text-fg-neutral">{r.task.title}</p>
+                          <p className="mt-x0_5 t3-regular tabular-nums text-fg-neutral-subtle">
                             {r.task.format && `${r.task.format} · `}
                             마감 {r.task.dueDate.toLocaleDateString("ko-KR")}
                             {r.finalizedAt && ` · 완료 ${r.finalizedAt.toLocaleDateString("ko-KR")}`}
                           </p>
+                          {r.score && (
+                            <p className="mt-x2 t4-regular text-fg-neutral">
+                              <span className="t4-bold">점수</span> {r.score}
+                            </p>
+                          )}
+                          {r.consultantSummary && (
+                            <p className="mt-x1 line-clamp-2 whitespace-pre-wrap t3-regular text-fg-neutral-muted">
+                              {r.consultantSummary}
+                            </p>
+                          )}
                         </div>
-                        {r.includeInReport && (
-                          <span
-                            title="학부모 보고서에 포함됨"
-                            className="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10.5px] font-medium"
-                          >
-                            <FileCheck2 className="h-3 w-3" />
-                            보고서 포함
-                          </span>
+                        {(r.includeInReport || files.length > 0) && (
+                          <div className="flex shrink-0 flex-col items-end gap-x1_5">
+                            {r.includeInReport && (
+                              <span title="학부모 보고서에 포함됨">
+                                <StatusBadge tone="ok">보고서 포함</StatusBadge>
+                              </span>
+                            )}
+                            {files.length > 0 && (
+                              <span className="inline-flex items-center gap-x1 t3-regular tabular-nums text-fg-neutral-subtle">
+                                <Paperclip className="size-3.5" aria-hidden />
+                                {files.length}개 파일
+                              </span>
+                            )}
+                          </div>
                         )}
-                      </div>
-
-                      {r.score && (
-                        <p className="text-[12.5px] text-ink mb-1">
-                          <span className="font-semibold">점수:</span> {r.score}
-                        </p>
-                      )}
-                      {r.consultantSummary && (
-                        <p className="text-[12px] text-ink-3 leading-relaxed whitespace-pre-wrap line-clamp-3 mb-2">
-                          {r.consultantSummary}
-                        </p>
-                      )}
-                      {files.length > 0 && (
-                        <div className="flex items-center gap-1 text-[11px] text-ink-4">
-                          <Paperclip className="h-3 w-3" />
-                          {files.length}개 파일
-                          <Download className="h-3 w-3 ml-auto" />
-                        </div>
-                      )}
-                    </Link>
+                        <ChevronRight className="mt-x0_5 size-4 shrink-0 text-fg-placeholder" aria-hidden />
+                      </Link>
+                    </li>
                   );
                 })}
-              </div>
-            </section>
+              </ul>
+            </Section>
           ))}
         </div>
       )}

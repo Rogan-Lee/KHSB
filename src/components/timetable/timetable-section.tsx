@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { getTimetableEntries, getAttendanceAutoBlocks } from "@/actions/timetable";
 import { TimetableGrid, TimetableEntry, AutoBlock } from "./timetable-grid";
 import { ChevronDown, ChevronUp, Table2 } from "lucide-react";
+import { Skeleton } from "@/components/backoffice/ui";
 
 interface Props {
   studentId: string;
@@ -31,27 +32,28 @@ export function TimetableSection({ studentId, studentName }: Props) {
   }
 
   return (
-    <div className="border rounded-lg overflow-hidden">
+    <div className="overflow-hidden rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
       <button
         type="button"
         onClick={handleOpen}
-        className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+        aria-expanded={open}
+        className="flex w-full items-center justify-between px-x5 py-x4 text-left transition-colors hover:bg-bg-layer-default-pressed"
       >
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Table2 className="h-4 w-4" />
+        <span className="flex items-center gap-x2 t5-bold text-fg-neutral">
+          <Table2 className="size-5 text-fg-neutral-subtle" aria-hidden />
           시간표
-        </div>
+        </span>
         {open ? (
-          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          <ChevronUp className="size-5 text-fg-neutral-subtle" aria-hidden />
         ) : (
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          <ChevronDown className="size-5 text-fg-neutral-subtle" aria-hidden />
         )}
       </button>
 
       {open && (
-        <div className="p-4">
+        <div className="border-t border-stroke-neutral-muted p-x4">
           {loading ? (
-            <p className="text-sm text-muted-foreground text-center py-6">불러오는 중...</p>
+            <Skeleton className="h-72 w-full" />
           ) : entries !== null ? (
             <TimetableGrid
               studentId={studentId}

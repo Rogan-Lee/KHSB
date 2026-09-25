@@ -4,6 +4,8 @@ import { getUser } from "@/lib/auth";
 import { isAnyStaff } from "@/lib/roles";
 import { listStaffInbox } from "@/actions/online/portal-chat";
 import { InboxListPanel } from "@/components/online/chat/inbox-list-panel";
+import { EmptyState } from "@/components/backoffice/ui";
+import { InboxFrame } from "./_components/inbox-frame";
 
 export const metadata = { title: "학생 메시지" };
 
@@ -16,26 +18,23 @@ export default async function StaffInboxPage() {
   const totalUnread = chats.reduce((sum, c) => sum + c.unread, 0);
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] -m-6">
-      <aside className="w-full md:w-96 md:border-r md:border-line">
+    <InboxFrame
+      mode="list"
+      list={
         <InboxListPanel
           chats={chats}
           totalUnread={totalUnread}
           staffRole={user.role}
           className="h-full"
         />
-      </aside>
-      <section className="hidden md:flex flex-1 items-center justify-center bg-canvas">
-        <div className="text-center">
-          <MessageCircle className="mx-auto h-10 w-10 text-ink-5" />
-          <p className="mt-3 text-[14px] font-semibold text-ink-3">
-            왼쪽에서 학생을 선택하세요
-          </p>
-          <p className="mt-1 text-[12px] text-ink-4">
-            대화 화면이 여기에 표시됩니다.
-          </p>
-        </div>
-      </section>
-    </div>
+      }
+    >
+      <EmptyState
+        icon={MessageCircle}
+        title="대화를 선택해 주세요"
+        description="왼쪽 목록에서 학생을 고르면 대화가 여기에 열려요."
+        className="h-full bg-bg-layer-fill"
+      />
+    </InboxFrame>
   );
 }

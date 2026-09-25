@@ -3,8 +3,8 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { useDraft } from "@/hooks/use-draft";
 import { Button } from "@/components/ui/button";
+import { KakaoButton } from "@/components/ui/kakao-button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -13,13 +13,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FormActions, FormField, Segmented } from "@/components/backoffice/ui";
 import { createMeritDemerit } from "@/actions/merit-demerit";
 import { MERIT_CATEGORIES, cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { MessageCircle, Check, Search, X, ChevronDown } from "lucide-react";
+import { Check, CheckCircle2, Search, X, ChevronDown } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 
 type Student = { id: string; name: string; grade: string; seat: string | null };
+
+// DatePicker(공용)를 폼 입력 규격(높이 40 · SEED TextInput)으로 맞추는 className
+const DATE_FIELD_CLASS =
+  "h-10 w-full justify-start gap-x2 rounded-r2 border-0 bg-bg-layer-default px-x3 t4-regular text-fg-neutral shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] hover:bg-bg-layer-default-pressed";
 
 function StudentMultiCombobox({
   students,
@@ -71,81 +76,106 @@ function StudentMultiCombobox({
 
   return (
     <div ref={containerRef} className="relative">
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={handleOpen}
+        onKeyDown={(e) => {
+          if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            handleOpen();
+          }
+        }}
+        aria-haspopup="listbox"
+        aria-expanded={open}
         className={cn(
-          "flex min-h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-1.5 text-sm ring-offset-background",
-          "hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-          selectedIds.size === 0 && "text-muted-foreground"
+          "flex min-h-10 w-full cursor-pointer items-center justify-between gap-x2 rounded-r2 bg-bg-layer-default px-x3 py-x1_5 text-left t4-regular outline-none transition-shadow",
+          open
+            ? "shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)]"
+            : "shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] focus-visible:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)]",
         )}
       >
-        <div className="flex flex-wrap gap-1 flex-1">
+        <div className="flex flex-1 flex-wrap gap-x1">
           {selectedStudents.length > 0 ? (
             selectedStudents.map((s) => (
               <span
                 key={s.id}
-                className="inline-flex items-center gap-0.5 bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5 text-xs font-medium"
+                className="inline-flex items-center gap-x1 rounded-full bg-bg-neutral-weak py-x0_5 pl-x2_5 pr-x1 t3-medium text-fg-neutral"
               >
-                {s.seat ? `[${s.seat}] ` : ""}{s.name}
+                {s.seat && <span className="tabular-nums text-fg-neutral-subtle">{s.seat}</span>}
+                {s.name}
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); toggleStudent(s.id); }}
-                  className="hover:text-destructive"
+                  aria-label={`${s.name} 선택 해제`}
+                  className="grid size-x5 place-items-center rounded-full text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral"
                 >
-                  <X className="h-2.5 w-2.5" />
+                  <X className="size-3" />
                 </button>
               </span>
             ))
           ) : (
-            <span>원생 선택 (다중 선택 가능)</span>
+            <span className="text-fg-placeholder">원생 선택 (여러 명 가능)</span>
           )}
         </div>
-        <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 ml-1" />
-      </button>
+        <ChevronDown className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
+      </div>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
-          <div className="flex items-center gap-2 border-b px-3 py-2">
-            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <div className="absolute z-50 mt-x1 w-full overflow-hidden rounded-r3 bg-bg-layer-floating shadow-[var(--seed-shadow-s3)]">
+          <div className="flex items-center gap-x2 border-b border-stroke-neutral-muted px-x3 py-x2_5">
+            <Search className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
             <input
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="이름 또는 학년 검색..."
-              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              placeholder="이름·학년·좌석 검색"
+              className="flex-1 bg-transparent t4-regular text-fg-neutral outline-none placeholder:text-fg-placeholder"
             />
             {query && (
-              <button type="button" onClick={() => setQuery("")}>
-                <X className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="검색어 지우기"
+                className="text-fg-neutral-subtle transition-colors hover:text-fg-neutral"
+              >
+                <X className="size-4" />
               </button>
             )}
           </div>
-          <div className="max-h-52 overflow-y-auto py-1">
+          <div className="max-h-60 overflow-y-auto p-x1_5" role="listbox" aria-multiselectable>
             {filtered.length === 0 ? (
-              <p className="px-3 py-2 text-sm text-muted-foreground">검색 결과 없음</p>
+              <p className="px-x3 py-x3 t4-regular text-fg-neutral-subtle">검색 결과가 없어요</p>
             ) : (
-              filtered.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => toggleStudent(s.id)}
-                  className={cn(
-                    "flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors",
-                    selectedIds.has(s.id) && "bg-accent font-medium"
-                  )}
-                >
-                  <div className={cn(
-                    "w-4 h-4 rounded border flex items-center justify-center shrink-0",
-                    selectedIds.has(s.id) ? "bg-primary border-primary" : "border-input"
-                  )}>
-                    {selectedIds.has(s.id) && <Check className="h-3 w-3 text-primary-foreground" />}
-                  </div>
-                  {s.seat && <span className="text-xs font-mono text-muted-foreground shrink-0">[{s.seat}]</span>}
-                  <span>{s.name}</span>
-                  <span className="text-xs text-muted-foreground">{s.grade}</span>
-                </button>
-              ))
+              filtered.map((s) => {
+                const on = selectedIds.has(s.id);
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    role="option"
+                    aria-selected={on}
+                    onClick={() => toggleStudent(s.id)}
+                    className="flex w-full items-center gap-x2_5 rounded-r2 px-x3 py-x2 text-left t4-regular text-fg-neutral transition-colors hover:bg-bg-layer-floating-pressed"
+                  >
+                    <span
+                      className={cn(
+                        "grid size-[18px] shrink-0 place-items-center rounded-r1",
+                        on
+                          ? "bg-bg-neutral-inverted text-fg-neutral-inverted"
+                          : "shadow-[inset_0_0_0_1.5px_var(--seed-color-stroke-neutral-weak)]",
+                      )}
+                    >
+                      {on && <Check className="size-3.5" strokeWidth={3} />}
+                    </span>
+                    {s.seat && (
+                      <span className="w-8 shrink-0 t3-regular tabular-nums text-fg-neutral-subtle">{s.seat}</span>
+                    )}
+                    <span className={cn(on && "t4-medium")}>{s.name}</span>
+                    <span className="t3-regular text-fg-neutral-subtle">{s.grade}</span>
+                  </button>
+                );
+              })
             )}
           </div>
         </div>
@@ -229,87 +259,91 @@ export function MeritForm({ students }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      <form action={handleSubmit} className="space-y-3">
-        <div className="space-y-1.5">
-          <Label>원생</Label>
+    <div className="flex flex-col gap-x5">
+      <form action={handleSubmit} className="flex flex-col gap-x4">
+        <FormField
+          label="원생"
+          required
+          hint={selectedStudentIds.size > 0 ? `${selectedStudentIds.size}명 선택됨` : undefined}
+        >
           <StudentMultiCombobox
             students={students}
             selectedIds={selectedStudentIds}
             onChange={setSelectedStudentIds}
           />
+        </FormField>
+
+        <div className="grid grid-cols-1 gap-x4 sm:grid-cols-2">
+          <FormField label="구분" required>
+            <Segmented
+              aria-label="상점 또는 벌점"
+              value={type}
+              onChange={(v) => setType(v)}
+              options={[
+                { value: "MERIT", label: "상점" },
+                { value: "DEMERIT", label: "벌점" },
+              ]}
+            />
+          </FormField>
+          <FormField label="점수" htmlFor="points" required hint="1~100점">
+            <Input id="points" name="points" type="number" min={1} max={100} defaultValue={1} className="tabular-nums" />
+          </FormField>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1.5">
-            <Label>구분</Label>
-            <Select value={type} onValueChange={(v) => setType(v as "MERIT" | "DEMERIT")}>
+        <div className="grid grid-cols-1 gap-x4 sm:grid-cols-2">
+          <FormField label="카테고리">
+            <Select value={category} onValueChange={setCategory}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="카테고리 선택" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="MERIT">상점</SelectItem>
-                <SelectItem value="DEMERIT">벌점</SelectItem>
+                {MERIT_CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="points">점수</Label>
-            <Input id="points" name="points" type="number" min={1} max={100} defaultValue={1} />
-          </div>
+          </FormField>
+          <FormField label="날짜" required>
+            <DatePicker
+              name="date"
+              defaultValue={new Date().toISOString().split("T")[0]}
+              required
+              placeholder="날짜 선택"
+              className={DATE_FIELD_CLASS}
+            />
+          </FormField>
         </div>
 
-        <div className="space-y-1.5">
-          <Label>카테고리</Label>
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger>
-              <SelectValue placeholder="카테고리 선택" />
-            </SelectTrigger>
-            <SelectContent>
-              {MERIT_CATEGORIES.map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label>날짜</Label>
-          <DatePicker name="date" defaultValue={new Date().toISOString().split("T")[0]} required placeholder="날짜 선택" />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="reason">사유 *</Label>
+        <FormField label="사유" htmlFor="reason" required>
           <Textarea
-          id="reason"
-          name="reason"
-          required
-          placeholder="사유를 입력하세요"
-          rows={2}
-          value={draft.reason}
-          onChange={(e) => setDraft((d) => ({ ...d, reason: e.target.value }))}
-        />
-        </div>
+            id="reason"
+            name="reason"
+            required
+            placeholder="예: 자습 시간 집중도 우수"
+            rows={2}
+            value={draft.reason}
+            onChange={(e) => setDraft((d) => ({ ...d, reason: e.target.value }))}
+          />
+        </FormField>
 
-        <Button type="submit" disabled={isPending} className="w-full">
-          {isPending ? "저장 중..." : "부여하기"}
-        </Button>
+        <FormActions>
+          <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
+            {isPending ? "저장 중…" : "부여하기"}
+          </Button>
+        </FormActions>
       </form>
 
       {lastRecord && (
-        <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
-          <div className="flex items-center gap-1.5 text-sm text-green-600 font-medium">
-            <Check className="h-3.5 w-3.5" />
-            {lastRecord.studentName} 학생 {lastRecord.type === "MERIT" ? "상점" : "벌점"} {lastRecord.points}점 부여 완료
-          </div>
-          <Button
-            size="sm"
-            className="w-full gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold"
-            onClick={handleShare}
-          >
-            <MessageCircle className="h-3.5 w-3.5" />
+        <div className="flex flex-col gap-x3 rounded-r3 bg-bg-positive-weak p-x4">
+          <p className="flex items-start gap-x2 t4-medium text-fg-positive">
+            <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>
+              {lastRecord.studentName} 학생 {lastRecord.type === "MERIT" ? "상점" : "벌점"} {lastRecord.points}점 부여 완료
+            </span>
+          </p>
+          <KakaoButton type="button" size="sm" className="w-full" onClick={handleShare}>
             카카오톡으로 학부모에게 알리기
-          </Button>
+          </KakaoButton>
         </div>
       )}
     </div>

@@ -1,11 +1,9 @@
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getHandoverById, getStaffList } from "@/actions/handover";
 import { getChecklistTemplates } from "@/actions/checklist-templates";
 import { getMonthlyNotes } from "@/actions/monthly-notes";
-import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/backoffice/ui";
 import { HandoverFormPageWrapper } from "@/components/handover/handover-form-page-wrapper";
 
 export default async function EditHandoverPage({
@@ -58,32 +56,24 @@ export default async function EditHandoverPage({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Link
-          href={`/handover/${id}`}
-          className="text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <h2 className="text-xl font-bold">인수인계 수정</h2>
-      </div>
+    <div className="mx-auto max-w-3xl">
+      <PageHeader
+        back={{ href: `/handover/${id}`, label: "인수인계 상세" }}
+        title="인수인계 수정"
+        description="수정한 내용은 저장하면 바로 반영돼요."
+      />
 
-      <Card>
-        <CardContent className="pt-6">
-          <HandoverFormPageWrapper
-            backHref={`/handover/${id}`}
-            editingHandover={editingHandover}
-            templates={templates}
-            monthlyNotes={
-              monthlyNotes as React.ComponentProps<
-                typeof HandoverFormPageWrapper
-              >["monthlyNotes"]
-            }
-            staffList={staffList}
-          />
-        </CardContent>
-      </Card>
+      <HandoverFormPageWrapper
+        backHref={`/handover/${id}`}
+        editingHandover={editingHandover}
+        templates={templates}
+        monthlyNotes={
+          monthlyNotes as React.ComponentProps<
+            typeof HandoverFormPageWrapper
+          >["monthlyNotes"]
+        }
+        staffList={staffList}
+      />
     </div>
   );
 }

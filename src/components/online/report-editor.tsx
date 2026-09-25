@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Sparkles, CheckCircle2, Copy, Eye, Lock, Unlock } from "lucide-react";
+import { Sparkles, CheckCircle2, Copy, Eye, Check, Loader2 } from "lucide-react";
 import Link from "next/link";
 import {
   updateReportContent,
@@ -13,6 +13,11 @@ import {
 } from "@/actions/online/parent-reports";
 import type { OnlineReportStatus } from "@/generated/prisma";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Notice, Section } from "@/components/backoffice/ui";
+import { SentLockBar } from "@/components/online/report-status";
+import { useConfirm } from "@/components/online/use-confirm";
 
 export function ReportEditor({
   reportId,
@@ -32,6 +37,7 @@ export function ReportEditor({
   const [markdown, setMarkdown] = useState(initialMarkdown);
   const [status, setStatus] = useState<OnlineReportStatus>(initialStatus);
   const [sentUnlocked, setSentUnlocked] = useState(false);
+  const [confirm, confirmDialog] = useConfirm();
 
   const isFailed = status === "DRAFT_FAILED";
   const isSent = status === "SENT";
@@ -43,11 +49,13 @@ export function ReportEditor({
 
   const hasEdits = markdown !== initialMarkdown;
 
-  const unlockSent = () => {
+  const unlockSent = async () => {
     if (
-      confirm(
-        "발송 완료된 보고서를 수정합니다.\n저장 시 학부모 공개 페이지에 즉시 반영됩니다.\n진행할까요?"
-      )
+      await confirm({
+        title: "발송한 보고서를 수정할까요?",
+        description: "저장하면 학부모 공개 페이지에 바로 반영돼요.",
+        confirmLabel: "재편집",
+      })
     ) {
       setSentUnlocked(true);
     }
@@ -77,8 +85,16 @@ export function ReportEditor({
     });
   };
 
-  const doRegenerate = () => {
-    if (!confirm("AI 초안을 재생성합니다. 기존 편집 내용은 덮어쓰여집니다.")) return;
+  const doRegenerate = async () => {
+    if (
+      !(await confirm({
+        title: "AI 초안을 다시 만들까요?",
+        description: "지금 편집한 내용은 새 초안으로 덮어써져요.",
+        confirmLabel: "다시 만들기",
+        destructive: true,
+      }))
+    )
+      return;
     startTransition(async () => {
       try {
         const result = await regenerateReportDraft(reportId);
@@ -94,9 +110,16 @@ export function ReportEditor({
     });
   };
 
-  const doApprove = () => {
+  const doApprove = async () => {
     if (hasEdits) {
-      if (!confirm("편집 내용이 저장되지 않았습니다. 저장 후 승인하시겠어요?")) return;
+      if (
+        !(await confirm({
+          title: "저장하지 않은 편집 내용이 있어요",
+          description: "편집 내용을 저장한 뒤 승인할까요?",
+          confirmLabel: "저장 후 승인",
+        }))
+      )
+        return;
     }
     startTransition(async () => {
       try {
@@ -131,139 +154,113 @@ export function ReportEditor({
     }
   };
 
+  const statusHint = isSent
+    ? "발송 완료 — 학부모에게 링크를 전달한 뒤에도 같은 링크로 볼 수 있어요."
+    : canSend
+      ? "승인됐어요. 공개 링크를 복사해 학부모에게 보내면 발송 처리돼요."
+      : "초안을 검토하고 저장한 뒤 승인해 주세요.";
+
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-x6">
       {isFailed && (
-        <div className="rounded-[10px] border border-red-200 bg-red-50 p-3 text-[12.5px] text-red-900">
-          <p className="font-semibold">초안 생성 실패</p>
-          {errorMessage && <p className="mt-1 text-[11.5px] text-red-800">{errorMessage}</p>}
-          <p className="mt-2 text-[11.5px]">재생성 버튼을 눌러 다시 시도하거나, 직접 내용을 작성하고 저장해 주세요.</p>
-        </div>
+        <Notice tone="bad" title="초안 생성 실패">
+          {errorMessage ? `${errorMessage} · ` : ""}
+          ‘AI 재생성’으로 다시 시도하거나, 내용을 직접 작성하고 저장해 주세요.
+        </Notice>
       )}
 
-      <section>
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-[13px] font-semibold text-ink">내용 편집 (Markdown)</h2>
-          <button
+      <Section
+        title="보고서 내용"
+        description="마크다운으로 쓰면 학부모 공개 페이지에 그대로 보여요."
+        actions={
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={doRegenerate}
             disabled={isPending || editingLocked}
-            className="inline-flex items-center gap-1 rounded-[6px] border border-line bg-panel px-2.5 py-1 text-[12px] text-ink-3 hover:text-ink hover:border-line-strong disabled:opacity-50"
           >
-            <Sparkles className="h-3 w-3" />
+            <Sparkles />
             AI 재생성
-          </button>
-        </div>
+          </Button>
+        }
+      >
         {isSent && (
-          <div
-            className={`mb-2 flex items-center justify-between gap-2 rounded-[8px] border px-3 py-2 text-[12px] ${
-              sentUnlocked
-                ? "border-amber-300 bg-amber-50 text-amber-900"
-                : "border-emerald-200 bg-emerald-50 text-emerald-900"
-            }`}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              {sentUnlocked ? (
-                <>
-                  <Unlock className="h-3.5 w-3.5" />
-                  재편집 모드 — 저장 시 학부모 페이지에 즉시 반영됩니다
-                </>
-              ) : (
-                <>
-                  <Lock className="h-3.5 w-3.5" />
-                  발송 완료된 보고서입니다 (편집 잠김)
-                </>
-              )}
-            </span>
-            {sentUnlocked ? (
-              <button
-                type="button"
-                onClick={cancelUnlock}
-                className="rounded-[6px] border border-line bg-panel px-2 py-0.5 text-[11px] hover:border-line-strong"
-              >
-                취소
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={unlockSent}
-                className="inline-flex items-center gap-1 rounded-[6px] bg-amber-500 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-amber-600"
-              >
-                <Unlock className="h-3 w-3" />
-                재편집
-              </button>
-            )}
-          </div>
+          <SentLockBar
+            className="mb-x3"
+            unlocked={sentUnlocked}
+            onUnlock={unlockSent}
+            onCancel={cancelUnlock}
+          />
         )}
-        <textarea
+        <Textarea
           value={markdown}
           onChange={(e) => setMarkdown(e.target.value)}
           disabled={!canEdit}
           rows={16}
           placeholder="**이번 주 학습 개요**..."
-          className="w-full rounded-[8px] border border-line bg-canvas px-3 py-2 text-[12.5px] font-mono leading-relaxed resize-y focus:outline-none focus:border-line-strong disabled:opacity-60"
+          aria-label="보고서 내용 (마크다운)"
+          className="resize-y"
         />
-      </section>
+      </Section>
 
-      <section className="rounded-[12px] border border-line bg-panel p-4">
-        <h2 className="text-[13px] font-semibold text-ink mb-2">미리 보기</h2>
-        <MarkdownViewer source={markdown || "*(내용 없음)*"} />
-      </section>
+      <Section title="미리 보기">
+        <div className="rounded-r3 bg-bg-layer-fill p-x5">
+          <MarkdownViewer source={markdown || "*(내용 없음)*"} />
+        </div>
+      </Section>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-line bg-panel p-3">
-        <div className="flex items-center gap-2 text-[12px]">
+      {/* 하단 작업 줄 — 창 아래에 붙어 긴 보고서에서도 저장·승인이 보인다 */}
+      <div className="sticky bottom-4 z-10 flex flex-col gap-x3 rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default px-x5 py-x3 shadow-[var(--seed-shadow-s2)] sm:flex-row sm:items-center sm:justify-between">
+        <p className="t3-regular text-fg-neutral-subtle">
+          {hasEdits && canEdit ? (
+            <span className="t3-medium text-fg-warning">저장하지 않은 변경 사항이 있어요</span>
+          ) : (
+            statusHint
+          )}
+        </p>
+        <div className="flex flex-wrap items-center gap-x2 sm:justify-end">
+          {isSent && (
+            <Button asChild variant="ghost" size="sm">
+              <Link href={publicUrl} target="_blank" rel="noopener">
+                <Eye />
+                공개 페이지 열기
+              </Link>
+            </Button>
+          )}
           {canEdit && (
-            <button
+            <Button
               type="button"
+              variant={canApprove || canSend ? "secondary" : "default"}
+              size="sm"
               onClick={doSave}
               disabled={isPending || !hasEdits}
-              className="rounded-[8px] border border-line bg-panel px-3 py-1.5 font-semibold disabled:opacity-50"
             >
+              {isPending ? <Loader2 className="animate-spin" /> : <Check />}
               저장
-            </button>
+            </Button>
           )}
           {canApprove && (
-            <button
-              type="button"
-              onClick={doApprove}
-              disabled={isPending}
-              className="inline-flex items-center gap-1 rounded-[8px] bg-blue-600 text-white px-3 py-1.5 font-semibold disabled:opacity-50"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
+            <Button type="button" size="sm" onClick={doApprove} disabled={isPending}>
+              <CheckCircle2 />
               승인
-            </button>
+            </Button>
           )}
           {canSend && (
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant={isSent ? "outline" : "default"}
               onClick={doCopy}
               disabled={isPending}
-              className="inline-flex items-center gap-1 rounded-[8px] bg-emerald-600 text-white px-3 py-1.5 font-semibold disabled:opacity-50"
             >
-              <Copy className="h-3.5 w-3.5" />
+              <Copy />
               공개 링크 복사 (발송 처리)
-            </button>
-          )}
-          {isSent && (
-            <Link
-              href={publicUrl}
-              target="_blank"
-              rel="noopener"
-              className="inline-flex items-center gap-1 rounded-[8px] border border-line bg-panel px-3 py-1.5 font-semibold text-ink-3 hover:text-ink"
-            >
-              <Eye className="h-3.5 w-3.5" />
-              공개 페이지 열기
-            </Link>
+            </Button>
           )}
         </div>
-        <p className="text-[11px] text-ink-5">
-          {isSent
-            ? "발송 완료 — 학부모에게 URL 전달 후 상태가 유지됩니다."
-            : canSend
-              ? "승인됨 · 이제 URL 복사로 발송하세요."
-              : "초안 편집 중"}
-        </p>
       </div>
+      {confirmDialog}
     </div>
   );
 }

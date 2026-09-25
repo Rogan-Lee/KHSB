@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { inputBaseClass } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { parseTimeText, clampToMinHour } from "@/lib/time-input";
 
@@ -26,6 +27,36 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
+// ─── 외형 ────────────────────────────────────────────────────────────
+// 학생 포털(PortalTimeField)은 SEED TextField 레시피 클래스(seed-text-input__value)를 className 으로 넘겨
+// 자체 외형을 입힌다. SEED CSS 가 @layer seed-components 로 들어간 뒤로는 Tailwind 유틸이 레시피를 이기므로,
+// 레시피가 정하는 속성(테두리·배경·글꼴·글자 크기·좌우 패딩·placeholder 색)은 여기서 빼 레시피가 그리게 둔다.
+// 직원 화면(그 외 전부)은 SEED TextInput(outline) 규격 — ui/input 의 inputBaseClass 를 공유한다.
+
+const PORTAL_INPUT = [
+  "rounded tabular-nums text-center",
+  "focus:outline-none focus:ring-1 focus:ring-primary transition-colors",
+  "disabled:opacity-30 disabled:cursor-not-allowed",
+];
+const PORTAL_INPUT_SIZE = { sm: "py-1 w-[5.5rem]", default: "py-1.5 w-[6.5rem]" };
+const PORTAL_PANEL = {
+  column: "flex flex-col w-14 first:border-r",
+  label: "text-center text-[10px] text-muted-foreground py-1 border-b shrink-0",
+  list: "overflow-y-auto h-44 p-1 space-y-0.5",
+  item: "w-full h-6 rounded text-xs font-mono tabular-nums text-center hover:bg-accent",
+  itemActive: "bg-primary text-primary-foreground hover:bg-primary",
+};
+
+const STAFF_INPUT = cn(inputBaseClass, "border-0 text-center tabular-nums");
+const STAFF_INPUT_SIZE = { sm: "h-8 w-[5.5rem] px-x2 t3-regular", default: "h-10 w-[6.5rem] px-x3 t4-regular" };
+const STAFF_PANEL = {
+  column: "flex w-16 flex-col first:border-r first:border-stroke-neutral-muted",
+  label: "shrink-0 border-b border-stroke-neutral-muted py-x1_5 text-center t2-medium text-fg-neutral-subtle",
+  list: "flex h-52 flex-col gap-x0_5 overflow-y-auto p-x1",
+  item: "h-8 w-full shrink-0 rounded-r2 text-center t4-regular tabular-nums text-fg-neutral transition-colors hover:bg-bg-layer-floating-pressed",
+  itemActive: "bg-bg-neutral-inverted t4-bold text-fg-neutral-inverted hover:bg-bg-neutral-inverted",
+};
+
 export function TimePickerInput({
   value,
   onChange,
@@ -46,9 +77,14 @@ export function TimePickerInput({
   const lastCommitted = useRef(value);
   const dirty = useRef(false); // 포커스 후 사용자가 실제로 입력/선택했는지
 
+  const portalSkin = !!className?.includes("seed-text-input__value");
+  const panel = portalSkin ? PORTAL_PANEL : STAFF_PANEL;
+
   useEffect(() => {
     lastCommitted.current = value;
     // 편집 중이라도 아직 입력 전이면 외부 value 변경(예: "지금" 버튼)을 그대로 반영
+    // (dirty 는 ref 라 렌더 중에 읽을 수 없어 effect 에서 동기화한다 — 기존 동작 유지)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!dirty.current) setText(value);
   }, [value]);
 
@@ -140,13 +176,11 @@ export function TimePickerInput({
             setOpen(false);
             onBlur?.();
           }}
-          className={cn(
-            "border rounded bg-background font-mono tabular-nums text-center",
-            "focus:outline-none focus:ring-1 focus:ring-primary transition-colors",
-            "disabled:opacity-30 disabled:cursor-not-allowed placeholder:text-muted-foreground/50",
-            size === "sm" ? "px-1.5 py-1 text-xs w-[5.5rem]" : "px-2 py-1.5 text-sm w-[6.5rem]",
-            className
-          )}
+          className={
+            portalSkin
+              ? cn(...PORTAL_INPUT, PORTAL_INPUT_SIZE[size], className)
+              : cn(STAFF_INPUT, STAFF_INPUT_SIZE[size], className)
+          }
         />
       </PopoverAnchor>
       <PopoverContent
@@ -159,27 +193,27 @@ export function TimePickerInput({
         onInteractOutside={(e) => {
           if (inputRef.current?.contains(e.target as Node)) e.preventDefault();
         }}
-        className="w-auto p-0 flex"
+        className={portalSkin ? "w-auto p-0 flex" : "flex w-auto overflow-hidden p-0"}
       >
         {[
-          { label: "시", items: HOURS.filter((h) => !minHour || h >= minHour), sel: selH, onPick: pickHour },
-          { label: "분", items: MINUTES, sel: selM, onPick: pickMinute },
+          { key: "hour", label: "시", items: HOURS.filter((h) => !minHour || h >= minHour), sel: selH },
+          { key: "minute", label: "분", items: MINUTES, sel: selM },
         ].map((col) => (
-          <div key={col.label} className="flex flex-col w-14 first:border-r">
-            <div className="text-center text-[10px] text-muted-foreground py-1 border-b shrink-0">
+          <div key={col.label} className={panel.column}>
+            <div className={panel.label}>
               {col.label}
             </div>
-            <div className="overflow-y-auto h-44 p-1 space-y-0.5">
+            <div className={panel.list}>
               {col.items.map((n) => (
                 <button
                   key={n}
                   type="button"
                   tabIndex={-1}
                   data-active={n === col.sel}
-                  onClick={() => col.onPick(n)}
+                  onClick={() => (col.key === "hour" ? pickHour(n) : pickMinute(n))}
                   className={cn(
-                    "w-full h-6 rounded text-xs font-mono tabular-nums text-center hover:bg-accent",
-                    n === col.sel && "bg-primary text-primary-foreground hover:bg-primary"
+                    panel.item,
+                    n === col.sel && panel.itemActive
                   )}
                 >
                   {pad(n)}
@@ -208,11 +242,13 @@ export function DateTimePickerInput({ name, defaultValue, value, onChange, class
   const [date, setDate] = useState(initial?.slice(0, 10) ?? "");
   const [time, setTime] = useState(initial?.slice(11, 16) ?? "");
 
-  useEffect(() => {
-    if (!controlled) return;
+  // 제어 모드: 외부 value 가 바뀌면 날짜·시간 입력을 다시 맞춘다 — 렌더 중 동기화(effect 불필요)
+  const [syncedValue, setSyncedValue] = useState(value);
+  if (controlled && value !== syncedValue) {
+    setSyncedValue(value);
     setDate(value?.slice(0, 10) ?? "");
     setTime(value?.slice(11, 16) ?? "");
-  }, [controlled, value]);
+  }
 
   const update = (d: string, t: string) => {
     setDate(d);
@@ -223,13 +259,14 @@ export function DateTimePickerInput({ name, defaultValue, value, onChange, class
   const combined = date ? (time ? `${date}T${time}` : `${date}T00:00`) : "";
 
   return (
-    <div className={cn("flex gap-2", className)}>
+    <div className={cn("flex gap-x2", className)}>
       {name && <input type="hidden" name={name} value={combined} />}
       <input
         type="date"
         value={date}
         onChange={(e) => update(e.target.value, time)}
-        className="flex-1 border rounded px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary min-w-0"
+        aria-label="날짜"
+        className={cn(inputBaseClass, "h-10 min-w-0 flex-1 border-0 tabular-nums")}
       />
       <TimePickerInput value={time} onChange={(t) => update(date, t)} />
     </div>

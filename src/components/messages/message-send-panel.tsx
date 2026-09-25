@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -12,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { FormField } from "@/components/backoffice/ui";
 import { sendBulkMessages } from "@/actions/messages";
 import { toast } from "sonner";
 import { MessageCircle } from "lucide-react";
@@ -87,9 +87,8 @@ export function MessageSendPanel({ students }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label>메시지 유형</Label>
+    <div className="flex flex-col gap-x5">
+      <FormField label="메시지 유형">
         <Select value={messageType} onValueChange={handleTypeChange}>
           <SelectTrigger>
             <SelectValue />
@@ -102,45 +101,46 @@ export function MessageSendPanel({ students }: Props) {
             <SelectItem value="MONTHLY_REPORT">월간 리포트</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </FormField>
 
-      <div className="space-y-2">
-        <Label>내용 <span className="text-xs text-muted-foreground">({"{"}name{"}"} → 학생 이름 자동치환)</span></Label>
+      <FormField
+        label="내용"
+        htmlFor="message-send-content"
+        hint={<>{"{name}"} 자리에 학생 이름이 들어가요.</>}
+      >
         <Textarea
+          id="message-send-content"
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder="메시지 내용을 입력하세요..."
           rows={4}
         />
-      </div>
+      </FormField>
 
-      <div className="space-y-2">
+      <div className="flex flex-col gap-x2">
         <div className="flex items-center justify-between">
-          <Label>수신자 선택</Label>
-          <button
-            type="button"
-            onClick={toggleAll}
-            className="text-xs text-primary hover:underline"
-          >
+          <span className="t4-medium text-fg-neutral">
+            수신자 <span className="tabular-nums text-fg-brand">{selectedIds.length}</span>
+          </span>
+          <Button type="button" variant="ghost" size="xs" onClick={toggleAll}>
             {selectedIds.length === students.length ? "전체 해제" : "전체 선택"}
-          </button>
+          </Button>
         </div>
-        <div className="border rounded-lg max-h-48 overflow-y-auto divide-y">
+        <ul className="max-h-48 divide-y divide-stroke-neutral-muted overflow-y-auto rounded-r3 border border-stroke-neutral-muted">
           {students.map((s) => (
-            <label
-              key={s.id}
-              className="flex items-center gap-3 px-3 py-2 hover:bg-accent cursor-pointer"
-            >
-              <Checkbox
-                checked={selectedIds.includes(s.id)}
-                onCheckedChange={() => toggleStudent(s.id)}
-              />
-              <span className="text-sm font-medium">{s.name}</span>
-              <span className="text-xs text-muted-foreground">{s.grade}</span>
-              <span className="text-xs text-muted-foreground ml-auto">{s.parentPhone}</span>
-            </label>
+            <li key={s.id}>
+              <label className="flex cursor-pointer items-center gap-x3 px-x4 py-x2_5 transition-colors hover:bg-bg-layer-default-pressed">
+                <Checkbox
+                  checked={selectedIds.includes(s.id)}
+                  onCheckedChange={() => toggleStudent(s.id)}
+                />
+                <span className="t4-medium text-fg-neutral">{s.name}</span>
+                <span className="t3-regular text-fg-neutral-subtle">{s.grade}</span>
+                <span className="ml-auto t3-regular tabular-nums text-fg-neutral-subtle">{s.parentPhone}</span>
+              </label>
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
 
       <Button
@@ -148,8 +148,8 @@ export function MessageSendPanel({ students }: Props) {
         disabled={isPending || selectedIds.length === 0}
         className="w-full"
       >
-        <MessageCircle className="h-4 w-4 mr-2" />
-        {isPending ? "발송 중..." : `${selectedIds.length}명에게 발송`}
+        <MessageCircle />
+        {isPending ? "발송 중…" : `${selectedIds.length}명에게 발송`}
       </Button>
     </div>
   );

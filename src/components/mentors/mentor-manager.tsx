@@ -4,15 +4,32 @@ import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
+import {
+  DescriptionList,
+  EmptyState,
+  FormActions,
+  FormField,
+  PageHeader,
+  SearchField,
+  Section,
+  Segmented,
+  StatusBadge,
+  type Tone,
+} from "@/components/backoffice/ui";
 import {
   Trash2, Plus, Pencil, UserMinus, UserCheck, ChevronLeft, ChevronRight,
-  Wallet, CalendarClock, FileText,
+  FileText, Users, Phone, SearchX,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Combobox } from "@/components/ui/combobox";
 import { TimePickerInput } from "@/components/ui/time-picker";
 import {
   createMentor,
@@ -23,6 +40,8 @@ import {
 } from "@/actions/mentors";
 import { StaffStatusDialog } from "@/components/admin/staff-status-dialog";
 import { StaffMagicLinkPanel, type StaffMagicLinkRow } from "@/components/admin/staff-magic-link-panel";
+import { ConfirmDialog } from "@/components/admin/confirm-dialog";
+import { NativeSelect } from "@/components/admin/native-select";
 import { ContractHistoryDialog } from "@/components/payroll/contract-history-dialog";
 import type { MentorSchedule, User, PayrollContract } from "@/generated/prisma";
 
@@ -43,8 +62,14 @@ const ROLE_LABEL: Record<string, string> = {
   STAFF: "운영조교", CONSULTANT: "컨설턴트", MANAGER_MENTOR: "관리 멘토", MENTOR: "멘토",
 };
 
+// 역할 배지 색 — 관리자급은 brand, 멘토 리드는 info, 온라인 컨설턴트는 violet
+const ROLE_TONE: Record<string, Tone> = {
+  SUPER_ADMIN: "brand", DIRECTOR: "brand", HEAD_MENTOR: "info", MANAGER_MENTOR: "info",
+  CONSULTANT: "violet", MENTOR: "gray", STAFF: "gray",
+};
+
 const DOW = ["일", "월", "화", "수", "목", "금", "토"];
-function won(n: number) { return `₩${n.toLocaleString("ko-KR")}`; }
+function won(n: number) { return `${n.toLocaleString("ko-KR")}원`; }
 function fmtWorkSchedule(days: number[], start: string | null, end: string | null): string | null {
   if (!days || days.length === 0 || !start || !end) return null;
   return `${[...days].sort((a, b) => a - b).map((d) => DOW[d]).join("·")} ${start}~${end}`;
@@ -52,6 +77,21 @@ function fmtWorkSchedule(days: number[], start: string | null, end: string | nul
 function ymKst(d: Date) {
   const k = new Date(new Date(d).getTime() + 9 * 60 * 60 * 1000);
   return `${k.getUTCFullYear()}.${String(k.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/** 이름 첫 글자 원 — 무채색 */
+function Initial({ name, large = false }: { name: string; large?: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "grid shrink-0 place-items-center rounded-full bg-bg-neutral-weak text-fg-neutral-muted",
+        large ? "size-x14 t7-bold" : "size-x9 t4-bold",
+      )}
+    >
+      {name.slice(0, 1)}
+    </span>
+  );
 }
 
 interface Props {
@@ -70,6 +110,8 @@ export function MentorManager({ mentors: initialMentors, schedules, linksByUser,
   const [statusFilter, setStatusFilter] = useState<"active" | "terminated">("active");
   const [statusDialogUser, setStatusDialogUser] = useState<MentorUser | null>(null);
   const [contractDialogOpen, setContractDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<MentorUser | null>(null);
+  const [query, setQuery] = useState("");
   const [isPending, startTransition] = useTransition();
 
   // Schedule edit state
@@ -82,6 +124,13 @@ export function MentorManager({ mentors: initialMentors, schedules, linksByUser,
   const visibleMentors = mentors.filter((m) =>
     statusFilter === "terminated" ? m.status === "TERMINATED" : m.status !== "TERMINATED",
   );
+  // 목록 검색 — 이름·이메일·역할
+  const q = query.trim().toLowerCase();
+  const listedMentors = q
+    ? visibleMentors.filter((m) =>
+        `${m.name} ${m.email} ${ROLE_LABEL[m.role] ?? m.role}`.toLowerCase().includes(q),
+      )
+    : visibleMentors;
   const selected = useMemo(() => mentors.find((m) => m.id === selectedId) ?? null, [mentors, selectedId]);
 
   function switchFilter(key: "active" | "terminated") {
@@ -127,13 +176,14 @@ export function MentorManager({ mentors: initialMentors, schedules, linksByUser,
     });
   }
 
-  function handleDeleteMentor(id: string, name: string) {
-    if (!confirm(`${name} 직원을 삭제하시겠습니까?\n관련 데이터가 모두 삭제될 수 있습니다.`)) return;
+  // 확인은 ConfirmDialog 에서 받는다 (window.confirm 대체)
+  function handleDeleteMentor(id: string) {
     startTransition(async () => {
       try {
         await deleteMentor(id);
         setMentors((prev) => prev.filter((m) => m.id !== id));
         setSelectedId(null);
+        setDeleteTarget(null);
         toast.success("삭제되었습니다");
       } catch {
         toast.error("삭제 실패");
@@ -181,313 +231,413 @@ export function MentorManager({ mentors: initialMentors, schedules, linksByUser,
   const activeContract = selectedContracts.find((c) => !c.effectiveTo) ?? null;
   const selectedSchedules = selected ? schedules.filter((s) => s.mentorId === selected.id) : [];
   const scheduleMap = new Map(selectedSchedules.map((s) => [s.dayOfWeek, s]));
+  const selectedTerminated = selected?.status === "TERMINATED";
 
   return (
-    <div className="space-y-4">
-      {/* 탭 + 직원 추가 */}
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-1 rounded-lg border bg-muted/30 p-1 w-fit">
-          {([
-            { key: "active", label: "재직", count: activeCount },
-            { key: "terminated", label: "퇴사", count: terminatedCount },
-          ] as const).map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => switchFilter(tab.key)}
-              className={cn(
-                "px-3 py-1 text-sm rounded-md transition-colors",
-                statusFilter === tab.key ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {tab.label}
-              <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{tab.count}</span>
-            </button>
-          ))}
-        </div>
-        {statusFilter === "active" && !showAddForm && (
-          <Button variant="outline" size="sm" onClick={() => setShowAddForm(true)}>
-            <Plus className="h-4 w-4 mr-1" /> 직원 추가
+    <>
+      <PageHeader
+        title="직원 관리"
+        description="직원 정보와 급여 계약, 주간 근무 일정, 순찰 링크를 한곳에서 관리해요."
+        actions={
+          <Button onClick={() => setShowAddForm(true)}>
+            <Plus />
+            직원 추가
           </Button>
-        )}
-      </div>
-
-      {/* 직원 추가 폼 */}
-      {showAddForm && statusFilter === "active" && (
-        <Card>
-          <CardHeader className="py-3 px-4"><CardTitle className="text-sm">직원 추가</CardTitle></CardHeader>
-          <CardContent className="pb-4">
-            <form onSubmit={handleAddMentor} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">이름 *</Label>
-                  <Input name="name" required className="h-8 text-sm" placeholder="홍길동" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">역할 *</Label>
-                  <select name="role" required className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                    <option value="STAFF">운영조교</option>
-                    <option value="MENTOR">멘토</option>
-                    <option value="HEAD_MENTOR">총괄 멘토</option>
-                    <option value="CONSULTANT">컨설턴트</option>
-                    <option value="MANAGER_MENTOR">관리 멘토</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">이메일 *</Label>
-                  <Input name="email" type="email" required className="h-8 text-sm" placeholder="staff@example.com" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">전화번호</Label>
-                  <Input name="phone" type="tel" className="h-8 text-sm" placeholder="010-1234-5678" />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button type="submit" size="sm" disabled={isPending}>등록</Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => setShowAddForm(false)}>취소</Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+        }
+      />
 
       {/* 마스터-디테일 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-3 items-start">
+      <div className="grid grid-cols-1 items-start gap-x4 lg:grid-cols-[320px_minmax(0,1fr)]">
         {/* 좌: 직원 목록 */}
-        <aside className={cn("space-y-1.5", selected ? "hidden lg:block" : "block")}>
-          {visibleMentors.length > 0 && (
-            <Combobox
-              items={visibleMentors.map((m) => ({
-                value: m.id,
-                label: m.name,
-                subLabel: ROLE_LABEL[m.role] ?? m.role,
-                searchKey: `${m.name} ${m.email} ${ROLE_LABEL[m.role] ?? m.role}`,
-              }))}
-              value={selectedId ?? ""}
-              onChange={(id) => id && selectStaff(id)}
-              placeholder="직원 검색 (이름·이메일·역할)"
-              searchPlaceholder="이름·이메일·역할 검색..."
-              emptyMessage="일치하는 직원이 없습니다"
-              triggerClassName="h-9"
-              popoverClassName="w-[280px]"
-            />
-          )}
-          {visibleMentors.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">
-              {statusFilter === "terminated" ? "퇴사 처리된 직원이 없습니다" : "재직 중인 직원이 없습니다"}
-            </p>
-          ) : (
-            visibleMentors.map((m) => {
-              const isActive = selectedId === m.id;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => selectStaff(m.id)}
-                  className={cn(
-                    "w-full text-left rounded-lg border px-3 py-2.5 transition-colors flex items-center gap-2",
-                    isActive ? "border-primary bg-primary/5" : "hover:bg-muted/40",
-                  )}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-medium text-sm truncate">{m.name}</span>
-                      {m.status === "TERMINATED" && <Badge variant="destructive" className="text-[9px] h-4 px-1">퇴사</Badge>}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground truncate">{ROLE_LABEL[m.role] ?? m.role}</p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-                </button>
-              );
-            })
-          )}
+        <aside className={cn(selected ? "hidden lg:block" : "block")} aria-label="직원 목록">
+          <Section flush>
+            <div className="flex flex-col gap-x3 border-b border-stroke-neutral-muted p-x4">
+              <Segmented
+                aria-label="재직 상태"
+                value={statusFilter}
+                onChange={switchFilter}
+                options={[
+                  { value: "active", label: <>재직 <span className="tabular-nums">{activeCount}</span></> },
+                  { value: "terminated", label: <>퇴사 <span className="tabular-nums">{terminatedCount}</span></> },
+                ]}
+              />
+              {visibleMentors.length > 0 && (
+                <SearchField
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="이름·이메일·역할 검색"
+                  aria-label="직원 검색"
+                  className="sm:w-full"
+                />
+              )}
+            </div>
+            {visibleMentors.length === 0 ? (
+              <EmptyState
+                compact
+                icon={Users}
+                title={statusFilter === "terminated" ? "퇴사 처리된 직원이 없어요" : "재직 중인 직원이 없어요"}
+                description={statusFilter === "active" ? "오른쪽 위 ‘직원 추가’로 등록해 보세요." : undefined}
+              />
+            ) : listedMentors.length === 0 ? (
+              <EmptyState compact icon={SearchX} title="일치하는 직원이 없어요" description="다른 검색어로 찾아보세요." />
+            ) : (
+              <ul className="flex flex-col py-x2">
+                {listedMentors.map((m) => {
+                  const isActive = selectedId === m.id;
+                  return (
+                    <li key={m.id}>
+                      <button
+                        type="button"
+                        onClick={() => selectStaff(m.id)}
+                        aria-current={isActive ? "true" : undefined}
+                        className={cn(
+                          "flex w-full items-center gap-x3 px-x4 py-x2_5 text-left transition-colors",
+                          isActive ? "bg-bg-transparent-selected" : "hover:bg-bg-transparent-pressed",
+                        )}
+                      >
+                        <Initial name={m.name} />
+                        <div className="min-w-0 flex-1">
+                          <p className={cn("truncate text-fg-neutral", isActive ? "t4-bold" : "t4-medium")}>{m.name}</p>
+                          <p className="truncate t3-regular text-fg-neutral-subtle">{ROLE_LABEL[m.role] ?? m.role}</p>
+                        </div>
+                        {m.status === "TERMINATED" && <StatusBadge tone="bad">퇴사</StatusBadge>}
+                        <ChevronRight className="size-4 shrink-0 text-fg-placeholder" aria-hidden />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Section>
         </aside>
 
         {/* 우: 선택 직원 상세 */}
         <div className={cn("min-w-0", selected ? "block" : "hidden lg:block")}>
           {!selected ? (
-            <Card><CardContent className="py-16 text-center text-sm text-muted-foreground">좌측에서 직원을 선택하세요.</CardContent></Card>
+            <Section>
+              <EmptyState
+                icon={Users}
+                title="직원을 선택하세요"
+                description="왼쪽 목록에서 직원을 고르면 정보·계약·근무 일정을 볼 수 있어요."
+              />
+            </Section>
           ) : (
-            <div className="space-y-3">
+            <div className="flex flex-col gap-x4">
               {/* 헤더 */}
-              <Card>
-                <CardContent className="py-3 px-4">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <button onClick={() => setSelectedId(null)} className="lg:hidden inline-flex items-center gap-0.5 text-sm text-muted-foreground">
-                      <ChevronLeft className="h-4 w-4" /> 목록
-                    </button>
-                    <span className="font-bold text-base">{selected.name}</span>
-                    <Badge
-                      variant={selected.role === "SUPER_ADMIN" || selected.role === "DIRECTOR" ? "default" : selected.role === "STAFF" ? "outline" : "secondary"}
-                      className="text-xs"
-                    >
-                      {ROLE_LABEL[selected.role] ?? selected.role}
-                    </Badge>
-                    {selected.status === "TERMINATED" && <Badge variant="destructive" className="text-xs">퇴사</Badge>}
-                    <div className="ml-auto flex items-center gap-1">
-                      <button onClick={() => setEditing((v) => !v)} title="정보 수정" className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      {selected.id !== currentUserId && (
-                        <button
-                          onClick={() => setStatusDialogUser(selected)}
-                          title={selected.status === "TERMINATED" ? "활성 복귀" : "퇴사 처리"}
-                          className={cn("p-1.5 rounded hover:bg-accent", selected.status === "TERMINATED" ? "text-muted-foreground hover:text-ok" : "text-muted-foreground hover:text-destructive")}
-                        >
-                          {selected.status === "TERMINATED" ? <UserCheck className="h-3.5 w-3.5" /> : <UserMinus className="h-3.5 w-3.5" />}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDeleteMentor(selected.id, selected.name)}
-                        disabled={isPending || selected.role === "DIRECTOR" || selected.role === "SUPER_ADMIN"}
-                        className="p-1.5 rounded hover:bg-accent text-muted-foreground hover:text-destructive disabled:opacity-30"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+              <Section>
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(null)}
+                  className="-ml-1 mb-x4 inline-flex items-center gap-x1 rounded-r2 px-1 py-x0_5 t4-medium text-fg-neutral-subtle transition-colors hover:text-fg-neutral lg:hidden"
+                >
+                  <ChevronLeft className="size-4" aria-hidden /> 목록
+                </button>
+                <div className="flex flex-col gap-x4 sm:flex-row sm:items-center">
+                  <div className="flex min-w-0 flex-1 items-center gap-x4">
+                    <Initial name={selected.name} large />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-x2">
+                        <h2 className="t7-bold text-fg-neutral">{selected.name}</h2>
+                        <StatusBadge tone={ROLE_TONE[selected.role] ?? "gray"}>
+                          {ROLE_LABEL[selected.role] ?? selected.role}
+                        </StatusBadge>
+                        {selectedTerminated && <StatusBadge tone="bad">퇴사</StatusBadge>}
+                      </div>
+                      <p className="mt-x1 break-all t4-regular text-fg-neutral-subtle">
+                        {selected.email}{selected.phone ? ` · ${selected.phone}` : ""}
+                      </p>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {selected.email}{selected.phone ? ` · ${selected.phone}` : ""}
-                  </p>
+                  <div className="flex flex-wrap items-center gap-x2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditing((v) => !v)}
+                      aria-expanded={editing}
+                    >
+                      <Pencil />
+                      정보 수정
+                    </Button>
+                    {selected.id !== currentUserId && (
+                      <Button variant="outline" size="sm" onClick={() => setStatusDialogUser(selected)}>
+                        {selectedTerminated ? <UserCheck /> : <UserMinus />}
+                        {selectedTerminated ? "활성 복귀" : "퇴사 처리"}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-fg-critical"
+                      onClick={() => setDeleteTarget(selected)}
+                      disabled={isPending || selected.role === "DIRECTOR" || selected.role === "SUPER_ADMIN"}
+                    >
+                      <Trash2 />
+                      삭제
+                    </Button>
+                  </div>
+                </div>
 
-                  {editing && (
-                    <form onSubmit={(e) => handleUpdateMentor(selected.id, e)} className="space-y-3 mt-3 pt-3 border-t">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-xs">이름 *</Label>
-                          <Input name="name" defaultValue={selected.name} required className="h-8 text-sm" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">이메일 *</Label>
-                          <Input name="email" type="email" defaultValue={selected.email} required className="h-8 text-sm" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-xs">역할 (권한)</Label>
-                          <select name="role" defaultValue={selected.role} className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-                            <option value="STAFF">운영조교</option>
-                            <option value="MENTOR">멘토</option>
-                            <option value="HEAD_MENTOR">총괄 멘토</option>
-                            <option value="CONSULTANT">컨설턴트</option>
-                            <option value="MANAGER_MENTOR">관리 멘토</option>
-                            <option value="DIRECTOR">원장</option>
-                            <option value="SUPER_ADMIN">시스템 관리자</option>
-                          </select>
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">전화번호 <span className="text-muted-foreground">(매직링크 본인확인용)</span></Label>
-                          <Input name="phone" type="tel" defaultValue={selected.phone ?? ""} placeholder="010-1234-5678" className="h-8 text-sm" />
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button type="submit" size="sm" disabled={isPending}>저장</Button>
-                        <Button type="button" size="sm" variant="outline" onClick={() => setEditing(false)}>취소</Button>
-                      </div>
-                    </form>
-                  )}
-                </CardContent>
-              </Card>
+                {editing && (
+                  <form
+                    onSubmit={(e) => handleUpdateMentor(selected.id, e)}
+                    className="mt-x5 border-t border-stroke-neutral-muted pt-x5"
+                  >
+                    <div className="grid grid-cols-1 gap-x4 sm:grid-cols-2">
+                      <FormField label="이름" htmlFor="edit-name" required>
+                        <Input id="edit-name" name="name" defaultValue={selected.name} required />
+                      </FormField>
+                      <FormField label="이메일" htmlFor="edit-email" required>
+                        <Input id="edit-email" name="email" type="email" defaultValue={selected.email} required />
+                      </FormField>
+                      <FormField label="역할 (권한)" htmlFor="edit-role">
+                        <NativeSelect id="edit-role" name="role" defaultValue={selected.role}>
+                          <option value="STAFF">운영조교</option>
+                          <option value="MENTOR">멘토</option>
+                          <option value="HEAD_MENTOR">총괄 멘토</option>
+                          <option value="CONSULTANT">컨설턴트</option>
+                          <option value="MANAGER_MENTOR">관리 멘토</option>
+                          <option value="DIRECTOR">원장</option>
+                          <option value="SUPER_ADMIN">시스템 관리자</option>
+                        </NativeSelect>
+                      </FormField>
+                      <FormField label="전화번호" htmlFor="edit-phone" hint="매직링크 본인 확인에 써요">
+                        <Input
+                          id="edit-phone"
+                          name="phone"
+                          type="tel"
+                          defaultValue={selected.phone ?? ""}
+                          placeholder="010-1234-5678"
+                        />
+                      </FormField>
+                    </div>
+                    <FormActions className="mt-x4">
+                      <Button type="button" variant="secondary" onClick={() => setEditing(false)}>
+                        취소
+                      </Button>
+                      <Button type="submit" disabled={isPending}>
+                        {isPending ? "저장 중…" : "저장"}
+                      </Button>
+                    </FormActions>
+                  </form>
+                )}
+              </Section>
 
               {/* 계약 내용 */}
-              <Card>
-                <CardHeader className="py-3 px-4 flex flex-row items-center gap-2">
-                  <Wallet className="h-4 w-4 text-muted-foreground" />
-                  <CardTitle className="text-sm">계약 내용</CardTitle>
-                  <Button variant="outline" size="sm" className="ml-auto h-7 text-xs" onClick={() => setContractDialogOpen(true)}>
-                    <FileText className="h-3 w-3 mr-1" /> 계약 관리
+              <Section
+                title="급여 계약"
+                actions={
+                  <Button variant="outline" size="sm" onClick={() => setContractDialogOpen(true)}>
+                    <FileText />
+                    계약 관리
                   </Button>
-                </CardHeader>
-                <CardContent className="pt-0 pb-4">
-                  {activeContract ? (
-                    <div className="flex items-center gap-2 flex-wrap text-sm">
-                      <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">현재 시급 {won(activeContract.hourlyRate)}</Badge>
-                      <span className="text-xs text-muted-foreground">{ymKst(activeContract.effectiveFrom)}~</span>
-                      <span className="text-xs text-muted-foreground">주휴 {activeContract.weeklyHolidayPay ? "지급" : "미지급"}</span>
-                      {activeContract.monthlyBonusKrw > 0 && <span className="text-xs text-muted-foreground">고정수당 {won(activeContract.monthlyBonusKrw)}</span>}
-                      {fmtWorkSchedule(activeContract.workDays, activeContract.workStartTime, activeContract.workEndTime) && (
-                        <span className="text-xs text-muted-foreground">근무 {fmtWorkSchedule(activeContract.workDays, activeContract.workStartTime, activeContract.workEndTime)}</span>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">등록된 계약이 없습니다. 계약 관리 버튼으로 시급 계약을 등록하세요.</p>
-                  )}
-                  {selectedContracts.length > 1 && (
-                    <p className="mt-1.5 text-[11px] text-muted-foreground">이전 계약 {selectedContracts.length - 1}건 — 계약 관리에서 이력 확인</p>
-                  )}
-                </CardContent>
-              </Card>
+                }
+              >
+                {activeContract ? (
+                  <>
+                    <DescriptionList
+                      cols={3}
+                      items={[
+                        {
+                          label: "시급",
+                          value: <span className="t5-bold tabular-nums">{won(activeContract.hourlyRate)}</span>,
+                        },
+                        ...(activeContract.monthlySalary != null && activeContract.monthlySalary > 0
+                          ? [{
+                              label: "월 기본급",
+                              value: <span className="t5-bold tabular-nums">{won(activeContract.monthlySalary)}</span>,
+                            }]
+                          : []),
+                        {
+                          label: "적용 시작",
+                          value: <span className="tabular-nums">{ymKst(activeContract.effectiveFrom)}부터</span>,
+                        },
+                        { label: "주휴수당", value: activeContract.weeklyHolidayPay ? "지급" : "미지급" },
+                        ...(activeContract.monthlyBonusKrw > 0
+                          ? [{
+                              label: "고정 수당",
+                              value: <span className="tabular-nums">{won(activeContract.monthlyBonusKrw)}</span>,
+                            }]
+                          : []),
+                        {
+                          label: "근무",
+                          value: fmtWorkSchedule(
+                            activeContract.workDays,
+                            activeContract.workStartTime,
+                            activeContract.workEndTime,
+                          ),
+                        },
+                      ]}
+                    />
+                    {selectedContracts.length > 1 && (
+                      <p className="mt-x4 t3-regular text-fg-neutral-subtle">
+                        이전 계약 <span className="tabular-nums">{selectedContracts.length - 1}</span>건은 계약 관리에서 볼 수 있어요.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <EmptyState
+                    compact
+                    icon={FileText}
+                    title="등록된 계약이 없어요"
+                    description="계약 관리에서 시급 계약을 등록하세요."
+                    action={
+                      <Button size="sm" onClick={() => setContractDialogOpen(true)}>
+                        <Plus />
+                        계약 등록
+                      </Button>
+                    }
+                  />
+                )}
+              </Section>
 
               {/* 근무 일정 */}
-              <Card>
-                <CardHeader className="py-3 px-4 flex flex-row items-center gap-2">
-                  <CalendarClock className="h-4 w-4 text-muted-foreground" />
-                  <CardTitle className="text-sm">근무 일정 (주간)</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0 pb-4">
-                  <div className="rounded-md border overflow-hidden">
-                    <table className="w-full text-sm border-collapse">
-                      <tbody>
-                        {DAYS.map((d) => {
-                          const sch = scheduleMap.get(d.value);
-                          const isEditingThis = editDay === d.value;
-                          return (
-                            <tr key={d.value} className={cn("border-b last:border-0", d.weekend ? "bg-muted/20" : "")}>
-                              <td className={cn("px-3 py-2 font-medium text-sm w-16 whitespace-nowrap", d.weekend ? "text-red-500" : "")}>{d.label}</td>
-                              <td className="px-3 py-2">
-                                {isEditingThis ? (
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <TimePickerInput value={editStart} onChange={setEditStart} size="sm" />
-                                    <span className="text-muted-foreground text-xs">~</span>
-                                    <TimePickerInput value={editEnd} onChange={setEditEnd} size="sm" />
-                                    <Button size="sm" className="h-7 text-xs px-2" onClick={handleSaveSchedule} disabled={isPending}>저장</Button>
-                                    <button onClick={() => setEditDay(null)} className="text-xs text-muted-foreground hover:text-foreground">취소</button>
-                                  </div>
-                                ) : sch ? (
-                                  <span className="font-mono text-sm">{sch.timeStart} ~ {sch.timeEnd}</span>
-                                ) : (
-                                  <span className="text-muted-foreground text-xs">미등록</span>
+              <Section title="주간 근무 일정" description="요일별 근무 시간을 등록해요." flush>
+                <Table>
+                  <TableBody>
+                    {DAYS.map((d) => {
+                      const sch = scheduleMap.get(d.value);
+                      const isEditingThis = editDay === d.value;
+                      return (
+                        <TableRow key={d.value} className={cn(isEditingThis && "bg-bg-layer-fill hover:bg-bg-layer-fill")}>
+                          <TableCell
+                            className={cn(
+                              "w-16 whitespace-nowrap pl-x5 t4-bold",
+                              d.weekend ? "text-fg-critical" : "text-fg-neutral",
+                            )}
+                          >
+                            {d.label}
+                          </TableCell>
+                          <TableCell>
+                            {isEditingThis ? (
+                              <div className="flex flex-wrap items-center gap-x2">
+                                <TimePickerInput value={editStart} onChange={setEditStart} size="sm" />
+                                <span className="t4-regular text-fg-neutral-subtle">~</span>
+                                <TimePickerInput value={editEnd} onChange={setEditEnd} size="sm" />
+                                <div className="flex items-center gap-x1">
+                                  <Button size="sm" onClick={handleSaveSchedule} disabled={isPending}>
+                                    {isPending ? "저장 중…" : "저장"}
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => setEditDay(null)}>
+                                    취소
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : sch ? (
+                              <span className="t4-medium tabular-nums text-fg-neutral">
+                                {sch.timeStart} ~ {sch.timeEnd}
+                              </span>
+                            ) : (
+                              <span className="t4-regular text-fg-placeholder">미등록</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap pr-x5 text-right">
+                            {!isEditingThis && (
+                              <div className="flex items-center justify-end gap-x1">
+                                <Button size="sm" variant="ghost" onClick={() => startEditSchedule(d.value)}>
+                                  {sch ? "수정" : "등록"}
+                                </Button>
+                                {sch && (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={() => handleDeleteSchedule(sch.id)}
+                                    disabled={isPending}
+                                    aria-label={`${d.label}요일 일정 삭제`}
+                                    className="text-fg-neutral-subtle hover:text-fg-critical"
+                                  >
+                                    <Trash2 />
+                                  </Button>
                                 )}
-                              </td>
-                              <td className="px-3 py-2 text-right whitespace-nowrap">
-                                {!isEditingThis && (
-                                  <div className="flex items-center gap-2 justify-end">
-                                    <button onClick={() => startEditSchedule(d.value)} className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2">
-                                      {sch ? "수정" : "등록"}
-                                    </button>
-                                    {sch && (
-                                      <button onClick={() => handleDeleteSchedule(sch.id)} disabled={isPending} className="text-muted-foreground hover:text-destructive">
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </Section>
 
               {/* 순찰 매직링크 (퇴사자 제외) */}
-              {selected.status !== "TERMINATED" && (
-                <Card>
-                  <CardContent className="py-4">
-                    {selected.phone ? (
-                      <StaffMagicLinkPanel userId={selected.id} userName={selected.name} links={linksByUser[selected.id] ?? []} />
-                    ) : (
-                      <p className="text-xs text-muted-foreground">순찰 매직링크를 발급하려면 먼저 전화번호를 등록하세요 (본인 확인용).</p>
-                    )}
-                  </CardContent>
-                </Card>
+              {!selectedTerminated && (
+                selected.phone ? (
+                  <StaffMagicLinkPanel userId={selected.id} userName={selected.name} links={linksByUser[selected.id] ?? []} />
+                ) : (
+                  <Section title="순찰 매직링크">
+                    <EmptyState
+                      compact
+                      icon={Phone}
+                      title="전화번호를 먼저 등록하세요"
+                      description="순찰 매직링크는 전화번호 뒷 4자리로 본인 확인을 해요."
+                      action={
+                        <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+                          <Pencil />
+                          정보 수정
+                        </Button>
+                      }
+                    />
+                  </Section>
+                )
               )}
             </div>
           )}
         </div>
       </div>
+
+      {/* 직원 추가 */}
+      <Dialog open={showAddForm} onOpenChange={(open) => { if (!isPending) setShowAddForm(open); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="t7-bold">직원 추가</DialogTitle>
+            <DialogDescription>등록한 이메일로 계정 초대를 보낼 수 있어요.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleAddMentor} className="flex flex-col gap-x4">
+            <FormField label="이름" htmlFor="add-name" required>
+              <Input id="add-name" name="name" required placeholder="홍길동" />
+            </FormField>
+            <FormField label="역할" htmlFor="add-role" required>
+              <NativeSelect id="add-role" name="role" required>
+                <option value="STAFF">운영조교</option>
+                <option value="MENTOR">멘토</option>
+                <option value="HEAD_MENTOR">총괄 멘토</option>
+                <option value="CONSULTANT">컨설턴트</option>
+                <option value="MANAGER_MENTOR">관리 멘토</option>
+              </NativeSelect>
+            </FormField>
+            <FormField label="이메일" htmlFor="add-email" required>
+              <Input id="add-email" name="email" type="email" required placeholder="staff@example.com" />
+            </FormField>
+            <FormField label="전화번호" htmlFor="add-phone" hint="순찰 매직링크 본인 확인에 써요">
+              <Input id="add-phone" name="phone" type="tel" placeholder="010-1234-5678" />
+            </FormField>
+            <DialogFooter>
+              <Button type="button" variant="secondary" onClick={() => setShowAddForm(false)} disabled={isPending}>
+                취소
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? "등록 중…" : "등록"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="직원을 삭제할까요?"
+        description={
+          <>
+            <span className="t4-bold text-fg-neutral">{deleteTarget?.name}</span> 직원을 삭제하면 관련 데이터가 모두
+            삭제될 수 있어요. 되돌릴 수 없어요.
+          </>
+        }
+        tone="critical"
+        confirmLabel="삭제"
+        pendingLabel="삭제 중…"
+        pending={isPending}
+        onConfirm={() => deleteTarget && handleDeleteMentor(deleteTarget.id)}
+      />
 
       {statusDialogUser && (
         <StaffStatusDialog
@@ -508,6 +658,6 @@ export function MentorManager({ mentors: initialMentors, schedules, linksByUser,
           onChanged={() => window.location.reload()}
         />
       )}
-    </div>
+    </>
   );
 }

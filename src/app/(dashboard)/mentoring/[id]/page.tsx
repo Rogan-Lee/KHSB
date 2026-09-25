@@ -4,27 +4,20 @@ import { notFound } from "next/navigation";
 import { getTimetableEntries, getStudentSchoolEvents } from "@/actions/timetable";
 import { TimetableGrid } from "@/components/timetable/timetable-grid";
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { MentoringRecordForm, type PreviousMentoring } from "@/components/mentoring/mentoring-record-form";
 import { CommunicationPanel } from "@/components/communications/communication-panel";
 import nextDynamic from "next/dynamic";
 const ExamScoreChart = nextDynamic(() => import("@/components/students/exam-score-chart").then(m => m.ExamScoreChart));
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { StudentInfoReveal } from "@/components/mentoring/student-info-reveal";
 import { StudyQuantityPanel } from "@/components/mentoring/study-quantity-panel";
+import { MentoringStatusBadge } from "@/components/mentoring/mentoring-status";
 import { getStudentStudyAnalysis } from "@/actions/reports";
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
-
-const STATUS_MAP = {
-  SCHEDULED: { label: "예정", variant: "secondary" as const },
-  COMPLETED: { label: "완료", variant: "default" as const },
-  CANCELLED: { label: "취소", variant: "destructive" as const },
-  RESCHEDULED: { label: "일정변경", variant: "outline" as const },
-};
+import { PencilLine, UserRound } from "lucide-react";
+import { CountBadge, DescriptionList, EmptyState, PageHeader, Section, StatusBadge } from "@/components/backoffice/ui";
 
 export default async function MentoringDetailPage({
   params,
@@ -112,142 +105,146 @@ export default async function MentoringDetailPage({
   });
 
   const s = mentoring.student;
+  const openAssignments = s.assignments.filter((a) => !a.isCompleted).length;
+  const uncheckedComms = s.communications.filter((c) => !c.isChecked).length;
+  const hasStudentInfo = [
+    s.mentoringNotes, s.internalScoreRange, s.mockScoreRange, s.targetUniversity,
+    s.studentInfo, s.selectedSubjects, s.admissionType, s.onlineLectures,
+  ].some(Boolean);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <Link
-          href={backUrl}
-          className="text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <h2 className="text-xl font-bold">멘토링 기록</h2>
-        <Badge variant={STATUS_MAP[mentoring.status].variant}>
-          {STATUS_MAP[mentoring.status].label}
-        </Badge>
-      </div>
+    <>
+      <PageHeader
+        back={{ href: backUrl, label: from === "student" && fromStudentId ? "원생 상세" : "멘토링" }}
+        title={`${s.name} 멘토링`}
+        meta={<MentoringStatusBadge status={mentoring.status} size="large" />}
+        description="이전 기록과 학습 현황을 확인하고, 오늘 멘토링 내용을 기록해요"
+        actions={
+          <Button asChild>
+            <a href="#record">
+              <PencilLine />
+              기록 작성
+            </a>
+          </Button>
+        }
+      />
 
-      {/* 기본 정보 */}
-      <Card>
-        <CardContent className="pt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-          <div>
-            <p className="text-muted-foreground text-xs">원생</p>
-            <p className="font-medium">{s.name} <span className="text-muted-foreground text-xs">({s.grade})</span></p>
-          </div>
-          <div>
-            <p className="text-muted-foreground text-xs">담당 멘토</p>
-            <p className="font-medium">{mentoring.mentor.name}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground text-xs">예정 일시</p>
-            <p className="font-medium">
-              {formatDate(mentoring.scheduledAt)}
-              {mentoring.scheduledTimeStart && (
-                <span className="ml-1 text-muted-foreground text-xs">
-                  {mentoring.scheduledTimeStart}~{mentoring.scheduledTimeEnd}
-                </span>
-              )}
-            </p>
-          </div>
-          <div>
-            <p className="text-muted-foreground text-xs">학부모 이메일</p>
-            <p className="text-xs">{s.parentEmail || <span className="text-muted-foreground">미등록</span>}</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col gap-x6">
+        {/* 기본 정보 */}
+        <Section>
+          <DescriptionList
+            className="lg:grid-cols-4"
+            items={[
+              {
+                label: "원생",
+                value: (
+                  <>
+                    <span className="t4-bold">{s.name}</span>
+                    <span className="ml-x1 t3-regular text-fg-neutral-subtle">{s.grade}{s.school ? ` · ${s.school}` : ""}</span>
+                  </>
+                ),
+              },
+              { label: "담당 멘토", value: mentoring.mentor.name },
+              {
+                label: "예정 일시",
+                value: (
+                  <span className="tabular-nums">
+                    {formatDate(mentoring.scheduledAt)}
+                    {mentoring.scheduledTimeStart && (
+                      <span className="ml-x1 text-fg-neutral-subtle">
+                        {mentoring.scheduledTimeStart}~{mentoring.scheduledTimeEnd}
+                      </span>
+                    )}
+                  </span>
+                ),
+              },
+              {
+                label: "학부모 이메일",
+                value: s.parentEmail || <span className="text-fg-neutral-subtle">미등록</span>,
+              },
+            ]}
+          />
+        </Section>
 
-      {/* 상벌점 · 순찰 특이사항 — 멘토링 시 참고 (이달 누적 + 최근 순찰 특이) */}
-      {(monthMerits.length > 0 || patrolNotes.length > 0) && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              상벌점 · 순찰 특이사항
-              <span className="text-xs font-normal text-muted-foreground">({analysisYear}.{String(analysisMonth).padStart(2, "0")} 기준)</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <p className="text-xs text-muted-foreground">이달 상벌점</p>
-                {meritPositive > 0 && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">상점 +{meritPositive}</Badge>}
-                {meritNegative > 0 && <Badge variant="destructive">벌점 -{meritNegative}</Badge>}
-                {monthMerits.length === 0 && <span className="text-xs text-muted-foreground">없음</span>}
+        {/* 상벌점 · 순찰 특이사항 — 멘토링 시 참고 (이달 누적 + 최근 순찰 특이) */}
+        {(monthMerits.length > 0 || patrolNotes.length > 0) && (
+          <Section
+            title="상벌점 · 순찰 특이사항"
+            description={`${analysisYear}.${String(analysisMonth).padStart(2, "0")} 기준 · 멘토링할 때 참고하세요`}
+          >
+            <div className="grid grid-cols-1 gap-x6 sm:grid-cols-2">
+              <div>
+                <div className="mb-x2 flex flex-wrap items-center gap-x1_5">
+                  <p className="t4-medium text-fg-neutral">이달 상벌점</p>
+                  {meritPositive > 0 && <StatusBadge tone="ok">상점 +{meritPositive}</StatusBadge>}
+                  {meritNegative > 0 && <StatusBadge tone="bad">벌점 -{meritNegative}</StatusBadge>}
+                </div>
+                {monthMerits.length === 0 ? (
+                  <p className="t3-regular text-fg-neutral-subtle">이달 상벌점 기록이 없어요</p>
+                ) : (
+                  <ul className="flex max-h-40 flex-col gap-x1_5 overflow-y-auto">
+                    {monthMerits.map((m) => (
+                      <li key={m.id} className="flex items-center gap-x2 t3-regular">
+                        <span className="shrink-0 tabular-nums text-fg-neutral-subtle">{formatDate(m.date)}</span>
+                        <span className={cn("shrink-0 t3-bold tabular-nums", m.type === "MERIT" ? "text-fg-positive" : "text-fg-critical")}>
+                          {m.type === "MERIT" ? "+" : "-"}{m.points}
+                        </span>
+                        <span className="truncate text-fg-neutral">{m.category ? `[${m.category}] ` : ""}{m.reason}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-              <ul className="space-y-1 max-h-32 overflow-y-auto">
-                {monthMerits.map((m) => (
-                  <li key={m.id} className="text-xs flex items-center gap-1.5">
-                    <span className="text-muted-foreground tabular-nums">{formatDate(m.date)}</span>
-                    <span className={m.type === "MERIT" ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>
-                      {m.type === "MERIT" ? "+" : "-"}{m.points}
-                    </span>
-                    <span className="text-foreground/80 truncate">{m.category ? `[${m.category}] ` : ""}{m.reason}</span>
-                  </li>
-                ))}
-              </ul>
+              <div>
+                <p className="mb-x2 t4-medium text-fg-neutral">최근 순찰 특이사항</p>
+                {patrolNotes.length === 0 ? (
+                  <p className="t3-regular text-fg-neutral-subtle">최근 순찰 특이사항이 없어요</p>
+                ) : (
+                  <ul className="flex max-h-40 flex-col gap-x1_5 overflow-y-auto">
+                    {patrolNotes.map((p) => (
+                      <li key={p.id} className="flex items-center gap-x2 t3-regular">
+                        <span className="shrink-0 tabular-nums text-fg-neutral-subtle">{formatDate(p.round?.startedAt ?? p.checkedAt)}</span>
+                        <StatusBadge tone={p.status === "ABSENT" ? "gray" : "warn"}>
+                          {p.status === "ABSENT" ? "자리비움" : "특이"}
+                        </StatusBadge>
+                        {p.note && <span className="truncate text-fg-neutral">{p.note}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1.5">최근 순찰 특이사항</p>
-              {patrolNotes.length === 0 ? (
-                <span className="text-xs text-muted-foreground">없음</span>
-              ) : (
-                <ul className="space-y-1 max-h-32 overflow-y-auto">
-                  {patrolNotes.map((p) => (
-                    <li key={p.id} className="text-xs flex items-center gap-1.5">
-                      <span className="text-muted-foreground tabular-nums">{formatDate(p.round?.startedAt ?? p.checkedAt)}</span>
-                      <Badge variant="outline" className={p.status === "ABSENT" ? "border-gray-300 text-gray-600" : "border-amber-300 text-amber-700"}>
-                        {p.status === "ABSENT" ? "자리비움" : "특이"}
-                      </Badge>
-                      {p.note && <span className="text-foreground/80 truncate">{p.note}</span>}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          </Section>
+        )}
 
-      {/* 학습 정량 분석 — 멘토와 학생이 함께 확인하며 멘토링 자료로 활용 */}
-      {studyAnalysis && (
-        <StudyQuantityPanel
-          studentName={s.name}
-          year={analysisYear}
-          month={analysisMonth}
-          analysis={studyAnalysis}
-        />
-      )}
+        {/* 학습 정량 분석 — 멘토와 학생이 함께 확인하며 멘토링 자료로 활용 */}
+        {studyAnalysis && (
+          <StudyQuantityPanel
+            studentName={s.name}
+            year={analysisYear}
+            month={analysisMonth}
+            analysis={studyAnalysis}
+          />
+        )}
 
-      <Tabs defaultValue="record">
-        <TabsList>
-          <TabsTrigger value="record">멘토링 기록</TabsTrigger>
-          <TabsTrigger value="timetable">시간표</TabsTrigger>
-          <TabsTrigger value="assignments">
-            과제
-            {s.assignments.filter((a) => !a.isCompleted).length > 0 && (
-              <span className="ml-1.5 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                {s.assignments.filter((a) => !a.isCompleted).length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="communications">
-            요청/전달
-            {s.communications.filter((c) => !c.isChecked).length > 0 && (
-              <span className="ml-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                {s.communications.filter((c) => !c.isChecked).length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="scores">성적 추이</TabsTrigger>
-          <TabsTrigger value="studentinfo">학생 정보</TabsTrigger>
-        </TabsList>
+        <Tabs defaultValue="record" id="record" className="scroll-mt-6">
+          <TabsList>
+            <TabsTrigger value="record">멘토링 기록</TabsTrigger>
+            <TabsTrigger value="timetable">시간표</TabsTrigger>
+            <TabsTrigger value="assignments">
+              과제
+              <CountBadge count={openAssignments} />
+            </TabsTrigger>
+            <TabsTrigger value="communications">
+              요청/전달
+              <CountBadge count={uncheckedComms} className="bg-bg-critical-solid" />
+            </TabsTrigger>
+            <TabsTrigger value="scores">성적 추이</TabsTrigger>
+            <TabsTrigger value="studentinfo">학생 정보</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="record" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">멘토링 내용 기록</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <TabsContent value="record">
+            <Section title="멘토링 내용 기록">
               <MentoringRecordForm
                 mentoring={mentoring}
                 studentName={s.name}
@@ -256,67 +253,69 @@ export default async function MentoringDetailPage({
                 photos={mentoring.photos}
                 backUrl={backUrl}
               />
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </Section>
+          </TabsContent>
 
-        <TabsContent value="timetable" className="mt-4">
-          <TimetableGrid
-            studentId={s.id}
-            studentName={s.name}
-            initialEntries={timetableEntries.map((e) => ({
-              id: e.id,
-              dayOfWeek: e.dayOfWeek,
-              startTime: e.startTime,
-              endTime: e.endTime,
-              subject: e.subject,
-              details: e.details ?? null,
-              colorCode: e.colorCode,
-              allDay: e.allDay,
-            }))}
-            schoolEvents={mentoringSchoolEvents}
-          />
-        </TabsContent>
+          <TabsContent value="timetable">
+            <TimetableGrid
+              studentId={s.id}
+              studentName={s.name}
+              initialEntries={timetableEntries.map((e) => ({
+                id: e.id,
+                dayOfWeek: e.dayOfWeek,
+                startTime: e.startTime,
+                endTime: e.endTime,
+                subject: e.subject,
+                details: e.details ?? null,
+                colorCode: e.colorCode,
+                allDay: e.allDay,
+              }))}
+              schoolEvents={mentoringSchoolEvents}
+            />
+          </TabsContent>
 
-        <TabsContent value="assignments" className="mt-4">
-          <AssignmentPanel
-            studentId={s.id}
-            studentName={s.name}
-            initialItems={s.assignments}
-            mentoringId={mentoring.id}
-          />
-        </TabsContent>
+          <TabsContent value="assignments">
+            <AssignmentPanel
+              studentId={s.id}
+              studentName={s.name}
+              initialItems={s.assignments}
+              mentoringId={mentoring.id}
+            />
+          </TabsContent>
 
-        <TabsContent value="communications" className="mt-4">
-          <CommunicationPanel
-            studentId={s.id}
-            initialItems={s.communications}
-          />
-        </TabsContent>
+          <TabsContent value="communications">
+            <CommunicationPanel
+              studentId={s.id}
+              initialItems={s.communications}
+            />
+          </TabsContent>
 
-        <TabsContent value="scores" className="mt-4">
-          <ExamScoreChart
-            studentId={s.id}
-            initialScores={s.examScores}
-          />
-        </TabsContent>
-        <TabsContent value="studentinfo" className="mt-4">
-          <Card className="border-border bg-muted/20">
-            <CardContent className="pt-4 pb-4">
-              <StudentInfoReveal
-                mentoringNotes={s.mentoringNotes}
-                internalScoreRange={s.internalScoreRange}
-                mockScoreRange={s.mockScoreRange}
-                targetUniversity={s.targetUniversity}
-                studentInfo={s.studentInfo}
-                selectedSubjects={s.selectedSubjects}
-                admissionType={s.admissionType}
-                onlineLectures={s.onlineLectures}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-    </div>
+          <TabsContent value="scores">
+            <ExamScoreChart
+              studentId={s.id}
+              initialScores={s.examScores}
+            />
+          </TabsContent>
+          <TabsContent value="studentinfo">
+            <Section title="학생 정보" description="성적대·입시 정보는 눌러야 보여요">
+              {hasStudentInfo ? (
+                <StudentInfoReveal
+                  mentoringNotes={s.mentoringNotes}
+                  internalScoreRange={s.internalScoreRange}
+                  mockScoreRange={s.mockScoreRange}
+                  targetUniversity={s.targetUniversity}
+                  studentInfo={s.studentInfo}
+                  selectedSubjects={s.selectedSubjects}
+                  admissionType={s.admissionType}
+                  onlineLectures={s.onlineLectures}
+                />
+              ) : (
+                <EmptyState compact icon={UserRound} title="등록된 학생 정보가 없어요" description="원생 상세에서 성적대·입시 정보를 입력할 수 있어요" />
+              )}
+            </Section>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </>
   );
 }

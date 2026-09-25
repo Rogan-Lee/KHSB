@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Settings2, Loader2, Check, Lock } from "lucide-react";
+import { Settings2, Loader2, Check, Lock, Users } from "lucide-react";
 import {
   getMonthlyWorkSheet,
   setStaffWorkHour,
@@ -12,7 +13,21 @@ import {
   type MonthlyWorkSheet as MonthlyWorkSheetData,
   type WorkSheetUser,
 } from "@/actions/payroll";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { EmptyState, Section, StatCard, StatCards, StatusBadge } from "@/components/backoffice/ui";
+import { ConfirmDialog } from "@/components/admin/confirm-dialog";
+import { cn } from "@/lib/utils";
 import { ContractHistoryDialog } from "./contract-history-dialog";
+import { MonthStepper } from "./month-stepper";
 import type { PayrollContract } from "@/generated/prisma";
 
 function pad(n: number) {
@@ -40,8 +55,23 @@ const ROLE_LABEL: Record<string, string> = {
   STAFF: "직원",
 };
 
+// 근무시간 칸 입력 — 스프레드시트처럼 테두리 없이, 포커스 때만 SEED 포커스 테두리
+const CELL_INPUT =
+  "h-9 w-full bg-transparent px-x1 text-center t4-regular tabular-nums text-fg-neutral outline-none transition-shadow " +
+  "placeholder:text-fg-placeholder focus:bg-bg-layer-default focus:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)] " +
+  "disabled:cursor-not-allowed disabled:text-fg-neutral-subtle " +
+  "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+
+// 표 칸 공통 선
+const GRID = "border-b border-r border-stroke-neutral-muted";
+
 function cellKey(userId: string, day: number) {
   return `${userId}__${day}`;
+}
+
+/** 급여 기준이 아직 없는 근무자 */
+function rateUnset(u: WorkSheetUser) {
+  return u.hourlyRate === 0 && u.monthlySalary == null;
 }
 
 export function MonthlyWorkSheet({ initial }: { initial: MonthlyWorkSheetData }) {
@@ -52,6 +82,8 @@ export function MonthlyWorkSheet({ initial }: { initial: MonthlyWorkSheetData })
   const [extras, setExtras] = useState<Record<string, string>>(() => buildExtras(initial));
   const [pending, startTransition] = useTransition();
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  // 사업자 확인(확정/해제) 확인 다이얼로그 대상
+  const [confirmTarget, setConfirmTarget] = useState<WorkSheetUser | null>(null);
 
   // 급여 기준(계약) 다이얼로그
   const [rateTarget, setRateTarget] = useState<{ userId: string; userName: string } | null>(null);
@@ -142,6 +174,7 @@ export function MonthlyWorkSheet({ initial }: { initial: MonthlyWorkSheetData })
     });
   }
 
+  // 확인은 ConfirmDialog 에서 받는다
   function toggleOwnerConfirm(u: WorkSheetUser) {
     const next = u.ownerConfirmedAt == null;
     startTransition(async () => {
@@ -149,6 +182,7 @@ export function MonthlyWorkSheet({ initial }: { initial: MonthlyWorkSheetData })
         await ownerConfirmWorkMonth(u.userId, year, month, next);
         await reload(year, month);
         toast.success(next ? `${u.name} 사업자 확인` : `${u.name} 확인 해제`);
+        setConfirmTarget(null);
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "처리 실패");
       }
@@ -165,257 +199,392 @@ export function MonthlyWorkSheet({ initial }: { initial: MonthlyWorkSheetData })
 
   const users = sheet.users;
 
+  // 요약 지표 (표시용 합계)
+  const sumMinutes = users.reduce((s, u) => s + u.pay.totalMinutes, 0);
+  const sumBase = users.reduce((s, u) => s + (u.pay.isMonthly ? 0 : u.pay.baseWage), 0);
+  const sumHoliday = users.reduce((s, u) => s + (u.pay.isMonthly ? 0 : u.pay.weeklyHolidayWage), 0);
+  const sumWage = users.reduce((s, u) => s + (rateUnset(u) ? 0 : u.pay.totalWage), 0);
+  const ownerConfirmedCount = users.filter((u) => u.ownerConfirmedAt != null).length;
+  const staffConfirmedCount = users.filter((u) => u.staffConfirmedAt != null).length;
+  const unsetCount = users.filter(rateUnset).length;
+
+  const confirmNext = confirmTarget ? confirmTarget.ownerConfirmedAt == null : true;
+
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-x6">
       {/* 월 선택 */}
-      <div className="flex items-center justify-between">
-        <div className="inline-flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => changeMonth(-1)}
-            disabled={pending}
-            className="grid h-8 w-8 place-items-center rounded-md border border-line text-ink-3 hover:bg-panel-2 disabled:opacity-50"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="min-w-[96px] text-center text-[16px] font-bold tabular-nums">
-            {year}.{pad(month)}
-          </span>
-          <button
-            type="button"
-            onClick={() => changeMonth(1)}
-            disabled={pending}
-            className="grid h-8 w-8 place-items-center rounded-md border border-line text-ink-3 hover:bg-panel-2 disabled:opacity-50"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-        {pending && <Loader2 className="h-4 w-4 animate-spin text-ink-4" />}
+      <div className="flex flex-wrap items-center justify-between gap-x3">
+        <MonthStepper
+          year={year}
+          month={month}
+          onPrev={() => changeMonth(-1)}
+          onNext={() => changeMonth(1)}
+          disabled={pending}
+          loading={pending}
+          className="-ml-2"
+        />
+        {users.length > 0 && (
+          <p className="t3-regular text-fg-neutral-subtle">
+            칸에 시간(예 7.5)을 입력하고 밖을 누르면 저장돼요
+          </p>
+        )}
       </div>
 
       {users.length === 0 ? (
-        <p className="rounded-md bg-panel-2 px-3 py-8 text-center text-sm text-ink-4">
-          이 달에 표시할 근무자가 없습니다.
-        </p>
+        <Section>
+          <EmptyState
+            icon={Users}
+            title="이 달에 표시할 근무자가 없어요"
+            description="재직 중인 직원이나 이 달 근무 기록이 있는 직원이 여기에 나타나요."
+            action={
+              <Button asChild variant="outline">
+                <Link href="/mentors">직원 관리로 가기</Link>
+              </Button>
+            }
+          />
+        </Section>
       ) : (
         <>
-          {/* 근무시간 표 (사진 재현) */}
-          <div className="overflow-x-auto rounded-xl border border-line">
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr className="bg-panel-2">
-                  <th className="sticky left-0 z-10 w-[72px] border-b border-r border-line-2 bg-panel-2 px-2 py-2 text-left text-[11px] font-semibold text-ink-4">
-                    날짜
-                  </th>
-                  {users.map((u) => (
-                    <th
-                      key={u.userId}
-                      className="min-w-[84px] border-b border-r border-line-2 px-2 py-2 text-center"
-                    >
-                      <div className="text-[12.5px] font-bold text-ink">{u.name}</div>
-                      <div className="text-[10px] text-ink-4">
-                        {ROLE_LABEL[u.role] ?? u.role}
-                        {u.status !== "ACTIVE" && " · 퇴사"}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {days.map((day) => {
-                  const dow = new Date(year, month - 1, day).getDay();
-                  const weekend = dow === 0 || dow === 6;
-                  return (
-                    <tr key={day} className={weekend ? "bg-bad/5" : ""}>
-                      <td
-                        className={`sticky left-0 z-10 border-b border-r border-line-2 px-2 py-1 text-[12px] tabular-nums ${
-                          weekend ? "bg-[#fdf2f2] text-bad" : "bg-panel text-ink-3"
-                        }`}
-                      >
-                        {pad(day)} {WEEKDAYS[dow]}
-                      </td>
-                      {users.map((u) => {
-                        const key = cellKey(u.userId, day);
-                        const locked = userLocked(u);
-                        return (
-                          <td key={key} className="border-b border-r border-line-2 p-0">
-                            <div className="relative">
-                              <input
-                                type="number"
-                                inputMode="decimal"
-                                step="0.25"
-                                min="0"
-                                max="24"
-                                disabled={locked || pending}
-                                value={cells[key] ?? ""}
-                                onChange={(e) => setCells((p) => ({ ...p, [key]: e.target.value }))}
-                                onBlur={() => saveCell(u, day)}
-                                className="h-8 w-full bg-transparent px-1 text-center text-[13px] tabular-nums focus:bg-brand/5 focus:outline-none disabled:text-ink-4"
-                              />
-                              {savingKey === key && (
-                                <Loader2 className="absolute right-0.5 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-ink-4" />
-                              )}
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
+          <StatCards cols={4}>
+            <StatCard label="근무자" value={users.length} unit="명" sub={unsetCount > 0 ? `급여 기준 미설정 ${unsetCount}명` : undefined} />
+            <StatCard label="총 근무시간" value={minutesToHoursLabel(sumMinutes)} unit="시간" />
+            <StatCard label="총 지급 예정(세전)" value={sumWage.toLocaleString("ko-KR")} unit="원" />
+            <StatCard
+              label="사업자 확인"
+              value={`${ownerConfirmedCount}/${users.length}`}
+              unit="명"
+              tone={ownerConfirmedCount === users.length ? "ok" : "gray"}
+              sub={`근무자 본인 확인 ${staffConfirmedCount}명`}
+            />
+          </StatCards>
 
-                {/* 비고(추가근무) */}
-                <tr className="bg-panel-2">
-                  <td className="sticky left-0 z-10 border-b border-r border-line-2 bg-panel-2 px-2 py-1 text-[11px] font-semibold text-ink-4">
-                    비고(추가)
-                  </td>
-                  {users.map((u) => {
-                    const key = `extra__${u.userId}`;
-                    const locked = userLocked(u);
-                    return (
-                      <td key={key} className="border-b border-r border-line-2 p-0">
-                        <div className="relative">
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            step="0.25"
-                            min="0"
-                            max="24"
-                            disabled={locked || pending}
-                            value={extras[u.userId] ?? ""}
-                            onChange={(e) => setExtras((p) => ({ ...p, [u.userId]: e.target.value }))}
-                            onBlur={() => saveExtra(u)}
-                            className="h-8 w-full bg-transparent px-1 text-center text-[13px] tabular-nums focus:bg-brand/5 focus:outline-none disabled:text-ink-4"
-                          />
-                          {savingKey === key && (
-                            <Loader2 className="absolute right-0.5 top-1/2 h-3 w-3 -translate-y-1/2 animate-spin text-ink-4" />
-                          )}
+          {/* 근무시간 표 */}
+          <Section
+            title="근무시간표"
+            description="근무자가 입력한 시간을 확인하고 고칠 수 있어요. 사업자 확인을 하면 그 달은 잠겨요."
+            flush
+          >
+            <div className="overflow-x-auto border-t border-stroke-neutral-muted">
+              <table className="w-full border-collapse t4-regular text-fg-neutral tabular-nums">
+                <thead>
+                  <tr className="bg-bg-layer-fill">
+                    <th
+                      scope="col"
+                      className={cn(GRID, "sticky left-0 z-10 w-20 bg-bg-layer-fill px-x3 py-x2_5 text-left t3-medium text-fg-neutral-subtle")}
+                    >
+                      날짜
+                    </th>
+                    {users.map((u) => (
+                      <th key={u.userId} scope="col" className={cn(GRID, "min-w-24 px-x2 py-x2_5 text-center")}>
+                        <div className="flex items-center justify-center gap-x1 t4-bold text-fg-neutral">
+                          {u.name}
+                          {userLocked(u) && <Lock className="size-3.5 text-fg-positive" aria-label="확정됨" />}
                         </div>
-                      </td>
+                        <div className="t2-regular text-fg-neutral-subtle">
+                          {ROLE_LABEL[u.role] ?? u.role}
+                          {u.status !== "ACTIVE" && " · 퇴사"}
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {days.map((day) => {
+                    const dow = new Date(year, month - 1, day).getDay();
+                    const weekend = dow === 0 || dow === 6;
+                    return (
+                      <tr key={day} className={weekend ? "bg-bg-layer-fill" : undefined}>
+                        <th
+                          scope="row"
+                          className={cn(
+                            GRID,
+                            "sticky left-0 z-10 px-x3 py-0 text-left t3-regular tabular-nums",
+                            weekend ? "bg-bg-layer-fill text-fg-critical" : "bg-bg-layer-default text-fg-neutral-muted",
+                          )}
+                        >
+                          {pad(day)} {WEEKDAYS[dow]}
+                        </th>
+                        {users.map((u) => {
+                          const key = cellKey(u.userId, day);
+                          const locked = userLocked(u);
+                          return (
+                            <td key={key} className={cn(GRID, "p-0")}>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  inputMode="decimal"
+                                  step="0.25"
+                                  min="0"
+                                  max="24"
+                                  disabled={locked || pending}
+                                  value={cells[key] ?? ""}
+                                  onChange={(e) => setCells((p) => ({ ...p, [key]: e.target.value }))}
+                                  onBlur={() => saveCell(u, day)}
+                                  aria-label={`${u.name} ${month}월 ${day}일 근무시간`}
+                                  className={CELL_INPUT}
+                                />
+                                {savingKey === key && (
+                                  <Loader2 className="absolute right-1 top-1/2 size-3 -translate-y-1/2 animate-spin text-fg-neutral-subtle" />
+                                )}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
                     );
                   })}
-                </tr>
 
-                {/* 총 근무시간 */}
-                <tr className="bg-brand/5 font-semibold">
-                  <td className="sticky left-0 z-10 border-b border-r border-line-2 bg-brand/5 px-2 py-1.5 text-[11px] text-ink-3">
-                    총 근무시간
-                  </td>
-                  {users.map((u) => (
-                    <td
-                      key={u.userId}
-                      className="border-b border-r border-line-2 px-1 py-1.5 text-center text-[13px] tabular-nums text-ink"
+                  {/* 비고(추가근무) */}
+                  <tr className="bg-bg-layer-fill">
+                    <th
+                      scope="row"
+                      className={cn(GRID, "sticky left-0 z-10 bg-bg-layer-fill px-x3 py-0 text-left t3-medium text-fg-neutral-muted")}
                     >
-                      {minutesToHoursLabel(u.pay.totalMinutes)}
-                    </td>
-                  ))}
-                </tr>
+                      비고(추가)
+                    </th>
+                    {users.map((u) => {
+                      const key = `extra__${u.userId}`;
+                      const locked = userLocked(u);
+                      return (
+                        <td key={key} className={cn(GRID, "p-0")}>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              step="0.25"
+                              min="0"
+                              max="24"
+                              disabled={locked || pending}
+                              value={extras[u.userId] ?? ""}
+                              onChange={(e) => setExtras((p) => ({ ...p, [u.userId]: e.target.value }))}
+                              onBlur={() => saveExtra(u)}
+                              aria-label={`${u.name} 추가 근무시간`}
+                              className={CELL_INPUT}
+                            />
+                            {savingKey === key && (
+                              <Loader2 className="absolute right-1 top-1/2 size-3 -translate-y-1/2 animate-spin text-fg-neutral-subtle" />
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
 
-                {/* 근무자 확인 */}
-                <tr>
-                  <td className="sticky left-0 z-10 border-b border-r border-line-2 bg-panel px-2 py-1.5 text-[11px] text-ink-4">
-                    근무자 확인
-                  </td>
-                  {users.map((u) => (
-                    <td key={u.userId} className="border-b border-r border-line-2 px-1 py-1.5 text-center">
-                      {u.staffConfirmedAt ? (
-                        <Check className="mx-auto h-4 w-4 text-emerald-600" />
-                      ) : (
-                        <span className="text-ink-5">·</span>
-                      )}
-                    </td>
-                  ))}
-                </tr>
+                  {/* 총 근무시간 */}
+                  <tr className="bg-bg-layer-fill">
+                    <th
+                      scope="row"
+                      className={cn(GRID, "sticky left-0 z-10 bg-bg-layer-fill px-x3 py-x2_5 text-left t3-bold text-fg-neutral")}
+                    >
+                      총 근무시간
+                    </th>
+                    {users.map((u) => (
+                      <td key={u.userId} className={cn(GRID, "px-x2 py-x2_5 text-center t4-bold tabular-nums text-fg-neutral")}>
+                        {minutesToHoursLabel(u.pay.totalMinutes)}
+                      </td>
+                    ))}
+                  </tr>
 
-                {/* 사업자 확인 (토글) */}
-                <tr>
-                  <td className="sticky left-0 z-10 border-r border-line-2 bg-panel px-2 py-1.5 text-[11px] text-ink-4">
-                    사업자 확인
-                  </td>
-                  {users.map((u) => (
-                    <td key={u.userId} className="border-r border-line-2 px-1 py-1.5 text-center">
-                      <button
-                        type="button"
-                        onClick={() => toggleOwnerConfirm(u)}
-                        disabled={pending}
-                        title={u.ownerConfirmedAt ? "확인 해제" : "사업자 확인"}
-                        className={`mx-auto grid h-6 w-6 place-items-center rounded disabled:opacity-50 ${
-                          u.ownerConfirmedAt
-                            ? "bg-emerald-600 text-white"
-                            : "border border-line text-ink-4 hover:bg-panel-2"
-                        }`}
-                      >
-                        {u.ownerConfirmedAt ? <Lock className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}
-                      </button>
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                  {/* 근무자 확인 */}
+                  <tr>
+                    <th
+                      scope="row"
+                      className={cn(GRID, "sticky left-0 z-10 bg-bg-layer-default px-x3 py-x2_5 text-left t3-medium text-fg-neutral-muted")}
+                    >
+                      근무자 확인
+                    </th>
+                    {users.map((u) => (
+                      <td key={u.userId} className={cn(GRID, "px-x2 py-x2_5 text-center")}>
+                        {u.staffConfirmedAt ? (
+                          <Check className="mx-auto size-4 text-fg-positive" aria-label="본인 확인 완료" />
+                        ) : (
+                          <span className="t3-regular text-fg-placeholder">미확인</span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* 사업자 확인 (확인 다이얼로그 후 토글) */}
+                  <tr>
+                    <th
+                      scope="row"
+                      className="sticky left-0 z-10 border-r border-stroke-neutral-muted bg-bg-layer-default px-x3 py-x2_5 text-left t3-medium text-fg-neutral-muted"
+                    >
+                      사업자 확인
+                    </th>
+                    {users.map((u) => (
+                      <td key={u.userId} className="border-r border-stroke-neutral-muted px-x2 py-x2 text-center">
+                        {u.ownerConfirmedAt ? (
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="secondary"
+                            onClick={() => setConfirmTarget(u)}
+                            disabled={pending}
+                            className="bg-bg-positive-weak text-fg-positive hover:bg-bg-positive-weak-pressed"
+                            title="확인 해제"
+                          >
+                            <Lock />
+                            확정됨
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="outline"
+                            onClick={() => setConfirmTarget(u)}
+                            disabled={pending}
+                            title="사업자 확인"
+                          >
+                            <Check />
+                            확인
+                          </Button>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </Section>
 
           {/* 월 급여 산정 (같은 화면) */}
-          <div>
-            <h3 className="mb-2 text-[13px] font-bold text-ink">월 급여 산정 (세전)</h3>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {users.map((u) => (
-                <div key={u.userId} className="rounded-xl border border-line p-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[14px] font-bold text-ink">{u.name}</span>
-                      <span className="text-[11px] text-ink-4">{ROLE_LABEL[u.role] ?? u.role}</span>
-                      {u.ownerConfirmedAt && (
-                        <span className="inline-flex items-center gap-0.5 rounded bg-emerald-50 px-1 text-[10px] text-emerald-700">
-                          <Lock className="h-2.5 w-2.5" /> 확정
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => openRateDialog(u)}
-                      className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-[11px] font-medium text-ink-3 hover:bg-panel-2"
-                    >
-                      <Settings2 className="h-3 w-3" /> 급여 기준
-                    </button>
-                  </div>
-
-                  {u.hourlyRate === 0 && u.monthlySalary == null ? (
-                    <p className="rounded bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700">
-                      급여 기준(시급/월급) 미설정 — &quot;급여 기준&quot;에서 계약을 등록하세요.
-                    </p>
-                  ) : (
-                    <div className="space-y-1 text-[12px]">
-                      <Row
-                        label={u.pay.isMonthly ? "월 기본급" : "시급"}
-                        value={u.pay.isMonthly ? formatWon(u.monthlySalary ?? 0) : formatWon(u.hourlyRate)}
-                      />
-                      <Row label="총 근무시간" value={`${minutesToHoursLabel(u.pay.totalMinutes)}시간`} />
-                      {!u.pay.isMonthly && (
-                        <>
-                          <Row label="기본급" value={formatWon(u.pay.baseWage)} />
-                          <Row
-                            label="주휴수당"
-                            value={u.weeklyHolidayPay ? formatWon(u.pay.weeklyHolidayWage) : "미지급"}
-                          />
-                        </>
-                      )}
-                      <div className="mt-1 flex items-center justify-between border-t border-line-2 pt-1">
-                        <span className="text-[12px] font-semibold text-ink-3">총 지급(세전)</span>
-                        <span className="text-[15px] font-bold tabular-nums text-ink">
-                          {formatWon(u.pay.totalWage)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
+          <Section
+            title="월 급여 산정"
+            description="세전 금액이에요. 시급제는 근무시간×시급 + 주휴수당(주 15시간 이상), 월급제는 고정 월급으로 계산해요."
+            flush
+          >
+            <div className="border-t border-stroke-neutral-muted">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-x5">근무자</TableHead>
+                    <TableHead>급여 기준</TableHead>
+                    <TableHead className="text-right">근무시간</TableHead>
+                    <TableHead className="text-right">기본급</TableHead>
+                    <TableHead className="text-right">주휴수당</TableHead>
+                    <TableHead className="text-right">총 지급(세전)</TableHead>
+                    <TableHead className="pr-x5 text-right">
+                      <span className="sr-only">설정</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((u) => {
+                    const unset = rateUnset(u);
+                    return (
+                      <TableRow key={u.userId}>
+                        <TableCell className="pl-x5">
+                          <div className="flex items-center gap-x1_5 whitespace-nowrap">
+                            <span className="t4-medium text-fg-neutral">{u.name}</span>
+                            <span className="t3-regular text-fg-neutral-subtle">{ROLE_LABEL[u.role] ?? u.role}</span>
+                            {u.ownerConfirmedAt && (
+                              <StatusBadge tone="ok">
+                                <Lock />
+                                확정
+                              </StatusBadge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {unset ? (
+                            <StatusBadge tone="warn">미설정</StatusBadge>
+                          ) : u.pay.isMonthly ? (
+                            <span className="text-fg-neutral-muted">월급 {formatWon(u.monthlySalary ?? 0)}</span>
+                          ) : (
+                            <span className="text-fg-neutral-muted">시급 {formatWon(u.hourlyRate)}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right">
+                          {minutesToHoursLabel(u.pay.totalMinutes)}시간
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right">
+                          {unset || u.pay.isMonthly ? <span className="text-fg-placeholder">—</span> : formatWon(u.pay.baseWage)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right">
+                          {unset || u.pay.isMonthly ? (
+                            <span className="text-fg-placeholder">—</span>
+                          ) : u.weeklyHolidayPay ? (
+                            formatWon(u.pay.weeklyHolidayWage)
+                          ) : (
+                            <span className="text-fg-neutral-subtle">미지급</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right t4-bold">
+                          {unset ? <span className="t4-regular text-fg-placeholder">—</span> : formatWon(u.pay.totalWage)}
+                        </TableCell>
+                        <TableCell className="pr-x5 text-right">
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant={unset ? "default" : "outline"}
+                            onClick={() => openRateDialog(u)}
+                          >
+                            <Settings2 />
+                            급여 기준
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+                <TableFooter>
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell className="pl-x5 t4-bold" colSpan={2}>
+                      합계
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-right">{minutesToHoursLabel(sumMinutes)}시간</TableCell>
+                    <TableCell className="whitespace-nowrap text-right">{formatWon(sumBase)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-right">{formatWon(sumHoliday)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-right t4-bold">{formatWon(sumWage)}</TableCell>
+                    <TableCell className="pr-x5" />
+                  </TableRow>
+                </TableFooter>
+              </Table>
             </div>
-            <p className="mt-2 text-[11px] text-ink-4">
-              ※ 세전 금액입니다. 시급제는 근무시간×시급 + 주휴수당(주 15시간↑), 월급제는 고정 월급으로 산정합니다.
+            <p className="border-t border-stroke-neutral-muted px-x5 py-x3 t3-regular text-fg-neutral-subtle">
               실제 지급액은 세금·4대보험 공제 후 명세서를 확인하세요.
             </p>
-          </div>
+          </Section>
         </>
       )}
+
+      <ConfirmDialog
+        open={confirmTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setConfirmTarget(null);
+        }}
+        title={
+          confirmNext
+            ? `${confirmTarget?.name ?? ""}님의 ${month}월 근무를 확정할까요?`
+            : `${confirmTarget?.name ?? ""}님의 ${month}월 확정을 풀까요?`
+        }
+        description={
+          confirmNext
+            ? "확정하면 이 달 근무시간을 더 고칠 수 없어요. 필요하면 나중에 확인을 해제할 수 있어요."
+            : "해제하면 근무자와 관리자가 다시 근무시간을 고칠 수 있어요."
+        }
+        confirmLabel={confirmNext ? "사업자 확인" : "확인 해제"}
+        pending={pending}
+        onConfirm={() => confirmTarget && toggleOwnerConfirm(confirmTarget)}
+      >
+        {confirmTarget && confirmNext && (
+          <dl className="grid grid-cols-2 gap-x3 rounded-r3 bg-bg-layer-fill px-x4 py-x3">
+            <div>
+              <dt className="t3-medium text-fg-neutral-subtle">총 근무시간</dt>
+              <dd className="mt-x0_5 t5-bold tabular-nums text-fg-neutral">
+                {minutesToHoursLabel(confirmTarget.pay.totalMinutes)}시간
+              </dd>
+            </div>
+            <div>
+              <dt className="t3-medium text-fg-neutral-subtle">총 지급(세전)</dt>
+              <dd className="mt-x0_5 t5-bold tabular-nums text-fg-neutral">
+                {rateUnset(confirmTarget) ? "급여 기준 미설정" : formatWon(confirmTarget.pay.totalWage)}
+              </dd>
+            </div>
+          </dl>
+        )}
+      </ConfirmDialog>
 
       {rateTarget && (
         <ContractHistoryDialog
@@ -432,15 +601,6 @@ export function MonthlyWorkSheet({ initial }: { initial: MonthlyWorkSheetData })
           }}
         />
       )}
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-ink-4">{label}</span>
-      <span className="tabular-nums font-medium text-ink-2">{value}</span>
     </div>
   );
 }

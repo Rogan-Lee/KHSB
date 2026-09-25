@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { importStudentsCSV, type CSVImportRow } from "@/actions/import";
 import { bulkImportExamScores, type ExamScoreCSVRow } from "@/actions/exam-scores";
@@ -15,10 +14,18 @@ import {
   readScoresFromSheet,
 } from "@/actions/google-sheets";
 import { toast } from "sonner";
+import { Sheet, RefreshCw, Link2, AlertCircle, CheckCircle2, ExternalLink, Download } from "lucide-react";
+import { FormActions, FormField, IconTile, Notice, Section, StatusBadge } from "@/components/backoffice/ui";
 import {
-  Sheet, RefreshCw, Link2, Link2Off, AlertCircle,
-  CheckCircle2, ExternalLink, FileText, ChevronDown, ChevronUp,
-} from "lucide-react";
+  CollapsibleGuide,
+  ColumnGuide,
+  ImportErrors,
+  ImportSteps,
+  PREVIEW_TD,
+  PREVIEW_TH,
+  PreviewTable,
+} from "./import-ui";
+import { cn } from "@/lib/utils";
 
 // ─── Sample data ──────────────────────────────────────────────────────────────
 
@@ -71,35 +78,31 @@ function ConfigForm({
   }
 
   return (
-    <div className="space-y-3 max-w-lg">
-      <div className="space-y-1.5">
-        <Label htmlFor={`url-${type}`}>Google Sheets URL</Label>
+    <div className="flex max-w-xl flex-col gap-x4">
+      <FormField label="Google Sheets URL" htmlFor={`url-${type}`} required>
         <Input
           id={`url-${type}`}
           placeholder="https://docs.google.com/spreadsheets/d/..."
           value={urlInput}
           onChange={(e) => setUrlInput(e.target.value)}
         />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor={`name-${type}`}>
-          시트(탭) 이름 <span className="text-muted-foreground font-normal text-xs">(비워두면 첫 번째 시트)</span>
-        </Label>
+      </FormField>
+      <FormField label="시트(탭) 이름" htmlFor={`name-${type}`} hint="비워 두면 첫 번째 시트를 읽어요">
         <Input
           id={`name-${type}`}
           placeholder="원생목록"
           value={sheetNameInput}
           onChange={(e) => setSheetNameInput(e.target.value)}
         />
-      </div>
-      <div className="flex gap-2">
-        <Button size="sm" onClick={handleSave} disabled={isPending}>
-          {isPending ? "저장 중..." : "저장"}
+      </FormField>
+      <FormActions className="justify-start">
+        <Button onClick={handleSave} disabled={isPending}>
+          {isPending ? "저장 중…" : "연결하기"}
         </Button>
         {onCancel && (
-          <Button variant="outline" size="sm" onClick={onCancel} disabled={isPending}>취소</Button>
+          <Button variant="ghost" onClick={onCancel} disabled={isPending}>취소</Button>
         )}
-      </div>
+      </FormActions>
     </div>
   );
 }
@@ -118,26 +121,35 @@ function ConnectedHeader({
   isPending: boolean;
 }) {
   return (
-    <div className="rounded-lg border bg-card p-3 flex items-start justify-between gap-4">
-      <div className="flex items-start gap-2.5">
-        <Sheet className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-        <div className="space-y-0.5 min-w-0">
+    <div className="flex flex-col gap-x3 rounded-r3 bg-bg-layer-fill p-x4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-x3">
+        <IconTile icon={Sheet} tone="ok" size={40} />
+        <div className="min-w-0">
+          <div className="flex items-center gap-x1_5">
+            <span className="t4-bold text-fg-neutral">시트 연결됨</span>
+            {config.sheetName && <StatusBadge>{config.sheetName}</StatusBadge>}
+          </div>
           <a
             href={config.sheetUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-blue-600 hover:underline flex items-center gap-1 truncate max-w-xs"
+            className="mt-x0_5 flex min-w-0 items-center gap-x1 t3-regular text-fg-neutral-subtle hover:text-fg-neutral hover:underline"
           >
-            {config.sheetUrl.length > 55 ? config.sheetUrl.slice(0, 55) + "…" : config.sheetUrl}
-            <ExternalLink className="h-3 w-3 shrink-0" />
+            <span className="truncate">{config.sheetUrl}</span>
+            <ExternalLink className="size-3.5 shrink-0" aria-hidden />
           </a>
-          {config.sheetName && <p className="text-xs text-muted-foreground">시트: {config.sheetName}</p>}
         </div>
       </div>
-      <div className="flex gap-1 shrink-0">
-        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onEdit} disabled={isPending}>수정</Button>
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={onDisconnect} disabled={isPending}>
-          <Link2Off className="h-3.5 w-3.5" />
+      <div className="flex shrink-0 gap-x1_5">
+        <Button variant="outline" size="xs" onClick={onEdit} disabled={isPending}>수정</Button>
+        <Button
+          variant="ghost"
+          size="xs"
+          className="text-fg-critical"
+          onClick={onDisconnect}
+          disabled={isPending}
+        >
+          연동 해제
         </Button>
       </div>
     </div>
@@ -146,82 +158,68 @@ function ConnectedHeader({
 
 // ─── Sub-component: column guide ─────────────────────────────────────────────
 
-function StudentColumnGuide({ onDownload }: { onDownload: () => void }) {
-  const [open, setOpen] = useState(false);
+function SampleDownload({ onDownload }: { onDownload: () => void }) {
   return (
-    <div className="rounded-lg bg-muted/40 border text-xs text-muted-foreground overflow-hidden">
-      <button
-        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/60 transition-colors"
-        onClick={() => setOpen(!open)}
-      >
-        <span className="font-medium text-foreground text-[13px]">시트 컬럼 형식 보기</span>
-        {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-      </button>
-      {open && (
-        <div className="px-4 pb-4 space-y-3 border-t">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1 pt-3">
-            <div><span className="font-mono bg-muted px-1 rounded">좌석번호</span> 좌석 (선택)</div>
-            <div><span className="font-mono bg-muted px-1 rounded">이름</span> 원생 이름 (필수)</div>
-            <div><span className="font-mono bg-muted px-1 rounded">학교</span> 학교명 (선택)</div>
-            <div><span className="font-mono bg-muted px-1 rounded">학년</span> 고3, 중2, N수 등</div>
-            <div><span className="font-mono bg-muted px-1 rounded">반</span> 정규반/선택반 (선택)</div>
-            <div><span className="font-mono bg-muted px-1 rounded">담당 멘토</span> 시스템에 등록된 이름</div>
-            <div><span className="font-mono bg-muted px-1 rounded">학생 전화번호</span> (선택)</div>
-            <div><span className="font-mono bg-muted px-1 rounded">학부모 전화번호</span> (선택)</div>
-            <div><span className="font-mono bg-muted px-1 rounded">월 입실약속시간</span> 예: 14:00</div>
-            <div><span className="font-mono bg-muted px-1 rounded">월 퇴실약속시간</span> 예: 22:00</div>
-            <div><span className="font-mono bg-muted px-1 rounded">학원 스케줄</span> 텍스트 (선택)</div>
-            <div><span className="font-mono bg-muted px-1 rounded">선택과목 / 입시전형 / 인강</span> (선택)</div>
-          </div>
-          <p>• 화~일 입실/퇴실 컬럼도 동일한 방식으로 추가 가능</p>
-          <div className="flex items-center gap-2 pt-1">
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onDownload}>
-              <FileText className="h-3 w-3 mr-1" />
-              샘플 CSV 다운로드
-            </Button>
-            <span className="text-muted-foreground">→ Google 스프레드시트 &gt; 파일 &gt; 가져오기로 템플릿 생성</span>
-          </div>
-        </div>
-      )}
+    <div className="flex flex-wrap items-center gap-x2 border-t border-stroke-neutral-muted pt-x4">
+      <Button variant="outline" size="xs" onClick={onDownload}>
+        <Download />
+        샘플 CSV 다운로드
+      </Button>
+      <span className="t3-regular text-fg-neutral-subtle">
+        Google 스프레드시트 › 파일 › 가져오기로 템플릿을 만들 수 있어요
+      </span>
     </div>
   );
 }
 
-function ScoreColumnGuide({ onDownload }: { onDownload: () => void }) {
-  const [open, setOpen] = useState(false);
+function StudentColumnGuide({ onDownload }: { onDownload: () => void }) {
   return (
-    <div className="rounded-lg bg-muted/40 border text-xs text-muted-foreground overflow-hidden">
-      <button
-        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/60 transition-colors"
-        onClick={() => setOpen(!open)}
-      >
-        <span className="font-medium text-foreground text-[13px]">시트 컬럼 형식 보기</span>
-        {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-      </button>
-      {open && (
-        <div className="px-4 pb-4 space-y-3 border-t">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1 pt-3">
-            <div><span className="font-mono bg-muted px-1 rounded">이름</span> DB 등록 이름과 일치 (필수)</div>
-            <div><span className="font-mono bg-muted px-1 rounded">시험종류</span> 공식모의고사 / 사설모의고사 / 학교내신</div>
-            <div><span className="font-mono bg-muted px-1 rounded">시험명</span> 예: 2024년 6월 모의고사 (필수)</div>
-            <div><span className="font-mono bg-muted px-1 rounded">날짜</span> YYYY-MM-DD (필수)</div>
-            <div><span className="font-mono bg-muted px-1 rounded">과목</span> 국어, 수학, 영어 등 (필수)</div>
-            <div><span className="font-mono bg-muted px-1 rounded">원점수</span> 숫자 (선택)</div>
-            <div><span className="font-mono bg-muted px-1 rounded">등급</span> 1~9 (선택)</div>
-            <div><span className="font-mono bg-muted px-1 rounded">백분위</span> 소수점 포함 (선택)</div>
-            <div><span className="font-mono bg-muted px-1 rounded">메모</span> 비고 (선택)</div>
-          </div>
-          <p>• 한 행 = 과목 하나. 같은 시험의 여러 과목은 여러 행으로 입력</p>
-          <div className="flex items-center gap-2 pt-1">
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onDownload}>
-              <FileText className="h-3 w-3 mr-1" />
-              샘플 CSV 다운로드
-            </Button>
-            <span className="text-muted-foreground">→ Google 스프레드시트 &gt; 파일 &gt; 가져오기로 템플릿 생성</span>
-          </div>
-        </div>
-      )}
-    </div>
+    <CollapsibleGuide title="시트 컬럼 형식 보기">
+      <div className="flex flex-col gap-x4">
+        <ColumnGuide
+          columns={[
+            { name: "좌석번호", description: "좌석" },
+            { name: "이름", description: "원생 이름", required: true },
+            { name: "학교", description: "학교명" },
+            { name: "학년", description: "고3, 중2, N수 등" },
+            { name: "반", description: "정규반/선택반" },
+            { name: "담당 멘토", description: "시스템에 등록된 이름" },
+            { name: "학생 전화번호", description: "선택" },
+            { name: "학부모 전화번호", description: "선택" },
+            { name: "월 입실약속시간", description: "예: 14:00" },
+            { name: "월 퇴실약속시간", description: "예: 22:00" },
+            { name: "학원 스케줄", description: "텍스트" },
+            { name: "선택과목 / 입시전형 / 인강", description: "선택" },
+          ]}
+          notes={["화~일 입실/퇴실 컬럼도 같은 방식으로 추가할 수 있어요."]}
+        />
+        <SampleDownload onDownload={onDownload} />
+      </div>
+    </CollapsibleGuide>
+  );
+}
+
+function ScoreColumnGuide({ onDownload }: { onDownload: () => void }) {
+  return (
+    <CollapsibleGuide title="시트 컬럼 형식 보기">
+      <div className="flex flex-col gap-x4">
+        <ColumnGuide
+          columns={[
+            { name: "이름", description: "등록된 이름과 같아야 해요", required: true },
+            { name: "시험종류", description: "공식모의고사 / 사설모의고사 / 학교내신" },
+            { name: "시험명", description: "예: 2024년 6월 모의고사", required: true },
+            { name: "날짜", description: "YYYY-MM-DD", required: true },
+            { name: "과목", description: "국어, 수학, 영어 등", required: true },
+            { name: "원점수", description: "숫자" },
+            { name: "등급", description: "1~9" },
+            { name: "백분위", description: "소수점 포함" },
+            { name: "메모", description: "비고" },
+          ]}
+          notes={["한 행 = 과목 하나. 같은 시험의 여러 과목은 여러 행으로 입력해요."]}
+        />
+        <SampleDownload onDownload={onDownload} />
+      </div>
+    </CollapsibleGuide>
   );
 }
 
@@ -238,29 +236,51 @@ function ImportResult({
   errors: { row: number; name: string; reason: string }[];
   onReset: () => void;
 }) {
+  const summary = [
+    created > 0 && `${created}건 등록`,
+    updated != null && updated > 0 && `${updated}명 업데이트`,
+  ].filter(Boolean).join(" · ");
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 text-sm">
-        <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-        <span>
-          {created > 0 && <span className="font-medium">{created}건 등록</span>}
-          {created > 0 && updated && updated > 0 && <span className="text-muted-foreground mx-1">·</span>}
-          {updated && updated > 0 && <span className="font-medium">{updated}명 업데이트</span>}
-        </span>
-      </div>
-      {errors.length > 0 && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-1">
-          <p className="text-xs font-medium text-red-700 flex items-center gap-1.5">
-            <AlertCircle className="h-3.5 w-3.5" />{errors.length}건 오류
-          </p>
-          {errors.map((e, i) => (
-            <p key={i} className="text-xs text-red-600">{e.row}행 ({e.name}): {e.reason}</p>
-          ))}
-        </div>
-      )}
-      <Button variant="outline" size="sm" onClick={onReset}>
-        <RefreshCw className="h-3.5 w-3.5 mr-1" />다시 불러오기
+    <div className="flex flex-col gap-x3">
+      <Notice tone="ok" icon={CheckCircle2} title="가져오기를 마쳤어요">
+        {summary || "변경된 항목이 없어요"}
+      </Notice>
+      <ImportErrors errors={errors} />
+      <FormActions className="justify-start">
+        <Button variant="outline" size="sm" onClick={onReset}>
+          <RefreshCw />다시 불러오기
+        </Button>
+      </FormActions>
+    </div>
+  );
+}
+
+// ─── Shared layout ───────────────────────────────────────────────────────────
+
+const SHEET_STEPS = (what: string) => [
+  { title: "시트 연결", description: "Google Sheets 주소를 저장해요" },
+  { title: "데이터 불러오기", description: `시트에서 ${what} 데이터를 읽어 와요` },
+  { title: "확인 후 저장", description: "미리보기를 확인하고 저장해요" },
+];
+
+function GoogleConnectRequired({ googleAuthUrl }: { googleAuthUrl: string }) {
+  return (
+    <div className="flex flex-col items-start gap-x4">
+      <Notice tone="warn" icon={AlertCircle} title="Google 계정 연동 필요">
+        캘린더 탭에서 Google 계정을 먼저 연동해주세요.
+      </Notice>
+      <Button variant="outline" onClick={() => window.open(googleAuthUrl, "_self")}>
+        <Link2 />Google 계정 연동하기
       </Button>
+    </div>
+  );
+}
+
+function PreviewHeader({ children, onCancel, disabled }: { children: ReactNode; onCancel: () => void; disabled: boolean }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x2">
+      <div className="flex flex-wrap items-center gap-x2">{children}</div>
+      <Button variant="ghost" size="xs" onClick={onCancel} disabled={disabled}>취소</Button>
     </div>
   );
 }
@@ -314,114 +334,110 @@ function StudentsTab({
   }
 
   function downloadSample() {
-    const blob = new Blob(["\uFEFF" + STUDENT_SAMPLE_CSV], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["﻿" + STUDENT_SAMPLE_CSV], { type: "text/csv;charset=utf-8;" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = "원생관리_시트_샘플.csv"; a.click();
   }
 
-  if (!isGoogleConnected) {
-    return (
-      <div className="space-y-4">
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
-          <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-          <div className="text-sm text-amber-800">
-            <p className="font-medium">Google 계정 연동 필요</p>
-            <p className="text-amber-700 mt-0.5">캘린더 탭에서 Google 계정을 먼저 연동해주세요.</p>
-          </div>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => window.open(googleAuthUrl, "_self")}>
-          <Link2 className="h-4 w-4 mr-1.5" />Google 계정 연동하기
-        </Button>
-      </div>
-    );
-  }
+  const connected = !!config && !isEditing;
+  const step = !connected ? 0 : result ? 3 : preview ? 2 : 1;
+  const namedCount = preview?.filter((r) => r.name).length ?? 0;
+  const unnamedCount = preview?.filter((r) => !r.name).length ?? 0;
 
   return (
-    <div className="space-y-4">
-      {config && !isEditing ? (
-        <ConnectedHeader
-          config={config}
-          onEdit={() => setIsEditing(true)}
-          onDisconnect={handleDisconnect}
-          isPending={isPending}
-        />
+    <Section
+      title="원생 데이터 시트"
+      description="Google Sheets를 연동하면 시트를 직접 고친 뒤 버튼 하나로 원생 데이터를 가져올 수 있어요."
+    >
+      {!isGoogleConnected ? (
+        <GoogleConnectRequired googleAuthUrl={googleAuthUrl} />
       ) : (
-        <ConfigForm
-          type="students"
-          config={config}
-          onSaved={(c) => { setConfig(c); setIsEditing(false); }}
-          onCancel={config ? () => setIsEditing(false) : undefined}
-        />
-      )}
+        <div className="flex flex-col gap-x6">
+          <ImportSteps steps={SHEET_STEPS("원생")} current={step} />
 
-      {config && !isEditing && !preview && !result && (
-        <Button onClick={handleFetch} disabled={isPending} size="sm">
-          <RefreshCw className={`h-4 w-4 mr-1.5 ${isPending ? "animate-spin" : ""}`} />
-          {isPending ? "불러오는 중..." : "시트에서 원생 데이터 불러오기"}
-        </Button>
-      )}
+          {connected ? (
+            <ConnectedHeader
+              config={config}
+              onEdit={() => setIsEditing(true)}
+              onDisconnect={handleDisconnect}
+              isPending={isPending}
+            />
+          ) : (
+            <ConfigForm
+              type="students"
+              config={config}
+              onSaved={(c) => { setConfig(c); setIsEditing(false); }}
+              onCancel={config ? () => setIsEditing(false) : undefined}
+            />
+          )}
 
-      {preview && !result && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">
-              미리보기 — <span className="text-primary">{preview.filter((r) => r.name).length}명</span> 인식됨
-              {preview.some((r) => !r.name) && (
-                <span className="text-red-500 ml-2 text-xs">({preview.filter((r) => !r.name).length}행 이름 없음)</span>
-              )}
-            </p>
-            <Button variant="ghost" size="sm" onClick={() => setPreview(null)} disabled={isPending}>취소</Button>
-          </div>
-          <div className="rounded-lg border overflow-x-auto max-h-56 overflow-y-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead className="sticky top-0 bg-muted/80">
-                <tr className="border-b text-muted-foreground">
-                  {["좌석", "이름", "학교", "학년", "반", "담당 멘토", "등원 요일"].map((h) => (
-                    <th key={h} className="px-2 py-1.5 text-left">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {preview.map((row, i) => (
-                  <tr key={i} className={`border-b ${!row.name ? "bg-red-50" : ""}`}>
-                    <td className="px-2 py-1.5 font-mono">{row.seat || "-"}</td>
-                    <td className="px-2 py-1.5 font-medium">{row.name || <span className="text-red-500">이름 없음</span>}</td>
-                    <td className="px-2 py-1.5 text-muted-foreground">{row.school || "-"}</td>
-                    <td className="px-2 py-1.5">{row.grade || "-"}</td>
-                    <td className="px-2 py-1.5 text-muted-foreground">{row.classGroup || "-"}</td>
-                    <td className="px-2 py-1.5 text-muted-foreground">{row.mentorName || "-"}</td>
-                    <td className="px-2 py-1.5">
-                      {row.schedules.length > 0
-                        ? row.schedules.map((s) => Object.entries(DAY_MAP).find(([, v]) => v === s.dayOfWeek)?.[0]).join(", ")
-                        : <span className="text-muted-foreground">없음</span>}
-                    </td>
+          {connected && !preview && !result && (
+            <div>
+              <Button onClick={handleFetch} disabled={isPending}>
+                <RefreshCw className={cn(isPending && "animate-spin")} />
+                {isPending ? "불러오는 중…" : "시트에서 원생 데이터 불러오기"}
+              </Button>
+            </div>
+          )}
+
+          {preview && !result && (
+            <div className="flex flex-col gap-x3">
+              <PreviewHeader onCancel={() => setPreview(null)} disabled={isPending}>
+                <p className="t5-bold text-fg-neutral">
+                  <span className="tabular-nums text-fg-brand">{namedCount}명</span> 인식됐어요
+                </p>
+                {unnamedCount > 0 && <StatusBadge tone="bad">{unnamedCount}행 이름 없음</StatusBadge>}
+              </PreviewHeader>
+              <PreviewTable>
+                <thead>
+                  <tr>
+                    {["좌석", "이름", "학교", "학년", "반", "담당 멘토", "등원 요일"].map((h) => (
+                      <th key={h} className={PREVIEW_TH}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={handleImport} disabled={isPending} size="sm">
-              {isPending ? "처리 중..." : `${preview.filter((r) => r.name).length}명 저장`}
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleFetch} disabled={isPending}>
-              <RefreshCw className="h-3.5 w-3.5 mr-1" />다시 불러오기
-            </Button>
-          </div>
+                </thead>
+                <tbody>
+                  {preview.map((row, i) => (
+                    <tr key={i} className={cn(!row.name && "bg-bg-critical-weak")}>
+                      <td className={PREVIEW_TD}>{row.seat || "-"}</td>
+                      <td className={cn(PREVIEW_TD, "t3-medium")}>{row.name || <span className="text-fg-critical">이름 없음</span>}</td>
+                      <td className={cn(PREVIEW_TD, "text-fg-neutral-muted")}>{row.school || "-"}</td>
+                      <td className={PREVIEW_TD}>{row.grade || "-"}</td>
+                      <td className={cn(PREVIEW_TD, "text-fg-neutral-muted")}>{row.classGroup || "-"}</td>
+                      <td className={cn(PREVIEW_TD, "text-fg-neutral-muted")}>{row.mentorName || "-"}</td>
+                      <td className={PREVIEW_TD}>
+                        {row.schedules.length > 0
+                          ? row.schedules.map((s) => Object.entries(DAY_MAP).find(([, v]) => v === s.dayOfWeek)?.[0]).join(", ")
+                          : <span className="text-fg-neutral-subtle">없음</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </PreviewTable>
+              <FormActions>
+                <Button variant="outline" onClick={handleFetch} disabled={isPending}>
+                  <RefreshCw />다시 불러오기
+                </Button>
+                <Button onClick={handleImport} disabled={isPending}>
+                  {isPending ? "저장 중…" : `${namedCount}명 저장`}
+                </Button>
+              </FormActions>
+            </div>
+          )}
+
+          {result && (
+            <ImportResult
+              created={result.created}
+              updated={result.updated}
+              errors={result.errors.map((e) => ({ row: e.row, name: e.name, reason: e.reason }))}
+              onReset={() => { setResult(null); handleFetch(); }}
+            />
+          )}
+
+          <StudentColumnGuide onDownload={downloadSample} />
         </div>
       )}
-
-      {result && (
-        <ImportResult
-          created={result.created}
-          updated={result.updated}
-          errors={result.errors.map((e) => ({ row: e.row, name: e.name, reason: e.reason }))}
-          onReset={() => { setResult(null); handleFetch(); }}
-        />
-      )}
-
-      <StudentColumnGuide onDownload={downloadSample} />
-    </div>
+    </Section>
   );
 }
 
@@ -481,116 +497,124 @@ function ScoresTab({
   }
 
   function downloadSample() {
-    const blob = new Blob(["\uFEFF" + SCORE_SAMPLE_CSV], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["﻿" + SCORE_SAMPLE_CSV], { type: "text/csv;charset=utf-8;" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = "성적입력_시트_샘플.csv"; a.click();
   }
 
   const validCount = preview?.filter((r) => r.studentName && r.examName && r.examDate && r.subject).length ?? 0;
-
-  if (!isGoogleConnected) {
-    return (
-      <div className="space-y-4">
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
-          <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-          <div className="text-sm text-amber-800">
-            <p className="font-medium">Google 계정 연동 필요</p>
-            <p className="text-amber-700 mt-0.5">캘린더 탭에서 Google 계정을 먼저 연동해주세요.</p>
-          </div>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => window.open(googleAuthUrl, "_self")}>
-          <Link2 className="h-4 w-4 mr-1.5" />Google 계정 연동하기
-        </Button>
-      </div>
-    );
-  }
+  const invalidCount = (preview?.length ?? 0) - validCount;
+  const connected = !!config && !isEditing;
+  const step = !connected ? 0 : result ? 3 : preview ? 2 : 1;
+  const missingCell = <span className="text-fg-critical">없음</span>;
 
   return (
-    <div className="space-y-4">
-      {config && !isEditing ? (
-        <ConnectedHeader
-          config={config}
-          onEdit={() => setIsEditing(true)}
-          onDisconnect={handleDisconnect}
-          isPending={isPending}
-        />
+    <Section
+      title="성적 입력 시트"
+      description="Google Sheets를 연동하면 시트를 직접 고친 뒤 버튼 하나로 성적 데이터를 가져올 수 있어요."
+    >
+      {!isGoogleConnected ? (
+        <GoogleConnectRequired googleAuthUrl={googleAuthUrl} />
       ) : (
-        <ConfigForm
-          type="scores"
-          config={config}
-          onSaved={(c) => { setConfig(c); setIsEditing(false); }}
-          onCancel={config ? () => setIsEditing(false) : undefined}
-        />
-      )}
+        <div className="flex flex-col gap-x6">
+          <ImportSteps steps={SHEET_STEPS("성적")} current={step} />
 
-      {config && !isEditing && !preview && !result && (
-        <Button onClick={handleFetch} disabled={isPending} size="sm">
-          <RefreshCw className={`h-4 w-4 mr-1.5 ${isPending ? "animate-spin" : ""}`} />
-          {isPending ? "불러오는 중..." : "시트에서 성적 데이터 불러오기"}
-        </Button>
-      )}
+          {connected ? (
+            <ConnectedHeader
+              config={config}
+              onEdit={() => setIsEditing(true)}
+              onDisconnect={handleDisconnect}
+              isPending={isPending}
+            />
+          ) : (
+            <ConfigForm
+              type="scores"
+              config={config}
+              onSaved={(c) => { setConfig(c); setIsEditing(false); }}
+              onCancel={config ? () => setIsEditing(false) : undefined}
+            />
+          )}
 
-      {preview && !result && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">
-              미리보기 — <span className="text-primary">{validCount}건</span> 인식됨
-            </p>
-            <Button variant="ghost" size="sm" onClick={() => setPreview(null)} disabled={isPending}>취소</Button>
-          </div>
-          <div className="rounded-lg border overflow-x-auto max-h-56 overflow-y-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead className="sticky top-0 bg-muted/80">
-                <tr className="border-b text-muted-foreground">
-                  {["학생", "시험종류", "시험명", "날짜", "과목", "원점수", "등급", "백분위"].map((h) => (
-                    <th key={h} className={`px-2 py-1.5 ${["원점수", "등급", "백분위"].includes(h) ? "text-right" : "text-left"}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {preview.map((row, i) => {
-                  const missing = !row.studentName || !row.examName || !row.examDate || !row.subject;
-                  return (
-                    <tr key={i} className={`border-b ${missing ? "bg-red-50" : ""}`}>
-                      <td className="px-2 py-1.5 font-medium">{row.studentName || <span className="text-red-500">없음</span>}</td>
-                      <td className="px-2 py-1.5 text-muted-foreground">{(EXAM_TYPE_DISPLAY[row.examType] ?? row.examType) || "-"}</td>
-                      <td className="px-2 py-1.5">{row.examName || <span className="text-red-500">없음</span>}</td>
-                      <td className="px-2 py-1.5 font-mono text-muted-foreground">{row.examDate}</td>
-                      <td className="px-2 py-1.5">{row.subject || <span className="text-red-500">없음</span>}</td>
-                      <td className="px-2 py-1.5 text-right">{row.rawScore ?? "-"}</td>
-                      <td className="px-2 py-1.5 text-right">{row.grade ?? "-"}</td>
-                      <td className="px-2 py-1.5 text-right">{row.percentile ?? "-"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={handleImport} disabled={isPending || validCount === 0} size="sm">
-              {isPending ? "처리 중..." : `${validCount}건 저장`}
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleFetch} disabled={isPending}>
-              <RefreshCw className="h-3.5 w-3.5 mr-1" />다시 불러오기
-            </Button>
-          </div>
+          {connected && !preview && !result && (
+            <div>
+              <Button onClick={handleFetch} disabled={isPending}>
+                <RefreshCw className={cn(isPending && "animate-spin")} />
+                {isPending ? "불러오는 중…" : "시트에서 성적 데이터 불러오기"}
+              </Button>
+            </div>
+          )}
+
+          {preview && !result && (
+            <div className="flex flex-col gap-x3">
+              <PreviewHeader onCancel={() => setPreview(null)} disabled={isPending}>
+                <p className="t5-bold text-fg-neutral">
+                  <span className="tabular-nums text-fg-brand">{validCount}건</span> 인식됐어요
+                </p>
+                {invalidCount > 0 && <StatusBadge tone="bad">{invalidCount}행 필수 항목 없음</StatusBadge>}
+              </PreviewHeader>
+              <PreviewTable>
+                <thead>
+                  <tr>
+                    {["학생", "시험종류", "시험명", "날짜", "과목", "원점수", "등급", "백분위"].map((h) => (
+                      <th key={h} className={cn(PREVIEW_TH, ["원점수", "등급", "백분위"].includes(h) && "text-right")}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.map((row, i) => {
+                    const missing = !row.studentName || !row.examName || !row.examDate || !row.subject;
+                    return (
+                      <tr key={i} className={cn(missing && "bg-bg-critical-weak")}>
+                        <td className={cn(PREVIEW_TD, "t3-medium")}>{row.studentName || missingCell}</td>
+                        <td className={cn(PREVIEW_TD, "text-fg-neutral-muted")}>{(EXAM_TYPE_DISPLAY[row.examType] ?? row.examType) || "-"}</td>
+                        <td className={PREVIEW_TD}>{row.examName || missingCell}</td>
+                        <td className={cn(PREVIEW_TD, "text-fg-neutral-muted")}>{row.examDate}</td>
+                        <td className={PREVIEW_TD}>{row.subject || missingCell}</td>
+                        <td className={cn(PREVIEW_TD, "text-right")}>{row.rawScore ?? "-"}</td>
+                        <td className={cn(PREVIEW_TD, "text-right")}>{row.grade ?? "-"}</td>
+                        <td className={cn(PREVIEW_TD, "text-right")}>{row.percentile ?? "-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </PreviewTable>
+              <FormActions>
+                <Button variant="outline" onClick={handleFetch} disabled={isPending}>
+                  <RefreshCw />다시 불러오기
+                </Button>
+                <Button onClick={handleImport} disabled={isPending || validCount === 0}>
+                  {isPending ? "저장 중…" : `${validCount}건 저장`}
+                </Button>
+              </FormActions>
+            </div>
+          )}
+
+          {result && (
+            <ImportResult
+              created={result.created}
+              errors={result.errors}
+              onReset={() => { setResult(null); handleFetch(); }}
+            />
+          )}
+
+          <ScoreColumnGuide onDownload={downloadSample} />
         </div>
       )}
-
-      {result && (
-        <ImportResult
-          created={result.created}
-          errors={result.errors}
-          onReset={() => { setResult(null); handleFetch(); }}
-        />
-      )}
-
-      <ScoreColumnGuide onDownload={downloadSample} />
-    </div>
+    </Section>
   );
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
+
+function ConnectedDot({ on }: { on: boolean }) {
+  if (!on) return null;
+  return (
+    <>
+      <span aria-hidden className="size-1.5 rounded-full bg-bg-positive-solid" />
+      <span className="sr-only">(연동됨)</span>
+    </>
+  );
+}
 
 export function SheetsImport({
   studentsConfig,
@@ -604,36 +628,31 @@ export function SheetsImport({
   isGoogleConnected: boolean;
 }) {
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Google Sheets를 연동하면 시트를 직접 수정한 뒤 버튼 하나로 데이터를 가져올 수 있습니다.
-      </p>
-      <Tabs defaultValue="students">
-        <TabsList>
-          <TabsTrigger value="students" className="gap-1.5">
-            원생관리
-            {studentsConfig && <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />}
-          </TabsTrigger>
-          <TabsTrigger value="scores" className="gap-1.5">
-            성적 입력
-            {scoresConfig && <span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" />}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="students" className="mt-4">
-          <StudentsTab
-            initialConfig={studentsConfig}
-            isGoogleConnected={isGoogleConnected}
-            googleAuthUrl={googleAuthUrl}
-          />
-        </TabsContent>
-        <TabsContent value="scores" className="mt-4">
-          <ScoresTab
-            initialConfig={scoresConfig}
-            isGoogleConnected={isGoogleConnected}
-            googleAuthUrl={googleAuthUrl}
-          />
-        </TabsContent>
-      </Tabs>
-    </div>
+    <Tabs defaultValue="students">
+      <TabsList variant="segment" aria-label="연동할 시트">
+        <TabsTrigger value="students">
+          원생관리
+          <ConnectedDot on={!!studentsConfig} />
+        </TabsTrigger>
+        <TabsTrigger value="scores">
+          성적 입력
+          <ConnectedDot on={!!scoresConfig} />
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="students" className="mt-x4">
+        <StudentsTab
+          initialConfig={studentsConfig}
+          isGoogleConnected={isGoogleConnected}
+          googleAuthUrl={googleAuthUrl}
+        />
+      </TabsContent>
+      <TabsContent value="scores" className="mt-x4">
+        <ScoresTab
+          initialConfig={scoresConfig}
+          isGoogleConnected={isGoogleConnected}
+          googleAuthUrl={googleAuthUrl}
+        />
+      </TabsContent>
+    </Tabs>
   );
 }

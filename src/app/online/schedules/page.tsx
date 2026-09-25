@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getUser } from "@/lib/auth";
 import { isStaff } from "@/lib/roles";
 import { listScheduleProposalsForReview } from "@/actions/online/schedule-proposals";
-import { CalendarClock } from "lucide-react";
+import { PageHeader } from "@/components/backoffice/ui";
 import { SchedulesPanel, type ProposalRow } from "./schedules-panel";
 
 export const dynamic = "force-dynamic";
@@ -25,15 +25,11 @@ export default async function OnlineSchedulesPage() {
   }));
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <CalendarClock className="h-6 w-6 text-info" />
-        <div>
-          <h1 className="text-xl font-bold">등원 스케줄 검토</h1>
-          <p className="text-sm text-muted-foreground">학생 제출 → 검토·제안 → 학부모 승인 → 입퇴실 일정 반영</p>
-        </div>
-      </div>
-
+    <div>
+      <PageHeader
+        title="등원 스케줄"
+        description="학생이 낸 일정을 검토해 제안하고, 학부모 승인을 받아 입퇴실 일정에 반영해요."
+      />
       <SchedulesPanel proposals={rows} />
     </div>
   );

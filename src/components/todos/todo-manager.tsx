@@ -1,16 +1,42 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useId } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useDraft } from "@/hooks/use-draft";
 import {
-  Plus, CheckSquare, Square, Pencil, Trash2, AlertTriangle,
-  Calendar, User, ChevronDown, ChevronUp, X, Check, History,
+  Plus, Pencil, Trash2, AlertTriangle, ChevronDown, ChevronUp, History, CheckCircle2, ListTodo,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input, inputBaseClass } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  EmptyState,
+  FilterChip,
+  FormActions,
+  FormField,
+  PageHeader,
+  Section,
+  Segmented,
+  Skeleton,
+  StatCard,
+  StatCards,
+  StatusBadge,
+  Toolbar,
+  type Tone,
+} from "@/components/backoffice/ui";
+import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
+import { CheckMark } from "@/components/handover/handover-ui";
 import { createTodo, updateTodo, deleteTodo, toggleTodo, getTodoVersions } from "@/actions/todos";
 import { ChecklistManager } from "@/components/handover/checklist-manager";
 
@@ -69,12 +95,7 @@ interface Props {
 }
 
 const PRIORITY_LABEL: Record<string, string> = { URGENT: "긴급", HIGH: "높음", NORMAL: "보통", LOW: "낮음" };
-const PRIORITY_COLOR: Record<string, string> = {
-  URGENT: "bg-red-100 text-red-700 border-red-200",
-  HIGH: "bg-orange-100 text-orange-700 border-orange-200",
-  NORMAL: "bg-blue-50 text-blue-700 border-blue-200",
-  LOW: "bg-gray-50 text-gray-500 border-gray-200",
-};
+const PRIORITY_TONE: Record<string, Tone> = { URGENT: "bad", HIGH: "warn", NORMAL: "info", LOW: "gray" };
 
 function fmtDate(d: Date | null) {
   if (!d) return null;
@@ -104,7 +125,16 @@ const TARGET_ROLE_LABEL: Record<"ALL" | "STAFF" | "MENTOR", string> = {
   STAFF: "운영조교",
   MENTOR: "멘토",
 };
+const TARGET_ROLE_TONE: Record<"ALL" | "STAFF" | "MENTOR", Tone> = {
+  ALL: "gray",
+  STAFF: "info",
+  MENTOR: "violet",
+};
 
+/**
+ * 할 일 등록·수정 폼 — 다이얼로그 안에 넣어 쓴다(제목·닫기는 다이얼로그가 담당).
+ * 입력값은 draft 로 localStorage 에 남아, 닫았다 열어도 이어서 쓸 수 있다.
+ */
 export function TodoForm({
   initial, initialCategory, staffList, onDone, onCancel,
 }: {
@@ -116,6 +146,7 @@ export function TodoForm({
   onCancel: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
+  const uid = useId();
 
   // category prefill 이 있는 새 폼은 별도 draft 키로 일반 새 폼과 분리.
   const draftKey = initial
@@ -143,8 +174,6 @@ export function TodoForm({
   const setContent = (v: string) => setDraft((d) => ({ ...d, content: v }));
   const setDueDate = (v: string) => setDraft((d) => ({ ...d, dueDate: v }));
   const setPriority = (v: string) => setDraft((d) => ({ ...d, priority: v }));
-  const setAssigneeId = (v: string) => setDraft((d) => ({ ...d, assigneeId: v }));
-  const setAssigneeName = (v: string) => setDraft((d) => ({ ...d, assigneeName: v }));
   const setCategory = (v: string) => setDraft((d) => ({ ...d, category: v }));
   const setTargetRole = (v: "ALL" | "STAFF" | "MENTOR") => setDraft((d) => ({ ...d, targetRole: v }));
 
@@ -181,83 +210,85 @@ export function TodoForm({
   }
 
   return (
-    <div className="space-y-3 p-4 rounded-xl border bg-card">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-sm font-semibold">{initial ? "할 일 수정" : "새 할 일"}</span>
-        <button onClick={onCancel} className="ml-auto p-1 rounded hover:bg-muted text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
-      </div>
+    <div className="flex flex-col gap-x4">
       {/* 제목 */}
-      <input
-        value={title} onChange={(e) => setTitle(e.target.value)}
-        placeholder="제목 *"
-        className="w-full text-sm border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
-      />
+      <FormField label="제목" required htmlFor={`${uid}-title`}>
+        <Input
+          id={`${uid}-title`}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="무엇을 해야 하나요?"
+          autoFocus
+        />
+      </FormField>
       {/* 내용 */}
-      <textarea
-        value={content} onChange={(e) => setContent(e.target.value)}
-        placeholder="상세 내용 (선택)"
-        rows={2}
-        className="w-full text-sm border rounded-lg px-3 py-2 bg-background focus:outline-none focus:ring-1 focus:ring-primary/30 resize-none"
-      />
-      {/* 2-col: 기한 + 우선순위 */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[11px] text-muted-foreground mb-1 block">기한</label>
-          <DatePicker value={dueDate || null} onChange={(d) => setDueDate(d ?? "")} placeholder="날짜 선택" />
-        </div>
-        <div>
-          <label className="text-[11px] text-muted-foreground mb-1 block">우선순위</label>
-          <select value={priority} onChange={(e) => setPriority(e.target.value)}
-            className="w-full text-sm border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/30">
-            {Object.entries(PRIORITY_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
-        </div>
-      </div>
-      {/* 담당자 + 카테고리 */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[11px] text-muted-foreground mb-1 block">담당자</label>
-          <select value={assigneeId} onChange={(e) => handleAssignee(e.target.value)}
-            className="w-full text-sm border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/30">
+      <FormField label="상세 내용" htmlFor={`${uid}-content`}>
+        <Textarea
+          id={`${uid}-content`}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="필요하면 자세히 적어 주세요 (선택)"
+          rows={2}
+          className="resize-none"
+        />
+      </FormField>
+      {/* 기한 + 담당자 */}
+      <div className="grid grid-cols-1 gap-x4 sm:grid-cols-2">
+        <FormField label="기한">
+          <DatePicker value={dueDate || null} onChange={(d) => setDueDate(d ?? "")} placeholder="날짜 선택" className="w-full" />
+        </FormField>
+        <FormField label="담당자" htmlFor={`${uid}-assignee`}>
+          <select
+            id={`${uid}-assignee`}
+            value={assigneeId}
+            onChange={(e) => handleAssignee(e.target.value)}
+            className={cn(inputBaseClass, "h-10")}
+          >
             <option value="">없음</option>
             {staffList.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
-        </div>
-        <div>
-          <label className="text-[11px] text-muted-foreground mb-1 block">카테고리</label>
-          <input
-            value={category} onChange={(e) => setCategory(e.target.value)}
-            placeholder="예: 청소, 발주..."
-            className="w-full text-sm border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
-          />
-        </div>
+        </FormField>
       </div>
+      {/* 우선순위 */}
+      <FormField label="우선순위">
+        <Segmented
+          aria-label="우선순위"
+          value={priority}
+          onChange={setPriority}
+          options={Object.entries(PRIORITY_LABEL).map(([value, label]) => ({ value, label }))}
+        />
+      </FormField>
       {/* 대상 역할 (전체 / 운영조교 / 멘토) */}
-      <div>
-        <label className="text-[11px] text-muted-foreground mb-1 block">대상</label>
-        <select
+      <FormField label="대상">
+        <Segmented
+          aria-label="대상"
           value={targetRole}
-          onChange={(e) => setTargetRole(e.target.value as "ALL" | "STAFF" | "MENTOR")}
-          className="w-full text-sm border rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
-        >
-          {(Object.entries(TARGET_ROLE_LABEL) as ["ALL" | "STAFF" | "MENTOR", string][]).map(([v, l]) => (
-            <option key={v} value={v}>{l}</option>
-          ))}
-        </select>
-      </div>
+          onChange={setTargetRole}
+          options={(Object.entries(TARGET_ROLE_LABEL) as ["ALL" | "STAFF" | "MENTOR", string][]).map(([value, label]) => ({ value, label }))}
+        />
+      </FormField>
+      {/* 카테고리 */}
+      <FormField label="카테고리" htmlFor={`${uid}-category`}>
+        <Input
+          id={`${uid}-category`}
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          placeholder="예: 청소, 발주..."
+        />
+      </FormField>
       {/* 버튼 */}
-      <div className="flex gap-2 pt-1">
-        <Button size="sm" onClick={handleSubmit} disabled={isPending || !title.trim()} className="flex-1 h-8 text-xs gap-1">
-          <Check className="h-3.5 w-3.5" />{initial ? "수정" : "등록"}
+      <FormActions className="max-sm:[&>*]:flex-1">
+        <Button variant="secondary" onClick={onCancel}>취소</Button>
+        <Button onClick={handleSubmit} disabled={isPending || !title.trim()}>
+          {isPending ? "저장 중…" : initial ? "수정" : "등록"}
         </Button>
-        <Button size="sm" variant="outline" onClick={onCancel} className="h-8 text-xs">취소</Button>
-      </div>
+      </FormActions>
     </div>
   );
 }
 
-// ── 할 일 카드 ────────────────────────────────────────────────────────────────
-function TodoCard({
+// ── 할 일 행 ──────────────────────────────────────────────────────────────────
+function TodoRow({
   todo, currentUserId, currentUserRole, isPending,
   onToggle, onEdit, onDelete, onShowHistory,
 }: {
@@ -270,107 +301,103 @@ function TodoCard({
   const canEdit = isStaffRole(currentUserRole); // 전체 스태프 편집 가능
   const canDelete = todo.authorId === currentUserId || isFullAccessRole(currentUserRole);
   const wasEdited = !!(todo.lastEditedAt && todo.lastEditorId && todo.lastEditorId !== todo.authorId);
+  // 대상 역할 — legacy null 은 "전체" 로 표시
+  const tr = todo.targetRole === "MENTOR" || todo.targetRole === "STAFF" ? todo.targetRole : "ALL";
 
   return (
-    <div className={cn(
-      "rounded-xl border bg-card transition-all",
-      todo.priority === "URGENT" ? "border-red-200" : "",
-      overdue ? "border-orange-300 bg-orange-50/20" : "",
-    )}>
-      <div className="p-3">
-        {/* Top row */}
-        <div className="flex items-start gap-2">
-          <button
-            onClick={() => onToggle(todo.id)}
-            disabled={isPending}
-            className="mt-0.5 shrink-0 text-muted-foreground hover:text-primary transition-colors"
-          >
-            {todo.isCompleted
-              ? <CheckSquare className="h-4 w-4 text-green-500" />
-              : <Square className="h-4 w-4 text-muted-foreground/50" />
-            }
-          </button>
-          <div className="flex-1 min-w-0">
-            {/* 뱃지 */}
-            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-              {todo.priority !== "NORMAL" && (
-                <span className={cn("text-[10px] font-semibold border rounded-full px-1.5 py-0.5", PRIORITY_COLOR[todo.priority])}>
-                  {todo.priority === "URGENT" && <AlertTriangle className="h-2.5 w-2.5 inline mr-0.5" />}
-                  {PRIORITY_LABEL[todo.priority]}
-                </span>
-              )}
-              {/* 대상 역할 chip — legacy null 은 "전체" 로 표시 */}
-              {(() => {
-                const tr = todo.targetRole === "MENTOR" || todo.targetRole === "STAFF" ? todo.targetRole : "ALL";
-                const colorClass =
-                  tr === "MENTOR" ? "bg-purple-50 text-purple-700 border-purple-200"
-                  : tr === "STAFF" ? "bg-sky-50 text-sky-700 border-sky-200"
-                  : "bg-muted border-border text-muted-foreground";
-                return (
-                  <span className={cn("text-[10px] border rounded-full px-2 py-0.5", colorClass)}>
-                    {TARGET_ROLE_LABEL[tr]}
-                  </span>
-                );
-              })()}
-              {todo.category && <span className="text-[10px] bg-muted border rounded-full px-2 py-0.5 text-muted-foreground">{todo.category}</span>}
-            </div>
-            <p className={cn("text-sm font-medium", todo.isCompleted && "line-through text-muted-foreground")}>{todo.title}</p>
-            {/* 메타 */}
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              {todo.dueDate && (
-                <span className={cn("text-[11px] flex items-center gap-0.5", overdue ? "text-red-600 font-semibold" : "text-muted-foreground")}>
-                  <Calendar className="h-2.5 w-2.5" />
-                  {overdue && "기한 초과 · "}
-                  {fmtDate(todo.dueDate)}
-                </span>
-              )}
-              {todo.assigneeName && (
-                <span className="text-[11px] text-muted-foreground flex items-center gap-0.5">
-                  <User className="h-2.5 w-2.5" />{todo.assigneeName}
-                </span>
-              )}
-              {todo.authorName && (
-                <span className="text-[10px] text-muted-foreground/60 ml-auto">
-                  {todo.authorName}
-                  {wasEdited && todo.lastEditorName && (
-                    <> · 수정 {todo.lastEditorName}</>
-                  )}
-                </span>
-              )}
-            </div>
-          </div>
-          {/* 액션 버튼 */}
-          <div className="flex items-center gap-0.5 shrink-0">
-            {(todo.content) && (
-              <button onClick={() => setExpanded((p) => !p)} className="p-1 rounded hover:bg-muted text-muted-foreground">
-                {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-              </button>
-            )}
-            <button
-              onClick={() => onShowHistory(todo)}
-              title="수정 이력"
-              className="flex items-center gap-1 px-1.5 py-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-            >
-              <History className="h-3 w-3" />
-              <span className="text-[11px] leading-none">이력</span>
-            </button>
-            {canEdit && (
-              <button onClick={() => onEdit(todo)} className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground">
-                <Pencil className="h-3 w-3" />
-              </button>
-            )}
-            {canDelete && (
-              <button onClick={() => onDelete(todo.id)} className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600">
-                <Trash2 className="h-3 w-3" />
-              </button>
-            )}
-          </div>
+    <div className="flex items-start gap-x3 px-x5 py-x4">
+      <button
+        type="button"
+        onClick={() => onToggle(todo.id)}
+        disabled={isPending}
+        aria-pressed={todo.isCompleted}
+        aria-label={todo.isCompleted ? `${todo.title} 미완료로 되돌리기` : `${todo.title} 완료로 표시`}
+        className="-m-1 grid shrink-0 place-items-center rounded-r2 p-1 transition-colors hover:bg-bg-transparent-pressed disabled:cursor-wait"
+      >
+        <CheckMark checked={todo.isCompleted} className="mt-0.5" />
+      </button>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x1_5">
+          <p className={cn("break-words t4-bold", todo.isCompleted ? "text-fg-neutral-subtle line-through" : "text-fg-neutral")}>
+            {todo.title}
+          </p>
+          {todo.priority !== "NORMAL" && (
+            <StatusBadge tone={PRIORITY_TONE[todo.priority] ?? "gray"}>
+              {todo.priority === "URGENT" && <AlertTriangle />}
+              {PRIORITY_LABEL[todo.priority] ?? todo.priority}
+            </StatusBadge>
+          )}
+          <StatusBadge tone={TARGET_ROLE_TONE[tr]}>{TARGET_ROLE_LABEL[tr]}</StatusBadge>
+          {todo.category && <StatusBadge>{todo.category}</StatusBadge>}
         </div>
+
+        {/* 메타 */}
+        <div className="mt-x1 flex flex-wrap items-center gap-x-x3 gap-y-x0_5 t3-regular text-fg-neutral-subtle">
+          {todo.dueDate && (
+            <span className={cn("tabular-nums", overdue && "t3-bold text-fg-critical")}>
+              {overdue && "기한 초과 · "}
+              {fmtDate(todo.dueDate)}
+            </span>
+          )}
+          {todo.assigneeName && <span>담당 {todo.assigneeName}</span>}
+          {todo.authorName && (
+            <span className="text-fg-placeholder">
+              작성 {todo.authorName}
+              {wasEdited && todo.lastEditorName && <> · 수정 {todo.lastEditorName}</>}
+            </span>
+          )}
+        </div>
+
         {/* 상세 내용 */}
         {expanded && todo.content && (
-          <div className="mt-2 ml-6 text-xs text-muted-foreground whitespace-pre-wrap bg-muted/30 rounded-lg px-3 py-2">
+          <p className="mt-x2 whitespace-pre-wrap rounded-r2 bg-bg-layer-fill px-x3 py-x2 t3-regular text-fg-neutral-muted">
             {todo.content}
-          </div>
+          </p>
+        )}
+      </div>
+
+      {/* 액션 버튼 */}
+      <div className="flex shrink-0 items-center">
+        {todo.content && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setExpanded((p) => !p)}
+            aria-label={expanded ? "상세 내용 접기" : "상세 내용 펼치기"}
+            aria-expanded={expanded}
+            className="size-8"
+          >
+            {expanded ? <ChevronUp /> : <ChevronDown />}
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={() => onShowHistory(todo)}
+          title="수정 이력"
+          aria-label="수정 이력"
+          className="px-x2"
+        >
+          <History />
+          <span className="hidden sm:inline">이력</span>
+        </Button>
+        {canEdit && (
+          <Button variant="ghost" size="icon" onClick={() => onEdit(todo)} aria-label="수정" title="수정" className="size-8">
+            <Pencil />
+          </Button>
+        )}
+        {canDelete && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => onDelete(todo.id)}
+            aria-label="삭제"
+            title="삭제"
+            className="size-8 hover:text-fg-critical"
+          >
+            <Trash2 />
+          </Button>
         )}
       </div>
     </div>
@@ -385,7 +412,7 @@ function isRoleFilter(v: string | null): v is RoleFilter {
   return v === "ALL" || v === "STAFF" || v === "MENTOR";
 }
 
-export function TodoManager({ initialTodos, staffList, currentUserId, currentUserName, currentUserRole, initialTemplates }: Props) {
+export function TodoManager({ initialTodos, staffList, currentUserId, currentUserRole, initialTemplates }: Props) {
   const [todos, setTodos] = useState<Todo[]>(initialTodos);
   const [isPending, startTransition] = useTransition();
   const [showForm, setShowForm] = useState(false);
@@ -405,6 +432,8 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
   useEffect(() => {
     try {
       const saved = localStorage.getItem(ROLE_FILTER_STORAGE_KEY);
+      // 마운트 후 브라우저 저장값으로 한 번 맞춘다(SSR 과 첫 렌더를 일치시키기 위해 effect 에서 읽음)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (isRoleFilter(saved)) setRoleFilter(saved);
     } catch { /* ignore */ }
   }, []);
@@ -479,170 +508,169 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
     currentUserRole === "SUPER_ADMIN" ||
     currentUserRole === "HEAD_MENTOR";
 
-  // 삭제 확인 카드 또는 일반 TodoCard 렌더 (루틴/미완료/완료 공통)
+  const deleteTarget = deleteConfirmId ? todos.find((t) => t.id === deleteConfirmId) : undefined;
+
+  // 할 일 행 렌더 (미완료/완료 공통)
   function renderTodoRow(todo: Todo) {
-    if (deleteConfirmId === todo.id) {
-      return (
-        <div key={todo.id} className="rounded-xl border border-red-200 bg-red-50/60 p-3 flex items-center justify-between gap-2">
-          <p className="text-sm text-red-700">삭제하시겠습니까?</p>
-          <div className="flex gap-2">
-            <Button variant="destructive" size="sm" onClick={() => handleDelete(todo.id)} disabled={isPending} className="h-7 text-xs">삭제</Button>
-            <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)} className="h-7 text-xs">취소</Button>
-          </div>
-        </div>
-      );
-    }
     return (
-      <TodoCard
-        key={todo.id}
-        todo={todo}
-        currentUserId={currentUserId}
-        currentUserRole={currentUserRole}
-        isPending={isPending}
-        onToggle={handleToggle}
-        onEdit={startEdit}
-        onDelete={setDeleteConfirmId}
-        onShowHistory={setHistoryTodo}
-      />
+      <li key={todo.id}>
+        <TodoRow
+          todo={todo}
+          currentUserId={currentUserId}
+          currentUserRole={currentUserRole}
+          isPending={isPending}
+          onToggle={handleToggle}
+          onEdit={startEdit}
+          onDelete={setDeleteConfirmId}
+          onShowHistory={setHistoryTodo}
+        />
+      </li>
     );
   }
 
+  const ROLE_FILTERS: { value: RoleFilter; label: string }[] = [
+    { value: "ALL", label: "전체" },
+    { value: "STAFF", label: "운영" },
+    { value: "MENTOR", label: "멘토" },
+  ];
+
   return (
-    <div className="space-y-4">
-      {/* ── 상단 탭 ── */}
-      <div className="flex gap-1 border-b" role="tablist" aria-label="투두 / 루틴">
-        {(["todos", "routine"] as const).map((key) => {
-          const label = key === "todos" ? "투두리스트" : "루틴";
-          const active = tab === key;
-          return (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setTab(key)}
-              className={cn(
-                "px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors",
-                active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+    <div>
+      <PageHeader
+        title="투두리스트"
+        description="직원끼리 할 일을 나누고, 요일별 루틴까지 한곳에서 챙겨요."
+        actions={
+          tab === "todos" ? (
+            <Button onClick={openNewForm}>
+              <Plus />
+              새 할 일
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as "todos" | "routine")}>
+        <TabsList aria-label="투두 / 루틴">
+          <TabsTrigger value="todos">
+            투두리스트
+            {pending.length > 0 && <span className="t4-bold tabular-nums text-fg-brand">{pending.length}</span>}
+          </TabsTrigger>
+          <TabsTrigger value="routine">루틴</TabsTrigger>
+        </TabsList>
+
+        {/* ── 투두리스트 탭 ── */}
+        <TabsContent value="todos" className="flex min-w-0 flex-col gap-x6">
+          {/* 요약 */}
+          <StatCards cols={3}>
+            <StatCard label="기한 초과" value={overdue.length} unit="개" tone={overdue.length > 0 ? "bad" : "gray"} />
+            <StatCard label="진행 중" value={pending.length} unit="개" />
+            <StatCard label="완료" value={completed.length} unit="개" className="col-span-2 lg:col-span-1" />
+          </StatCards>
+
+          <div className="flex flex-col gap-x4">
+            {/* 대상 역할 필터 */}
+            <Toolbar className="mb-0">
+              <span className="mr-x1 t3-medium text-fg-neutral-subtle">대상</span>
+              {ROLE_FILTERS.map((r) => (
+                <FilterChip key={r.value} selected={roleFilter === r.value} onClick={() => changeRoleFilter(r.value)}>
+                  {r.label}
+                </FilterChip>
+              ))}
+            </Toolbar>
+
+            {/* 진행 중 (미완료) 목록 */}
+            <Section title="진행 중" count={pending.length} flush>
+              {pending.length === 0 ? (
+                <EmptyState
+                  icon={todos.length === 0 ? ListTodo : CheckCircle2}
+                  title={todos.length === 0 ? "아직 등록된 할 일이 없어요" : "모든 할 일을 끝냈어요"}
+                  description={todos.length === 0 ? "함께 챙길 일을 등록하면 담당자와 기한까지 관리할 수 있어요" : undefined}
+                  action={
+                    <Button variant="secondary" onClick={openNewForm}>
+                      <Plus />
+                      새 할 일
+                    </Button>
+                  }
+                  className="border-t border-stroke-neutral-muted"
+                />
+              ) : (
+                <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+                  {pending.map(renderTodoRow)}
+                </ul>
               )}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
+            </Section>
 
-      {/* ── 투두리스트 탭 ── */}
-      {tab === "todos" && (
-      <div className="space-y-4 min-w-0">
-        {/* 헤더 + 새 할 일 */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold">투두리스트</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              미완료 {pending.length}개 · 완료 {completed.length}개
-              {overdue.length > 0 && <span className="text-red-600 font-semibold ml-2">· 기한 초과 {overdue.length}개</span>}
-            </p>
-          </div>
-          <Button size="sm" onClick={openNewForm} className="gap-1.5 h-8">
-            <Plus className="h-3.5 w-3.5" />새 할 일
-          </Button>
-        </div>
-
-        {/* KPI chips */}
-        <div className="grid grid-cols-3 gap-2">
-          <div className={cn("rounded-xl border px-3 py-2.5 flex items-center gap-2", overdue.length > 0 ? "bg-red-50 border-red-200 text-red-700" : "bg-muted border-border text-muted-foreground")}>
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            <div><p className="text-lg font-bold leading-none">{overdue.length}</p><p className="text-[10px] mt-0.5 opacity-70">기한 초과</p></div>
-          </div>
-          <div className="rounded-xl border bg-blue-50 border-blue-200 text-blue-700 px-3 py-2.5 flex items-center gap-2">
-            <Square className="h-3.5 w-3.5 shrink-0" />
-            <div><p className="text-lg font-bold leading-none">{pending.length}</p><p className="text-[10px] mt-0.5 opacity-70">진행 중</p></div>
-          </div>
-          <div className="rounded-xl border bg-green-50 border-green-200 text-green-700 px-3 py-2.5 flex items-center gap-2">
-            <CheckSquare className="h-3.5 w-3.5 shrink-0" />
-            <div><p className="text-lg font-bold leading-none">{completed.length}</p><p className="text-[10px] mt-0.5 opacity-70">완료</p></div>
-          </div>
-        </div>
-
-        {/* 대상 역할 필터 pill */}
-        <div className="flex items-center gap-1.5" role="tablist" aria-label="대상 역할 필터">
-          {(["ALL", "STAFF", "MENTOR"] as const).map((r) => {
-            const label = r === "ALL" ? "전체" : r === "STAFF" ? "운영" : "멘토";
-            const active = roleFilter === r;
-            return (
-              <button
-                key={r}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => changeRoleFilter(r)}
-                className={cn(
-                  "text-xs px-2.5 py-1 rounded-full border transition-colors",
-                  active
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-muted-foreground border-border hover:bg-muted"
-                )}
+            {/* 완료 목록 (접을 수 있음) */}
+            {completed.length > 0 && (
+              <Section
+                title="완료"
+                count={completed.length}
+                actions={
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => setShowCompleted((p) => !p)}
+                    aria-expanded={showCompleted}
+                  >
+                    {showCompleted ? <ChevronUp /> : <ChevronDown />}
+                    {showCompleted ? "접기" : "펼치기"}
+                  </Button>
+                }
+                flush
               >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 폼 (추가 or 수정) — 우측 메인 상단에 통일 */}
-        {(showForm || editingTodo) && (
-          <TodoForm
-            initial={editingTodo ?? undefined}
-            initialCategory={editingTodo ? undefined : formCategory}
-            staffList={staffList}
-            onDone={handleFormDone}
-            onCancel={closeForm}
-          />
-        )}
-
-        {/* 진행 중 (미완료) 목록 */}
-        <div className="space-y-2">
-          {pending.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground rounded-xl border bg-card">
-              <CheckSquare className="h-10 w-10 mx-auto mb-2 opacity-20" />
-              <p className="text-sm">모든 할 일을 완료했습니다</p>
-            </div>
-          ) : (
-            pending.map(renderTodoRow)
-          )}
-        </div>
-
-        {/* 완료 목록 (접을 수 있음) */}
-        {completed.length > 0 && (
-          <div className="space-y-2">
-            <button
-              onClick={() => setShowCompleted((p) => !p)}
-              className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
-            >
-              {showCompleted ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-              완료됨 {completed.length}개
-            </button>
-            {showCompleted && (
-              <div className="space-y-2">
-                {completed.map(renderTodoRow)}
-              </div>
+                {showCompleted && (
+                  <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+                    {completed.map(renderTodoRow)}
+                  </ul>
+                )}
+              </Section>
             )}
           </div>
-        )}
-      </div>
-      )}
+        </TabsContent>
 
-      {/* ── 루틴 탭 ── */}
-      {tab === "routine" && (
-        <div className="min-w-0">
+        {/* ── 루틴 탭 ── */}
+        <TabsContent value="routine" className="min-w-0">
           {initialTemplates !== undefined ? (
             <ChecklistManager initialTemplates={initialTemplates} editable={isAdmin} />
           ) : (
-            <p className="text-sm text-muted-foreground text-center py-10">루틴 데이터를 불러올 수 없습니다.</p>
+            <Section>
+              <EmptyState compact icon={ListTodo} title="루틴 데이터를 불러올 수 없어요" description="잠시 후 새로고침해 주세요" />
+            </Section>
           )}
-        </div>
-      )}
+        </TabsContent>
+      </Tabs>
+
+      {/* 폼 (추가 or 수정) */}
+      <Dialog open={showForm || !!editingTodo} onOpenChange={(o) => { if (!o) closeForm(); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="t7-bold">{editingTodo ? "할 일 수정" : "새 할 일"}</DialogTitle>
+            <DialogDescription>
+              {editingTodo ? "바뀐 내용은 수정 이력에 남아요" : "담당자와 기한을 정해 두면 놓치지 않아요"}
+            </DialogDescription>
+          </DialogHeader>
+          {(showForm || editingTodo) && (
+            <TodoForm
+              key={editingTodo?.id ?? "new"}
+              initial={editingTodo ?? undefined}
+              initialCategory={editingTodo ? undefined : formCategory}
+              staffList={staffList}
+              onDone={handleFormDone}
+              onCancel={closeForm}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={deleteConfirmId != null}
+        onOpenChange={(o) => { if (!o) setDeleteConfirmId(null); }}
+        title="이 할 일을 삭제할까요?"
+        description={deleteTarget ? `"${deleteTarget.title}" — 삭제하면 되돌릴 수 없어요.` : "삭제하면 되돌릴 수 없어요."}
+        pendingLabel="삭제하는 중…"
+        pending={isPending}
+        onConfirm={() => { if (deleteConfirmId) handleDelete(deleteConfirmId); }}
+      />
 
       {historyTodo && (
         <VersionsDialog todo={historyTodo} onClose={() => setHistoryTodo(null)} />
@@ -657,6 +685,17 @@ function fmtDateTime(d: Date | string) {
     year: "numeric", month: "numeric", day: "numeric",
     hour: "2-digit", minute: "2-digit",
   });
+}
+
+function VersionMeta({ dueDate, priority, assigneeName, category }: { dueDate: Date | null; priority: string; assigneeName: string | null; category: string | null }) {
+  return (
+    <div className="mt-x1_5 flex flex-wrap gap-x-x2 gap-y-x0_5 t2-regular text-fg-neutral-subtle">
+      {dueDate && <span className="tabular-nums">기한 {new Date(dueDate).toLocaleDateString("ko-KR")}</span>}
+      <span>우선 {PRIORITY_LABEL[priority] ?? priority}</span>
+      {assigneeName && <span>담당 {assigneeName}</span>}
+      {category && <span>분류 {category}</span>}
+    </div>
+  );
 }
 
 function VersionsDialog({ todo, onClose }: { todo: Todo; onClose: () => void }) {
@@ -674,51 +713,38 @@ function VersionsDialog({ todo, onClose }: { todo: Todo; onClose: () => void }) 
   }, [todo.id]);
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-card border border-line rounded-[14px] shadow-[var(--shadow-pop)] w-full max-w-[560px] max-h-[80vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 px-[18px] py-3 border-b border-line-2">
-          <span className="text-[13.5px] font-[650] tracking-[-0.015em] text-ink">수정 이력</span>
-          <span className="text-[11.5px] text-ink-4 truncate">· {todo.title}</span>
-          <button onClick={onClose} className="ml-auto p-1 rounded hover:bg-canvas-2 text-ink-4 hover:text-ink">
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-[18px]">
-          {loading && <p className="text-[12.5px] text-ink-4 text-center py-6">불러오는 중...</p>}
-          {error && <p className="text-[12.5px] text-bad text-center py-6">{error}</p>}
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle className="t7-bold">수정 이력</DialogTitle>
+          <DialogDescription className="truncate">{todo.title}</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto">
+          {loading && (
+            <div className="flex flex-col gap-x2" aria-busy="true" aria-label="불러오는 중">
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          )}
+          {error && <p className="py-x6 text-center t4-regular text-fg-critical">{error}</p>}
           {versions && (
-            <ol className="space-y-3">
-              {/* 현재 상태 (라이브) — 초록색 강조 */}
-              <li className="rounded-[10px] border border-ok/40 bg-ok-soft p-3">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-[10px] font-mono uppercase tracking-[0.06em] px-1.5 py-0.5 rounded-[4px] bg-ok text-white">
-                    현재
-                  </span>
-                  <span className="text-[11.5px] font-semibold text-ok-ink">
+            <ol className="flex flex-col gap-x2">
+              {/* 현재 상태 (라이브) */}
+              <li className="rounded-r3 bg-bg-positive-weak p-x4">
+                <div className="mb-x1_5 flex items-center gap-x2">
+                  <StatusBadge tone="ok" solid>현재</StatusBadge>
+                  <span className="t3-bold text-fg-neutral">
                     {todo.lastEditorName ?? todo.authorName}
                   </span>
-                  <span className="text-[11px] text-ink-4 font-mono tabular-nums ml-auto">
+                  <span className="ml-auto t3-regular tabular-nums text-fg-neutral-subtle">
                     {fmtDateTime(todo.lastEditedAt ?? todo.createdAt)}
                   </span>
                 </div>
-                <p className="text-[12.5px] font-medium text-ink mb-0.5">{todo.title}</p>
+                <p className="t4-medium text-fg-neutral">{todo.title}</p>
                 {todo.content && (
-                  <p className="text-[11.5px] text-ink-2 whitespace-pre-wrap line-clamp-4">{todo.content}</p>
+                  <p className="mt-x0_5 line-clamp-4 whitespace-pre-wrap t3-regular text-fg-neutral-muted">{todo.content}</p>
                 )}
-                <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1.5 text-[10.5px] text-ink-3">
-                  {todo.dueDate && <span>기한 {new Date(todo.dueDate).toLocaleDateString("ko-KR")}</span>}
-                  <span>우선 {PRIORITY_LABEL[todo.priority] ?? todo.priority}</span>
-                  {todo.assigneeName && <span>담당 {todo.assigneeName}</span>}
-                  {todo.category && <span>분류 {todo.category}</span>}
-                </div>
+                <VersionMeta dueDate={todo.dueDate} priority={todo.priority} assigneeName={todo.assigneeName} category={todo.category} />
               </li>
 
               {/* 과거 버전들 */}
@@ -726,31 +752,23 @@ function VersionsDialog({ todo, onClose }: { todo: Todo; onClose: () => void }) 
                 const isOriginal = v.version === 1;
                 const newer = versions[idx - 1];
                 return (
-                  <li key={v.id} className="rounded-[10px] border border-line bg-panel-2 p-3">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className={cn(
-                        "text-[10px] font-mono uppercase tracking-[0.06em] px-1.5 py-0.5 rounded-[4px]",
-                        isOriginal ? "bg-brand-soft text-brand-2" : "bg-canvas-2 text-ink-3"
-                      )}>
+                  <li key={v.id} className="rounded-r3 bg-bg-layer-fill p-x4">
+                    <div className="mb-x1_5 flex items-center gap-x2">
+                      <StatusBadge tone={isOriginal ? "brand" : "gray"}>
                         v{v.version}{isOriginal && " · 최초"}
-                      </span>
-                      <span className="text-[11.5px] font-semibold text-ink">{v.editorName}</span>
-                      <span className="text-[11px] text-ink-4 font-mono tabular-nums ml-auto">
+                      </StatusBadge>
+                      <span className="t3-bold text-fg-neutral">{v.editorName}</span>
+                      <span className="ml-auto t3-regular tabular-nums text-fg-neutral-subtle">
                         {fmtDateTime(v.createdAt)}
                       </span>
                     </div>
-                    <p className="text-[12.5px] font-medium text-ink mb-0.5">{v.title}</p>
+                    <p className="t4-medium text-fg-neutral">{v.title}</p>
                     {v.content && (
-                      <p className="text-[11.5px] text-ink-3 whitespace-pre-wrap line-clamp-4">{v.content}</p>
+                      <p className="mt-x0_5 line-clamp-4 whitespace-pre-wrap t3-regular text-fg-neutral-muted">{v.content}</p>
                     )}
-                    <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1.5 text-[10.5px] text-ink-4">
-                      {v.dueDate && <span>기한 {new Date(v.dueDate).toLocaleDateString("ko-KR")}</span>}
-                      <span>우선 {PRIORITY_LABEL[v.priority] ?? v.priority}</span>
-                      {v.assigneeName && <span>담당 {v.assigneeName}</span>}
-                      {v.category && <span>분류 {v.category}</span>}
-                    </div>
+                    <VersionMeta dueDate={v.dueDate} priority={v.priority} assigneeName={v.assigneeName} category={v.category} />
                     {newer && (
-                      <div className="mt-2 pt-2 border-t border-line-2 text-[10.5px] text-ink-4">
+                      <div className="mt-x2 border-t border-stroke-neutral-muted pt-x2 t2-regular text-fg-neutral-subtle">
                         변경: {diffSummary(v, newer)}
                       </div>
                     )}
@@ -758,15 +776,15 @@ function VersionsDialog({ todo, onClose }: { todo: Todo; onClose: () => void }) 
                 );
               })}
               {versions.length === 0 && (
-                <li className="text-[11.5px] text-ink-4 text-center py-2">
-                  과거 수정 이력이 없습니다
+                <li className="py-x2 text-center t3-regular text-fg-neutral-subtle">
+                  과거 수정 이력이 없어요
                 </li>
               )}
             </ol>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

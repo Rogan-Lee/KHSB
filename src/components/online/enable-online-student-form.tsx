@@ -4,7 +4,10 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { enableOnlineManagement } from "@/actions/online/students";
+import { Users } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
+import { Button } from "@/components/ui/button";
+import { EmptyState, FormActions, FormField } from "@/components/backoffice/ui";
 
 type StudentOption = { id: string; name: string; grade: string };
 type UserOption = { id: string; name: string };
@@ -26,9 +29,12 @@ export function EnableOnlineStudentForm({
 
   if (offlineStudents.length === 0) {
     return (
-      <p className="text-[12px] text-ink-5">
-        전환 가능한 오프라인 학생이 없습니다.
-      </p>
+      <EmptyState
+        compact
+        icon={Users}
+        title="전환할 수 있는 오프라인 학생이 없어요"
+        description="재원 중인 오프라인 학생만 온라인 관리로 전환할 수 있어요"
+      />
     );
   }
 
@@ -57,54 +63,54 @@ export function EnableOnlineStudentForm({
   };
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
-      <div className="flex flex-col gap-1">
-        <span className="text-[11px] text-ink-4">학생</span>
-        <Combobox
-          value={studentId}
-          onChange={setStudentId}
-          items={offlineStudents.map((s) => ({ value: s.id, label: s.name, subLabel: s.grade }))}
-          placeholder="학생 선택…"
-          searchPlaceholder="이름/학년 검색…"
-          triggerClassName="min-w-[160px] h-auto py-1.5 text-[12.5px]"
-        />
+    <form onSubmit={onSubmit} className="flex flex-col gap-x5">
+      <div className="grid grid-cols-1 gap-x4 md:grid-cols-3">
+        <FormField label="학생" required>
+          <Combobox
+            value={studentId}
+            onChange={setStudentId}
+            items={offlineStudents.map((s) => ({ value: s.id, label: s.name, subLabel: s.grade }))}
+            placeholder="학생 선택…"
+            searchPlaceholder="이름/학년 검색…"
+            triggerClassName="t4-regular"
+            popoverClassName="w-[--radix-popover-trigger-width] min-w-[240px]"
+          />
+        </FormField>
+
+        <FormField label="관리 멘토">
+          <Combobox
+            value={assignedMentorId}
+            onChange={setAssignedMentorId}
+            items={mentors.map((m) => ({ value: m.id, label: m.name }))}
+            placeholder="나중에 배정"
+            searchPlaceholder="이름 검색…"
+            allowEmpty
+            emptyLabel="나중에 배정"
+            triggerClassName="t4-regular"
+            popoverClassName="w-[--radix-popover-trigger-width] min-w-[200px]"
+          />
+        </FormField>
+
+        <FormField label="컨설턴트">
+          <Combobox
+            value={assignedConsultantId}
+            onChange={setAssignedConsultantId}
+            items={consultants.map((c) => ({ value: c.id, label: c.name }))}
+            placeholder="나중에 배정"
+            searchPlaceholder="이름 검색…"
+            allowEmpty
+            emptyLabel="나중에 배정"
+            triggerClassName="t4-regular"
+            popoverClassName="w-[--radix-popover-trigger-width] min-w-[200px]"
+          />
+        </FormField>
       </div>
 
-      <div className="flex flex-col gap-1">
-        <span className="text-[11px] text-ink-4">관리 멘토</span>
-        <Combobox
-          value={assignedMentorId}
-          onChange={setAssignedMentorId}
-          items={mentors.map((m) => ({ value: m.id, label: m.name }))}
-          placeholder="나중에 배정"
-          searchPlaceholder="이름 검색…"
-          allowEmpty
-          emptyLabel="나중에 배정"
-          triggerClassName="min-w-[140px] h-auto py-1.5 text-[12.5px]"
-        />
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <span className="text-[11px] text-ink-4">컨설턴트</span>
-        <Combobox
-          value={assignedConsultantId}
-          onChange={setAssignedConsultantId}
-          items={consultants.map((c) => ({ value: c.id, label: c.name }))}
-          placeholder="나중에 배정"
-          searchPlaceholder="이름 검색…"
-          allowEmpty
-          emptyLabel="나중에 배정"
-          triggerClassName="min-w-[140px] h-auto py-1.5 text-[12.5px]"
-        />
-      </div>
-
-      <button
-        type="submit"
-        disabled={isPending || !studentId}
-        className="rounded-[8px] bg-ink text-white px-3 py-1.5 text-[12.5px] font-semibold disabled:opacity-50"
-      >
-        {isPending ? "전환 중..." : "온라인 관리로 전환"}
-      </button>
+      <FormActions>
+        <Button type="submit" disabled={isPending || !studentId} className="w-full sm:w-auto">
+          {isPending ? "전환 중…" : "온라인 관리로 전환"}
+        </Button>
+      </FormActions>
     </form>
   );
 }

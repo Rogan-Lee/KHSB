@@ -3,11 +3,34 @@
 import { useState, useRef } from "react";
 import { toPng } from "html-to-image";
 import { toast } from "sonner";
-import { Sparkles, Download, RefreshCw, Megaphone, Lightbulb, Trophy, ImagePlus, Link, X, ScanSearch, ChevronLeft, ChevronRight, DownloadCloud } from "lucide-react";
+import {
+  Sparkles,
+  Download,
+  RefreshCw,
+  Megaphone,
+  Lightbulb,
+  Trophy,
+  ImagePlus,
+  Link as LinkIcon,
+  X,
+  ScanSearch,
+  ChevronLeft,
+  ChevronRight,
+  DownloadCloud,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  EmptyState,
+  FilterChip,
+  FormField,
+  IconTile,
+  Section,
+  Segmented,
+  StatusBadge,
+} from "@/components/backoffice/ui";
+import { cn } from "@/lib/utils";
 import {
   generateCardNewsSlides,
   analyzeReferenceImage,
@@ -22,13 +45,19 @@ import { AnnouncementCard } from "./templates/announcement-card";
 import { StudyTipCard } from "./templates/study-tip-card";
 import { TopStudentCard } from "./templates/top-student-card";
 
-const TEMPLATES: { id: CardNewsTemplate; label: string; desc: string; icon: React.ElementType; color: string }[] = [
-  { id: "announcement", label: "공지/이벤트", desc: "학원 공지, 행사 홍보", icon: Megaphone, color: "text-blue-600" },
-  { id: "study-tip", label: "학습 팁/동기부여", desc: "공부법, 동기부여 콘텐츠", icon: Lightbulb, color: "text-amber-500" },
-  { id: "top-student", label: "성적 우수자 발표", desc: "우수 학생 시상, 칭찬", icon: Trophy, color: "text-emerald-600" },
+const TEMPLATES: { id: CardNewsTemplate; label: string; desc: string; icon: typeof Megaphone }[] = [
+  { id: "announcement", label: "공지/이벤트", desc: "학원 공지, 행사 홍보", icon: Megaphone },
+  { id: "study-tip", label: "학습 팁/동기부여", desc: "공부법, 동기부여 콘텐츠", icon: Lightbulb },
+  { id: "top-student", label: "성적 우수자 발표", desc: "우수 학생 시상, 칭찬", icon: Trophy },
 ];
 
 const SLIDE_LABELS: Record<string, string> = { cover: "표지", body: "본문", closing: "마무리" };
+
+const MOOD_OPTIONS: { value: StudyTipInputs["mood"]; label: string }[] = [
+  { value: "energetic", label: "활기차게" },
+  { value: "calm", label: "차분하게" },
+  { value: "serious", label: "진지하게" },
+];
 
 export function CardNewsClient() {
   const [template, setTemplate] = useState<CardNewsTemplate>("announcement");
@@ -128,238 +157,340 @@ export function CardNewsClient() {
   const slide = slides[currentSlide];
 
   return (
-    <div className="grid grid-cols-[400px_1fr] gap-6 items-start">
+    <div className="grid grid-cols-1 items-start gap-x6 xl:grid-cols-[400px_minmax(0,1fr)]">
       {/* ── 좌측 패널 ── */}
-      <div className="space-y-5">
+      <div className="flex min-w-0 flex-col gap-x4">
         {/* 템플릿 선택 */}
-        <div className="space-y-2">
-          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">템플릿 선택</Label>
-          <div className="grid grid-cols-1 gap-2">
+        <Section title="템플릿">
+          <div className="flex flex-col gap-x2" role="group" aria-label="템플릿 선택">
             {TEMPLATES.map((t) => {
-              const Icon = t.icon;
               const active = template === t.id;
               return (
-                <button key={t.id} onClick={() => { setTemplate(t.id); setSlides([]); setCurrentSlide(0); }}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all ${active ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:border-primary/40 hover:bg-muted/50"}`}>
-                  <Icon className={`h-4 w-4 shrink-0 ${active ? t.color : "text-muted-foreground"}`} />
-                  <div>
-                    <p className={`text-sm font-medium ${active ? "text-foreground" : "text-muted-foreground"}`}>{t.label}</p>
-                    <p className="text-xs text-muted-foreground/70">{t.desc}</p>
-                  </div>
+                <button
+                  key={t.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => { setTemplate(t.id); setSlides([]); setCurrentSlide(0); }}
+                  className={cn(
+                    "flex w-full items-center gap-x3 rounded-r3 px-x3 py-x3 text-left transition-colors",
+                    active
+                      ? "bg-bg-brand-weak shadow-[inset_0_0_0_1px_var(--seed-color-stroke-brand-solid)]"
+                      : "bg-bg-layer-default shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-muted)] hover:bg-bg-layer-default-pressed",
+                  )}
+                >
+                  <IconTile icon={t.icon} size={32} tone={active ? "brand" : "gray"} solid={active} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block t4-bold text-fg-neutral">{t.label}</span>
+                    <span className="mt-x0_5 block t3-regular text-fg-neutral-subtle">{t.desc}</span>
+                  </span>
                 </button>
               );
             })}
           </div>
-        </div>
+        </Section>
 
         {/* 레퍼런스 스타일 */}
-        <div className="rounded-lg border bg-card p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <ScanSearch className="h-3.5 w-3.5 text-muted-foreground" />
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">레퍼런스 스타일 (선택)</p>
-          </div>
-          <p className="text-xs text-muted-foreground/70">참고 이미지를 올리면 색상·분위기를 추출해 카드에 적용합니다.</p>
-
+        <Section
+          title={
+            <>
+              레퍼런스 스타일
+              <span className="t4-regular text-fg-neutral-subtle">선택</span>
+            </>
+          }
+          description="참고 이미지를 올리면 색상과 분위기를 뽑아 카드에 적용해요"
+        >
           {!refPreview ? (
-            <div className="space-y-2">
+            <div className="flex flex-col gap-x3">
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-              <button onClick={() => fileInputRef.current?.click()}
-                className="w-full flex items-center justify-center gap-2 py-5 rounded-lg border-2 border-dashed border-border hover:border-primary/50 hover:bg-muted/30 transition-all text-sm text-muted-foreground hover:text-foreground">
-                <ImagePlus className="h-4 w-4" />이미지 파일 업로드
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex w-full flex-col items-center justify-center gap-x2 rounded-r3 border border-dashed border-stroke-neutral-weak py-x6 t4-medium text-fg-neutral-muted transition-colors hover:bg-bg-layer-default-pressed hover:text-fg-neutral"
+              >
+                <ImagePlus className="size-5" aria-hidden />
+                이미지 파일 업로드
               </button>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Link className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input placeholder="이미지 URL (.jpg, .png)" className="pl-8 text-xs" value={refUrl}
-                    onChange={(e) => setRefUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleAnalyze()} />
+              <div className="flex gap-x2">
+                <div className="relative min-w-0 flex-1">
+                  <LinkIcon
+                    className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-fg-neutral-subtle"
+                    aria-hidden
+                  />
+                  <Input
+                    aria-label="레퍼런스 이미지 URL"
+                    placeholder="이미지 URL (.jpg, .png)"
+                    className="pl-x9"
+                    value={refUrl}
+                    onChange={(e) => setRefUrl(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAnalyze()}
+                  />
                 </div>
-                <Button size="sm" variant="outline" onClick={handleAnalyze} disabled={analyzing || !refUrl.trim()}>
-                  {analyzing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : "분석"}
+                <Button variant="outline" onClick={handleAnalyze} disabled={analyzing || !refUrl.trim()}>
+                  {analyzing ? (
+                    <>
+                      <RefreshCw className="animate-spin" aria-hidden />
+                      분석 중…
+                    </>
+                  ) : (
+                    "분석"
+                  )}
                 </Button>
               </div>
             </div>
           ) : (
-            <div className="space-y-2">
-              <div className="relative rounded-lg overflow-hidden border border-border">
+            <div className="flex flex-col gap-x3">
+              <div className="relative overflow-hidden rounded-r3 border border-stroke-neutral-muted">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={refPreview} alt="레퍼런스" className="w-full h-28 object-cover" />
-                <button onClick={clearReference} className="absolute top-1.5 right-1.5 p-1 rounded-full bg-background/80 border border-border hover:bg-accent transition-colors">
-                  <X className="h-3.5 w-3.5" />
+                <img src={refPreview} alt="레퍼런스 이미지" className="h-32 w-full object-cover" />
+                <button
+                  type="button"
+                  onClick={clearReference}
+                  aria-label="레퍼런스 이미지 지우기"
+                  className="absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-bg-overlay text-palette-static-white transition-opacity hover:opacity-80"
+                >
+                  <X className="size-4" aria-hidden />
                 </button>
               </div>
               {customStyle ? (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-green-50 border border-green-200">
-                  <div className="flex gap-1">
+                <div className="flex items-center gap-x2 rounded-r3 bg-bg-positive-weak px-x3 py-x2_5">
+                  <div className="flex gap-x1" aria-hidden>
                     {[customStyle.background, customStyle.accentColor, customStyle.headlineColor].map((c, i) => (
-                      <div key={i} style={{ background: c, width: 14, height: 14, borderRadius: 3, border: "1px solid rgba(0,0,0,0.1)" }} />
+                      // 추출된 색상 데이터 미리보기 — 값이 런타임 데이터라 inline style 유지
+                      <span key={i} className="size-3.5 rounded-r1 border border-stroke-neutral-muted" style={{ background: c }} />
                     ))}
                   </div>
-                  <span className="text-xs text-green-700 font-medium">스타일 추출 완료</span>
-                  <button onClick={() => setCustomStyle(null)} className="ml-auto text-xs text-green-600 hover:text-green-800 underline">초기화</button>
+                  <span className="t3-medium text-fg-positive">스타일을 추출했어요</span>
+                  <button
+                    type="button"
+                    onClick={() => setCustomStyle(null)}
+                    className="ml-auto rounded-r2 px-x1_5 py-x1 t3-medium text-fg-neutral-muted underline-offset-2 transition-colors hover:text-fg-neutral hover:underline"
+                  >
+                    초기화
+                  </button>
                 </div>
               ) : (
-                <Button className="w-full" variant="outline" size="sm" onClick={handleAnalyze} disabled={analyzing}>
-                  {analyzing ? <><RefreshCw className="h-3.5 w-3.5 mr-2 animate-spin" />분석 중...</> : <><ScanSearch className="h-3.5 w-3.5 mr-2" />스타일 분석하기</>}
+                <Button className="w-full" variant="outline" onClick={handleAnalyze} disabled={analyzing}>
+                  {analyzing ? (
+                    <>
+                      <RefreshCw className="animate-spin" aria-hidden />
+                      분석 중…
+                    </>
+                  ) : (
+                    <>
+                      <ScanSearch aria-hidden />
+                      스타일 분석하기
+                    </>
+                  )}
                 </Button>
               )}
             </div>
           )}
-        </div>
+        </Section>
 
         {/* 소재 입력 */}
-        <div className="rounded-lg border bg-card p-4 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">소재 입력</p>
+        <Section title="소재 입력">
+          <div className="flex flex-col gap-x4">
+            {template === "announcement" && (<>
+              <FormField label="제목" htmlFor="cn-ann-title">
+                <Input id="cn-ann-title" placeholder="예: 2월 학원 설명회 개최" value={ann.title} onChange={(e) => setAnn({ ...ann, title: e.target.value })} />
+              </FormField>
+              <FormField label="날짜/기간" htmlFor="cn-ann-date">
+                <Input id="cn-ann-date" placeholder="예: 2025년 2월 15일 (토) 오후 2시" value={ann.date} onChange={(e) => setAnn({ ...ann, date: e.target.value })} />
+              </FormField>
+              <FormField label="대상" htmlFor="cn-ann-target">
+                <Input id="cn-ann-target" placeholder="예: 전체 원생 및 학부모" value={ann.target} onChange={(e) => setAnn({ ...ann, target: e.target.value })} />
+              </FormField>
+              <FormField label="주요 내용" htmlFor="cn-ann-details">
+                <Textarea id="cn-ann-details" placeholder="예: 신규 커리큘럼 설명, 자기소개서 특강 안내" rows={3} value={ann.details} onChange={(e) => setAnn({ ...ann, details: e.target.value })} />
+              </FormField>
+            </>)}
 
-          {template === "announcement" && (<>
-            <div className="space-y-1"><Label className="text-xs">제목</Label><Input placeholder="예: 2월 학원 설명회 개최" value={ann.title} onChange={(e) => setAnn({ ...ann, title: e.target.value })} /></div>
-            <div className="space-y-1"><Label className="text-xs">날짜/기간</Label><Input placeholder="예: 2025년 2월 15일 (토) 오후 2시" value={ann.date} onChange={(e) => setAnn({ ...ann, date: e.target.value })} /></div>
-            <div className="space-y-1"><Label className="text-xs">대상</Label><Input placeholder="예: 전체 원생 및 학부모" value={ann.target} onChange={(e) => setAnn({ ...ann, target: e.target.value })} /></div>
-            <div className="space-y-1"><Label className="text-xs">주요 내용</Label><Textarea placeholder="예: 신규 커리큘럼 설명, 자기소개서 특강 안내" rows={3} value={ann.details} onChange={(e) => setAnn({ ...ann, details: e.target.value })} /></div>
-          </>)}
+            {template === "study-tip" && (<>
+              <FormField label="주제" htmlFor="cn-tip-topic">
+                <Input id="cn-tip-topic" placeholder="예: 수능 D-100 시간 관리법" value={tip.topic} onChange={(e) => setTip({ ...tip, topic: e.target.value })} />
+              </FormField>
+              <FormField label="핵심 메시지/소재" htmlFor="cn-tip-message">
+                <Textarea id="cn-tip-message" placeholder="예: 포모도로 기법 25분 집중 5분 휴식" rows={3} value={tip.keyMessage} onChange={(e) => setTip({ ...tip, keyMessage: e.target.value })} />
+              </FormField>
+              <FormField label="분위기">
+                <Segmented
+                  aria-label="분위기"
+                  options={MOOD_OPTIONS}
+                  value={tip.mood}
+                  onChange={(m) => setTip({ ...tip, mood: m })}
+                />
+              </FormField>
+            </>)}
 
-          {template === "study-tip" && (<>
-            <div className="space-y-1"><Label className="text-xs">주제</Label><Input placeholder="예: 수능 D-100 시간 관리법" value={tip.topic} onChange={(e) => setTip({ ...tip, topic: e.target.value })} /></div>
-            <div className="space-y-1"><Label className="text-xs">핵심 메시지/소재</Label><Textarea placeholder="예: 포모도로 기법 25분 집중 5분 휴식" rows={3} value={tip.keyMessage} onChange={(e) => setTip({ ...tip, keyMessage: e.target.value })} /></div>
-            <div className="space-y-1">
-              <Label className="text-xs">분위기</Label>
-              <div className="flex gap-2">
-                {(["energetic", "calm", "serious"] as const).map((m) => {
-                  const labels = { energetic: "활기차게", calm: "차분하게", serious: "진지하게" };
-                  return (
-                    <button key={m} onClick={() => setTip({ ...tip, mood: m })}
-                      className={`flex-1 py-1.5 text-xs rounded-md border transition-all ${tip.mood === m ? "border-primary bg-primary/5 text-primary font-medium" : "border-border text-muted-foreground hover:border-primary/40"}`}>
-                      {labels[m]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </>)}
+            {template === "top-student" && (<>
+              <FormField label="기간" htmlFor="cn-top-period">
+                <Input id="cn-top-period" placeholder="예: 2025년 1월" value={top.period} onChange={(e) => setTop({ ...top, period: e.target.value })} />
+              </FormField>
+              <FormField label="우수 학생 이름" htmlFor="cn-top-students">
+                <Input id="cn-top-students" placeholder="예: 김민준, 이서연, 박지호" value={top.students} onChange={(e) => setTop({ ...top, students: e.target.value })} />
+              </FormField>
+              <FormField label="과목/분야" htmlFor="cn-top-subject">
+                <Input id="cn-top-subject" placeholder="예: 수학, 영어, 전과목" value={top.subject} onChange={(e) => setTop({ ...top, subject: e.target.value })} />
+              </FormField>
+              <FormField label="추가 메시지" htmlFor="cn-top-message">
+                <Textarea id="cn-top-message" placeholder="예: 꾸준한 노력으로 놀라운 성장을 이루었습니다" rows={2} value={top.message} onChange={(e) => setTop({ ...top, message: e.target.value })} />
+              </FormField>
+            </>)}
 
-          {template === "top-student" && (<>
-            <div className="space-y-1"><Label className="text-xs">기간</Label><Input placeholder="예: 2025년 1월" value={top.period} onChange={(e) => setTop({ ...top, period: e.target.value })} /></div>
-            <div className="space-y-1"><Label className="text-xs">우수 학생 이름</Label><Input placeholder="예: 김민준, 이서연, 박지호" value={top.students} onChange={(e) => setTop({ ...top, students: e.target.value })} /></div>
-            <div className="space-y-1"><Label className="text-xs">과목/분야</Label><Input placeholder="예: 수학, 영어, 전과목" value={top.subject} onChange={(e) => setTop({ ...top, subject: e.target.value })} /></div>
-            <div className="space-y-1"><Label className="text-xs">추가 메시지</Label><Textarea placeholder="예: 꾸준한 노력으로 놀라운 성장을 이루었습니다" rows={2} value={top.message} onChange={(e) => setTop({ ...top, message: e.target.value })} /></div>
-          </>)}
-
-          <Button className="w-full" onClick={handleGenerate} disabled={loading}>
-            {loading ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />AI 생성 중...</> : <><Sparkles className="h-4 w-4 mr-2" />AI 카드뉴스 생성 (4장)</>}
-          </Button>
-        </div>
+            <Button size="lg" className="mt-x1 w-full" onClick={handleGenerate} disabled={loading}>
+              {loading ? (
+                <>
+                  <RefreshCw className="animate-spin" aria-hidden />
+                  AI 생성 중…
+                </>
+              ) : (
+                <>
+                  <Sparkles aria-hidden />
+                  AI 카드뉴스 생성 (4장)
+                </>
+              )}
+            </Button>
+          </div>
+        </Section>
 
         {/* 슬라이드 텍스트 편집 */}
         {slide && (
-          <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">텍스트 수정</p>
-              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">{SLIDE_LABELS[slide.type]} {currentSlide + 1}/{slides.length}</span>
-            </div>
-            <div className="space-y-2">
-              <div className="space-y-1"><Label className="text-xs">헤드라인</Label>
-                <Input value={slide.headline} onChange={(e) => { const s = [...slides]; s[currentSlide] = { ...s[currentSlide], headline: e.target.value }; setSlides(s); }} className="text-sm font-semibold" />
-              </div>
-              <div className="space-y-1"><Label className="text-xs">서브 헤드라인</Label>
-                <Input value={slide.subheadline} onChange={(e) => { const s = [...slides]; s[currentSlide] = { ...s[currentSlide], subheadline: e.target.value }; setSlides(s); }} className="text-sm" />
-              </div>
-              <div className="space-y-1"><Label className="text-xs">본문</Label>
-                <Textarea rows={3} value={slide.body} onChange={(e) => { const s = [...slides]; s[currentSlide] = { ...s[currentSlide], body: e.target.value }; setSlides(s); }} className="text-sm resize-none" />
-              </div>
+          <Section
+            title="텍스트 수정"
+            actions={
+              <StatusBadge tone="gray">
+                {SLIDE_LABELS[slide.type]} {currentSlide + 1}/{slides.length}
+              </StatusBadge>
+            }
+          >
+            <div className="flex flex-col gap-x4">
+              <FormField label="헤드라인" htmlFor="cn-slide-headline">
+                <Input id="cn-slide-headline" value={slide.headline} onChange={(e) => { const s = [...slides]; s[currentSlide] = { ...s[currentSlide], headline: e.target.value }; setSlides(s); }} />
+              </FormField>
+              <FormField label="서브 헤드라인" htmlFor="cn-slide-subheadline">
+                <Input id="cn-slide-subheadline" value={slide.subheadline} onChange={(e) => { const s = [...slides]; s[currentSlide] = { ...s[currentSlide], subheadline: e.target.value }; setSlides(s); }} />
+              </FormField>
+              <FormField label="본문" htmlFor="cn-slide-body">
+                <Textarea id="cn-slide-body" rows={3} value={slide.body} onChange={(e) => { const s = [...slides]; s[currentSlide] = { ...s[currentSlide], body: e.target.value }; setSlides(s); }} className="resize-none" />
+              </FormField>
               {slide.items && (
-                <div className="space-y-1"><Label className="text-xs">항목 (줄바꿈으로 구분)</Label>
-                  <Textarea rows={3} value={slide.items.join("\n")}
+                <FormField label="항목" htmlFor="cn-slide-items" hint="줄바꿈으로 구분해요">
+                  <Textarea id="cn-slide-items" rows={3} value={slide.items.join("\n")}
                     onChange={(e) => { const s = [...slides]; s[currentSlide] = { ...s[currentSlide], items: e.target.value.split("\n").filter(Boolean) }; setSlides(s); }}
-                    className="text-sm resize-none" />
-                </div>
+                    className="resize-none" />
+                </FormField>
               )}
               {slide.callToAction !== undefined && (
-                <div className="space-y-1"><Label className="text-xs">CTA</Label>
-                  <Input value={slide.callToAction ?? ""} onChange={(e) => { const s = [...slides]; s[currentSlide] = { ...s[currentSlide], callToAction: e.target.value }; setSlides(s); }} className="text-sm" />
-                </div>
+                <FormField label="CTA" htmlFor="cn-slide-cta">
+                  <Input id="cn-slide-cta" value={slide.callToAction ?? ""} onChange={(e) => { const s = [...slides]; s[currentSlide] = { ...s[currentSlide], callToAction: e.target.value }; setSlides(s); }} />
+                </FormField>
               )}
               {slide.hashtags && (
-                <div className="space-y-1"><Label className="text-xs">해시태그</Label>
-                  <Input value={slide.hashtags.join(" ")} onChange={(e) => { const s = [...slides]; s[currentSlide] = { ...s[currentSlide], hashtags: e.target.value.split(/\s+/).filter(Boolean) }; setSlides(s); }} className="text-xs text-muted-foreground" />
-                </div>
+                <FormField label="해시태그" htmlFor="cn-slide-hashtags" hint="띄어쓰기로 구분해요">
+                  <Input id="cn-slide-hashtags" value={slide.hashtags.join(" ")} onChange={(e) => { const s = [...slides]; s[currentSlide] = { ...s[currentSlide], hashtags: e.target.value.split(/\s+/).filter(Boolean) }; setSlides(s); }} />
+                </FormField>
               )}
             </div>
-          </div>
+          </Section>
         )}
       </div>
 
       {/* ── 우측: 미리보기 ── */}
-      <div className="space-y-3 sticky top-6">
-        {/* 헤더 */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">미리보기 (1080×1080)</Label>
-            {customStyle && <span className="text-xs text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full font-medium">레퍼런스 적용됨</span>}
+      <div className="min-w-0 xl:sticky xl:top-20">
+        <Section
+          title="미리보기"
+          description="1080×1080"
+          actions={
+            customStyle || slides.length > 0 ? (
+              <>
+                {customStyle && <StatusBadge tone="ok">레퍼런스 적용됨</StatusBadge>}
+                {slides.length > 0 && (
+                  <>
+                    <Button size="sm" variant="outline" onClick={handleDownloadCurrent} disabled={downloadingAll}>
+                      <Download aria-hidden />
+                      이 장 저장
+                    </Button>
+                    <Button size="sm" onClick={handleDownloadAll} disabled={downloadingAll}>
+                      {downloadingAll ? <RefreshCw className="animate-spin" aria-hidden /> : <DownloadCloud aria-hidden />}
+                      {downloadingAll ? "저장 중…" : `전체 ${slides.length}장 저장`}
+                    </Button>
+                  </>
+                )}
+              </>
+            ) : null
+          }
+        >
+          {/* 카드 — 좁은 화면에선 480px 를 줄이지 않고 가로 스크롤. 가운데 정렬은 바깥 래퍼가 맡는다
+              (cardRef 노드가 그대로 PNG 로 저장되므로 노드 자체에 margin 을 주면 html-to-image 복제본이 밀린다) */}
+          <div className="overflow-x-auto">
+            <div className="mx-auto w-max">
+              <div
+                ref={cardRef}
+                style={{ width: 480, height: 480, fontFamily: "'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif" }}
+                className="overflow-hidden rounded-r4"
+              >
+                {slides.length === 0 ? (
+                  <EmptyState
+                    icon={Sparkles}
+                    title={loading ? "AI가 카드뉴스를 만들고 있어요" : "소재를 입력하고 AI 생성을 눌러 주세요"}
+                    description={
+                      loading
+                        ? "잠시만 기다려 주세요"
+                        : customStyle
+                          ? "추출한 레퍼런스 스타일이 적용돼요"
+                          : "템플릿을 고르고 소재를 입력하면 카드 4장을 만들어요"
+                    }
+                    className="size-full rounded-r4 border border-dashed border-stroke-neutral-weak bg-bg-layer-fill font-sans"
+                  />
+                ) : slide ? (
+                  <>
+                    {template === "announcement" && <AnnouncementCard slide={slide} slideIndex={currentSlide} totalSlides={slides.length} inputs={ann} customStyle={customStyle ?? undefined} />}
+                    {template === "study-tip" && <StudyTipCard slide={slide} slideIndex={currentSlide} totalSlides={slides.length} inputs={tip} customStyle={customStyle ?? undefined} />}
+                    {template === "top-student" && <TopStudentCard slide={slide} slideIndex={currentSlide} totalSlides={slides.length} inputs={top} customStyle={customStyle ?? undefined} />}
+                  </>
+                ) : null}
+              </div>
+            </div>
           </div>
+
+          {/* 이전·다음 + 슬라이드 선택 */}
           {slides.length > 0 && (
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={handleDownloadCurrent} disabled={downloadingAll}>
-                <Download className="h-3.5 w-3.5 mr-1.5" />이 장
+            <div className="mt-x4 flex items-center justify-center gap-x2">
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full"
+                aria-label="이전 장"
+                onClick={() => setCurrentSlide((c) => Math.max(0, c - 1))}
+                disabled={currentSlide === 0 || slides.length === 0}
+              >
+                <ChevronLeft aria-hidden />
               </Button>
-              <Button size="sm" onClick={handleDownloadAll} disabled={downloadingAll}>
-                {downloadingAll ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <DownloadCloud className="h-3.5 w-3.5 mr-1.5" />}
-                전체 {slides.length}장
+              <div className="flex flex-wrap justify-center gap-x1_5" role="group" aria-label="슬라이드 선택">
+                {slides.map((s, i) => (
+                  <FilterChip
+                    key={i}
+                    selected={i === currentSlide}
+                    count={i + 1}
+                    onClick={() => setCurrentSlide(i)}
+                  >
+                    {SLIDE_LABELS[s.type]}
+                  </FilterChip>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full"
+                aria-label="다음 장"
+                onClick={() => setCurrentSlide((c) => Math.min(slides.length - 1, c + 1))}
+                disabled={currentSlide >= slides.length - 1 || slides.length === 0}
+              >
+                <ChevronRight aria-hidden />
               </Button>
             </div>
           )}
-        </div>
-
-        {/* 카드 + 좌우 네비게이션 */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setCurrentSlide((c) => Math.max(0, c - 1))}
-            disabled={currentSlide === 0 || slides.length === 0}
-            className="h-10 w-10 rounded-full border border-border bg-background flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-30 shrink-0">
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-
-          <div className="flex-1 flex justify-center">
-            <div ref={cardRef} style={{ width: 480, height: 480, fontFamily: "'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif" }}
-              className="shrink-0 rounded-xl overflow-hidden shadow-2xl">
-              {slides.length === 0 ? (
-                <div className="w-full h-full bg-muted/30 flex items-center justify-center rounded-xl border border-dashed border-border">
-                  <p className="text-sm text-muted-foreground text-center px-6">
-                    {customStyle ? "스타일 적용됨.\n소재를 입력하고 AI 생성을 눌러주세요." : "소재를 입력하고\nAI 카드뉴스 생성을 눌러주세요."}
-                  </p>
-                </div>
-              ) : slide ? (
-                <>
-                  {template === "announcement" && <AnnouncementCard slide={slide} slideIndex={currentSlide} totalSlides={slides.length} inputs={ann} customStyle={customStyle ?? undefined} />}
-                  {template === "study-tip" && <StudyTipCard slide={slide} slideIndex={currentSlide} totalSlides={slides.length} inputs={tip} customStyle={customStyle ?? undefined} />}
-                  {template === "top-student" && <TopStudentCard slide={slide} slideIndex={currentSlide} totalSlides={slides.length} inputs={top} customStyle={customStyle ?? undefined} />}
-                </>
-              ) : null}
-            </div>
-          </div>
-
-          <button
-            onClick={() => setCurrentSlide((c) => Math.min(slides.length - 1, c + 1))}
-            disabled={currentSlide >= slides.length - 1 || slides.length === 0}
-            className="h-10 w-10 rounded-full border border-border bg-background flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-30 shrink-0">
-            <ChevronRight className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* 슬라이드 섬네일 탭 */}
-        {slides.length > 0 && (
-          <div className="flex justify-center gap-2">
-            {slides.map((s, i) => (
-              <button key={i} onClick={() => setCurrentSlide(i)}
-                className={`flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg border transition-all ${i === currentSlide ? "border-primary bg-primary/5" : "border-border hover:border-primary/40 hover:bg-muted/50"}`}>
-                <span className={`text-xs font-medium ${i === currentSlide ? "text-primary" : "text-muted-foreground"}`}>
-                  {SLIDE_LABELS[s.type]}
-                </span>
-                <span className={`text-[10px] ${i === currentSlide ? "text-primary/70" : "text-muted-foreground/60"}`}>
-                  {i + 1}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+        </Section>
       </div>
     </div>
   );

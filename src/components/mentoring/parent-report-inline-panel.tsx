@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { KakaoButton } from "@/components/ui/kakao-button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { createParentReport } from "@/actions/parent-reports";
@@ -11,11 +11,8 @@ import {
   enhanceMentoringWithAI,
   type EnhancedMentoringContent,
 } from "@/actions/ai-enhance";
-import {
-  Link2, Copy, Check, Send, MessageCircle,
-  Loader2, Sparkles, ArrowRight, ExternalLink, X,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Link2, Copy, Check, Send, Loader2, Sparkles, ArrowRight, ExternalLink, X } from "lucide-react";
+import { FormActions, FormField, IconTile, Notice } from "@/components/backoffice/ui";
 
 interface Props {
   mentoringId: string;
@@ -158,33 +155,32 @@ export function ParentReportInlinePanel({
   }
 
   return (
-    <div className="border rounded-lg bg-background overflow-hidden">
-      <div className="px-4 py-2 border-b bg-muted/40 flex items-center gap-2">
-        <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-sm font-semibold">{studentName} · {dateLabel} · 학부모 리포트</span>
+    <div className="overflow-hidden rounded-r3 border border-stroke-neutral-muted bg-bg-layer-default">
+      <div className="flex items-center gap-x2 border-b border-stroke-neutral-muted px-x4 py-x2_5">
+        <Link2 className="size-4 text-fg-neutral-subtle" aria-hidden />
+        <span className="t4-bold text-fg-neutral">학부모 리포트</span>
+        <span className="t3-regular tabular-nums text-fg-neutral-subtle">{studentName} · {dateLabel}</span>
         {onClose && (
-          <button onClick={onClose} className="ml-auto text-muted-foreground hover:text-foreground" aria-label="닫기">
-            <X className="h-4 w-4" />
-          </button>
+          <Button variant="ghost" size="icon" className="ml-auto size-8" onClick={onClose} aria-label="닫기">
+            <X />
+          </Button>
         )}
       </div>
 
-      <div className="p-4">
+      <div className="p-x4">
         {/* ── 1. 선택 (생성 안 된 상태) ── */}
         {step === "choose" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-x3 md:grid-cols-2">
             <button
               type="button"
               onClick={handleAIEnhance}
-              className="flex items-start gap-3 rounded-xl border-2 border-primary/30 bg-primary/5 hover:bg-primary/10 p-4 text-left transition-colors group"
+              className="flex items-start gap-x3 rounded-r3 border border-stroke-brand-weak bg-bg-brand-weak p-x4 text-left transition-colors hover:bg-bg-brand-weak-pressed"
             >
-              <div className="mt-0.5 w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center shrink-0 group-hover:bg-primary/25">
-                <Sparkles className="h-4 w-4 text-primary" />
-              </div>
+              <IconTile icon={Sparkles} tone="brand" size={32} className="bg-bg-layer-default" />
               <div>
-                <p className="font-semibold text-sm text-primary">AI 전문 리포트 작성</p>
-                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                  입시 컨설턴트 문체로 다듬고 맞춤법 교정. 검토 후 생성.
+                <p className="t4-bold text-fg-brand">AI 전문 리포트 작성</p>
+                <p className="mt-x0_5 t3-regular text-fg-neutral-muted">
+                  입시 컨설턴트 문체로 다듬고 맞춤법을 고쳐요. 검토한 뒤 만들어요.
                 </p>
               </div>
             </button>
@@ -192,14 +188,12 @@ export function ParentReportInlinePanel({
             <button
               type="button"
               onClick={handleQuickCreate}
-              className="flex items-center gap-3 rounded-xl border hover:bg-accent p-4 text-left transition-colors"
+              className="flex items-start gap-x3 rounded-r3 border border-stroke-neutral-muted p-x4 text-left transition-colors hover:bg-bg-layer-default-pressed"
             >
-              <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </div>
+              <IconTile icon={ArrowRight} tone="gray" size={32} />
               <div>
-                <p className="font-semibold text-sm">기존 내용으로 즉시 생성</p>
-                <p className="text-xs text-muted-foreground mt-0.5">작성된 멘토링 기록 그대로 사용.</p>
+                <p className="t4-bold text-fg-neutral">기존 내용으로 즉시 생성</p>
+                <p className="mt-x0_5 t3-regular text-fg-neutral-muted">작성된 멘토링 기록을 그대로 써요.</p>
               </div>
             </button>
           </div>
@@ -207,105 +201,91 @@ export function ParentReportInlinePanel({
 
         {/* ── 2. AI 처리 중 ── */}
         {step === "enhancing" && (
-          <div className="flex flex-col items-center justify-center py-8 gap-3 text-muted-foreground">
-            <div className="relative">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-primary" />
-              </div>
-              <Loader2 className="absolute -top-1 -right-1 h-4 w-4 animate-spin text-primary" />
-            </div>
+          <div className="flex flex-col items-center justify-center gap-x3 py-x8" role="status">
+            <Loader2 className="size-6 animate-spin text-fg-brand" aria-hidden />
             <div className="text-center">
-              <p className="text-sm font-medium text-foreground">AI가 리포트를 작성 중입니다</p>
-              <p className="text-xs mt-1">입시 컨설턴트 문체로 다듬고 있어요...</p>
+              <p className="t4-bold text-fg-neutral">AI가 리포트를 쓰고 있어요</p>
+              <p className="mt-x1 t3-regular text-fg-neutral-subtle">입시 컨설턴트 문체로 다듬는 중이에요…</p>
             </div>
           </div>
         )}
 
         {/* ── 3. 검토 & 편집 ── */}
         {step === "review" && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-1.5 text-primary">
-              <Sparkles className="h-4 w-4" />
-              <p className="text-sm font-medium">AI가 내용을 다듬었습니다. 검토·수정 후 생성하세요.</p>
-            </div>
+          <div className="flex flex-col gap-x4">
+            <Notice tone="info" icon={Sparkles}>AI가 내용을 다듬었어요. 검토하고 고친 뒤 리포트를 만드세요.</Notice>
 
-            <div className="space-y-3 max-h-[500px] overflow-y-auto">
+            <div className="flex max-h-[500px] flex-col gap-x4 overflow-y-auto">
               {FIELD_LABELS.filter(({ key }) => edited[key]).map(({ key, label, rows }) => (
-                <div key={key} className="space-y-1">
-                  <p className="text-xs font-semibold text-muted-foreground px-0.5">{label}</p>
+                <FormField key={key} label={label}>
                   <Textarea
                     value={edited[key]}
                     onChange={(e) => setEdited((prev) => ({ ...prev, [key]: e.target.value }))}
                     rows={rows + 1}
-                    className="resize-y text-sm leading-relaxed"
+                    className="resize-y"
                   />
-                </div>
+                </FormField>
               ))}
             </div>
 
-            <div className="flex gap-2 pt-1">
-              <Button onClick={handleCreateFromReview} className="flex-1 gap-1.5">
-                <Link2 className="h-4 w-4" />
+            <FormActions>
+              <Button variant="outline" onClick={() => setStep("choose")}>다시</Button>
+              <Button onClick={handleCreateFromReview}>
+                <Link2 />
                 리포트 생성
               </Button>
-              <Button variant="outline" onClick={() => setStep("choose")}>다시</Button>
-            </div>
+            </FormActions>
           </div>
         )}
 
         {/* ── 4. 생성 중 ── */}
         {step === "creating" && (
-          <div className="flex flex-col items-center justify-center py-8 gap-3 text-muted-foreground">
-            <Loader2 className="h-6 w-6 animate-spin" />
-            <p className="text-sm">링크 생성 중...</p>
+          <div className="flex flex-col items-center justify-center gap-x3 py-x8" role="status">
+            <Loader2 className="size-6 animate-spin text-fg-neutral-subtle" aria-hidden />
+            <p className="t4-regular text-fg-neutral-muted">링크를 만드는 중이에요…</p>
           </div>
         )}
 
         {/* ── 5. 완료 ── */}
         {step === "done" && reportUrl && (
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4 items-start">
-            <div className="space-y-3">
-              <div className="flex items-center gap-1.5 text-emerald-700">
-                <Check className="h-4 w-4" />
-                <p className="text-sm font-medium">리포트 링크가 준비되었습니다</p>
-              </div>
+          <div className="grid grid-cols-1 items-start gap-x5 md:grid-cols-[minmax(0,1fr)_200px]">
+            <div className="flex flex-col gap-x4">
+              <p className="flex items-center gap-x1_5 t4-bold text-fg-positive">
+                <Check className="size-4" aria-hidden />
+                리포트 링크가 준비됐어요
+              </p>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs">리포트 링크</Label>
-                <div className="flex gap-2">
-                  <Input value={reportUrl} readOnly className="text-xs font-mono bg-muted" />
-                  <Button variant="outline" size="icon" className="shrink-0" onClick={() => handleCopy(reportUrl)}>
-                    {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+              <FormField label="리포트 링크">
+                <div className="flex gap-x2">
+                  <Input value={reportUrl} readOnly className="t3-regular" aria-label="리포트 링크" />
+                  <Button variant="outline" size="icon" onClick={() => handleCopy(reportUrl)} aria-label="링크 복사">
+                    {copied ? <Check className="text-fg-positive" /> : <Copy />}
                   </Button>
-                  <a href={reportUrl} target="_blank" rel="noreferrer">
-                    <Button variant="outline" size="icon" title="학부모 화면 열기">
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  </a>
+                  <Button asChild variant="outline" size="icon">
+                    <a href={reportUrl} target="_blank" rel="noreferrer" title="학부모 화면 열기" aria-label="학부모 화면 열기">
+                      <ExternalLink />
+                    </a>
+                  </Button>
                 </div>
-              </div>
+              </FormField>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs">발송 메시지 미리보기</Label>
-                <div className="rounded-lg border bg-muted/50 p-3 text-xs whitespace-pre-wrap text-muted-foreground leading-relaxed">
+              <div className="flex flex-col gap-x2">
+                <p className="t4-medium text-fg-neutral">발송 메시지 미리보기</p>
+                <div className="whitespace-pre-wrap rounded-r2 bg-bg-layer-fill p-x3 t3-regular text-fg-neutral-muted">
                   {shareText}
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 min-w-[180px]">
-              <Button
-                className="gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold w-full"
-                onClick={handleShare}
-              >
-                <MessageCircle className="h-4 w-4" />
+            <div className="flex flex-col gap-x2">
+              <KakaoButton className="w-full" onClick={handleShare}>
                 카카오톡으로 보내기
+              </KakaoButton>
+              <Button variant="outline" size="sm" className="w-full" onClick={() => handleCopy(shareText)}>
+                <Send />
+                {copied ? "복사됨" : "메시지 복사"}
               </Button>
-              <Button variant="outline" size="sm" className="gap-1.5 w-full" onClick={() => handleCopy(shareText)}>
-                <Send className="h-3.5 w-3.5" />
-                {copied ? "복사됨!" : "메시지 복사"}
-              </Button>
-              <Button variant="ghost" size="sm" className="gap-1.5 w-full text-muted-foreground" onClick={handleRegenerate}>
+              <Button variant="ghost" size="sm" className="w-full" onClick={handleRegenerate}>
                 다시 생성
               </Button>
             </div>

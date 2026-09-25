@@ -6,11 +6,14 @@ import {
   Users,
   ClipboardCheck,
   MessageSquare,
+  MessageSquareText,
   FileText,
-  ArrowRight,
+  CalendarClock,
+  CheckCircle2,
+  PenLine,
   Plus,
-  AlertCircle,
   Video,
+  type LucideIcon,
 } from "lucide-react";
 import {
   ROLE_DISPLAY,
@@ -19,8 +22,31 @@ import {
   isConsultant,
   isOnlineStaff,
 } from "@/lib/roles";
-import { todayKST } from "@/lib/utils";
+import { cn, todayKST } from "@/lib/utils";
 import { mondayOfKST } from "@/lib/online/week";
+import { Button } from "@/components/ui/button";
+import {
+  EmptyState,
+  IconTile,
+  ListItem,
+  PageHeader,
+  Section,
+  StatCard,
+  StatCards,
+  StatusBadge,
+} from "@/components/backoffice/ui";
+
+type Todo = {
+  label: string;
+  hint: string;
+  value: number;
+  /** "n / total명" 으로 보여 줄 분모 */
+  total?: number;
+  href: string;
+  /** 0 보다 크면 주의 색으로 강조 */
+  highlight: boolean;
+  icon: LucideIcon;
+};
 
 export default async function OnlineHomePage() {
   const user = await getUser();
@@ -165,448 +191,279 @@ export default async function OnlineHomePage() {
         where: { isOnlineManaged: true, status: "ACTIVE" },
       });
 
-  return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
-          온라인 관리
-        </h1>
-        <p className="mt-1 text-[13px] text-ink-4">
-          {user.name} · {ROLE_DISPLAY[user.role] ?? user.role}
-        </p>
-      </header>
-
-      {/* 관리 멘토 전용 "오늘 할 일" */}
-      {isMM && myStudents.length > 0 && (
-        <section className="rounded-[12px] border border-line bg-panel p-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[13px] font-semibold text-ink">오늘 할 일</h2>
-            <span className="text-[11px] text-ink-5 tabular-nums">
-              {today.toLocaleDateString("ko-KR")}
-            </span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            <TaskRow
-              href="/online/daily-log"
-              label="일일 보고 미기록"
-              value={unrecorded}
-              total={myStudents.length}
-              highlight={unrecorded > 0}
-            />
-            <TaskRow
-              href="/online/performance"
-              label="D-3 이내 수행평가"
-              value={tasksDueSoon}
-              total={null}
-              highlight={tasksDueSoon > 0}
-            />
-            <TaskRow
-              href="/online/performance?status=SUBMITTED"
-              label="컨설턴트 피드백 대기"
-              value={pendingFeedbackCount}
-              total={null}
-              highlight={false}
-              subtle
-            />
-          </div>
-          {todayLogsByMe > 0 && (
-            <p className="text-[11px] text-emerald-700">
-              ✅ 오늘 {todayLogsByMe}명 작성 완료
-            </p>
-          )}
-        </section>
-      )}
-
-      {/* 컨설턴트 전용 "오늘 할 일" */}
-      {isCons && !isFA && (
-        <section className="rounded-[12px] border border-line bg-panel p-4 space-y-2">
-          <h2 className="text-[13px] font-semibold text-ink">오늘 할 일</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <TaskRow
-              href="/online/performance?status=SUBMITTED"
-              label="피드백 대기"
-              value={pendingFeedbackCount}
-              total={null}
-              highlight={pendingFeedbackCount > 0}
-            />
-            <TaskRow
-              href="/online/performance"
-              label="D-3 이내 수행평가"
-              value={tasksDueSoon}
-              total={null}
-              highlight={false}
-              subtle
-            />
-          </div>
-        </section>
-      )}
-
-      {/* 원장 전용 "확인 필요" */}
-      {isFA && (
-        <section className="rounded-[12px] border border-line bg-panel p-4 space-y-2">
-          <h2 className="text-[13px] font-semibold text-ink">원장 확인 필요</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <TaskRow
-              href="/online/reports"
-              label="학부모 피드백 미확인"
-              value={unreadParentFeedbackCount}
-              total={null}
-              highlight={unreadParentFeedbackCount > 0}
-            />
-            <TaskRow
-              href="/online/performance?status=SUBMITTED"
-              label="컨설턴트 피드백 대기"
-              value={pendingFeedbackCount}
-              total={null}
-              highlight={false}
-              subtle
-            />
-          </div>
-        </section>
-      )}
-
-      {/* 4개 기능 카드 — 보고/관리/이동 */}
-      <section className="space-y-2">
-        <h2 className="text-[13px] font-semibold text-ink-3 px-1">
-          기능별 현황
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {/* 1) 학생 등록 */}
-          <FeatureCard
-            href="/online/students"
-            icon={<Users className="h-5 w-5" />}
-            title="학생 등록"
-            subtitle={
-              isFA
-                ? "온라인 학생 등록·매직링크 관리"
-                : "담당 학생 목록"
-            }
-            metrics={[
-              {
-                label: isFA ? "온라인 학생" : "담당 학생",
-                value: onlineStudentCount,
-                suffix: "명",
-              },
-              ...(isFA
-                ? [
-                    {
-                      label: "활성 매직링크",
-                      value: activeMagicLinkCount,
-                      suffix: "건",
-                    },
-                  ]
-                : []),
-            ]}
-            primaryAction={
-              isFA
-                ? { label: "학생 추가", href: "/online/students" }
-                : null
-            }
-          />
-
-          {/* 2) 수행평가 */}
-          <FeatureCard
-            href="/online/performance"
-            icon={<ClipboardCheck className="h-5 w-5" />}
-            title="수행평가"
-            subtitle="과제 발행 · 제출물 피드백"
-            metrics={[
-              {
-                label: "진행 중",
-                value: activeTaskCount,
-                suffix: "건",
-              },
-              {
-                label: "피드백 대기",
-                value: pendingFeedbackCount,
-                suffix: "건",
-                urgent: pendingFeedbackCount > 0,
-                href: "/online/performance?status=SUBMITTED",
-              },
-              {
-                label: "D-3 이내 마감",
-                value: tasksDueSoon,
-                suffix: "건",
-                urgent: tasksDueSoon > 0,
-              },
-            ]}
-            primaryAction={{
-              label: "새 수행평가",
+  // ─── 역할별 "오늘 할 일" ───
+  const todos: Todo[] = isFA
+    ? [
+        {
+          label: "학부모 피드백 미확인",
+          hint: "학부모가 리포트에 남긴 의견 중 아직 읽지 않은 것",
+          value: unreadParentFeedbackCount,
+          href: "/online/reports",
+          highlight: unreadParentFeedbackCount > 0,
+          icon: MessageSquareText,
+        },
+        {
+          label: "컨설턴트 피드백 대기",
+          hint: "학생이 제출해 컨설턴트 피드백을 기다리는 수행평가",
+          value: pendingFeedbackCount,
+          href: "/online/performance?status=SUBMITTED",
+          highlight: false,
+          icon: ClipboardCheck,
+        },
+      ]
+    : isCons
+      ? [
+          {
+            label: "피드백 대기",
+            hint: "학생이 제출해 내 피드백을 기다리는 수행평가",
+            value: pendingFeedbackCount,
+            href: "/online/performance?status=SUBMITTED",
+            highlight: pendingFeedbackCount > 0,
+            icon: ClipboardCheck,
+          },
+          {
+            label: "D-3 이내 수행평가",
+            hint: "3일 안에 마감되는 진행 중 과제",
+            value: tasksDueSoon,
+            href: "/online/performance",
+            highlight: false,
+            icon: CalendarClock,
+          },
+        ]
+      : isMM && myStudents.length > 0
+        ? [
+            {
+              label: "일일 보고 미기록",
+              hint: "오늘 카톡 보고가 아직 없는 담당 학생",
+              value: unrecorded,
+              total: myStudents.length,
+              href: "/online/daily-log",
+              highlight: unrecorded > 0,
+              icon: MessageSquare,
+            },
+            {
+              label: "D-3 이내 수행평가",
+              hint: "3일 안에 마감되는 진행 중 과제",
+              value: tasksDueSoon,
               href: "/online/performance",
-            }}
-          />
+              highlight: tasksDueSoon > 0,
+              icon: CalendarClock,
+            },
+            {
+              label: "컨설턴트 피드백 대기",
+              hint: "학생이 제출해 컨설턴트 피드백을 기다리는 수행평가",
+              value: pendingFeedbackCount,
+              href: "/online/performance?status=SUBMITTED",
+              highlight: false,
+              icon: ClipboardCheck,
+            },
+          ]
+        : [];
+  const attentionCount = todos.filter((t) => t.highlight).length;
 
-          {/* 3) 일일 보고 */}
-          <FeatureCard
-            href="/online/daily-log"
-            icon={<MessageSquare className="h-5 w-5" />}
-            title="일일 보고"
-            subtitle={
-              isMM
-                ? "오늘 카톡 보고 작성"
-                : "오늘의 학생별 카톡 보고 모음"
-            }
-            metrics={
-              isMM
-                ? [
-                    {
-                      label: "내가 오늘 작성",
-                      value: todayLogsByMe,
-                      total: myStudents.length,
-                      suffix: "명",
-                      urgent: unrecorded > 0,
-                    },
-                  ]
-                : [
-                    {
-                      label: "오늘 작성됨 (전체)",
-                      value: todayLogsAll,
-                      total: totalOnlineStudents,
-                      suffix: "명",
-                    },
-                  ]
-            }
-            primaryAction={
-              isMM
-                ? { label: "오늘 보고 작성", href: "/online/daily-log" }
-                : null
-            }
-          />
+  const todayLabel = today.toLocaleDateString("ko-KR", {
+    timeZone: "UTC",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  });
+  const roleLabel = ROLE_DISPLAY[user.role] ?? user.role;
+  const canOpenDailyLog = isMM || isFA;
 
-          {/* 4) 학부모 리포트 */}
-          <FeatureCard
-            href="/online/reports"
-            icon={<FileText className="h-5 w-5" />}
-            title="학부모 리포트"
-            subtitle="주간 보고서 초안 · 검토 · 발송"
-            metrics={[
-              {
-                label: "이번 주 생성",
-                value: weeklyReportsCreated,
-                total: totalOnlineStudents,
-                suffix: "명",
-              },
-              {
-                label: "이번 주 발송",
-                value: weeklyReportsSent,
-                suffix: "건",
-              },
-              ...(isFA
-                ? [
-                    {
-                      label: "학부모 피드백 미확인",
-                      value: unreadParentFeedbackCount,
-                      suffix: "건",
-                      urgent: unreadParentFeedbackCount > 0,
-                    },
-                  ]
-                : []),
-            ]}
-            primaryAction={
-              isFA
-                ? { label: "이번 주 보고서 보기", href: "/online/reports" }
-                : null
-            }
-          />
-
-          {/* 5) 화상 1:1 세션 */}
-          <FeatureCard
-            href="/online/sessions"
-            icon={<Video className="h-5 w-5" />}
-            title="화상 1:1 세션"
-            subtitle="Google Meet 자동 예약 · 노트 → AI 요약"
-            metrics={[
-              {
-                label: "오늘 예정",
-                value: todaySessionCount,
-                suffix: "건",
-                urgent: todaySessionCount > 0,
-              },
-              {
-                label: "전체 예정",
-                value: upcomingSessionCount,
-                suffix: "건",
-              },
-              {
-                label: "이번 주 완료",
-                value: completedSessionCount,
-                suffix: "건",
-              },
-            ]}
-            primaryAction={{
-              label: "세션 예약·관리",
-              href: "/online/sessions",
-            }}
-          />
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function TaskRow({
-  href,
-  label,
-  value,
-  total,
-  highlight,
-  subtle,
-}: {
-  href: string;
-  label: string;
-  value: number;
-  total: number | null;
-  highlight: boolean;
-  subtle?: boolean;
-}) {
   return (
-    <Link
-      href={href}
-      className={`block rounded-[10px] border px-3 py-2 text-[12.5px] transition-colors ${
-        highlight
-          ? "border-amber-300 bg-amber-50 hover:border-amber-400"
-          : subtle
-            ? "border-line bg-canvas-2/50 hover:border-line-strong"
-            : "border-line bg-panel hover:border-line-strong"
-      }`}
-    >
-      <div className="flex items-center justify-between">
-        <span className={highlight ? "text-amber-900" : "text-ink"}>{label}</span>
-        <span
-          className={`font-semibold tabular-nums ${highlight ? "text-amber-900" : "text-ink"}`}
-        >
-          {value}
-          {total != null && (
-            <span className="text-ink-5 font-normal"> / {total}</span>
-          )}
-        </span>
-      </div>
-    </Link>
-  );
-}
-
-type Metric = {
-  label: string;
-  value: number;
-  suffix?: string;
-  total?: number;
-  urgent?: boolean;
-  href?: string;
-};
-
-function FeatureCard({
-  href,
-  icon,
-  title,
-  subtitle,
-  metrics,
-  primaryAction,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-  metrics: Metric[];
-  primaryAction: { label: string; href: string } | null;
-}) {
-  const hasUrgent = metrics.some((m) => m.urgent);
-  return (
-    <div
-      className={`group rounded-[12px] border bg-panel p-4 transition-colors flex flex-col gap-3 ${
-        hasUrgent
-          ? "border-amber-300 hover:border-amber-400"
-          : "border-line hover:border-line-strong"
-      }`}
-    >
-      <Link href={href} className="flex items-start justify-between gap-2">
-        <div className="flex items-start gap-2.5 min-w-0">
-          <div
-            className={`grid place-items-center w-9 h-9 rounded-[10px] shrink-0 ${
-              hasUrgent
-                ? "bg-amber-100 text-amber-700"
-                : "bg-canvas-2 text-ink-3"
-            }`}
-          >
-            {icon}
-          </div>
-          <div className="min-w-0">
-            <h3 className="text-[14px] font-semibold text-ink leading-tight">
-              {title}
-            </h3>
-            <p className="mt-0.5 text-[11.5px] text-ink-5 leading-tight">
-              {subtitle}
-            </p>
-          </div>
-        </div>
-        <ArrowRight className="h-4 w-4 text-ink-4 group-hover:text-ink-2 mt-2 shrink-0" />
-      </Link>
-
-      <div className="space-y-1">
-        {metrics.map((m) =>
-          m.href ? (
-            <Link
-              key={m.label}
-              href={m.href}
-              className={`flex items-center justify-between rounded-md px-2 py-1.5 text-[12.5px] transition-colors ${
-                m.urgent
-                  ? "bg-amber-50 hover:bg-amber-100"
-                  : "hover:bg-canvas-2/60"
-              }`}
-            >
-              <span className={m.urgent ? "text-amber-900" : "text-ink-3"}>
-                {m.label}
-              </span>
-              <MetricValue m={m} />
-            </Link>
+    <div>
+      <PageHeader
+        title="온라인 관리"
+        meta={<StatusBadge tone="gray">{roleLabel}</StatusBadge>}
+        description={
+          <>
+            {isFA ? "전체 온라인 학생" : `${user.name}님 담당 학생`} 기준 ·{" "}
+            <span className="tabular-nums">{todayLabel}</span>
+          </>
+        }
+        actions={
+          isMM ? (
+            <Button asChild>
+              <Link href="/online/daily-log">
+                <PenLine />
+                오늘 보고 작성
+              </Link>
+            </Button>
+          ) : isFA ? (
+            <>
+              <Button asChild variant="outline">
+                <Link href="/online/reports">이번 주 보고서 보기</Link>
+              </Button>
+              <Button asChild>
+                <Link href="/online/students">
+                  <Plus />
+                  학생 추가
+                </Link>
+              </Button>
+            </>
           ) : (
-            <div
-              key={m.label}
-              className={`flex items-center justify-between rounded-md px-2 py-1.5 text-[12.5px] ${
-                m.urgent ? "bg-amber-50" : ""
-              }`}
-            >
-              <span className={m.urgent ? "text-amber-900" : "text-ink-3"}>
-                {m.label}
-              </span>
-              <MetricValue m={m} />
-            </div>
+            <Button asChild>
+              <Link href="/online/performance?status=SUBMITTED">피드백 대기 과제 보기</Link>
+            </Button>
           )
-        )}
-      </div>
+        }
+      />
 
-      {primaryAction && (
-        <Link
-          href={primaryAction.href}
-          className="inline-flex items-center justify-center gap-1 rounded-[8px] border border-line bg-canvas-2 hover:bg-canvas hover:border-line-strong px-3 py-1.5 text-[12px] font-medium text-ink-2 transition-colors mt-auto"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {primaryAction.label}
-        </Link>
-      )}
+      <div className="flex flex-col gap-x6">
+        {/* 요약 지표 */}
+        <StatCards cols={4}>
+          <StatCard
+            label={isFA ? "온라인 학생" : "담당 학생"}
+            value={onlineStudentCount.toLocaleString()}
+            unit="명"
+            sub={
+              isFA
+                ? `활성 매직링크 ${activeMagicLinkCount.toLocaleString()}건`
+                : `전체 온라인 ${totalOnlineStudents.toLocaleString()}명`
+            }
+            href="/online/students"
+          />
+          <StatCard
+            label="진행 중 수행평가"
+            value={activeTaskCount.toLocaleString()}
+            unit="건"
+            sub={`D-3 이내 마감 ${tasksDueSoon.toLocaleString()}건`}
+            href="/online/performance"
+          />
+          <StatCard
+            label={isMM ? "내 오늘 일일 보고" : "오늘 일일 보고"}
+            value={(isMM ? todayLogsByMe : todayLogsAll).toLocaleString()}
+            unit={`/ ${(isMM ? myStudents.length : totalOnlineStudents).toLocaleString()}명`}
+            sub={
+              isMM
+                ? unrecorded > 0
+                  ? `미기록 ${unrecorded}명`
+                  : "담당 학생 모두 작성했어요"
+                : "전체 온라인 학생 기준"
+            }
+            href={canOpenDailyLog ? "/online/daily-log" : undefined}
+          />
+          <StatCard
+            label="오늘 화상 세션"
+            value={todaySessionCount.toLocaleString()}
+            unit="건"
+            sub={`예정 ${upcomingSessionCount}건 · 이번 주 완료 ${completedSessionCount}건`}
+            href="/online/sessions"
+          />
+        </StatCards>
+
+        <div className="grid grid-cols-1 items-start gap-x6 lg:grid-cols-[minmax(0,1fr)_360px]">
+          {/* 오늘 할 일 / 원장 확인 필요 */}
+          <Section
+            title={isFA ? "원장 확인 필요" : "오늘 할 일"}
+            description={
+              todos.length === 0
+                ? undefined
+                : attentionCount > 0
+                  ? `바로 확인이 필요한 항목이 ${attentionCount}개 있어요`
+                  : "지금 급하게 처리할 일은 없어요"
+            }
+            flush
+          >
+            {todos.length === 0 ? (
+              <EmptyState
+                compact
+                icon={Users}
+                title="배정된 담당 학생이 아직 없어요"
+                description="담당 학생이 배정되면 오늘 할 일이 여기에 모여요"
+              />
+            ) : (
+              <>
+                <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+                  {todos.map((t) => (
+                    <li key={t.label}>
+                      <ListItem
+                        href={t.href}
+                        className="py-x4"
+                        leading={<IconTile icon={t.icon} tone={t.highlight ? "warn" : "gray"} size={40} />}
+                        title={t.label}
+                        description={t.hint}
+                        trailing={<TodoValue todo={t} />}
+                      />
+                    </li>
+                  ))}
+                </ul>
+                {isMM && todayLogsByMe > 0 && (
+                  <p className="flex items-center gap-x1_5 border-t border-stroke-neutral-muted px-x5 py-x3 t3-medium text-fg-positive">
+                    <CheckCircle2 className="size-4" aria-hidden />
+                    오늘 {todayLogsByMe}명 작성 완료
+                  </p>
+                )}
+              </>
+            )}
+          </Section>
+
+          {/* 기능 바로 가기 */}
+          <Section title="바로 가기" flush>
+            <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+              <li>
+                <ListItem
+                  href="/online/students"
+                  leading={<IconTile icon={Users} size={32} />}
+                  title={isFA ? "학생 등록" : "담당 학생"}
+                  description={isFA ? "온라인 학생 등록 · 매직링크 관리" : "담당 학생 목록"}
+                />
+              </li>
+              <li>
+                <ListItem
+                  href="/online/performance"
+                  leading={<IconTile icon={ClipboardCheck} size={32} />}
+                  title="수행평가"
+                  description="새 수행평가 발행 · 제출물 피드백"
+                />
+              </li>
+              <li>
+                <ListItem
+                  href="/online/daily-log"
+                  leading={<IconTile icon={MessageSquare} size={32} />}
+                  title="일일 보고"
+                  description={isMM ? "오늘 카톡 보고 작성" : "오늘의 학생별 카톡 보고 모음"}
+                />
+              </li>
+              <li>
+                <ListItem
+                  href="/online/reports"
+                  leading={<IconTile icon={FileText} size={32} />}
+                  title="학부모 리포트"
+                  description={
+                    <span className="tabular-nums">
+                      이번 주 생성 {weeklyReportsCreated}/{totalOnlineStudents}명 · 발송 {weeklyReportsSent}건
+                    </span>
+                  }
+                />
+              </li>
+              <li>
+                <ListItem
+                  href="/online/sessions"
+                  leading={<IconTile icon={Video} size={32} />}
+                  title="화상 1:1 세션"
+                  description="세션 예약·관리 · Meet 자동 예약 · 노트 AI 요약"
+                />
+              </li>
+            </ul>
+          </Section>
+        </div>
+      </div>
     </div>
   );
 }
 
-function MetricValue({ m }: { m: Metric }) {
+function TodoValue({ todo }: { todo: Todo }) {
+  const tone = todo.highlight
+    ? "text-fg-warning"
+    : todo.value > 0
+      ? "text-fg-neutral"
+      : "text-fg-neutral-subtle";
   return (
-    <span className="inline-flex items-center gap-1">
-      {m.urgent && m.value > 0 && (
-        <AlertCircle className="h-3 w-3 text-amber-600" />
-      )}
-      <span
-        className={`font-semibold tabular-nums ${m.urgent ? "text-amber-900" : "text-ink"}`}
-      >
-        {m.value.toLocaleString()}
-        {m.total != null && (
-          <span className="text-ink-5 font-normal"> / {m.total}</span>
-        )}
-        {m.suffix && (
-          <span
-            className={`ml-0.5 font-normal text-[11px] ${m.urgent ? "text-amber-700" : "text-ink-5"}`}
-          >
-            {m.suffix}
-          </span>
-        )}
+    <span className="inline-flex items-baseline gap-x0_5 tabular-nums">
+      <span className={cn("t6-bold", tone)}>{todo.value.toLocaleString()}</span>
+      <span className="t3-regular text-fg-neutral-subtle">
+        {todo.total != null ? `/ ${todo.total}명` : "건"}
       </span>
     </span>
   );

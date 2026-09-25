@@ -39,7 +39,7 @@ export function ColResizeHandle({
       className="group absolute top-0 right-0 z-[1] flex h-full w-2 cursor-col-resize touch-none select-none items-stretch justify-center"
     >
       {/* 항상 보이는 얇은 구분선 — 호버 시 굵고 진하게 */}
-      <span className="h-full w-px bg-border transition-colors group-hover:w-0.5 group-hover:bg-primary/60 group-active:bg-primary" />
+      <span className="h-full w-px bg-stroke-neutral-muted transition-colors group-hover:w-0.5 group-hover:bg-stroke-neutral-weak group-active:bg-stroke-brand-solid" />
     </span>
   );
 }

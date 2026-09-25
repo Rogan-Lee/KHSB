@@ -1,10 +1,22 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { importStudentsCSV, type CSVImportRow } from "@/actions/import";
 import { toast } from "sonner";
-import { Upload, FileText, AlertCircle, CheckCircle2, X } from "lucide-react";
+import { CheckCircle2, Download, RotateCcw } from "lucide-react";
+import { FormActions, Notice, Section, StatusBadge } from "@/components/backoffice/ui";
+import {
+  ColumnGuide,
+  ColumnName,
+  FileDropZone,
+  ImportErrors,
+  ImportSteps,
+  PREVIEW_TD,
+  PREVIEW_TH,
+  PreviewTable,
+} from "./import-ui";
+import { cn } from "@/lib/utils";
 
 // 요일 매핑
 const DAY_MAP: Record<string, number> = {
@@ -198,8 +210,34 @@ A-01,홍길동,○○고등학교,3,정규반,010-1234-5678,010-9876-5432,parent
 A-02,이수연,□□중학교,2,선택반,010-2345-6789,010-8765-4321,,이멘토,,,14:00,22:00,,,,14:00,22:00,,,,영어학원 화목 18-20시,,,,
 A-03,박민준,,재수,정규반,010-3456-7890,010-7654-3210,,,,,,,,,,,,,,,,"정시 수능",EBSi 국어`;
 
+const STEPS = [
+  { title: "샘플 파일 받기", description: "형식이 맞는 샘플 CSV에 내용을 채워요" },
+  { title: "파일 올리기", description: "완성한 CSV 파일을 끌어 놓거나 선택해요" },
+  { title: "확인 후 저장", description: "인식된 원생을 확인하고 저장해요" },
+];
+
+const COLUMNS = [
+  { name: "좌석번호", description: "좌석 번호" },
+  { name: "이름", description: "원생 이름", required: true },
+  { name: "학교", description: "학교명" },
+  { name: "학년", description: "숫자(1~3)만 쓰면 학교명으로 자동 추론" },
+  { name: "반", description: "수강반 (예: 정규반/선택반)" },
+  { name: "담당 멘토", description: "시스템에 등록된 이름과 같아야 해요" },
+  { name: "학생 전화번호", description: "학생 연락처" },
+  { name: "학부모 전화번호", description: "학부모 연락처" },
+  { name: "학부모 이메일", description: "학부모 이메일" },
+  { name: "월 입실약속시간", description: "월요일 입실 시간 (화~일, 퇴실도 같은 방식)" },
+  { name: "학생정보", description: "학생 특이사항 메모" },
+  { name: "선택과목", description: "수능 선택과목 (예: 수학, 영어, 사탐)" },
+  { name: "입시전형", description: "대학 입시 전형 (예: 수시 학종, 정시)" },
+  { name: "인강", description: "수강 중인 인강 (예: 메가스터디 수학)" },
+];
+
+function dayLabel(dayOfWeek: number) {
+  return Object.entries(DAY_MAP).find(([, v]) => v === dayOfWeek)?.[0];
+}
+
 export function CsvImport() {
-  const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<CSVImportRow[] | null>(null);
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<{ created: number; updated: number; errors: { row: number; name: string; reason: string }[] } | null>(null);
@@ -212,7 +250,7 @@ export function CsvImport() {
         try {
           const text = e.target?.result as string;
           // UTF-8 결과에 replacement char(U+FFFD)가 많으면 EUC-KR로 재시도
-          if (encoding === "utf-8" && (text.match(/\uFFFD/g) ?? []).length > 3) {
+          if (encoding === "utf-8" && (text.match(/�/g) ?? []).length > 3) {
             tryRead("euc-kr");
             return;
           }
@@ -230,12 +268,6 @@ export function CsvImport() {
       reader.readAsText(file, encoding);
     };
     tryRead("utf-8");
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
   }
 
   function handleImport() {
@@ -262,7 +294,7 @@ export function CsvImport() {
   }
 
   function downloadSample() {
-    const blob = new Blob(["\uFEFF" + SAMPLE_CSV], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["﻿" + SAMPLE_CSV], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -271,171 +303,119 @@ export function CsvImport() {
     URL.revokeObjectURL(url);
   }
 
+  const namedCount = preview?.filter((r) => r.name).length ?? 0;
+  const unnamedCount = preview?.filter((r) => !r.name).length ?? 0;
+  const step = result ? 3 : preview ? 2 : 1;
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          CSV 파일로 원생 정보와 등원 일정을 일괄 등록합니다. 기존 원생(좌석번호·이름 기준)은 덮어씁니다.
-        </p>
-        <Button variant="outline" size="sm" onClick={downloadSample}>
-          <FileText className="h-3.5 w-3.5 mr-1.5" />
-          샘플 CSV 다운로드
-        </Button>
-      </div>
+    <div className="flex flex-col gap-x6">
+      <Section
+        title="원생 CSV 가져오기"
+        description="CSV 파일 하나로 원생 정보와 등원 일정을 한 번에 등록해요. 좌석번호나 이름이 같은 기존 원생은 덮어써요."
+        actions={
+          <Button variant="outline" size="sm" onClick={downloadSample}>
+            <Download />
+            샘플 CSV 다운로드
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-x6">
+          <ImportSteps steps={STEPS} current={step} />
 
-      {/* 파일 업로드 영역 */}
-      {!preview && (
-        <div
-          className="border-2 border-dashed rounded-xl p-10 text-center cursor-pointer hover:border-primary/50 hover:bg-accent/30 transition-colors"
-          onDrop={handleDrop}
-          onDragOver={(e) => e.preventDefault()}
-          onClick={() => fileRef.current?.click()}
-        >
-          <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
-          <p className="text-sm font-medium">CSV 파일을 드래그하거나 클릭해서 업로드</p>
-          <p className="text-xs text-muted-foreground mt-1">UTF-8 또는 CP949 인코딩 CSV 지원</p>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFile(file);
-            }}
-          />
-        </div>
-      )}
+          {/* 1) 파일 업로드 */}
+          {!preview && !result && <FileDropZone onFile={handleFile} />}
 
-      {/* 미리보기 */}
-      {preview && !result && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">
-              미리보기 — <span className="text-primary">{preview.filter((r) => r.name).length}명</span> 인식됨
-              {preview.some((r) => !r.name) && (
-                <span className="text-red-500 ml-2 text-xs">({preview.filter((r) => !r.name).length}행 이름 없음)</span>
-              )}
-            </p>
-            <button
-              onClick={() => setPreview(null)}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="rounded-lg border overflow-x-auto max-h-64 overflow-y-auto">
-            <table className="w-full text-xs border-collapse">
-              <thead className="sticky top-0 bg-muted/80">
-                <tr className="border-b text-muted-foreground">
-                  <th className="px-2 py-1.5 text-left">좌석</th>
-                  <th className="px-2 py-1.5 text-left">이름</th>
-                  <th className="px-2 py-1.5 text-left">학교</th>
-                  <th className="px-2 py-1.5 text-left">학년</th>
-                  <th className="px-2 py-1.5 text-left">반</th>
-                  <th className="px-2 py-1.5 text-left">담당 멘토</th>
-                  <th className="px-2 py-1.5 text-left">선택과목</th>
-                  <th className="px-2 py-1.5 text-left">입시전형</th>
-                  <th className="px-2 py-1.5 text-left">인강</th>
-                  <th className="px-2 py-1.5 text-left">등원 요일</th>
-                </tr>
-              </thead>
-              <tbody>
-                {preview.map((row, i) => (
-                  <tr key={i} className={`border-b ${!row.name ? "bg-red-50" : ""}`}>
-                    <td className="px-2 py-1.5 font-mono">{row.seat || "-"}</td>
-                    <td className="px-2 py-1.5 font-medium">
-                      {row.name || <span className="text-red-500">이름 없음</span>}
-                    </td>
-                    <td className="px-2 py-1.5 text-muted-foreground">{row.school || "-"}</td>
-                    <td className="px-2 py-1.5">{row.grade || "-"}</td>
-                    <td className="px-2 py-1.5 text-muted-foreground">{row.classGroup || "-"}</td>
-                    <td className="px-2 py-1.5 text-muted-foreground">{row.mentorName || "-"}</td>
-                    <td className="px-2 py-1.5 text-muted-foreground max-w-[100px] truncate" title={row.selectedSubjects}>{row.selectedSubjects || "-"}</td>
-                    <td className="px-2 py-1.5 text-muted-foreground max-w-[100px] truncate" title={row.admissionType}>{row.admissionType || "-"}</td>
-                    <td className="px-2 py-1.5 text-muted-foreground max-w-[100px] truncate" title={row.onlineLectures}>{row.onlineLectures || "-"}</td>
-                    <td className="px-2 py-1.5">
-                      {row.schedules.length > 0
-                        ? row.schedules
-                            .map((s) => {
-                              const day = Object.entries(DAY_MAP).find(([, v]) => v === s.dayOfWeek)?.[0];
-                              const outing = row.outings.find((o) => o.dayOfWeek === s.dayOfWeek);
-                              return outing
-                                ? `${day}(${s.startTime}→${outing.outStart}↔${outing.outEnd}→${s.endTime})`
-                                : `${day}(${s.startTime}~${s.endTime})`;
-                            })
-                            .join(", ")
-                        : <span className="text-muted-foreground">없음</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={handleImport} disabled={isPending} size="sm">
-              {isPending ? "처리 중..." : `${preview.filter((r) => r.name).length}명 저장`}
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setPreview(null)}>
-              취소
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* 결과 */}
-      {result && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-3 text-sm">
-            <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-            <span>
-              {result.created > 0 && <span className="font-medium">{result.created}명 신규 등록</span>}
-              {result.created > 0 && result.updated > 0 && <span className="text-muted-foreground mx-1">·</span>}
-              {result.updated > 0 && <span className="font-medium">{result.updated}명 업데이트</span>}
-            </span>
-          </div>
-          {result.errors.length > 0 && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-1">
-              <p className="text-xs font-medium text-red-700 flex items-center gap-1.5">
-                <AlertCircle className="h-3.5 w-3.5" />
-                {result.errors.length}건 오류
-              </p>
-              {result.errors.map((e, i) => (
-                <p key={i} className="text-xs text-red-600">
-                  {e.row}행 ({e.name}): {e.reason}
+          {/* 2) 미리보기 */}
+          {preview && !result && (
+            <div className="flex flex-col gap-x3">
+              <div className="flex flex-wrap items-center gap-x2">
+                <p className="t5-bold text-fg-neutral">
+                  <span className="tabular-nums text-fg-brand">{namedCount}명</span> 인식됐어요
                 </p>
-              ))}
+                {unnamedCount > 0 && <StatusBadge tone="bad">{unnamedCount}행 이름 없음</StatusBadge>}
+              </div>
+              <PreviewTable>
+                <thead>
+                  <tr>
+                    {["좌석", "이름", "학교", "학년", "반", "담당 멘토", "선택과목", "입시전형", "인강", "등원 요일"].map((h) => (
+                      <th key={h} className={PREVIEW_TH}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.map((row, i) => (
+                    <tr key={i} className={cn(!row.name && "bg-bg-critical-weak")}>
+                      <td className={PREVIEW_TD}>{row.seat || "-"}</td>
+                      <td className={cn(PREVIEW_TD, "t3-medium")}>
+                        {row.name || <span className="text-fg-critical">이름 없음</span>}
+                      </td>
+                      <td className={cn(PREVIEW_TD, "text-fg-neutral-muted")}>{row.school || "-"}</td>
+                      <td className={PREVIEW_TD}>{row.grade || "-"}</td>
+                      <td className={cn(PREVIEW_TD, "text-fg-neutral-muted")}>{row.classGroup || "-"}</td>
+                      <td className={cn(PREVIEW_TD, "text-fg-neutral-muted")}>{row.mentorName || "-"}</td>
+                      <td className={cn(PREVIEW_TD, "max-w-[120px] truncate text-fg-neutral-muted")} title={row.selectedSubjects}>{row.selectedSubjects || "-"}</td>
+                      <td className={cn(PREVIEW_TD, "max-w-[120px] truncate text-fg-neutral-muted")} title={row.admissionType}>{row.admissionType || "-"}</td>
+                      <td className={cn(PREVIEW_TD, "max-w-[120px] truncate text-fg-neutral-muted")} title={row.onlineLectures}>{row.onlineLectures || "-"}</td>
+                      <td className={PREVIEW_TD}>
+                        {row.schedules.length > 0
+                          ? row.schedules
+                              .map((s) => {
+                                const day = dayLabel(s.dayOfWeek);
+                                const outing = row.outings.find((o) => o.dayOfWeek === s.dayOfWeek);
+                                return outing
+                                  ? `${day}(${s.startTime}→${outing.outStart}↔${outing.outEnd}→${s.endTime})`
+                                  : `${day}(${s.startTime}~${s.endTime})`;
+                              })
+                              .join(", ")
+                          : <span className="text-fg-neutral-subtle">없음</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </PreviewTable>
+              <FormActions>
+                <Button variant="ghost" onClick={() => setPreview(null)} disabled={isPending}>
+                  취소
+                </Button>
+                <Button onClick={handleImport} disabled={isPending}>
+                  {isPending ? "저장 중…" : `${namedCount}명 저장`}
+                </Button>
+              </FormActions>
             </div>
           )}
-          <Button variant="outline" size="sm" onClick={() => setResult(null)}>
-            다시 업로드
-          </Button>
+
+          {/* 3) 결과 */}
+          {result && (
+            <div className="flex flex-col gap-x3">
+              <Notice tone="ok" icon={CheckCircle2} title="가져오기를 마쳤어요">
+                {[
+                  result.created > 0 && `${result.created}명 신규 등록`,
+                  result.updated > 0 && `${result.updated}명 업데이트`,
+                ].filter(Boolean).join(" · ") || "변경된 원생이 없어요"}
+              </Notice>
+              <ImportErrors errors={result.errors} />
+              <FormActions className="justify-start">
+                <Button variant="outline" size="sm" onClick={() => setResult(null)}>
+                  <RotateCcw />
+                  다시 업로드
+                </Button>
+              </FormActions>
+            </div>
+          )}
         </div>
-      )}
+      </Section>
 
       {/* 컬럼 설명 */}
-      <div className="rounded-lg bg-muted/40 border p-4 text-xs text-muted-foreground space-y-2">
-        <p className="font-medium text-foreground text-[13px]">CSV 컬럼 형식</p>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-          <div><span className="font-mono bg-muted px-1 rounded">좌석번호</span> 좌석 번호 (선택)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">이름</span> 원생 이름 (필수)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">학교</span> 학교명 (선택)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">학년</span> 학년 — 숫자(1~3)만 입력 시 학교명으로 자동 추론</div>
-          <div><span className="font-mono bg-muted px-1 rounded">반</span> 수강반 (선택, 예: 정규반/선택반)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">담당 멘토</span> 멘토 이름 — 시스템에 등록된 이름과 일치해야 함</div>
-          <div><span className="font-mono bg-muted px-1 rounded">학생 전화번호</span> 학생 연락처 (선택)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">학부모 전화번호</span> 학부모 연락처 (선택)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">학부모 이메일</span> 학부모 이메일 (선택)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">월 입실약속시간</span> 월요일 입실 시간</div>
-          <div><span className="font-mono bg-muted px-1 rounded">학생정보</span> 학생 특이사항 메모 (선택)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">선택과목</span> 수능 선택과목 (선택, 예: 수학, 영어, 사탐)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">입시전형</span> 대학 입시 전형 (선택, 예: 수시 학종, 정시)</div>
-          <div><span className="font-mono bg-muted px-1 rounded">인강</span> 수강중인 인강 (선택, 예: 메가스터디 수학)</div>
-        </div>
-        <p>• 시간 형식: <span className="font-mono">14:00</span>, <span className="font-mono">1400</span> 모두 인식</p>
-        <p>• 학년 자동 추론: 학교명이 <span className="font-mono">고</span>로 끝나면 고N, <span className="font-mono">중</span>으로 끝나면 중N, <span className="font-mono">재수</span>는 N수로 변환</p>
-        <p>• 기존 원생(좌석번호 또는 이름 일치)은 덮어쓰기, 새 원생은 신규 등록</p>
-      </div>
+      <Section title="CSV 컬럼 형식" description="첫 줄(헤더)의 이름으로 항목을 알아봐요.">
+        <ColumnGuide
+          columns={COLUMNS}
+          notes={[
+            <>시간 형식은 <ColumnName>14:00</ColumnName>, <ColumnName>1400</ColumnName> 모두 인식해요.</>,
+            <>학년 자동 추론: 학교명이 <ColumnName>고</ColumnName>로 끝나면 고N, <ColumnName>중</ColumnName>으로 끝나면 중N, <ColumnName>재수</ColumnName>는 N수로 바꿔요.</>,
+            <>기존 원생(좌석번호 또는 이름 일치)은 덮어쓰고, 새 원생은 신규 등록해요.</>,
+          ]}
+        />
+      </Section>
     </div>
   );
 }

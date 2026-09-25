@@ -1,12 +1,16 @@
 export const revalidate = 30;
 
-import { auth } from "@/lib/auth";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Plus } from "lucide-react";
+import { auth } from "@/lib/auth";
 import {
   getFeatureRequests,
   markAllOpenFeatureRequestsSeen,
 } from "@/actions/feature-requests";
 import { FeatureRequestBoard } from "@/components/feature-requests/feature-request-board";
+import { PageHeader } from "@/components/backoffice/ui";
+import { Button } from "@/components/ui/button";
 
 export default async function RequestsPage() {
   const session = await auth();
@@ -21,14 +25,20 @@ export default async function RequestsPage() {
   const requests = await getFeatureRequests();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold">요청사항 관리</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          기능 요청, 버그 신고, 개선 사항을 등록하고 진행 상태를 관리합니다.
-        </p>
-      </div>
+    <>
+      <PageHeader
+        title="요청사항"
+        description="기능 요청·버그·개선 사항을 등록하고 진행 상태를 관리해요."
+        actions={
+          <Button asChild>
+            <Link href="/requests/new">
+              <Plus aria-hidden />
+              요청 등록
+            </Link>
+          </Button>
+        }
+      />
       <FeatureRequestBoard requests={requests} />
-    </div>
+    </>
   );
 }

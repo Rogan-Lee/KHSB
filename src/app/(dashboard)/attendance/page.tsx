@@ -1,15 +1,16 @@
 import Link from "next/link";
+import { CalendarClock } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent } from "@/components/ui/card";
 import { AttendanceTable } from "@/components/attendance/attendance-table";
-import { CheckCircle2, XCircle, Clock, Minus, UserX, BookOpen } from "lucide-react";
+import { FilterLink } from "@/components/attendance/attendance-status";
 import { todayKST } from "@/lib/utils";
-import { cn } from "@/lib/utils";
 import { offlineStudentWhere } from "@/lib/student-filters";
 import { listStudentPortalLinks } from "@/actions/student-portal-links";
 import { auth } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
 import { PortalLinksSheet } from "@/components/attendance/portal-links-sheet";
+import { Button } from "@/components/ui/button";
+import { PageHeader, StatCard, StatCards } from "@/components/backoffice/ui";
 
 export const revalidate = 30; // 30초 캐싱 (force-dynamic 대비 성능 향상)
 
@@ -92,114 +93,59 @@ export default async function AttendancePage({
     timeZone: "Asia/Seoul",
   });
 
+  // 표 위 필터 칩 — URL(searchParams) 기반. 다시 누르면 전체 보기로 돌아간다.
+  const filterChips = (
+    <div className="flex flex-wrap items-center gap-x2" role="group" aria-label="보기 필터">
+      <FilterLink href="/attendance" selected={!isAbsentFilter && !isSelfStudyFilter} count={students.length}>
+        전체
+      </FilterLink>
+      <FilterLink
+        href={isAbsentFilter ? "/attendance" : "/attendance?filter=absent"}
+        selected={isAbsentFilter}
+        count={absentNowCount}
+        title="현재 시각 기준, 예정 입실 시각이 지났는데 아직 입실하지 않은 원생"
+      >
+        지금 결석
+      </FilterLink>
+      <FilterLink
+        href={isSelfStudyFilter ? "/attendance" : "/attendance?filter=self-study"}
+        selected={isSelfStudyFilter}
+        count={selfStudyNowCount}
+        title="현재 시각 기준 시간표상 자습 중이어야 할 원생"
+      >
+        지금 자습 중
+      </FilterLink>
+    </div>
+  );
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h2 className="text-lg font-semibold">{dateLabel} 출결 현황</h2>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">등원 예정 {withSchedule.length}명</span>
-          <PortalLinksSheet rows={portalLinkRows} canManage={canManagePortalLinks} />
-        </div>
-      </div>
+    <div className="flex flex-col gap-x6">
+      <PageHeader
+        className="mb-0 md:mb-0"
+        title="입퇴실 관리"
+        description={`${dateLabel} · 등원 예정 ${withSchedule.length}명`}
+        actions={
+          <>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/attendance/schedule">
+                <CalendarClock />
+                등원 일정
+              </Link>
+            </Button>
+            <PortalLinksSheet rows={portalLinkRows} canManage={canManagePortalLinks} />
+          </>
+        }
+      />
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7 sm:gap-3">
-        <Card>
-          <CardContent className="flex items-center gap-2 pt-4 pb-3">
-            <CheckCircle2 className="h-6 w-6 text-green-600 shrink-0" />
-            <div>
-              <p className="text-xl font-bold leading-none">{normal}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">정상</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-2 pt-4 pb-3">
-            <XCircle className="h-6 w-6 text-red-600 shrink-0" />
-            <div>
-              <p className="text-xl font-bold leading-none">{absent}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">결석</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-2 pt-4 pb-3">
-            <Clock className="h-6 w-6 text-orange-500 shrink-0" />
-            <div>
-              <p className="text-xl font-bold leading-none">{tardy}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">지각</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-2 pt-4 pb-3">
-            <Minus className="h-6 w-6 text-purple-500 shrink-0" />
-            <div>
-              <p className="text-xl font-bold leading-none">{notifiedAbsent}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">미입실</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-2 pt-4 pb-3">
-            <Minus className="h-6 w-6 text-gray-400 shrink-0" />
-            <div>
-              <p className="text-xl font-bold leading-none">{noSchedule}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">비등원일</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Link
-          href={isAbsentFilter ? "/attendance" : "/attendance?filter=absent"}
-          aria-pressed={isAbsentFilter}
-          title={isAbsentFilter ? "전체 보기로 돌아가기" : "현재 시각 기준 아직 입실 안 한 원생만 보기"}
-        >
-          <Card
-            className={cn(
-              "cursor-pointer transition-all hover:shadow-sm",
-              isAbsentFilter
-                ? "ring-2 ring-red-500 bg-red-50 hover:bg-red-100"
-                : "hover:bg-accent/50"
-            )}
-          >
-            <CardContent className="flex items-center gap-2 pt-4 pb-3">
-              <UserX className={cn("h-6 w-6 shrink-0", isAbsentFilter ? "text-red-600" : "text-rose-500")} />
-              <div>
-                <p className="text-xl font-bold leading-none">{absentNowCount}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {isAbsentFilter ? "필터 해제" : "결석자 보기"}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link
-          href={isSelfStudyFilter ? "/attendance" : "/attendance?filter=self-study"}
-          aria-pressed={isSelfStudyFilter}
-          title={isSelfStudyFilter ? "전체 보기로 돌아가기" : "현재 시각 기준 자습 중이어야 할 원생만 보기 (시간표 기준)"}
-        >
-          <Card
-            className={cn(
-              "cursor-pointer transition-all hover:shadow-sm",
-              isSelfStudyFilter
-                ? "ring-2 ring-indigo-500 bg-indigo-50 hover:bg-indigo-100"
-                : "hover:bg-accent/50"
-            )}
-          >
-            <CardContent className="flex items-center gap-2 pt-4 pb-3">
-              <BookOpen className={cn("h-6 w-6 shrink-0", isSelfStudyFilter ? "text-indigo-600" : "text-indigo-500")} />
-              <div>
-                <p className="text-xl font-bold leading-none">{selfStudyNowCount}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {isSelfStudyFilter ? "필터 해제" : "자습 중 보기"}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
+      <StatCards cols={5}>
+        <StatCard label="정상" value={normal} unit="명" tone={normal > 0 ? "ok" : "gray"} />
+        <StatCard label="결석" value={absent} unit="명" tone={absent > 0 ? "bad" : "gray"} />
+        <StatCard label="지각" value={tardy} unit="명" tone={tardy > 0 ? "warn" : "gray"} />
+        <StatCard label="미입실" value={notifiedAbsent} unit="명" sub="사전 연락" />
+        <StatCard label="비등원일" value={noSchedule} unit="명" className="col-span-2 lg:col-span-1" />
+      </StatCards>
 
-      <AttendanceTable students={visibleStudents} today={today.toISOString()} />
+      <AttendanceTable students={visibleStudents} today={today.toISOString()} toolbarStart={filterChips} />
     </div>
   );
 }

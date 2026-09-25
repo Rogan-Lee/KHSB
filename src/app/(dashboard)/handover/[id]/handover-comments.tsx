@@ -4,9 +4,11 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { MessageSquare, Trash2, Loader2 } from "lucide-react";
+import { MessageSquare, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { addHandoverComment, deleteHandoverComment } from "@/actions/handover";
+import { Avatar, EmptyState, Section } from "@/components/backoffice/ui";
+import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 
 type Comment = {
   id: string;
@@ -36,6 +38,7 @@ export function HandoverComments({
   const router = useRouter();
   const [text, setText] = useState("");
   const [pending, startTransition] = useTransition();
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   function submit() {
     const content = text.trim();
@@ -52,10 +55,10 @@ export function HandoverComments({
   }
 
   function remove(id: string) {
-    if (!confirm("댓글을 삭제할까요?")) return;
     startTransition(async () => {
       try {
         await deleteHandoverComment(id);
+        setDeleteId(null);
         router.refresh();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "삭제 실패");
@@ -64,56 +67,75 @@ export function HandoverComments({
   }
 
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="flex items-center gap-2 text-sm font-medium mb-3">
-        <MessageSquare className="h-4 w-4 text-muted-foreground" />
-        댓글 {comments.length > 0 && <span className="text-muted-foreground">({comments.length})</span>}
-      </div>
-
-      <ul className="space-y-2.5 mb-3">
-        {comments.length === 0 ? (
-          <li className="text-sm text-muted-foreground py-2">아직 댓글이 없습니다.</li>
-        ) : (
-          comments.map((c) => (
-            <li key={c.id} className="group flex items-start gap-2 text-sm">
-              <div className="flex-1 rounded-lg bg-muted/40 px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-[13px]">{c.authorName || "직원"}</span>
-                  <span className="text-[11px] text-muted-foreground tabular-nums">{fmt(c.createdAt)}</span>
+    <Section title="댓글" count={comments.length > 0 ? comments.length : undefined} flush>
+      {comments.length === 0 ? (
+        <EmptyState
+          compact
+          icon={MessageSquare}
+          title="아직 댓글이 없어요"
+          description="궁금한 점이나 처리 결과를 남겨 보세요"
+          className="border-t border-stroke-neutral-muted"
+        />
+      ) : (
+        <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+          {comments.map((c) => (
+            <li key={c.id} className="group flex items-start gap-x3 px-x5 py-x4">
+              <Avatar name={c.authorName || "직원"} size={32} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-x2">
+                  <span className="t4-bold text-fg-neutral">{c.authorName || "직원"}</span>
+                  <span className="t3-regular tabular-nums text-fg-neutral-subtle">{fmt(c.createdAt)}</span>
                   {(canModerate || c.authorId === currentUserId) && (
-                    <button
+                    <Button
                       type="button"
-                      onClick={() => remove(c.id)}
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDeleteId(c.id)}
                       disabled={pending}
-                      className="ml-auto p-0.5 rounded text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity"
+                      aria-label="댓글 삭제"
                       title="삭제"
+                      className="ml-auto size-8 hover:text-fg-critical sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                      <Trash2 />
+                    </Button>
                   )}
                 </div>
-                <p className="mt-0.5 whitespace-pre-wrap text-[13px] text-foreground/90">{c.content}</p>
+                <p className="mt-x0_5 whitespace-pre-wrap t4-regular text-fg-neutral-muted">{c.content}</p>
               </div>
             </li>
-          ))
-        )}
-      </ul>
+          ))}
+        </ul>
+      )}
 
-      <div className="flex items-end gap-2">
+      <div className="flex flex-col gap-x2 border-t border-stroke-neutral-muted px-x5 py-x4">
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="댓글을 입력하세요…"
+          aria-label="댓글 입력"
           rows={2}
-          className="flex-1 text-sm resize-y"
+          className="resize-y"
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); }
           }}
         />
-        <Button size="sm" onClick={submit} disabled={pending || !text.trim()}>
-          {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "등록"}
-        </Button>
+        <div className="flex items-center justify-between gap-x2">
+          <span className="hidden t3-regular text-fg-neutral-subtle sm:inline">⌘/Ctrl + Enter로 바로 등록돼요</span>
+          <Button onClick={submit} disabled={pending || !text.trim()} className="ml-auto">
+            {pending ? "등록 중…" : "등록"}
+          </Button>
+        </div>
       </div>
-    </div>
+
+      <ConfirmDialog
+        open={deleteId != null}
+        onOpenChange={(o) => { if (!o) setDeleteId(null); }}
+        title="댓글을 삭제할까요?"
+        description="삭제하면 되돌릴 수 없어요."
+        pendingLabel="삭제하는 중…"
+        pending={pending}
+        onConfirm={() => { if (deleteId) remove(deleteId); }}
+      />
+    </Section>
   );
 }

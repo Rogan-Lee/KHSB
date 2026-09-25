@@ -15,9 +15,21 @@ import {
   XCircle,
   ExternalLink,
   ChevronDown,
-  ChevronRight,
   CalendarClock,
+  CalendarX2,
+  AlertTriangle,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input, inputBaseClass } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { EmptyState, FormActions, FormField, StatusBadge, type Tone } from "@/components/backoffice/ui";
+import { ConfirmDialog } from "@/components/online/online-confirm-dialog";
 import {
   createMentoringSession,
   updateSessionNotes,
@@ -52,11 +64,11 @@ const STATUS_LABEL: Record<MentoringSessionStatus, string> = {
   CANCELED: "취소됨",
 };
 
-const STATUS_COLORS: Record<MentoringSessionStatus, string> = {
-  SCHEDULED: "bg-blue-100 text-blue-800 border-blue-200",
-  IN_PROGRESS: "bg-amber-100 text-amber-800 border-amber-200",
-  COMPLETED: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  CANCELED: "bg-slate-100 text-slate-600 border-slate-200",
+const STATUS_TONE: Record<MentoringSessionStatus, Tone> = {
+  SCHEDULED: "info",
+  IN_PROGRESS: "warn",
+  COMPLETED: "ok",
+  CANCELED: "gray",
 };
 
 export function MentoringSessionsSection({
@@ -98,19 +110,17 @@ export function MentoringSessionsSection({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11.5px] text-ink-5">
-          학원 공용 Google Calendar 에 자동으로 Meet 링크 포함 이벤트가 생성됩니다.
+    <div className="flex flex-col gap-x4">
+      <div className="flex flex-wrap items-center justify-between gap-x2">
+        <p className="t3-regular text-fg-neutral-subtle">
+          학원 공용 Google Calendar 에 Meet 링크가 포함된 일정이 자동으로 만들어져요.
         </p>
-        <button
-          type="button"
-          onClick={() => setShowForm((v) => !v)}
-          className="inline-flex items-center gap-1 rounded-[8px] bg-ink text-white px-2.5 py-1 text-[12px] font-semibold hover:bg-ink/90"
-        >
-          <Plus className="h-3 w-3" />
-          새 세션 예약
-        </button>
+        {!showForm && (
+          <Button type="button" size="sm" onClick={() => setShowForm(true)}>
+            <Plus />
+            새 세션 예약
+          </Button>
+        )}
       </div>
 
       {showForm && (
@@ -121,16 +131,18 @@ export function MentoringSessionsSection({
       )}
 
       {sessions.length === 0 && !showForm ? (
-        <div className="rounded-[10px] border border-dashed border-line bg-canvas-2/40 p-5 text-center text-[12px] text-ink-5">
-          예약된 화상 세션이 없습니다.
+        <div className="rounded-r3 bg-bg-layer-fill">
+          <EmptyState
+            compact
+            icon={CalendarX2}
+            title="예약된 화상 세션이 없어요"
+            description="새 세션을 예약하면 Meet 링크와 학부모 초대가 함께 나가요"
+          />
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="flex flex-col gap-x5">
           {upcoming.length > 0 && (
-            <div className="space-y-2">
-              <h5 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide">
-                예정 / 진행 중
-              </h5>
+            <SessionGroup title="예정 · 진행 중" count={upcoming.length}>
               {upcoming.map((s) => (
                 <SessionCard
                   key={s.id}
@@ -139,13 +151,10 @@ export function MentoringSessionsSection({
                   onToggle={() => toggleExpand(s.id)}
                 />
               ))}
-            </div>
+            </SessionGroup>
           )}
           {past.length > 0 && (
-            <div className="space-y-2">
-              <h5 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide">
-                지난 세션
-              </h5>
+            <SessionGroup title="지난 세션" count={past.length}>
               {past.map((s) => (
                 <SessionCard
                   key={s.id}
@@ -154,10 +163,32 @@ export function MentoringSessionsSection({
                   onToggle={() => toggleExpand(s.id)}
                 />
               ))}
-            </div>
+            </SessionGroup>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function SessionGroup({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <h4 className="mb-x2 flex items-center gap-x1 t4-bold text-fg-neutral-muted">
+        {title}
+        <span className="tabular-nums text-fg-neutral-subtle">{count}</span>
+      </h4>
+      <ul className="divide-y divide-stroke-neutral-muted overflow-hidden rounded-r3 border border-stroke-neutral-muted">
+        {children}
+      </ul>
     </div>
   );
 }
@@ -179,6 +210,7 @@ function SessionCard({
   const [notesDraft, setNotesDraft] = useState<string>(session.notes ?? "");
   const [savingNotes, setSavingNotes] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
+  const [confirm, setConfirm] = useState<"complete" | "cancel" | null>(null);
 
   // 세션 props 가 새로 들어오면 draft 동기화 (다른 세션 펼친 후 돌아왔을 때)
   useEffect(() => {
@@ -215,12 +247,7 @@ function SessionCard({
       toast.error("노트가 비어 있어 요약할 수 없습니다");
       return;
     }
-    if (
-      !confirm(
-        "이 세션을 종료하고 노트를 AI 요약하여 일일 보고에 적재합니다. 계속할까요?"
-      )
-    )
-      return;
+    setConfirm(null);
     setSummarizing(true);
     startTransition(async () => {
       try {
@@ -239,12 +266,7 @@ function SessionCard({
   };
 
   const handleCancel = () => {
-    if (
-      !confirm(
-        "이 세션을 취소합니다. Google Calendar 이벤트도 함께 삭제됩니다. 계속할까요?"
-      )
-    )
-      return;
+    setConfirm(null);
     startTransition(async () => {
       try {
         await cancelMentoringSession(session.id);
@@ -270,109 +292,83 @@ function SessionCard({
   const editable = session.status === "SCHEDULED" || session.status === "IN_PROGRESS";
 
   return (
-    <article className="rounded-[10px] border border-line bg-canvas overflow-hidden">
-      <header className="flex items-center gap-2 px-3 py-2">
-        <button
-          type="button"
-          onClick={onToggle}
-          className="grid place-items-center w-6 h-6 rounded hover:bg-canvas-2 text-ink-4 hover:text-ink shrink-0"
-          aria-label={expanded ? "접기" : "펼치기"}
-        >
-          {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-        </button>
-        <button
-          type="button"
-          onClick={onToggle}
-          className="flex items-center gap-2 flex-1 min-w-0 text-left"
-        >
-          <CalendarClock className="h-3.5 w-3.5 text-ink-5 shrink-0" />
-          <span className="text-[12px] tabular-nums text-ink-3 shrink-0">
-            {dateLabel}
+    <li>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className="flex w-full items-center gap-x3 px-x4 py-x3 text-left transition-colors hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring"
+      >
+        <CalendarClock className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-baseline gap-x-x2 gap-y-x0_5">
+            <span className="t4-medium tabular-nums text-fg-neutral">{dateLabel}</span>
+            <span className="t3-regular tabular-nums text-fg-neutral-subtle">{session.durationMinutes}분</span>
+            <span className="truncate t3-regular text-fg-neutral-muted">{session.hostName}</span>
           </span>
-          <span className="text-[11px] text-ink-5 shrink-0">
-            {session.durationMinutes}분
-          </span>
-          <span className="text-[11.5px] text-ink truncate">
-            · {session.hostName}
-          </span>
-        </button>
-        <span
-          className={cn(
-            "inline-block rounded-full border px-1.5 py-px text-[10.5px] font-medium shrink-0",
-            STATUS_COLORS[session.status]
-          )}
-        >
-          {STATUS_LABEL[session.status]}
         </span>
-      </header>
+        <StatusBadge tone={STATUS_TONE[session.status]}>{STATUS_LABEL[session.status]}</StatusBadge>
+        <ChevronDown
+          className={cn("size-4 shrink-0 text-fg-neutral-subtle transition-transform", expanded && "rotate-180")}
+          aria-hidden
+        />
+      </button>
 
       {expanded && (
-        <div className="px-3 pb-3 pt-1 border-t border-line space-y-3">
+        <div className="flex flex-col gap-x5 border-t border-stroke-neutral-muted bg-bg-layer-fill px-x4 py-x4">
           {/* Meet URL · Calendar 링크 */}
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex flex-wrap items-center gap-x2">
             {session.meetUrl ? (
               <>
-                <a
-                  href={session.meetUrl}
-                  target="_blank"
-                  rel="noopener"
-                  className="inline-flex items-center gap-1 rounded-[8px] bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 text-[12px] font-semibold"
-                >
-                  <Video className="h-3.5 w-3.5" />
-                  Meet 입장
-                </a>
-                <button
-                  type="button"
-                  onClick={handleCopyMeet}
-                  className="inline-flex items-center gap-1 rounded-[8px] border border-line bg-panel px-2 py-1 text-[11.5px] text-ink-3 hover:text-ink hover:border-line-strong"
-                  title="Meet 링크 복사"
-                >
-                  {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
-                  복사
-                </button>
+                <Button asChild size="sm">
+                  <a href={session.meetUrl} target="_blank" rel="noopener">
+                    <Video />
+                    Meet 입장
+                  </a>
+                </Button>
+                <Button type="button" variant="outline" size="sm" onClick={handleCopyMeet} title="Meet 링크 복사">
+                  {copied ? <Check className="text-fg-positive" /> : <Copy />}
+                  {copied ? "복사됨" : "링크 복사"}
+                </Button>
               </>
             ) : (
-              <span className="text-[11.5px] text-amber-700">
-                ⚠️ Meet 링크 없음 (Calendar 미연동 또는 발급 실패)
+              <span className="inline-flex items-center gap-x1 t3-medium text-fg-warning">
+                <AlertTriangle className="size-4" aria-hidden />
+                Meet 링크 없음 (Calendar 미연동 또는 발급 실패)
               </span>
             )}
             {session.calendarHtmlLink && (
-              <a
-                href={session.calendarHtmlLink}
-                target="_blank"
-                rel="noopener"
-                className="ml-auto inline-flex items-center gap-1 text-[11px] text-ink-4 hover:text-ink"
-              >
-                <ExternalLink className="h-3 w-3" />
-                Calendar
-              </a>
+              <Button asChild variant="ghost" size="sm" className="ml-auto">
+                <a href={session.calendarHtmlLink} target="_blank" rel="noopener">
+                  <ExternalLink />
+                  Calendar
+                </a>
+              </Button>
             )}
           </div>
 
           {/* 요약 (완료된 경우) */}
           {session.summary && (
-            <div className="rounded-[8px] border border-emerald-200 bg-emerald-50/50 p-3">
-              <h6 className="text-[11px] font-semibold text-emerald-900 uppercase tracking-wide mb-1.5">
-                AI 요약 (일일 보고에 적재됨)
-              </h6>
-              <pre className="text-[12px] text-ink whitespace-pre-wrap leading-relaxed font-sans">
+            <div className="rounded-r2 bg-bg-positive-weak px-x4 py-x3">
+              <p className="t3-bold text-fg-positive">AI 요약 · 일일 보고에 적재됨</p>
+              <p className="mt-x1_5 whitespace-pre-wrap break-words t4-regular text-fg-neutral">
                 {session.summary}
-              </pre>
+              </p>
             </div>
           )}
 
           {/* 노트 에디터 */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <h6 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide">
-                노트 (markdown)
-              </h6>
+          <div className="flex flex-col gap-x2">
+            <div className="flex items-center justify-between gap-x2">
+              <label htmlFor={`session-notes-${session.id}`} className="t4-medium text-fg-neutral">
+                노트 <span className="t3-regular text-fg-neutral-subtle">markdown</span>
+              </label>
               {editable && (
-                <span className="text-[10.5px] text-ink-5 inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-x1 t3-regular text-fg-neutral-subtle" aria-live="polite">
                   {savingNotes ? (
                     <>
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      저장 중
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                      저장 중…
                     </>
                   ) : (
                     "자동 저장"
@@ -381,20 +377,19 @@ function SessionCard({
               )}
             </div>
             <textarea
+              id={`session-notes-${session.id}`}
               value={notesDraft}
               onChange={(e) => handleNotesChange(e.target.value)}
               disabled={!editable}
               rows={isPast || session.status === "IN_PROGRESS" ? 8 : 5}
               placeholder="통화 중 실시간으로 작성하거나 통화 후 정리하세요. 종료 시 AI 요약이 일일 보고에 자동 적재됩니다."
-              className="w-full rounded-[8px] border border-line bg-canvas px-2.5 py-2 text-[12.5px] leading-relaxed font-mono resize-y focus:outline-none focus:border-line-strong disabled:opacity-60"
+              className={cn(inputBaseClass, "min-h-[120px] resize-y border-0 py-x2_5")}
             />
           </div>
 
           {/* 첨부 사진 (KDA / EXTRA / FREE) */}
-          <div>
-            <h6 className="text-[11px] font-semibold text-ink-4 uppercase tracking-wide mb-1.5">
-              첨부 사진
-            </h6>
+          <div className="flex flex-col gap-x2">
+            <p className="t4-medium text-fg-neutral">첨부 사진</p>
             <SessionPhotoUploader
               sessionId={session.id}
               existing={session.photos}
@@ -403,45 +398,70 @@ function SessionCard({
 
           {/* 액션 버튼 */}
           {editable && (
-            <div className="flex items-center justify-end gap-2">
-              <button
+            <FormActions className="pt-0">
+              <Button
                 type="button"
-                onClick={handleCancel}
+                variant="ghost"
+                size="sm"
+                className="text-fg-critical"
+                onClick={() => setConfirm("cancel")}
                 disabled={isPending || summarizing}
-                className="inline-flex items-center gap-1 rounded-[8px] border border-line bg-panel px-2.5 py-1 text-[12px] text-red-600 hover:text-red-700 hover:border-red-300 disabled:opacity-50"
               >
-                <XCircle className="h-3 w-3" />
+                <XCircle />
                 세션 취소
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                onClick={handleComplete}
+                size="sm"
+                onClick={() => {
+                  if (!notesDraft.trim()) {
+                    toast.error("노트가 비어 있어 요약할 수 없습니다");
+                    return;
+                  }
+                  setConfirm("complete");
+                }}
                 disabled={isPending || summarizing || !notesDraft.trim()}
                 title={
                   !notesDraft.trim()
                     ? "노트가 비어 있어 요약할 수 없습니다"
                     : undefined
                 }
-                className="inline-flex items-center gap-1 rounded-[8px] bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-[12px] font-semibold disabled:opacity-50"
               >
-                {summarizing ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Sparkles className="h-3 w-3" />
-                )}
-                종료 + AI 요약 → 일일 보고 적재
-              </button>
-            </div>
+                {summarizing ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                {summarizing ? "요약 중…" : "종료 + AI 요약 → 일일 보고 적재"}
+              </Button>
+            </FormActions>
           )}
           {session.status === "COMPLETED" && (
-            <p className="text-[11px] text-emerald-700 inline-flex items-center gap-1">
-              <CheckCircle2 className="h-3 w-3" />
-              완료된 세션입니다.
+            <p className="inline-flex items-center gap-x1 t3-medium text-fg-positive">
+              <CheckCircle2 className="size-4" aria-hidden />
+              완료된 세션이에요
             </p>
           )}
         </div>
       )}
-    </article>
+
+      <ConfirmDialog
+        open={confirm === "complete"}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title="세션을 종료할까요?"
+        description="노트를 AI로 요약해서 오늘 일일 보고에 적재해요."
+        confirmLabel="종료하고 요약"
+        pending={isPending || summarizing}
+        onConfirm={handleComplete}
+      />
+      <ConfirmDialog
+        open={confirm === "cancel"}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title="세션을 취소할까요?"
+        description="Google Calendar 일정도 함께 삭제돼요."
+        confirmLabel="세션 취소"
+        cancelLabel="닫기"
+        destructive
+        pending={isPending}
+        onConfirm={handleCancel}
+      />
+    </li>
   );
 }
 
@@ -496,101 +516,54 @@ function NewSessionForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-[10px] border-2 border-ink/10 bg-panel p-3 space-y-2.5"
+      className="flex flex-col gap-x4 rounded-r3 bg-bg-layer-fill p-x4"
     >
-      <div className="flex items-center justify-between">
-        <h5 className="text-[12px] font-semibold text-ink">새 화상 세션 예약</h5>
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={isPending}
-          className="text-[11px] text-ink-5 hover:text-ink"
-        >
-          닫기
-        </button>
+      <div className="flex items-center justify-between gap-x2">
+        <h4 className="t5-bold text-fg-neutral">새 화상 세션 예약</h4>
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        <Field label="날짜">
-          <input
+      <div className="grid grid-cols-1 gap-x3 sm:grid-cols-3">
+        <FormField label="날짜" htmlFor={`new-session-date-${studentId}`}>
+          <Input
+            id={`new-session-date-${studentId}`}
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
             disabled={isPending}
-            className="field"
+            className="tabular-nums"
           />
-        </Field>
-        <Field label="시간 (KST)">
-          {/* styled-jsx .field는 컴포넌트 경계를 못 넘어 tailwind로 동일 룩 재현 */}
+        </FormField>
+        <FormField label="시간 (KST)">
           <TimePickerInput
             value={time}
             onChange={setTime}
             disabled={isPending}
-            className="w-full rounded-[8px] border-[color:var(--line)] bg-[color:var(--canvas)] px-2.5 py-1.5 text-[12.5px]"
+            className={cn(inputBaseClass, "h-10 w-full border-0 text-left font-sans focus:ring-0")}
           />
-        </Field>
-        <Field label="길이 (분)">
-          <select
-            value={duration}
-            onChange={(e) => setDuration(e.target.value)}
-            disabled={isPending}
-            className="field"
-          >
-            <option value="15">15</option>
-            <option value="30">30</option>
-            <option value="45">45</option>
-            <option value="60">60</option>
-            <option value="90">90</option>
-            <option value="120">120</option>
-          </select>
-        </Field>
+        </FormField>
+        <FormField label="길이">
+          <Select value={duration} onValueChange={setDuration} disabled={isPending}>
+            <SelectTrigger aria-label="세션 길이">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {["15", "30", "45", "60", "90", "120"].map((m) => (
+                <SelectItem key={m} value={m}>
+                  {m}분
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormField>
       </div>
-      <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={isPending}
-          className="rounded-[8px] border border-line bg-panel px-2.5 py-1 text-[12px] text-ink-3"
-        >
+      <FormActions className="pt-0">
+        <Button type="button" variant="secondary" onClick={onClose} disabled={isPending}>
           취소
-        </button>
-        <button
-          type="submit"
-          disabled={isPending}
-          className="inline-flex items-center gap-1 rounded-[8px] bg-ink text-white px-3 py-1 text-[12px] font-semibold disabled:opacity-50"
-        >
-          {isPending && <Loader2 className="h-3 w-3 animate-spin" />}
-          예약 + Meet 링크 생성
-        </button>
-      </div>
-      <style jsx>{`
-        .field {
-          width: 100%;
-          border-radius: 8px;
-          border: 1px solid var(--line);
-          background: var(--canvas);
-          padding: 6px 10px;
-          font-size: 12.5px;
-        }
-        .field:focus {
-          outline: none;
-          border-color: var(--line-strong);
-        }
-      `}</style>
+        </Button>
+        <Button type="submit" disabled={isPending}>
+          {isPending && <Loader2 className="animate-spin" />}
+          {isPending ? "예약 중…" : "예약 + Meet 링크 생성"}
+        </Button>
+      </FormActions>
     </form>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="flex flex-col gap-0.5">
-      <span className="text-[10.5px] text-ink-4">{label}</span>
-      {children}
-    </label>
   );
 }

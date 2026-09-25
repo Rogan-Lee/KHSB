@@ -19,11 +19,21 @@ interface DatePickerProps {
   required?: boolean;
   /** 기본값 (비제어 모드) */
   defaultValue?: string;
+  /** 트리거 높이 — md(기본, 40px · 입력칸 규격) / sm(32px · 표 안 등 좁은 곳) */
+  size?: "sm" | "md";
 }
 
+// SEED TextInput / SelectTrigger 와 같은 규격 — 높이 40, r2, 1px stroke-neutral-weak, 포커스·열림 2px stroke-neutral-contrast
+const FIELD_TRIGGER =
+  "inline-flex min-w-36 items-center gap-x2 rounded-r2 border-0 bg-bg-layer-default text-left text-fg-neutral tabular-nums outline-none transition-shadow " +
+  "shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] " +
+  "focus-visible:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)] data-[state=open]:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)] " +
+  "disabled:cursor-not-allowed disabled:bg-bg-disabled disabled:text-fg-disabled";
+
+/** "2026-09-25" → "2026.09.25" */
 function formatLabel(value: string): string {
   const d = new Date(value + "T00:00:00");
-  return `${d.getMonth() + 1}/${String(d.getDate()).padStart(2, "0")}`;
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export function DatePicker({
@@ -36,6 +46,7 @@ export function DatePicker({
   name,
   required,
   defaultValue,
+  size = "md",
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const [internalValue, setInternalValue] = useState(defaultValue ?? null);
@@ -75,33 +86,34 @@ export function DatePicker({
           <button
             type="button"
             className={cn(
-              "inline-flex items-center justify-center rounded-md border p-1 transition-colors",
-              "border-border bg-background hover:bg-accent text-muted-foreground",
-              disabled && "opacity-40 cursor-not-allowed",
+              "inline-flex size-8 shrink-0 items-center justify-center rounded-r2 bg-bg-layer-default text-fg-neutral-muted outline-none transition-[background-color,box-shadow]",
+              "shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] hover:bg-bg-layer-default-pressed",
+              "focus-visible:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)] data-[state=open]:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)]",
+              "disabled:cursor-not-allowed disabled:bg-bg-disabled disabled:text-fg-disabled",
               className
             )}
             title={placeholder}
+            aria-label={placeholder}
           >
-            <CalendarIcon className="h-3.5 w-3.5" />
+            <CalendarIcon className="size-4" />
           </button>
         ) : (
           <button
             type="button"
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
-              current
-                ? "text-green-700 bg-green-50 border-green-200 hover:bg-green-100"
-                : "text-muted-foreground bg-background border-border hover:bg-accent",
-              disabled && "opacity-40 cursor-not-allowed",
+              FIELD_TRIGGER,
+              size === "sm" ? "h-8 px-x2_5 t3-regular" : "h-10 px-x3 t4-regular",
               className
             )}
           >
-            <CalendarIcon className="h-3 w-3 shrink-0" />
-            {current ? formatLabel(current) : placeholder}
+            <CalendarIcon className={cn("size-4 shrink-0", current ? "text-fg-neutral-muted" : "text-fg-neutral-subtle")} />
+            <span className={cn("truncate", !current && "text-fg-placeholder")}>
+              {current ? formatLabel(current) : placeholder}
+            </span>
           </button>
         )}
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-3" align="start" sideOffset={6}>
+      <PopoverContent className="w-auto p-x3" align="start" sideOffset={6}>
         <Calendar
           mode="single"
           selected={selected}
@@ -109,12 +121,6 @@ export function DatePicker({
           defaultMonth={selected}
           locale={ko}
           captionLayout="dropdown"
-          className="[--cell-size:2.25rem]"
-          classNames={{
-            nav: "absolute inset-x-0 top-0 flex w-full items-center justify-between gap-1 z-10",
-            month_caption: "flex h-9 w-full items-center justify-center px-10",
-            week: "mt-1 flex w-full",
-          }}
         />
       </PopoverContent>
     </Popover>

@@ -5,8 +5,17 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Plus, Trash2, UserCheck, Loader2 } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { EmptyState, FormActions, FormField, Section } from "@/components/backoffice/ui";
+import { Plus, Trash2, UserCheck, Loader2, UserPlus } from "lucide-react";
 import {
   createPreRegistration,
   deletePreRegistration,
@@ -46,11 +55,14 @@ export function PreRegistrationPanel({ initial, canFormalize }: { initial: PreRe
     });
   }
 
+  // 삭제 확인 — 브라우저 confirm 대신 다이얼로그로 묻는다
+  const [deleteTarget, setDeleteTarget] = useState<PreReg | null>(null);
+
   function handleDelete(id: string) {
-    if (!confirm("이 예비등록을 삭제할까요?")) return;
     startTransition(async () => {
       try {
         await deletePreRegistration(id);
+        setDeleteTarget(null);
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "삭제 실패");
@@ -83,78 +95,120 @@ export function PreRegistrationPanel({ initial, canFormalize }: { initial: PreRe
     });
   }
 
+  const addButton = (
+    <Button size="sm" variant={showForm ? "secondary" : "default"} onClick={() => setShowForm((v) => !v)}>
+      <Plus />예비등록 추가
+    </Button>
+  );
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          예비 학생을 입력하고 좌석을 <b>가배정</b>한 뒤, 정식 등록 시 ACTIVE 학생으로 전환됩니다.
-        </p>
-        <Button size="sm" onClick={() => setShowForm((v) => !v)}>
-          <Plus className="h-4 w-4 mr-1" />예비등록 추가
-        </Button>
-      </div>
+    <>
+      <Section
+        title="예비등록"
+        count={initial.length || undefined}
+        description="예비 학생을 입력하고 좌석을 가배정해 두세요. 정식 등록하면 재원생(ACTIVE)으로 전환돼요."
+        actions={addButton}
+        flush
+        className="overflow-hidden"
+      >
+        {showForm && (
+          <form onSubmit={handleCreate} className="border-y border-stroke-neutral-muted bg-bg-layer-fill px-x5 py-x5">
+            <div className="grid grid-cols-1 gap-x4 sm:grid-cols-2 lg:grid-cols-3">
+              <FormField label="이름" htmlFor="pr-name" required><Input id="pr-name" name="name" required /></FormField>
+              <FormField label="학년" htmlFor="pr-grade"><Input id="pr-grade" name="grade" placeholder="예: 고2" /></FormField>
+              <FormField label="가배정 좌석" htmlFor="pr-seat"><Input id="pr-seat" name="tentativeSeat" placeholder="예: 12" /></FormField>
+              <FormField label="학부모 연락처" htmlFor="pr-parent"><Input id="pr-parent" name="parentPhone" placeholder="010-..." /></FormField>
+              <FormField label="학생 연락처" htmlFor="pr-phone"><Input id="pr-phone" name="phone" /></FormField>
+              <FormField label="학교" htmlFor="pr-school"><Input id="pr-school" name="school" /></FormField>
+              <FormField label="등원 예정일" htmlFor="pr-start"><Input id="pr-start" name="startDate" type="date" /></FormField>
+              <FormField label="메모" htmlFor="pr-memo" className="sm:col-span-2"><Input id="pr-memo" name="memo" placeholder="선택과목·특이사항 등" /></FormField>
+            </div>
+            <FormActions className="mt-x4">
+              <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>취소</Button>
+              <Button type="submit" disabled={pending}>{pending ? "추가 중…" : "추가"}</Button>
+            </FormActions>
+          </form>
+        )}
 
-      {showForm && (
-        <form onSubmit={handleCreate} className="rounded-lg border bg-card p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <div className="space-y-1.5"><Label htmlFor="pr-name">이름 *</Label><Input id="pr-name" name="name" required /></div>
-          <div className="space-y-1.5"><Label htmlFor="pr-grade">학년</Label><Input id="pr-grade" name="grade" placeholder="예: 고2" /></div>
-          <div className="space-y-1.5"><Label htmlFor="pr-seat">가배정 좌석</Label><Input id="pr-seat" name="tentativeSeat" placeholder="예: 12" /></div>
-          <div className="space-y-1.5"><Label htmlFor="pr-parent">학부모 연락처</Label><Input id="pr-parent" name="parentPhone" placeholder="010-..." /></div>
-          <div className="space-y-1.5"><Label htmlFor="pr-phone">학생 연락처</Label><Input id="pr-phone" name="phone" /></div>
-          <div className="space-y-1.5"><Label htmlFor="pr-school">학교</Label><Input id="pr-school" name="school" /></div>
-          <div className="space-y-1.5"><Label htmlFor="pr-start">등원 예정일</Label><Input id="pr-start" name="startDate" type="date" /></div>
-          <div className="space-y-1.5 col-span-2"><Label htmlFor="pr-memo">메모</Label><Input id="pr-memo" name="memo" placeholder="선택과목·특이사항 등" /></div>
-          <div className="col-span-full flex justify-end gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={() => setShowForm(false)}>취소</Button>
-            <Button type="submit" size="sm" disabled={pending}>{pending ? "추가 중…" : "추가"}</Button>
-          </div>
-        </form>
-      )}
-
-      <div className="rounded-lg border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/40 text-xs text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 text-left">이름</th>
-              <th className="px-3 py-2 text-left">학년</th>
-              <th className="px-3 py-2 text-center">가배정</th>
-              <th className="px-3 py-2 text-left">학부모</th>
-              <th className="px-3 py-2 text-left">학교</th>
-              <th className="px-3 py-2 text-left">메모</th>
-              <th className="px-3 py-2"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {initial.length === 0 ? (
-              <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">예비등록이 없습니다</td></tr>
-            ) : (
-              initial.map((p) => (
-                <tr key={p.id}>
-                  <td className="px-3 py-2 font-medium">{p.name}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{p.grade ?? "—"}</td>
-                  <td className="px-3 py-2 text-center font-mono">{p.tentativeSeat ?? "—"}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{p.parentPhone ?? "—"}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{p.school ?? "—"}</td>
-                  <td className="px-3 py-2 text-muted-foreground truncate max-w-[160px]">{p.memo ?? "—"}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center justify-end gap-1">
+        {initial.length === 0 ? (
+          !showForm && (
+            <EmptyState
+              compact
+              icon={UserPlus}
+              title="아직 예비등록한 학생이 없어요"
+              description="등록 예정인 학생을 먼저 적어 두면 좌석을 미리 잡아 둘 수 있어요."
+              className="pb-x10"
+            />
+          )
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>이름</TableHead>
+                <TableHead>학년</TableHead>
+                <TableHead>가배정 좌석</TableHead>
+                <TableHead>학부모</TableHead>
+                <TableHead>학교</TableHead>
+                <TableHead>메모</TableHead>
+                <TableHead><span className="sr-only">관리</span></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {initial.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell className="t4-medium whitespace-nowrap">{p.name}</TableCell>
+                  <TableCell className="whitespace-nowrap text-fg-neutral-muted">{p.grade ?? "—"}</TableCell>
+                  <TableCell className="whitespace-nowrap tabular-nums">{p.tentativeSeat ? `${p.tentativeSeat}번` : "—"}</TableCell>
+                  <TableCell className="whitespace-nowrap text-fg-neutral-muted tabular-nums">{p.parentPhone ?? "—"}</TableCell>
+                  <TableCell className="whitespace-nowrap text-fg-neutral-muted">{p.school ?? "—"}</TableCell>
+                  <TableCell className="max-w-[200px] truncate text-fg-neutral-muted" title={p.memo ?? undefined}>{p.memo ?? "—"}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-x1">
                       {canFormalize && (
-                        <Button size="sm" variant="outline" className="h-7 gap-1 text-xs" disabled={pending} onClick={() => handleFormalize(p)}>
-                          {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserCheck className="h-3.5 w-3.5" />}
+                        <Button size="xs" variant="outline" disabled={pending} onClick={() => handleFormalize(p)}>
+                          {pending ? <Loader2 className="animate-spin" /> : <UserCheck />}
                           정식 등록
                         </Button>
                       )}
-                      <button type="button" onClick={() => handleDelete(p.id)} disabled={pending} className="p-1 rounded text-muted-foreground hover:text-destructive">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-fg-neutral-subtle hover:text-fg-critical"
+                        onClick={() => setDeleteTarget(p)}
+                        disabled={pending}
+                        aria-label={`${p.name} 예비등록 삭제`}
+                      >
+                        <Trash2 />
+                      </Button>
                     </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Section>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && !pending && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>예비등록을 삭제할까요?</DialogTitle>
+            <DialogDescription>
+              {deleteTarget?.name} 학생의 예비등록과 가배정 좌석 정보가 사라져요.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={pending}>취소</Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteTarget && handleDelete(deleteTarget.id)}
+              disabled={pending}
+            >
+              {pending ? "삭제 중…" : "삭제"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

@@ -7,6 +7,7 @@ import { fetchGoogleCalendarEvents } from "@/actions/google-calendar";
 import { isGoogleCalendarConfigured, isOAuthAppConfigured } from "@/lib/google-calendar";
 import { auth } from "@/lib/auth";
 import { GoogleCalendarConnectButton } from "@/components/calendar/google-calendar-connect-button";
+import { PageHeader } from "@/components/backoffice/ui";
 
 export default async function CalendarPage({
   searchParams,
@@ -55,18 +56,21 @@ export default async function CalendarPage({
   const { google_connected, google_error } = await searchParams;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">캘린더</h1>
-        {isDirector && oauthConfigured && (
-          <GoogleCalendarConnectButton
-            connected={googleConnected}
-            connectedBy={googleToken?.connectedBy ?? null}
-            justConnected={google_connected === "true"}
-            error={google_error}
-          />
-        )}
-      </div>
+    <>
+      <PageHeader
+        title="캘린더"
+        description="학교 시험·행사와 원생 개인 일정을 한곳에서 관리해요."
+        actions={
+          isDirector && oauthConfigured ? (
+            <GoogleCalendarConnectButton
+              connected={googleConnected}
+              connectedBy={googleToken?.connectedBy ?? null}
+              justConnected={google_connected === "true"}
+              error={google_error}
+            />
+          ) : undefined
+        }
+      />
       <CalendarView
         initialEvents={events}
         schools={schoolNames}
@@ -74,6 +78,6 @@ export default async function CalendarPage({
         googleEvents={googleOnlyEvents}
         googleCalendarConfigured={googleConnected}
       />
-    </div>
+    </>
   );
 }

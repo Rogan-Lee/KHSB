@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { SeatMapBoard } from "@/components/seat-map/seat-map-board";
 import { offlineStudentWhere } from "@/lib/student-filters";
+import { PageHeader } from "@/components/backoffice/ui";
 
 export default async function SeatMapPage() {
   const session = await auth();
@@ -17,12 +18,13 @@ export default async function SeatMapPage() {
   });
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-[#1e2124]">좌석 배치도</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          K룸과 H룸의 좌석 배치 현황입니다. 원생 관리에서 좌석번호를 수정할 수 있습니다.
-        </p>
+    <div>
+      {/* 인쇄 시에는 보드의 인쇄용 머리(룸·날짜)만 쓴다 */}
+      <div className="print:hidden">
+        <PageHeader
+          title="좌석 배치도"
+          description="K룸과 H룸의 좌석 배정 현황이에요. 좌석을 누르면 원생을 배정하거나 바꿀 수 있어요."
+        />
       </div>
       <SeatMapBoard students={students} />
     </div>
