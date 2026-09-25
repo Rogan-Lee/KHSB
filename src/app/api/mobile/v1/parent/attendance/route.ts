@@ -1,55 +1,22 @@
 import type { NextRequest } from "next/server";
 
 import {
-  MobileApiError,
   mobileApiErrorResponse,
   mobileJson,
   requireParentChild,
 } from "@/lib/mobile-auth";
-import { prisma } from "@/lib/prisma";
-import { todayKST } from "@/lib/utils";
+import { getParentAttendanceMonth } from "@/lib/mobile-parent-attendance";
 
-const ABSENT_TYPES = new Set(["ABSENT", "APPROVED_ABSENT", "NOTIFIED_ABSENT"]);
-
+/**
+ * 학부모 — 월간 출결. ?studentId&month=YYYY-MM
+ * items[] 의 기존 필드(date·status·type·checkIn·checkOut)는 그대로 두고
+ * 외출·지각·공부 시간·예정 시간과 월 요약(summary)을 덧붙였다.
+ */
 export async function GET(request: NextRequest) {
   try {
-    const studentId = request.nextUrl.searchParams.get("studentId");
-    const month =
-      request.nextUrl.searchParams.get("month") ??
-      todayKST().toISOString().slice(0, 7);
-    if (!/^\d{4}-\d{2}$/.test(month)) {
-      throw new MobileApiError("월 형식이 올바르지 않습니다", 400);
-    }
-
-    await requireParentChild(request, studentId);
-
-    const start = new Date(`${month}-01T00:00:00.000Z`);
-    const end = new Date(
-      Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1),
-    );
-
-    const records = await prisma.attendanceRecord.findMany({
-      where: { studentId: studentId!, date: { gte: start, lt: end } },
-      orderBy: { date: "desc" },
-      select: { checkIn: true, checkOut: true, date: true, type: true },
-    });
-
-    return mobileJson({
-      month,
-      items: records.map((record) => ({
-        date: record.date.toISOString().slice(0, 10),
-        status: ABSENT_TYPES.has(record.type)
-          ? "결석"
-          : record.checkOut
-            ? "퇴실"
-            : record.checkIn
-              ? "입실"
-              : "미입실",
-        type: record.type,
-        checkIn: record.checkIn?.toISOString() ?? null,
-        checkOut: record.checkOut?.toISOString() ?? null,
-      })),
-    });
+    const params = request.nextUrl.searchParams;
+    const child = await requireParentChild(request, params.get("studentId"));
+    return mobileJson(await getParentAttendanceMonth(child, params.get("month")));
   } catch (error) {
     return mobileApiErrorResponse(error);
   }

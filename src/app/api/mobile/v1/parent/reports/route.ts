@@ -1,44 +1,23 @@
 import type { NextRequest } from "next/server";
 
-import { getAppUrl } from "@/lib/app-url";
 import {
   mobileApiErrorResponse,
   mobileJson,
   requireParentChild,
 } from "@/lib/mobile-auth";
-import { prisma } from "@/lib/prisma";
+import { listParentReports, parseReportKindFilter } from "@/lib/mobile-parent-reports";
 
+/**
+ * 학부모 리포트함 — 멘토링·월간·온라인 관리·공부 계획·상담 리포트 통합 목록.
+ * GET ?studentId=&kind=(all|mentoring|monthly|online|study-plan|consultation)
+ * 응답의 `items` 는 구버전 앱 호환(만료 전 멘토링 리포트 + 웹 URL), 새 앱은 `reports` 를 쓴다.
+ */
 export async function GET(request: NextRequest) {
   try {
-    const studentId = request.nextUrl.searchParams.get("studentId");
-    await requireParentChild(request, studentId);
-
-    const reports = await prisma.parentReport.findMany({
-      where: {
-        studentId: studentId!,
-        revokedAt: null,
-        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-      },
-      orderBy: { createdAt: "desc" },
-      take: 30,
-      select: {
-        createdAt: true,
-        customNote: true,
-        expiresAt: true,
-        id: true,
-        token: true,
-      },
-    });
-
-    return mobileJson({
-      items: reports.map((report) => ({
-        id: report.id,
-        createdAt: report.createdAt.toISOString(),
-        expiresAt: report.expiresAt?.toISOString() ?? null,
-        hasNote: !!report.customNote,
-        url: `${getAppUrl()}/r/${report.token}`,
-      })),
-    });
+    const params = request.nextUrl.searchParams;
+    const child = await requireParentChild(request, params.get("studentId"));
+    const kind = parseReportKindFilter(params.get("kind"));
+    return mobileJson(await listParentReports(child.id, kind));
   } catch (error) {
     return mobileApiErrorResponse(error);
   }

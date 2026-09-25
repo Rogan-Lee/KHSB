@@ -6,6 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
+import {
+  claimStudentQuestionFor,
+  releaseStudentQuestionClaim,
+  updateStudentQuestionStatus,
+} from "@/lib/question-handling";
 import type { StudentQuestionStatus } from "@/generated/prisma/enums";
 
 export type QuestionAttachment = {
@@ -431,21 +436,11 @@ export async function claimStudentQuestion(params: { questionId: string }) {
   requireStaff(session?.user?.role);
   const me = session!.user.id;
 
-  const question = await prisma.studentQuestion.findUnique({
-    where: { id: params.questionId },
-    select: { id: true, claimedBy: { select: { id: true, name: true } } },
-  });
-  if (!question) throw new Error("질문을 찾을 수 없습니다");
-  const previousClaimerName =
-    question.claimedBy && question.claimedBy.id !== me ? question.claimedBy.name : null;
-
-  await prisma.studentQuestion.update({
-    where: { id: question.id },
-    data: { claimedById: me, claimedAt: new Date() },
-  });
+  // 핵심 로직은 @/lib/question-handling (모바일 직원 API 와 공용)
+  const { previousClaimerName } = await claimStudentQuestionFor(params.questionId, me);
 
   revalidatePath("/questions");
-  revalidatePath(`/questions/${question.id}`);
+  revalidatePath(`/questions/${params.questionId}`);
   return { ok: true, previousClaimerName };
 }
 
@@ -454,10 +449,7 @@ export async function releaseStudentQuestion(params: { questionId: string }) {
   const session = await auth();
   requireStaff(session?.user?.role);
 
-  await prisma.studentQuestion.update({
-    where: { id: params.questionId },
-    data: { claimedById: null, claimedAt: null },
-  });
+  await releaseStudentQuestionClaim(params.questionId);
 
   revalidatePath("/questions");
   revalidatePath(`/questions/${params.questionId}`);
@@ -525,10 +517,7 @@ export async function setStudentQuestionStatus(params: {
   const session = await auth();
   requireStaff(session?.user?.role);
 
-  await prisma.studentQuestion.update({
-    where: { id: params.questionId },
-    data: { status: params.status },
-  });
+  await updateStudentQuestionStatus(params.questionId, params.status);
 
   revalidatePath("/questions");
   revalidatePath(`/questions/${params.questionId}`);

@@ -28,8 +28,16 @@ export type ExamApplicationFormData = {
 export async function loadExamApplicationData(token: string): Promise<ExamApplicationFormData | null> {
   const session = await validateMagicLink(token);
   if (!session) return null;
-  const studentId = session.student.id;
+  return {
+    studentName: session.student.name,
+    sessions: await loadExamApplicationSessionsForStudent(session.student.id),
+  };
+}
 
+/** 학생 ID 기준 — 신청 접수중인 모의고사 + 본인 신청 상태 (인증은 호출 측 책임). */
+export async function loadExamApplicationSessionsForStudent(
+  studentId: string
+): Promise<ExamApplicationSession[]> {
   const sessions = await prisma.examSession.findMany({
     where: { applicationOpen: true, examDate: { gte: todayKST() } },
     orderBy: { examDate: "asc" },
@@ -38,20 +46,17 @@ export async function loadExamApplicationData(token: string): Promise<ExamApplic
     },
   });
 
-  return {
-    studentName: session.student.name,
-    sessions: sessions.map((s) => {
-      const mine = s.applications[0];
-      return {
-        sessionId: s.id,
-        title: s.title,
-        examDate: s.examDate.toISOString().slice(0, 10),
-        examTypeLabel: EXAM_TYPE_LABELS[s.examType],
-        subjects: s.subjects,
-        notes: s.notes,
-        myStatus: (mine?.status ?? "NONE") as ExamApplyStatus,
-        myMemo: mine?.memo ?? "",
-      };
-    }),
-  };
+  return sessions.map((s) => {
+    const mine = s.applications[0];
+    return {
+      sessionId: s.id,
+      title: s.title,
+      examDate: s.examDate.toISOString().slice(0, 10),
+      examTypeLabel: EXAM_TYPE_LABELS[s.examType],
+      subjects: s.subjects,
+      notes: s.notes,
+      myStatus: (mine?.status ?? "NONE") as ExamApplyStatus,
+      myMemo: mine?.memo ?? "",
+    };
+  });
 }

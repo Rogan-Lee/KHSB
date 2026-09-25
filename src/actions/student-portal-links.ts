@@ -9,6 +9,7 @@ import {
   revokeAllLinksForStudent,
   DEFAULT_MAGIC_LINK_VALID_DAYS,
 } from "@/lib/student-auth";
+import { issuePortalLinkForStudent } from "@/lib/student-portal-link-core";
 
 /**
  * 전체 ACTIVE 재원생의 학생 포털(`/s/[token]`) 매직링크 현황.
@@ -61,30 +62,17 @@ export async function issueStudentPortalLink(params: {
   const session = await auth();
   requireStaff(session?.user?.role);
 
-  const student = await prisma.student.findUnique({
-    where: { id: params.studentId },
-    select: { id: true, status: true },
-  });
-  if (!student) throw new Error("학생을 찾을 수 없습니다");
-
-  if (params.reissue) {
-    await revokeAllLinksForStudent(params.studentId);
-  } else {
-    const existing = await prisma.studentMagicLink.findFirst({
-      where: { studentId: params.studentId, revokedAt: null, expiresAt: { gt: new Date() } },
-      orderBy: { issuedAt: "desc" },
-      select: { token: true, expiresAt: true },
-    });
-    if (existing) {
-      return { token: existing.token, expiresAt: existing.expiresAt.toISOString() };
-    }
-  }
-
-  const link = await issueMagicLink({
+  // 핵심 로직: src/lib/student-portal-link-core.ts — 모바일 API 와 공용
+  const link = await issuePortalLinkForStudent({
     studentId: params.studentId,
     issuedById: session!.user.id,
-    daysValid: params.daysValid ?? DEFAULT_MAGIC_LINK_VALID_DAYS,
+    reissue: params.reissue,
+    daysValid: params.daysValid,
   });
+  // 기존 유효 링크를 그대로 돌려준 경우엔 화면 갱신 불필요 (기존 동작과 동일)
+  if (link.reused) {
+    return { token: link.token, expiresAt: link.expiresAt.toISOString() };
+  }
 
   revalidatePath("/students");
   revalidatePath("/attendance");

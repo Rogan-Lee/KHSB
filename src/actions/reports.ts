@@ -6,35 +6,10 @@ import { revalidatePath } from "next/cache";
 import { startOfMonth, endOfMonth } from "date-fns";
 import { requireStaff, requireFullAccess } from "@/lib/roles";
 import crypto from "crypto";
+import { calcStudyMinutes, diffMinutes } from "@/lib/study-time";
+import { queueParentReportPush } from "@/lib/mobile-push";
 
-// ─── 순공 시간 계산 헬퍼 ──────────────────────────────────────────────
-
-type AttendanceWithTimes = {
-  checkIn: Date | null;
-  checkOut: Date | null;
-  outStart: Date | null;
-  outEnd: Date | null;
-};
-
-/**
- * 두 DateTime 차이를 분 단위로 반환 (음수면 0).
- */
-function diffMinutes(from: Date | null, to: Date | null): number {
-  if (!from || !to) return 0;
-  const diff = (to.getTime() - from.getTime()) / (1000 * 60);
-  return Math.max(Math.round(diff), 0);
-}
-
-/**
- * 하루의 순공 시간을 분 단위로 계산.
- * checkIn~checkOut 간격에서 outStart~outEnd 구간을 차감.
- */
-function calcStudyMinutes(record: AttendanceWithTimes): number {
-  const total = diffMinutes(record.checkIn, record.checkOut);
-  if (total === 0) return 0;
-  const outing = diffMinutes(record.outStart, record.outEnd);
-  return Math.max(total - outing, 0);
-}
+// ─── 순공 시간 계산 헬퍼 — src/lib/study-time.ts (모바일 API 와 공용) ───────────
 
 /**
  * 학생의 월간 총 순공 시간(분) 계산 (AttendanceRecord + DailyOuting 차감).
@@ -501,7 +476,14 @@ export async function updateReportMentoringSummary(id: string, mentoringSummary:
 export async function markReportSent(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
-  await prisma.monthlyReport.update({ where: { id }, data: { sentAt: new Date() } });
+  const prev = await prisma.monthlyReport.findUnique({ where: { id }, select: { sentAt: true } });
+  const updated = await prisma.monthlyReport.update({
+    where: { id },
+    data: { sentAt: new Date() },
+    select: { studentId: true },
+  });
+  // 학부모 앱 새 리포트 알림 — 처음 발송될 때만 (fire-and-forget)
+  if (!prev?.sentAt) queueParentReportPush(updated.studentId, "MONTHLY");
   revalidatePath("/reports");
 }
 
@@ -516,10 +498,16 @@ export async function markReportsSentBulk(ids: string[]) {
 
   if (ids.length === 0) return { updated: 0 };
 
+  // 학부모 앱 알림 대상 — 이번에 처음 발송되는 리포트
+  const unsent = await prisma.monthlyReport.findMany({
+    where: { id: { in: ids }, sentAt: null },
+    select: { studentId: true },
+  });
   const result = await prisma.monthlyReport.updateMany({
     where: { id: { in: ids }, sentAt: null },
     data: { sentAt: new Date() },
   });
+  for (const r of unsent) queueParentReportPush(r.studentId, "MONTHLY");
   revalidatePath("/reports");
   revalidatePath("/reports/monthly");
   return { updated: result.count };

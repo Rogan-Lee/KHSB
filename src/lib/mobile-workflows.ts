@@ -7,6 +7,7 @@ import {
   resolveAttendanceStatus,
 } from "@/lib/mobile-data";
 import { prisma } from "@/lib/prisma";
+import { queueParentAttendancePush } from "@/lib/mobile-push";
 import { notifySlack } from "@/lib/slack";
 
 const attachmentSchema = z.object({
@@ -520,6 +521,7 @@ export async function updateMobileAttendance(
     await prisma.dailyOuting.deleteMany({
       where: { studentId, date: context.date },
     });
+    queueParentAttendancePush(studentId, "CHECK_IN", now);
     return { ok: true };
   }
 
@@ -563,6 +565,7 @@ export async function updateMobileAttendance(
     if (sequence === 1) {
       await mirrorSeq1ToAttendance(studentId, context.date, now, null);
     }
+    queueParentAttendancePush(studentId, "OUTING", now);
     return { ok: true };
   }
 
@@ -590,6 +593,7 @@ export async function updateMobileAttendance(
         data: { outEnd: now },
       });
     }
+    queueParentAttendancePush(studentId, "RETURN", now);
     return { ok: true };
   }
 
@@ -619,6 +623,7 @@ export async function updateMobileAttendance(
       ...(record?.outStart && !record.outEnd ? { outEnd: now } : {}),
     },
   });
+  queueParentAttendancePush(studentId, "CHECK_OUT", now);
   return { ok: true };
 }
 
