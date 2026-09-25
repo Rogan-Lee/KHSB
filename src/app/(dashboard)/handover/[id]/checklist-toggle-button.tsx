@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { toggleHandoverChecklist } from "@/actions/handover";
 import { cn } from "@/lib/utils";
-import { CheckSquare, Square, User } from "lucide-react";
+import { CheckMark } from "@/components/handover/handover-ui";
 
 interface Props {
   itemId: string;
@@ -55,25 +55,18 @@ export function ChecklistToggleButton({ itemId, title, isChecked: initial, check
       type="button"
       onClick={handleToggle}
       disabled={isPending}
-      className={cn(
-        "w-full flex items-start gap-2.5 px-4 py-2 text-left text-sm transition-colors",
-        isChecked ? "text-green-700 hover:bg-green-50/50" : "text-muted-foreground hover:bg-muted/40"
-      )}
+      aria-pressed={isChecked}
+      className="flex w-full items-start gap-x3 px-x5 py-x3 text-left transition-colors hover:bg-bg-layer-default-pressed disabled:cursor-wait"
     >
-      {isChecked ? (
-        <CheckSquare className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-      ) : (
-        <Square className="h-4 w-4 opacity-30 mt-0.5 shrink-0" />
-      )}
-      <div className="flex-1 min-w-0">
-        <p className={cn("font-medium", isChecked && "line-through opacity-80")}>
+      <CheckMark checked={isChecked} className="mt-0.5" />
+      <div className="min-w-0 flex-1">
+        <p className={cn("t4-medium", isChecked ? "text-fg-neutral-subtle line-through" : "text-fg-neutral")}>
           {title}
         </p>
         {isChecked && checkedByName && (
-          <p className="text-[11px] text-green-600 mt-0.5 flex items-center gap-1">
-            <User className="h-3 w-3" />
+          <p className="mt-x0_5 t3-regular tabular-nums text-fg-positive">
             {checkedByName}
-            {checkedAt && <span className="text-muted-foreground ml-1">· {fmtTime(checkedAt)}</span>}
+            {checkedAt && <span className="ml-x1 text-fg-neutral-subtle">· {fmtTime(checkedAt)}</span>}
           </p>
         )}
       </div>

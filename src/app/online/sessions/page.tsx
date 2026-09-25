@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlertTriangle, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { PageHeader, StatCard, StatCards } from "@/components/backoffice/ui";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { isOnlineStaff, isFullAccess } from "@/lib/roles";
@@ -80,60 +82,62 @@ export default async function MentoringSessionsPage() {
     0
   );
 
+  const totalSessions = rows.reduce((sum, r) => sum + r.sessions.length, 0);
+
   return (
-    <div className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
-          화상 1:1 세션
-        </h1>
-        <p className="mt-1 text-[13px] text-ink-4">
-          예정 <b className="text-ink-2">{totalUpcoming}</b>건 · 완료{" "}
-          <b className="text-ink-2">{totalCompleted}</b>건 · 좌측에서 학생 선택 → 우측에서 예약·노트 작성·요약 적재까지 인라인 처리
-        </p>
-      </header>
+    <div>
+      <PageHeader
+        title="화상 1:1 세션"
+        description="학생을 고르면 예약 · 노트 작성 · AI 요약 적재까지 한 화면에서 처리해요"
+      />
 
-      {!calendarConnected && (
-        <section className="rounded-[12px] border-2 border-amber-300 bg-amber-50 p-4 flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-700 shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <h2 className="text-[13.5px] font-semibold text-amber-900">
-              학원 Google Calendar가 연동되지 않았습니다
-            </h2>
-            <p className="mt-1 text-[12px] text-amber-800 leading-relaxed">
-              세션을 예약해도 Meet 링크와 학부모 invite 메일이 자동 발송되지 않습니다.
-              학원 공용 Google 계정으로 1회 연동하면 모든 세션에서 자동 동작합니다.
-            </p>
-            {!oauthAppReady && (
-              <p className="mt-1 text-[11.5px] text-red-700">
-                ⚠️ 환경변수 GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REDIRECT_URI 가 누락됐습니다. 먼저 Vercel 설정을 확인하세요.
+      <div className="flex flex-col gap-x6">
+        {!calendarConnected && (
+          <section
+            role="alert"
+            className="flex flex-col gap-x3 rounded-r3 bg-bg-warning-weak px-x5 py-x4 sm:flex-row sm:items-start"
+          >
+            <AlertTriangle className="size-5 shrink-0 text-fg-warning" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <h2 className="t5-bold text-fg-neutral">학원 Google Calendar가 연동되지 않았어요</h2>
+              <p className="mt-x1 t4-regular text-fg-neutral-muted">
+                세션을 예약해도 Meet 링크와 학부모 초대 메일이 자동으로 나가지 않아요.
+                학원 공용 Google 계정으로 한 번만 연동하면 모든 세션에서 자동으로 동작해요.
               </p>
-            )}
-            <div className="mt-3 flex items-center gap-2 flex-wrap">
-              {canConnectCalendar && oauthAppReady ? (
-                <a
-                  href="/api/google-calendar/auth"
-                  className="inline-flex items-center gap-1.5 rounded-[8px] bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 text-[12.5px] font-semibold"
-                >
-                  Google 계정 연동하기
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              ) : !canConnectCalendar ? (
-                <span className="text-[11.5px] text-amber-700">
-                  원장(DIRECTOR) 또는 SUPER_ADMIN 만 연동할 수 있습니다.
-                </span>
-              ) : null}
-              <Link
-                href="/calendar"
-                className="inline-flex items-center gap-1 rounded-[8px] border border-amber-300 bg-white hover:bg-amber-100 px-3 py-1.5 text-[12.5px] text-amber-900"
-              >
-                Calendar 설정 페이지로 이동
-              </Link>
+              {!oauthAppReady && (
+                <p className="mt-x2 t3-medium text-fg-critical">
+                  환경변수 GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REDIRECT_URI 가 누락됐습니다. 먼저 Vercel 설정을 확인하세요.
+                </p>
+              )}
+              <div className="mt-x3 flex flex-wrap items-center gap-x2">
+                {canConnectCalendar && oauthAppReady ? (
+                  <Button asChild size="sm">
+                    <a href="/api/google-calendar/auth">
+                      Google 계정 연동하기
+                      <ExternalLink />
+                    </a>
+                  </Button>
+                ) : !canConnectCalendar ? (
+                  <span className="t3-regular text-fg-neutral-muted">
+                    원장(DIRECTOR) 또는 SUPER_ADMIN 만 연동할 수 있습니다.
+                  </span>
+                ) : null}
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/calendar">Calendar 설정 페이지로 이동</Link>
+                </Button>
+              </div>
             </div>
-          </div>
-        </section>
-      )}
+          </section>
+        )}
 
-      <MentoringSessionsPanel rows={rows} />
+        <StatCards cols={3}>
+          <StatCard label="예정 세션" value={totalUpcoming} unit="건" />
+          <StatCard label="완료 세션" value={totalCompleted} unit="건" sub="학생별 최근 30건 기준" />
+          <StatCard label="대상 학생" value={rows.length} unit="명" sub={`전체 세션 ${totalSessions}건`} />
+        </StatCards>
+
+        <MentoringSessionsPanel rows={rows} />
+      </div>
     </div>
   );
 }

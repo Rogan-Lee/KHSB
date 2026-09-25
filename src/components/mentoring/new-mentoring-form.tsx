@@ -3,14 +3,15 @@
 import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { inputBaseClass } from "@/components/ui/input";
 import { DateTimePickerInput } from "@/components/ui/time-picker";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { createMentoring } from "@/actions/mentoring";
 import { toast } from "sonner";
-import { ArrowLeft, Search, Check, ChevronDown } from "lucide-react";
+import { Search, Check, ChevronDown } from "lucide-react";
 import { cn, parseSchool } from "@/lib/utils";
 import Link from "next/link";
+import { FormActions, FormField, PageHeader, Section } from "@/components/backoffice/ui";
 
 interface Props {
   students: { id: string; name: string; grade: string; school: string | null }[];
@@ -21,6 +22,8 @@ function formatStudent(s: Props["students"][0]) {
   const gradeLabel = /^\d+$/.test(s.grade) ? `${s.grade}학년` : s.grade;
   return school ? `${s.name} · ${school} ${gradeLabel}` : `${s.name} · ${gradeLabel}`;
 }
+
+const PLACEHOLDER = "원생을 검색하세요...";
 
 function StudentCombobox({
   students,
@@ -58,42 +61,48 @@ function StudentCombobox({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
         className={cn(
-          "w-full flex items-center justify-between border rounded-lg px-4 py-3 text-sm bg-background hover:bg-accent transition-colors",
-          !selected && "text-muted-foreground"
+          inputBaseClass,
+          "flex h-10 items-center justify-between text-left hover:bg-bg-layer-default-pressed",
+          !selected && "text-fg-placeholder"
         )}
       >
-        <span className="truncate">{selected ? formatStudent(selected) : "원생을 검색하세요..."}</span>
-        <ChevronDown className="h-4 w-4 shrink-0 opacity-50 ml-2" />
+        <span className="truncate">{selected ? formatStudent(selected) : PLACEHOLDER}</span>
+        <ChevronDown className="ml-x2 size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
       </button>
       {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border bg-popover shadow-lg">
-          <div className="flex items-center gap-2 px-3 py-2.5 border-b">
-            <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+        <div className="absolute z-50 mt-x1 w-full overflow-hidden rounded-r3 bg-bg-layer-floating shadow-[var(--seed-shadow-s2)]">
+          <div className="flex items-center gap-x2 border-b border-stroke-neutral-muted px-x3 py-x2_5">
+            <Search className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
             <input
               autoFocus
               type="text"
               placeholder="이름, 학교로 검색..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="flex-1 text-sm bg-transparent outline-none placeholder:text-muted-foreground"
+              aria-label="원생 검색"
+              className="min-w-0 flex-1 bg-transparent t4-regular text-fg-neutral outline-none placeholder:text-fg-placeholder"
             />
           </div>
-          <div className="max-h-64 overflow-y-auto py-1">
+          <div className="max-h-64 overflow-y-auto py-x1" role="listbox">
             {filtered.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">검색 결과 없음</p>
+              <p className="py-x6 text-center t4-regular text-fg-neutral-subtle">검색 결과가 없어요</p>
             ) : (
               filtered.map((s) => (
                 <button
                   key={s.id}
                   type="button"
+                  role="option"
+                  aria-selected={value === s.id}
                   onClick={() => { onChange(s.id); setOpen(false); setQuery(""); }}
                   className={cn(
-                    "w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent transition-colors text-left",
-                    value === s.id && "bg-accent/60"
+                    "flex w-full items-center gap-x2 px-x3 py-x2_5 text-left t4-regular text-fg-neutral transition-colors hover:bg-bg-layer-floating-pressed",
+                    value === s.id && "bg-bg-transparent-selected"
                   )}
                 >
-                  <Check className={cn("h-4 w-4 shrink-0 text-primary", value === s.id ? "opacity-100" : "opacity-0")} />
+                  <Check className={cn("size-4 shrink-0 text-fg-brand", value === s.id ? "opacity-100" : "opacity-0")} aria-hidden />
                   <span className="truncate">{formatStudent(s)}</span>
                 </button>
               ))
@@ -131,58 +140,45 @@ export function NewMentoringForm({ students }: Props) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <Link
-          href="/mentoring"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          멘토링 목록으로
-        </Link>
-        <h1 className="text-2xl font-bold">멘토링 등록</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          멘토링 일정을 등록하고 메모를 미리 작성할 수 있습니다.
-        </p>
-      </div>
+    <>
+      <PageHeader
+        back={{ href: "/mentoring", label: "멘토링" }}
+        title="멘토링 등록"
+        description="멘토링 일정을 잡고, 멘토링 전에 메모를 미리 남겨 둘 수 있어요"
+      />
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* 원생 & 일시 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">원생</Label>
-            <StudentCombobox students={students} value={studentId} onChange={setStudentId} />
+      <Section className="max-w-3xl">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-x6">
+          {/* 원생 & 일시 */}
+          <div className="grid grid-cols-1 gap-x5 md:grid-cols-2">
+            <FormField label="원생" required>
+              <StudentCombobox students={students} value={studentId} onChange={setStudentId} />
+            </FormField>
+            <FormField label="예정 일시" required>
+              <DateTimePickerInput name="scheduledAt" />
+            </FormField>
           </div>
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">예정 일시</Label>
-            <DateTimePickerInput name="scheduledAt" />
-          </div>
-        </div>
 
-        {/* 메모 — 마크다운 */}
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">메모</Label>
-          <p className="text-xs text-muted-foreground">마크다운 문법을 지원합니다. 이미지 첨부도 가능합니다.</p>
-          <div className="min-h-[300px] border rounded-lg overflow-hidden">
+          {/* 메모 — 마크다운 */}
+          <FormField label="메모" hint="마크다운 문법과 이미지 첨부를 지원해요">
             <MarkdownEditor
               value={notes}
               onChange={setNotes}
               placeholder="멘토링 전 메모를 자유롭게 작성하세요..."
             />
-          </div>
-        </div>
+          </FormField>
 
-        {/* 버튼 */}
-        <div className="flex items-center gap-3 pt-4 border-t">
-          <Link href="/mentoring">
-            <Button type="button" variant="outline">취소</Button>
-          </Link>
-          <Button type="submit" disabled={isPending || !studentId}>
-            {isPending ? "저장 중..." : "멘토링 등록"}
-          </Button>
-        </div>
-      </form>
-    </div>
+          {/* 버튼 */}
+          <FormActions className="border-t border-stroke-neutral-muted pt-x5 [&>*]:flex-1 sm:[&>*]:flex-none">
+            <Button asChild variant="outline">
+              <Link href="/mentoring">취소</Link>
+            </Button>
+            <Button type="submit" disabled={isPending || !studentId}>
+              {isPending ? "등록 중…" : "멘토링 등록"}
+            </Button>
+          </FormActions>
+        </form>
+      </Section>
+    </>
   );
 }

@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { toggleHandoverTask } from "@/actions/handover";
 import { cn } from "@/lib/utils";
-import { CheckSquare, Square, User } from "lucide-react";
+import { StatusBadge } from "@/components/backoffice/ui";
+import { CheckMark } from "@/components/handover/handover-ui";
 
 interface TaskToggleButtonProps {
   taskId: string;
@@ -40,35 +41,26 @@ export function TaskToggleButton({
       type="button"
       onClick={handleToggle}
       disabled={isPending}
-      className={cn(
-        "w-full flex items-start gap-2.5 bg-muted/30 hover:bg-muted/50 rounded-lg px-3 py-2 text-left transition-colors",
-        isCompleted && "opacity-60"
-      )}
+      aria-pressed={isCompleted}
+      className="flex w-full items-start gap-x3 px-x5 py-x3 text-left transition-colors hover:bg-bg-layer-default-pressed disabled:cursor-wait"
     >
-      {isCompleted ? (
-        <CheckSquare className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-      ) : (
-        <Square className="h-4 w-4 text-muted-foreground/40 mt-0.5 shrink-0" />
-      )}
-      <div className="flex-1 min-w-0">
+      <CheckMark checked={isCompleted} className="mt-0.5" />
+      <div className="min-w-0 flex-1">
         <p
           className={cn(
-            "text-sm font-medium",
-            isCompleted && "line-through text-muted-foreground"
+            "t4-medium",
+            isCompleted ? "text-fg-neutral-subtle line-through" : "text-fg-neutral"
           )}
         >
           {title}
         </p>
         {content && (
-          <p className="text-xs text-muted-foreground mt-0.5">{content}</p>
+          <p className="mt-x0_5 whitespace-pre-wrap t3-regular text-fg-neutral-muted">{content}</p>
         )}
         {assigneeName && (
-          <p className="text-xs text-primary flex items-center gap-0.5 mt-1">
-            <User className="h-3 w-3" />
-            {assigneeName}
-            {isCompleted && (
-              <span className="ml-1 text-green-600">완료</span>
-            )}
+          <p className="mt-x1 flex items-center gap-x1_5 t3-regular text-fg-neutral-subtle">
+            담당 {assigneeName}
+            {isCompleted && <StatusBadge tone="ok">완료</StatusBadge>}
           </p>
         )}
       </div>

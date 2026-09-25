@@ -3,11 +3,16 @@ import { validateMagicLink } from "@/lib/student-auth";
 import { prisma } from "@/lib/prisma";
 import { getChatMessages } from "@/actions/online/portal-chat";
 import { ChatView } from "@/components/online/chat/chat-view";
+import { ScreenTitle } from "../../_components/portal-shell";
 
 const ROLE_LABEL: Record<string, string> = {
   CONSULTANT: "컨설턴트",
   MANAGER_MENTOR: "관리 멘토",
   STAFF: "운영조교",
+  DIRECTOR: "원장",
+  ADMIN: "관리자",
+  SUPER_ADMIN: "관리자",
+  MENTOR: "멘토",
 };
 
 export default async function StudentChatDetailPage({
@@ -29,13 +34,16 @@ export default async function StudentChatDetailPage({
   const data = await getChatMessages({ chatId, studentToken: token });
 
   return (
-    <ChatView
-      chatId={chatId}
-      studentToken={token}
-      viewer="STUDENT"
-      initialMessages={data.messages}
-      partnerName={data.chat.staff.name}
-      partnerLabel={ROLE_LABEL[data.chat.staff.role] ?? "직원"}
-    />
+    <>
+      <ScreenTitle title={data.chat.staff.name} />
+      <ChatView
+        chatId={chatId}
+        studentToken={token}
+        viewer="STUDENT"
+        initialMessages={data.messages}
+        partnerName={data.chat.staff.name}
+        partnerLabel={ROLE_LABEL[data.chat.staff.role] ?? "직원"}
+      />
+    </>
   );
 }

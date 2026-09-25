@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { isOnlineStaff, isManagerMentor, isFullAccess } from "@/lib/roles";
@@ -9,6 +7,7 @@ import {
   type ProgressEntry,
 } from "@/components/online/subject-progress-panel";
 import { DEFAULT_SUBJECTS } from "@/lib/online/subjects";
+import { StudentDetailHeader } from "../_components/student-detail-header";
 
 export default async function StudentProgressPage({
   params,
@@ -22,7 +21,14 @@ export default async function StudentProgressPage({
 
   const student = await prisma.student.findUnique({
     where: { id },
-    select: { id: true, name: true, grade: true, isOnlineManaged: true, selectedSubjects: true },
+    select: {
+      id: true,
+      name: true,
+      grade: true,
+      status: true,
+      isOnlineManaged: true,
+      selectedSubjects: true,
+    },
   });
   if (!student || !student.isOnlineManaged) notFound();
 
@@ -56,25 +62,12 @@ export default async function StudentProgressPage({
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <Link
-          href={`/online/students/${id}`}
-          className="inline-flex items-center gap-1 text-[12px] text-ink-4 hover:text-ink"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-          학생 상세
-        </Link>
-      </div>
-
-      <header>
-        <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
-          {student.name} — 과목별 진도
-        </h1>
-        <p className="mt-1 text-[13px] text-ink-4">
-          {student.grade} · 과목별 최신 상태 + 업데이트 히스토리
-        </p>
-      </header>
+    <div>
+      <StudentDetailHeader
+        student={student}
+        current="progress"
+        description={`${student.grade} · 과목별 최신 상태와 기록 이력을 볼 수 있어요`}
+      />
 
       <SubjectProgressPanel
         studentId={id}

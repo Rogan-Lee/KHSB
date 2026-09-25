@@ -1,0 +1,266 @@
+[
+  {
+    "file": "portal-home.png",
+    "surface": "portal",
+    "feature": "home",
+    "title": "학생 앱 홈",
+    "caption": "오늘 할 일과 과제, 공지, 신청 메뉴가 한 화면에",
+    "scroll": 0
+  },
+  {
+    "file": "portal-menu.png",
+    "surface": "portal",
+    "feature": "menu",
+    "title": "전체 메뉴",
+    "caption": "공부 · 생활 · 신청 — 모든 기능이 한 화면에",
+    "scroll": 0
+  },
+  {
+    "file": "portal-points-history.png",
+    "surface": "portal",
+    "feature": "points",
+    "title": "상벌점 내역",
+    "caption": "상점 · 벌점이 사유와 함께 날짜별로 쌓입니다",
+    "scroll": 0
+  },
+  {
+    "file": "portal-points.png",
+    "surface": "portal",
+    "feature": "points",
+    "title": "포인트 · 기프티콘",
+    "caption": "모은 상점은 포인트가 되고, 기프티콘으로 바꿀 수 있습니다",
+    "scroll": 0
+  },
+  {
+    "file": "portal-qna-thread.png",
+    "surface": "portal",
+    "feature": "qna",
+    "title": "사진 질문 · 멘토 답변",
+    "caption": "모르는 문제를 사진으로 올리면 멘토가 풀이로 답합니다",
+    "scroll": 0
+  },
+  {
+    "file": "portal-qna.png",
+    "surface": "portal",
+    "feature": "qna",
+    "title": "질의응답",
+    "caption": "과목별 질문과 답변 상태를 한눈에",
+    "scroll": 1
+  },
+  {
+    "file": "portal-exam.png",
+    "surface": "portal",
+    "feature": "exam",
+    "title": "모의고사 신청",
+    "caption": "앱에서 실전 모의고사를 신청하고 확정 여부를 확인합니다",
+    "scroll": 0
+  },
+  {
+    "file": "portal-vocab.png",
+    "surface": "portal",
+    "feature": "vocab",
+    "title": "영단어 시험",
+    "caption": "응시할 시험과 지난 결과를 한 곳에서",
+    "scroll": 0
+  },
+  {
+    "file": "portal-vocab-quiz.png",
+    "surface": "portal",
+    "feature": "vocab",
+    "title": "영단어 응시",
+    "caption": "문항마다 제한 시간이 있는 실전형 단어 시험",
+    "scroll": 1
+  },
+  {
+    "file": "portal-vocab-result.png",
+    "surface": "portal",
+    "feature": "vocab",
+    "title": "영단어 결과",
+    "caption": "점수와 틀린 단어를 바로 다시 확인합니다",
+    "scroll": 0
+  },
+  {
+    "file": "portal-vocab-start.png",
+    "surface": "portal",
+    "feature": "vocab",
+    "title": "영단어 시험 시작",
+    "caption": "문항 수와 제한 시간을 확인하고 시작합니다",
+    "scroll": 1
+  },
+  {
+    "file": "portal-tasks.png",
+    "surface": "portal",
+    "feature": "tasks",
+    "title": "과제 · 수행평가",
+    "caption": "마감일과 진행 상태를 과목별로 관리합니다",
+    "scroll": 0
+  },
+  {
+    "file": "portal-task-detail.png",
+    "surface": "portal",
+    "feature": "tasks",
+    "title": "과제 제출 · 피드백",
+    "caption": "파일을 제출하고 버전별 피드백을 받습니다",
+    "scroll": 1
+  },
+  {
+    "file": "portal-feedback.png",
+    "surface": "portal",
+    "feature": "feedback",
+    "title": "받은 피드백",
+    "caption": "멘토의 수정 요청 · 승인 · 코멘트를 모아봅니다",
+    "scroll": 0
+  },
+  {
+    "file": "portal-schedule.png",
+    "surface": "portal",
+    "feature": "schedule",
+    "title": "내 일정 · 공부 계획",
+    "caption": "오늘의 일정과 공부 계획을 체크합니다",
+    "scroll": 0
+  },
+  {
+    "file": "portal-lunch.png",
+    "surface": "portal",
+    "feature": "lunch",
+    "title": "점심 도시락 신청",
+    "caption": "주차별 메뉴를 골라 미리 신청합니다",
+    "scroll": 0
+  },
+  {
+    "file": "portal-lunch-2.png",
+    "surface": "portal",
+    "feature": "lunch",
+    "title": "도시락 신청 내역",
+    "caption": "신청 내역과 입금 확인 상태를 확인합니다",
+    "scroll": 1
+  },
+  {
+    "file": "portal-nap.png",
+    "surface": "portal",
+    "feature": "nap",
+    "title": "쪽잠 신청",
+    "caption": "컨디션이 떨어질 땐 20 · 30분 쪽잠을 신청합니다",
+    "scroll": 0
+  },
+  {
+    "file": "portal-network.png",
+    "surface": "portal",
+    "feature": "network",
+    "title": "네트워크 사용 신청",
+    "caption": "인강 등 필요한 사이트 · 앱 사용을 신청합니다",
+    "scroll": 0
+  },
+  {
+    "file": "portal-chat.png",
+    "surface": "portal",
+    "feature": "chat",
+    "title": "담당자와 메시지",
+    "caption": "담당 선생님과 앱에서 바로 대화합니다",
+    "scroll": 1
+  },
+  {
+    "file": "portal-chat-thread.png",
+    "surface": "portal",
+    "feature": "chat",
+    "title": "담당 선생님과 대화",
+    "caption": "자리에서 바로 묻고, 바로 답을 받습니다",
+    "scroll": 0
+  },
+  {
+    "file": "portal-suggestions.png",
+    "surface": "portal",
+    "feature": "suggestions",
+    "title": "건의사항",
+    "caption": "불편한 점을 남기면 운영진이 답변하고 조치합니다",
+    "scroll": 0
+  },
+  {
+    "file": "portal-home-2.png",
+    "surface": "portal",
+    "feature": "home",
+    "title": "학생 앱 홈 (계속)",
+    "caption": "모의고사 · 과제 · 쪽잠 · 네트워크 신청 바로가기",
+    "scroll": 1
+  },
+  {
+    "file": "parent-gate.png",
+    "surface": "parent",
+    "feature": "gate",
+    "title": "학부모 본인 확인",
+    "caption": "리포트는 학부모님 본인 확인을 거친 뒤 열립니다",
+    "scroll": 1
+  },
+  {
+    "file": "parent-mentoring.png",
+    "surface": "parent",
+    "feature": "mentoring",
+    "title": "멘토링 리포트",
+    "caption": "회차마다 담임 멘토가 쓰고 선생님이 검토한 리포트",
+    "scroll": 0
+  },
+  {
+    "file": "parent-mentoring-2.png",
+    "surface": "parent",
+    "feature": "mentoring",
+    "title": "멘토링 리포트 (계속)",
+    "caption": "나아진 점 · 보완할 점 · 다음 목표까지",
+    "scroll": 1
+  },
+  {
+    "file": "parent-monthly-top.png",
+    "surface": "parent",
+    "feature": "monthly",
+    "title": "월간 리포트",
+    "caption": "한 달의 멘토링 · 상벌점 · 순찰을 한 장에 — 담당 선생님 검토 후 발송",
+    "scroll": 0
+  },
+  {
+    "file": "parent-monthly-exams.png",
+    "surface": "parent",
+    "feature": "monthly",
+    "title": "월간 리포트 · 모의고사 성적",
+    "caption": "직전 시험과 이번 달 시험을 과목별 등급으로 나란히",
+    "scroll": 1
+  },
+  {
+    "file": "parent-monthly.png",
+    "surface": "parent",
+    "feature": "monthly",
+    "title": "월간 리포트 · 성적 추이",
+    "caption": "과목별 최근 등급과 직전 대비 변화, 추이 그래프까지",
+    "scroll": 0
+  },
+  {
+    "file": "parent-monthly-2.png",
+    "surface": "parent",
+    "feature": "monthly",
+    "title": "월간 리포트 · 종합 의견",
+    "caption": "한 달의 멘토링 종합 의견과 원장님 한마디",
+    "scroll": 0
+  },
+  {
+    "file": "parent-monthly-3.png",
+    "surface": "parent",
+    "feature": "monthly",
+    "title": "월간 리포트 · 원생 기록 · 상벌점",
+    "caption": "상점과 벌점을 사유, 날짜와 함께 보여드립니다",
+    "scroll": 0
+  },
+  {
+    "file": "parent-monthly-4.png",
+    "surface": "parent",
+    "feature": "monthly",
+    "title": "월간 리포트 · 순찰 점검",
+    "caption": "순찰에서 확인한 특이사항과 입시 정보",
+    "scroll": 0
+  },
+  {
+    "file": "parent-monthly-5.png",
+    "surface": "parent",
+    "feature": "monthly",
+    "title": "월간 리포트 · 이달의 시상",
+    "caption": "이달의 시상과 다음 달 권장 과목 · 인강 · 교재",
+    "scroll": 0
+  }
+]

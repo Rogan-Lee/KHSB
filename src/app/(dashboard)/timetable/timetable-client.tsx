@@ -4,7 +4,8 @@ import { useState, useTransition, useRef, useEffect } from "react";
 import { getTimetableEntries, getAttendanceAutoBlocks, getStudentSchoolEvents, type SchoolEventInfo } from "@/actions/timetable";
 import { TimetableGrid, TimetableEntry, AutoBlock } from "@/components/timetable/timetable-grid";
 import { DayView } from "@/components/timetable/day-view";
-import { Search, X, User, GraduationCap, School, CalendarDays, Calendar } from "lucide-react";
+import { Avatar, EmptyState, FilterChip, SearchField, Segmented, Skeleton } from "@/components/backoffice/ui";
+import { CalendarDays, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface StudentInfo {
@@ -93,203 +94,173 @@ export function TimetablePageClient({ students, mentors }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      {/* ── 멘토 필터 + 담당 학생 바로 선택 ── */}
-      {mentors.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-muted-foreground shrink-0">멘토:</span>
-            <button
-              onClick={() => setSelectedMentorId(null)}
-              className={cn(
-                "px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
-                !selectedMentorId ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:bg-accent"
-              )}
-            >전체</button>
-            {mentors.map((m) => {
-              const count = students.filter((s) => s.mentorId === m.id).length;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => setSelectedMentorId(selectedMentorId === m.id ? null : m.id)}
-                  className={cn(
-                    "px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors",
-                    selectedMentorId === m.id ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-border hover:bg-accent"
-                  )}
-                >{m.name} <span className="opacity-60">({count})</span></button>
-              );
-            })}
-          </div>
-          {/* 멘토 선택 시 담당 학생 칩 — 바로 클릭 가능 */}
-          {selectedMentorId && byMentor.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap pl-10">
-              {byMentor.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => selectStudent(s)}
-                  className={cn(
-                    "px-3 py-1.5 text-xs rounded-lg border transition-all",
-                    selected?.id === s.id
-                      ? "bg-blue-500 text-white border-blue-500 font-semibold shadow-sm"
-                      : "bg-white dark:bg-background text-foreground border-border hover:border-blue-300 hover:bg-blue-50 font-medium"
-                  )}
-                >
-                  {s.name}
-                  <span className="ml-1 opacity-60">{s.grade}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Student Info Header ── */}
-      <div className="flex items-stretch gap-0 rounded-xl border border-border/60 bg-white dark:bg-background shadow-sm">
-        {/* Info area */}
-        <div className="flex-1 flex items-center gap-0 divide-x divide-border/50">
+    <div className="flex flex-col gap-x5">
+      {/* ── 원생 선택 ── */}
+      <section className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default p-x5">
+        <div className="flex flex-col gap-x4 lg:flex-row lg:items-center lg:justify-between">
           {selected ? (
-            <>
-              <div className="flex items-center gap-2.5 px-5 py-3.5 min-w-0">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                  <User className="h-4 w-4" />
+            <div className="flex min-w-0 items-center gap-x3">
+              <Avatar name={selected.name} size={48} />
+              <div className="min-w-0">
+                <div className="flex items-center gap-x1">
+                  <p className="truncate t7-bold text-fg-neutral">{selected.name}</p>
+                  <button
+                    type="button"
+                    onClick={clearStudent}
+                    aria-label="선택 해제"
+                    title="선택 해제"
+                    className="grid size-x7 shrink-0 place-items-center rounded-full text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral"
+                  >
+                    <X className="size-4" aria-hidden />
+                  </button>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] text-muted-foreground font-medium mb-0.5">이름</p>
-                  <p className="font-bold text-base leading-tight truncate">{selected.name}</p>
-                </div>
+                <p className="truncate t4-regular text-fg-neutral-subtle">
+                  {[selected.school ?? "학교 미입력", selected.grade ?? "학년 미입력"].join(" · ")}
+                </p>
               </div>
-              <div className="flex items-center gap-2.5 px-5 py-3.5 min-w-0">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-600">
-                  <School className="h-4 w-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] text-muted-foreground font-medium mb-0.5">학교</p>
-                  <p className="font-semibold text-sm leading-tight truncate">
-                    {selected.school ?? <span className="text-muted-foreground text-xs">미입력</span>}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2.5 px-5 py-3.5 min-w-0">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-                  <GraduationCap className="h-4 w-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] text-muted-foreground font-medium mb-0.5">학년</p>
-                  <p className="font-semibold text-sm leading-tight truncate">
-                    {selected.grade ?? <span className="text-muted-foreground text-xs">미입력</span>}
-                  </p>
-                </div>
-              </div>
-
-              {/* View mode tabs — only shown when student is selected */}
-              <div className="flex items-center gap-1.5 px-5 py-3.5">
-                <button
-                  onClick={() => setViewMode("weekly")}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
-                    viewMode === "weekly"
-                      ? "bg-blue-500 text-white shadow-sm"
-                      : "text-muted-foreground hover:bg-muted/50"
-                  )}
-                >
-                  <CalendarDays className="h-3.5 w-3.5" />
-                  주간
-                </button>
-                <button
-                  onClick={() => setViewMode("daily")}
-                  className={cn(
-                    "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
-                    viewMode === "daily"
-                      ? "bg-blue-500 text-white shadow-sm"
-                      : "text-muted-foreground hover:bg-muted/50"
-                  )}
-                >
-                  <Calendar className="h-3.5 w-3.5" />
-                  일간
-                </button>
-              </div>
-            </>
+            </div>
           ) : (
-            <div className="flex items-center gap-3 px-5 py-3.5 text-muted-foreground">
-              <User className="h-5 w-5 opacity-40" />
-              <span className="text-sm">오른쪽에서 원생을 검색하여 시간표를 확인하세요</span>
+            <div className="min-w-0">
+              <p className="t5-bold text-fg-neutral">원생을 선택해 주세요</p>
+              <p className="mt-x0_5 t4-regular text-fg-neutral-subtle">
+                이름·학교·학년으로 검색하거나 담당 멘토로 좁혀 보세요
+              </p>
             </div>
           )}
+
+          <div className="flex flex-col gap-x2 sm:flex-row sm:items-center">
+            {selected && (
+              <Segmented
+                aria-label="보기 전환"
+                value={viewMode}
+                onChange={setViewMode}
+                options={[
+                  { value: "weekly", label: "주간" },
+                  { value: "daily", label: "일간" },
+                ]}
+                className="sm:w-40"
+              />
+            )}
+
+            {/* Searchable selector */}
+            <div ref={searchRef} className="relative w-full sm:w-72">
+              <SearchField
+                placeholder="원생 검색 (이름·학교·학년)"
+                aria-label="원생 검색"
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setDropdownOpen(true); }}
+                onFocus={() => setDropdownOpen(true)}
+                className="sm:w-full"
+              />
+
+              {dropdownOpen && (
+                <div className="absolute right-0 top-full z-50 mt-x1 w-full overflow-hidden rounded-r3 bg-bg-layer-floating shadow-[var(--seed-shadow-s3)]">
+                  {filtered.length === 0 ? (
+                    <p className="px-x4 py-x4 t4-regular text-fg-neutral-subtle">검색 결과가 없어요</p>
+                  ) : (
+                    <ul className="max-h-72 overflow-y-auto py-x1_5">
+                      {filtered.map((s) => {
+                        const isSel = selected?.id === s.id;
+                        return (
+                          <li key={s.id}>
+                            <button
+                              type="button"
+                              className={cn(
+                                "flex w-full items-center gap-x3 px-x4 py-x2 text-left transition-colors hover:bg-bg-layer-floating-pressed",
+                                isSel && "bg-bg-brand-weak"
+                              )}
+                              onClick={() => selectStudent(s)}
+                            >
+                              <Avatar name={s.name} size={32} />
+                              <div className="min-w-0">
+                                <p className={cn("truncate t4-medium", isSel ? "text-fg-brand" : "text-fg-neutral")}>
+                                  {s.name}
+                                </p>
+                                <p className="truncate t3-regular text-fg-neutral-subtle">
+                                  {[s.school, s.grade].filter(Boolean).join(" · ") || "정보 없음"}
+                                </p>
+                              </div>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="w-px bg-border/50" />
-
-        {/* Searchable selector */}
-        <div ref={searchRef} className="relative w-64 shrink-0">
-          <div className="flex items-center h-full px-4 gap-2">
-            <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-            <input
-              type="text"
-              placeholder={selected ? selected.name : "원생 검색..."}
-              value={query}
-              onChange={(e) => { setQuery(e.target.value); setDropdownOpen(true); }}
-              onFocus={() => setDropdownOpen(true)}
-              className={cn(
-                "flex-1 bg-transparent text-sm focus:outline-none placeholder:text-muted-foreground/60",
-                selected && !query && "placeholder:text-foreground placeholder:font-medium"
-              )}
-            />
-            {selected && (
-              <button onClick={clearStudent} className="text-muted-foreground hover:text-foreground shrink-0">
-                <X className="h-3.5 w-3.5" />
-              </button>
+        {/* ── 멘토 필터 + 담당 학생 바로 선택 ── */}
+        {mentors.length > 0 && (
+          <div className="mt-x4 flex flex-col gap-x3 border-t border-stroke-neutral-muted pt-x4">
+            <div className="flex flex-wrap items-center gap-x1_5">
+              <span className="mr-x1 shrink-0 t3-medium text-fg-neutral-subtle">담당 멘토</span>
+              <FilterChip selected={!selectedMentorId} onClick={() => setSelectedMentorId(null)}>
+                전체
+              </FilterChip>
+              {mentors.map((m) => {
+                const count = students.filter((s) => s.mentorId === m.id).length;
+                return (
+                  <FilterChip
+                    key={m.id}
+                    selected={selectedMentorId === m.id}
+                    count={count}
+                    onClick={() => setSelectedMentorId(selectedMentorId === m.id ? null : m.id)}
+                  >
+                    {m.name}
+                  </FilterChip>
+                );
+              })}
+            </div>
+            {/* 멘토 선택 시 담당 학생 칩 — 바로 클릭 가능 */}
+            {selectedMentorId && byMentor.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x1_5">
+                <span className="mr-x1 shrink-0 t3-medium text-fg-neutral-subtle">담당 원생</span>
+                {byMentor.map((s) => {
+                  const isSel = selected?.id === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      aria-pressed={isSel}
+                      onClick={() => selectStudent(s)}
+                      className={cn(
+                        "inline-flex h-8 shrink-0 items-center gap-x1 rounded-full px-x3 t3-medium transition-colors",
+                        isSel
+                          ? "bg-bg-brand-weak text-fg-brand shadow-[inset_0_0_0_1px_var(--seed-color-stroke-brand-weak)]"
+                          : "bg-bg-layer-default text-fg-neutral shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] hover:bg-bg-layer-default-pressed"
+                      )}
+                    >
+                      {s.name}
+                      {s.grade && (
+                        <span className={isSel ? "text-fg-brand" : "text-fg-neutral-subtle"}>{s.grade}</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
-
-          {dropdownOpen && (
-            <div className="absolute top-full right-0 z-50 mt-1 w-64 rounded-xl border border-border/60 bg-white dark:bg-background shadow-lg overflow-hidden">
-              {filtered.length === 0 ? (
-                <p className="px-4 py-3 text-sm text-muted-foreground">검색 결과 없음</p>
-              ) : (
-                <ul className="max-h-72 overflow-y-auto py-1">
-                  {filtered.map((s) => (
-                    <li key={s.id}>
-                      <button
-                        type="button"
-                        className={cn(
-                          "w-full flex items-start gap-3 px-4 py-2.5 text-left hover:bg-muted/50 transition-colors",
-                          selected?.id === s.id && "bg-blue-50 dark:bg-blue-950/20"
-                        )}
-                        onClick={() => selectStudent(s)}
-                      >
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground text-xs font-bold mt-0.5">
-                          {s.name[0]}
-                        </div>
-                        <div className="min-w-0">
-                          <p className={cn("text-sm font-semibold leading-tight", selected?.id === s.id && "text-blue-600")}>
-                            {s.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                            {[s.school, s.grade].filter(Boolean).join(" · ") || "정보 없음"}
-                          </p>
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+        )}
+      </section>
 
       {/* ── Content ── */}
       {loading && (
-        <p className="text-sm text-muted-foreground text-center py-10">불러오는 중...</p>
+        <div className="flex flex-col gap-x3" aria-busy="true" aria-label="시간표 불러오는 중">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-96 w-full" />
+        </div>
       )}
 
       {!loading && !selected && (
-        <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-3">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/50">
-            <GraduationCap className="h-8 w-8 opacity-30" />
-          </div>
-          <p className="text-sm font-medium">원생을 선택하면 시간표를 편집할 수 있습니다</p>
-          <p className="text-xs opacity-60">빈 칸 드래그로 일정 추가 · 일정 클릭으로 수정</p>
+        <div className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
+          <EmptyState
+            icon={CalendarDays}
+            title="원생을 선택하면 시간표가 보여요"
+            description={"빈 칸을 드래그해 일정을 추가하고,\n일정을 누르면 수정할 수 있어요."}
+          />
         </div>
       )}
 

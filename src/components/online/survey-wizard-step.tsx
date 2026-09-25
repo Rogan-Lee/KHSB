@@ -1,17 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  ListChecks,
-  Loader2,
-} from "lucide-react";
+import { Check, Lock } from "lucide-react";
 import { upsertSurveySection } from "@/actions/online/onboarding-survey";
+import { BottomCTA, Button, ButtonLink, ProgressBar } from "@/components/portal/ui";
+import { TextField, TextFieldTextarea } from "seed-design/ui/text-field";
+import { ProgressCircle } from "seed-design/ui/progress-circle";
 import {
   type SurveySection,
   type PerformanceAnswer,
@@ -131,121 +127,100 @@ export function SurveyWizardStep({
     : `/s/${studentToken}/survey/${stepIndex + 2}`;
 
   return (
-    <div className="space-y-4">
+    <div>
       {/* Progress */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between text-[11.5px] font-semibold tabular-nums">
-          <span className="text-ink-3">
-            <span className="text-brand">{stepIndex + 1}</span>
-            <span className="text-ink-5"> / {totalSteps}</span>
+      <div className="pt-x2">
+        {/* ProgressBar 기본 h-x2 를 덮어쓰려면 important 필요 (SEED 유틸은 tailwind-merge 가 병합 못 함) */}
+        <ProgressBar value={progressPct / 100} className="h-x1" />
+        <div className="mt-x2_5 flex h-x5 items-center justify-between t3-bold tabular-nums">
+          <span>
+            <span className="text-fg-brand">{stepIndex + 1}</span>
+            <span className="text-fg-placeholder"> / {totalSteps}</span>
           </span>
           {section.kind === "text" && <SaveBadge status={textStatus} disabled={isSubmitted} />}
-        </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-canvas-2">
-          <div
-            className="h-full rounded-full bg-brand transition-all duration-500"
-            style={{ width: `${progressPct}%` }}
-          />
         </div>
       </div>
 
       {/* Question */}
-      <div className="space-y-2.5">
-        <h2 className="text-[20px] font-bold leading-snug tracking-[-0.02em] text-ink">
-          {section.title}
-        </h2>
-        <p className="text-[13px] leading-relaxed text-ink-3">
-          {section.description}
-        </p>
+      <div className="mt-x6">
+        <h2 className="t9-bold text-fg-neutral">{section.title}</h2>
+        <p className="mt-x2 t5-regular text-fg-neutral-muted">{section.description}</p>
       </div>
 
       {/* Answer — kind 별 분기 */}
-      {section.kind === "text" ? (
-        <>
-          <textarea
+      <div className="mt-x7">
+        {section.kind === "text" ? (
+          <TextField
             value={textValue}
-            onChange={(e) => setTextValue(e.target.value)}
+            onValueChange={({ value }) => setTextValue(value)}
             disabled={isSubmitted}
-            placeholder={section.placeholder}
-            rows={10}
-            className="w-full resize-none rounded-[14px] border border-line bg-panel px-4 py-3.5 text-[14.5px] leading-relaxed text-ink placeholder:text-ink-5 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 disabled:opacity-60"
+            description={
+              isSubmitted
+                ? undefined
+                : "입력하면 자동으로 저장돼요. 자유롭게 적고, 부족하면 나중에 돌아와도 괜찮아요."
+            }
+          >
+            {/* 기존 rows={8} 높이 — SEED textarea 는 rows 대신 minHeight 로 지정(자동 높이 조절 유지) */}
+            <TextFieldTextarea
+              aria-label={section.title}
+              placeholder={section.placeholder}
+              style={{ minHeight: 204 }}
+            />
+          </TextField>
+        ) : section.kind === "performance" ? (
+          <PerformanceSurveyStep
+            studentToken={studentToken}
+            sectionKey={section.key}
+            initial={typeof initialValue === "string" ? normalizePerformanceAnswer(initialValue) : (initialValue as PerformanceAnswer)}
+            isSubmitted={isSubmitted}
           />
-          {!isSubmitted && (
-            <p className="text-[11.5px] text-ink-4">
-              입력하면 자동으로 저장돼요. 자유롭게 적고, 부족하면 나중에 돌아와도 괜찮아요.
-            </p>
-          )}
-        </>
-      ) : section.kind === "performance" ? (
-        <PerformanceSurveyStep
-          studentToken={studentToken}
-          sectionKey={section.key}
-          initial={typeof initialValue === "string" ? normalizePerformanceAnswer(initialValue) : (initialValue as PerformanceAnswer)}
-          isSubmitted={isSubmitted}
-        />
-      ) : section.kind === "history" ? (
-        <HistorySurveyStep
-          studentToken={studentToken}
-          sectionKey={section.key}
-          initial={typeof initialValue === "string" ? normalizeHistoryAnswer(initialValue) : (initialValue as HistoryAnswer)}
-          isSubmitted={isSubmitted}
-        />
-      ) : section.kind === "goals" ? (
-        <GoalsSurveyStep
-          studentToken={studentToken}
-          sectionKey={section.key}
-          initial={typeof initialValue === "string" ? normalizeGoalsAnswer(initialValue) : (initialValue as GoalsAnswer)}
-          isSubmitted={isSubmitted}
-        />
-      ) : section.kind === "admissionType" ? (
-        <AdmissionTypeSurveyStep
-          studentToken={studentToken}
-          sectionKey={section.key}
-          initial={typeof initialValue === "string" ? normalizeAdmissionTypeAnswer(initialValue) : (initialValue as AdmissionTypeAnswer)}
-          isSubmitted={isSubmitted}
-          gradeNumber={gradeNumber}
-        />
-      ) : (
-        <StrengthsWeaknessesSurveyStep
-          studentToken={studentToken}
-          sectionKey={section.key}
-          initial={typeof initialValue === "string" ? normalizeStrengthsWeaknessesAnswer(initialValue) : (initialValue as StrengthsWeaknessesAnswer)}
-          isSubmitted={isSubmitted}
-        />
-      )}
-
-      {/* Sticky bottom nav */}
-      <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+64px)] -mx-4 mt-6 border-t border-line bg-canvas/85 px-4 py-3 backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <Link
-            href={prevHref}
-            className="inline-flex h-11 items-center justify-center gap-1.5 rounded-[12px] border border-line bg-panel px-4 text-[13.5px] font-semibold text-ink-2 active:bg-canvas-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            이전
-          </Link>
-          <button
-            type="button"
-            onClick={() => flushAndGo(nextHref)}
-            disabled={navPending}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-[12px] bg-ink px-4 py-3 text-[14px] font-semibold text-white shadow-sm active:scale-[0.98] disabled:opacity-60 transition-transform"
-          >
-            {navPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : isLast ? (
-              <>
-                <ListChecks className="h-4 w-4" />
-                검토하고 제출하기
-              </>
-            ) : (
-              <>
-                다음
-                <ArrowRight className="h-4 w-4" />
-              </>
-            )}
-          </button>
-        </div>
+        ) : section.kind === "history" ? (
+          <HistorySurveyStep
+            studentToken={studentToken}
+            sectionKey={section.key}
+            initial={typeof initialValue === "string" ? normalizeHistoryAnswer(initialValue) : (initialValue as HistoryAnswer)}
+            isSubmitted={isSubmitted}
+          />
+        ) : section.kind === "goals" ? (
+          <GoalsSurveyStep
+            studentToken={studentToken}
+            sectionKey={section.key}
+            initial={typeof initialValue === "string" ? normalizeGoalsAnswer(initialValue) : (initialValue as GoalsAnswer)}
+            isSubmitted={isSubmitted}
+          />
+        ) : section.kind === "admissionType" ? (
+          <AdmissionTypeSurveyStep
+            studentToken={studentToken}
+            sectionKey={section.key}
+            initial={typeof initialValue === "string" ? normalizeAdmissionTypeAnswer(initialValue) : (initialValue as AdmissionTypeAnswer)}
+            isSubmitted={isSubmitted}
+            gradeNumber={gradeNumber}
+          />
+        ) : (
+          <StrengthsWeaknessesSurveyStep
+            studentToken={studentToken}
+            sectionKey={section.key}
+            initial={typeof initialValue === "string" ? normalizeStrengthsWeaknessesAnswer(initialValue) : (initialValue as StrengthsWeaknessesAnswer)}
+            isSubmitted={isSubmitted}
+          />
+        )}
       </div>
+
+      {/* 하단 고정 이동 버튼 */}
+      <BottomCTA>
+        <ButtonLink href={prevHref} variant="gray" size="xl" className="w-[30%] shrink-0">
+          이전
+        </ButtonLink>
+        <Button
+          variant="primary"
+          size="xl"
+          className="min-w-0 flex-1"
+          loading={navPending}
+          onClick={() => flushAndGo(nextHref)}
+        >
+          {isLast ? "검토하고 제출하기" : "다음"}
+        </Button>
+      </BottomCTA>
     </div>
   );
 }
@@ -258,25 +233,36 @@ function SaveBadge({
   disabled: boolean;
 }) {
   if (disabled)
-    return <span className="text-[11px] text-ink-5">제출 후 잠김</span>;
+    return (
+      <span className="inline-flex items-center gap-x1 text-fg-neutral-subtle">
+        <Lock className="h-3.5 w-3.5" strokeWidth={2.4} />
+        제출 후 잠김
+      </span>
+    );
   if (status === "saving") {
     return (
-      <span className="inline-flex items-center gap-1 text-ink-4">
-        <Loader2 className="h-3 w-3 animate-spin" />
+      <span className="inline-flex items-center gap-x1_5 text-fg-neutral-subtle">
+        {/* SEED ProgressCircle — 글자 높이에 맞춰 size="inherit" + 14px */}
+        <ProgressCircle
+          tone="neutral"
+          size="inherit"
+          aria-label="저장 중"
+          className="[--size:14px] [--thickness:2px]"
+        />
         저장 중
       </span>
     );
   }
   if (status === "saved") {
     return (
-      <span className="inline-flex items-center gap-1 text-ok-ink">
-        <Check className="h-3 w-3" />
+      <span className="inline-flex items-center gap-x1 text-fg-positive">
+        <Check className="h-3.5 w-3.5" strokeWidth={2.8} />
         저장됨
       </span>
     );
   }
   if (status === "error") {
-    return <span className="text-bad-ink">저장 실패</span>;
+    return <span className="text-fg-critical">저장 실패</span>;
   }
   return null;
 }

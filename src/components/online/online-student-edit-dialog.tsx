@@ -5,6 +5,15 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { FormField } from "@/components/backoffice/ui";
 import { updateOnlineStudent } from "@/actions/online/students";
 import type { OnlineStudentPanelRow } from "./online-students-panel";
 
@@ -54,67 +63,68 @@ export function OnlineStudentEditDialog({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
-      onClick={() => !pending && onClose()}
-    >
-      <form
-        onSubmit={onSubmit}
-        onClick={(e) => e.stopPropagation()}
-        className="bg-background rounded-lg shadow-lg w-full max-w-lg p-5 space-y-3"
-      >
-        <h3 className="font-semibold text-sm">온라인 학생 정보 수정</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <Field label="이름" required>
-            <Input value={name} onChange={(e) => setName(e.target.value)} className="text-[13px]" />
-          </Field>
-          <Field label="학년" required>
-            <Input value={grade} onChange={(e) => setGrade(e.target.value)} className="text-[13px]" />
-          </Field>
-          <Field label="학교">
-            <Input value={school} onChange={(e) => setSchool(e.target.value)} className="text-[13px]" />
-          </Field>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <Field label="학부모 연락처" required>
-            <Input value={parentPhone} onChange={(e) => setParentPhone(e.target.value)} className="text-[13px]" />
-          </Field>
-          <Field label="학부모 이메일">
-            <Input type="email" value={parentEmail} onChange={(e) => setParentEmail(e.target.value)} className="text-[13px]" />
-          </Field>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <Field label="목표 대학">
-            <Input value={targetUniversity} onChange={(e) => setTargetUniversity(e.target.value)} className="text-[13px]" />
-          </Field>
-          <Field label="선택 과목">
-            <Input value={selectedSubjects} onChange={(e) => setSelectedSubjects(e.target.value)} className="text-[13px]" />
-          </Field>
-          <Field label="지원 전형">
-            <Input value={admissionType} onChange={(e) => setAdmissionType(e.target.value)} className="text-[13px]" />
-          </Field>
-        </div>
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={pending}>
-            취소
-          </Button>
-          <Button type="submit" size="sm" disabled={pending}>
-            {pending ? <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />저장 중…</> : "저장"}
-          </Button>
-        </div>
-      </form>
-    </div>
-  );
-}
+    <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <form onSubmit={onSubmit} className="flex flex-col gap-x5">
+          <DialogHeader>
+            <DialogTitle>온라인 학생 정보 수정</DialogTitle>
+            <DialogDescription>{row.studentName} 학생의 기본 정보를 고쳐요</DialogDescription>
+          </DialogHeader>
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[11px] text-ink-4">
-        {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
-      </span>
-      {children}
-    </label>
+          <div className="grid grid-cols-1 gap-x4 md:grid-cols-3">
+            <FormField label="이름" required htmlFor="ose-name">
+              <Input id="ose-name" value={name} onChange={(e) => setName(e.target.value)} />
+            </FormField>
+            <FormField label="학년" required htmlFor="ose-grade">
+              <Input id="ose-grade" value={grade} onChange={(e) => setGrade(e.target.value)} />
+            </FormField>
+            <FormField label="학교" htmlFor="ose-school">
+              <Input id="ose-school" value={school} onChange={(e) => setSchool(e.target.value)} />
+            </FormField>
+          </div>
+          <div className="grid grid-cols-1 gap-x4 md:grid-cols-2">
+            <FormField label="학부모 연락처" required htmlFor="ose-phone">
+              <Input
+                id="ose-phone"
+                inputMode="tel"
+                className="tabular-nums"
+                value={parentPhone}
+                onChange={(e) => setParentPhone(e.target.value)}
+              />
+            </FormField>
+            <FormField label="학부모 이메일" htmlFor="ose-email">
+              <Input id="ose-email" type="email" value={parentEmail} onChange={(e) => setParentEmail(e.target.value)} />
+            </FormField>
+          </div>
+          <div className="grid grid-cols-1 gap-x4 md:grid-cols-3">
+            <FormField label="목표 대학" htmlFor="ose-univ">
+              <Input id="ose-univ" value={targetUniversity} onChange={(e) => setTargetUniversity(e.target.value)} />
+            </FormField>
+            <FormField label="선택 과목" htmlFor="ose-subjects">
+              <Input id="ose-subjects" value={selectedSubjects} onChange={(e) => setSelectedSubjects(e.target.value)} />
+            </FormField>
+            <FormField label="지원 전형" htmlFor="ose-admission">
+              <Input id="ose-admission" value={admissionType} onChange={(e) => setAdmissionType(e.target.value)} />
+            </FormField>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={onClose} disabled={pending}>
+              취소
+            </Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? (
+                <>
+                  <Loader2 className="animate-spin" />
+                  저장 중…
+                </>
+              ) : (
+                "저장"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

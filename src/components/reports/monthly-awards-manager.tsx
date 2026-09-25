@@ -8,7 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
-import { Trash2, Plus, Loader2, Award, ChevronsUpDown, Check } from "lucide-react";
+import { Trash2, Plus, Loader2, ChevronsUpDown, Check } from "lucide-react";
+import { FormField, StatusBadge } from "@/components/backoffice/ui";
+import { useConfirmDialog } from "@/components/exams/use-confirm-dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -38,6 +40,7 @@ export function MonthlyAwardsManager({ year, month, awards, students }: Props) {
   const [saving, setSaving] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [, startTransition] = useTransition();
+  const [confirm, confirmDialog] = useConfirmDialog();
   const selectedStudent = students.find((s) => s.id === studentId);
 
   async function handleAdd() {
@@ -60,7 +63,14 @@ export function MonthlyAwardsManager({ year, month, awards, students }: Props) {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("이 시상을 삭제하시겠습니까?")) return;
+    const target = awards.find((a) => a.id === id);
+    const ok = await confirm({
+      title: "이 시상을 삭제할까요?",
+      description: target ? `${CATEGORY_LABELS[target.category]} · ${target.student.name}` : undefined,
+      confirmLabel: "삭제",
+      destructive: true,
+    });
+    if (!ok) return;
     setSaving(id);
     try {
       await deleteMonthlyAward(id);
@@ -74,96 +84,116 @@ export function MonthlyAwardsManager({ year, month, awards, students }: Props) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-x4">
       {/* 기존 시상 목록 */}
-      {awards.length > 0 && (
-        <div className="space-y-1.5">
+      {awards.length > 0 ? (
+        <ul className="divide-y divide-stroke-neutral-muted overflow-hidden rounded-r3 border border-stroke-neutral-muted">
           {awards.map((a) => (
-            <div key={a.id} className="flex items-center gap-2 rounded-md border p-2">
-              <Award className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-              <span className="text-xs text-muted-foreground shrink-0">{CATEGORY_LABELS[a.category]}</span>
-              <span className="text-sm font-medium flex-1">
-                {a.student.name} <span className="text-xs text-muted-foreground">({a.student.grade})</span>
-              </span>
-              {a.description && <span className="text-xs text-muted-foreground truncate max-w-[120px]">{a.description}</span>}
-              <button
+            <li key={a.id} className="flex items-center gap-x2 py-x2 pl-x4 pr-x2">
+              <StatusBadge tone="brand" className="shrink-0">{CATEGORY_LABELS[a.category]}</StatusBadge>
+              <div className="min-w-0 flex-1">
+                <p className="truncate t4-medium text-fg-neutral">
+                  {a.student.name} <span className="t3-regular text-fg-neutral-subtle">{a.student.grade}</span>
+                </p>
+                {a.description && <p className="truncate t3-regular text-fg-neutral-subtle">{a.description}</p>}
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => handleDelete(a.id)}
                 disabled={saving === a.id}
-                className="text-muted-foreground hover:text-destructive"
+                className="size-x8 text-fg-neutral-subtle hover:text-fg-critical"
+                aria-label={`${a.student.name} 시상 삭제`}
               >
-                {saving === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-              </button>
-            </div>
+                {saving === a.id ? <Loader2 className="animate-spin" /> : <Trash2 />}
+              </Button>
+            </li>
           ))}
-        </div>
+        </ul>
+      ) : (
+        <p className="rounded-r3 bg-bg-layer-fill px-x4 py-x3 text-center t3-regular text-fg-neutral-subtle">
+          이달 시상이 아직 없어요
+        </p>
       )}
 
       {/* 추가 폼 */}
-      <div className="space-y-2 rounded-md border border-dashed p-3">
-        <p className="text-xs text-muted-foreground">새 시상 추가</p>
-        <div className="grid grid-cols-2 gap-2">
-          <Select value={category} onValueChange={(v) => setCategory(v as "ATTITUDE" | "MENTOR_PICK" | "IMPROVEMENT")}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ATTITUDE">학습 태도 우수자</SelectItem>
-              <SelectItem value="MENTOR_PICK">멘토 선정 우수자</SelectItem>
-              <SelectItem value="IMPROVEMENT">진보상</SelectItem>
-            </SelectContent>
-          </Select>
-          <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={pickerOpen}
-                className={cn(
-                  "h-8 justify-between text-xs font-normal",
-                  !selectedStudent && "text-muted-foreground"
-                )}
-              >
-                {selectedStudent ? `${selectedStudent.name} (${selectedStudent.grade})` : "학생 선택"}
-                <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[260px] p-0" align="start">
-              <Command>
-                <CommandInput placeholder="이름/학년 검색…" className="text-xs" />
-                <CommandList>
-                  <CommandEmpty>일치하는 학생이 없습니다.</CommandEmpty>
-                  <CommandGroup>
-                    {students.map((s) => (
-                      <CommandItem
-                        key={s.id}
-                        value={`${s.name} ${s.grade}`}
-                        onSelect={() => {
-                          setStudentId(s.id);
-                          setPickerOpen(false);
-                        }}
-                        className="text-xs"
-                      >
-                        <Check className={cn("mr-2 h-3.5 w-3.5", studentId === s.id ? "opacity-100" : "opacity-0")} />
-                        {s.name} <span className="ml-1 text-muted-foreground">({s.grade})</span>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+      <div className="flex flex-col gap-x3 rounded-r3 bg-bg-layer-fill p-x4">
+        <p className="t4-bold text-fg-neutral">새 시상 추가</p>
+        <div className="grid grid-cols-1 gap-x2 sm:grid-cols-2">
+          <FormField label="부문">
+            <Select value={category} onValueChange={(v) => setCategory(v as "ATTITUDE" | "MENTOR_PICK" | "IMPROVEMENT")}>
+              <SelectTrigger aria-label="시상 부문">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ATTITUDE">학습 태도 우수자</SelectItem>
+                <SelectItem value="MENTOR_PICK">멘토 선정 우수자</SelectItem>
+                <SelectItem value="IMPROVEMENT">진보상</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormField>
+          <FormField label="학생" required>
+            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={pickerOpen}
+                  aria-label="학생 선택"
+                  className={cn(
+                    "w-full justify-between t4-regular",
+                    !selectedStudent && "text-fg-placeholder"
+                  )}
+                >
+                  <span className="truncate">
+                    {selectedStudent ? `${selectedStudent.name} (${selectedStudent.grade})` : "학생 선택"}
+                  </span>
+                  <ChevronsUpDown className="text-fg-neutral-subtle" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[260px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="이름/학년 검색…" />
+                  <CommandList>
+                    <CommandEmpty>일치하는 학생이 없습니다.</CommandEmpty>
+                    <CommandGroup>
+                      {students.map((s) => (
+                        <CommandItem
+                          key={s.id}
+                          value={`${s.name} ${s.grade}`}
+                          onSelect={() => {
+                            setStudentId(s.id);
+                            setPickerOpen(false);
+                          }}
+                        >
+                          <Check className={cn("mr-x2 size-4", studentId === s.id ? "opacity-100" : "opacity-0")} />
+                          {s.name} <span className="ml-x1 text-fg-neutral-subtle">({s.grade})</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </FormField>
         </div>
-        <Input
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="사유 (선택)"
-          className="h-8 text-xs"
-        />
-        <Button size="sm" className="w-full h-8 text-xs" onClick={handleAdd} disabled={saving === "add"}>
-          {saving === "add" ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
-          추가
-        </Button>
+        <FormField label="사유">
+          <Input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="사유 (선택)"
+            aria-label="시상 사유"
+          />
+        </FormField>
+        <div className="flex justify-end">
+          <Button size="sm" onClick={handleAdd} disabled={saving === "add"}>
+            {saving === "add" ? <Loader2 className="animate-spin" /> : <Plus />}
+            {saving === "add" ? "추가 중…" : "시상 추가"}
+          </Button>
+        </div>
       </div>
+
+      {confirmDialog}
     </div>
   );
 }

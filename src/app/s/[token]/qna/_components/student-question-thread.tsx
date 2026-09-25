@@ -32,10 +32,11 @@ export function StudentQuestionThread({
 
   return (
     <QuestionThread
+      variant="portal"
       viewer="STUDENT"
       messages={messages}
       studentToken={token}
-      composerPlaceholder="추가로 물어보거나 답변에 답글을 남겨보세요 (⌘+Enter 전송)"
+      composerPlaceholder="더 궁금한 점이나 답변에 대한 답글을 남겨보세요"
       composerLabel="보내기"
       uploaderLabel="사진 추가"
       emptyHint="첫 메시지를 작성해 보세요."

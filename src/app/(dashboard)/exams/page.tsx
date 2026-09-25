@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
-import { PageIntro } from "@/components/ui/page-intro";
+import { ClipboardList, Plus } from "lucide-react";
+import { EmptyState, PageHeader, TableCard } from "@/components/backoffice/ui";
 import { ExamSessionsTabs } from "@/components/exams/exam-sessions-tabs";
 
 export const dynamic = "force-dynamic";
@@ -41,40 +40,39 @@ export default async function ExamsPage() {
   });
 
   return (
-    <div className="space-y-4">
-      <PageIntro
-        tag="EXAMS · 01"
+    <div>
+      <PageHeader
         title="시험 관리"
-        description="H룸 기반 시험 좌석 랜덤 배치 및 응시자 성적 일괄 입력"
-        accent="text-info"
+        description={`시험 세션 ${sessions.length}개 · 세션을 눌러 좌석을 배치하거나 성적을 입력하세요`}
+        actions={
+          <Button asChild>
+            <Link href="/exams/new">
+              <Plus />
+              시험 세션 생성
+            </Link>
+          </Button>
+        }
       />
 
-      <Card>
-        <CardContent className="pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-sm font-medium">시험 세션 목록</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                총 {sessions.length}개 · 세션을 클릭해 좌석을 배치하거나 성적을 입력하세요
-              </p>
-            </div>
-            <Link href="/exams/new">
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                시험 세션 생성
+      {sessions.length === 0 ? (
+        <TableCard>
+          <EmptyState
+            icon={ClipboardList}
+            title="아직 만든 시험 세션이 없어요"
+            description="시험 세션을 만들면 응시자 좌석 배치와 성적 일괄 입력을 할 수 있어요."
+            action={
+              <Button asChild>
+                <Link href="/exams/new">
+                  <Plus />
+                  시험 세션 생성
+                </Link>
               </Button>
-            </Link>
-          </div>
-
-          {sessions.length === 0 ? (
-            <div className="py-12 text-center text-sm text-muted-foreground">
-              아직 생성된 시험 세션이 없습니다.
-            </div>
-          ) : (
-            <ExamSessionsTabs sessions={rows} />
-          )}
-        </CardContent>
-      </Card>
+            }
+          />
+        </TableCard>
+      ) : (
+        <ExamSessionsTabs sessions={rows} />
+      )}
     </div>
   );
 }

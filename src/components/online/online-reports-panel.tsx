@@ -6,15 +6,17 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { KakaoButton } from "@/components/ui/kakao-button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
+import { EmptyState, FilterChip } from "@/components/backoffice/ui";
 import {
-  Loader2, CheckCircle2, Circle, Link2, Send,
-  ExternalLink, Copy, Check, Filter, MessageCircle, Sparkles,
+  Loader2, CheckCircle2, Send,
+  ExternalLink, Copy, Check, MessageCircle, Sparkles,
   AlertCircle, ChevronLeft, ChevronRight, Mail, ArrowUpRight,
-  Lock, Unlock,
+  FileText, UsersRound,
 } from "lucide-react";
 import {
   batchGenerateWeeklyReports,
@@ -33,6 +35,15 @@ import {
   deriveFilterOptions,
   type StudentFilterState,
 } from "@/components/online/student-filter-bar";
+import { ReportStatusBadge, SentLockBar } from "@/components/online/report-status";
+import { useConfirm } from "@/components/online/use-confirm";
+import {
+  DetailPane,
+  DetailPaneHeader,
+  MasterDetail,
+  PaneSection,
+  PickerCount,
+} from "@/components/online/student-picker";
 
 export type OnlineReportRow = {
   studentId: string;
@@ -57,24 +68,6 @@ export type OnlineReportRow = {
   } | null;
 };
 
-const STATUS_LABEL: Record<OnlineReportStatus, string> = {
-  QUEUED: "대기열",
-  DRAFT: "초안",
-  DRAFT_FAILED: "생성 실패",
-  REVIEW: "편집 중",
-  APPROVED: "승인 완료",
-  SENT: "발송 완료",
-};
-
-const STATUS_COLORS: Record<OnlineReportStatus, string> = {
-  QUEUED: "bg-violet-100 text-violet-800 border-violet-200",
-  DRAFT: "bg-slate-100 text-slate-700 border-slate-200",
-  DRAFT_FAILED: "bg-red-100 text-red-800 border-red-200",
-  REVIEW: "bg-amber-100 text-amber-800 border-amber-200",
-  APPROVED: "bg-blue-100 text-blue-800 border-blue-200",
-  SENT: "bg-emerald-100 text-emerald-800 border-emerald-200",
-};
-
 export function OnlineReportsPanel({
   rows,
   weekStart,
@@ -86,6 +79,7 @@ export function OnlineReportsPanel({
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
+  const [confirm, confirmDialog] = useConfirm();
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeStudentId, setActiveStudentId] = useState<string | null>(
@@ -198,7 +192,15 @@ export function OnlineReportsPanel({
 
   async function handleRegenerate() {
     if (!activeRow?.report) return;
-    if (!confirm("AI 초안을 재생성합니다. 기존 편집 내용은 덮어쓰여집니다.")) return;
+    if (
+      !(await confirm({
+        title: "AI 초안을 다시 만들까요?",
+        description: "지금 편집한 내용은 새 초안으로 덮어써져요.",
+        confirmLabel: "다시 만들기",
+        destructive: true,
+      }))
+    )
+      return;
     setAiBusy(true);
     try {
       const result = await regenerateReportDraft(activeRow.report.id);
@@ -240,7 +242,14 @@ export function OnlineReportsPanel({
   async function handleApprove() {
     if (!activeRow?.report) return;
     const dirty = markdownDraft !== activeRow.report.markdown;
-    if (dirty && !confirm("편집 내용이 저장되지 않았습니다. 저장 후 승인하시겠어요?")) {
+    if (
+      dirty &&
+      !(await confirm({
+        title: "저장하지 않은 편집 내용이 있어요",
+        description: "편집 내용을 저장한 뒤 승인할까요?",
+        confirmLabel: "저장 후 승인",
+      }))
+    ) {
       return;
     }
     setSaving(true);
@@ -359,65 +368,100 @@ export function OnlineReportsPanel({
   const dirty =
     !!activeRow?.report && markdownDraft !== (activeRow.report.markdown ?? "");
 
-  function handleUnlockSent() {
+  async function handleUnlockSent() {
     if (
-      confirm(
-        "발송 완료된 보고서를 수정합니다.\n저장 시 학부모 공개 페이지에 즉시 반영됩니다.\n진행할까요?"
-      )
+      await confirm({
+        title: "발송한 보고서를 수정할까요?",
+        description: "저장하면 학부모 공개 페이지에 바로 반영돼요.",
+        confirmLabel: "재편집",
+      })
     ) {
       setSentUnlocked(true);
     }
   }
 
+  // 일괄 생성은 기존 보고서를 새 AI 초안으로 덮어쓰므로(발송 완료 포함) 한 번 더 확인한다
+  async function confirmBulkCreate() {
+    if (selectedIds.size === 0) {
+      handleBulkCreate();
+      return;
+    }
+    const existing = rows.filter((r) => selectedIds.has(r.studentId) && r.report).length;
+    const ok = await confirm({
+      title: `${selectedIds.size}명의 주간 보고서를 생성할까요?`,
+      description:
+        existing > 0
+          ? `이미 보고서가 있는 ${existing}명은 새 AI 초안으로 덮어쓰고 ‘초안’ 상태로 돌아가요.`
+          : "AI가 학생별 초안을 만들어요. 인원이 많으면 몇 분 걸릴 수 있어요.",
+      confirmLabel: existing > 0 ? "덮어쓰고 생성" : "생성",
+      destructive: existing > 0,
+    });
+    if (ok) handleBulkCreate();
+  }
+
+  const allChecked =
+    filtered.length > 0 && filtered.every((r) => selectedIds.has(r.studentId));
+  const someChecked = !allChecked && filtered.some((r) => selectedIds.has(r.studentId));
+  const unreadFeedback = activeRow?.report?.unreadFeedbackCount ?? 0;
+
   return (
-    <div className="space-y-3">
-      {/* 상단 툴바 */}
-      <div className="flex items-center gap-2 flex-wrap bg-muted/40 rounded-md px-3 py-2">
-        <Link
-          href={`/online/reports?week=${shiftWeek(weekStart, -1)}`}
-          className="p-1 rounded hover:bg-background"
-          title="이전 주"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Link>
-        <span className="text-xs font-semibold tabular-nums">
-          {formatWeekRange(weekStart)}
-        </span>
-        <Link
-          href={`/online/reports?week=${shiftWeek(weekStart, 1)}`}
-          className="p-1 rounded hover:bg-background"
-          title="다음 주"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Link>
-        <span className="text-xs text-muted-foreground ml-2">
-          총 <b className="text-foreground">{rows.length}</b>명 · 생성{" "}
-          <b className="text-foreground">{createdCount}</b>건
-        </span>
-        <div className="ml-auto flex items-center gap-2">
+    <div className="flex flex-col gap-x4">
+      {/* 주 이동 · 요약 · 일괄 작업 */}
+      <div className="flex flex-wrap items-center gap-x3">
+        <div className="inline-flex items-center gap-x0_5 rounded-full bg-bg-neutral-weak p-x0_5">
+          <Link
+            href={`/online/reports?week=${shiftWeek(weekStart, -1)}`}
+            aria-label="이전 주"
+            title="이전 주"
+            className="grid size-x8 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-layer-default hover:text-fg-neutral"
+          >
+            <ChevronLeft className="size-4" />
+          </Link>
+          <span className="px-x2 t4-bold tabular-nums text-fg-neutral">
+            {formatWeekRange(weekStart)}
+          </span>
+          <Link
+            href={`/online/reports?week=${shiftWeek(weekStart, 1)}`}
+            aria-label="다음 주"
+            title="다음 주"
+            className="grid size-x8 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-layer-default hover:text-fg-neutral"
+          >
+            <ChevronRight className="size-4" />
+          </Link>
+        </div>
+        <p className="t4-regular text-fg-neutral-subtle">
+          총 <b className="t4-bold tabular-nums text-fg-neutral">{rows.length}</b>명 · 생성{" "}
+          <b className="t4-bold tabular-nums text-fg-neutral">{createdCount}</b>건
+        </p>
+        <div className="flex w-full flex-wrap items-center gap-x2 sm:ml-auto sm:w-auto">
+          {selectedIds.size > 0 && (
+            <span className="t3-medium tabular-nums text-fg-brand">
+              {selectedIds.size}명 선택됨
+            </span>
+          )}
           <Button
             size="sm"
             variant="outline"
-            className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
             onClick={handleBulkShareCopy}
             disabled={selectedIds.size === 0}
+            title="선택한 학생 중 발송 완료된 보고서 링크를 한 번에 복사해요"
           >
-            <Send className="h-3.5 w-3.5 mr-1" />
+            <Send />
             선택 링크 복사
           </Button>
           <Button
             size="sm"
-            onClick={handleBulkCreate}
+            onClick={confirmBulkCreate}
             disabled={bulkBusy || selectedIds.size === 0}
           >
             {bulkBusy ? (
               <>
-                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                <Loader2 className="animate-spin" />
                 생성 중…
               </>
             ) : (
               <>
-                <Sparkles className="h-3.5 w-3.5 mr-1" />
+                <Sparkles />
                 선택 {selectedIds.size}명 일괄 생성
               </>
             )}
@@ -434,414 +478,329 @@ export function OnlineReportsPanel({
         hasUnknownSchool={filterOptions.hasUnknownSchool}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-3 min-h-[600px]">
-        {/* 좌측 학생 리스트 */}
-        <div className="border rounded-lg bg-background overflow-hidden flex flex-col">
-          <div className="px-3 py-2 border-b flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={
-                filtered.length > 0 &&
-                filtered.every((r) => selectedIds.has(r.studentId))
-              }
-              onChange={toggleAll}
-              className="rounded"
-              title="화면에 보이는 학생 전체 선택"
-            />
-            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none flex-1">
-              <input
-                type="checkbox"
-                checked={onlyWithReport}
-                onChange={(e) => setOnlyWithReport(e.target.checked)}
-                className="rounded h-3 w-3"
+      <MasterDetail
+        list={
+          // 좌측 학생 리스트 — 행마다 선택 체크박스가 있어 공용 PickerItem 대신 같은 규격으로 직접 그린다
+          <aside
+            aria-label="학생 목록"
+            className="flex flex-col overflow-hidden rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default lg:sticky lg:top-20"
+          >
+            <div className="flex min-h-12 shrink-0 items-center gap-x3 border-b border-stroke-neutral-muted px-x4 py-x2">
+              <Checkbox
+                checked={allChecked ? true : someChecked ? "indeterminate" : false}
+                onCheckedChange={() => toggleAll()}
+                aria-label="화면에 보이는 학생 전체 선택"
+                title="화면에 보이는 학생 전체 선택"
               />
-              <Filter className="h-3 w-3" />
-              생성된 보고서만
-              <span className="ml-auto tabular-nums">
-                {filtered.length}/{rows.length}
+              <FilterChip
+                selected={onlyWithReport}
+                onClick={() => setOnlyWithReport(!onlyWithReport)}
+              >
+                생성된 보고서만
+              </FilterChip>
+              <span className="ml-auto t3-regular text-fg-neutral-subtle">
+                <PickerCount shown={filtered.length} total={rows.length} />
               </span>
-            </label>
-          </div>
-          <div className="flex-1 overflow-y-auto divide-y max-h-[600px]">
-            {filtered.length === 0 ? (
-              <p className="p-4 text-center text-xs text-muted-foreground">
-                조건에 맞는 학생이 없습니다
-              </p>
-            ) : (
-              filtered.map((r) => {
-                const isActive = activeStudentId === r.studentId;
-                const isChecked = selectedIds.has(r.studentId);
-                const prog = bulkProgress[r.studentId];
-                return (
-                  <div
-                    key={r.studentId}
-                    onClick={() => setActiveStudentId(r.studentId)}
-                    className={cn(
-                      "cursor-pointer px-3 py-2.5 border-l-2 transition-colors",
-                      isActive
-                        ? "bg-primary/5 border-primary"
-                        : "hover:bg-muted/40 border-transparent"
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
+            </div>
+            <div className="max-h-80 divide-y divide-stroke-neutral-muted overflow-y-auto overscroll-contain lg:max-h-[calc(100dvh-10rem)]">
+              {filtered.length === 0 ? (
+                <EmptyState
+                  compact
+                  icon={UsersRound}
+                  title="조건에 맞는 학생이 없어요"
+                  description="필터를 바꾸거나 검색어를 지워 보세요."
+                />
+              ) : (
+                filtered.map((r) => {
+                  const isActive = activeStudentId === r.studentId;
+                  const isChecked = selectedIds.has(r.studentId);
+                  const prog = bulkProgress[r.studentId];
+                  const unread = r.report?.unreadFeedbackCount ?? 0;
+                  return (
+                    <div
+                      key={r.studentId}
+                      className={cn(
+                        "flex items-center gap-x3 px-x4 transition-colors",
+                        isActive ? "bg-bg-neutral-weak" : "hover:bg-bg-layer-default-pressed"
+                      )}
+                    >
+                      <Checkbox
                         checked={isChecked}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          toggleOne(r.studentId);
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        className="rounded shrink-0"
+                        onCheckedChange={() => toggleOne(r.studentId)}
+                        aria-label={`${r.studentName} 선택`}
                       />
-                      <span className="font-medium text-sm truncate">
-                        {r.studentName}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {r.grade}
-                      </span>
-                      <div className="ml-auto shrink-0 flex items-center gap-1">
-                        {prog === "pending" ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
-                        ) : r.report ? (
-                          r.report.status === "DRAFT_FAILED" ? (
-                            <Badge variant="outline" className="text-[9px] h-4 px-1 border-red-300 text-red-700">
-                              실패
-                            </Badge>
-                          ) : r.report.status === "SENT" ? (
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                      <button
+                        type="button"
+                        onClick={() => setActiveStudentId(r.studentId)}
+                        aria-current={isActive ? "true" : undefined}
+                        className="flex min-w-0 flex-1 flex-col py-x3 text-left"
+                      >
+                        <span className="flex min-w-0 items-center gap-x1_5">
+                          <span
+                            className={cn(
+                              "truncate text-fg-neutral",
+                              isActive ? "t4-bold" : "t4-medium"
+                            )}
+                          >
+                            {r.studentName}
+                          </span>
+                          <span className="shrink-0 t3-regular text-fg-neutral-subtle">
+                            {r.grade}
+                          </span>
+                        </span>
+                        <span className="mt-x1 truncate t3-regular text-fg-neutral-subtle">
+                          {r.assignedMentorName ? (
+                            `멘토 ${r.assignedMentorName}`
                           ) : (
-                            <Badge
-                              variant="outline"
-                              className={cn("text-[9px] h-4 px-1", STATUS_COLORS[r.report.status])}
-                            >
-                              {STATUS_LABEL[r.report.status]}
-                            </Badge>
-                          )
-                        ) : (
-                          <Circle className="h-3.5 w-3.5 text-muted-foreground/30" />
-                        )}
-                        {r.report && (r.report.unreadFeedbackCount ?? 0) > 0 && (
+                            <span className="text-fg-warning">멘토 미배정</span>
+                          )}
+                          {r.report?.sentAt &&
+                            ` · 발송 ${new Date(r.report.sentAt).toLocaleDateString("ko-KR")}`}
+                          {r.report?.status === "SENT" && ` · 열람 ${r.report.viewCount}회`}
+                        </span>
+                      </button>
+                      <div className="flex shrink-0 items-center gap-x1_5">
+                        {unread > 0 && r.report && (
                           <Link
                             href={`/online/reports/${r.report.id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            title={`학부모 의견 ${r.report.unreadFeedbackCount}건 미확인 — 상세 페이지로 이동`}
-                            className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 px-1.5 py-px text-[9px] font-bold"
+                            title={`학부모 의견 ${unread}건 미확인 — 상세 페이지로 이동`}
+                            aria-label={`학부모 의견 ${unread}건 미확인`}
+                            className="inline-flex h-x5 items-center gap-x0_5 rounded-full bg-bg-warning-weak px-x1_5 t1-bold tabular-nums text-fg-warning transition-colors hover:bg-bg-warning-weak-pressed"
                           >
-                            💬 {r.report.unreadFeedbackCount}
+                            <MessageCircle className="size-3" aria-hidden />
+                            {unread}
                           </Link>
                         )}
+                        {prog === "pending" ? (
+                          <Loader2 className="size-4 animate-spin text-fg-neutral-subtle" aria-label="생성 중" />
+                        ) : r.report ? (
+                          <ReportStatusBadge status={r.report.status} />
+                        ) : (
+                          <span className="t2-regular text-fg-placeholder">미생성</span>
+                        )}
                       </div>
                     </div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                      {r.assignedMentorName ? (
-                        <span>멘토 {r.assignedMentorName}</span>
-                      ) : (
-                        <span className="text-amber-600">멘토 미배정</span>
-                      )}
-                      {r.report?.sentAt && (
-                        <>
-                          <span>·</span>
-                          <span className="text-emerald-600">
-                            발송 {new Date(r.report.sentAt).toLocaleDateString("ko-KR")}
-                          </span>
-                        </>
-                      )}
-                      {r.report?.status === "SENT" && (
-                        <>
-                          <span>·</span>
-                          <span className="text-ink-4 tabular-nums">
-                            열람 {r.report.viewCount}회
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* 우측: 상세 */}
-        <div className="border rounded-lg bg-background flex flex-col min-h-[600px]">
-          {!activeRow ? (
-            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-              좌측에서 학생을 선택하세요
-            </div>
-          ) : (
-            <>
-              {/* 헤더 */}
-              <div className="px-5 py-3 border-b flex items-center gap-3 flex-wrap">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-base">{activeRow.studentName}</h3>
-                    <span className="text-xs text-muted-foreground">
-                      {activeRow.grade}
-                    </span>
-                    {activeRow.report && (
-                      <span
-                        className={cn(
-                          "inline-block rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                          STATUS_COLORS[activeRow.report.status]
-                        )}
-                      >
-                        {STATUS_LABEL[activeRow.report.status]}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    {formatWeekRange(weekStart)}
-                    {activeRow.report?.approvedByName &&
-                      ` · 승인 ${activeRow.report.approvedByName}`}
-                    {activeRow.report?.sentAt &&
-                      ` · 발송 ${new Date(activeRow.report.sentAt).toLocaleDateString("ko-KR")}`}
-                    {activeRow.report?.status === "SENT" &&
-                      ` · 열람 ${activeRow.report.viewCount}회`}
-                  </p>
-                </div>
-                {activeRow.report && (
-                  <Link
-                    href={`/online/reports/${activeRow.report.id}`}
-                    className={cn(
-                      "relative inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[13px] font-semibold shadow-sm transition-all hover:shadow-md hover:-translate-y-px",
-                      (activeRow.report.unreadFeedbackCount ?? 0) > 0
-                        ? "bg-amber-500 text-white hover:bg-amber-600 ring-2 ring-amber-300 ring-offset-2 animate-pulse"
-                        : "bg-primary text-primary-foreground hover:bg-primary/90"
-                    )}
-                    title="보고서 상세 페이지에서 학부모 피드백을 확인합니다"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    {(activeRow.report.unreadFeedbackCount ?? 0) > 0 ? (
-                      <>
-                        새 피드백 확인
-                        <span className="inline-flex items-center justify-center rounded-full bg-white text-amber-700 min-w-[20px] h-[20px] px-1.5 text-[11px] font-bold tabular-nums">
-                          {activeRow.report.unreadFeedbackCount}
-                        </span>
-                      </>
-                    ) : (
-                      <>상세 보고서 · 피드백 보기</>
-                    )}
-                    <ArrowUpRight className="h-3.5 w-3.5" />
-                  </Link>
-                )}
-              </div>
-
-              {!activeRow.report ? (
-                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-3">
-                  <p className="text-sm text-muted-foreground">
-                    이 학생의 주간 보고서가 아직 생성되지 않았습니다.
-                  </p>
-                  <Button
-                    size="sm"
-                    onClick={() => handleSingleCreate(activeRow.studentId)}
-                    disabled={bulkBusy}
-                  >
-                    {bulkBusy ? (
-                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                    ) : (
-                      <Link2 className="h-3.5 w-3.5 mr-1" />
-                    )}
-                    이 학생 리포트 생성
-                  </Button>
-                </div>
-              ) : activeRow.report.status === "DRAFT_FAILED" ? (
-                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-3">
-                  <AlertCircle className="h-8 w-8 text-red-500" />
-                  <div>
-                    <p className="text-sm font-semibold text-red-800">초안 생성 실패</p>
-                    {activeRow.report.errorMessage && (
-                      <p className="mt-1 text-[11px] text-red-700">
-                        {activeRow.report.errorMessage}
-                      </p>
-                    )}
-                  </div>
-                  <Button size="sm" onClick={handleRegenerate} disabled={aiBusy}>
-                    {aiBusy ? (
-                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                    ) : (
-                      <Sparkles className="h-3.5 w-3.5 mr-1" />
-                    )}
-                    재생성
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                  {/* 편집 */}
-                  <section>
-                    <div className="flex items-center gap-2 mb-2">
-                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        학부모에게 전달할 내용 (Markdown — 공유 페이지에 렌더됨)
-                      </h4>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs ml-auto"
-                        onClick={handleRegenerate}
-                        disabled={aiBusy || editingLocked}
-                      >
-                        {aiBusy ? (
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        ) : (
-                          <Sparkles className="h-3 w-3 mr-1" />
-                        )}
-                        AI 재생성
-                      </Button>
-                    </div>
-                    {isSent && (
-                      <div
-                        className={cn(
-                          "mb-2 flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-[11.5px]",
-                          sentUnlocked
-                            ? "border-amber-300 bg-amber-50 text-amber-900"
-                            : "border-emerald-200 bg-emerald-50 text-emerald-900"
-                        )}
-                      >
-                        <span className="inline-flex items-center gap-1.5">
-                          {sentUnlocked ? (
-                            <>
-                              <Unlock className="h-3.5 w-3.5" />
-                              재편집 모드 — 저장 시 학부모 페이지에 즉시 반영됩니다
-                            </>
-                          ) : (
-                            <>
-                              <Lock className="h-3.5 w-3.5" />
-                              발송 완료된 보고서입니다 (편집 잠김)
-                            </>
-                          )}
-                        </span>
-                        {sentUnlocked ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-6 px-2 text-[11px]"
-                            onClick={() => {
-                              setSentUnlocked(false);
-                              setMarkdownDraft(activeRow.report?.markdown ?? "");
-                            }}
-                          >
-                            취소
-                          </Button>
-                        ) : (
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="h-6 px-2 text-[11px] bg-amber-500 hover:bg-amber-600 text-white"
-                            onClick={handleUnlockSent}
-                          >
-                            <Unlock className="h-3 w-3 mr-1" />
-                            재편집
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                    <Textarea
-                      value={markdownDraft}
-                      onChange={(e) => setMarkdownDraft(e.target.value)}
-                      rows={14}
-                      disabled={editingLocked}
-                      placeholder="**이번 주 학습 개요** ..."
-                      className="text-sm leading-relaxed resize-y font-mono"
-                    />
-                    <div className="flex items-center justify-end gap-2 mt-2">
-                      {dirty && (
-                        <span className="text-[11px] text-amber-700">변경됨 — 저장 필요</span>
-                      )}
-                      <Button
-                        size="sm"
-                        onClick={handleSaveNote}
-                        disabled={saving || !dirty || editingLocked}
-                      >
-                        {saving ? (
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        ) : (
-                          <Check className="h-3 w-3 mr-1" />
-                        )}
-                        저장
-                      </Button>
-                      {canApprove && (
-                        <Button size="sm" onClick={handleApprove} disabled={saving}>
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          승인
-                        </Button>
-                      )}
-                    </div>
-                  </section>
-
-                  {/* 미리보기 */}
-                  <section className="border-t pt-4">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                      미리 보기
-                    </h4>
-                    <div className="rounded-md border bg-muted/20 p-4">
-                      <MarkdownViewer source={markdownDraft || "*(내용 없음)*"} />
-                    </div>
-                  </section>
-
-                  {/* URL · 발송 */}
-                  {canSend && (
-                    <section className="border-t pt-4 space-y-3">
-                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        URL · 발송
-                      </h4>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          readOnly
-                          value={`${origin}/r/online/${activeRow.report.token}`}
-                          className="text-xs font-mono bg-muted"
-                        />
-                        <Button variant="outline" size="sm" onClick={handleCopyLink}>
-                          {copied ? (
-                            <Check className="h-3.5 w-3.5 text-emerald-500" />
-                          ) : (
-                            <Copy className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
-                        <a
-                          href={`/r/online/${activeRow.report.token}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          <Button variant="outline" size="sm" title="학부모 화면 열기">
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </Button>
-                        </a>
-                      </div>
-                      <Button
-                        className="w-full gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold"
-                        onClick={handleShareKakao}
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                        카카오톡으로 보내기
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="w-full gap-2"
-                        onClick={handleEmailMailto}
-                      >
-                        <Mail className="h-4 w-4" />
-                        이메일로 보내기
-                        {activeRow.parentEmail && (
-                          <span className="text-[10.5px] text-muted-foreground font-normal">
-                            → {activeRow.parentEmail}
-                          </span>
-                        )}
-                      </Button>
-                      <p className="text-[11px] text-muted-foreground">
-                        개별 발송 외에 상단 &quot;선택 링크 복사&quot;로 여러 명 링크를 한번에 복사할 수 있어요.
-                        {activeRow.report.sentChannels.length > 0 && (
-                          <> · 발송 이력: {activeRow.report.sentChannels.join(", ")}</>
-                        )}
-                      </p>
-                    </section>
-                  )}
-                </div>
+                  );
+                })
               )}
-            </>
-          )}
-        </div>
-      </div>
+            </div>
+          </aside>
+        }
+        detail={
+          // 우측: 상세 — 온라인 관리 공용 DetailPane · PaneSection (카드 하나 안에서 구분선으로 나눈다)
+          <DetailPane className="lg:min-h-[600px]">
+            {!activeRow ? (
+              <EmptyState
+                icon={FileText}
+                title="학생을 선택해 주세요"
+                description="왼쪽 목록에서 학생을 고르면 이번 주 보고서를 편집할 수 있어요."
+                className="flex-1"
+              />
+            ) : (
+              <>
+                <DetailPaneHeader
+                  title={activeRow.studentName}
+                  meta={
+                    <>
+                      <span className="t4-regular text-fg-neutral-subtle">{activeRow.grade}</span>
+                      {activeRow.report && <ReportStatusBadge status={activeRow.report.status} />}
+                    </>
+                  }
+                  description={
+                    <span className="tabular-nums">
+                      {formatWeekRange(weekStart)}
+                      {activeRow.report?.approvedByName &&
+                        ` · 승인 ${activeRow.report.approvedByName}`}
+                      {activeRow.report?.sentAt &&
+                        ` · 발송 ${new Date(activeRow.report.sentAt).toLocaleDateString("ko-KR")}`}
+                      {activeRow.report?.status === "SENT" &&
+                        ` · 열람 ${activeRow.report.viewCount}회`}
+                    </span>
+                  }
+                  actions={
+                    activeRow.report ? (
+                      <Button asChild size="sm" variant={unreadFeedback > 0 ? "default" : "outline"}>
+                        <Link
+                          href={`/online/reports/${activeRow.report.id}`}
+                          title="보고서 상세 페이지에서 학부모 피드백을 확인합니다"
+                        >
+                          <MessageCircle />
+                          {unreadFeedback > 0 ? (
+                            <>
+                              새 피드백 확인
+                              <span className="tabular-nums">{unreadFeedback}</span>
+                            </>
+                          ) : (
+                            <>상세 · 피드백 보기</>
+                          )}
+                          <ArrowUpRight />
+                        </Link>
+                      </Button>
+                    ) : undefined
+                  }
+                />
+
+                {!activeRow.report ? (
+                  <EmptyState
+                    icon={FileText}
+                    title="아직 이번 주 보고서가 없어요"
+                    description="AI가 이번 주 학습 기록으로 초안을 만들어요."
+                    className="flex-1"
+                    action={
+                      <Button
+                        onClick={() => handleSingleCreate(activeRow.studentId)}
+                        disabled={bulkBusy}
+                      >
+                        {bulkBusy ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                        {bulkBusy ? "생성 중…" : "이 학생 보고서 생성"}
+                      </Button>
+                    }
+                  />
+                ) : activeRow.report.status === "DRAFT_FAILED" ? (
+                  <EmptyState
+                    icon={AlertCircle}
+                    title="초안을 만들지 못했어요"
+                    description={
+                      activeRow.report.errorMessage ?? "AI 오류 또는 데이터 부족일 수 있어요."
+                    }
+                    className="flex-1"
+                    action={
+                      <Button onClick={handleRegenerate} disabled={aiBusy}>
+                        {aiBusy ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                        {aiBusy ? "생성 중…" : "다시 만들기"}
+                      </Button>
+                    }
+                  />
+                ) : (
+                  <>
+                    {/* 편집 */}
+                    <PaneSection
+                      title="학부모에게 전달할 내용"
+                      description="마크다운으로 쓰면 학부모 공유 페이지에 그대로 보여요."
+                      actions={
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleRegenerate}
+                          disabled={aiBusy || editingLocked}
+                        >
+                          {aiBusy ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                          AI 재생성
+                        </Button>
+                      }
+                    >
+                      {isSent && (
+                        <SentLockBar
+                          className="mb-x3"
+                          unlocked={sentUnlocked}
+                          onUnlock={handleUnlockSent}
+                          onCancel={() => {
+                            setSentUnlocked(false);
+                            setMarkdownDraft(activeRow.report?.markdown ?? "");
+                          }}
+                        />
+                      )}
+                      <Textarea
+                        value={markdownDraft}
+                        onChange={(e) => setMarkdownDraft(e.target.value)}
+                        rows={14}
+                        disabled={editingLocked}
+                        placeholder="**이번 주 학습 개요** ..."
+                        aria-label="보고서 내용 (마크다운)"
+                        className="resize-y"
+                      />
+                      <div className="mt-x3 flex flex-wrap items-center justify-end gap-x2">
+                        {dirty && (
+                          <span className="mr-auto t3-medium text-fg-warning">
+                            저장하지 않은 변경 사항이 있어요
+                          </span>
+                        )}
+                        <Button
+                          variant={canApprove ? "secondary" : "default"}
+                          onClick={handleSaveNote}
+                          disabled={saving || !dirty || editingLocked}
+                        >
+                          {saving ? <Loader2 className="animate-spin" /> : <Check />}
+                          {saving ? "저장 중…" : "저장"}
+                        </Button>
+                        {canApprove && (
+                          <Button onClick={handleApprove} disabled={saving}>
+                            <CheckCircle2 />
+                            승인
+                          </Button>
+                        )}
+                      </div>
+                    </PaneSection>
+
+                    {/* 미리보기 */}
+                    <PaneSection title="미리 보기">
+                      <div className="rounded-r3 bg-bg-layer-fill p-x5">
+                        <MarkdownViewer source={markdownDraft || "*(내용 없음)*"} />
+                      </div>
+                    </PaneSection>
+
+                    {/* URL · 발송 */}
+                    {canSend && (
+                      <PaneSection
+                        title="발송"
+                        description="링크를 복사하거나 공유하면 발송 완료로 기록돼요."
+                      >
+                        <div className="flex flex-col gap-x3">
+                          <div className="flex items-center gap-x2">
+                            <Input
+                              readOnly
+                              value={`${origin}/r/online/${activeRow.report.token}`}
+                              aria-label="학부모 공개 링크"
+                              className="min-w-0 flex-1 t3-regular"
+                            />
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              onClick={handleCopyLink}
+                              aria-label="링크 복사"
+                              title="링크 복사"
+                            >
+                              {copied ? <Check className="text-fg-positive" /> : <Copy />}
+                            </Button>
+                            <Button asChild variant="outline" size="icon">
+                              <a
+                                href={`/r/online/${activeRow.report.token}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-label="학부모 화면 열기"
+                                title="학부모 화면 열기"
+                              >
+                                <ExternalLink />
+                              </a>
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-1 gap-x2 sm:grid-cols-2">
+                            <KakaoButton onClick={handleShareKakao} className="w-full">
+                              카카오톡으로 보내기
+                            </KakaoButton>
+                            <Button variant="outline" onClick={handleEmailMailto} className="w-full">
+                              <Mail />
+                              이메일로 보내기
+                            </Button>
+                          </div>
+                          <p className="t3-regular text-fg-neutral-subtle">
+                            {activeRow.parentEmail && <>이메일 받는 사람: {activeRow.parentEmail} · </>}
+                            여러 명에게 한 번에 보내려면 목록에서 학생을 선택하고 ‘선택 링크 복사’를 눌러 주세요.
+                            {activeRow.report.sentChannels.length > 0 && (
+                              <> · 발송 이력: {activeRow.report.sentChannels.join(", ")}</>
+                            )}
+                          </p>
+                        </div>
+                      </PaneSection>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </DetailPane>
+        }
+      />
+      {confirmDialog}
     </div>
   );
 }

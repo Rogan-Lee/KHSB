@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
-import { ClipboardList } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { isStaff } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { normalizeDigits } from "@/lib/token-auth";
 import { WaitlistAdmin } from "@/components/waitlist/waitlist-admin";
+import { PageHeader } from "@/components/backoffice/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -61,14 +61,11 @@ export default async function WaitlistAdminPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-      <div className="mb-1 flex items-center gap-2">
-        <ClipboardList className="h-5 w-5 text-brand" />
-        <h1 className="text-xl font-bold tracking-tight">대기자 관리</h1>
-      </div>
-      <p className="mb-5 text-sm text-muted-foreground">
-        공개 신청 링크(<code>/apply</code>)로 등록된 대기자를 관리하고, 지점·프로그램·정원을 설정합니다.
-      </p>
+    <>
+      <PageHeader
+        title="대기자 관리"
+        description="공개 신청 링크(/apply)로 들어온 대기자를 관리하고, 지점·프로그램·정원을 설정해요."
+      />
 
       <WaitlistAdmin
         branches={branches.map((b) => ({
@@ -118,6 +115,6 @@ export default async function WaitlistAdminPage() {
           createdAt: e.createdAt.toISOString(),
         }))}
       />
-    </div>
+    </>
   );
 }

@@ -4,14 +4,27 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { KakaoButton } from "@/components/ui/kakao-button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import {
-  Loader2, Search, X, CheckCircle2, Circle, Link2, Send, ExternalLink,
-  Copy, Check, Filter, MessageCircle, Sparkles, AlertCircle, UserMinus, CalendarClock,
+  Loader2,
+  Search,
+  X,
+  Link2,
+  Send,
+  ExternalLink,
+  Copy,
+  Check,
+  Sparkles,
+  AlertCircle,
+  UserMinus,
+  CalendarClock,
+  Settings2,
+  MousePointerClick,
 } from "lucide-react";
 import {
   createParentReportsForStudents,
@@ -23,6 +36,8 @@ import { enqueueMentoringAiComments } from "@/actions/report-ai-queue";
 import { enhanceMentoringWithAI, type EnhancedMentoringContent } from "@/actions/ai-enhance";
 import { getShareWording, setAppSetting } from "@/actions/app-settings";
 import { SHARE_WORDING_KEYS, renderShareWording } from "@/lib/share-wording";
+import { EmptyState, FilterChip, FormActions, SearchField, Section, StatusBadge } from "@/components/backoffice/ui";
+import { ConfirmDialog } from "./confirm-dialog";
 
 interface Props {
   rows: StudentReportRow[];
@@ -37,6 +52,7 @@ export function MentoringReportTab({ rows }: Props) {
   const [showOnlyWithReport, setShowOnlyWithReport] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [enqueuing, setEnqueuing] = useState(false);
+  const [enqueueConfirmOpen, setEnqueueConfirmOpen] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<Record<string, "pending" | "created" | "existing" | "no-mentoring" | "failed">>({});
 
   // 디테일: 편집 중 customNote
@@ -146,19 +162,17 @@ export function MentoringReportTab({ rows }: Props) {
       toast.error("학생을 선택하세요");
       return;
     }
-    if (
-      !confirm(
-        `선택한 ${selectedIds.size}명의 'AI 코멘트'를 예약 큐에 등록합니다.\n리포트가 없으면 먼저 생성되고, 야간 Claude 루틴이 코멘트를 생성합니다. 계속할까요?`,
-      )
-    ) {
-      return;
-    }
+    setEnqueueConfirmOpen(true);
+  }
+
+  async function confirmEnqueueAiComments() {
     setEnqueuing(true);
     try {
       const r = await enqueueMentoringAiComments({ studentIds: Array.from(selectedIds) });
       toast.success(
         `예약 ${r.queued}건 · 건너뜀 ${r.skipped}건` + (r.failed > 0 ? ` · 실패 ${r.failed}건` : ""),
       );
+      setEnqueueConfirmOpen(false);
       startTransition(() => router.refresh());
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "예약 등록 실패");
@@ -241,242 +255,262 @@ export function MentoringReportTab({ rows }: Props) {
     toast.success(`${targets.length}건 링크 복사됨`);
   }
 
+  const reportUrlFor = (token: string) =>
+    typeof window !== "undefined" ? `${window.location.origin}/r/${token}` : `/r/${token}`;
+  const allFilteredChecked = filtered.length > 0 && filtered.every((r) => selectedIds.has(r.studentId));
+  const someFilteredChecked = filtered.some((r) => selectedIds.has(r.studentId));
+
   return (
-    <div className="space-y-3">
-      {/* 상단 툴바 */}
-      <div className="flex items-center gap-2 flex-wrap bg-muted/40 rounded-md px-3 py-2">
-        <span className="text-xs text-muted-foreground">
-          총 {rows.length}명 · 생성 <b className="text-foreground">{createdCount}</b>건
-        </span>
-        <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-muted-foreground" onClick={openWordingEditor}>
+    <div className="flex flex-col gap-x4">
+      {/* 상단 툴바 — 요약 · 공유 문구 · 일괄 작업 */}
+      <div className="flex flex-wrap items-center gap-x2">
+        <p className="t4-regular text-fg-neutral-muted">
+          총 <span className="t4-bold tabular-nums text-fg-neutral">{rows.length}</span>명 · 리포트 생성{" "}
+          <span className="t4-bold tabular-nums text-fg-brand">{createdCount}</span>건
+        </p>
+        <Button size="xs" variant="ghost" onClick={openWordingEditor} aria-expanded={wordingOpen}>
+          <Settings2 />
           공유 문구 설정
         </Button>
-        {wordingOpen && (
-          <div className="w-full mt-2 rounded-md border bg-background p-3 space-y-2">
-            <p className="text-xs text-muted-foreground">
-              링크 복사 시 문구. 사용 가능한 치환: <code className="bg-muted px-1 rounded">{"{count}"}</code> 링크 수, <code className="bg-muted px-1 rounded">{"{links}"}</code> 링크 목록
-            </p>
-            <Textarea
-              value={wordingDraft ?? ""}
-              onChange={(e) => setWordingDraft(e.target.value)}
-              rows={5}
-              className="text-sm"
-              placeholder="문구를 불러오는 중…"
-            />
-            <div className="flex justify-end gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setWordingOpen(false)}>닫기</Button>
-              <Button size="sm" onClick={saveWording} disabled={wordingSaving || wordingDraft === null}>
-                {wordingSaving ? "저장 중…" : "저장 (원장)"}
-              </Button>
-            </div>
-          </div>
-        )}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-x2">
           {bulkBusy && (
-            <span className="text-xs text-muted-foreground">
+            <span className="t3-regular tabular-nums text-fg-neutral-subtle">
               {Object.values(bulkProgress).filter((s) => s !== "pending").length}/{Object.keys(bulkProgress).length} 진행 중
             </span>
           )}
           <Link
             href="/reports/ai-queue"
-            className="inline-flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-x1 rounded-r2 px-x1_5 py-x1 t4-medium text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral"
           >
-            <CalendarClock className="h-3.5 w-3.5" />
+            <CalendarClock className="size-4" aria-hidden />
             예약 대기열
           </Link>
           <Button
             size="sm"
             variant="outline"
-            className="text-violet-700 border-violet-300 hover:bg-violet-50"
             onClick={handleEnqueueAiComments}
             disabled={enqueuing || selectedIds.size === 0}
           >
-            {enqueuing ? (
-              <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />등록 중…</>
-            ) : (
-              <><CalendarClock className="h-3.5 w-3.5 mr-1" />AI 코멘트 예약</>
-            )}
+            {enqueuing ? <Loader2 className="animate-spin" /> : <Sparkles />}
+            {enqueuing ? "등록 중…" : "AI 코멘트 예약"}
           </Button>
           <Button
             size="sm"
             variant="outline"
-            className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
             onClick={handleBulkShareCopy}
             disabled={selectedIds.size === 0}
           >
-            <Send className="h-3.5 w-3.5 mr-1" />
+            <Send />
             선택 링크 복사
           </Button>
           <Button size="sm" onClick={handleBulkCreate} disabled={bulkBusy || selectedIds.size === 0}>
-            {bulkBusy ? (
-              <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />생성 중…</>
-            ) : (
-              <><Link2 className="h-3.5 w-3.5 mr-1" />선택 {selectedIds.size}명 일괄 생성</>
-            )}
+            {bulkBusy ? <Loader2 className="animate-spin" /> : <Link2 />}
+            {bulkBusy ? "생성 중…" : `선택 ${selectedIds.size}명 일괄 생성`}
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-3 min-h-[600px]">
+      {/* 공유 문구 편집 */}
+      {wordingOpen && (
+        <Section
+          title="공유 문구"
+          description={
+            <>
+              링크를 복사할 때 붙는 문구예요. <code className="rounded-r1 bg-bg-neutral-weak px-x1 t3-medium">{"{count}"}</code> 는 링크 수,{" "}
+              <code className="rounded-r1 bg-bg-neutral-weak px-x1 t3-medium">{"{links}"}</code> 는 링크 목록으로 바뀌어요.
+            </>
+          }
+        >
+          <Textarea
+            value={wordingDraft ?? ""}
+            onChange={(e) => setWordingDraft(e.target.value)}
+            rows={5}
+            placeholder="문구를 불러오는 중…"
+            aria-label="공유 문구"
+          />
+          <FormActions className="mt-x3">
+            <Button variant="outline" onClick={() => setWordingOpen(false)}>닫기</Button>
+            <Button onClick={saveWording} disabled={wordingSaving || wordingDraft === null}>
+              {wordingSaving ? "저장 중…" : "저장 (원장)"}
+            </Button>
+          </FormActions>
+        </Section>
+      )}
+
+      <div className="grid min-h-[600px] grid-cols-1 gap-x4 lg:grid-cols-[340px_minmax(0,1fr)]">
         {/* 좌측 학생 리스트 */}
-        <div className="border rounded-lg bg-background overflow-hidden flex flex-col">
-          <div className="px-3 py-2 border-b flex flex-col gap-1.5">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={filtered.length > 0 && filtered.every((r) => selectedIds.has(r.studentId))}
-                onChange={toggleAll}
-                className="rounded"
+        <section className="flex flex-col overflow-hidden rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
+          <div className="flex flex-col gap-x2_5 border-b border-stroke-neutral-muted p-x4">
+            <div className="flex items-center gap-x3">
+              <Checkbox
+                checked={allFilteredChecked ? true : someFilteredChecked ? "indeterminate" : false}
+                onCheckedChange={toggleAll}
+                aria-label="화면에 보이는 학생 전체 선택"
                 title="화면에 보이는 학생 전체 선택"
               />
-              <div className="relative flex-1">
-                <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
+              <div className="relative min-w-0 flex-1">
+                <SearchField
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="이름/학년 검색"
-                  className="h-7 pl-7 text-xs"
+                  placeholder="이름·학년 검색"
+                  aria-label="이름·학년 검색"
+                  className="pr-x8 sm:w-full"
                 />
                 {query && (
-                  <button onClick={() => setQuery("")} className="absolute right-2 top-1.5 text-muted-foreground hover:text-foreground">
-                    <X className="h-3 w-3" />
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    aria-label="검색어 지우기"
+                    className="absolute right-2 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full text-fg-neutral-subtle hover:bg-bg-transparent-pressed hover:text-fg-neutral"
+                  >
+                    <X className="size-3.5" />
                   </button>
                 )}
               </div>
             </div>
-            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={showOnlyWithReport}
-                onChange={(e) => setShowOnlyWithReport(e.target.checked)}
-                className="rounded h-3 w-3"
-              />
-              <Filter className="h-3 w-3" />
-              생성된 리포트만 보기
-              <span className="ml-auto tabular-nums">{filtered.length}/{rows.length}</span>
-            </label>
+            <div className="flex items-center justify-between gap-x2">
+              <FilterChip selected={showOnlyWithReport} onClick={() => setShowOnlyWithReport(!showOnlyWithReport)}>
+                생성된 리포트만
+              </FilterChip>
+              <span className="t3-regular tabular-nums text-fg-neutral-subtle">{filtered.length}/{rows.length}명</span>
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto divide-y max-h-[600px]">
+          <ul className="max-h-[600px] flex-1 overflow-y-auto">
             {filtered.length === 0 ? (
-              <p className="p-4 text-center text-xs text-muted-foreground">
-                {query || showOnlyWithReport ? "조건에 맞는 학생 없음" : "활성 학생이 없습니다"}
-              </p>
+              <li>
+                <EmptyState
+                  compact
+                  icon={Search}
+                  title={query || showOnlyWithReport ? "조건에 맞는 원생이 없어요" : "활성 원생이 없어요"}
+                />
+              </li>
             ) : (
               filtered.map((r) => {
                 const isActive = activeStudentId === r.studentId;
                 const isChecked = selectedIds.has(r.studentId);
                 const prog = bulkProgress[r.studentId];
                 return (
-                  <div
+                  <li
                     key={r.studentId}
-                    onClick={() => setActiveStudentId(r.studentId)}
                     className={cn(
-                      "cursor-pointer px-3 py-2.5 border-l-2 transition-colors",
-                      isActive ? "bg-primary/5 border-primary" : "hover:bg-muted/40 border-transparent"
+                      "flex items-start gap-x3 border-b border-stroke-neutral-muted px-x4 py-x3 transition-colors last:border-0",
+                      isActive ? "bg-bg-neutral-weak" : "hover:bg-bg-layer-default-pressed"
                     )}
                   >
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={(e) => { e.stopPropagation(); toggleOne(r.studentId); }}
-                        onClick={(e) => e.stopPropagation()}
-                        className="rounded shrink-0"
-                      />
-                      <span className="font-medium text-sm truncate">{r.studentName}</span>
-                      <span className="text-[10px] text-muted-foreground">{r.grade}</span>
-                      <div className="ml-auto shrink-0 flex items-center gap-1">
-                        {prog === "pending" ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
-                        ) : prog === "no-mentoring" ? (
-                          <span title="완료된 멘토링 없음"><UserMinus className="h-3.5 w-3.5 text-gray-400" /></span>
-                        ) : prog === "failed" ? (
-                          <Badge variant="outline" className="text-[9px] h-4 px-1 border-red-300 text-red-700">실패</Badge>
-                        ) : r.parentReport ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                    <Checkbox
+                      checked={isChecked}
+                      onCheckedChange={() => toggleOne(r.studentId)}
+                      aria-label={`${r.studentName} 선택`}
+                      className="mt-x0_5"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setActiveStudentId(r.studentId)}
+                      aria-current={isActive ? "true" : undefined}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <div className="flex items-center gap-x1_5">
+                        <span className="truncate t4-bold text-fg-neutral">{r.studentName}</span>
+                        <span className="shrink-0 t3-regular text-fg-neutral-subtle">{r.grade}</span>
+                        <span className="ml-auto flex shrink-0 items-center">
+                          {prog === "pending" ? (
+                            <Loader2 className="size-4 animate-spin text-fg-informative" aria-label="생성 중" />
+                          ) : prog === "no-mentoring" ? (
+                            <StatusBadge tone="gray">
+                              <UserMinus />
+                              멘토링 없음
+                            </StatusBadge>
+                          ) : prog === "failed" ? (
+                            <StatusBadge tone="bad">실패</StatusBadge>
+                          ) : r.parentReport ? (
+                            <StatusBadge tone="ok">생성됨</StatusBadge>
+                          ) : null}
+                        </span>
+                      </div>
+                      <div className="mt-x0_5 t3-regular text-fg-neutral-subtle">
+                        {r.latestMentoring ? (
+                          <span className="tabular-nums">
+                            최근 {formatDate(r.latestMentoring.date)} · {r.latestMentoring.mentorName}
+                            {r.parentReport && (
+                              <span className="text-fg-positive"> · 리포트 {formatDate(r.parentReport.createdAt)}</span>
+                            )}
+                          </span>
                         ) : (
-                          <Circle className="h-3.5 w-3.5 text-muted-foreground/30" />
+                          <span className="inline-flex items-center gap-x1 text-fg-warning">
+                            <AlertCircle className="size-3.5" aria-hidden />
+                            완료된 멘토링 없음
+                          </span>
                         )}
                       </div>
-                    </div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                      {r.latestMentoring ? (
-                        <>
-                          <span>최근 {formatDate(r.latestMentoring.date)}</span>
-                          <span>·</span>
-                          <span>{r.latestMentoring.mentorName}</span>
-                          {r.parentReport && <span className="text-emerald-600">· 리포트 {formatDate(r.parentReport.createdAt)}</span>}
-                        </>
-                      ) : (
-                        <span className="text-amber-600 inline-flex items-center gap-0.5">
-                          <AlertCircle className="h-2.5 w-2.5" />
-                          완료된 멘토링 없음
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                    </button>
+                  </li>
                 );
               })
             )}
-          </div>
-        </div>
+          </ul>
+        </section>
 
         {/* 우측: 상세 */}
-        <div className="border rounded-lg bg-background flex flex-col min-h-[600px]">
+        <section className="flex min-h-[600px] flex-col rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
           {!activeRow ? (
-            <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-              좌측에서 학생을 선택하세요
-            </div>
+            <EmptyState
+              icon={MousePointerClick}
+              title="원생을 골라 주세요"
+              description="왼쪽 목록에서 원생을 누르면 리포트 내용을 확인하고 보낼 수 있어요"
+              className="flex-1"
+            />
           ) : (
             <>
               {/* 헤더 */}
-              <div className="px-5 py-3 border-b flex items-center gap-3 flex-wrap">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-base">{activeRow.studentName}</h3>
-                    <span className="text-xs text-muted-foreground">{activeRow.grade}{activeRow.school ? ` · ${activeRow.school}` : ""}</span>
-                  </div>
-                  {activeRow.latestMentoring ? (
-                    <p className="text-[11px] text-muted-foreground">
-                      최근 멘토링 {formatDate(activeRow.latestMentoring.date)} · {activeRow.latestMentoring.mentorName}
-                    </p>
-                  ) : (
-                    <p className="text-[11px] text-amber-600">완료된 멘토링이 없습니다</p>
-                  )}
+              <div className="border-b border-stroke-neutral-muted px-x5 py-x4">
+                <div className="flex flex-wrap items-baseline gap-x2">
+                  <h3 className="t6-bold text-fg-neutral">{activeRow.studentName}</h3>
+                  <span className="t3-regular text-fg-neutral-subtle">
+                    {activeRow.grade}{activeRow.school ? ` · ${activeRow.school}` : ""}
+                  </span>
+                  {activeRow.parentReport && <StatusBadge tone="ok">리포트 생성됨</StatusBadge>}
                 </div>
+                {activeRow.latestMentoring ? (
+                  <p className="mt-x1 t3-regular tabular-nums text-fg-neutral-subtle">
+                    최근 멘토링 {formatDate(activeRow.latestMentoring.date)} · {activeRow.latestMentoring.mentorName}
+                  </p>
+                ) : (
+                  <p className="mt-x1 t3-regular text-fg-warning">완료된 멘토링이 없어요</p>
+                )}
               </div>
 
               {!activeRow.latestMentoring ? (
-                <div className="flex-1 flex items-center justify-center p-6 text-sm text-muted-foreground text-center">
-                  학생에게 완료된 멘토링 기록이 있어야 학부모 리포트를 만들 수 있습니다.
-                  <br />
-                  먼저 &quot;멘토링 기록&quot; 탭에서 멘토링 완료 처리를 해주세요.
-                </div>
+                <EmptyState
+                  icon={AlertCircle}
+                  title="완료된 멘토링 기록이 필요해요"
+                  description={"학부모 리포트는 완료된 멘토링 기록으로 만들어요.\n먼저 \"멘토링 기록\" 탭에서 멘토링을 완료 처리해 주세요."}
+                  className="flex-1"
+                />
               ) : !activeRow.parentReport ? (
-                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center gap-3">
-                  <p className="text-sm text-muted-foreground">
-                    이 학생의 리포트가 아직 생성되지 않았습니다.
-                  </p>
-                  <Button size="sm" onClick={() => { setSelectedIds(new Set([activeRow.studentId])); handleBulkCreate(); }}>
-                    <Link2 className="h-3.5 w-3.5 mr-1" />
-                    이 학생 리포트 생성
-                  </Button>
-                </div>
+                <EmptyState
+                  icon={Link2}
+                  title="아직 리포트가 없어요"
+                  description="이 원생의 최근 멘토링으로 학부모 리포트를 만들 수 있어요"
+                  action={
+                    <Button size="sm" onClick={() => { setSelectedIds(new Set([activeRow.studentId])); handleBulkCreate(); }}>
+                      <Link2 />
+                      이 학생 리포트 생성
+                    </Button>
+                  }
+                  className="flex-1"
+                />
               ) : (
-                <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                <div className="flex flex-1 flex-col gap-x6 overflow-y-auto p-x5">
                   {/* URL 들어가는 내용 편집 */}
-                  <section>
-                    <div className="flex items-center gap-2 mb-2">
-                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">학부모에게 전달할 내용 (공유 페이지에 표시됨)</h4>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs ml-auto"
-                        onClick={handleAiEnhance}
-                        disabled={aiBusy}
-                      >
-                        {aiBusy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Sparkles className="h-3 w-3 mr-1" />}
-                        AI 고도화
+                  <div className="flex flex-col gap-x2">
+                    <div className="flex flex-wrap items-center justify-between gap-x2">
+                      <div>
+                        <h4 className="t5-bold text-fg-neutral">학부모에게 전할 내용</h4>
+                        <p className="t3-regular text-fg-neutral-subtle">공유 페이지에 그대로 보여요</p>
+                      </div>
+                      <Button variant="outline" size="xs" onClick={handleAiEnhance} disabled={aiBusy}>
+                        {aiBusy ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                        {aiBusy ? "다듬는 중…" : "AI 고도화"}
                       </Button>
                     </div>
                     <Textarea
@@ -484,54 +518,69 @@ export function MentoringReportTab({ rows }: Props) {
                       onChange={(e) => setNoteDraft(e.target.value)}
                       rows={14}
                       placeholder="학부모에게 전달할 내용을 입력하세요. AI 고도화로 입시 컨설턴트 문체로 다듬을 수 있어요."
-                      className="text-sm leading-relaxed resize-y"
+                      className="resize-y"
+                      aria-label="학부모에게 전할 내용"
                     />
-                    <div className="flex items-center justify-end gap-2 mt-2">
+                    <FormActions>
                       {noteDraft !== (activeRow.parentReport.customNote ?? "") && (
-                        <span className="text-[11px] text-amber-700">변경됨 — 저장 필요</span>
+                        <span className="mr-auto t3-medium text-fg-warning">바뀐 내용이 있어요 — 저장해 주세요</span>
                       )}
                       <Button size="sm" onClick={handleSaveNote} disabled={noteSaving || noteDraft === (activeRow.parentReport.customNote ?? "")}>
-                        {noteSaving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
-                        저장
+                        {noteSaving ? "저장 중…" : "저장"}
                       </Button>
-                    </div>
-                  </section>
+                    </FormActions>
+                  </div>
 
                   {/* URL / 발송 */}
-                  <section className="border-t pt-4 space-y-3">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">URL · 발송</h4>
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-x3 border-t border-stroke-neutral-muted pt-x5">
+                    <h4 className="t5-bold text-fg-neutral">링크 · 발송</h4>
+                    <div className="flex items-center gap-x2">
                       <Input
                         readOnly
-                        value={typeof window !== "undefined" ? `${window.location.origin}/r/${activeRow.parentReport.token}` : `/r/${activeRow.parentReport.token}`}
-                        className="text-xs font-mono bg-muted"
+                        value={reportUrlFor(activeRow.parentReport.token)}
+                        aria-label="리포트 링크"
+                        className="t3-regular"
                       />
-                      <Button variant="outline" size="sm" onClick={handleCopyLink}>
-                        {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                      <Button variant="outline" size="icon" onClick={handleCopyLink} aria-label="링크 복사">
+                        {copied ? <Check className="text-fg-positive" /> : <Copy />}
                       </Button>
-                      <a href={`/r/${activeRow.parentReport.token}`} target="_blank" rel="noreferrer">
-                        <Button variant="outline" size="sm" title="학부모 화면 열기">
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </Button>
-                      </a>
+                      <Button asChild variant="outline" size="icon">
+                        <a
+                          href={`/r/${activeRow.parentReport.token}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="학부모 화면 열기"
+                          aria-label="학부모 화면 열기"
+                        >
+                          <ExternalLink />
+                        </a>
+                      </Button>
                     </div>
-                    <Button
-                      className="w-full gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold"
-                      onClick={handleShareKakao}
-                    >
-                      <MessageCircle className="h-4 w-4" />
+                    <KakaoButton size="lg" className="w-full" onClick={handleShareKakao}>
                       카카오톡으로 보내기
-                    </Button>
-                    <p className="text-[11px] text-muted-foreground">
-                      개별 발송 외에 상단 &quot;선택 링크 복사&quot; 로 여러 명 링크를 한번에 복사할 수 있어요.
+                    </KakaoButton>
+                    <p className="t3-regular text-fg-neutral-subtle">
+                      여러 명에게 보낼 때는 위의 &quot;선택 링크 복사&quot;로 링크를 한 번에 복사할 수 있어요.
                     </p>
-                  </section>
+                  </div>
                 </div>
               )}
             </>
           )}
-        </div>
+        </section>
       </div>
+
+      <ConfirmDialog
+        open={enqueueConfirmOpen}
+        onOpenChange={setEnqueueConfirmOpen}
+        title="AI 코멘트 예약"
+        description={`선택한 ${selectedIds.size}명의 'AI 코멘트'를 예약 큐에 등록할까요?\n리포트가 없으면 먼저 생성되고, 야간 Claude 루틴이 코멘트를 생성해요.`}
+        destructive={false}
+        confirmLabel="예약 등록"
+        pendingLabel="등록 중…"
+        pending={enqueuing}
+        onConfirm={confirmEnqueueAiComments}
+      />
     </div>
   );
 }

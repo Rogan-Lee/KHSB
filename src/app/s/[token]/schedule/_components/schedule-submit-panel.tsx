@@ -3,23 +3,20 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { CalendarClock, Send } from "lucide-react";
+import { CalendarClock } from "lucide-react";
 import { ScheduleSlotsEditor, type AttendanceSlot, type OutingSlot } from "@/components/online/schedule-slots-editor";
 import { submitScheduleProposal } from "@/actions/online/schedule-proposals";
-
-const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
-  SUBMITTED: { label: "제출됨 (검토 대기)", cls: "bg-slate-100 text-slate-700" },
-  PROPOSED: { label: "학부모 승인 대기", cls: "bg-amber-100 text-amber-800" },
-  APPROVED: { label: "승인됨", cls: "bg-blue-100 text-blue-800" },
-  REJECTED: { label: "반려됨", cls: "bg-rose-100 text-rose-700" },
-  COMMITTED: { label: "일정 반영 완료", cls: "bg-emerald-100 text-emerald-800" },
-  SUPERSEDED: { label: "대체됨", cls: "bg-gray-100 text-gray-500" },
-  CANCELLED: { label: "취소됨", cls: "bg-gray-100 text-gray-500" },
-};
+import { TextField, TextFieldTextarea } from "seed-design/ui/text-field";
+import { Badge, Button, IconTile, ListRow, Section } from "@/components/portal/ui";
+import { SCHEDULE_PROPOSAL_STATUS } from "@/components/portal/status";
 
 type HistoryRow = { id: string; version: number; status: string; createdAt: string; committedAt: string | null };
+
+/** ISO → KST "9월 24일" (서버·클라이언트 동일 결과) */
+function fmtKSTDate(iso: string): string {
+  const d = new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000);
+  return `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일`;
+}
 
 export function ScheduleSubmitPanel({ token, history }: { token: string; history: HistoryRow[] }) {
   const router = useRouter();
@@ -46,47 +43,64 @@ export function ScheduleSubmitPanel({ token, history }: { token: string; history
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <CalendarClock className="h-5 w-5 text-ink-3" />
-        <h2 className="text-lg font-bold">등원 스케줄 제출</h2>
+    <div className="flex flex-col gap-x3">
+      <div className="px-x1 pb-x2 pt-x3">
+        <h2 className="t7-bold text-fg-neutral">다음 주 등원 스케줄을 알려주세요</h2>
+        <p className="mt-x1_5 t4-regular text-fg-neutral-subtle">
+          등하원 시간과 학원·외출 일정을 입력해 주세요. 운영진 확인과 학부모님 승인을 거쳐 입퇴실
+          일정에 반영돼요.
+        </p>
       </div>
-      <p className="text-sm text-ink-3">
-        다음 주 등하원 시간과 학원·외출 일정을 입력해 제출해 주세요. 운영진 확인 후 학부모님 승인을 거쳐 입퇴실 일정에 반영됩니다.
-      </p>
 
-      <div className="rounded-[14px] border border-line bg-panel p-4">
+      <Section>
         <ScheduleSlotsEditor
           attendance={attendance}
           outings={outings}
           onAttendanceChange={setAttendance}
           onOutingsChange={setOutings}
+          variant="portal"
         />
-        <div className="mt-4 space-y-1.5">
-          <label className="text-sm font-medium">메모 (선택)</label>
-          <Textarea value={memo} onChange={(e) => setMemo(e.target.value)} rows={2} placeholder="특이사항이 있으면 적어주세요" />
-        </div>
-        <Button className="mt-3 w-full gap-2" onClick={submit} disabled={pending}>
-          <Send className="h-4 w-4" />{pending ? "제출 중…" : "제출하기"}
-        </Button>
-      </div>
+      </Section>
+
+      <Section>
+        <TextField
+          label="메모"
+          indicator="선택"
+          value={memo}
+          onValueChange={({ value }) => setMemo(value)}
+        >
+          <TextFieldTextarea placeholder="특이사항이 있으면 적어 주세요" />
+        </TextField>
+      </Section>
+
+      <Button variant="primary" size="xl" block loading={pending} onClick={submit}>
+        스케줄 제출하기
+      </Button>
 
       {history.length > 0 && (
-        <div className="rounded-[14px] border border-line bg-panel p-4">
-          <p className="mb-2 text-sm font-medium">제출 이력</p>
-          <ul className="space-y-1.5">
-            {history.map((h) => (
-              <li key={h.id} className="flex items-center gap-2 text-sm">
-                <span className="text-ink-4 tabular-nums">v{h.version}</span>
-                <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_LABEL[h.status]?.cls ?? "bg-gray-100"}`}>
-                  {STATUS_LABEL[h.status]?.label ?? h.status}
-                </span>
-                <span className="ml-auto text-[11px] text-ink-4 tabular-nums">
-                  {new Date(h.createdAt).toLocaleDateString("ko-KR")}
-                </span>
-              </li>
-            ))}
-          </ul>
+        <div className="pt-x3">
+          <Section title="제출 이력" flush>
+            {history.map((h) => {
+              const status = SCHEDULE_PROPOSAL_STATUS[h.status] ?? {
+                label: h.status,
+                tone: "gray" as const,
+              };
+              return (
+                <ListRow
+                  key={h.id}
+                  leading={<IconTile icon={CalendarClock} tone="gray" />}
+                  title={<span className="tabular-nums">{h.version}번째 제출</span>}
+                  description={
+                    <span className="tabular-nums">
+                      {fmtKSTDate(h.createdAt)} 제출
+                      {h.committedAt ? ` · ${fmtKSTDate(h.committedAt)} 반영` : ""}
+                    </span>
+                  }
+                  trailing={<Badge tone={status.tone}>{status.label}</Badge>}
+                />
+              );
+            })}
+          </Section>
         </div>
       )}
     </div>

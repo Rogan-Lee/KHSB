@@ -1,7 +1,7 @@
 "use client";
 
-import { Search, X } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { RotateCcw, Search, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -87,37 +87,35 @@ export function StudentFilterBar({
 }) {
   const active = isFilterActive(value);
   return (
-    <div
-      className={cn(
-        "flex flex-wrap items-center gap-2 rounded-md border border-line bg-canvas-2/40 p-2",
-        className
-      )}
-    >
-      <div className="relative flex-1 min-w-[180px] max-w-xs">
-        <Search className="absolute left-2 top-1.5 h-3.5 w-3.5 text-ink-5" />
-        <Input
+    <div className={cn("flex flex-wrap items-center gap-x2", className)}>
+      {/* 검색 — backoffice SearchField 규격 + 지우기 버튼 */}
+      <label className="flex h-10 w-full min-w-0 items-center gap-x2 rounded-r2 bg-bg-neutral-weak px-x3 transition-shadow focus-within:bg-bg-layer-default focus-within:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)] sm:w-64">
+        <Search className="size-4 shrink-0 text-fg-neutral-subtle" aria-hidden />
+        <input
+          type="search"
           value={value.search}
           onChange={(e) => onChange({ ...value, search: e.target.value })}
           placeholder={searchPlaceholder}
-          className="h-7 pl-7 pr-7 text-xs"
+          aria-label={searchPlaceholder}
+          className="h-full min-w-0 flex-1 bg-transparent t4-regular text-fg-neutral outline-none placeholder:text-fg-placeholder [&::-webkit-search-cancel-button]:hidden"
         />
         {value.search && (
           <button
             type="button"
             onClick={() => onChange({ ...value, search: "" })}
-            className="absolute right-2 top-1.5 text-ink-5 hover:text-ink"
+            className="grid size-5 shrink-0 place-items-center rounded-full bg-bg-neutral-solid-muted text-fg-neutral-inverted transition-opacity hover:opacity-80"
             aria-label="검색어 지우기"
           >
-            <X className="h-3 w-3" />
+            <X className="size-3" strokeWidth={3} />
           </button>
         )}
-      </div>
+      </label>
 
       <Select
         value={value.grade}
         onValueChange={(v) => onChange({ ...value, grade: v })}
       >
-        <SelectTrigger className="h-7 text-xs w-[100px]">
+        <SelectTrigger className="w-[120px]" aria-label="학년">
           <SelectValue placeholder="학년" />
         </SelectTrigger>
         <SelectContent>
@@ -134,7 +132,7 @@ export function StudentFilterBar({
         value={value.school}
         onValueChange={(v) => onChange({ ...value, school: v })}
       >
-        <SelectTrigger className="h-7 text-xs w-[140px]">
+        <SelectTrigger className="w-[160px]" aria-label="학교">
           <SelectValue placeholder="학교" />
         </SelectTrigger>
         <SelectContent>
@@ -151,17 +149,20 @@ export function StudentFilterBar({
       </Select>
 
       {active && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           onClick={() => onChange(defaultFilterState)}
-          className="inline-flex items-center gap-1 rounded-[6px] border border-line bg-panel px-2 py-1 text-[11px] text-ink-3 hover:text-ink hover:border-line-strong"
         >
-          <X className="h-3 w-3" />
+          <RotateCcw />
           초기화
-        </button>
+        </Button>
       )}
 
-      {rightSlot && <div className="ml-auto">{rightSlot}</div>}
+      {rightSlot && (
+        <div className="ml-auto t3-regular text-fg-neutral-subtle">{rightSlot}</div>
+      )}
     </div>
   );
 }

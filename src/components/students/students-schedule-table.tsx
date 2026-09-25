@@ -5,7 +5,12 @@ import { saveScheduleAndOutings } from "@/actions/attendance";
 import { toast } from "sonner";
 import { TimePickerInput } from "@/components/ui/time-picker";
 import type { AttendanceSchedule, OutingSchedule, Student } from "@/generated/prisma";
-import { Check, X, Pencil, Plus } from "lucide-react";
+import { X, Pencil, Plus, CalendarClock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { inputBaseClass } from "@/components/ui/input";
+import { EmptyState, TableCard } from "@/components/backoffice/ui";
+import { cn } from "@/lib/utils";
 
 const DAYS = [
   { value: 1, label: "월" },
@@ -127,194 +132,201 @@ export function StudentsScheduleTable({ students }: Props) {
     });
   }
 
-  return (
-    <div className="rounded-lg border overflow-x-auto">
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="border-b bg-muted/50 text-xs text-muted-foreground">
-            <th className="px-3 py-2 text-center w-10">좌석</th>
-            <th className="px-3 py-2 text-left w-20">이름</th>
-            <th className="px-3 py-2 text-left">학교/학년</th>
-            {DAYS.map((d) => (
-              <th key={d.value} className="px-2 py-2 text-center w-28">{d.label}요일</th>
-            ))}
-            <th className="px-3 py-2 w-16"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((student) => {
-            const isEditing = editingId === student.id;
-            const schMap = buildScheduleMap(student.schedules, student.outings);
+  if (sorted.length === 0) {
+    return (
+      <TableCard>
+        <EmptyState
+          icon={CalendarClock}
+          title="재원 중인 원생이 없어요"
+          description="재원생이 생기면 요일별 입실·퇴실 약속을 여기서 관리할 수 있어요."
+        />
+      </TableCard>
+    );
+  }
 
-            if (isEditing) {
+  const flexLabel = "t2-medium text-palette-purple-700";
+
+  return (
+    <TableCard
+      footer={
+        <span className="t3-regular text-fg-neutral-subtle">
+          행을 누르면 바로 수정할 수 있어요 · 입퇴실 시간과 외출 일정을 요일별로 정해요
+        </span>
+      }
+    >
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse t4-regular text-fg-neutral tabular-nums">
+          <thead className="bg-bg-layer-fill">
+            <tr className="border-b border-stroke-neutral-muted">
+              <th className="h-10 w-14 whitespace-nowrap px-x3 text-left t3-medium text-fg-neutral-subtle">좌석</th>
+              <th className="h-10 w-24 whitespace-nowrap px-x3 text-left t3-medium text-fg-neutral-subtle">이름</th>
+              <th className="h-10 whitespace-nowrap px-x3 text-left t3-medium text-fg-neutral-subtle">학교/학년</th>
+              {DAYS.map((d) => (
+                <th key={d.value} className="h-10 w-28 whitespace-nowrap px-x2 text-center t3-medium text-fg-neutral-subtle">
+                  {d.label}요일
+                </th>
+              ))}
+              <th className="h-10 w-20 px-x3"><span className="sr-only">편집</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((student) => {
+              const isEditing = editingId === student.id;
+              const schMap = buildScheduleMap(student.schedules, student.outings);
+
+              if (isEditing) {
+                return (
+                  <tr key={student.id} className="border-b border-stroke-neutral-muted bg-bg-layer-fill align-top last:border-0">
+                    <td className="px-x3 py-x3 t4-medium">{student.seat ?? "-"}</td>
+                    <td className="whitespace-nowrap px-x3 py-x3 t4-medium">{student.name}</td>
+                    <td className="px-x3 py-x3 t3-regular text-fg-neutral-muted">
+                      {[student.school, student.grade].filter(Boolean).join(" ")}
+                    </td>
+                    {DAYS.map((d) => {
+                      const day = editMap[d.value];
+                      return (
+                        <td key={d.value} className="px-x2 py-x2">
+                          <div className="flex flex-col gap-x1_5">
+                            <label className="flex cursor-pointer items-center gap-x1_5">
+                              <Checkbox checked={day?.enabled ?? false} onCheckedChange={() => toggle(d.value)} />
+                              <span className="t3-medium text-fg-neutral-muted">등원</span>
+                            </label>
+                            {day?.enabled && (
+                              <>
+                                <div className="flex flex-col gap-x1">
+                                  <label className="flex cursor-pointer items-center gap-x1">
+                                    <Checkbox checked={day.flexStart} onCheckedChange={() => toggleFlex(d.value, "flexStart")} />
+                                    <span className={flexLabel}>입실 자율</span>
+                                  </label>
+                                  {day.flexStart ? (
+                                    <span className="t3-medium text-palette-purple-700">자율(미정)</span>
+                                  ) : (
+                                    <TimePickerInput value={day.startTime} onChange={(v) => updateTime(d.value, "startTime", v)} size="sm" className="w-full" />
+                                  )}
+                                  <label className="mt-x1 flex cursor-pointer items-center gap-x1">
+                                    <Checkbox checked={day.flexEnd} onCheckedChange={() => toggleFlex(d.value, "flexEnd")} />
+                                    <span className={flexLabel}>퇴실 자율</span>
+                                  </label>
+                                  {day.flexEnd ? (
+                                    <span className="t3-medium text-palette-purple-700">자율(미정)</span>
+                                  ) : (
+                                    <TimePickerInput value={day.endTime} onChange={(v) => updateTime(d.value, "endTime", v)} size="sm" className="w-full" />
+                                  )}
+                                </div>
+
+                                {/* 외출 일정 */}
+                                {day.outings.map((o, i) => (
+                                  <div key={i} className="flex flex-col gap-x1 border-t border-stroke-neutral-muted pt-x1_5">
+                                    <div className="flex items-center justify-between">
+                                      <span className="t2-medium text-fg-warning">외출</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeOuting(d.value, i)}
+                                        className="grid size-5 place-items-center rounded-full text-fg-neutral-subtle hover:bg-bg-transparent-pressed hover:text-fg-critical"
+                                        aria-label={`${d.label}요일 외출 삭제`}
+                                      >
+                                        <X className="size-3" />
+                                      </button>
+                                    </div>
+                                    <TimePickerInput
+                                      value={o.outStart}
+                                      onChange={(v) => updateOuting(d.value, i, "outStart", v)}
+                                      size="sm"
+                                      className="w-full"
+                                    />
+                                    <TimePickerInput
+                                      value={o.outEnd}
+                                      onChange={(v) => updateOuting(d.value, i, "outEnd", v)}
+                                      size="sm"
+                                      className="w-full"
+                                    />
+                                    <input
+                                      type="text"
+                                      placeholder="사유 (선택)"
+                                      value={o.reason}
+                                      onChange={(e) => updateOuting(d.value, i, "reason", e.target.value)}
+                                      className={cn(inputBaseClass, "h-7 px-x2 t2-regular")}
+                                    />
+                                  </div>
+                                ))}
+                                <button
+                                  type="button"
+                                  onClick={() => addOuting(d.value)}
+                                  className="flex items-center gap-x0_5 self-start rounded-r1 t2-medium text-fg-neutral-muted hover:text-fg-neutral"
+                                >
+                                  <Plus className="size-3" />외출 추가
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+                    <td className="px-x2 py-x2">
+                      <div className="flex flex-col gap-x1">
+                        <Button size="xs" onClick={() => save(student.id)} disabled={isPending}>
+                          {isPending ? "저장 중…" : "저장"}
+                        </Button>
+                        <Button size="xs" variant="ghost" onClick={cancelEdit} disabled={isPending}>
+                          취소
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }
+
               return (
-                <tr key={student.id} className="border-b bg-blue-50/60 align-top">
-                  <td className="px-3 py-2 text-center text-xs text-muted-foreground font-mono">
-                    {student.seat ?? "-"}
-                  </td>
-                  <td className="px-3 py-2 font-medium text-xs">{student.name}</td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">
+                <tr
+                  key={student.id}
+                  className="group cursor-pointer border-b border-stroke-neutral-muted transition-colors last:border-0 hover:bg-bg-layer-default-pressed"
+                  onClick={() => startEdit(student)}
+                >
+                  <td className="px-x3 py-x3 t4-medium">{student.seat ?? "-"}</td>
+                  <td className="whitespace-nowrap px-x3 py-x3 t4-medium">{student.name}</td>
+                  <td className="whitespace-nowrap px-x3 py-x3 t3-regular text-fg-neutral-muted">
                     {[student.school, student.grade].filter(Boolean).join(" ")}
                   </td>
                   {DAYS.map((d) => {
-                    const day = editMap[d.value];
+                    const s = schMap[d.value];
                     return (
-                      <td key={d.value} className="px-2 py-1.5">
-                        <div className="flex flex-col gap-1">
-                          <label className="flex items-center gap-1 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={day?.enabled ?? false}
-                              onChange={() => toggle(d.value)}
-                              className="w-3.5 h-3.5 accent-blue-500"
-                            />
-                            <span className="text-xs text-muted-foreground">등원</span>
-                          </label>
-                          {day?.enabled && (
-                            <>
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-1">
-                                  <label className="flex items-center gap-0.5 cursor-pointer">
-                                    <input type="checkbox" checked={day.flexStart} onChange={() => toggleFlex(d.value, "flexStart")} className="w-3 h-3 accent-violet-500" />
-                                    <span className="text-[10px] text-violet-600">입실 자율</span>
-                                  </label>
-                                </div>
-                                {day.flexStart ? (
-                                  <span className="text-xs text-violet-600 font-medium">자율(미정)</span>
-                                ) : (
-                                  <TimePickerInput value={day.startTime} onChange={(v) => updateTime(d.value, "startTime", v)} size="sm" className="w-full" />
-                                )}
-                                <div className="flex items-center gap-1 mt-1">
-                                  <label className="flex items-center gap-0.5 cursor-pointer">
-                                    <input type="checkbox" checked={day.flexEnd} onChange={() => toggleFlex(d.value, "flexEnd")} className="w-3 h-3 accent-violet-500" />
-                                    <span className="text-[10px] text-violet-600">퇴실 자율</span>
-                                  </label>
-                                </div>
-                                {day.flexEnd ? (
-                                  <span className="text-xs text-violet-600 font-medium">자율(미정)</span>
-                                ) : (
-                                  <TimePickerInput value={day.endTime} onChange={(v) => updateTime(d.value, "endTime", v)} size="sm" className="w-full" />
-                                )}
-                              </div>
-
-                              {/* 외출 일정 */}
-                              {day.outings.map((o, i) => (
-                                <div key={i} className="border-t border-orange-200 pt-1 mt-0.5 flex flex-col gap-0.5">
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-[10px] text-orange-500 font-medium">외출</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => removeOuting(d.value, i)}
-                                      className="text-muted-foreground hover:text-red-500"
-                                    >
-                                      <X className="h-2.5 w-2.5" />
-                                    </button>
-                                  </div>
-                                  <TimePickerInput
-                                    value={o.outStart}
-                                    onChange={(v) => updateOuting(d.value, i, "outStart", v)}
-                                    size="sm"
-                                    className="w-full"
-                                  />
-                                  <TimePickerInput
-                                    value={o.outEnd}
-                                    onChange={(v) => updateOuting(d.value, i, "outEnd", v)}
-                                    size="sm"
-                                    className="w-full"
-                                  />
-                                  <input
-                                    type="text"
-                                    placeholder="사유 (선택)"
-                                    value={o.reason}
-                                    onChange={(e) => updateOuting(d.value, i, "reason", e.target.value)}
-                                    className="w-full text-[10px] border rounded px-1 py-0.5 bg-white placeholder:text-muted-foreground/50"
-                                  />
-                                </div>
-                              ))}
-                              <button
-                                type="button"
-                                onClick={() => addOuting(d.value)}
-                                className="flex items-center gap-0.5 text-[10px] text-orange-500 hover:text-orange-600 mt-0.5"
-                              >
-                                <Plus className="h-2.5 w-2.5" />외출 추가
-                              </button>
-                            </>
-                          )}
-                        </div>
+                      <td key={d.value} className="px-x2 py-x3 text-center">
+                        {s.enabled ? (
+                          <div className="flex flex-col gap-x0_5">
+                            <span className={s.flexStart ? "t3-medium text-palette-purple-700" : "t3-medium text-fg-neutral"}>
+                              {s.flexStart ? "자율" : s.startTime}
+                            </span>
+                            <span className={s.flexEnd ? "t3-medium text-palette-purple-700" : "t3-regular text-fg-neutral-subtle"}>
+                              {s.flexEnd ? "~자율" : `~${s.endTime}`}
+                            </span>
+                            {s.outings.map((o, i) => (
+                              <span key={i} className="t2-regular text-fg-warning">
+                                외출 {o.outStart}~{o.outEnd}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="t3-regular text-fg-placeholder">—</span>
+                        )}
                       </td>
                     );
                   })}
-                  <td className="px-2 py-2">
-                    <div className="flex flex-col gap-1">
-                      <button
-                        onClick={() => save(student.id)}
-                        disabled={isPending}
-                        className="p-1 rounded bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50"
-                        title="저장"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={cancelEdit}
-                        className="p-1 rounded bg-gray-200 hover:bg-gray-300 text-gray-700"
-                        title="취소"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+                  <td className="px-x3 py-x3 text-right">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); startEdit(student); }}
+                      className="grid size-8 place-items-center rounded-full text-fg-placeholder transition-colors group-hover:text-fg-neutral-muted hover:bg-bg-transparent-pressed focus-visible:outline-2 focus-visible:outline-stroke-focus-ring"
+                      aria-label={`${student.name} 일정 수정`}
+                    >
+                      <Pencil className="size-4" />
+                    </button>
                   </td>
                 </tr>
               );
-            }
-
-            return (
-              <tr
-                key={student.id}
-                className="border-b hover:bg-muted/30 cursor-pointer group transition-colors"
-                onClick={() => startEdit(student)}
-              >
-                <td className="px-3 py-2.5 text-center text-xs text-muted-foreground font-mono">
-                  {student.seat ?? "-"}
-                </td>
-                <td className="px-3 py-2.5 font-medium text-sm">{student.name}</td>
-                <td className="px-3 py-2.5 text-xs text-muted-foreground">
-                  {[student.school, student.grade].filter(Boolean).join(" ")}
-                </td>
-                {DAYS.map((d) => {
-                  const s = schMap[d.value];
-                  return (
-                    <td key={d.value} className="px-2 py-2.5 text-center">
-                      {s.enabled ? (
-                        <div className="text-xs space-y-0.5">
-                          <div className={s.flexStart ? "text-violet-600 font-medium" : "text-foreground font-medium"}>
-                            {s.flexStart ? "자율" : s.startTime}
-                          </div>
-                          <div className={s.flexEnd ? "text-violet-600 font-medium" : "text-muted-foreground"}>
-                            {s.flexEnd ? "~자율" : `~${s.endTime}`}
-                          </div>
-                          {s.outings.map((o, i) => (
-                            <div key={i} className="text-[10px] text-orange-500">
-                              외출 {o.outStart}~{o.outEnd}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-gray-300 text-xs">—</span>
-                      )}
-                    </td>
-                  );
-                })}
-                <td className="px-3 py-2.5 text-right">
-                  <Pencil className="h-3 w-3 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors inline" />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <p className="text-xs text-muted-foreground px-3 py-2 border-t">
-        행 클릭 → 인라인 편집 · 입퇴실 시간 및 외출 일정 설정
-      </p>
-    </div>
+            })}
+          </tbody>
+        </table>
+      </div>
+    </TableCard>
   );
 }

@@ -3,110 +3,144 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>대표 소개 | 강한선배</title>
-  <meta name="description" content="강한선배 대표 인사말과 운영 철학을 소개합니다. 관리한 모든 것을 학부모님께 투명하게 공유하는 관리형 프리미엄 독서실.">
+  <title>강한선배 소개 · 대표 인사말 | 강한선배</title>
+  <meta name="description" content="자리만 빌려주는 독서실은 많습니다. 강한선배는 아이를 책임지는 독서실입니다. 강한지 대표원장 인사말과 운영 철학, 총괄·운영진 소개.">
+  <meta name="theme-color" content="#0b0c0f">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="강한선배 소개 | 강한선배">
+  <meta property="og:description" content="부모님께 보여드리지 못할 관리라면 애초에 하지 않습니다.">
+  <meta property="og:image" content="photos/bx/director.jpg">
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-  <link rel="stylesheet" href="landing.css">
+  <link rel="stylesheet" href="landing.css?v=seed3">
+  <link rel="stylesheet" href="bx-core.css?v=bx20">
   <style>
-    .m-back { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: var(--mute); }
-    .dir-hero { margin-top: 96px; display: grid; grid-template-columns: 300px 1fr; gap: 48px; align-items: center; }
-    .dir-photo { aspect-ratio: 3/4; border-radius: var(--radius); background: linear-gradient(160deg,#EFEDFA,#D9D4F4); display: flex; align-items: flex-end; justify-content: center; box-shadow: var(--shadow-sm); overflow: hidden; }
-    .dir-photo img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
-    .dir-tag { display: inline-block; font-size: 13px; font-weight: 700; color: var(--purple); background: var(--brand-soft); padding: 6px 14px; border-radius: 999px; margin-bottom: 18px; }
-    .dir-name { font-size: clamp(30px,5vw,50px); font-weight: 800; letter-spacing: -.03em; line-height: 1.1; }
-    .dir-name span { font-size: .42em; font-weight: 700; color: var(--mute); margin-left: 12px; }
-    .dir-lead { font-size: clamp(17px,2.2vw,22px); font-weight: 600; line-height: 1.6; color: var(--ink); margin-top: 22px; }
-    .dir-section { margin-top: 80px; }
-    .m-timeline { list-style: none; }
-    .m-timeline li { position: relative; padding: 0 0 22px 26px; border-left: 2px solid var(--line); }
-    .m-timeline li:last-child { padding-bottom: 0; }
-    .m-timeline li::before { content: ""; position: absolute; left: -7px; top: 4px; width: 12px; height: 12px; border-radius: 50%; background: var(--purple); }
-    .m-tl-year { font-size: 13px; font-weight: 800; color: var(--purple); }
-    .m-tl-text { font-size: 15px; color: var(--ink); margin-top: 3px; line-height: 1.6; }
-    .dir-h2 { font-size: 13px; font-weight: 800; color: var(--purple); background: var(--brand-soft); display: inline-block; padding: 6px 14px; border-radius: 999px; margin-bottom: 22px; }
-    .dir-letter p { font-size: 17px; line-height: 1.95; color: var(--mute); margin-bottom: 20px; }
-    .dir-letter b { color: var(--ink); font-weight: 700; }
-    .dir-sign { margin-top: 32px; font-size: 16px; color: var(--ink); }
-    .dir-sign b { font-weight: 800; font-size: 18px; }
-    .philosophy { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
-    .phil { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 28px; background: var(--card-cream); }
-    .phil .emo { font-size: 28px; }
-    .phil h4 { font-size: 18px; font-weight: 800; margin: 14px 0 8px; letter-spacing: -.02em; }
-    .phil p { font-size: 14.5px; color: var(--mute); line-height: 1.75; }
-    .dir-cta { margin-top: 80px; background: var(--ink); color: #fff; border-radius: var(--radius); padding: 56px; text-align: center; }
-    .dir-cta h3 { font-size: clamp(24px,4vw,36px); font-weight: 800; letter-spacing: -.03em; margin-bottom: 24px; line-height: 1.2; }
-    @media (max-width: 820px) {
-      .dir-hero { grid-template-columns: 1fr; gap: 28px; }
-      .dir-photo { max-width: 280px; }
-      .philosophy { grid-template-columns: 1fr; }
-      .dir-cta { padding: 40px 28px; }
+    .dr-hero { max-width: 1236px; margin: 0 auto; padding: calc(var(--gnb-h) + 72px) 28px 0; display: grid; grid-template-columns: 1fr 1.05fr; gap: 72px; align-items: center; }
+    .dr-photo { position: relative; aspect-ratio: 4 / 5; border-radius: 36px; overflow: hidden; background: #eef0f2; animation: bx-fade 1s both; }
+    .dr-photo img { position: absolute; left: 0; top: -8%; width: 100%; height: 116%; object-fit: cover; object-position: center 16%; }
+    .dr-photo figcaption { position: absolute; left: 28px; bottom: 26px; z-index: 1; color: #fff; }
+    .dr-photo figcaption b { display: block; font-size: 24px; font-weight: 800; letter-spacing: .08em; }
+    .dr-photo figcaption span { font-size: 13.5px; font-weight: 700; opacity: .85; }
+    .dr-photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0, 0, 0, .55), transparent 40%); }
+    .dr-quote { font-size: clamp(30px, 3.8vw, 52px); font-weight: 800; letter-spacing: -.05em; line-height: 1.24; color: var(--ink); }
+    .dr-quote .ln { display: block; overflow: hidden; padding-bottom: .06em; }
+    .dr-quote .ln > span { display: inline-block; animation: bx-rise 1.1s var(--ease-out) both; }
+    .dr-quote .ln:nth-child(2) > span { animation-delay: .1s; } .dr-quote .ln:nth-child(3) > span { animation-delay: .2s; }
+    .dr-quote em { font-style: normal; color: var(--brand); }
+    .dr-cred { font-size: 16px; color: var(--dim); line-height: 1.8; margin-top: 26px; animation: bx-fade 1s .3s both; }
+    .dr-cred b { color: var(--ink); }
+    .dr-letter { max-width: 780px; margin: 0 auto; }
+    .dr-letter p { font-size: clamp(17px, 1.6vw, 20px); line-height: 2; color: var(--ink-2); margin-top: 26px; }
+    .dr-letter p b { color: var(--ink); }
+    .dr-letter .dr-sign { margin-top: 40px; font-size: 16px; color: var(--dim); }
+    .dr-letter .dr-sign b { font-size: 20px; margin-left: 6px; }
+    .dr-tl { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .dr-tl div { border-radius: 26px; background: var(--paper-2); padding: 28px 26px; }
+    .dr-tl b { font-size: 14px; font-weight: 800; color: var(--brand); }
+    .dr-tl p { font-size: 16px; font-weight: 700; letter-spacing: -.03em; line-height: 1.55; margin-top: 12px; color: var(--ink); }
+    .dr-chief { display: grid; grid-template-columns: 300px 1fr; gap: 56px; align-items: center; border-radius: 36px; background: var(--paper-2); padding: 44px; }
+    .dr-chief img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; object-position: center 20%; border-radius: 26px; }
+    .dr-chief h3 { font-size: clamp(24px, 2.8vw, 36px); font-weight: 800; letter-spacing: -.045em; line-height: 1.3; margin-top: 6px; }
+    .dr-chief p { font-size: 16.5px; color: var(--dim); line-height: 1.85; margin-top: 16px; }
+    .dr-chief p b { color: var(--ink); }
+    .dr-chief .btn { margin-top: 26px; }
+    @media (max-width: 1000px) { .dr-tl { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 860px) {
+      .dr-hero { grid-template-columns: 1fr; gap: 40px; padding-top: calc(var(--gnb-h) + 40px); }
+      .dr-chief { grid-template-columns: 1fr; padding: 26px; gap: 28px; }
+      .dr-chief img { max-width: 320px; }
+      .dr-tl { grid-template-columns: 1fr; }
     }
   </style>
 </head>
-<body>
+<body class="bx" data-page="about">
+<script src="bx-data.js?v=bx20"></script>
+<script src="bx-shell.js?v=bx20"></script>
 
-<nav id="topNav">
-  <div class="nav-inner">
-    <a href="landing.html" class="nav-logo"><span class="logo-mark">강</span>강한선배</a>
-    <a href="landing.html" class="m-back">← 홈으로</a>
-    <a href="landing.html#contact" class="pill pill-dark">입회 상담</a>
-  </div>
-</nav>
-
-<main class="wrap">
-
-  <section class="dir-hero">
-    <div class="dir-photo"><img src="photos/director.jpg" alt="강한지 대표원장"></div>
+<main id="main">
+  <header class="dr-hero">
+    <figure class="dr-photo" data-parallax>
+      <img src="photos/bx/director.jpg" alt="강한지 대표원장" fetchpriority="high">
+      <figcaption><span>대표원장 · Founder</span><b>강 한 지</b></figcaption>
+    </figure>
     <div>
-      <span class="dir-tag">대표 인사말</span>
-      <h1 class="dir-name">강한지 대표원장<span>Founder</span></h1>
-      <p class="dir-lead">"자리를 빌려주는 독서실은 많습니다.<br>저희는 아이를 <b>책임지는</b> 독서실을 만들고 싶었습니다."</p>
-      <p style="font-size:14px; color:var(--mute); margin-top:16px; line-height:1.7;">강남·서초·송파 자기주도학습 전문학원 <b style="color:var(--ink)">최연소 원장</b> 출신<br>'100% 성적 상승'으로 이름을 알린 관리의 전문가</p>
+      <p class="eyebrow">강한선배 소개 · 대표 인사말</p>
+      <h1 class="dr-quote"><span class="ln"><span>자리만 빌려주는 독서실은</span></span><span class="ln"><span>많습니다. 저희는 아이를</span></span><span class="ln"><span><em>책임지는</em> 독서실입니다.</span></span></h1>
+      <p class="dr-cred">강남·서초·송파 자기주도학습 전문학원에서 <b>최연소 원장</b>을 지냈고,<br>'100% 성적 상승'으로 이름을 알렸습니다.</p>
+    </div>
+  </header>
+
+  <section class="bx-sec">
+    <div class="dr-letter">
+      <p class="eyebrow r">왜 강한선배를 시작했나</p>
+      <p class="r">저도 입시를 치렀습니다. 그때 제일 힘들었던 건 공부보다 <b>혼자라는 막막함</b>이었습니다. 어디로 가야 할지 알려 주고, 주저앉았을 때 다시 일으켜 줄 사람이 딱 한 명만 있었으면 했습니다.</p>
+      <p class="r">그래서 강한선배에는 그런 사람을 두었습니다. 최상위권 대학 재학생 멘토와 운영 조교가 아이의 출결부터 공부, 마음 상태까지 가까이에서 관리합니다. 그리고 <b>상벌점, 순찰, 멘토링 기록까지</b> 관리한 내용은 전부 부모님께 보내 드립니다.</p>
+      <p class="r">아이를 맡기신 부모님이 제일 궁금하신 건 "오늘 우리 아이가 어떻게 지냈을까"일 겁니다. 그 질문에는 <b>매달 한 장짜리 리포트</b>로 답하겠습니다. 부모님께 보여드리지 못할 관리라면 애초에 하지 않습니다.</p>
+      <p class="dr-sign r">강한선배 대표원장<b>강한지</b></p>
     </div>
   </section>
 
-  <section class="dir-section">
-    <span class="dir-h2">왜 강한선배를 시작했나</span>
-    <div class="dir-letter">
-      <p>저 역시 입시를 직접 겪었습니다. 그때 가장 힘들었던 건 공부 그 자체보다, <b>혼자라는 막막함</b>이었습니다. 옆에서 방향을 잡아주고, 무너질 때 다시 일으켜 줄 사람 한 명이 간절했습니다.</p>
-      <p>그래서 강한선배는 자리만 내어주지 않습니다. 같은 입시를 통과한 선배가 출결부터 학습, 멘탈까지 직접 관리합니다. 그리고 그 관리한 내용을 — <b>상벌점, 순찰, 멘토링 기록까지</b> — 부모님께 숨김 없이 그대로 공유합니다.</p>
-      <p>아이를 맡긴 부모님이 가장 궁금한 건 "오늘 우리 아이가 어떻게 지냈을까"입니다. 저희는 그 질문에 <b>매달 한 장의 투명한 리포트</b>로 답하겠습니다. 보여드릴 수 없는 관리는, 하지 않은 관리라고 믿습니다.</p>
-      <p class="dir-sign">강한선배 대표원장 <b>강한지</b></p>
+  <section class="bx-sec">
+    <div class="bx-head r"><p class="eyebrow">약력</p><h2 class="bx-h2">대표원장이 걸어온 길.</h2></div>
+    <div class="dr-tl">
+      <div class="r"><b>現</b><p>강한선배 관리형 독서실(KHSB) 대표원장</p></div>
+      <div class="r d1"><b>前</b><p>강남·서초·송파 자기주도학습 전문학원 최연소 원장</p></div>
+      <div class="r d2"><b>경력</b><p>대학 입시 전문 컨설턴트 · 자기주도학습 코칭 다수</p></div>
+      <div class="r d3"><b>이력</b><p>'강남·서초·송파 100% 성적 상승'으로 알려진 학생 관리 방식</p></div>
     </div>
   </section>
 
-  <section class="dir-section">
-    <span class="dir-h2">약력</span>
-    <ul class="m-timeline" style="margin-top:4px;">
-      <li><div class="m-tl-year">現</div><div class="m-tl-text">강한선배 관리형 독서실(KHSB) 대표원장</div></li>
-      <li><div class="m-tl-year">前</div><div class="m-tl-text">강남·서초·송파 자기주도학습 전문학원 최연소 원장</div></li>
-      <li><div class="m-tl-year">경력</div><div class="m-tl-text">대학 입시 전문 컨설턴트 · 자기주도학습 코칭 다수</div></li>
-      <li><div class="m-tl-year">이력</div><div class="m-tl-text">'강남·서초·송파 100% 성적 상승'으로 알려진 관리 노하우 보유</div></li>
-    </ul>
-  </section>
-
-  <section class="dir-section">
-    <span class="dir-h2">운영 철학</span>
-    <div class="philosophy">
-      <div class="phil"><span class="emo">🔍</span><h4>투명하게 공유합니다</h4><p>관리한 모든 기록을 리포트로 정리해 부모님께 그대로 보여드립니다. 숨기는 관리는 하지 않습니다.</p></div>
-      <div class="phil"><span class="emo">🤝</span><h4>끝까지 책임집니다</h4><p>성적이 떨어진 날에도 곁에서 가장 먼저 알아채고, 다시 책상에 앉도록 끌어줍니다.</p></div>
-      <div class="phil"><span class="emo">🎓</span><h4>선배가 직접 합니다</h4><p>같은 입시를 통과한 명문대 선배가 학습과 멘탈을 직접 관리합니다. 경험이 곧 관리의 기준입니다.</p></div>
+  <section class="bx-sec">
+    <div class="bx-head r"><p class="eyebrow">운영 철학</p><h2 class="bx-h2">강한선배가<br>지키는 세 가지.</h2></div>
+    <div class="fcg">
+      <div class="fc r"><span class="fc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span><h3>기록은 전부 보여드립니다</h3><p>관리한 기록은 매달 리포트로 정리해 보내 드립니다. 벌점도 사유와 날짜까지 적어서 보여드립니다.</p></div>
+      <div class="fc r d1"><span class="fc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span><h3>힘든 날을 먼저 알아봅니다</h3><p>성적이 떨어진 날에는 저희가 먼저 알아채고 말을 겁니다. 아이가 다시 책상에 앉을 때까지 옆에 있습니다.</p></div>
+      <div class="fc dark r d2"><span class="fc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/></svg></span><h3>최상위권 대학 선배가 맡습니다</h3><p>서울대·연세대·고려대 등 최상위권 대학 재학생 중 아이의 성적과 성향에 맞는 멘토가 담임으로 배정되어 공부 계획과 마음 관리를 맡습니다. 같은 입시를 몇 년 전에 직접 치렀기 때문에 아이가 어디서 막히는지 압니다.</p></div>
     </div>
   </section>
 
-  <section class="dir-cta">
-    <h3>아이를 맡기기 전에,<br>대표가 직접 상담해 드립니다.</h3>
-    <a href="landing.html#contact" class="pill pill-lav big">입회 상담 신청 →</a>
+  <section class="bx-sec">
+    <div class="dr-chief r">
+      <img src="photos/jihoon.jpg" alt="정지훈 총괄" loading="lazy">
+      <div>
+        <p class="eyebrow">CHIEF DIRECTOR · 전체 총괄</p>
+        <h3>성적이 오르내려도,<br>이번 주 할 일은 분명하게.</h3>
+        <p>강한선배 <b>운영 전체</b>를 맡고 있습니다. 멘토진의 학습 지도와 운영진의 생활 관리가 따로 놀지 않도록 매주 맞춰 보고, 목표 대학에서 거꾸로 계산해 지금 해야 할 공부를 정합니다.</p>
+        <p>성적은 오를 때도 있고 떨어질 때도 있습니다. 그럴 때도 아이가 <b>이번 주에 할 일</b>만큼은 헷갈리지 않게 잡아 두는 것이 총괄의 일입니다.</p>
+        <a class="btn btn-line" href="mentor.html?id=jihoon">정지훈 총괄 소개 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      </div>
+    </div>
   </section>
 
+  <section class="bx-sec">
+    <div class="bx-head r"><p class="eyebrow">운영진</p><h2 class="bx-h2">작은 흐트러짐 하나도<br>놓치지 않는 운영 조교.</h2><p class="bx-sub">매 교시 출결 확인, 20분 단위 순찰, 자세와 생활 태도까지. 운영 조교가 아이의 하루를 꼼꼼하게 확인하고 기록합니다.</p></div>
+    <div class="mentor-grid r d1" id="staffTeam" style="margin-top:0"></div>
+  </section>
+
+  <!-- 원장 칼럼 (발행된 글이 없으면 숨김) -->
+  <section class="bx-sec" data-stories-section>
+    <div class="bx-head-row">
+      <div class="bx-head left r"><p class="eyebrow">원장 칼럼</p><h2 class="bx-h2">원장이 쓰는<br>교육 이야기.</h2></div>
+      <a class="btn btn-line r" href="stories.html?type=director">원장 칼럼 전체 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+    </div>
+    <div class="stg" data-stories="director" data-limit="3" data-empty="hide"></div>
+  </section>
+
+  <section class="ctab r">
+    <div class="ctab-media"><img src="photos/bx/entrance.jpg" alt="" loading="lazy"></div>
+    <div class="ctab-in">
+      <p class="eyebrow">대표 상담</p>
+      <h2>아이를 맡기시기 전에<br>대표가 상담해 드립니다.</h2>
+      <p>지금 공부 상황을 같이 살펴보고, 자리와 관리 방식을 직접 보여드립니다. 상담은 무료입니다.</p>
+      <div class="ctab-actions"><a class="btn btn-brand" href="https://khsb.vercel.app/apply" target="_blank" rel="noopener">무료 입회 상담<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+    </div>
+  </section>
 </main>
 
-<footer style="margin-top:96px;">
-  <div class="wrap foot-bottom" style="border-top:0; padding-top:0;">
-    <span>&copy; 2026 강한선배</span><span>관리형 프리미엄 독서실</span>
-  </div>
-</footer>
-
+<script src="mentors-data.js?v=seed4"></script>
+<script>
+  document.getElementById('staffTeam').innerHTML = STAFF_TEAM.map(id => staffCardInner(id)).join('');
+</script>
+<script src="bx-core.js?v=bx20"></script>
 </body>
 </html>

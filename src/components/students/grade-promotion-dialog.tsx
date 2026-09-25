@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -20,6 +21,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { GraduationCap } from "lucide-react";
+import { Skeleton, StatusBadge, type Tone } from "@/components/backoffice/ui";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   applyGradePromotion,
@@ -32,6 +35,12 @@ const ACTION_LABEL = {
   keep: "유지",
   manual: "수동 확인",
 } as const;
+
+const ACTION_TONE: Record<keyof typeof ACTION_LABEL, Tone> = {
+  change: "brand",
+  keep: "gray",
+  manual: "warn",
+};
 
 export function GradePromotionDialog() {
   const router = useRouter();
@@ -88,33 +97,43 @@ export function GradePromotionDialog() {
 
   const manualCount = rows?.filter((r) => r.action === "manual").length ?? 0;
 
+  const changeCount = rows?.filter((r) => r.action === "change").length ?? 0;
+  const keepCount = rows?.filter((r) => r.action === "keep").length ?? 0;
+
   return (
     <>
-      <Button variant="outline" size="compact" onClick={openDialog}>
-        <GraduationCap className="h-3.5 w-3.5" />
+      <Button variant="secondary" onClick={openDialog}>
+        <GraduationCap />
         학년 일괄 승급
       </Button>
       <Dialog open={open} onOpenChange={(o) => !o && !isPending && setOpen(false)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>학년 일괄 승급 미리보기</DialogTitle>
+            <DialogDescription>
+              재원생의 학년을 한 번에 올려요. 체크된 원생만 적용돼요.
+            </DialogDescription>
           </DialogHeader>
           {!rows ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">불러오는 중...</p>
+            <div className="flex flex-col gap-x2" aria-busy="true" aria-label="불러오는 중">
+              <Skeleton className="h-5 w-56" />
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full" />
+              ))}
+            </div>
           ) : (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                재원생 {rows.length}명 · 변경 {rows.filter((r) => r.action === "change").length}명
-                · 유지 {rows.filter((r) => r.action === "keep").length}명
-                {manualCount > 0 && (
-                  <span className="text-amber-600"> · 수동 확인 {manualCount}명</span>
-                )}
-              </p>
-              <div className="max-h-[50vh] overflow-y-auto rounded-md border">
+            <div className="flex flex-col gap-x3">
+              <div className="flex flex-wrap items-center gap-x1_5 t3-regular text-fg-neutral-muted">
+                <span className="tabular-nums">재원생 {rows.length}명</span>
+                <StatusBadge tone="brand">변경 {changeCount}</StatusBadge>
+                <StatusBadge>유지 {keepCount}</StatusBadge>
+                {manualCount > 0 && <StatusBadge tone="warn">수동 확인 {manualCount}</StatusBadge>}
+              </div>
+              <div className="max-h-[50vh] overflow-y-auto rounded-r3 border border-stroke-neutral-muted">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-10" />
+                      <TableHead className="w-10"><span className="sr-only">선택</span></TableHead>
                       <TableHead>이름</TableHead>
                       <TableHead>현재</TableHead>
                       <TableHead>변경 후</TableHead>
@@ -125,27 +144,24 @@ export function GradePromotionDialog() {
                     {rows.map((r) => (
                       <TableRow
                         key={r.studentId}
-                        className={r.action === "manual" ? "bg-amber-50 hover:bg-amber-100/70" : undefined}
+                        className={cn(r.action === "manual" && "bg-bg-warning-weak hover:bg-bg-warning-weak-pressed")}
                       >
                         <TableCell>
                           {r.action === "change" && (
                             <Checkbox
                               checked={checked.has(r.studentId)}
                               onCheckedChange={() => toggle(r.studentId)}
+                              aria-label={`${r.name} 승급 선택`}
                             />
                           )}
                         </TableCell>
-                        <TableCell className="font-medium whitespace-nowrap">{r.name}</TableCell>
-                        <TableCell className="whitespace-nowrap">{r.before || "-"}</TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {r.action === "change" ? r.after : "-"}
+                        <TableCell className="whitespace-nowrap t4-medium">{r.name}</TableCell>
+                        <TableCell className="whitespace-nowrap text-fg-neutral-muted">{r.before || "-"}</TableCell>
+                        <TableCell className="whitespace-nowrap t4-medium">
+                          {r.action === "change" ? r.after : <span className="text-fg-placeholder">-</span>}
                         </TableCell>
-                        <TableCell
-                          className={`text-xs whitespace-nowrap ${
-                            r.action === "manual" ? "font-medium text-amber-700" : "text-muted-foreground"
-                          }`}
-                        >
-                          {ACTION_LABEL[r.action]}
+                        <TableCell className="whitespace-nowrap">
+                          <StatusBadge tone={ACTION_TONE[r.action]}>{ACTION_LABEL[r.action]}</StatusBadge>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -153,7 +169,7 @@ export function GradePromotionDialog() {
                 </Table>
               </div>
               {manualCount > 0 && (
-                <p className="text-xs text-amber-600">
+                <p className="t3-regular text-fg-warning">
                   수동 확인 항목은 승급 대상에서 제외됩니다. 학생 정보에서 개별 수정하세요.
                 </p>
               )}
@@ -164,7 +180,7 @@ export function GradePromotionDialog() {
               취소
             </Button>
             <Button onClick={handleApply} disabled={isPending || !rows || checked.size === 0}>
-              {isPending ? "처리 중..." : `${checked.size}명 승급 적용`}
+              {isPending ? "처리 중…" : `${checked.size}명 승급 적용`}
             </Button>
           </DialogFooter>
         </DialogContent>

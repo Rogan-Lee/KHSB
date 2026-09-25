@@ -1,183 +1,161 @@
+/* 레이어 순서 — SEED 공식 Tailwind 설정(https://seed-design.io/react/getting-started/styling/tailwind-css).
+   SEED 컴포넌트 CSS(seed-components)보다 Tailwind utilities 가 뒤에 있어 className 으로 레이아웃을 덮을 수 있다.
+   컴포넌트 CSS 의 layered 버전은 next.config.ts 의 resolveAlias 가 연결한다. */
+@layer theme, base, seed-base, components, seed-components, utilities;
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css');
+@import "@seed-design/css/base.layered.css";
 @import "tailwindcss";
 @import "tw-animate-css";
+/* SEED 토큰 유틸 — bg-bg-*, text-fg-*, border-stroke-*, t5-bold, rounded-r4, p-x4 … */
+@import "@seed-design/tailwind4-theme";
 
 @custom-variant dark (&:is(.dark *));
 
 /* ───────────────────────────────────────────────
-   KHSB · UI v4 — refined, calm, light-first
-   Reference: Teams dashboard (Courtney Henry)
+   SEED Design 단일 체계 (대시보드·포털 공통)
+   아래 KHSB v4 / shadcn 변수는 호환용 별칭이다. 모든 값이 SEED 시맨틱 토큰을 가리키므로
+   아직 옮기지 않은 클래스(bg-canvas, text-ink-4, text-muted-foreground …)도 SEED 색으로 그려진다.
+   새 코드는 SEED 유틸(bg-bg-layer-default, text-fg-neutral-subtle, border-stroke-neutral-muted …)을 직접 쓴다.
    ─────────────────────────────────────────────── */
 
 :root {
   /* Surfaces */
-  --canvas: #F4F4F2;
-  --canvas-2: #EEEEEC;
-  --panel: #FFFFFF;
-  --panel-2: #FAFAF8;
+  --canvas: var(--seed-color-bg-layer-fill);
+  --canvas-2: var(--seed-color-bg-neutral-weak);
+  --panel: var(--seed-color-bg-layer-default);
+  --panel-2: var(--seed-color-bg-layer-fill);
 
-  /* Ink — 6-step */
-  --ink: #15161A;
-  --ink-2: #2E2F33;
-  --ink-3: #5B5D64;
-  --ink-4: #8A8D94;
-  --ink-5: #B9BBC0;
-  --ink-6: #D8D9DC;
+  /* Ink */
+  --ink: var(--seed-color-fg-neutral);
+  --ink-2: var(--seed-color-fg-neutral-muted);
+  --ink-3: var(--seed-color-fg-neutral-muted);
+  --ink-4: var(--seed-color-fg-neutral-subtle);
+  --ink-5: var(--seed-color-fg-placeholder);
+  --ink-6: var(--seed-color-stroke-neutral-weak);
 
   /* Lines */
-  --line: #E8E8E5;
-  --line-2: #EFEFEC;
-  --line-strong: #DADAD6;
+  --line: var(--seed-color-stroke-neutral-muted);
+  --line-2: var(--seed-color-stroke-neutral-subtle);
+  --line-strong: var(--seed-color-stroke-neutral-weak);
 
-  /* Brand — KHSB Mandarin (calmer than v3) */
-  --brand: #E9541C;
-  --brand-2: #C5461A;
-  --brand-soft: #FBE9DE;
-  --brand-softer: #FEF5EF;
+  /* Brand (SEED carrot) */
+  --brand: var(--seed-color-bg-brand-solid);
+  --brand-2: var(--seed-color-bg-brand-solid-pressed);
+  --brand-soft: var(--seed-color-bg-brand-weak);
+  --brand-softer: var(--seed-color-bg-brand-weak);
 
-  /* Semantic — desaturated pastel */
-  --ok: #2E9D6B;
-  --ok-soft: #E2F1EA;
-  --ok-ink: #1F6E4A;
-
-  --warn: #C28327;
-  --warn-soft: #F5ECD8;
-  --warn-ink: #8E5F10;
-
-  --bad: #D14343;
-  --bad-soft: #F7E3E3;
-  --bad-ink: #9E2B2B;
-
-  --info: #3D6FD8;
-  --info-soft: #E3ECFB;
-  --info-ink: #2950A8;
-
-  --violet: #6E5BD0;
-  --violet-soft: #EAE6F8;
-  --violet-ink: #4E3FA8;
+  /* Semantic */
+  --ok: var(--seed-color-bg-positive-solid);
+  --ok-soft: var(--seed-color-bg-positive-weak);
+  --ok-ink: var(--seed-color-fg-positive);
+  --warn: var(--seed-color-fg-warning);
+  --warn-soft: var(--seed-color-bg-warning-weak);
+  --warn-ink: var(--seed-color-fg-warning-contrast);
+  --bad: var(--seed-color-bg-critical-solid);
+  --bad-soft: var(--seed-color-bg-critical-weak);
+  --bad-ink: var(--seed-color-fg-critical);
+  --info: var(--seed-color-bg-informative-solid);
+  --info-soft: var(--seed-color-bg-informative-weak);
+  --info-ink: var(--seed-color-fg-informative);
+  --violet: var(--seed-color-palette-purple-600);
+  --violet-soft: var(--seed-color-palette-purple-100);
+  --violet-ink: var(--seed-color-palette-purple-700);
 
   /* Radius */
-  --radius: 0.5rem;
+  --radius: var(--seed-radius-r2);
 
-  /* Shadow */
-  --shadow-xs: 0 1px 0 rgba(20, 20, 25, 0.02), 0 1px 2px rgba(20, 20, 25, 0.03);
-  --shadow-sm: 0 1px 0 rgba(20, 20, 25, 0.02), 0 2px 6px -2px rgba(20, 20, 25, 0.04);
-  --shadow-md: 0 1px 0 rgba(20, 20, 25, 0.03), 0 6px 18px -8px rgba(20, 20, 25, 0.08);
-  --shadow-pop: 0 10px 28px -12px rgba(20, 20, 25, 0.18);
+  /* Shadow — 표면은 그림자 대신 선·채움으로 구분(평면). 떠 있는 레이어만 SEED 그림자 */
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
+  --shadow-md: var(--seed-shadow-s1);
+  --shadow-pop: var(--seed-shadow-s3);
 
-  /* ── shadcn semantic mapping ── */
-  --background: var(--canvas);
-  --foreground: var(--ink);
+  /* shadcn semantic */
+  --background: var(--seed-color-bg-layer-default);
+  --foreground: var(--seed-color-fg-neutral);
+  --card: var(--seed-color-bg-layer-default);
+  --card-foreground: var(--seed-color-fg-neutral);
+  --popover: var(--seed-color-bg-layer-floating);
+  --popover-foreground: var(--seed-color-fg-neutral);
+  --primary: var(--seed-color-bg-brand-solid);
+  --primary-foreground: var(--seed-color-palette-static-white);
+  --secondary: var(--seed-color-bg-neutral-weak);
+  --secondary-foreground: var(--seed-color-fg-neutral);
+  --muted: var(--seed-color-bg-neutral-weak);
+  --muted-foreground: var(--seed-color-fg-neutral-muted);
+  --accent: var(--seed-color-bg-layer-fill);
+  --accent-foreground: var(--seed-color-fg-neutral);
+  --destructive: var(--seed-color-bg-critical-solid);
+  --border: var(--seed-color-stroke-neutral-muted);
+  --input: var(--seed-color-stroke-neutral-weak);
+  --ring: var(--seed-color-stroke-focus-ring);
 
-  --card: var(--panel);
-  --card-foreground: var(--ink);
+  /* Charts — SEED 역할색 */
+  --chart-1: var(--seed-color-bg-brand-solid);
+  --chart-2: var(--seed-color-bg-positive-solid);
+  --chart-3: var(--seed-color-bg-informative-solid);
+  --chart-4: var(--seed-color-palette-yellow-500);
+  --chart-5: var(--seed-color-palette-purple-600);
 
-  --popover: var(--panel);
-  --popover-foreground: var(--ink);
-
-  --primary: var(--brand);
-  --primary-foreground: #FFFFFF;
-
-  --secondary: var(--brand-soft);
-  --secondary-foreground: var(--brand-2);
-
-  --muted: var(--canvas-2);
-  --muted-foreground: var(--ink-3);
-
-  --accent: var(--canvas-2);
-  --accent-foreground: var(--ink-2);
-
-  --destructive: var(--bad);
-
-  --border: var(--line);
-  --input: var(--line-strong);
-  --ring: var(--brand);
-
-  /* Charts */
-  --chart-1: var(--brand);
-  --chart-2: var(--ok);
-  --chart-3: var(--info);
-  --chart-4: var(--warn);
-  --chart-5: var(--violet);
-
-  /* Sidebar */
-  --sidebar: var(--canvas);
-  --sidebar-foreground: var(--ink-2);
-  --sidebar-primary: var(--ink);
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: var(--panel);
-  --sidebar-accent-foreground: var(--ink);
-  --sidebar-border: var(--line);
-  --sidebar-ring: var(--brand);
+  /* Sidebar (레거시 별칭) */
+  --sidebar: var(--seed-color-palette-gray-100);
+  --sidebar-foreground: var(--seed-color-fg-neutral-muted);
+  --sidebar-primary: var(--seed-color-fg-neutral);
+  --sidebar-primary-foreground: var(--seed-color-palette-static-white);
+  --sidebar-accent: var(--seed-color-bg-transparent-pressed);
+  --sidebar-accent-foreground: var(--seed-color-fg-neutral);
+  --sidebar-border: var(--seed-color-stroke-neutral-muted);
+  --sidebar-ring: var(--seed-color-stroke-focus-ring);
 }
 
-/* ── Dark (kept for backwards compat; v4 is light-first) ── */
-.dark {
-  --canvas: #0B0C0E;
-  --canvas-2: #17191C;
-  --panel: #121315;
-  --panel-2: #17191C;
-
-  --ink: #EDEEF0;
-  --ink-2: #C8CCD1;
-  --ink-3: #8C9198;
-  --ink-4: #6D7179;
-  --ink-5: #4D5058;
-  --ink-6: #33363D;
-
-  --line: #222428;
-  --line-2: #1A1C1F;
-  --line-strong: #2A2D31;
-
-  --brand: #F06A34;
-  --brand-2: #E9541C;
-  --brand-soft: #2A1810;
-  --brand-softer: #1F140D;
-
-  --ok: #27C19B; --ok-soft: #0E2420; --ok-ink: #7BE0C0;
-  --warn: #E8B54A; --warn-soft: #251C0C; --warn-ink: #F0C772;
-  --bad: #F0555A; --bad-soft: #241316; --bad-ink: #F79296;
-  --info: #8A6CFF; --info-soft: #171430; --info-ink: #B0A0FF;
-  --violet: #A892F0; --violet-soft: #1D1930; --violet-ink: #C8B8F8;
-
-  --shadow-xs: 0 1px 0 rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-sm: 0 1px 0 rgba(0, 0, 0, 0.3), 0 2px 6px -2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 1px 0 rgba(0, 0, 0, 0.3), 0 6px 18px -8px rgba(0, 0, 0, 0.6);
-  --shadow-pop: 0 10px 28px -12px rgba(0, 0, 0, 0.7);
-
-  --background: var(--canvas);
-  --foreground: var(--ink);
-  --card: var(--panel);
-  --card-foreground: var(--ink);
-  --popover: var(--panel-2);
-  --popover-foreground: var(--ink);
-  --primary: var(--brand);
-  --primary-foreground: #0B0C0E;
-  --secondary: var(--brand-soft);
-  --secondary-foreground: #FFD9BF;
-  --muted: var(--canvas-2);
-  --muted-foreground: var(--ink-3);
-  --accent: var(--canvas-2);
-  --accent-foreground: var(--ink-2);
-  --destructive: var(--bad);
-  --border: var(--line);
-  --input: var(--line-strong);
-  --ring: var(--brand);
-
-  --chart-1: var(--brand);
-  --chart-2: var(--ok);
-  --chart-3: var(--info);
-  --chart-4: var(--warn);
-  --chart-5: var(--violet);
-
-  --sidebar: var(--canvas);
-  --sidebar-foreground: var(--ink-2);
-  --sidebar-primary: var(--brand);
-  --sidebar-primary-foreground: #0B0C0E;
-  --sidebar-accent: var(--panel);
-  --sidebar-accent-foreground: var(--ink);
-  --sidebar-border: var(--line);
-  --sidebar-ring: var(--brand);
+/* Tailwind 기본 팔레트 → SEED 팔레트.
+   남아 있는 원색 유틸(bg-amber-500, text-gray-400 …)도 SEED 색 체계 안에서 그려지게 하는 호환 계층.
+   새 코드는 원색 유틸 대신 SEED 시맨틱 유틸을 쓴다. */
+@theme {
+  --color-gray-50: var(--seed-color-palette-gray-100); --color-gray-100: var(--seed-color-palette-gray-200); --color-gray-200: var(--seed-color-palette-gray-300); --color-gray-300: var(--seed-color-palette-gray-400); --color-gray-400: var(--seed-color-palette-gray-600); --color-gray-500: var(--seed-color-palette-gray-700);
+  --color-gray-600: var(--seed-color-palette-gray-800); --color-gray-700: var(--seed-color-palette-gray-900); --color-gray-800: var(--seed-color-palette-gray-900); --color-gray-900: var(--seed-color-palette-gray-1000); --color-gray-950: var(--seed-color-palette-gray-1000);
+  --color-slate-50: var(--seed-color-palette-gray-100); --color-slate-100: var(--seed-color-palette-gray-200); --color-slate-200: var(--seed-color-palette-gray-300); --color-slate-300: var(--seed-color-palette-gray-400); --color-slate-400: var(--seed-color-palette-gray-600); --color-slate-500: var(--seed-color-palette-gray-700);
+  --color-slate-600: var(--seed-color-palette-gray-800); --color-slate-700: var(--seed-color-palette-gray-900); --color-slate-800: var(--seed-color-palette-gray-900); --color-slate-900: var(--seed-color-palette-gray-1000); --color-slate-950: var(--seed-color-palette-gray-1000);
+  --color-zinc-50: var(--seed-color-palette-gray-100); --color-zinc-100: var(--seed-color-palette-gray-200); --color-zinc-200: var(--seed-color-palette-gray-300); --color-zinc-300: var(--seed-color-palette-gray-400); --color-zinc-400: var(--seed-color-palette-gray-600); --color-zinc-500: var(--seed-color-palette-gray-700);
+  --color-zinc-600: var(--seed-color-palette-gray-800); --color-zinc-700: var(--seed-color-palette-gray-900); --color-zinc-800: var(--seed-color-palette-gray-900); --color-zinc-900: var(--seed-color-palette-gray-1000); --color-zinc-950: var(--seed-color-palette-gray-1000);
+  --color-neutral-50: var(--seed-color-palette-gray-100); --color-neutral-100: var(--seed-color-palette-gray-200); --color-neutral-200: var(--seed-color-palette-gray-300); --color-neutral-300: var(--seed-color-palette-gray-400); --color-neutral-400: var(--seed-color-palette-gray-600); --color-neutral-500: var(--seed-color-palette-gray-700);
+  --color-neutral-600: var(--seed-color-palette-gray-800); --color-neutral-700: var(--seed-color-palette-gray-900); --color-neutral-800: var(--seed-color-palette-gray-900); --color-neutral-900: var(--seed-color-palette-gray-1000); --color-neutral-950: var(--seed-color-palette-gray-1000);
+  --color-stone-50: var(--seed-color-palette-gray-100); --color-stone-100: var(--seed-color-palette-gray-200); --color-stone-200: var(--seed-color-palette-gray-300); --color-stone-300: var(--seed-color-palette-gray-400); --color-stone-400: var(--seed-color-palette-gray-600); --color-stone-500: var(--seed-color-palette-gray-700);
+  --color-stone-600: var(--seed-color-palette-gray-800); --color-stone-700: var(--seed-color-palette-gray-900); --color-stone-800: var(--seed-color-palette-gray-900); --color-stone-900: var(--seed-color-palette-gray-1000); --color-stone-950: var(--seed-color-palette-gray-1000);
+  --color-red-50: var(--seed-color-palette-red-100); --color-red-100: var(--seed-color-palette-red-200); --color-red-200: var(--seed-color-palette-red-300); --color-red-300: var(--seed-color-palette-red-400); --color-red-400: var(--seed-color-palette-red-500); --color-red-500: var(--seed-color-palette-red-600);
+  --color-red-600: var(--seed-color-palette-red-700); --color-red-700: var(--seed-color-palette-red-800); --color-red-800: var(--seed-color-palette-red-900); --color-red-900: var(--seed-color-palette-red-1000); --color-red-950: var(--seed-color-palette-red-1000);
+  --color-rose-50: var(--seed-color-palette-red-100); --color-rose-100: var(--seed-color-palette-red-200); --color-rose-200: var(--seed-color-palette-red-300); --color-rose-300: var(--seed-color-palette-red-400); --color-rose-400: var(--seed-color-palette-red-500); --color-rose-500: var(--seed-color-palette-red-600);
+  --color-rose-600: var(--seed-color-palette-red-700); --color-rose-700: var(--seed-color-palette-red-800); --color-rose-800: var(--seed-color-palette-red-900); --color-rose-900: var(--seed-color-palette-red-1000); --color-rose-950: var(--seed-color-palette-red-1000);
+  --color-orange-50: var(--seed-color-palette-carrot-100); --color-orange-100: var(--seed-color-palette-carrot-200); --color-orange-200: var(--seed-color-palette-carrot-300); --color-orange-300: var(--seed-color-palette-carrot-400); --color-orange-400: var(--seed-color-palette-carrot-500); --color-orange-500: var(--seed-color-palette-carrot-600);
+  --color-orange-600: var(--seed-color-palette-carrot-700); --color-orange-700: var(--seed-color-palette-carrot-800); --color-orange-800: var(--seed-color-palette-carrot-900); --color-orange-900: var(--seed-color-palette-carrot-1000); --color-orange-950: var(--seed-color-palette-carrot-1000);
+  --color-amber-50: var(--seed-color-palette-yellow-100); --color-amber-100: var(--seed-color-palette-yellow-200); --color-amber-200: var(--seed-color-palette-yellow-300); --color-amber-300: var(--seed-color-palette-yellow-400); --color-amber-400: var(--seed-color-palette-yellow-500); --color-amber-500: var(--seed-color-palette-yellow-600);
+  --color-amber-600: var(--seed-color-palette-yellow-700); --color-amber-700: var(--seed-color-palette-yellow-800); --color-amber-800: var(--seed-color-palette-yellow-900); --color-amber-900: var(--seed-color-palette-yellow-1000); --color-amber-950: var(--seed-color-palette-yellow-1000);
+  --color-yellow-50: var(--seed-color-palette-yellow-100); --color-yellow-100: var(--seed-color-palette-yellow-200); --color-yellow-200: var(--seed-color-palette-yellow-300); --color-yellow-300: var(--seed-color-palette-yellow-400); --color-yellow-400: var(--seed-color-palette-yellow-500); --color-yellow-500: var(--seed-color-palette-yellow-600);
+  --color-yellow-600: var(--seed-color-palette-yellow-700); --color-yellow-700: var(--seed-color-palette-yellow-800); --color-yellow-800: var(--seed-color-palette-yellow-900); --color-yellow-900: var(--seed-color-palette-yellow-1000); --color-yellow-950: var(--seed-color-palette-yellow-1000);
+  --color-lime-50: var(--seed-color-palette-green-100); --color-lime-100: var(--seed-color-palette-green-200); --color-lime-200: var(--seed-color-palette-green-300); --color-lime-300: var(--seed-color-palette-green-400); --color-lime-400: var(--seed-color-palette-green-500); --color-lime-500: var(--seed-color-palette-green-600);
+  --color-lime-600: var(--seed-color-palette-green-700); --color-lime-700: var(--seed-color-palette-green-800); --color-lime-800: var(--seed-color-palette-green-900); --color-lime-900: var(--seed-color-palette-green-1000); --color-lime-950: var(--seed-color-palette-green-1000);
+  --color-green-50: var(--seed-color-palette-green-100); --color-green-100: var(--seed-color-palette-green-200); --color-green-200: var(--seed-color-palette-green-300); --color-green-300: var(--seed-color-palette-green-400); --color-green-400: var(--seed-color-palette-green-500); --color-green-500: var(--seed-color-palette-green-600);
+  --color-green-600: var(--seed-color-palette-green-700); --color-green-700: var(--seed-color-palette-green-800); --color-green-800: var(--seed-color-palette-green-900); --color-green-900: var(--seed-color-palette-green-1000); --color-green-950: var(--seed-color-palette-green-1000);
+  --color-emerald-50: var(--seed-color-palette-green-100); --color-emerald-100: var(--seed-color-palette-green-200); --color-emerald-200: var(--seed-color-palette-green-300); --color-emerald-300: var(--seed-color-palette-green-400); --color-emerald-400: var(--seed-color-palette-green-500); --color-emerald-500: var(--seed-color-palette-green-600);
+  --color-emerald-600: var(--seed-color-palette-green-700); --color-emerald-700: var(--seed-color-palette-green-800); --color-emerald-800: var(--seed-color-palette-green-900); --color-emerald-900: var(--seed-color-palette-green-1000); --color-emerald-950: var(--seed-color-palette-green-1000);
+  --color-teal-50: var(--seed-color-palette-green-100); --color-teal-100: var(--seed-color-palette-green-200); --color-teal-200: var(--seed-color-palette-green-300); --color-teal-300: var(--seed-color-palette-green-400); --color-teal-400: var(--seed-color-palette-green-500); --color-teal-500: var(--seed-color-palette-green-600);
+  --color-teal-600: var(--seed-color-palette-green-700); --color-teal-700: var(--seed-color-palette-green-800); --color-teal-800: var(--seed-color-palette-green-900); --color-teal-900: var(--seed-color-palette-green-1000); --color-teal-950: var(--seed-color-palette-green-1000);
+  --color-cyan-50: var(--seed-color-palette-blue-100); --color-cyan-100: var(--seed-color-palette-blue-200); --color-cyan-200: var(--seed-color-palette-blue-300); --color-cyan-300: var(--seed-color-palette-blue-400); --color-cyan-400: var(--seed-color-palette-blue-500); --color-cyan-500: var(--seed-color-palette-blue-600);
+  --color-cyan-600: var(--seed-color-palette-blue-700); --color-cyan-700: var(--seed-color-palette-blue-800); --color-cyan-800: var(--seed-color-palette-blue-900); --color-cyan-900: var(--seed-color-palette-blue-1000); --color-cyan-950: var(--seed-color-palette-blue-1000);
+  --color-sky-50: var(--seed-color-palette-blue-100); --color-sky-100: var(--seed-color-palette-blue-200); --color-sky-200: var(--seed-color-palette-blue-300); --color-sky-300: var(--seed-color-palette-blue-400); --color-sky-400: var(--seed-color-palette-blue-500); --color-sky-500: var(--seed-color-palette-blue-600);
+  --color-sky-600: var(--seed-color-palette-blue-700); --color-sky-700: var(--seed-color-palette-blue-800); --color-sky-800: var(--seed-color-palette-blue-900); --color-sky-900: var(--seed-color-palette-blue-1000); --color-sky-950: var(--seed-color-palette-blue-1000);
+  --color-blue-50: var(--seed-color-palette-blue-100); --color-blue-100: var(--seed-color-palette-blue-200); --color-blue-200: var(--seed-color-palette-blue-300); --color-blue-300: var(--seed-color-palette-blue-400); --color-blue-400: var(--seed-color-palette-blue-500); --color-blue-500: var(--seed-color-palette-blue-600);
+  --color-blue-600: var(--seed-color-palette-blue-700); --color-blue-700: var(--seed-color-palette-blue-800); --color-blue-800: var(--seed-color-palette-blue-900); --color-blue-900: var(--seed-color-palette-blue-1000); --color-blue-950: var(--seed-color-palette-blue-1000);
+  --color-indigo-50: var(--seed-color-palette-blue-100); --color-indigo-100: var(--seed-color-palette-blue-200); --color-indigo-200: var(--seed-color-palette-blue-300); --color-indigo-300: var(--seed-color-palette-blue-400); --color-indigo-400: var(--seed-color-palette-blue-500); --color-indigo-500: var(--seed-color-palette-blue-600);
+  --color-indigo-600: var(--seed-color-palette-blue-700); --color-indigo-700: var(--seed-color-palette-blue-800); --color-indigo-800: var(--seed-color-palette-blue-900); --color-indigo-900: var(--seed-color-palette-blue-1000); --color-indigo-950: var(--seed-color-palette-blue-1000);
+  --color-violet-50: var(--seed-color-palette-purple-100); --color-violet-100: var(--seed-color-palette-purple-200); --color-violet-200: var(--seed-color-palette-purple-300); --color-violet-300: var(--seed-color-palette-purple-400); --color-violet-400: var(--seed-color-palette-purple-500); --color-violet-500: var(--seed-color-palette-purple-600);
+  --color-violet-600: var(--seed-color-palette-purple-700); --color-violet-700: var(--seed-color-palette-purple-800); --color-violet-800: var(--seed-color-palette-purple-900); --color-violet-900: var(--seed-color-palette-purple-1000); --color-violet-950: var(--seed-color-palette-purple-1000);
+  --color-purple-50: var(--seed-color-palette-purple-100); --color-purple-100: var(--seed-color-palette-purple-200); --color-purple-200: var(--seed-color-palette-purple-300); --color-purple-300: var(--seed-color-palette-purple-400); --color-purple-400: var(--seed-color-palette-purple-500); --color-purple-500: var(--seed-color-palette-purple-600);
+  --color-purple-600: var(--seed-color-palette-purple-700); --color-purple-700: var(--seed-color-palette-purple-800); --color-purple-800: var(--seed-color-palette-purple-900); --color-purple-900: var(--seed-color-palette-purple-1000); --color-purple-950: var(--seed-color-palette-purple-1000);
+  --color-fuchsia-50: var(--seed-color-palette-purple-100); --color-fuchsia-100: var(--seed-color-palette-purple-200); --color-fuchsia-200: var(--seed-color-palette-purple-300); --color-fuchsia-300: var(--seed-color-palette-purple-400); --color-fuchsia-400: var(--seed-color-palette-purple-500); --color-fuchsia-500: var(--seed-color-palette-purple-600);
+  --color-fuchsia-600: var(--seed-color-palette-purple-700); --color-fuchsia-700: var(--seed-color-palette-purple-800); --color-fuchsia-800: var(--seed-color-palette-purple-900); --color-fuchsia-900: var(--seed-color-palette-purple-1000); --color-fuchsia-950: var(--seed-color-palette-purple-1000);
+  --color-pink-50: var(--seed-color-palette-purple-100); --color-pink-100: var(--seed-color-palette-purple-200); --color-pink-200: var(--seed-color-palette-purple-300); --color-pink-300: var(--seed-color-palette-purple-400); --color-pink-400: var(--seed-color-palette-purple-500); --color-pink-500: var(--seed-color-palette-purple-600);
+  --color-pink-600: var(--seed-color-palette-purple-700); --color-pink-700: var(--seed-color-palette-purple-800); --color-pink-800: var(--seed-color-palette-purple-900); --color-pink-900: var(--seed-color-palette-purple-1000); --color-pink-950: var(--seed-color-palette-purple-1000);
 }
 
 @theme inline {
@@ -260,14 +238,18 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+  /* 글꼴 — SEED 기본 스택(Apple 기기는 시스템 글꼴, 그 외 Pretendard).
+     font-mono 도 UI 글꼴 + 고정폭 숫자로 통일(숫자·시각 표시용). 진짜 코드는 font-code. */
+  --font-sans: var(--seed-font-family);
+  --font-mono: var(--seed-font-family);
+  --font-code: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
 
-  --radius-xs: 6px;
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
+  /* 레거시 반경 → SEED 반경 */
+  --radius-xs: var(--seed-radius-r1_5);
+  --radius-sm: var(--seed-radius-r2);
+  --radius-md: var(--seed-radius-r2_5);
+  --radius-lg: var(--seed-radius-r3);
+  --radius-xl: var(--seed-radius-r4);
 
   --shadow-xs: var(--shadow-xs);
   --shadow-sm: var(--shadow-sm);
@@ -275,33 +257,36 @@
   --shadow-pop: var(--shadow-pop);
 }
 
-body {
-  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: "ss01", "cv11", "tnum" 0;
-  letter-spacing: -0.011em;
-  color: var(--foreground);
-  background-color: var(--background);
+/* 레이어 base — SEED 컴포넌트(seed-components)·Tailwind 유틸이 이 값을 덮을 수 있게 */
+@layer base {
+  body {
+    font-family: var(--seed-font-family);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: var(--seed-color-fg-neutral);
+    background-color: var(--seed-color-bg-layer-default);
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+
+  * {
+    border-color: var(--border);
+  }
 }
 
-* {
-  border-color: var(--border);
-}
-
-/* Utility: mono tabular numbers (use for all counts/times) */
-.num-mono {
-  font-family: var(--font-mono, "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace);
+/* 숫자·시각 — UI 글꼴 + 고정폭 숫자 */
+.num-mono,
+.font-mono {
   font-variant-numeric: tabular-nums;
 }
 
-/* Avatar tone system (v1–v6) — consistent per-person color */
-.av-tone-1 { background: linear-gradient(135deg, #F09A6F, #E9541C); }
-.av-tone-2 { background: linear-gradient(135deg, #7DD5AE, #2E9D6B); }
-.av-tone-3 { background: linear-gradient(135deg, #9FB3F0, #3D6FD8); }
-.av-tone-4 { background: linear-gradient(135deg, #C8B2F0, #6E5BD0); }
-.av-tone-5 { background: linear-gradient(135deg, #F0C38A, #C28327); }
-.av-tone-6 { background: linear-gradient(135deg, #EDA3A3, #D14343); }
+/* Avatar tone (v1–v6) — 사람별 고정 색, SEED 팔레트 단색 */
+.av-tone-1 { background: var(--seed-color-palette-carrot-500); }
+.av-tone-2 { background: var(--seed-color-palette-green-600); }
+.av-tone-3 { background: var(--seed-color-palette-blue-500); }
+.av-tone-4 { background: var(--seed-color-palette-purple-500); }
+.av-tone-5 { background: var(--seed-color-palette-yellow-600); }
+.av-tone-6 { background: var(--seed-color-palette-red-500); }
 
 /* ─── 인쇄 스타일 ─── */
 @media print {
@@ -324,4 +309,192 @@ body {
     padding: 0 !important;
     max-width: 100% !important;
   }
+}
+
+/* ─── 학생 포털(매직링크) — 앱형 인터랙션 ─── */
+[data-portal] {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  font-family: var(--seed-font-family);
+  color: var(--seed-color-fg-neutral);
+
+  /* 포털 안에서는 KHSB v4 토큰을 SEED 시맨틱 토큰으로 재지정 —
+     아직 SEED 유틸로 옮기지 않은 클래스(bg-canvas, text-ink-4 …)도 SEED 값으로 그려진다. */
+  --canvas: var(--seed-color-bg-layer-basement);
+  --canvas-2: var(--seed-color-bg-neutral-weak);
+  --panel: var(--seed-color-bg-layer-default);
+  --panel-2: var(--seed-color-bg-layer-fill);
+  --ink: var(--seed-color-fg-neutral);
+  --ink-2: var(--seed-color-fg-neutral-muted);
+  --ink-3: var(--seed-color-fg-neutral-muted);
+  --ink-4: var(--seed-color-fg-neutral-subtle);
+  --ink-5: var(--seed-color-fg-placeholder);
+  --ink-6: var(--seed-color-stroke-neutral-weak);
+  --line: var(--seed-color-stroke-neutral-subtle);
+  --line-2: var(--seed-color-stroke-neutral-subtle);
+  --line-strong: var(--seed-color-stroke-neutral-muted);
+  --brand: var(--seed-color-bg-brand-solid);
+  --brand-2: var(--seed-color-bg-brand-solid-pressed);
+  --brand-soft: var(--seed-color-bg-brand-weak);
+  --brand-softer: var(--seed-color-bg-brand-weak);
+  --ok: var(--seed-color-bg-positive-solid);
+  --ok-soft: var(--seed-color-bg-positive-weak);
+  --ok-ink: var(--seed-color-fg-positive);
+  --warn: var(--seed-color-fg-warning);
+  --warn-soft: var(--seed-color-bg-warning-weak);
+  --warn-ink: var(--seed-color-fg-warning-contrast);
+  --bad: var(--seed-color-bg-critical-solid);
+  --bad-soft: var(--seed-color-bg-critical-weak);
+  --bad-ink: var(--seed-color-fg-critical);
+  --info: var(--seed-color-bg-informative-solid);
+  --info-soft: var(--seed-color-bg-informative-weak);
+  --info-ink: var(--seed-color-fg-informative);
+  --violet: var(--seed-color-palette-purple-600);
+  --violet-soft: var(--seed-color-palette-purple-100);
+  --violet-ink: var(--seed-color-palette-purple-700);
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --border: var(--line);
+  --ring: var(--seed-color-stroke-focus-ring);
+}
+[data-portal] input,
+[data-portal] textarea {
+  -webkit-touch-callout: default;
+}
+/* SEED ActionButton CSS(레이어 없음)는 margin(bleed, 기본 0)과 flex-grow(기본 0)를 고정해
+   mt-4 · ml-auto · flex-1 같은 Tailwind 유틸을 덮어쓴다. 포털에선 bleed/flexGrow prop 을 쓰지 않으므로
+   두 속성만 레이어 스타일(Tailwind 유틸, 없으면 기본값 0)로 되돌린다.
+   flex-shrink:0 · min-width(iconOnly 정사각 규격)는 SEED 값 유지. */
+[data-portal] .seed-action-button {
+  margin: revert-layer;
+  flex-grow: revert-layer;
+}
+/* SEED SegmentedControl 은 선택값이 없으면 --segment-index:-1 이 되어 인디케이터가 왼쪽 밖으로 삐져나온다 */
+[data-portal] .seed-segmented-control__root:not(:has([data-checked])) .seed-segmented-control__indicator {
+  visibility: hidden;
+}
+/* ─── 긴 글(마크다운) — <Prose> (src/components/portal/prose.tsx) ───
+   SEED 토큰 기반. 학부모가 읽는 리포트라 SEED article-body(16/24)보다 행간을 넓게 잡는다. */
+.seed-prose {
+  font-size: var(--seed-font-size-t5);
+  line-height: 1.75;
+  color: var(--seed-color-fg-neutral);
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.seed-prose-sm {
+  font-size: var(--seed-font-size-t4);
+  line-height: 1.7;
+  color: var(--seed-color-fg-neutral-muted);
+}
+.seed-prose > :first-child { margin-top: 0; }
+.seed-prose > :last-child { margin-bottom: 0; }
+.seed-prose p { margin: 0.75em 0; }
+.seed-prose h1,
+.seed-prose h2 {
+  margin: 1.75em 0 0.5em;
+  font-size: var(--seed-font-size-t7);
+  line-height: 1.4;
+  font-weight: var(--seed-font-weight-bold);
+  color: var(--seed-color-fg-neutral);
+}
+.seed-prose h3 {
+  margin: 1.5em 0 0.5em;
+  font-size: var(--seed-font-size-t6);
+  line-height: 1.45;
+  font-weight: var(--seed-font-weight-bold);
+  color: var(--seed-color-fg-neutral);
+}
+.seed-prose h4,
+.seed-prose h5,
+.seed-prose h6 {
+  margin: 1.5em 0 0.35em;
+  font-size: 1em;
+  line-height: 1.5;
+  font-weight: var(--seed-font-weight-bold);
+  color: var(--seed-color-fg-neutral);
+}
+.seed-prose strong { font-weight: var(--seed-font-weight-bold); color: var(--seed-color-fg-neutral); }
+.seed-prose em { font-style: italic; }
+.seed-prose del { color: var(--seed-color-fg-neutral-subtle); }
+.seed-prose ul,
+.seed-prose ol { margin: 0.75em 0; padding-left: 1.3em; }
+.seed-prose ul { list-style: disc; }
+.seed-prose ol { list-style: decimal; }
+.seed-prose li { margin: 0.4em 0; padding-left: 0.15em; }
+.seed-prose li::marker { color: var(--seed-color-fg-neutral-subtle); }
+.seed-prose li > p { margin: 0; }
+.seed-prose li > ul,
+.seed-prose li > ol { margin: 0.25em 0; }
+.seed-prose blockquote {
+  margin: 1em 0;
+  padding: 0.75em 1em;
+  border-radius: var(--seed-radius-r3);
+  background: var(--seed-color-bg-neutral-weak);
+  color: var(--seed-color-fg-neutral-muted);
+}
+.seed-prose blockquote > :first-child { margin-top: 0; }
+.seed-prose blockquote > :last-child { margin-bottom: 0; }
+.seed-prose hr {
+  margin: 1.5em 0;
+  border: 0;
+  border-top: 1px solid var(--seed-color-stroke-neutral-subtle);
+}
+.seed-prose a {
+  color: var(--seed-color-fg-informative);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.seed-prose code {
+  padding: 0.1em 0.35em;
+  border-radius: var(--seed-radius-r1);
+  background: var(--seed-color-bg-neutral-weak);
+  font-size: 0.9em;
+}
+.seed-prose pre {
+  margin: 1em 0;
+  padding: 0.875em 1em;
+  overflow-x: auto;
+  border-radius: var(--seed-radius-r3);
+  background: var(--seed-color-bg-neutral-weak);
+  font-size: 0.875em;
+  line-height: 1.6;
+}
+.seed-prose pre code { padding: 0; background: none; font-size: inherit; }
+.seed-prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1em 0;
+  border-radius: var(--seed-radius-r3);
+}
+.seed-prose-table { margin: 1em 0; overflow-x: auto; }
+.seed-prose table { width: 100%; border-collapse: collapse; font-size: 0.875em; line-height: 1.5; }
+.seed-prose th,
+.seed-prose td {
+  padding: 0.55em 0.75em;
+  border-bottom: 1px solid var(--seed-color-stroke-neutral-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+.seed-prose th {
+  background: var(--seed-color-bg-layer-fill);
+  font-weight: var(--seed-font-weight-bold);
+  color: var(--seed-color-fg-neutral-muted);
+  white-space: nowrap;
+}
+.seed-prose input[type="checkbox"] { margin-right: 0.4em; vertical-align: -0.1em; }
+
+@keyframes portal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* opacity 만 사용 — transform 을 쓰면 fixed 자식(BottomCTA)의 기준이 바뀐다 */
+.portal-enter {
+  animation: portal-fade 0.22s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .portal-enter { animation: none; }
 }

@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getUser } from "@/lib/auth";
 import { isFullAccess, isOnlineStaff } from "@/lib/roles";
-import { AddOnlineStudentTabs } from "@/components/online/add-online-student-tabs";
+import { Users } from "lucide-react";
+import { EmptyState, PageHeader, Section } from "@/components/backoffice/ui";
+import { AddOnlineStudentDialog } from "./_components/add-online-student-dialog";
 import {
   OnlineStudentsPanel,
   type OnlineStudentPanelRow,
@@ -134,52 +136,46 @@ export default async function OnlineStudentsPage() {
     })),
   }));
 
-  return (
-    <div className="space-y-5">
-      <header>
-        <h1 className="text-2xl font-semibold text-ink tracking-[-0.015em]">
-          온라인 학생
-        </h1>
-        <p className="mt-1 text-[13px] text-ink-4">
-          총 {onlineStudents.length}명 · 좌측에서 학생 선택 → 우측에서 정보·담당자·매직링크·하위 페이지 진입까지 모두 처리
-        </p>
-      </header>
+  const activeCount = onlineStudents.filter((s) => s.status === "ACTIVE").length;
+  const withdrawnCount = onlineStudents.length - activeCount;
 
-      {canManage && (
-        <details className="group rounded-[12px] border border-line bg-panel overflow-hidden">
-          <summary className="cursor-pointer list-none px-4 py-3 flex items-center gap-2 hover:bg-canvas-2/40 transition-colors">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              className="h-3.5 w-3.5 text-ink-4 transition-transform group-open:rotate-90"
-              fill="currentColor"
-            >
-              <path d="M7.05 4.05a1 1 0 0 1 1.4 0l5 5a1 1 0 0 1 0 1.4l-5 5a1 1 0 1 1-1.4-1.4L11.6 9.75 7.05 5.45a1 1 0 0 1 0-1.4Z" />
-            </svg>
-            <h2 className="text-[13px] font-semibold text-ink">
-              온라인 학생 추가
-            </h2>
-            <span className="text-[11px] text-ink-5 ml-auto group-open:hidden">
-              클릭하여 펼치기
+  const addButton = canManage ? (
+    <AddOnlineStudentDialog
+      offlineStudents={offlineStudents}
+      mentors={mentors}
+      consultants={consultants}
+    />
+  ) : undefined;
+
+  return (
+    <div>
+      <PageHeader
+        title="온라인 학생"
+        description={
+          <>
+            <span className="tabular-nums">
+              총 {onlineStudents.length}명
+              {withdrawnCount > 0 && ` (재원 ${activeCount} · 퇴원 ${withdrawnCount})`}
             </span>
-            <span className="text-[11px] text-ink-5 ml-auto hidden group-open:inline">
-              접기
-            </span>
-          </summary>
-          <div className="px-4 pb-4 pt-1 border-t border-line">
-            <AddOnlineStudentTabs
-              offlineStudents={offlineStudents}
-              mentors={mentors}
-              consultants={consultants}
-            />
-          </div>
-        </details>
-      )}
+            {" · "}학생을 고르면 정보·담당자·매직링크·화상 세션을 한 화면에서 관리해요
+          </>
+        }
+        actions={addButton}
+      />
 
       {onlineStudents.length === 0 ? (
-        <div className="rounded-[12px] border border-line bg-panel p-8 text-center text-[13px] text-ink-4">
-          온라인 관리 학생이 아직 없습니다. 위에서 추가해 주세요.
-        </div>
+        <Section>
+          <EmptyState
+            icon={Users}
+            title="아직 온라인 관리 학생이 없어요"
+            description={
+              canManage
+                ? "학생 추가에서 새로 등록하거나 오프라인 학생을 전환해 보세요"
+                : "원장님이 온라인 학생을 등록하면 여기에 나타나요"
+            }
+            action={addButton}
+          />
+        </Section>
       ) : (
         <OnlineStudentsPanel
           rows={rows}

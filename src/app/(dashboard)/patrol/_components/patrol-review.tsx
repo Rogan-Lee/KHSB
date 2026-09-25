@@ -1,15 +1,14 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronLeft, AlertTriangle, UserX, Check, Clock, ShieldCheck, User, Pencil, Save, X } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Clock, Loader2, Pencil, Save, ShieldCheck, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getPatrolDayRoundsWithRecords, updatePatrolRecordByStaff, type PatrolRoundWithRecords } from "@/actions/patrol";
 import type { PatrolStatus } from "@/generated/prisma";
+import { EmptyState, Section, Segmented, StatusBadge, Toolbar, type Tone } from "@/components/backoffice/ui";
 
 type PatrolRecordItem = PatrolRoundWithRecords["records"][number];
 
@@ -35,58 +34,57 @@ function PatrolRecordRow({ rec, onSaved }: { rec: PatrolRecordItem; onSaved: () 
 
   if (!editing) {
     return (
-      <li className={cn("flex items-center gap-2 py-2 text-sm group", rec.status === "NOTE" && "bg-amber-50/60 -mx-2 px-2 rounded")}>
-        <span className="w-12 shrink-0 font-mono text-xs text-muted-foreground">{rec.seat ?? "—"}</span>
-        <span className="w-20 shrink-0 font-medium flex items-center gap-1">
-          <User className="h-3 w-3 text-muted-foreground" />{rec.studentName}
-        </span>
-        <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_META[rec.status].cls}`}>
-          {STATUS_META[rec.status].label}
-        </span>
-        {rec.note && <span className="flex-1 text-xs text-foreground/80">{rec.note}</span>}
+      <li className={cn("flex items-center gap-x3 px-x5 py-x3", rec.status === "NOTE" && "bg-bg-warning-weak")}>
+        <span className="w-12 shrink-0 t5-bold tabular-nums text-fg-neutral">{rec.seat ?? "—"}</span>
+        <span className="w-24 shrink-0 truncate t4-medium text-fg-neutral">{rec.studentName}</span>
+        <StatusBadge tone={STATUS_META[rec.status].tone}>{STATUS_META[rec.status].label}</StatusBadge>
+        {rec.note && <span className="min-w-0 flex-1 t4-regular text-fg-neutral-muted">{rec.note}</span>}
         <button
           type="button"
           onClick={() => { setStatus(rec.status); setNote(rec.note ?? ""); setEditing(true); }}
-          className="ml-auto shrink-0 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity"
+          aria-label={`${rec.studentName} 기록 수정`}
           title="수정"
+          className="ml-auto grid size-8 shrink-0 place-items-center rounded-r2 text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral"
         >
-          <Pencil className="h-3.5 w-3.5" />
+          <Pencil className="size-4" />
         </button>
       </li>
     );
   }
 
   return (
-    <li className="flex flex-wrap items-center gap-2 py-2 text-sm bg-blue-50/40 -mx-2 px-2 rounded">
-      <span className="w-12 shrink-0 font-mono text-xs text-muted-foreground">{rec.seat ?? "—"}</span>
-      <span className="w-20 shrink-0 font-medium">{rec.studentName}</span>
-      <div className="inline-flex rounded-full border bg-background p-0.5">
-        {(Object.keys(STATUS_META) as PatrolStatus[]).map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setStatus(s)}
-            className={cn("h-6 px-2 text-[11px] rounded-full transition-colors", status === s ? STATUS_META[s].cls : "text-muted-foreground hover:bg-muted")}
-          >
-            {STATUS_META[s].label}
-          </button>
-        ))}
-      </div>
-      <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="특이사항" className="h-7 flex-1 min-w-[140px] text-xs" />
-      <Button size="sm" className="h-7" onClick={save} disabled={saving}>
-        <Save className="h-3 w-3 mr-1" />{saving ? "저장 중" : "저장"}
+    <li className="flex flex-wrap items-center gap-x2 bg-bg-layer-fill px-x5 py-x3">
+      <span className="w-12 shrink-0 t5-bold tabular-nums text-fg-neutral">{rec.seat ?? "—"}</span>
+      <span className="w-24 shrink-0 truncate t4-medium text-fg-neutral">{rec.studentName}</span>
+      <Segmented
+        aria-label="점검 상태"
+        options={(Object.keys(STATUS_META) as PatrolStatus[]).map((s) => ({ value: s, label: STATUS_META[s].label }))}
+        value={status}
+        onChange={setStatus}
+        className="w-auto"
+      />
+      <Input
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="특이사항"
+        aria-label="특이사항"
+        className="min-w-[160px] flex-1"
+      />
+      <Button size="sm" onClick={save} disabled={saving}>
+        <Save />{saving ? "저장 중…" : "저장"}
       </Button>
-      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setEditing(false)} disabled={saving}>
-        <X className="h-3.5 w-3.5" />
+      <Button size="icon" variant="ghost" onClick={() => setEditing(false)} disabled={saving} aria-label="수정 취소">
+        <X />
       </Button>
     </li>
   );
 }
 
-const STATUS_META: Record<PatrolStatus, { label: string; cls: string }> = {
-  OK: { label: "양호", cls: "bg-emerald-100 text-emerald-700" },
-  NOTE: { label: "특이사항", cls: "bg-amber-100 text-amber-700" },
-  ABSENT: { label: "자리비움", cls: "bg-gray-200 text-gray-600" },
+// 점검 상태 → SEED 역할색: 양호 positive · 특이사항 warning · 자리비움 neutral
+const STATUS_META: Record<PatrolStatus, { label: string; tone: Tone }> = {
+  OK: { label: "양호", tone: "ok" },
+  NOTE: { label: "특이사항", tone: "warn" },
+  ABSENT: { label: "자리비움", tone: "gray" },
 };
 
 function fmtTime(iso: string) {
@@ -156,105 +154,126 @@ export function PatrolReview({ initialDate, initialRounds }: { initialDate: stri
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <Input type="date" value={date} onChange={(e) => changeDate(e.target.value)} className="h-9 w-auto" />
-        {pending && <span className="text-xs text-muted-foreground">불러오는 중…</span>}
-        <span className="ml-auto text-xs text-muted-foreground">
+    <div className="flex flex-col gap-x4">
+      <Toolbar className="mb-0">
+        <Input
+          type="date"
+          value={date}
+          onChange={(e) => changeDate(e.target.value)}
+          aria-label="날짜"
+          className="w-auto tabular-nums"
+        />
+        {pending && (
+          <span className="inline-flex items-center gap-x1 t3-regular text-fg-neutral-subtle">
+            <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            불러오는 중…
+          </span>
+        )}
+        <span className="ml-auto t4-regular tabular-nums text-fg-neutral-subtle">
           순찰자 {groups.length}명 · 회차 {rounds.length}
         </span>
-      </div>
+      </Toolbar>
 
       {rounds.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            이 날짜에 순찰 기록이 없습니다.
-          </CardContent>
-        </Card>
+        <Section>
+          <EmptyState
+            icon={ShieldCheck}
+            title="이 날짜에는 순찰 기록이 없어요"
+            description="다른 날짜를 고르거나, 순찰을 시작하면 여기에 기록이 쌓여요."
+          />
+        </Section>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-3 items-start">
+        <div className="grid grid-cols-1 items-start gap-x4 lg:grid-cols-[280px_1fr]">
           {/* 좌: 근무자(순찰자) 목록 */}
-          <aside className={cn("space-y-1.5", selected ? "hidden lg:block" : "block")}>
-            {groups.map((g) => {
-              const isActive = selectedKey === g.key;
-              return (
-                <button
-                  key={g.key}
-                  onClick={() => setSelectedKey(g.key)}
-                  className={cn(
-                    "w-full text-left rounded-lg border px-3 py-2.5 transition-colors",
-                    isActive ? "border-primary bg-primary/5" : "hover:bg-muted/40",
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="font-medium text-sm flex-1 truncate">{g.name}</span>
-                    {g.noteCount > 0 && (
-                      <Badge className="gap-1 bg-amber-100 text-amber-700 hover:bg-amber-100 text-[10px] h-4 px-1">
-                        <AlertTriangle className="h-2.5 w-2.5" />{g.noteCount}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="mt-0.5 pl-6 text-[11px] text-muted-foreground">
-                    {g.roundCount}회차 · 점검 {g.checkedCount}건
-                  </p>
-                </button>
-              );
-            })}
+          <aside className={cn(selected ? "hidden lg:block" : "block")}>
+            <Section flush title="순찰자" count={groups.length}>
+              <ul className="border-t border-stroke-neutral-muted pb-x2">
+                {groups.map((g) => {
+                  const isActive = selectedKey === g.key;
+                  return (
+                    <li key={g.key}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedKey(g.key)}
+                        aria-current={isActive ? "true" : undefined}
+                        className={cn(
+                          "flex w-full items-center gap-x3 px-x5 py-x3 text-left transition-colors",
+                          isActive ? "bg-bg-brand-weak" : "hover:bg-bg-layer-default-pressed",
+                        )}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate t4-bold text-fg-neutral">{g.name}</p>
+                          <p className="mt-x0_5 t3-regular tabular-nums text-fg-neutral-subtle">
+                            {g.roundCount}회차 · 점검 {g.checkedCount}건
+                          </p>
+                        </div>
+                        {g.noteCount > 0 && (
+                          <StatusBadge tone="warn">
+                            <AlertTriangle aria-hidden />
+                            특이 {g.noteCount}
+                          </StatusBadge>
+                        )}
+                        <ChevronRight className="size-4 shrink-0 text-fg-placeholder lg:hidden" aria-hidden />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Section>
           </aside>
 
           {/* 우: 선택 근무자의 회차 + 기록 */}
           <div className={cn("min-w-0", selected ? "block" : "hidden lg:block")}>
             {!selected ? (
-              <Card>
-                <CardContent className="py-16 text-center text-sm text-muted-foreground">
-                  좌측에서 순찰자를 선택하세요.
-                </CardContent>
-              </Card>
+              <Section>
+                <EmptyState
+                  icon={ShieldCheck}
+                  title="순찰자를 선택하세요"
+                  description="왼쪽 목록에서 순찰자를 누르면 회차별 점검 기록을 볼 수 있어요."
+                />
+              </Section>
             ) : (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setSelectedKey(null)}
-                    className="lg:hidden inline-flex items-center gap-1 text-sm text-muted-foreground"
-                  >
-                    <ChevronLeft className="h-4 w-4" /> 목록
-                  </button>
-                  <h3 className="font-bold text-base flex items-center gap-1.5">
-                    <ShieldCheck className="h-4 w-4 text-primary" />
-                    {selected.name}
-                  </h3>
-                  <span className="text-xs text-muted-foreground">
+              <div className="flex flex-col gap-x4">
+                <div className="flex flex-wrap items-center gap-x2">
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedKey(null)} className="lg:hidden">
+                    <ChevronLeft /> 목록
+                  </Button>
+                  <h3 className="t7-bold text-fg-neutral">{selected.name}</h3>
+                  <span className="t4-regular tabular-nums text-fg-neutral-subtle">
                     {selected.roundCount}회차 · 점검 {selected.checkedCount} · 특이 {selected.noteCount}
                   </span>
                 </div>
 
                 {selected.rounds.map((r) => (
-                  <Card key={r.id}>
-                    <div className="flex items-center gap-2 px-4 py-2.5 border-b flex-wrap">
-                      <span className="font-medium text-sm">{r.label || "순찰 회차"}</span>
-                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" />
-                        {fmtTime(r.startedAt)}{r.endedAt ? `–${fmtTime(r.endedAt)}` : " (진행 중)"}
+                  <Section
+                    key={r.id}
+                    flush
+                    title={r.label || "순찰 회차"}
+                    description={
+                      <span className="inline-flex items-center gap-x1 tabular-nums">
+                        <Clock className="size-3.5" aria-hidden />
+                        {fmtTime(r.startedAt)}{r.endedAt ? `–${fmtTime(r.endedAt)}` : ""}
+                        {!r.endedAt && <StatusBadge tone="ok" className="ml-x1">진행 중</StatusBadge>}
                       </span>
-                      <div className="ml-auto flex items-center gap-1.5">
-                        <Badge variant="secondary" className="gap-1"><Check className="h-3 w-3" />{r.checkedCount}</Badge>
-                        {r.noteCount > 0 && <Badge className="gap-1 bg-amber-100 text-amber-700 hover:bg-amber-100"><AlertTriangle className="h-3 w-3" />{r.noteCount}</Badge>}
-                        {r.absentCount > 0 && <Badge variant="outline" className="gap-1"><UserX className="h-3 w-3" />{r.absentCount}</Badge>}
+                    }
+                    actions={
+                      <div className="flex flex-wrap items-center gap-x1_5">
+                        <StatusBadge tone="gray">점검 {r.checkedCount}</StatusBadge>
+                        {r.noteCount > 0 && <StatusBadge tone="warn">특이 {r.noteCount}</StatusBadge>}
+                        {r.absentCount > 0 && <StatusBadge tone="gray">자리비움 {r.absentCount}</StatusBadge>}
                       </div>
-                    </div>
-                    <CardContent className="py-2">
-                      {r.records.length === 0 ? (
-                        <p className="py-3 text-center text-xs text-muted-foreground">점검 기록이 없습니다</p>
-                      ) : (
-                        <ul className="divide-y">
-                          {r.records.map((rec) => (
-                            <PatrolRecordRow key={rec.id} rec={rec} onSaved={refetch} />
-                          ))}
-                        </ul>
-                      )}
-                    </CardContent>
-                  </Card>
+                    }
+                  >
+                    {r.records.length === 0 ? (
+                      <EmptyState compact title="점검 기록이 없어요" className="border-t border-stroke-neutral-muted" />
+                    ) : (
+                      <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+                        {r.records.map((rec) => (
+                          <PatrolRecordRow key={rec.id} rec={rec} onSaved={refetch} />
+                        ))}
+                      </ul>
+                    )}
+                  </Section>
                 ))}
               </div>
             )}

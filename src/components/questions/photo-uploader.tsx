@@ -3,8 +3,11 @@
 import { useId, useState } from "react";
 import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
-import { ImagePlus, X, Loader2, FileText } from "lucide-react";
+import { ImagePlus, X, Loader2, FileText, Play } from "lucide-react";
+import { ProgressCircle } from "seed-design/ui/progress-circle";
 import type { QuestionAttachment } from "@/actions/student-questions";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const ALLOWED_EXT = /\.(pdf|png|jpe?g|webp|gif|heic|heif|mp4|mov|webm)$/i;
 const VIDEO_EXT = /\.(mp4|mov|webm)$/i;
@@ -51,6 +54,7 @@ function safeName(filename: string): string {
  * @vercel/blob client upload (/api/online/upload/client 토큰 발급) 로 blob 에 직접 업로드 —
  * Vercel 함수 body 한도(4.5MB)를 우회한다.
  * 학생 측이면 studentToken 전달, 직원 측이면 생략(세션 인증).
+ * variant="portal" 은 학생 포털용 SEED 토큰 썸네일 줄 (업로드 로직은 동일).
  */
 export function PhotoUploader({
   attachments,
@@ -59,6 +63,7 @@ export function PhotoUploader({
   max = 6,
   disabled,
   label = "사진 추가",
+  variant = "default",
 }: {
   attachments: QuestionAttachment[];
   onChange: (next: QuestionAttachment[]) => void;
@@ -66,6 +71,7 @@ export function PhotoUploader({
   max?: number;
   disabled?: boolean;
   label?: string;
+  variant?: "default" | "portal";
 }) {
   const [uploadingCount, setUploadingCount] = useState(0);
   const [progress, setProgress] = useState<number | null>(null);
@@ -141,22 +147,124 @@ export function PhotoUploader({
   const full = attachments.length + uploadingCount >= max;
   const busy = uploadingCount > 0;
 
+  if (variant === "portal") {
+    const addDisabled = full || disabled || busy;
+    return (
+      <ul className="-mx-4 flex gap-x2 overflow-x-auto px-x4 pb-x1 pt-x2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <li className="shrink-0">
+          <label
+            htmlFor={inputId}
+            className={cn(
+              "flex size-[76px] cursor-pointer flex-col items-center justify-center gap-x1 rounded-r3_5 bg-bg-neutral-weak text-fg-neutral-muted transition-[transform,background-color] duration-150 active:scale-[0.96] active:bg-bg-neutral-weak-pressed",
+              addDisabled && "pointer-events-none opacity-50"
+            )}
+          >
+            <ImagePlus className="size-x6" strokeWidth={2} />
+            <span className="t3-medium tabular-nums text-fg-neutral-subtle">
+              <span className={attachments.length > 0 ? "t3-bold text-fg-brand" : undefined}>
+                {attachments.length}
+              </span>
+              /{max}
+            </span>
+            <span className="sr-only">{label}</span>
+            {/* capture 미지정 — 모바일에서 카메라 촬영 / 갤러리 선택 둘 다 가능 */}
+            <input
+              id={inputId}
+              type="file"
+              accept="image/*,video/mp4,video/quicktime,video/webm,.pdf,.heic,.heif,.mp4,.mov,.webm"
+              multiple
+              onChange={handleFiles}
+              disabled={addDisabled}
+              className="hidden"
+            />
+          </label>
+        </li>
+
+        {attachments.map((a, i) => (
+          <li
+            key={`${a.url}-${i}`}
+            className="relative size-[76px] shrink-0 overflow-hidden rounded-r3_5 bg-bg-neutral-weak"
+          >
+            {a.mimeType.startsWith("image/") ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={a.url} alt={a.name} className="h-full w-full object-cover" />
+            ) : a.mimeType.startsWith("video/") ? (
+              <div className="relative h-full w-full">
+                <video
+                  src={a.url}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  className="h-full w-full object-cover"
+                />
+                <span className="absolute left-1/2 top-1/2 inline-flex size-x7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-bg-overlay text-palette-static-white">
+                  <Play className="ml-x0_5 size-x3_5 fill-current" strokeWidth={2.4} />
+                </span>
+              </div>
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-x1 px-x2 text-fg-neutral-subtle">
+                <FileText className="size-x5" strokeWidth={2} />
+                <span className="line-clamp-2 break-all text-center t1-regular">
+                  {a.name}
+                </span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              aria-label="첨부 제거"
+              className="absolute right-1 top-1 inline-flex size-x6 items-center justify-center rounded-full bg-bg-overlay text-palette-static-white backdrop-blur-sm transition-transform active:scale-90"
+            >
+              <X className="size-x3_5" strokeWidth={2.8} />
+            </button>
+          </li>
+        ))}
+
+        {Array.from({ length: uploadingCount }).map((_, i) => (
+          <li
+            key={`u-${i}`}
+            className="flex size-[76px] shrink-0 flex-col items-center justify-center gap-x1_5 overflow-hidden rounded-r3_5 bg-bg-neutral-weak text-fg-neutral-muted"
+            aria-label="업로드 중"
+          >
+            {/* 진행률을 알면 SEED ProgressCircle 을 결정형으로, 모르면(준비 중) 무한 회전으로 */}
+            <ProgressCircle
+              size="24"
+              tone="brand"
+              value={progress ?? undefined}
+              minValue={0}
+              maxValue={100}
+            />
+            <span className="t2-medium tabular-nums">
+              {progress !== null ? `${progress}%` : "준비 중"}
+            </span>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  // ─── default variant (직원 화면) ───
   return (
     <div>
       {(attachments.length > 0 || busy) && (
-        <ul className="mb-2 flex flex-wrap gap-2">
+        <ul className="mb-x2 flex flex-wrap gap-x2">
           {attachments.map((a, i) => (
             <li
               key={`${a.url}-${i}`}
-              className="relative h-20 w-20 overflow-hidden rounded-[10px] border border-line bg-canvas-2"
+              className="relative size-20 overflow-hidden rounded-r2 border border-stroke-neutral-muted bg-bg-neutral-weak"
             >
               {a.mimeType.startsWith("image/") ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={a.url} alt={a.name} className="h-full w-full object-cover" />
+              ) : a.mimeType.startsWith("video/") ? (
+                <div className="flex h-full w-full items-center justify-center text-fg-neutral-subtle">
+                  <Play className="size-5 fill-current" aria-hidden />
+                  <span className="sr-only">{a.name}</span>
+                </div>
               ) : (
-                <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-1.5 text-ink-4">
-                  <FileText className="h-5 w-5" />
-                  <span className="line-clamp-2 break-all text-center text-[9px] leading-tight">
+                <div className="flex h-full w-full flex-col items-center justify-center gap-x1 p-x1_5 text-fg-neutral-subtle">
+                  <FileText className="size-5" />
+                  <span className="line-clamp-2 break-all text-center t1-regular">
                     {a.name}
                   </span>
                 </div>
@@ -165,20 +273,21 @@ export function PhotoUploader({
                 type="button"
                 onClick={() => remove(i)}
                 aria-label="첨부 제거"
-                className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-ink/80 text-white"
+                className="absolute right-1 top-1 inline-flex size-x5 items-center justify-center rounded-full bg-bg-overlay text-palette-static-white"
               >
-                <X className="h-3 w-3" strokeWidth={3} />
+                <X className="size-3" strokeWidth={3} />
               </button>
             </li>
           ))}
           {Array.from({ length: uploadingCount }).map((_, i) => (
             <li
               key={`u-${i}`}
-              className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-[10px] border border-dashed border-line bg-canvas-2 text-ink-4"
+              aria-label="업로드 중"
+              className="flex size-20 flex-col items-center justify-center gap-x1 rounded-r2 border border-dashed border-stroke-neutral-weak bg-bg-layer-fill text-fg-neutral-subtle"
             >
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 className="size-5 animate-spin" />
               {progress !== null && (
-                <span className="text-[10px] tabular-nums">{progress}%</span>
+                <span className="t1-regular tabular-nums">{progress}%</span>
               )}
             </li>
           ))}
@@ -188,12 +297,17 @@ export function PhotoUploader({
       {!full && (
         <label
           htmlFor={inputId}
-          className={`inline-flex cursor-pointer items-center gap-1.5 rounded-[10px] border border-line bg-panel px-3 py-2 text-[13px] font-medium text-ink-2 active:bg-canvas-2 ${
-            disabled || busy ? "pointer-events-none opacity-60" : ""
-          }`}
+          className={cn(
+            buttonVariants({ variant: "secondary", size: "sm" }),
+            "cursor-pointer",
+            (disabled || busy) && "pointer-events-none opacity-50",
+          )}
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+          {busy ? <Loader2 className="animate-spin" /> : <ImagePlus />}
           {label}
+          <span className="t3-regular tabular-nums text-fg-neutral-subtle">
+            {attachments.length}/{max}
+          </span>
           {/* capture 미지정 — 모바일에서 카메라 촬영 / 갤러리 선택 둘 다 가능 */}
           <input
             id={inputId}

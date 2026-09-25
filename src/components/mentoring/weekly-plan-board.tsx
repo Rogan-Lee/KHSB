@@ -11,27 +11,25 @@ import {
 import { saveMentorScheduleForMentor, deleteMentorScheduleById } from "@/actions/mentors";
 import { DAY_NAMES } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { TimePickerInput } from "@/components/ui/time-picker";
-import { ChevronLeft, ChevronRight, Copy, Check, Settings2, Plus, X, Trash2, Search } from "lucide-react";
+import { EmptyState, StatusBadge } from "@/components/backoffice/ui";
+import { CalendarX, ChevronLeft, ChevronRight, Copy, Check, Settings2, Plus, X, Trash2, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { PRIORITY, PriorityDot } from "./mentoring-status";
+import { ConfirmDialog } from "./confirm-dialog";
 
 // Mon-Sun display order for Korean work week
 const WEEK_DAYS = [1, 2, 3, 4, 5, 6, 0] as const;
 
-// v4 priority palette — calmer pastel, 2px left stripe model
+// 입실 예정(미배정) 칩 — 우선순위별 SEED 약한 배경
 const PRIORITY_COLORS = {
-  1: "bg-bad-soft text-bad-ink hover:brightness-[0.98]",
-  2: "bg-warn-soft text-warn-ink hover:brightness-[0.98]",
-  3: "bg-ok-soft text-ok-ink hover:brightness-[0.98]",
-} as const;
-
-const PRIORITY_DOT = {
-  1: "bg-bad",
-  2: "bg-warn",
-  3: "bg-ok",
+  1: "bg-bg-critical-weak text-fg-critical hover:bg-bg-critical-weak-pressed",
+  2: "bg-bg-warning-weak text-fg-warning hover:bg-bg-warning-weak-pressed",
+  3: "bg-bg-positive-weak text-fg-positive hover:bg-bg-positive-weak-pressed",
 } as const;
 
 // KST today (UTC+9) weekday (0=Sun..6=Sat)
@@ -196,84 +194,115 @@ export function WeeklyPlanBoard({
   }
 
   const { label, dayDates } = formatWeekHeader(weekStart);
+  const todayDow = getKstTodayDow();
+  const isThisWeek = weekStart === initialWeekStart;
 
   return (
     <>
-      {/* ── Header Controls ── */}
-      <div className="flex items-center gap-3 flex-wrap pb-3">
-        <div className="inline-flex items-center gap-[2px] p-[3px] bg-panel border border-line rounded-[9px] shadow-[var(--shadow-xs)]">
-          <button
-            type="button"
+      {/* ── 주 이동 · 범례 · 요약 복사 ── */}
+      <div className="mb-x4 flex flex-wrap items-center gap-x3">
+        <div className="flex items-center gap-x1">
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-9"
             onClick={() => navigateWeek(-1)}
             disabled={isPending}
-            className="h-[26px] w-[28px] grid place-items-center rounded-[6px] text-ink-3 hover:bg-canvas-2 hover:text-ink-2 transition-colors disabled:opacity-50"
             aria-label="이전 주"
           >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
+            <ChevronLeft />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => { setWeekStart(initialWeekStart); refresh(initialWeekStart); }}
             disabled={isPending}
-            className="h-[26px] px-3 text-[11.5px] font-medium rounded-[6px] text-ink-2 hover:bg-canvas-2 transition-colors disabled:opacity-50"
           >
             이번 주
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-9"
             onClick={() => navigateWeek(1)}
             disabled={isPending}
-            className="h-[26px] w-[28px] grid place-items-center rounded-[6px] text-ink-3 hover:bg-canvas-2 hover:text-ink-2 transition-colors disabled:opacity-50"
             aria-label="다음 주"
           >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
+            <ChevronRight />
+          </Button>
         </div>
-        <span className="text-[13px] font-semibold text-ink tracking-[-0.01em]">{label}</span>
-        <div className="flex-1" />
-        <div className="flex items-center gap-3 text-[11px] text-ink-4">
-          <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-bad" />P1 · 7일↑</span>
-          <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-warn" />P2 · 3~6일</span>
-          <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-ok" />P3 · ~3일</span>
+        <span className="t5-bold tabular-nums text-fg-neutral">{label}</span>
+        {isPending && (
+          <span className="inline-flex items-center gap-x1 t3-regular text-fg-neutral-subtle" role="status">
+            <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            불러오는 중
+          </span>
+        )}
+        <div className="ml-auto flex flex-wrap items-center gap-x4">
+          <div className="flex flex-wrap items-center gap-x3 t3-regular text-fg-neutral-subtle">
+            <span className="inline-flex items-center gap-x1_5"><PriorityDot priority={1} />P1 · 7일↑</span>
+            <span className="inline-flex items-center gap-x1_5"><PriorityDot priority={2} />P2 · 3~6일</span>
+            <span className="inline-flex items-center gap-x1_5"><PriorityDot priority={3} />P3 · ~3일</span>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleCopy} disabled={isPending}>
+            {copied ? <Check className="text-fg-positive" /> : <Copy />}
+            {copied ? "복사됨" : "요약 복사"}
+          </Button>
         </div>
-        <Button variant="outline" size="compact" onClick={handleCopy} disabled={isPending}>
-          {copied ? <><Check className="h-3 w-3 text-ok" />복사됨</> : <><Copy className="h-3 w-3" />요약 복사</>}
-        </Button>
-        {isPending && <span className="text-[11px] text-ink-4 animate-pulse">로딩 중</span>}
       </div>
+
+      {!readonly && mentors.length > 0 && (
+        <p className="mb-x3 t3-regular text-fg-neutral-subtle">
+          색 칩은 그날 입실 예정인 담당 원생이에요. 누르면 멘토링이 배정되고 흰 칩으로 바뀌어요.
+        </p>
+      )}
 
       {/* ── Grid ── */}
       {mentors.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-2">
-          <p className="text-sm">이번 주 근무 스케줄이 있는 멘토가 없습니다.</p>
-          <p className="text-xs">멘토 스케줄 관리 페이지에서 근무 일정을 먼저 설정해주세요.</p>
+        <div className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
+          <EmptyState
+            icon={CalendarX}
+            title="이번 주 근무 스케줄이 있는 멘토가 없어요"
+            description="멘토 스케줄 관리에서 근무 일정을 먼저 등록해 주세요"
+            action={
+              <Button asChild variant="outline" size="sm">
+                <Link href="/mentoring/schedule">멘토 스케줄 관리</Link>
+              </Button>
+            }
+          />
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-[12px] border border-line bg-panel shadow-[var(--shadow-xs)]">
-          <table className="w-full border-collapse text-sm" style={{ minWidth: 860 }}>
+        <div className="overflow-x-auto rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
+          <table className="w-full border-collapse t4-regular" style={{ minWidth: 860 }}>
             <thead>
-              <tr className="border-b border-line bg-panel-2">
-                <th className="px-4 py-3 text-left w-[170px] text-[11px] font-semibold text-ink-4 sticky left-0 bg-panel-2 z-10 border-r border-line-2">
+              <tr className="border-b border-stroke-neutral-muted bg-bg-layer-fill">
+                <th className="sticky left-0 z-10 w-[170px] border-r border-stroke-neutral-muted bg-bg-layer-fill px-x4 py-x3 text-left t3-medium text-fg-neutral-subtle">
                   멘토
                 </th>
                 {dayDates.map(({ dow, date }) => {
-                  const isToday = dow === getKstTodayDow();
+                  const isToday = isThisWeek && dow === todayDow;
+                  const isWeekend = dow === 0 || dow === 6;
                   return (
                     <th
                       key={dow}
+                      aria-current={isToday ? "date" : undefined}
                       className={cn(
-                        "px-3 py-3 text-center text-[11px] font-semibold w-[120px] border-r border-line-2 last:border-r-0",
-                        isToday ? "bg-brand-softer" : "",
-                        dow === 0 || dow === 6 ? "text-bad" : "text-ink-4"
+                        "w-[120px] border-r border-stroke-neutral-muted px-x3 py-x2_5 text-center last:border-r-0",
+                        isToday && "bg-bg-brand-weak"
                       )}
                     >
-                      <div className={cn("text-[12.5px] font-[650]", isToday ? "text-brand-2" : "text-ink")}>
+                      <div
+                        className={cn(
+                          "t4-bold",
+                          isToday ? "text-fg-brand" : isWeekend ? "text-fg-critical" : "text-fg-neutral"
+                        )}
+                      >
                         {DAY_NAMES[dow]}
+                        {isToday && <span className="ml-x1 t2-bold">오늘</span>}
                       </div>
-                      <div className={cn(
-                        "text-[11px] font-mono tabular-nums mt-0.5",
-                        isToday ? "text-brand" : "text-ink-4"
-                      )}>{date}</div>
+                      <div className={cn("mt-x0_5 t3-regular tabular-nums", isToday ? "text-fg-brand" : "text-fg-neutral-subtle")}>
+                        {date}
+                      </div>
                     </th>
                   );
                 })}
@@ -288,6 +317,7 @@ export function WeeklyPlanBoard({
                   isLast={i === mentors.length - 1}
                   isPending={isPending}
                   readonly={readonly}
+                  todayDow={isThisWeek ? todayDow : null}
                   onSchedule={(sid, dow) => handleSchedule(sid, mentor.id, dow)}
                   onCancel={handleCancel}
                   onEditSchedule={() => setEditMentor(mentor)}
@@ -322,6 +352,7 @@ function MentorRow({
   isLast,
   isPending,
   readonly,
+  todayDow,
   onSchedule,
   onCancel,
   onEditSchedule,
@@ -332,6 +363,8 @@ function MentorRow({
   isLast: boolean;
   isPending: boolean;
   readonly: boolean;
+  /** 표시 중인 주가 이번 주일 때만 오늘 요일 (그 외 null) */
+  todayDow: number | null;
   onSchedule: (studentId: string, dayOfWeek: number) => void;
   onCancel: (mentoringId: string) => void;
   onEditSchedule: () => void;
@@ -341,50 +374,54 @@ function MentorRow({
   const totalScheduled = mentor.students.reduce((n, s) => n + s.scheduledMentorings.length, 0);
   const mentorStudentIds = new Set(mentor.students.map((s) => s.id));
   const extraStudents = allStudents.filter((s) => !mentorStudentIds.has(s.id));
+  const load = mentor.students.length;
 
   return (
-    <tr className={cn("align-top", !isLast && "border-b border-line-2")}>
+    <tr className={cn("align-top", !isLast && "border-b border-stroke-neutral-muted")}>
       {/* Mentor name cell — sticky */}
-      <td className="px-4 py-3 sticky left-0 bg-panel z-10 border-r border-line-2">
-        <div className="flex items-start justify-between gap-1">
+      <td className="sticky left-0 z-10 border-r border-stroke-neutral-muted bg-bg-layer-default px-x4 py-x3">
+        <div className="flex items-start justify-between gap-x1">
           <div className="min-w-0">
-            <p className="font-semibold text-[12.5px] text-ink leading-tight tracking-[-0.01em] truncate">{mentor.name}</p>
-            <p className="text-[11px] text-ink-4 mt-0.5 flex items-center gap-1.5 font-mono tabular-nums">
-              <span>{mentor.students.length}명</span>
+            <p className="truncate t4-bold text-fg-neutral">{mentor.name}</p>
+            <p className="mt-x0_5 flex items-center gap-x1_5 t3-regular tabular-nums text-fg-neutral-subtle">
+              <span>담당 {load}명</span>
               {totalScheduled > 0 && (
-                <span className="text-ink-3 font-semibold">{totalScheduled}건</span>
+                <span className="t3-bold text-fg-neutral-muted">배정 {totalScheduled}건</span>
               )}
             </p>
             {/* Load bar: students assigned vs capacity (fallback capacity=10) */}
-            <div className="mt-2 flex items-center gap-1.5 w-[120px]">
-              <span className="flex-1 h-[3px] rounded-[2px] bg-line-2 overflow-hidden">
+            <div className="mt-x2 flex w-[120px] items-center gap-x1_5" title={`담당 원생 ${load}/10명`}>
+              <span className="h-1 flex-1 overflow-hidden rounded-full bg-bg-neutral-weak">
                 <span
                   className={cn(
-                    "block h-full rounded-[2px]",
-                    mentor.students.length >= 10 ? "bg-bad" :
-                    mentor.students.length >= 7 ? "bg-warn" : "bg-ok"
+                    "block h-full rounded-full",
+                    load >= 10 ? "bg-bg-critical-solid" :
+                    load >= 7 ? "bg-bg-warning-solid" : "bg-bg-positive-solid"
                   )}
-                  style={{ width: `${Math.min(100, (mentor.students.length / 10) * 100)}%` }}
+                  style={{ width: `${Math.min(100, (load / 10) * 100)}%` }}
                 />
               </span>
-              <span className="font-mono text-[10px] text-ink-4 tabular-nums">{mentor.students.length}/10</span>
+              <span className="t2-regular tabular-nums text-fg-neutral-subtle">{load}/10</span>
             </div>
           </div>
           {!readonly && (
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
+              className="-mr-2 -mt-1 size-8 text-fg-neutral-subtle"
               onClick={onEditSchedule}
-              className="text-ink-4 hover:text-ink-2 transition-colors mt-0.5 shrink-0"
               title="근무 스케줄 편집"
+              aria-label={`${mentor.name} 근무 스케줄 편집`}
             >
-              <Settings2 className="h-3.5 w-3.5" />
-            </button>
+              <Settings2 />
+            </Button>
           )}
         </div>
         {/* Work days summary */}
         {mentor.workDays.length > 0 && (
-          <div className="flex flex-wrap gap-0.5 mt-1.5">
+          <div className="mt-x2 flex flex-wrap gap-x0_5">
             {mentor.workDays.map((w) => (
-              <span key={w.dayOfWeek} className="text-[10px] font-medium px-1.5 py-px bg-canvas-2 text-ink-3 rounded-[4px]">
+              <span key={w.dayOfWeek} className="rounded-r1 bg-bg-neutral-weak px-x1_5 t2-medium text-fg-neutral-muted">
                 {DAY_NAMES[w.dayOfWeek]}
               </span>
             ))}
@@ -397,18 +434,18 @@ function MentorRow({
         const workDay = workDayMap.get(dow);
         const isWeekend = dow === 0 || dow === 6;
 
-        const isToday = dow === getKstTodayDow();
+        const isToday = dow === todayDow;
 
         if (!workDay) {
           return (
             <td
               key={dow}
               className={cn(
-                "px-3 py-3 text-center border-r border-line-2 last:border-r-0",
-                isToday ? "bg-brand-softer" : isWeekend ? "bg-panel-2" : "bg-panel"
+                "border-r border-stroke-neutral-muted px-x3 py-x3 text-center last:border-r-0",
+                isToday ? "bg-bg-brand-weak" : isWeekend ? "bg-bg-layer-fill" : "bg-bg-layer-default"
               )}
             >
-              <span className="text-ink-5 text-xs">—</span>
+              <span className="t3-regular text-fg-placeholder" aria-label="근무 없음">—</span>
             </td>
           );
         }
@@ -417,6 +454,7 @@ function MentorRow({
           <DayCell
             key={dow}
             dow={dow}
+            isToday={isToday}
             workDay={workDay}
             students={mentor.students}
             extraStudents={extraStudents}
@@ -438,6 +476,7 @@ function MentorRow({
 
 function DayCell({
   dow,
+  isToday,
   workDay,
   students,
   extraStudents,
@@ -448,6 +487,7 @@ function DayCell({
   onAddAndSchedule,
 }: {
   dow: number;
+  isToday: boolean;
   workDay: { id: string; dayOfWeek: number; timeStart: string; timeEnd: string };
   students: WeeklyPlanStudent[];
   extraStudents: AllStudent[];
@@ -493,38 +533,38 @@ function DayCell({
     setQuery("");
   }
 
-  const isToday = dow === getKstTodayDow();
-
   return (
     <td className={cn(
-      "px-2 py-2.5 align-top border-r border-line-2 last:border-r-0",
-      isToday && "bg-brand-softer"
+      "border-r border-stroke-neutral-muted px-x2 py-x2_5 align-top last:border-r-0",
+      isToday && "bg-bg-brand-weak"
     )}>
       {/* Work time badge */}
-      <div className="text-[10px] text-ink-4 font-mono tabular-nums mb-2 text-center">
+      <div className="mb-x2 text-center t2-regular tabular-nums text-fg-neutral-subtle">
         {workDay.timeStart}–{workDay.timeEnd}
       </div>
 
-      <div className="space-y-1 min-h-[40px]">
+      <div className="flex min-h-10 flex-col gap-x1">
         {/* Already scheduled */}
         {scheduledStudents.map((s) => {
           const m = s.scheduledMentorings.find((m) => m.dayOfWeek === dow)!;
           return (
             <div
               key={s.id}
-              className="relative flex items-center gap-1.5 pl-[10px] pr-1.5 py-1 rounded-[7px] bg-panel border border-line text-ink text-[11.5px] font-medium group"
+              className="group flex items-center gap-x1_5 rounded-r2 border border-stroke-neutral-muted bg-bg-layer-default py-x1 pl-x2 pr-x1 t3-medium text-fg-neutral"
             >
-              <span className={cn("absolute left-[2px] top-1 bottom-1 w-[2px] rounded-[2px]", PRIORITY_DOT[s.priority])} />
-              <span className="text-[10px] text-ink-4 font-mono tabular-nums w-3 shrink-0">{studentSeatMap.get(s.id)}</span>
-              <span className="truncate flex-1 tracking-[-0.01em]">{s.name}</span>
+              <PriorityDot priority={s.priority} />
+              <span className="w-4 shrink-0 t2-regular tabular-nums text-fg-neutral-subtle">{studentSeatMap.get(s.id)}</span>
+              <span className="flex-1 truncate">{s.name}</span>
               {!readonly && (
                 <button
+                  type="button"
                   onClick={() => onCancel(m.id)}
                   disabled={isPending}
-                  className="shrink-0 text-ink-4 hover:text-bad transition-colors disabled:opacity-40 opacity-0 group-hover:opacity-100"
+                  className="grid size-5 shrink-0 place-items-center rounded-full text-fg-neutral-subtle opacity-0 transition-opacity hover:bg-bg-transparent-pressed hover:text-fg-critical focus-visible:opacity-100 disabled:opacity-40 group-hover:opacity-100"
                   title="삭제"
+                  aria-label={`${s.name} 배정 취소`}
                 >
-                  <X className="h-3 w-3" />
+                  <X className="size-3" />
                 </button>
               )}
             </div>
@@ -537,31 +577,32 @@ function DayCell({
             <div
               key={s.id}
               className={cn(
-                "relative w-full flex items-center gap-1.5 pl-[10px] pr-2 py-1 rounded-[7px] text-[11.5px] font-medium",
+                "flex w-full items-center gap-x1_5 rounded-r2 py-x1 pl-x2 pr-x2 t3-medium",
                 PRIORITY_COLORS[s.priority]
               )}
             >
-              <span className={cn("absolute left-[2px] top-1 bottom-1 w-[2px] rounded-[2px]", PRIORITY_DOT[s.priority])} />
-              <span className="text-[10px] opacity-60 w-3 shrink-0 font-mono">{studentSeatMap.get(s.id)}</span>
-              <span className="truncate flex-1 text-left tracking-[-0.01em]">{s.name}</span>
-              <span className="text-[10px] opacity-60">{s.grade}</span>
+              <PriorityDot priority={s.priority} />
+              <span className="w-4 shrink-0 t2-regular tabular-nums opacity-70">{studentSeatMap.get(s.id)}</span>
+              <span className="flex-1 truncate text-left">{s.name}</span>
+              <span className="t2-regular opacity-70">{s.grade}</span>
             </div>
           ) : (
             <button
+              type="button"
               key={s.id}
               onClick={() => onSchedule(s.id)}
               disabled={isPending}
               className={cn(
-                "relative w-full flex items-center gap-1.5 pl-[10px] pr-2 py-1 rounded-[7px] text-[11.5px] font-medium transition-all",
-                "cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed",
+                "flex w-full items-center gap-x1_5 rounded-r2 py-x1 pl-x2 pr-x2 t3-medium transition-colors",
+                "cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
                 PRIORITY_COLORS[s.priority]
               )}
               title={`클릭하여 멘토링 배정 (마지막: ${s.daysSinceLast === null ? "기록없음" : s.daysSinceLast + "일 전"})`}
             >
-              <span className={cn("absolute left-[2px] top-1 bottom-1 w-[2px] rounded-[2px]", PRIORITY_DOT[s.priority])} />
-              <span className="text-[10px] opacity-60 w-3 shrink-0 font-mono">{studentSeatMap.get(s.id)}</span>
-              <span className="truncate flex-1 text-left tracking-[-0.01em]">{s.name}</span>
-              <span className="text-[10px] opacity-60">{s.grade}</span>
+              <PriorityDot priority={s.priority} />
+              <span className="w-4 shrink-0 t2-regular tabular-nums opacity-70">{studentSeatMap.get(s.id)}</span>
+              <span className="flex-1 truncate text-left">{s.name}</span>
+              <span className="t2-regular opacity-70">{s.grade}</span>
             </button>
           )
         )}
@@ -570,52 +611,55 @@ function DayCell({
         {!readonly && <Popover open={popoverOpen} onOpenChange={(o) => { setPopoverOpen(o); if (!o) setQuery(""); }}>
           <PopoverTrigger asChild>
             <button
+              type="button"
               disabled={isPending}
-              className="w-full flex items-center justify-center gap-1 px-2 py-1 rounded-[7px] border border-dashed border-line-strong text-[11px] text-ink-4 hover:border-ink-4 hover:text-ink-2 transition-colors disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-x1 rounded-r2 border border-dashed border-stroke-neutral-weak px-x2 py-x1 t3-medium text-fg-neutral-subtle transition-colors hover:bg-bg-transparent-pressed hover:text-fg-neutral disabled:opacity-50"
             >
-              <Plus className="h-3 w-3" />
+              <Plus className="size-3" aria-hidden />
               {otherUnscheduled.length > 0 ? `${otherUnscheduled.length}명 더` : "추가"}
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-52 p-2" align="start">
+          <PopoverContent className="w-56 p-x2" align="start">
             {/* Search input */}
-            <div className="flex items-center gap-1.5 border rounded-md px-2 py-1 mb-2">
-              <Search className="h-3 w-3 text-muted-foreground shrink-0" />
+            <label className="mb-x2 flex h-9 items-center gap-x1_5 rounded-r2 bg-bg-neutral-weak px-x2_5">
+              <Search className="size-3.5 shrink-0 text-fg-neutral-subtle" aria-hidden />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="이름 또는 학년..."
-                className="flex-1 text-xs bg-transparent outline-none placeholder:text-muted-foreground"
+                placeholder="이름 또는 학년"
+                aria-label="원생 검색"
+                className="min-w-0 flex-1 bg-transparent t3-regular text-fg-neutral outline-none placeholder:text-fg-placeholder"
                 autoFocus
               />
               {query && (
-                <button onClick={() => setQuery("")} className="text-muted-foreground hover:text-foreground">
-                  <X className="h-3 w-3" />
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  aria-label="검색어 지우기"
+                  className="text-fg-neutral-subtle hover:text-fg-neutral"
+                >
+                  <X className="size-3" />
                 </button>
               )}
-            </div>
+            </label>
 
-            <div className="max-h-52 overflow-y-auto space-y-0.5">
+            <div className="flex max-h-52 flex-col gap-x0_5 overflow-y-auto">
               {/* 담당 학생 (입실 예정 없는 날) */}
               {filteredOther.length > 0 && (
                 <>
-                  {q && <p className="text-[10px] text-muted-foreground px-2 pb-1">담당 학생</p>}
+                  {q && <p className="px-x2 pb-x1 t2-medium text-fg-neutral-subtle">담당 학생</p>}
                   {filteredOther.map((s) => (
                     <button
+                      type="button"
                       key={s.id}
                       onClick={() => { onSchedule(s.id); handleClose(); }}
                       disabled={isPending}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted/60 transition-colors text-left disabled:opacity-50"
+                      className="flex w-full items-center gap-x2 rounded-r2 px-x2 py-x1_5 text-left t3-regular transition-colors hover:bg-bg-transparent-pressed disabled:opacity-50"
                     >
-                      <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", PRIORITY_DOT[s.priority])} />
-                      <span className="flex-1 font-medium">{s.name}</span>
-                      <span className="text-muted-foreground">{s.grade}</span>
-                      <span className={cn(
-                        "text-[10px] px-1 rounded-sm border",
-                        s.priority === 1 ? "bg-red-50 border-red-200 text-red-700" :
-                        s.priority === 2 ? "bg-amber-50 border-amber-200 text-amber-700" :
-                        "bg-emerald-50 border-emerald-200 text-emerald-700"
-                      )}>P{s.priority}</span>
+                      <PriorityDot priority={s.priority} />
+                      <span className="flex-1 t3-medium text-fg-neutral">{s.name}</span>
+                      <span className="text-fg-neutral-subtle">{s.grade}</span>
+                      <StatusBadge tone={PRIORITY[s.priority].tone}>{PRIORITY[s.priority].short}</StatusBadge>
                     </button>
                   ))}
                 </>
@@ -624,18 +668,19 @@ function DayCell({
               {/* 담당 외 학생 (검색 시에만) */}
               {filteredExtra.length > 0 && (
                 <>
-                  {filteredOther.length > 0 && <div className="border-t my-1" />}
-                  <p className="text-[10px] text-muted-foreground px-2 pb-1">다른 학생</p>
+                  {filteredOther.length > 0 && <div className="my-x1 border-t border-stroke-neutral-muted" />}
+                  <p className="px-x2 pb-x1 t2-medium text-fg-neutral-subtle">다른 학생</p>
                   {filteredExtra.map((s) => (
                     <button
+                      type="button"
                       key={s.id}
                       onClick={() => { onAddAndSchedule(s); handleClose(); }}
                       disabled={isPending}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted/60 transition-colors text-left disabled:opacity-50"
+                      className="flex w-full items-center gap-x2 rounded-r2 px-x2 py-x1_5 text-left t3-regular transition-colors hover:bg-bg-transparent-pressed disabled:opacity-50"
                     >
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-300 shrink-0" />
-                      <span className="flex-1 font-medium">{s.name}</span>
-                      <span className="text-muted-foreground">{s.grade}</span>
+                      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-bg-neutral-solid-muted" />
+                      <span className="flex-1 t3-medium text-fg-neutral">{s.name}</span>
+                      <span className="text-fg-neutral-subtle">{s.grade}</span>
                     </button>
                   ))}
                 </>
@@ -643,8 +688,8 @@ function DayCell({
 
               {/* 빈 상태 */}
               {filteredOther.length === 0 && filteredExtra.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-3">
-                  {q ? "검색 결과 없음" : "배정할 학생이 없습니다"}
+                <p className="py-x3 text-center t3-regular text-fg-neutral-subtle">
+                  {q ? "검색 결과가 없어요" : "배정할 학생이 없어요"}
                 </p>
               )}
             </div>
@@ -682,6 +727,7 @@ function ScheduleEditSheet({
   const [editStart, setEditStart] = useState("14:00");
   const [editEnd, setEditEnd] = useState("18:00");
   const [isPending, startTransition] = useTransition();
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
 
   if (!mentor) return null;
 
@@ -715,6 +761,7 @@ function ScheduleEditSheet({
         await deleteMentorScheduleById(scheduleId);
         toast.success("삭제되었습니다.");
         setEditDay(null);
+        setDeleteTarget(null);
         onSaved();
       } catch {
         toast.error("삭제 실패");
@@ -730,12 +777,12 @@ function ScheduleEditSheet({
       }}
     >
       <SheetContent className="w-[380px] sm:w-[420px]">
-        <SheetHeader className="pb-4">
+        <SheetHeader className="pb-x4">
           <SheetTitle>{mentor.name} 근무 스케줄</SheetTitle>
-          <p className="text-sm text-muted-foreground">요일별 멘토링 가능 시간을 설정합니다.</p>
+          <SheetDescription>요일별 멘토링 가능 시간을 설정해요. 바꾸면 계획표가 바로 새로고침돼요.</SheetDescription>
         </SheetHeader>
 
-        <div className="space-y-1">
+        <div className="flex flex-col gap-x1_5">
           {ALL_DAYS.map(({ dow, label, weekend }) => {
             const sch = scheduleMap.get(dow);
             const isEditing = editDay === dow;
@@ -744,58 +791,54 @@ function ScheduleEditSheet({
               <div
                 key={dow}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg",
-                  weekend ? "bg-red-50/40" : "bg-muted/30",
-                  isEditing && "ring-1 ring-blue-300 bg-blue-50/30"
+                  "flex min-h-13 items-center gap-x3 rounded-r3 border px-x4 py-x2_5",
+                  isEditing
+                    ? "border-stroke-neutral-contrast bg-bg-layer-default"
+                    : "border-transparent bg-bg-layer-fill"
                 )}
               >
-                <span className={cn("text-sm font-medium w-14", weekend ? "text-red-500" : "text-foreground")}>
+                <span className={cn("w-14 shrink-0 t4-bold", weekend ? "text-fg-critical" : "text-fg-neutral")}>
                   {label}
                 </span>
 
                 {isEditing ? (
-                  <div className="flex items-center gap-2 flex-1 flex-wrap">
-                    <TimePickerInput value={editStart} onChange={setEditStart} size="sm" className="bg-white" />
-                    <span className="text-muted-foreground text-xs">~</span>
-                    <TimePickerInput value={editEnd} onChange={setEditEnd} size="sm" className="bg-white" />
-                    <Button size="sm" className="h-7 text-xs px-3" onClick={handleSave} disabled={isPending}>
-                      저장
+                  <div className="flex flex-1 flex-wrap items-center gap-x2">
+                    <TimePickerInput value={editStart} onChange={setEditStart} size="sm" />
+                    <span className="t3-regular text-fg-neutral-subtle">~</span>
+                    <TimePickerInput value={editEnd} onChange={setEditEnd} size="sm" />
+                    <Button size="xs" onClick={handleSave} disabled={isPending}>
+                      {isPending ? "저장 중…" : "저장"}
                     </Button>
-                    <button
-                      onClick={() => setEditDay(null)}
-                      className="text-xs text-muted-foreground hover:text-foreground"
-                    >
+                    <Button size="xs" variant="ghost" onClick={() => setEditDay(null)}>
                       취소
-                    </button>
+                    </Button>
                   </div>
                 ) : sch ? (
                   <>
-                    <span className="text-sm font-medium flex-1 text-foreground">
+                    <span className="flex-1 t4-medium tabular-nums text-fg-neutral">
                       {sch.timeStart} ~ {sch.timeEnd}
                     </span>
-                    <button
-                      onClick={() => startEdit(dow)}
-                      className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-                    >
+                    <Button size="xs" variant="ghost" onClick={() => startEdit(dow)}>
                       수정
-                    </button>
-                    <button
-                      onClick={() => handleDelete(sch.id)}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 text-fg-neutral-subtle hover:text-fg-critical"
+                      onClick={() => setDeleteTarget({ id: sch.id, label })}
                       disabled={isPending}
-                      className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
+                      aria-label={`${label} 스케줄 삭제`}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                      <Trash2 />
+                    </Button>
                   </>
                 ) : (
                   <>
-                    <span className="text-sm text-muted-foreground/50 flex-1">미등록</span>
-                    <button
-                      onClick={() => startEdit(dow)}
-                      className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-                    >
+                    <span className="flex-1 t4-regular text-fg-placeholder">미등록</span>
+                    <Button size="xs" variant="outline" onClick={() => startEdit(dow)}>
+                      <Plus />
                       등록
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
@@ -803,11 +846,15 @@ function ScheduleEditSheet({
           })}
         </div>
 
-        <p className="text-[11px] text-muted-foreground mt-4 px-1">
-          변경 후 그리드가 자동으로 새로고침됩니다.
-        </p>
+        <ConfirmDialog
+          open={!!deleteTarget}
+          onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}
+          title="스케줄 삭제"
+          description={deleteTarget ? `${mentor.name} 멘토의 ${deleteTarget.label} 근무 시간을 삭제할까요?` : undefined}
+          pending={isPending}
+          onConfirm={() => deleteTarget && handleDelete(deleteTarget.id)}
+        />
       </SheetContent>
     </Sheet>
   );
 }
-

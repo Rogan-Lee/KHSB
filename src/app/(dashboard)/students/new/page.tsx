@@ -1,6 +1,6 @@
 import { StudentForm } from "@/components/students/student-form";
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader, Section } from "@/components/backoffice/ui";
 import { parseSchool } from "@/lib/utils";
 
 export default async function NewStudentPage() {
@@ -21,15 +21,15 @@ export default async function NewStudentPage() {
   const occupiedSeats = seatRows.map((s) => s.seat!);
 
   return (
-    <div className="max-w-2xl">
-      <Card>
-        <CardHeader>
-          <CardTitle>원생 등록</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <StudentForm mentors={mentors} schools={schools} occupiedSeats={occupiedSeats} />
-        </CardContent>
-      </Card>
+    <div className="max-w-3xl">
+      <PageHeader
+        back={{ href: "/students", label: "원생 관리" }}
+        title="원생 등록"
+        description="이름·학년·학부모 연락처·등원일만 채우면 바로 등록돼요. 나머지는 나중에 고쳐도 돼요."
+      />
+      <Section>
+        <StudentForm mentors={mentors} schools={schools} occupiedSeats={occupiedSeats} />
+      </Section>
     </div>
   );
 }

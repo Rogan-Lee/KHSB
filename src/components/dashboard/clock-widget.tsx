@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { IconTile } from "@/components/backoffice/ui";
 import { Clock, LogIn, LogOut, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
 import { clockIn, clockOut } from "@/actions/payroll";
@@ -22,7 +22,7 @@ function fmtDuration(ms: number): string {
 export function ClockWidget({ initial }: { initial: Status }) {
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState<Status>(initial);
-  const [, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
   // 근무 중이면 1분마다 리렌더해서 경과 시간 업데이트
   useEffect(() => {
@@ -32,13 +32,14 @@ export function ClockWidget({ initial }: { initial: Status }) {
   }, [status?.isWorking]);
 
   const workingMs = status?.isWorking && status.lastTag
-    ? Date.now() - new Date(status.lastTag.taggedAt).getTime()
+    ? now - new Date(status.lastTag.taggedAt).getTime()
     : 0;
 
   function handleClockIn() {
     startTransition(async () => {
       try {
         const tag = await clockIn();
+        setNow(Date.now());
         setStatus({ lastTag: tag, isWorking: true });
         toast.success("출근 태깅 완료");
       } catch (e) {
@@ -60,62 +61,36 @@ export function ClockWidget({ initial }: { initial: Status }) {
     });
   }
 
+  const working = !!status?.isWorking;
+
   return (
-    <div
-      className={cn(
-        "rounded-[12px] border px-[14px] py-3 flex items-center gap-3 transition-colors",
-        "shadow-[var(--shadow-xs)]",
-        status?.isWorking
-          ? "border-ok/30 bg-ok-soft"
-          : "border-line bg-panel"
-      )}
-    >
-      <span
-        className={cn(
-          "grid place-items-center w-[36px] h-[36px] rounded-[10px] shrink-0",
-          status?.isWorking ? "bg-ok text-white" : "bg-ink-6 text-ink-3"
-        )}
-      >
-        <Clock className="h-4 w-4" />
-      </span>
-      <div className="flex-1 min-w-0">
-        <p className="text-[11px] text-ink-4 leading-none mb-1">내 출퇴근</p>
-        {status?.isWorking && status.lastTag ? (
-          <p className="text-[13px] font-semibold text-ok-ink leading-tight">
-            근무 중 · {fmtDuration(workingMs)}
-          </p>
+    <div className="flex items-center gap-x3 rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default px-x4 py-x3">
+      <IconTile icon={Clock} tone={working ? "ok" : "gray"} size={40} />
+      <div className="min-w-0 flex-1">
+        <p className="t3-regular text-fg-neutral-subtle">내 출퇴근</p>
+        {working && status?.lastTag ? (
+          <p className="t4-bold text-fg-positive">근무 중 · {fmtDuration(workingMs)}</p>
         ) : (
-          <p className="text-[13px] font-semibold text-ink tracking-[-0.01em] leading-tight">
-            출근 전
-          </p>
+          <p className="t4-bold text-fg-neutral">출근 전</p>
         )}
       </div>
-      <div className="flex items-center gap-1.5 shrink-0">
-        {!status?.isWorking ? (
-          <Button
-            size="sm"
-            onClick={handleClockIn}
-            disabled={pending}
-            className="bg-ok hover:bg-ok/90 text-white h-8 text-xs"
-          >
-            <LogIn className="h-3.5 w-3.5 mr-1" />
+      <div className="flex shrink-0 items-center gap-x1_5">
+        {!working ? (
+          <Button size="sm" onClick={handleClockIn} disabled={pending}>
+            <LogIn />
             출근
           </Button>
         ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleClockOut}
-            disabled={pending}
-            className="h-8 text-xs"
-          >
-            <LogOut className="h-3.5 w-3.5 mr-1" />
+          <Button size="sm" variant="outline" onClick={handleClockOut} disabled={pending}>
+            <LogOut />
             퇴근
           </Button>
         )}
-        <Link href="/payroll/me" title="전체 기록 보기" className="p-1.5 rounded-[8px] hover:bg-panel-2 text-ink-4">
-          <ArrowUpRight className="h-3.5 w-3.5" />
-        </Link>
+        <Button asChild variant="ghost" size="icon" title="전체 기록 보기">
+          <Link href="/payroll/me" aria-label="전체 출퇴근 기록 보기">
+            <ArrowUpRight />
+          </Link>
+        </Button>
       </div>
     </div>
   );

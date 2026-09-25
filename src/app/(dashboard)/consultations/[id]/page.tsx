@@ -3,8 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getTimetableEntries, getStudentSchoolEvents } from "@/actions/timetable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { CountBadge, DescriptionList, PageHeader, Section, StatusBadge } from "@/components/backoffice/ui";
 import { DayView } from "@/components/timetable/day-view";
 import { TimetableGrid } from "@/components/timetable/timetable-grid";
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
@@ -14,14 +13,7 @@ const ExamScoreChart = dynamic(() => import("@/components/students/exam-score-ch
 import { StudentInfoReveal } from "@/components/mentoring/student-info-reveal";
 import { ConsultationRecordForm } from "@/components/consultations/consultation-record-form";
 import { FollowUpMessagePanel } from "@/components/consultations/followup-message-panel";
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
-
-const STATUS_CONFIG = {
-  SCHEDULED: { label: "예정", variant: "secondary" as const },
-  COMPLETED: { label: "완료", variant: "default" as const },
-  CANCELLED: { label: "취소", variant: "destructive" as const },
-};
+import { CATEGORY_META, STATUS_META, TYPE_LABEL, formatKST } from "@/components/consultations/consultation-tones";
 
 export default async function ConsultationDetailPage({
   params,
@@ -102,56 +94,64 @@ export default async function ConsultationDetailPage({
     });
   }
 
-  const statusCfg = STATUS_CONFIG[consultation.status] ?? STATUS_CONFIG.SCHEDULED;
+  const statusCfg = STATUS_META[consultation.status] ?? STATUS_META.SCHEDULED;
+  const ownerLabel = isHeadTeacher ? "책임T 면담" : "원장 면담";
+  const categoryKey = (consultation as Record<string, unknown>).category as string | null;
+  const typeKey = (consultation as Record<string, unknown>).type as string | null;
+  const categoryMeta = categoryKey ? CATEGORY_META[categoryKey] : null;
+  const displayName = s ? s.name : consultation.prospectName ?? "—";
+  const grade = s?.grade ?? consultation.prospectGrade;
+  const openAssignments = s ? s.assignments.filter((a) => !a.isCompleted).length : 0;
+  const uncheckedComms = s ? s.communications.filter((c) => !c.isChecked).length : 0;
 
   return (
-    <div className="space-y-4">
-      {/* Back + Header */}
-      <div className="flex items-center gap-3">
-        <Link
-          href={backHref}
-          className="text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <h2 className="text-xl font-bold">{isHeadTeacher ? "책임T 면담" : "원장 면담"}</h2>
-        <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
-      </div>
+    <>
+      <PageHeader
+        back={{ href: backHref, label: ownerLabel }}
+        title={displayName}
+        meta={
+          <>
+            <StatusBadge tone={statusCfg.tone} size="large">{statusCfg.label}</StatusBadge>
+            {categoryMeta && <StatusBadge tone={categoryMeta.tone} size="large">{categoryMeta.label}</StatusBadge>}
+            {isProspect && <StatusBadge tone="warn" size="large">신규 상담</StatusBadge>}
+          </>
+        }
+        description={
+          <span className="tabular-nums">
+            {ownerLabel}
+            {typeKey && TYPE_LABEL[typeKey] ? ` · ${TYPE_LABEL[typeKey]} 상담` : ""}
+            {" · "}
+            {consultation.scheduledAt ? `${formatKST(consultation.scheduledAt)} 예정` : "예정 일시 미정"}
+          </span>
+        }
+      />
 
-      {/* Basic info card */}
-      <Card>
-        <CardContent className="pt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-          <div>
-            <p className="text-muted-foreground text-xs">원생</p>
-            <p className="font-medium">
-              {s ? s.name : consultation.prospectName ?? "—"}{" "}
-              {(s?.grade || consultation.prospectGrade) && (
-                <span className="text-muted-foreground text-xs">({s?.grade ?? consultation.prospectGrade})</span>
-              )}
-              {isProspect && (
-                <Badge variant="outline" className="ml-1.5 text-[10px] bg-amber-50 text-amber-700 border-amber-200">신규 상담</Badge>
-              )}
-            </p>
-          </div>
-          {s ? (
-            <>
-              <div>
-                <p className="text-muted-foreground text-xs">학교</p>
-                <p className="font-medium">{s.school || "—"}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">학부모 이메일</p>
-                <p className="text-xs">{s.parentEmail || <span className="text-muted-foreground">미등록</span>}</p>
-              </div>
-            </>
-          ) : (
-            <div>
-              <p className="text-muted-foreground text-xs">연락처</p>
-              <p className="font-medium">{consultation.prospectPhone || "—"}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Basic info */}
+      <Section className="mb-x6">
+        <DescriptionList
+          cols={3}
+          items={[
+            {
+              label: "원생",
+              value: (
+                <>
+                  {displayName}
+                  {grade && <span className="ml-x1 text-fg-neutral-subtle">({grade})</span>}
+                </>
+              ),
+            },
+            ...(s
+              ? [
+                  { label: "학교", value: s.school || "—" },
+                  {
+                    label: "학부모 이메일",
+                    value: s.parentEmail || <span className="text-fg-neutral-subtle">미등록</span>,
+                  },
+                ]
+              : [{ label: "연락처", value: consultation.prospectPhone || "—" }]),
+          ]}
+        />
+      </Section>
 
       {/* Tabs */}
       <Tabs defaultValue="record">
@@ -162,19 +162,11 @@ export default async function ConsultationDetailPage({
               <TabsTrigger value="timetable">시간표</TabsTrigger>
               <TabsTrigger value="assignments">
                 과제
-                {s.assignments.filter((a) => !a.isCompleted).length > 0 && (
-                  <span className="ml-1.5 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                    {s.assignments.filter((a) => !a.isCompleted).length}
-                  </span>
-                )}
+                <CountBadge count={openAssignments} />
               </TabsTrigger>
               <TabsTrigger value="communications">
                 요청/전달
-                {s.communications.filter((c) => !c.isChecked).length > 0 && (
-                  <span className="ml-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                    {s.communications.filter((c) => !c.isChecked).length}
-                  </span>
-                )}
+                <CountBadge count={uncheckedComms} />
               </TabsTrigger>
               <TabsTrigger value="scores">성적 추이</TabsTrigger>
               <TabsTrigger value="studentinfo">학생 정보</TabsTrigger>
@@ -182,7 +174,7 @@ export default async function ConsultationDetailPage({
           )}
         </TabsList>
 
-        <TabsContent value="record" className="mt-4 space-y-4">
+        <TabsContent value="record" className="flex flex-col gap-x4">
           {/* AI 팔로업 메시지 */}
           <FollowUpMessagePanel
             consultationId={consultation.id}
@@ -194,36 +186,31 @@ export default async function ConsultationDetailPage({
             }
           />
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">면담 내용 기록</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ConsultationRecordForm
-                consultationId={consultation.id}
-                scheduledAt={consultation.scheduledAt}
-                actualDate={consultation.actualDate}
-                agenda={consultation.agenda}
-                outcome={consultation.outcome}
-                followUp={consultation.followUp}
-                notes={consultation.notes}
-                consultationType={(consultation as Record<string, unknown>).type as string | null ?? null}
-                consultationCategory={(consultation as Record<string, unknown>).category as string | null ?? null}
-                previousConsultations={previousConsultations}
-              />
-            </CardContent>
-          </Card>
+          <Section title="면담 내용 기록">
+            <ConsultationRecordForm
+              consultationId={consultation.id}
+              scheduledAt={consultation.scheduledAt}
+              actualDate={consultation.actualDate}
+              agenda={consultation.agenda}
+              outcome={consultation.outcome}
+              followUp={consultation.followUp}
+              notes={consultation.notes}
+              consultationType={(consultation as Record<string, unknown>).type as string | null ?? null}
+              consultationCategory={(consultation as Record<string, unknown>).category as string | null ?? null}
+              previousConsultations={previousConsultations}
+            />
+          </Section>
         </TabsContent>
 
         {s && (
           <>
-            <TabsContent value="timetable" className="mt-4">
+            <TabsContent value="timetable">
               <Tabs defaultValue="daily">
-                <TabsList className="mb-4">
+                <TabsList variant="segment">
                   <TabsTrigger value="daily">일간</TabsTrigger>
                   <TabsTrigger value="weekly">주간</TabsTrigger>
                 </TabsList>
-                <TabsContent value="daily">
+                <TabsContent value="daily" className="mt-x4">
                   <DayView
                     studentId={s.id}
                     entries={timetableEntries.map((e) => ({
@@ -244,7 +231,7 @@ export default async function ConsultationDetailPage({
                     schoolEvents={schoolEvents}
                   />
                 </TabsContent>
-                <TabsContent value="weekly">
+                <TabsContent value="weekly" className="mt-x4">
                   <TimetableGrid
                     studentId={s.id}
                     studentName={s.name}
@@ -264,7 +251,7 @@ export default async function ConsultationDetailPage({
               </Tabs>
             </TabsContent>
 
-            <TabsContent value="assignments" className="mt-4">
+            <TabsContent value="assignments">
               <AssignmentPanel
                 studentId={s.id}
                 studentName={s.name}
@@ -272,39 +259,37 @@ export default async function ConsultationDetailPage({
               />
             </TabsContent>
 
-            <TabsContent value="communications" className="mt-4">
+            <TabsContent value="communications">
               <CommunicationPanel
                 studentId={s.id}
                 initialItems={s.communications}
               />
             </TabsContent>
 
-            <TabsContent value="scores" className="mt-4">
+            <TabsContent value="scores">
               <ExamScoreChart
                 studentId={s.id}
                 initialScores={s.examScores}
               />
             </TabsContent>
 
-            <TabsContent value="studentinfo" className="mt-4">
-              <Card className="border-border bg-muted/20">
-                <CardContent className="pt-4 pb-4">
-                  <StudentInfoReveal
-                    mentoringNotes={s.mentoringNotes}
-                    internalScoreRange={s.internalScoreRange}
-                    mockScoreRange={s.mockScoreRange}
-                    targetUniversity={s.targetUniversity}
-                    studentInfo={s.studentInfo}
-                    selectedSubjects={s.selectedSubjects}
-                    admissionType={s.admissionType}
-                    onlineLectures={s.onlineLectures}
-                  />
-                </CardContent>
-              </Card>
+            <TabsContent value="studentinfo">
+              <Section>
+                <StudentInfoReveal
+                  mentoringNotes={s.mentoringNotes}
+                  internalScoreRange={s.internalScoreRange}
+                  mockScoreRange={s.mockScoreRange}
+                  targetUniversity={s.targetUniversity}
+                  studentInfo={s.studentInfo}
+                  selectedSubjects={s.selectedSubjects}
+                  admissionType={s.admissionType}
+                  onlineLectures={s.onlineLectures}
+                />
+              </Section>
             </TabsContent>
           </>
         )}
       </Tabs>
-    </div>
+    </>
   );
 }

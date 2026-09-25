@@ -2,12 +2,21 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { KakaoButton } from "@/components/ui/kakao-button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { EmptyState, FormField } from "@/components/backoffice/ui";
 import { toast } from "sonner";
-import { MessageCircle, Plus, Pencil, Trash2, Check, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, FileText } from "lucide-react";
 import {
   createMessageTemplate,
   updateMessageTemplate,
@@ -45,6 +54,7 @@ export function KakaoMessagePanel({ initialTemplates, students }: Props) {
   const [showNewForm, setShowNewForm] = useState(false);
   const [newName, setNewName] = useState("");
   const [newContent, setNewContent] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Template | null>(null);
 
   function applyTemplate(templateId: string, studentId?: string) {
     const tmpl = templates.find((t) => t.id === templateId);
@@ -117,18 +127,21 @@ export function KakaoMessagePanel({ initialTemplates, students }: Props) {
     });
   }
 
+  function openNewForm() { setShowNewForm(true); cancelEdit(); }
+
   return (
-    <div className="flex divide-x divide-border h-full">
-      {/* ── 왼쪽: 메시지 발송 (2/5) ── */}
-      <div className="w-2/5 flex flex-col p-6 gap-4">
-        <div className="flex items-center gap-2">
-          <MessageCircle className="h-4 w-4 text-yellow-500" />
-          <h3 className="font-semibold text-sm">메시지 발송</h3>
+    <div className="flex flex-col lg:h-full lg:flex-row">
+      {/* ── 메시지 작성 ── */}
+      <div className="flex flex-col gap-x5 border-b border-stroke-neutral-muted p-x5 lg:w-2/5 lg:border-b-0 lg:border-r lg:p-x6">
+        <div>
+          <h2 className="t6-bold text-fg-neutral">메시지 작성</h2>
+          <p className="mt-x0_5 t4-regular text-fg-neutral-subtle">
+            템플릿과 학생을 고르면 문구가 채워져요.
+          </p>
         </div>
 
-        <div className="flex-1 flex flex-col space-y-3 min-h-0">
-          <div className="space-y-1.5">
-            <p className="text-xs font-medium text-muted-foreground">템플릿</p>
+        <div className="flex min-h-0 flex-1 flex-col gap-x4">
+          <FormField label="템플릿">
             <SearchableSelect
               options={templates.map((t) => ({ value: t.id, label: t.name }))}
               value={selectedTemplateId}
@@ -137,12 +150,9 @@ export function KakaoMessagePanel({ initialTemplates, students }: Props) {
               searchPlaceholder="템플릿 검색..."
               emptyText="등록된 템플릿 없음"
             />
-          </div>
+          </FormField>
 
-          <div className="space-y-1.5">
-            <p className="text-xs font-medium text-muted-foreground">
-              학생 <span className="text-[10px] text-muted-foreground/60">({"{"}name{"}"} 자동치환)</span>
-            </p>
+          <FormField label="학생" hint={<>{"{name}"} 자리에 학생 이름이 들어가요.</>}>
             <SearchableSelect
               options={students.map((s) => ({ value: s.id, label: `${s.name} (${s.grade})` }))}
               value={selectedStudentId}
@@ -151,154 +161,189 @@ export function KakaoMessagePanel({ initialTemplates, students }: Props) {
               searchPlaceholder="이름 검색..."
               emptyText="검색 결과 없음"
             />
-          </div>
+          </FormField>
 
-          <div className="flex-1 flex flex-col space-y-1.5 min-h-0">
-            <p className="text-xs font-medium text-muted-foreground">메시지 내용 (직접 수정 가능)</p>
+          <FormField label="메시지 내용" htmlFor="kakao-message" className="min-h-0 flex-1">
             <Textarea
+              id="kakao-message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="메시지 내용을 입력하거나 위에서 템플릿을 선택하세요"
-              className="resize-none flex-1"
+              className="min-h-40 flex-1 resize-none"
             />
-          </div>
+          </FormField>
         </div>
 
-        <Button
-          onClick={handleShare}
-          disabled={!message.trim()}
-          className="mt-auto w-full gap-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold"
-        >
-          <MessageCircle className="h-4 w-4" />
+        <KakaoButton onClick={handleShare} disabled={!message.trim()} size="lg" className="w-full">
           카카오톡으로 보내기
-        </Button>
+        </KakaoButton>
       </div>
 
-      {/* ── 오른쪽: 템플릿 관리 (3/5) ── */}
-      <div className="w-3/5 flex flex-col p-6 gap-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-sm">템플릿 관리</h3>
-            <Badge variant="secondary" className="text-xs px-1.5 py-0">{templates.length}</Badge>
+      {/* ── 템플릿 관리 ── */}
+      <div className="flex min-h-0 flex-col gap-x4 p-x5 lg:w-3/5 lg:p-x6">
+        <div className="flex items-start justify-between gap-x3">
+          <div className="min-w-0">
+            <h2 className="flex items-center gap-x1_5 t6-bold text-fg-neutral">
+              템플릿
+              <span className="tabular-nums text-fg-brand">{templates.length}</span>
+            </h2>
+            <p className="mt-x0_5 t4-regular text-fg-neutral-subtle">
+              {"{name}"} 은 발송할 때 학생 이름으로 바뀌어요.
+            </p>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 h-7 text-xs"
-            onClick={() => { setShowNewForm(true); cancelEdit(); }}
-            disabled={showNewForm}
-          >
-            <Plus className="h-3 w-3" />
+          <Button size="sm" variant="outline" onClick={openNewForm} disabled={showNewForm}>
+            <Plus />
             새 템플릿
           </Button>
         </div>
 
-        <p className="text-xs text-muted-foreground -mt-2">
-          {"{"}name{"}"} 은 발송 시 학생 이름으로 자동 치환됩니다
-        </p>
-
         {/* 새 템플릿 폼 */}
         {showNewForm && (
-          <div className="rounded-lg border p-4 space-y-3 bg-muted/30 shrink-0">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">템플릿 이름</label>
-                <Input
-                  placeholder="예) 출석 알림"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="h-8 text-sm"
-                />
-              </div>
-              <div className="flex items-end gap-2">
-                <Button size="sm" onClick={saveNew} disabled={isPending || !newName.trim() || !newContent.trim()} className="gap-1.5 h-8">
-                  <Check className="h-3.5 w-3.5" />
-                  저장
-                </Button>
-                <Button size="sm" variant="outline" className="h-8" onClick={() => { setShowNewForm(false); setNewName(""); setNewContent(""); }}>
-                  취소
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">내용</label>
+          <div className="flex shrink-0 flex-col gap-x3 rounded-r3 bg-bg-layer-fill p-x4">
+            <FormField label="템플릿 이름" htmlFor="kakao-new-name" required>
+              <Input
+                id="kakao-new-name"
+                placeholder="예) 출석 알림"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+            </FormField>
+            <FormField label="내용" htmlFor="kakao-new-content" required>
               <Textarea
+                id="kakao-new-content"
                 placeholder={"예) [독서실] {name} 학생이 오늘 정상 출석하였습니다."}
                 value={newContent}
                 onChange={(e) => setNewContent(e.target.value)}
                 rows={4}
-                className="resize-y text-sm"
+                className="resize-y"
               />
+            </FormField>
+            <div className="flex justify-end gap-x2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => { setShowNewForm(false); setNewName(""); setNewContent(""); }}
+              >
+                취소
+              </Button>
+              <Button size="sm" onClick={saveNew} disabled={isPending || !newName.trim() || !newContent.trim()}>
+                <Check />
+                {isPending ? "저장 중…" : "저장"}
+              </Button>
             </div>
           </div>
         )}
 
         {/* 템플릿 목록 */}
-        <div className="flex-1 overflow-y-auto space-y-2 pr-0.5">
-          {templates.length === 0 && !showNewForm && (
-            <div className="h-full flex items-center justify-center rounded-lg border border-dashed">
-              <p className="text-sm text-muted-foreground">등록된 템플릿이 없습니다</p>
-            </div>
+        <div className="min-h-0 flex-1 lg:overflow-y-auto">
+          {templates.length === 0 && !showNewForm ? (
+            <EmptyState
+              compact
+              icon={FileText}
+              title="등록된 템플릿이 없어요"
+              description="자주 보내는 문구를 템플릿으로 저장해 두세요."
+              action={
+                <Button size="sm" variant="outline" onClick={openNewForm}>
+                  <Plus />
+                  새 템플릿
+                </Button>
+              }
+            />
+          ) : (
+            <ul className="divide-y divide-stroke-neutral-muted border-y border-stroke-neutral-muted">
+              {templates.map((tmpl) => (
+                <li key={tmpl.id}>
+                  {editingId === tmpl.id ? (
+                    <div className="my-x3 flex flex-col gap-x3 rounded-r3 bg-bg-layer-fill p-x4">
+                      <FormField label="템플릿 이름" htmlFor={`kakao-edit-name-${tmpl.id}`}>
+                        <Input
+                          id={`kakao-edit-name-${tmpl.id}`}
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                        />
+                      </FormField>
+                      <FormField label="내용" htmlFor={`kakao-edit-content-${tmpl.id}`}>
+                        <Textarea
+                          id={`kakao-edit-content-${tmpl.id}`}
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          rows={4}
+                          className="resize-y"
+                        />
+                      </FormField>
+                      <div className="flex justify-end gap-x2">
+                        <Button size="sm" variant="ghost" onClick={cancelEdit}>
+                          취소
+                        </Button>
+                        <Button size="sm" onClick={saveEdit} disabled={isPending}>
+                          <Check />
+                          {isPending ? "저장 중…" : "저장"}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-x3 py-x3">
+                      <div className="min-w-0 flex-1">
+                        <p className="t4-bold text-fg-neutral">{tmpl.name}</p>
+                        <p className="mt-x1 line-clamp-3 whitespace-pre-wrap t3-regular text-fg-neutral-muted">
+                          {tmpl.content}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-x0_5">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-x8"
+                          onClick={() => startEdit(tmpl)}
+                          aria-label={`${tmpl.name} 수정`}
+                        >
+                          <Pencil />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="size-x8 hover:text-fg-critical"
+                          onClick={() => setDeleteTarget(tmpl)}
+                          disabled={isPending}
+                          aria-label={`${tmpl.name} 삭제`}
+                        >
+                          <Trash2 />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
           )}
-          {templates.map((tmpl) => (
-            <div key={tmpl.id} className="rounded-lg border bg-card">
-              {editingId === tmpl.id ? (
-                <div className="p-4 space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-muted-foreground">템플릿 이름</label>
-                      <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="h-8 text-sm" />
-                    </div>
-                    <div className="flex items-end gap-2">
-                      <Button size="sm" onClick={saveEdit} disabled={isPending} className="gap-1.5 h-8">
-                        <Check className="h-3.5 w-3.5" />
-                        저장
-                      </Button>
-                      <Button size="sm" variant="outline" className="h-8" onClick={cancelEdit}>
-                        취소
-                      </Button>
-                    </div>
-                  </div>
-                  <Textarea
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
-                    rows={4}
-                    className="resize-y text-sm"
-                  />
-                </div>
-              ) : (
-                <div className="flex items-start gap-3 px-4 py-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm mb-1">{tmpl.name}</p>
-                    <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed line-clamp-3">
-                      {tmpl.content}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-0.5 shrink-0 mt-0.5">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 text-muted-foreground hover:text-primary"
-                      onClick={() => startEdit(tmpl)}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleDelete(tmpl.id)}
-                      disabled={isPending}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
         </div>
       </div>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>템플릿 삭제</DialogTitle>
+            <DialogDescription>
+              {deleteTarget ? `‘${deleteTarget.name}’ 템플릿을 삭제할까요? 되돌릴 수 없어요.` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              취소
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={isPending}
+              onClick={() => {
+                if (deleteTarget) handleDelete(deleteTarget.id);
+                setDeleteTarget(null);
+              }}
+            >
+              삭제
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

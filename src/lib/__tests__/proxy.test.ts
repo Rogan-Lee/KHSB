@@ -8,6 +8,8 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/sign-up/invite")).toBe(true);
     expect(isPublicPath("/s/student-token")).toBe(true);
     expect(isPublicPath("/api/mobile/v1/auth/me")).toBe(true);
+    expect(isPublicPath("/api/public/content")).toBe(true);
+    expect(isPublicPath("/api/public/content/abc123")).toBe(true);
   });
 
   it("does not expose protected routes with similar prefixes", () => {

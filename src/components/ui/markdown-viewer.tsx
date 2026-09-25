@@ -33,7 +33,7 @@ export function MarkdownViewer({ source, className }: Props) {
   }, [editor, source]);
 
   if (!source) {
-    return <span className="text-muted-foreground italic text-sm">내용 없음</span>;
+    return <span className="t4-regular text-fg-neutral-subtle">내용 없음</span>;
   }
 
   // min-w-0 + overflow-x-auto: 코드블록/긴 줄이 부모 레이아웃을 밀어내지 않고

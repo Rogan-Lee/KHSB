@@ -3,215 +3,204 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>강한 관리 시스템 | 강한선배</title>
-  <meta name="description" content="출결·생활 관리, 1:1 담임제 멘토링, 월간 학부모 리포트, 학습·성적 관리, 교시제·환경관리까지 — 강한선배의 관리 시스템을 자세히 소개합니다.">
+  <title>관리 시스템 | 강한선배</title>
+  <meta name="description" content="강한선배의 생활 관리, 학습 관리, 운영 관리, 공간 관리를 실제 앱 화면으로 보여드립니다. 매달 보는 실전 모의고사와 학부모 리포트도 함께 소개합니다.">
+  <meta name="theme-color" content="#0b0c0f">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="관리 시스템 | 강한선배">
+  <meta property="og:description" content="아이의 하루를 생활, 학습, 운영, 공간 네 가지로 나눠 관리합니다.">
+  <meta property="og:image" content="photos/bx/hall-2.jpg">
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-  <link rel="stylesheet" href="landing.css">
+  <link rel="stylesheet" href="landing.css?v=seed3">
+  <link rel="stylesheet" href="bx-core.css?v=bx20">
+  <link rel="stylesheet" href="bx-scenes.css?v=bx20">
   <style>
-    .prog-hero { text-align: center; padding: 140px 0 20px; }
-    .prog-row { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; padding: 64px 0; border-top: 1px solid var(--line); }
-    .prog-row:nth-child(even) .prog-visual { order: -1; }
-    .prog-no { font-size: 14px; font-weight: 800; color: var(--purple); letter-spacing: .02em; }
-    .prog-row h2 { font-size: clamp(24px,3.2vw,34px); font-weight: 800; letter-spacing: -.03em; line-height: 1.25; margin: 10px 0 16px; }
-    .prog-row > div > p { font-size: 16px; color: var(--mute); line-height: 1.85; margin-bottom: 22px; }
-    .prog-bul { display: flex; flex-direction: column; gap: 12px; }
-    .prog-bul span { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; color: var(--ink); }
-    .prog-bul span::before { content: "✓"; color: var(--purple); font-weight: 800; flex-shrink: 0; }
-    .prog-visual { background: var(--card-cream); border: 1px solid var(--line); border-radius: var(--radius); padding: 32px; }
-    .prog-visual .mock { box-shadow: var(--shadow-sm); }
-    .env-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 36px; }
-    .env { background: var(--card-cream); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 28px; }
-    .env .emo { font-size: 26px; } .env h4 { font-size: 17px; font-weight: 800; margin: 12px 0 8px; }
-    .env p { font-size: 14px; color: var(--mute); line-height: 1.7; }
-    @media (max-width: 820px) {
-      .prog-row { grid-template-columns: 1fr; gap: 28px; padding: 48px 0; }
-      .prog-row:nth-child(even) .prog-visual { order: 0; }
-      .env-grid { grid-template-columns: 1fr; }
+    .hub-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    /* 카드: 왼쪽 글 · 오른쪽 폰(겹침 없음) — 폰은 카드 아래로 살짝 잘리며 빠져나감 */
+    .hub-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 36%; grid-template-rows: auto auto auto auto 1fr; column-gap: 28px; min-height: 460px; border-radius: 34px; overflow: hidden; padding: 40px 36px 40px 40px; color: var(--ink); background: var(--paper-2); transition: transform .4s var(--ease-out), box-shadow .4s; }
+    .hub-card > :not(.art):not(.art-photo) { grid-column: 1; position: relative; z-index: 1; }
+    .hub-card:hover { transform: translateY(-5px); box-shadow: var(--sh-lg); }
+    .hub-card .no { font-size: 14px; font-weight: 800; color: var(--brand); }
+    .hub-card h3 { font-size: clamp(28px, 3vw, 40px); font-weight: 800; letter-spacing: -.05em; line-height: 1.2; margin-top: 10px; }
+    .hub-card p { font-size: 16px; color: var(--dim); line-height: 1.7; margin-top: 14px; }
+    .hub-card .chips { margin-top: 20px; }
+    .hub-card .chips li { background: #fff; }
+    .hub-card .go { align-self: end; padding-top: 28px; font-size: 15.5px; font-weight: 800; color: var(--ink); display: inline-flex; align-items: center; gap: 8px; }
+    .hub-card .go svg { width: 18px; height: 18px; transition: transform .25s var(--ease-out); }
+    .hub-card:hover .go svg { transform: translateX(4px); }
+    .hub-card .art { grid-column: 2; grid-row: 1 / -1; align-self: start; margin-bottom: -160px; transform: rotate(-4deg); transform-origin: 50% 0; transition: transform .5s var(--ease-out); }
+    .hub-card:hover .art { transform: rotate(-2deg) translateY(-6px); }
+    .hub-card .art .pf { width: 100%; }
+    .hub-card .art-photo { grid-column: 2; grid-row: 1 / -1; align-self: stretch; margin: -40px -36px -40px 0; overflow: hidden; }
+    .hub-card .art-photo img { width: 100%; height: 100%; object-fit: cover; }
+    .hub-card.c2 { background: #fff4ec; }
+    .hub-card.c3 { background: var(--night); color: #fff; }
+    .hub-card.c3 p { color: rgba(255, 255, 255, .64); }
+    .hub-card.c3 .chips li { background: rgba(255, 255, 255, .1); color: #fff; }
+    .hub-card.c3 .go { color: #fff; }
+    .hub-card.c3 .no { color: var(--brand-2); }
+    .hub-card.c4 { background: #f1f5ff; }
+    .hub-answer { text-align: center; font-size: clamp(20px, 2.2vw, 28px); font-weight: 800; letter-spacing: -.04em; margin-top: 44px; }
+    .hub-answer em { font-style: normal; color: var(--brand); }
+    .rep-sec { display: grid; grid-template-columns: 1fr 1fr; gap: 72px; align-items: center; }
+    @media (max-width: 860px) {
+      .hub-cards { grid-template-columns: 1fr; }
+      .hub-card { grid-template-columns: 1fr; grid-template-rows: none; min-height: 0; padding: 30px 26px 0; }
+      .hub-card .go { padding-bottom: 8px; }
+      .hub-card .art { grid-column: 1; grid-row: auto; justify-self: center; width: 64%; margin: 26px 0 -150px; }
+      .hub-card .art-photo { grid-column: 1; grid-row: auto; height: 200px; margin: 24px -26px 0; }
+      .rep-sec { grid-template-columns: 1fr; gap: 36px; }
     }
   </style>
 </head>
-<body>
+<body class="bx" data-page="program">
+<script src="bx-data.js?v=bx20"></script>
+<script src="bx-shell.js?v=bx20"></script>
 
-<nav id="topNav">
-  <div class="nav-inner">
-    <a href="landing.html" class="nav-logo"><span class="logo-mark">강</span>강한선배</a>
-    <div class="nav-links">
-      <a href="landing.html#mentors">선배 멘토진</a>
-      <a href="landing.html#voices">후기</a>
-      <a href="landing.html#faq">FAQ</a>
-    </div>
-    <a href="landing.html#contact" class="pill pill-dark">입회 상담<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg></a>
-  </div>
-</nav>
+<main id="main">
+  <header class="ph">
+    <p class="eyebrow">관리 시스템</p>
+    <h1 class="ph-title"><span class="ln"><span>아이의 하루를</span></span><span class="ln"><span><em>네 가지</em>로 나눠 관리합니다.</span></span></h1>
+    <p class="ph-lead">자리만 빌려주는 독서실에서는 아이가 안에서 뭘 하는지 알기 어렵습니다. 저희는 생활, 학습, 운영, 공간을 각각 관리하고, 그 기록을 앱과 월간 리포트로 학부모님께 보여드립니다.</p>
+  </header>
 
-<header class="prog-hero wrap">
-  <p class="sec-label">강한 관리 시스템</p>
-  <h1 class="hero-title" style="font-size:clamp(34px,6vw,64px);">관리의 차이가<br>성적의 차이입니다.</h1>
-  <p class="hero-sub" style="margin-left:auto;margin-right:auto;">출결부터 멘탈까지, 강한선배가 어떻게 관리하는지<br>하나하나 자세히 보여드립니다.</p>
-</header>
-
-<main class="wrap">
-
-  <!-- 01 출결 · 생활 관리 -->
-  <section class="prog-row">
-    <div>
-      <p class="prog-no">/01</p>
-      <h2>출결 · 생활 관리</h2>
-      <p>입·퇴실 시각을 기록하고, 자리 이탈과 휴식, 순찰 점검, 상벌점까지 — 아이의 하루를 빠짐없이 관리해 진짜 공부한 시간을 남깁니다.</p>
-      <div class="prog-bul">
-        <span>입·퇴실 기록과 주간 학습시간 집계</span>
-        <span>정기 순찰로 자세·집중 상태 점검</span>
-        <span>상·벌점으로 생활 습관까지 관리</span>
-      </div>
-    </div>
-    <div class="prog-visual">
-      <div class="mock"><div class="log">
-        <div class="log-row"><span class="log-tag merit">상점 +2</span><p>자습 시간 끝까지 집중</p></div>
-        <div class="log-row"><span class="log-tag patrol">순찰</span><p>19시 점검 · 정자세 학습 중</p></div>
-        <div class="log-row"><span class="log-tag ment">멘토링</span><p>주간 학습 계획 점검 완료</p></div>
-      </div></div>
+  <section class="bx-sec" style="padding-top:80px">
+    <div class="hub-cards">
+      <a class="hub-card c1 r" href="care-life.html">
+        <span class="no">01</span><h3>생활 관리</h3>
+        <p>출결, 순찰, 상벌점, 휴대폰 제출까지 아이가 여기서 보낸 하루를 매일 기록합니다.</p>
+        <ul class="chips"><li>출결 기록</li><li>순찰</li><li>상벌점</li><li>휴대폰 · 네트워크</li></ul>
+        <span class="go">생활 관리 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        <div class="art" aria-hidden="true"><div class="pf sm"><img src="photos/ui/portal-points.png?v=ui3" alt="" loading="lazy" onerror="this.closest('.art').remove()"></div></div>
+      </a>
+      <a class="hub-card c2 r d1" href="care-study.html">
+        <span class="no">02</span><h3>학습 관리</h3>
+        <p>담임 멘토가 과제와 영단어 시험을 관리하고, 모르는 문제는 질의응답으로 풉니다. 매달 한 번은 수능처럼 실전 모의고사를 봅니다.</p>
+        <ul class="chips"><li>담임 멘토링</li><li>과제 · 영단어</li><li>질의응답</li><li>실전 모의고사</li></ul>
+        <span class="go">학습 관리 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        <div class="art" aria-hidden="true"><div class="pf sm"><img src="photos/ui/portal-tasks.png?v=ui3" alt="" loading="lazy" onerror="this.closest('.art').remove()"></div></div>
+      </a>
+      <a class="hub-card c3 r" href="care-ops.html">
+        <span class="no">03</span><h3>운영 관리</h3>
+        <p>학생, 학부모님, 선생님이 같은 강한선배 앱을 씁니다. 학부모 리포트도, 도시락 신청과 건의도 이 앱에서 합니다.</p>
+        <ul class="chips"><li>강한선배 앱</li><li>학부모 리포트</li><li>도시락</li><li>채팅 · 건의</li></ul>
+        <span class="go">운영 관리 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        <div class="art" aria-hidden="true"><div class="pf sm"><img src="photos/ui/portal-home.png?v=ui3" alt="" loading="lazy" onerror="this.closest('.art').remove()"></div></div>
+      </a>
+      <a class="hub-card c4 r d1" href="space.html">
+        <span class="no">04</span><h3>공간 관리</h3>
+        <p>전 좌석 지정 좌석제이고, 1인 집중 부스와 휴식 라운지를 따로 두었습니다.</p>
+        <ul class="chips"><li>지정 좌석제</li><li>집중 부스</li><li>라운지</li></ul>
+        <span class="go">공간 관리 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+        <div class="art-photo" aria-hidden="true"><img src="photos/bx/hall-2.jpg" alt="" loading="lazy"></div>
+      </a>
     </div>
   </section>
 
-  <!-- 02 1:1 담임제 멘토링 -->
-  <section class="prog-row">
-    <div>
-      <p class="prog-no">/02</p>
-      <h2>1:1 담임제 멘토링</h2>
-      <p>학생마다 담임 멘토를 배정합니다. 같은 입시를 통과한 명문대 선배가 학습 계획부터 슬럼프까지 매주 1:1로 코칭하고, 변화를 기록합니다.</p>
-      <div class="prog-bul">
-        <span>주간 1:1 면담과 학습 플랜 점검</span>
-        <span>개선점·약점·다음 목표를 매주 기록</span>
-        <span>멘탈과 동기까지 함께 관리</span>
-      </div>
+  <!-- 문제 제기 -->
+  <section class="bx-sec">
+    <div class="bx-head r">
+      <p class="eyebrow">왜 시스템인가</p>
+      <h2 class="bx-h2">독서실에 보내 놓고도<br>이런 걱정 하셨죠?</h2>
     </div>
-    <div class="prog-visual">
-      <div class="mock" style="min-height:150px; display:flex; flex-direction:column; justify-content:flex-end; gap:14px;">
-        <div class="men-ava-stack">
-          <span class="m-ava" style="background:linear-gradient(135deg,#F2754A,#D8431C);">徐</span>
-          <span class="m-ava" style="background:linear-gradient(135deg,#E0A24A,#A86A22);">金</span>
-          <span class="m-ava" style="background:linear-gradient(135deg,#4AAE7C,#1F7A4F);">李</span>
-          <span class="m-ava m-more">+8</span>
-        </div>
-        <div class="men-tag">이번 주 멘토링 <b>완료</b> · 다음 면담 D-3</div>
+    <div class="pain">
+      <div class="r"><b>하루 종일 있는데, 뭘 하는지 모르겠어요</b><span>아침에 보내고 밤에 데려와도, 그 사이의 하루는 알 길이 없습니다.</span></div>
+      <div class="r d1"><b>공부했다는데, 얼마나 했는지 모르겠어요</b><span>"열심히 했어"라는 말 말고는 확인할 방법이 없습니다.</span></div>
+      <div class="r d2"><b>휴대폰만 보다 오는 건 아닐까요?</b><span>자리에 앉아 있는 것과 집중하는 것은 다릅니다.</span></div>
+      <div class="r"><b>모르는 문제를 물어볼 곳이 없어요</b><span>질문이 쌓이면 공부가 멈추고, 결국 넘어가게 됩니다.</span></div>
+      <div class="r d1"><b>모의고사 한 번 보려면 멀리 가야 해요</b><span>실전 연습을 하려 해도 응시할 곳을 따로 찾아야 합니다.</span></div>
+      <div class="r d2"><b>밥은 잘 먹는지, 컨디션은 괜찮은지 걱정돼요</b><span>하루 종일 앉아 있는 아이의 식사와 컨디션까지 챙기기 어렵습니다.</span></div>
+    </div>
+    <p class="hub-answer r">이런 걱정을 저희는 <em>기록과 앱</em>으로 덜어 드립니다.</p>
+  </section>
+
+  <!-- 실제 앱 화면 -->
+  <section class="bx-sec" data-ui-section>
+    <div class="bx-head r">
+      <p class="eyebrow">실제 앱 화면</p>
+      <h2 class="bx-h2">저희가 실제로 쓰는<br>앱 화면입니다.</h2>
+      <p class="bx-sub">학생은 여기서 각종 신청을 하고 결과를 확인합니다. 학부모님은 같은 앱에서 출결과 리포트를 보십니다.</p>
+    </div>
+    <div class="ui-rail" data-ui-rail="portal,parent,app"></div>
+    <div class="ui-rail-ctl"><button type="button" data-dir="-1" aria-label="이전 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></button><button type="button" data-dir="1" aria-label="다음 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></button></div>
+    <p class="ui-note">화면 속 이름과 기록은 예시 데이터입니다.</p>
+  </section>
+
+  <!-- 실전 모의고사 -->
+  <section class="kband on-dark exam-band">
+    <div class="kband-inner exam-grid">
+      <div>
+        <p class="eyebrow r">실전 훈련</p>
+        <h2 class="bx-h2 r">매달 한 번,<br>수능처럼.</h2>
+        <p class="bx-sub r">매달 <b style="color:#fff">대성 더프리미엄 모의고사</b>를 원내 시험실에서 봅니다. 시간표, 수험표, 가채점표까지 수능 날과 똑같이 맞추고, 틀린 문제는 질의응답과 담임 멘토링에서 다시 짚고 넘어갑니다.</p>
+        <ul class="exam-steps r d1">
+          <li><b>신청</b><span>앱에서 신청하면 원내 시험실 자리 배정</span></li>
+          <li><b>실전 응시</b><span>수능과 같은 시간표 · 수험표 · 가채점표</span></li>
+          <li><b>성적 관리</b><span>회차별 성적 기록 · 틀린 문제는 질의응답과 멘토링에서</span></li>
+        </ul>
+        <a class="btn btn-brand r d2" href="care-study.html" style="margin-top:34px">학습 관리 · 실전 훈련 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
       </div>
+      <figure class="exam-shot r d2" data-ui-fallback><div class="pf"><img src="photos/ui/portal-exam.png?v=ui3" alt="모의고사 신청 화면" loading="lazy" onerror="this.closest('[data-ui-fallback]').remove()"></div><figcaption class="pf-cap"><b>모의고사 신청</b><span>실제 학생 앱 화면</span></figcaption></figure>
     </div>
   </section>
 
-  <!-- 03 학부모 리포트 -->
-  <section class="prog-row">
-    <div>
-      <p class="prog-no">/03</p>
-      <h2>월간 학부모 리포트</h2>
-      <p>출결·순공·멘토링·성적에 상벌점·순찰 기록까지, 관리한 모든 내용을 한 장으로 정리해 매달 카카오톡으로 보내드립니다. 숨기는 관리는 하지 않습니다.</p>
-      <div class="prog-bul">
-        <span>월간 종합 리포트 자동 정리</span>
-        <span>상벌점·순찰까지 투명하게 공유</span>
-        <span>카카오톡으로 간편하게 받아보기</span>
-      </div>
-    </div>
-    <div class="prog-visual">
-      <div class="mock"><div class="report">
-        <p class="rep-ttl">6월 월간 리포트 · 김민준</p>
-        <div class="rep-row"><span>순공 시간</span><b>107시간</b></div>
-        <div class="rep-row"><span>1:1 멘토링</span><b>4회</b></div>
-        <div class="rep-row"><span>상·벌점</span><b class="up">+6점</b></div>
-      </div></div>
-    </div>
-  </section>
-
-  <!-- 04 학습 · 성적 관리 -->
-  <section class="prog-row">
-    <div>
-      <p class="prog-no">/04</p>
-      <h2>학습 · 성적 관리</h2>
-      <p>영단어·개념 시험을 자동 채점하고, 내신·모의고사 성적 추이를 그래프로 관리합니다. 약점 과목을 데이터로 잡아내 다음 학습으로 연결합니다.</p>
-      <div class="prog-bul">
-        <span>단어·개념 시험 자동 채점</span>
-        <span>성적 추이 그래프로 흐름 파악</span>
-        <span>약점 과목 분석 후 학습 설계</span>
-      </div>
-    </div>
-    <div class="prog-visual">
-      <div class="mock">
-        <svg class="chart" viewBox="0 0 220 90" preserveAspectRatio="none">
-          <polyline points="6,72 50,60 94,64 138,40 182,28 214,16" fill="none" stroke="#1d4ed8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="214" cy="16" r="4.5" fill="#1d4ed8"/>
-        </svg>
-        <div class="chart-cap">3월 → 6월 <b class="up">내신 2.8 → 1.9</b></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 환경 관리 -->
-  <section class="sec">
-    <p class="sec-label">환경 관리</p>
-    <h2 class="sec-title">오래 앉는 게 아니라, 진짜 집중하도록.</h2>
-    <div class="env-grid">
-      <div class="env"><span class="emo">📵</span><h4>전자기기 절제</h4><p>입실 시 휴대폰을 보관하고 하원 시 돌려드립니다. 학습 외 사이트 접속은 관리자 확인 후에만 가능합니다.</p></div>
-      <div class="env"><span class="emo">🪑</span><h4>정자세 · 교시제</h4><p>교시제로 학습 리듬을 잡고, 순찰로 자세와 집중 상태를 점검해 흐트러짐을 바로잡습니다.</p></div>
-      <div class="env"><span class="emo">🎥</span><h4>안전한 공간</h4><p>CCTV와 관리자 상주로 안전하게 운영합니다. 입·퇴실과 외출은 반드시 허가 후 이뤄집니다.</p></div>
-    </div>
-  </section>
-
-  <!-- 교시제 시간표 -->
-  <section class="sec" id="timetable">
-    <p class="sec-label">교시제 운영</p>
-    <h2 class="sec-title">하루를 교시로 쪼개, 집중을 설계합니다.</h2>
-    <div class="tt-grid">
-      <div class="tt-card">
-        <h4 class="tt-h">방학 · 주말/공휴일</h4>
-        <div class="tt-rows">
-          <div class="tt-row"><span class="tt-no">1교시</span><span>09:00 – 10:30</span></div>
-          <div class="tt-row"><span class="tt-no">2교시</span><span>10:40 – 12:10</span></div>
-          <div class="tt-row tt-meal"><span class="tt-no">점심</span><span>12:10 – 13:20</span></div>
-          <div class="tt-row"><span class="tt-no">3교시</span><span>13:20 – 14:50</span></div>
-          <div class="tt-row"><span class="tt-no">4교시</span><span>15:00 – 16:30</span></div>
-          <div class="tt-row"><span class="tt-no">5교시</span><span>16:40 – 18:10</span></div>
-          <div class="tt-row tt-meal"><span class="tt-no">저녁</span><span>18:10 – 19:20</span></div>
-          <div class="tt-row"><span class="tt-no">6–9교시</span><span>19:20 – 24:00</span></div>
+  <!-- 월간 리포트 -->
+  <section class="bx-sec">
+    <div class="rep-sec">
+      <div>
+        <p class="eyebrow r">학부모 리포트</p>
+        <h2 class="bx-h2 r">한 달 동안 챙긴 것을<br>리포트 한 장에 모읍니다.</h2>
+        <p class="bx-sub r">모의고사 성적 추이, 멘토링 종합의견, 영단어 추이, 상벌점과 순찰 점검, 이달의 사진, 원장님 한마디가 들어갑니다. 담당 선생님이 매달 정리해 카카오톡으로 보내드립니다. 좋은 내용만 골라 담지 않고, 벌점도 사유와 날짜까지 적습니다.</p>
+        <div class="ph-actions r" style="animation:none">
+          <button type="button" class="btn btn-dark" data-modal="reportModal">리포트 샘플 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+          <a class="btn btn-line" href="care-ops.html">운영 관리 보기</a>
         </div>
       </div>
-      <div class="tt-card">
-        <h4 class="tt-h">학기 중 · 평일</h4>
-        <div class="tt-rows">
-          <div class="tt-row"><span class="tt-no">1교시</span><span>16:00 – 16:50</span></div>
-          <div class="tt-row"><span class="tt-no">2교시</span><span>17:00 – 17:50</span></div>
-          <div class="tt-row"><span class="tt-no">3교시</span><span>18:00 – 18:50</span></div>
-          <div class="tt-row"><span class="tt-no">4교시</span><span>19:00 – 19:50</span></div>
-          <div class="tt-row"><span class="tt-no">5교시</span><span>20:00 – 20:50</span></div>
-          <div class="tt-row"><span class="tt-no">6교시</span><span>21:00 – 21:50</span></div>
-          <div class="tt-row"><span class="tt-no">7교시</span><span>22:00 – 22:50</span></div>
-          <div class="tt-row"><span class="tt-no">8교시</span><span>23:00 – 24:00</span></div>
-        </div>
+      <div class="visual r d1" style="background:#f1f5ff" id="repVisual"><div class="pf"><img src="photos/ui/parent-monthly-top.png?v=ui3" alt="월간 리포트 첫 화면 — 한 달 요약과 멘토링 종합 의견" loading="lazy" id="repShot"></div></div>
+    </div>
+  </section>
+
+  <section class="ctab r">
+    <div class="ctab-media"><img src="photos/bx/entrance.jpg" alt="" loading="lazy"></div>
+    <div class="ctab-in">
+      <p class="eyebrow">강한선배</p>
+      <h2>궁금한 건<br>상담 때 물어보세요.</h2>
+      <p>지금 공부 상황을 같이 살펴보고, 자리와 관리 방식을 직접 보여드립니다. 상담은 무료입니다.</p>
+      <div class="ctab-actions">
+        <a class="btn btn-brand" href="https://khsb.vercel.app/apply" target="_blank" rel="noopener">무료 입회 상담<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a class="btn btn-glass" href="results.html">합격 결과 보기</a>
       </div>
     </div>
-    <div class="partner">
-      <span class="partner-badge">정식 제휴</span>
-      <p><b>대성 더프리미엄</b> 콘텐츠 정식 도입 — 2027 수능 대비 프리미엄 학습 콘텐츠를 강한선배 관리 시스템과 함께 제공합니다.</p>
-    </div>
   </section>
-
-  <!-- CTA -->
-  <section class="sec">
-    <div class="persona-card" style="text-align:center; display:block;">
-      <h2 style="margin-bottom:24px;">이 모든 관리를, <b>한 곳에서.</b></h2>
-      <a href="landing.html#contact" class="pill pill-dark big">입회 상담 신청 →</a>
-    </div>
-  </section>
-
 </main>
 
-<footer style="margin-top:96px;">
-  <div class="wrap foot-bottom" style="border-top:0; padding-top:0;">
-    <span>&copy; 2026 KHSB · 대표 강한지</span><span>관리형 프리미엄 독서실</span>
+<!-- 모달: 월간 리포트 샘플 -->
+<dialog class="bx-modal report-modal" id="reportModal" aria-labelledby="rmTitle">
+  <button class="md-close" data-close aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  <div class="rmx">
+    <p class="rmx-kicker">실제 월간 학부모 리포트 화면</p>
+    <h3 class="rmx-title" id="rmTitle">매달 받아보시는 화면입니다</h3>
+    <p class="rmx-sub">학부모님 휴대폰 뒷 4자리를 입력해야 열리는 실제 화면입니다. 옆으로 넘기며 보세요. <span>이름과 기록은 예시입니다.</span></p>
+    <div class="rmx-rail">
+      <figure><div class="pf sm"><img src="photos/ui/parent-monthly-top.png?v=ui3" alt="월간 리포트 첫 화면 — 한 달 요약과 멘토링 종합 의견" loading="lazy"></div><figcaption class="pf-cap"><b>리포트 첫 화면</b><span>한 달 요약 · 멘토링 종합 의견</span></figcaption></figure>
+      <figure><div class="pf sm"><img src="photos/ui/parent-monthly.png?v=ui3" alt="월간 리포트의 모의고사 성적 추이 화면" loading="lazy"></div><figcaption class="pf-cap"><b>모의고사 성적 추이</b><span>직전 → 이번 달 등급 변화</span></figcaption></figure>
+      <figure><div class="pf sm"><img src="photos/ui/parent-monthly-2.png?v=ui3" alt="월간 리포트의 멘토링 종합의견 화면" loading="lazy"></div><figcaption class="pf-cap"><b>멘토링 종합의견</b><span>종합 의견 · 원장님 한마디</span></figcaption></figure>
+      <figure><div class="pf sm"><img src="photos/ui/parent-monthly-3.png?v=ui3" alt="월간 리포트의 원생 기록과 상벌점 화면" loading="lazy"></div><figcaption class="pf-cap"><b>원생 기록 · 상벌점</b><span>벌점도 사유·날짜와 함께</span></figcaption></figure>
+      <figure><div class="pf sm"><img src="photos/ui/parent-monthly-4.png?v=ui3" alt="월간 리포트의 순찰 점검 화면" loading="lazy"></div><figcaption class="pf-cap"><b>순찰 점검</b><span>특이사항 · 자리비움 기록</span></figcaption></figure>
+      <figure><div class="pf sm"><img src="photos/ui/parent-monthly-5.png?v=ui3" alt="월간 리포트의 이달의 시상과 권장 과목 화면" loading="lazy"></div><figcaption class="pf-cap"><b>시상 · 권장 과목</b><span>이달의 칭찬과 다음 달 공부 방향</span></figcaption></figure>
+    </div>
   </div>
-</footer>
+</dialog>
 
+<script src="bx-core.js?v=bx20"></script>
 <script>
-  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) e.target.classList.add('in'); }), { threshold: 0.08 });
-  document.querySelectorAll('.r').forEach(el => io.observe(el));
+  // 실제 월간 리포트 화면이 아직 없으면 요약 카드로 대체
+  const repShot = document.getElementById('repShot');
+  const repFallback = () => {
+    document.getElementById('repVisual').innerHTML = '<div class="vcard"><div class="report"><p class="rep-ttl">7월 월간 리포트 · 김민준 (예시)</p><div class="rep-row"><span>모의고사 평균</span><b>2.4등급</b></div><div class="rep-row"><span>멘토링</span><b>4회</b></div><div class="rep-row"><span>상·벌점</span><b class="up">+6점</b></div><div class="vr-bars"><i style="--h:.42"></i><i style="--h:.58"></i><i style="--h:.66"></i><i style="--h:.9"></i></div></div></div>';
+  };
+  if (repShot.complete && !repShot.naturalWidth) repFallback(); else repShot.addEventListener('error', repFallback);
 </script>
 </body>
 </html>

@@ -3,6 +3,9 @@
 import { useState, useTransition, useEffect } from "react";
 import { Trophy } from "lucide-react";
 import { getMeritsByRange } from "@/actions/merit-demerit";
+import { Input } from "@/components/ui/input";
+import { EmptyState, FilterChip, Skeleton } from "@/components/backoffice/ui";
+import { cn } from "@/lib/utils";
 
 type RankEntry = {
   id: string;
@@ -70,54 +73,74 @@ export function MeritRanking() {
   }
 
   return (
-    <div className="space-y-3">
-      {/* 월 선택 */}
-      <div className="flex items-center gap-2">
-        <input
+    <div className="flex flex-col gap-x3">
+      {/* 기간 선택 */}
+      <div className="flex flex-wrap items-center gap-x2">
+        <Input
           type="month"
           value={month}
           onChange={(e) => handleMonthChange(e.target.value)}
-          className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          aria-label="조회 월"
+          className={cn("h-8 w-40 tabular-nums", allTime && "text-fg-neutral-subtle")}
         />
-        <button
-          type="button"
-          onClick={handleAllTime}
-          className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
-            allTime ? "bg-foreground text-background" : "hover:bg-muted"
-          }`}
-        >
-          전체
-        </button>
-        {isPending && <span className="text-xs text-muted-foreground">불러오는 중...</span>}
+        <FilterChip selected={allTime} onClick={handleAllTime}>
+          전체 기간
+        </FilterChip>
+        {isPending && <span className="t3-regular text-fg-neutral-subtle">불러오는 중…</span>}
       </div>
 
       {/* 랭킹 목록 */}
-      <div className="space-y-1.5">
-        {ranking.length === 0 && !isPending && (
-          <p className="text-sm text-muted-foreground py-4 text-center">해당 기간에 내역이 없습니다</p>
-        )}
-        {ranking.slice(0, 10).map((s, i) => {
-          const net = s.merits - s.demerits;
-          return (
-            <div key={s.id} className="flex items-center justify-between py-1.5 border-b last:border-0">
-              <div className="flex items-center gap-2">
-                <span className={`text-sm font-bold w-6 ${i < 3 ? "text-yellow-600" : "text-muted-foreground"}`}>
+      {isPending && ranking.length === 0 ? (
+        <div className="flex flex-col gap-x3 py-x2" aria-hidden>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-8 w-full" />
+          ))}
+        </div>
+      ) : ranking.length === 0 ? (
+        <EmptyState
+          compact
+          icon={Trophy}
+          title="이 기간에는 상벌점 내역이 없어요"
+          description="다른 달을 고르거나 전체 기간으로 볼 수 있어요."
+        />
+      ) : (
+        <ol className={cn("-mx-2 flex flex-col", isPending && "opacity-60")}>
+          {ranking.slice(0, 10).map((s, i) => {
+            const net = s.merits - s.demerits;
+            const top = i < 3;
+            return (
+              <li key={s.id} className="flex items-center gap-x3 rounded-r2 px-x2 py-x2_5">
+                <span
+                  className={cn(
+                    "grid size-x7 shrink-0 place-items-center rounded-full tabular-nums",
+                    top ? "bg-bg-brand-weak t4-bold text-fg-brand" : "t4-medium text-fg-neutral-subtle",
+                  )}
+                >
                   {i + 1}
                 </span>
-                <span className="text-sm font-medium">{s.name}</span>
-                <span className="text-xs text-muted-foreground">{s.grade}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                {s.merits > 0 && <span className="text-green-600">+{s.merits}</span>}
-                {s.demerits > 0 && <span className="text-red-600">-{s.demerits}</span>}
-                <span className={`font-bold ${net >= 0 ? "text-green-600" : "text-red-600"}`}>
-                  ({net >= 0 ? "+" : ""}{net})
+                <div className="min-w-0 flex-1">
+                  <span className={cn("t4-medium text-fg-neutral", top && "t4-bold")}>{s.name}</span>
+                  <span className="ml-x1_5 t3-regular text-fg-neutral-subtle">{s.grade}</span>
+                </div>
+                <span className="t3-regular tabular-nums text-fg-neutral-subtle">
+                  {s.merits > 0 && <span className="text-fg-positive">+{s.merits}</span>}
+                  {s.merits > 0 && s.demerits > 0 && " · "}
+                  {s.demerits > 0 && <span className="text-fg-critical">-{s.demerits}</span>}
                 </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                <span
+                  className={cn(
+                    "w-12 shrink-0 text-right t5-bold tabular-nums",
+                    net >= 0 ? "text-fg-positive" : "text-fg-critical",
+                  )}
+                >
+                  {net >= 0 ? "+" : ""}
+                  {net}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
     </div>
   );
 }

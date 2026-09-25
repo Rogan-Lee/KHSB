@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { isStaff } from "@/lib/roles";
 import { getStaffQuestionThread } from "@/actions/student-questions";
@@ -24,20 +22,12 @@ export default async function StaffQuestionDetailPage({
     notFound();
   }
 
+  // 상단 "학생 질문 목록" 뒤로가기 링크는 패널의 PageHeader(back)로 옮겼다.
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <Link
-        href="/questions"
-        className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        학생 질문 목록
-      </Link>
-      <StaffQuestionPanel
-        questionId={questionId}
-        question={thread.question}
-        messages={thread.messages}
-      />
-    </div>
+    <StaffQuestionPanel
+      questionId={questionId}
+      question={thread.question}
+      messages={thread.messages}
+    />
   );
 }

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="393" height="13" viewBox="0 0 393 13">
+  <!-- iOS home indicator, iPhone 15 Pro: 134 x 5pt, centered, 8pt above the screen's bottom edge
+       (the 8pt gap is the transparent strip below the bar, so it scales with the screen width). -->
+  <rect x="129.5" y="0" width="134" height="5" rx="2.5" fill="#111" fill-opacity="0.85"/>
+</svg>

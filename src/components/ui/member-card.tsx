@@ -35,6 +35,8 @@ function hashTone(seed: string): AvatarTone {
   return ((h % 6) + 1) as AvatarTone;
 }
 
+// 사람 카드 — 흰 표면 + 옅은 선 + r4, 호버는 눌림 배경만(그림자·들림 없음).
+// 이니셜 아바타 색(av-tone-1~6)은 globals.css 의 SEED 팔레트 단색.
 export function MemberCard({
   name,
   role,
@@ -54,15 +56,26 @@ export function MemberCard({
   return (
     <div
       onClick={onOpen}
+      onKeyDown={
+        onOpen
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onOpen();
+              }
+            }
+          : undefined
+      }
+      role={onOpen ? "button" : undefined}
+      tabIndex={onOpen ? 0 : undefined}
       className={cn(
-        "group relative rounded-[12px] border border-line bg-panel p-4",
-        "shadow-[var(--shadow-xs)] transition-all cursor-pointer",
-        "hover:border-line-strong hover:shadow-[var(--shadow-md)] hover:-translate-y-[1px]",
+        "group relative flex h-full cursor-pointer flex-col rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default p-x5",
+        "outline-none transition-colors hover:bg-bg-layer-default-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stroke-focus-ring",
         className
       )}
     >
       {pill && (
-        <div className="absolute top-3.5 right-3.5">
+        <div className="absolute right-4 top-4">
           <TagPill variant={pill.tone}>{pill.label}</TagPill>
         </div>
       )}
@@ -72,14 +85,13 @@ export function MemberCard({
         <img
           src={imageUrl}
           alt={name}
-          className="w-10 h-10 rounded-full object-cover mb-3 shadow-[inset_0_0_0_2px_rgba(255,255,255,0.6)]"
+          className="mb-x3 size-x10 rounded-full bg-bg-neutral-weak object-cover"
         />
       ) : (
         <div
+          aria-hidden
           className={cn(
-            "w-10 h-10 rounded-full grid place-items-center mb-3",
-            "text-[14px] font-bold text-white tracking-[-0.02em]",
-            "shadow-[inset_0_0_0_2px_rgba(255,255,255,0.6)]",
+            "mb-x3 grid size-x10 place-items-center rounded-full t5-bold text-palette-static-white",
             `av-tone-${resolvedTone}`
           )}
         >
@@ -87,32 +99,28 @@ export function MemberCard({
         </div>
       )}
 
-      <div className="text-[15px] font-[650] tracking-[-0.02em] text-ink mb-[1px] truncate">{name}</div>
-      {role && <div className="text-[12.5px] text-ink-3 mb-3 truncate">{role}</div>}
+      <div className="truncate t5-bold text-fg-neutral">{name}</div>
+      {role && <div className="mt-x0_5 truncate t3-regular text-fg-neutral-subtle">{role}</div>}
 
       {meta && meta.length > 0 && (
-        <div className="pt-3 border-t border-line-2 grid grid-cols-2 gap-x-[14px] gap-y-[10px]">
+        <dl className="mt-x4 grid grid-cols-2 gap-x-x4 gap-y-x3 border-t border-stroke-neutral-muted pt-x4">
           {meta.map((m) => (
-            <div key={m.label}>
-              <div className="text-[11px] text-ink-4 font-medium mb-0.5">{m.label}</div>
-              <div className="text-[12.5px] text-ink-2 font-medium tracking-[-0.01em] truncate">{m.value}</div>
+            <div key={m.label} className="min-w-0">
+              <dt className="t2-regular text-fg-neutral-subtle">{m.label}</dt>
+              <dd className="mt-x0_5 truncate t4-medium tabular-nums text-fg-neutral">{m.value}</dd>
             </div>
           ))}
-        </div>
+        </dl>
       )}
 
       {(email || phone) && (
-        <div className="pt-3 mt-3 border-t border-line-2 flex items-center gap-2.5">
-          <div className="flex-1 min-w-0">
-            {email && <div className="text-[12px] text-ink-2 font-medium truncate">{email}</div>}
-            {phone && <div className="text-[11.5px] text-ink-4 font-mono tabular-nums mt-0.5 truncate">{phone}</div>}
-          </div>
-          <div className={cn(
-            "w-[26px] h-[26px] rounded-full grid place-items-center shrink-0",
-            "bg-canvas text-ink-3 transition-colors",
-            "group-hover:bg-ink group-hover:text-white"
-          )}>
-            <ChevronRight className="h-3.5 w-3.5" />
+        <div className="mt-auto pt-x4">
+          <div className="flex items-center gap-x2_5 border-t border-stroke-neutral-muted pt-x3">
+            <div className="min-w-0 flex-1">
+              {email && <div className="truncate t3-medium text-fg-neutral-muted">{email}</div>}
+              {phone && <div className="mt-x0_5 truncate t3-regular tabular-nums text-fg-neutral-subtle">{phone}</div>}
+            </div>
+            <ChevronRight className="size-4 shrink-0 text-fg-placeholder transition-colors group-hover:text-fg-neutral-muted" aria-hidden />
           </div>
         </div>
       )}

@@ -2,8 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
 import { getSchoolStats } from "@/actions/dashboard-widgets";
-import { PageIntro } from "@/components/ui/page-intro";
-import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader, Section } from "@/components/backoffice/ui";
 import { SchoolStatsBoard } from "@/components/dashboard/school-stats-board";
 
 export const dynamic = "force-dynamic";
@@ -25,18 +24,14 @@ export default async function SchoolStatsPage({
   const rows = await getSchoolStats(year, month);
 
   return (
-    <div className="space-y-4">
-      <PageIntro
-        tag="ADMIN · SCHOOL STATS"
+    <>
+      <PageHeader
         title="학교별 원생 통계"
-        description="학교별 재원 수와 월별 신규/이탈 증감을 한 눈에"
-        accent="text-info"
+        description="학교별 재원 수와 달마다 늘고 준 원생 수를 한눈에 볼 수 있어요."
       />
-      <Card>
-        <CardContent className="pt-4">
-          <SchoolStatsBoard year={year} month={month} rows={rows} />
-        </CardContent>
-      </Card>
-    </div>
+      <Section>
+        <SchoolStatsBoard year={year} month={month} rows={rows} />
+      </Section>
+    </>
   );
 }

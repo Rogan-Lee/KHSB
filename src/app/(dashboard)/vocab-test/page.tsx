@@ -4,7 +4,10 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { isStaff } from "@/lib/roles";
+import { PartyPopper } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EmptyState, PageHeader, Section, StatusBadge } from "@/components/backoffice/ui";
 import { VocabTestBoard } from "@/components/vocab-test/vocab-test-board";
 import { VocabOnlinePanel } from "@/components/vocab-test/vocab-online-panel";
 import { offlineStudentWhere } from "@/lib/student-filters";
@@ -122,25 +125,23 @@ export default async function VocabTestPage() {
   }));
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold">영단어 시험 관리</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          오프라인 종이시험 성적 입력과 온라인 시험 출제·응시 결과를 함께 관리합니다.
-        </p>
-      </div>
+    <>
+      <PageHeader
+        title="영단어 시험"
+        description="온라인 시험 출제·응시 결과와 오프라인 종이시험 성적을 함께 관리해요."
+      />
       <Tabs defaultValue="online">
         <TabsList>
           <TabsTrigger value="online">온라인 시험</TabsTrigger>
-          <TabsTrigger value="offline">오프라인 성적 입력</TabsTrigger>
+          <TabsTrigger value="offline">오프라인 성적</TabsTrigger>
           <TabsTrigger value="noshow">
             미응시 현황
             {noShows.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">{noShows.length}</span>
+              <span className="t4-bold tabular-nums text-fg-warning">{noShows.length}</span>
             )}
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="online" className="mt-4">
+        <TabsContent value="online" className="mt-x6">
           <VocabOnlinePanel
             books={booksForClient}
             exams={examsForClient}
@@ -148,33 +149,55 @@ export default async function VocabTestPage() {
             canDeleteExam
           />
         </TabsContent>
-        <TabsContent value="offline" className="mt-4">
+        <TabsContent value="offline" className="mt-x6">
           <VocabTestBoard students={students} enrollments={enrollments} scores={scores} />
         </TabsContent>
-        <TabsContent value="noshow" className="mt-4">
-          <div className="rounded-lg border">
-            <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-2.5 text-sm">
-              <span className="font-medium">이번 주 영단어 시험 미응시</span>
-              <span className="text-muted-foreground">{noShows.length}명 / 등록 {enrollments.length}명</span>
-            </div>
+        <TabsContent value="noshow" className="mt-x6">
+          <Section
+            title="이번 주 영단어 시험 미응시"
+            description={`직전 화요일 이후 응시 기록이 없는 대상자예요 · 등록 ${enrollments.length}명 중 ${noShows.length}명`}
+            count={noShows.length}
+            flush
+            className="overflow-hidden"
+          >
             {noShows.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-muted-foreground">이번 주 미응시자가 없습니다 🎉</p>
+              <div className="border-t border-stroke-neutral-muted">
+                <EmptyState
+                  compact
+                  icon={PartyPopper}
+                  title="이번 주 미응시자가 없어요"
+                  description="등록된 대상자가 모두 시험을 봤어요."
+                />
+              </div>
             ) : (
-              <ul className="divide-y">
-                {noShows.map((s) => (
-                  <li key={s.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                    <span className="w-10 font-mono text-xs text-muted-foreground">{s.seat ?? "—"}</span>
-                    <span className="font-medium">{s.name}</span>
-                    <span className="text-xs text-muted-foreground">{s.grade}</span>
-                    <span className="text-xs text-muted-foreground">{s.school ?? ""}</span>
-                    <span className="ml-auto rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">미응시</span>
-                  </li>
-                ))}
-              </ul>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-20">좌석</TableHead>
+                    <TableHead>이름</TableHead>
+                    <TableHead>학년</TableHead>
+                    <TableHead>학교</TableHead>
+                    <TableHead className="w-24 text-right">상태</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {noShows.map((s) => (
+                    <TableRow key={s.id}>
+                      <TableCell className="tabular-nums text-fg-neutral-subtle">{s.seat ?? "—"}</TableCell>
+                      <TableCell className="t4-medium">{s.name}</TableCell>
+                      <TableCell className="text-fg-neutral-muted">{s.grade}</TableCell>
+                      <TableCell className="text-fg-neutral-muted">{s.school ?? "—"}</TableCell>
+                      <TableCell className="text-right">
+                        <StatusBadge tone="warn">미응시</StatusBadge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
-          </div>
+          </Section>
         </TabsContent>
       </Tabs>
-    </div>
+    </>
   );
 }

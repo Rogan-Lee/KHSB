@@ -2,8 +2,10 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Lock, Check, Loader2 } from "lucide-react";
+import { Lock, Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Notice, Section, StatCard, StatCards, StatusBadge } from "@/components/backoffice/ui";
 import {
   getMyWorkSheet,
   setMyWorkHour,
@@ -11,12 +13,13 @@ import {
   confirmMyWorkMonth,
   type WorkSheetUser,
 } from "@/actions/payroll";
+import { MonthStepper } from "./month-stepper";
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 function formatWon(n: number) {
-  return n.toLocaleString("ko-KR") + "원";
+  return n.toLocaleString("ko-KR");
 }
 function minutesToHoursLabel(min: number) {
   const h = Math.floor(min / 60);
@@ -30,6 +33,14 @@ function minutesToHoursValue(min: number): string {
   return Number.isInteger(h) ? String(h) : h.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
 }
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+// 숫자 입력 — SEED TextInput 규격, 스핀 버튼 숨김
+const HOUR_INPUT =
+  "w-full rounded-r2 border-0 bg-bg-layer-default text-center tabular-nums text-fg-neutral outline-none transition-shadow " +
+  "shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] placeholder:text-fg-placeholder " +
+  "focus-visible:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-neutral-contrast)] " +
+  "disabled:cursor-not-allowed disabled:bg-bg-disabled disabled:text-fg-disabled " +
+  "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
 export function MyWorkHoursPanel({
   initial,
@@ -145,83 +156,96 @@ export function MyWorkHoursPanel({
   }
 
   const pay = sheet.pay;
+  const staffConfirmed = sheet.staffConfirmedAt != null;
 
   return (
-    <div className="space-y-4">
-      {/* 월 선택 + 요약 */}
-      <div className="flex items-center justify-between">
-        <div className="inline-flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => changeMonth(-1)}
-            disabled={pending}
-            className="grid h-8 w-8 place-items-center rounded-md border border-line text-ink-3 hover:bg-panel-2 disabled:opacity-50"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="min-w-[88px] text-center text-[15px] font-bold tabular-nums">
-            {year}.{pad(month)}
-          </span>
-          <button
-            type="button"
-            onClick={() => changeMonth(1)}
-            disabled={pending}
-            className="grid h-8 w-8 place-items-center rounded-md border border-line text-ink-3 hover:bg-panel-2 disabled:opacity-50"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-        {pending && <Loader2 className="h-4 w-4 animate-spin text-ink-4" />}
+    <div className="flex flex-col gap-x6">
+      {/* 월 선택 + 상태 */}
+      <div className="flex flex-wrap items-center justify-between gap-x3">
+        <MonthStepper
+          year={year}
+          month={month}
+          onPrev={() => changeMonth(-1)}
+          onNext={() => changeMonth(1)}
+          disabled={pending}
+          loading={pending}
+          className="-ml-2"
+        />
+        {locked ? (
+          <StatusBadge tone="ok" size="large">
+            <Lock />
+            원장 확인 완료
+          </StatusBadge>
+        ) : staffConfirmed ? (
+          <StatusBadge tone="info" size="large">
+            <Check />
+            본인 확인 완료
+          </StatusBadge>
+        ) : (
+          <StatusBadge tone="gray" size="large">입력 중</StatusBadge>
+        )}
       </div>
 
-      {/* 급여 요약 카드 */}
-      <div className="rounded-xl border border-line bg-panel-2 p-4">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="총 근무시간" value={minutesToHoursLabel(pay.totalMinutes)} />
-          <Stat
+      {/* 급여 요약 */}
+      <div className="flex flex-col gap-x2">
+        <StatCards cols={pay.isMonthly ? 3 : 4}>
+          <StatCard label="총 근무시간" value={minutesToHoursLabel(pay.totalMinutes)} />
+          <StatCard
             label={pay.isMonthly ? "월 기본급" : "시급"}
             value={pay.isMonthly ? formatWon(sheet.monthlySalary ?? 0) : formatWon(sheet.hourlyRate)}
+            unit="원"
           />
-          {!pay.isMonthly && <Stat label="주휴수당" value={formatWon(pay.weeklyHolidayWage)} />}
-          <Stat label="총 지급(세전)" value={formatWon(pay.totalWage)} strong />
-        </div>
-        <p className="mt-2 text-[11px] text-ink-4">
-          ※ 세전 금액입니다. 실제 지급액은 세금·공제가 반영된 명세서를 확인하세요.
+          {!pay.isMonthly && <StatCard label="주휴수당" value={formatWon(pay.weeklyHolidayWage)} unit="원" />}
+          <StatCard label="총 지급(세전)" value={formatWon(pay.totalWage)} unit="원" tone="brand" />
+        </StatCards>
+        <p className="t3-regular text-fg-neutral-subtle">
+          세전 금액이에요. 실제 지급액은 세금·공제가 반영된 명세서를 확인하세요.
         </p>
       </div>
 
       {/* 잠금/확인 안내 */}
       {locked ? (
-        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
-          <Lock className="h-4 w-4 shrink-0" />
-          원장 확인이 완료된 달입니다. 수정하려면 원장님께 문의하세요.
-        </div>
+        <Notice tone="warn" icon={Lock}>
+          원장 확인이 완료된 달이에요. 고쳐야 할 게 있으면 원장님께 문의하세요.
+        </Notice>
       ) : (
-        <button
-          type="button"
-          onClick={toggleConfirm}
-          disabled={pending}
-          className={`inline-flex h-9 items-center gap-2 rounded-lg px-4 text-[13px] font-semibold disabled:opacity-50 ${
-            sheet.staffConfirmedAt
-              ? "border border-emerald-300 bg-emerald-50 text-emerald-700"
-              : "bg-slate-900 text-white"
-          }`}
-        >
-          <Check className="h-4 w-4" />
-          {sheet.staffConfirmedAt ? "본인 확인 완료 (해제)" : "이번 달 본인 확인"}
-        </button>
+        <div className="flex flex-col gap-x3 rounded-r4 bg-bg-layer-fill px-x5 py-x4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="t5-bold text-fg-neutral">
+              {staffConfirmed ? "이번 달 본인 확인을 마쳤어요" : "이번 달 입력을 마쳤나요?"}
+            </p>
+            <p className="mt-x0_5 t4-regular text-fg-neutral-subtle">
+              {staffConfirmed
+                ? "고칠 게 생기면 확인을 해제하고 다시 입력하세요."
+                : "근무시간을 모두 입력했다면 본인 확인을 눌러주세요."}
+            </p>
+          </div>
+          <Button
+            type="button"
+            onClick={toggleConfirm}
+            disabled={pending}
+            variant={staffConfirmed ? "secondary" : "default"}
+            className="w-full sm:w-auto"
+          >
+            <Check />
+            {staffConfirmed ? "본인 확인 해제" : "이번 달 본인 확인"}
+          </Button>
+        </div>
       )}
 
       {/* 일자별 입력 — 월간 캘린더 그리드 */}
-      <div className="rounded-xl border border-line p-2 sm:p-3">
+      <Section
+        title="일별 근무시간"
+        description="시간 단위로 입력하고(예 7.5) 칸 밖을 누르면 저장돼요."
+      >
         {/* 요일 헤더 */}
-        <div className="mb-1 grid grid-cols-7 gap-1">
+        <div className="mb-x1_5 grid grid-cols-7 gap-x1">
           {WEEKDAYS.map((w, i) => (
             <div
               key={w}
               className={cn(
-                "py-1 text-center text-[11px] font-semibold",
-                i === 0 || i === 6 ? "text-bad" : "text-ink-4",
+                "py-x1 text-center t3-medium",
+                i === 0 || i === 6 ? "text-fg-critical" : "text-fg-neutral-subtle",
               )}
             >
               {w}
@@ -229,10 +253,10 @@ export function MyWorkHoursPanel({
           ))}
         </div>
         {/* 날짜 칸 */}
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-x1">
           {/* 1일 앞 빈 칸 */}
           {Array.from({ length: firstDow }, (_, i) => (
-            <div key={`pad-${i}`} aria-hidden className="min-h-[60px] rounded-md" />
+            <div key={`pad-${i}`} aria-hidden />
           ))}
           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
             const dateStr = `${year}-${pad(month)}-${pad(day)}`;
@@ -243,16 +267,20 @@ export function MyWorkHoursPanel({
               <div
                 key={dateStr}
                 className={cn(
-                  "flex min-h-[60px] flex-col gap-1 rounded-md border border-line-2 p-1.5",
-                  isWeekend && "bg-panel-2/60",
-                  hasValue && "border-brand/40 bg-brand/5",
+                  "flex flex-col gap-x1 rounded-r2 p-x1 sm:p-x1_5",
+                  hasValue ? "bg-bg-brand-weak" : "bg-bg-layer-fill",
                 )}
               >
-                <div className="flex items-center justify-between leading-none">
-                  <span className={cn("text-[11px] tabular-nums", isWeekend ? "text-bad" : "text-ink-4")}>
+                <div className="flex h-4 items-center justify-between px-x0_5">
+                  <span
+                    className={cn(
+                      "t2-medium tabular-nums",
+                      isWeekend ? "text-fg-critical" : hasValue ? "text-fg-brand" : "text-fg-neutral-subtle",
+                    )}
+                  >
                     {day}
                   </span>
-                  {savingKey === dateStr && <Loader2 className="h-3 w-3 animate-spin text-ink-4" />}
+                  {savingKey === dateStr && <Loader2 className="size-3 animate-spin text-fg-neutral-subtle" aria-label="저장 중" />}
                 </div>
                 <input
                   type="number"
@@ -266,26 +294,27 @@ export function MyWorkHoursPanel({
                   onBlur={() => saveDay(day)}
                   placeholder="-"
                   aria-label={`${month}월 ${day}일 근무시간`}
-                  className="w-full rounded border border-line bg-panel px-1 py-1 text-center text-[15px] tabular-nums focus:border-brand focus:outline-none disabled:bg-canvas-2 disabled:text-ink-4"
+                  className={cn(HOUR_INPUT, "h-9 px-x0_5 t5-medium")}
                 />
               </div>
             );
           })}
         </div>
         {/* 월 합계 */}
-        <div className="mt-2 flex items-center justify-between border-t border-line-2 px-1 pt-2 text-[12px]">
-          <span className="text-ink-4">단위: 시간 (예 7.5) · 입력 후 칸 밖 클릭 시 저장</span>
-          <span className="font-semibold tabular-nums text-ink-2">
-            합계 {minutesToHoursLabel(pay.totalMinutes)}
+        <div className="mt-x4 flex items-center justify-between border-t border-stroke-neutral-muted pt-x3">
+          <span className="t4-regular text-fg-neutral-subtle">이번 달 합계</span>
+          <span className="t5-bold tabular-nums text-fg-neutral">
+            {minutesToHoursLabel(pay.totalMinutes)}
           </span>
         </div>
-      </div>
+      </Section>
 
       {/* 비고(추가근무) */}
-      <div className="rounded-xl border border-line p-3">
-        <label className="mb-1 block text-[12px] font-semibold text-ink-3">비고 — 회의 등 추가근무 (시간)</label>
-        <div className="flex items-center gap-2">
+      <Section title="추가 근무" description="회의처럼 날짜별 칸에 넣기 어려운 근무 시간을 적어요.">
+        <label htmlFor="my-extra-hours" className="sr-only">추가 근무시간</label>
+        <div className="flex items-center gap-x2">
           <input
+            id="my-extra-hours"
             type="number"
             inputMode="decimal"
             step="0.25"
@@ -296,22 +325,12 @@ export function MyWorkHoursPanel({
             onChange={(e) => setExtra(e.target.value)}
             onBlur={saveExtra}
             placeholder="0"
-            className="w-32 rounded-md border border-line bg-panel px-2 py-1.5 text-[16px] tabular-nums focus:border-brand focus:outline-none disabled:bg-canvas-2 disabled:text-ink-4"
+            className={cn(HOUR_INPUT, "h-10 w-32 px-x3 t5-regular")}
           />
-          {savingKey === "extra" && <Loader2 className="h-4 w-4 animate-spin text-ink-4" />}
+          <span className="t4-regular text-fg-neutral-subtle">시간</span>
+          {savingKey === "extra" && <Loader2 className="size-4 animate-spin text-fg-neutral-subtle" aria-label="저장 중" />}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function Stat({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
-  return (
-    <div>
-      <p className="text-[11px] text-ink-4">{label}</p>
-      <p className={`tabular-nums ${strong ? "text-[15px] font-bold text-ink" : "text-[14px] font-semibold text-ink-2"}`}>
-        {value}
-      </p>
+      </Section>
     </div>
   );
 }
