@@ -68,3 +68,19 @@ export async function replyToStudentSuggestion(
     },
   });
 }
+
+/**
+ * 학생 측 미확인(직원 처리 후 안 본) 건의 수 — 포털·학생 앱 배지용.
+ * 인증은 호출 측 책임 (서버 액션 파일 밖에 두어 공개 엔드포인트가 되지 않게 한다).
+ */
+export async function countUnseenSuggestionUpdates(studentId: string): Promise<number> {
+  const rows = await prisma.studentSuggestion.findMany({
+    where: { studentId, statusUpdatedAt: { not: null } },
+    select: { statusUpdatedAt: true, studentReadAt: true },
+  });
+  return rows.filter(
+    (r) =>
+      !!r.statusUpdatedAt &&
+      (!r.studentReadAt || r.statusUpdatedAt.getTime() > r.studentReadAt.getTime())
+  ).length;
+}

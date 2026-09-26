@@ -1,13 +1,13 @@
 export const revalidate = 30;
 
-import { auth } from "@/lib/auth";
 import { getTodos } from "@/actions/todos";
 import { getStaffList } from "@/actions/handover";
 import { getChecklistTemplates } from "@/actions/checklist-templates";
 import { TodoManager } from "@/components/todos/todo-manager";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 export default async function TodosPage() {
-  const session = await auth();
+  const session = await requireDashboardSession();
 
   const [todos, staffList, templates] = await Promise.all([
     getTodos(),

@@ -7,6 +7,7 @@ import { Linking, Platform, StyleSheet, View } from 'react-native';
 
 import { BottomSheet, Button, color, IconTile, ListRow, Press, showImages, space, Text } from '@/design';
 import type { MobileTaskFile } from '@/lib/mobile-api';
+import { isWebUrl } from '@/lib/safe-url';
 
 /** 파일당 최대 크기 — 서버(src/app/api/mobile/v1/media) 문서 한도와 같다 */
 export const TASK_FILE_MAX_BYTES = 50 * 1024 * 1024;
@@ -38,6 +39,7 @@ const isImage = (mime?: string | null) => !!mime && mime.startsWith('image/');
 
 /** 올린 파일 열기 — 사진은 앱 안 사진 보기, 그 밖(PDF 등)은 앱 안 브라우저, 실패하면 기본 브라우저 */
 export async function openTaskFile(url: string, mimeType?: string | null) {
+  if (!isWebUrl(url)) return;
   if (isImage(mimeType)) {
     showImages([url]);
     return;

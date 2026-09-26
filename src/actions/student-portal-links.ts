@@ -9,7 +9,7 @@ import {
   revokeAllLinksForStudent,
   DEFAULT_MAGIC_LINK_VALID_DAYS,
 } from "@/lib/student-auth";
-import { issuePortalLinkForStudent } from "@/lib/student-portal-link-core";
+import { clampPortalLinkDays, issuePortalLinkForStudent } from "@/lib/student-portal-link-core";
 
 /**
  * 전체 ACTIVE 재원생의 학생 포털(`/s/[token]`) 매직링크 현황.
@@ -96,7 +96,7 @@ export async function issuePortalLinksForAllActive(params?: { daysValid?: number
     await issueMagicLink({
       studentId: s.id,
       issuedById: session!.user.id,
-      daysValid: params?.daysValid ?? DEFAULT_MAGIC_LINK_VALID_DAYS,
+      daysValid: clampPortalLinkDays(params?.daysValid ?? DEFAULT_MAGIC_LINK_VALID_DAYS),
     });
   }
 

@@ -1,7 +1,6 @@
 export const revalidate = 30;
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
 import { formatDate, formatTime, todayKST } from "@/lib/utils";
 import { Activity, CalendarDays, MessageSquare } from "lucide-react";
@@ -27,6 +26,7 @@ import { AllAssignmentsWidget } from "@/components/dashboard/all-assignments-wid
 import { EnrollmentDeltaWidget } from "@/components/dashboard/enrollment-delta-widget";
 import { PatrolStartWidget } from "@/components/dashboard/patrol-start-widget";
 import { AttentionWidget } from "@/components/dashboard/attention-widget";
+import { requireDashboardSession } from "./_lib/page-guard";
 
 /** "9월 26일 (금)" — 예정 일정 날짜 표시용 */
 function formatMonthDay(date: Date | string) {
@@ -39,7 +39,7 @@ function formatMonthDay(date: Date | string) {
 }
 
 export default async function DashboardPage() {
-  const session = await auth();
+  const session = await requireDashboardSession();
   const today = todayKST();
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const year = kstNow.getUTCFullYear();

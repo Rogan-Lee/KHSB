@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { requireStaff } from "@/lib/roles";
+import { requireAnyStaff, requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { parseVocabCsv } from "@/lib/csv";
 import { buildPrompt, expandExpected, isAnswerCorrect } from "@/lib/vocab-grade";
@@ -505,6 +505,12 @@ export async function startVocabAttempt(token: string): Promise<RunnerState> {
         : Math.random;
 
     await prisma.$transaction(async (tx) => {
+      // ASSIGNED → IN_PROGRESS 전이를 조건부 update 로 먼저 선점 — 동시 "시작" 요청이 문항을 두 벌 만들지 않게.
+      const claimed = await tx.vocabAttempt.updateMany({
+        where: { id: attempt.id, status: "ASSIGNED" },
+        data: { status: "IN_PROGRESS", startedAt: new Date(), totalQuestions: n },
+      });
+      if (claimed.count === 0) return; // 다른 요청이 이미 시작함 → 그 문항을 그대로 쓴다
       await tx.vocabAttemptItem.deleteMany({ where: { attemptId: attempt.id } });
       await tx.vocabAttemptItem.createMany({
         data: selected.map((e, i) => {
@@ -520,10 +526,6 @@ export async function startVocabAttempt(token: string): Promise<RunnerState> {
             meanings: e.meanings,
           };
         }),
-      });
-      await tx.vocabAttempt.update({
-        where: { id: attempt.id },
-        data: { status: "IN_PROGRESS", startedAt: new Date(), totalQuestions: n },
       });
     });
   }
@@ -548,6 +550,9 @@ export async function startVocabAttempt(token: string): Promise<RunnerState> {
   };
 }
 
+const MAX_ANSWER_LEN = 200;
+const MAX_ANSWER_TIME_MS = 60 * 60 * 1000;
+
 export async function submitVocabAnswer(
   token: string,
   itemId: string,
@@ -561,13 +566,17 @@ export async function submitVocabAnswer(
     select: { id: true, attemptId: true, expectedAnswers: true },
   });
   if (!item || item.attemptId !== attempt.id) throw new Error("문항을 찾을 수 없습니다");
-  const trimmed = (answer ?? "").trim();
-  await prisma.vocabAttemptItem.update({
-    where: { id: itemId },
+  // 공개 엔드포인트 입력 상한 (모바일 래퍼 src/lib/mobile-vocab.ts 와 같은 값)
+  const trimmed = String(answer ?? "").trim().slice(0, MAX_ANSWER_LEN);
+  const safeTimeMs = Math.min(Math.max(0, Math.floor(Number(timeMs)) || 0), MAX_ANSWER_TIME_MS);
+  // 첫 답만 인정 — 이미 답한 문항을 다시 보내 답을 고치는 것(뒤 문항을 보고 앞 답 수정 등) 차단.
+  // 정상 응시 흐름은 문항마다 한 번만 제출하고, 이어풀기도 미응답 문항부터 시작한다.
+  await prisma.vocabAttemptItem.updateMany({
+    where: { id: itemId, attemptId: attempt.id, answeredAt: null },
     data: {
       studentAnswer: trimmed,
       isCorrect: isAnswerCorrect(trimmed, item.expectedAnswers),
-      timeMs: Math.max(0, Math.floor(timeMs) || 0),
+      timeMs: safeTimeMs,
       answeredAt: new Date(),
     },
   });
@@ -579,8 +588,8 @@ export async function submitVocabAnswer(
  * 특정 학생의 영단어 시험 결과(VocabTestScore)를 testDate ASC 로 조회.
  * 학부모 리포트 미니차트(`vocab-trend-mini-chart`)에서 호출.
  *
- * - auth 만 거치며(인증된 staff/원생/관리자 누구든 호출 가능), 행 자체엔 학생만 식별되므로
- *   호출하는 페이지 측에서 학생 토큰/role 검증을 마친 뒤 사용한다는 가정.
+ * - 서버 액션은 공개 POST 엔드포인트이므로 운영진(requireAnyStaff)만 호출 가능.
+ *   공개 리포트 페이지는 이 액션 대신 서버 컴포넌트에서 직접 조회한다(vocab-trend-mini-chart).
  * - 변경(mutation) 없음 → `revalidatePath` 호출하지 않음.
  */
 export async function getStudentVocabHistory(
@@ -590,6 +599,8 @@ export async function getStudentVocabHistory(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  // 학생 성적 조회 — 운영진(오프라인·온라인)만
+  requireAnyStaff(session.user.role);
 
   const where: {
     studentId: string;

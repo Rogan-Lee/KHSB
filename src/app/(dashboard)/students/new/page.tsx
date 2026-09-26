@@ -2,8 +2,10 @@ import { StudentForm } from "@/components/students/student-form";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Section } from "@/components/backoffice/ui";
 import { parseSchool } from "@/lib/utils";
+import { requireDashboardSession } from "../../_lib/page-guard";
 
 export default async function NewStudentPage() {
+  await requireDashboardSession();
   const [mentors, schoolRows, seatRows] = await Promise.all([
     prisma.user.findMany({
       // 신규 학생 등록 멘토 picker — 퇴사자 제외

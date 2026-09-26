@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAnyStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import type { RequestStatus, RequestCategory, RequestPriority } from "@/generated/prisma";
 import { notifySlack, formatFeatureRequestAlert } from "@/lib/slack";
@@ -9,10 +10,12 @@ import { notifySlack, formatFeatureRequestAlert } from "@/lib/slack";
 async function getSession() {
   const session = await auth();
   if (!session?.user) throw new Error("인증 필요");
+  requireAnyStaff(session.user.role);
   return session.user;
 }
 
 export async function getFeatureRequests() {
+  await getSession();
   return prisma.featureRequest.findMany({
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     include: { _count: { select: { comments: true } } },

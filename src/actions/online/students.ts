@@ -9,6 +9,7 @@ import {
   revokeAllLinksForStudent,
   revokeMagicLink,
 } from "@/lib/student-auth";
+import { clampPortalLinkDays } from "@/lib/student-portal-link-core";
 
 /**
  * 온라인 전용 학생 신규 등록. 오프라인 자습실 없이 바로 온라인 관리 대상으로 생성.
@@ -259,11 +260,15 @@ export async function issueStudentMagicLink(params: {
 
   const student = await prisma.student.findUnique({
     where: { id: params.studentId },
-    select: { id: true, isOnlineManaged: true },
+    select: { id: true, isOnlineManaged: true, status: true },
   });
   if (!student) throw new Error("학생을 찾을 수 없습니다");
   if (!student.isOnlineManaged) {
     throw new Error("온라인 관리 대상 학생이 아닙니다");
+  }
+  // 재원생이 아니면 validateMagicLink 가 거부하므로 발급해도 쓸 수 없다
+  if (student.status !== "ACTIVE") {
+    throw new Error("재원 중인 학생에게만 링크를 발급할 수 있습니다");
   }
 
   if (params.revokeExisting !== false) {
@@ -273,7 +278,7 @@ export async function issueStudentMagicLink(params: {
   const link = await issueMagicLink({
     studentId: params.studentId,
     issuedById: session!.user.id,
-    daysValid: params.daysValid,
+    daysValid: clampPortalLinkDays(params.daysValid),
   });
 
   revalidatePath(`/online/students/${params.studentId}`);

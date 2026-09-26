@@ -10,12 +10,12 @@ export async function PATCH(
   context: { params: Promise<{ todoId: string }> },
 ) {
   try {
-    const [, { todoId }, body] = await Promise.all([
+    const [user, { todoId }, body] = await Promise.all([
       requireMobileAnyStaff(request),
       context.params,
       request.json(),
     ]);
-    const result = await setMobileTodoCompleted(todoId, body);
+    const result = await setMobileTodoCompleted(user, todoId, body);
     revalidatePath("/todos");
     revalidatePath("/");
     return mobileJson(result);

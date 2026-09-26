@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import type { Student, StudentMagicLink } from "@/generated/prisma";
@@ -11,7 +12,8 @@ export type ValidatedMagicLink = {
 
 /**
  * 학생 매직링크 신규 발급.
- * 토큰은 cuid 기본값을 사용하므로 DB 레벨 고유성 보장.
+ * 토큰은 URL 자체가 자격증명이므로 CSPRNG 192bit(base64url 32자)로 직접 생성한다.
+ * (스키마 기본값 cuid() 는 타임스탬프 + Math.random 기반이라 추측 가능 — 기존 발급분은 그대로 유효)
  * 만료일 기본 30일. Phase 1은 학생당 다수 활성 링크 허용(재발급 시 이전은 별도 revoke).
  */
 export async function issueMagicLink(params: {
@@ -26,6 +28,7 @@ export async function issueMagicLink(params: {
 
   return prisma.studentMagicLink.create({
     data: {
+      token: randomBytes(24).toString("base64url"),
       studentId,
       issuedById: issuedById ?? null,
       expiresAt,
@@ -35,7 +38,9 @@ export async function issueMagicLink(params: {
 
 /**
  * 토큰 검증. 유효한 경우 학생과 링크 반환 + accessCount 증가.
- * 실패 사유: 존재하지 않음 / 무효화됨 / 만료됨.
+ * 실패 사유: 존재하지 않음 / 무효화됨 / 만료됨 / 재원 중(ACTIVE)이 아닌 학생(퇴원·휴원·졸업).
+ * (퇴원 처리 시 링크가 자동 무효화되지 않는 경로가 있어 학생 상태를 여기서 함께 본다 —
+ *  학생 앱 requireMobileStudent / getStudent 와 같은 기준.)
  * (질문 게시판은 전체 재원생 대상이므로 isOnlineManaged 게이트 없음 —
  *  온라인 모듈 전용 화면은 각 페이지에서 student.isOnlineManaged 로 가드한다.)
  * React cache 로 감싸 동일 request 내 중복 호출 시 한 번만 실행
@@ -43,7 +48,7 @@ export async function issueMagicLink(params: {
  */
 export const validateMagicLink = cache(
   async (token: string): Promise<ValidatedMagicLink | null> => {
-    if (!token) return null;
+    if (!token || typeof token !== "string" || token.length > 128) return null;
 
     const link = await prisma.studentMagicLink.findUnique({
       where: { token },
@@ -52,6 +57,7 @@ export const validateMagicLink = cache(
     if (!link) return null;
     if (link.revokedAt) return null;
     if (link.expiresAt.getTime() < Date.now()) return null;
+    if (link.student.status !== "ACTIVE") return null;
 
     prisma.studentMagicLink
       .update({

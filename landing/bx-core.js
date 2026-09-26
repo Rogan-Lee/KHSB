@@ -11,13 +11,18 @@
   const ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 
   // ── 콘텐츠 API (로컬 테스트: ?api=http://localhost:3000 → 세션 동안 유지) ──
-  const qApi = new URLSearchParams(location.search).get('api');
+  // 보안: API 오버라이드는 로컬에서 띄운 랜딩(localhost/127.0.0.1)에서만 허용.
+  // 운영 도메인에서 허용하면 ?api=https://악성서버 링크로 bodyHtml 을 주입(DOM XSS)할 수 있다.
+  const IS_LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+  const qApi = IS_LOCAL ? new URLSearchParams(location.search).get('api') : null;
   try { if (qApi) sessionStorage.setItem('khsbApi', qApi); } catch (e) { /* 저장 불가 환경 */ }
   let API = SITE.api;
-  try { API = sessionStorage.getItem('khsbApi') || SITE.api; } catch (e) { /* 기본값 */ }
+  try { if (IS_LOCAL) API = sessionStorage.getItem('khsbApi') || SITE.api; } catch (e) { /* 기본값 */ }
   const TYPE_LABEL = { review: '후기', mentor: '선배 아티클', director: '원장 칼럼', podcast: '팟캐스트', article: '아티클' };
   const fmtDate = d => (d ? new Date(d).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) : '');
-  const postHref = p => (p.hasBody || !p.url ? `article.html?id=${encodeURIComponent(p.id)}` : p.url);
+  // 외부 링크는 http(s) 만 (javascript: 등 차단)
+  const safeUrl = u => (/^https?:\/\//i.test(String(u || '').trim()) ? String(u).trim() : '#');
+  const postHref = p => (p.hasBody || !p.url ? `article.html?id=${encodeURIComponent(p.id)}` : safeUrl(p.url));
   const isExternal = p => !(p.hasBody || !p.url);
   async function api(path) {
     const r = await fetch(API + path, { headers: { Accept: 'application/json' } });
@@ -47,7 +52,7 @@
     ${col('강한 이야기', [['후기', 'stories.html?type=review'], ['선배 아티클', 'stories.html?type=mentor'], ['원장 칼럼', 'stories.html?type=director'], ['전체 보기', 'stories.html']])}
     ${col('모집 · 문의', [['2027 윈터스쿨', 'recruit.html'], ['무료 입회 상담', SITE.apply, 1], ['전화 상담', 'tel:' + SITE.tel], ['Instagram', '#', 1], ['YouTube', '#', 1]])}
   </div>
-  <div class="gft-bottom"><span>© 2026 KHSB · 대표 강한지 · 사업자등록번호 678-93-01968</span><span>이용약관 · 개인정보처리방침</span></div>
+  <div class="gft-bottom"><span>© 2026 KHSB · 대표 강한지 · 사업자등록번호 678-93-01968</span><span class="gft-legal"><a href="privacy.html">개인정보처리방침</a><a href="support.html">앱 고객지원</a></span></div>
   <p class="gft-giant" aria-hidden="true">강한선배</p>
 </footer>
 <div class="fab-stack">
@@ -408,5 +413,5 @@
   }
 
   observeNew();
-  window.KHSB = { api, storyCard, reviewCard, publishedReviewCard, TYPE_LABEL, fmtDate, esc, observeNew, openModal, postHref, API: () => API };
+  window.KHSB = { api, storyCard, reviewCard, publishedReviewCard, TYPE_LABEL, fmtDate, esc, safeUrl, observeNew, openModal, postHref, API: () => API };
 })();

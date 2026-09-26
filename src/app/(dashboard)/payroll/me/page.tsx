@@ -1,14 +1,12 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
 import { getMyWorkSheet } from "@/actions/payroll";
 import { PageHeader } from "@/components/backoffice/ui";
 import { MyWorkHoursPanel } from "@/components/payroll/my-work-hours-panel";
+import { requireDashboardSession } from "../../_lib/page-guard";
 
 export const dynamic = "force-dynamic";
 
 export default async function MyPayrollPage() {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  await requireDashboardSession();
 
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const year = kstNow.getUTCFullYear();

@@ -54,13 +54,16 @@ import {
 import { refreshBadges } from '@/lib/badges';
 import { useMobileQuery } from '@/lib/mobile-api';
 import { useSession } from '@/lib/session';
+import { isWebUrl } from '@/lib/safe-url';
 
 // 웹 학생 포털 홈(/s/[token]/page.tsx)과 같은 정보구조·문구·카드 순서.
 // 폰: 웹과 똑같은 한 줄 카드 순서. 태블릿(≥700): 두 단 대시보드 —
 //   왼쪽 = 인사·수행평가·질문·초기 설문, 오른쪽 = 멘토링·시즌 신청·포인트·바로가기.
 // 포털 웹뷰로 보내는 링크는 없다 — 모든 기능이 앱 화면으로 열린다.
 
-const openUrl = (url: string) => void Linking.openURL(url).catch(() => undefined);
+const openUrl = (url: string) => {
+  if (isWebUrl(url)) void Linking.openURL(url).catch(() => undefined);
+};
 
 // 다른 에이전트가 만드는 학생 화면 — typed routes 생성 전에도 컴파일되도록 Href 로 고정
 const QNA_NEW_ROUTE = '/(student)/qna/new' as Href;

@@ -13,6 +13,14 @@ import { prisma } from "@/lib/prisma";
 export type Decider = { id: string; name: string | null };
 
 const MAX_REDEMPTION_NOTE_LEN = 300;
+const MAX_NAP_NOTE_LEN = 300;
+
+/** 웹 액션은 note 를 검증 없이 넘기므로 코어에서 문자열·길이를 정리한다 */
+function cleanNote(note: unknown, max: number): string | null {
+  if (typeof note !== "string") return null;
+  const trimmed = note.trim();
+  return trimmed ? trimmed.slice(0, max) : null;
+}
 
 /** 쪽잠 승인/거절 — 결정자 이름 스냅샷 + 메모. */
 export async function decideNapRequest(
@@ -25,7 +33,7 @@ export async function decideNapRequest(
     where: { id },
     data: {
       status: decision === "approve" ? "APPROVED" : "REJECTED",
-      note: note?.trim() || null,
+      note: cleanNote(note, MAX_NAP_NOTE_LEN),
       decidedById: decider.id,
       decidedByName: decider.name ?? null,
       decidedAt: new Date(),
@@ -71,53 +79,64 @@ export async function decideRewardRedemption(
   decider: Decider,
   note?: string | null,
 ) {
-  const redemption = await prisma.rewardRedemption.findUnique({ where: { id } });
-  if (!redemption) throw new MobileApiError("신청을 찾을 수 없습니다", 404);
+  // 같은 학생의 승인 동시 처리로 잔액이 초과 차감되지 않게, 학생 단위 트랜잭션 락 안에서
+  // 상태·잔액을 다시 읽고 조건부로 갱신한다 (pg_advisory_xact_lock — 커밋/롤백 시 자동 해제).
+  return prisma.$transaction(async (tx) => {
+    const found = await tx.rewardRedemption.findUnique({
+      where: { id },
+      select: { studentId: true },
+    });
+    if (!found) throw new MobileApiError("신청을 찾을 수 없습니다", 404);
+    await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext(${`reward-redemption:${found.studentId}`}))) AS l`;
 
-  let nextStatus: RedemptionStatus;
-  if (action === "approve" || action === "reject") {
-    if (redemption.status !== "PENDING") {
-      throw new MobileApiError("대기중인 신청만 처리할 수 있습니다", 409);
-    }
-    nextStatus = action === "approve" ? "APPROVED" : "REJECTED";
-  } else {
-    if (redemption.status !== "APPROVED") {
-      throw new MobileApiError("승인된 신청만 지급 처리할 수 있습니다", 409);
-    }
-    nextStatus = "FULFILLED";
-  }
+    const redemption = await tx.rewardRedemption.findUnique({ where: { id } });
+    if (!redemption) throw new MobileApiError("신청을 찾을 수 없습니다", 404);
 
-  if (action === "approve") {
-    // 승인 시점 잔액 재검증 (이 신청은 아직 PENDING이므로 차감 전)
-    const [merits, redemptions] = await Promise.all([
-      prisma.meritDemerit.findMany({
-        where: { studentId: redemption.studentId },
-        select: { type: true, points: true },
-      }),
-      prisma.rewardRedemption.findMany({
-        where: { studentId: redemption.studentId },
-        select: { status: true, points: true },
-      }),
-    ]);
-    const { balance } = calcPointBalance({ merits, redemptions });
-    if (balance < redemption.points) {
-      throw new MobileApiError(
-        `포인트 잔액이 부족합니다 (잔액 ${balance}점 / 필요 ${redemption.points}점)`,
-        400,
-      );
+    let nextStatus: RedemptionStatus;
+    if (action === "approve" || action === "reject") {
+      if (redemption.status !== "PENDING") {
+        throw new MobileApiError("대기중인 신청만 처리할 수 있습니다", 409);
+      }
+      nextStatus = action === "approve" ? "APPROVED" : "REJECTED";
+    } else {
+      if (redemption.status !== "APPROVED") {
+        throw new MobileApiError("승인된 신청만 지급 처리할 수 있습니다", 409);
+      }
+      nextStatus = "FULFILLED";
     }
-  }
 
-  return prisma.rewardRedemption.update({
-    where: { id },
-    data: {
-      status: nextStatus,
-      note: note?.trim() ? note.trim().slice(0, MAX_REDEMPTION_NOTE_LEN) : redemption.note,
-      decidedById: decider.id,
-      decidedByName: decider.name ?? null,
-      decidedAt: new Date(),
-    },
-    select: { id: true, studentId: true, itemName: true, points: true, status: true },
+    if (action === "approve") {
+      // 승인 시점 잔액 재검증 (이 신청은 아직 PENDING이므로 차감 전)
+      const [merits, redemptions] = await Promise.all([
+        tx.meritDemerit.findMany({
+          where: { studentId: redemption.studentId },
+          select: { type: true, points: true },
+        }),
+        tx.rewardRedemption.findMany({
+          where: { studentId: redemption.studentId },
+          select: { status: true, points: true },
+        }),
+      ]);
+      const { balance } = calcPointBalance({ merits, redemptions });
+      if (balance < redemption.points) {
+        throw new MobileApiError(
+          `포인트 잔액이 부족합니다 (잔액 ${balance}점 / 필요 ${redemption.points}점)`,
+          400,
+        );
+      }
+    }
+
+    return tx.rewardRedemption.update({
+      where: { id },
+      data: {
+        status: nextStatus,
+        note: cleanNote(note, MAX_REDEMPTION_NOTE_LEN) ?? redemption.note,
+        decidedById: decider.id,
+        decidedByName: decider.name ?? null,
+        decidedAt: new Date(),
+      },
+      select: { id: true, studentId: true, itemName: true, points: true, status: true },
+    });
   });
 }
 

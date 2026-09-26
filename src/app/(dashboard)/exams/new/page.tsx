@@ -1,7 +1,9 @@
 import { PageHeader, Section } from "@/components/backoffice/ui";
 import { ExamSessionForm } from "@/components/exams/exam-session-form";
+import { requireDashboardSession } from "../../_lib/page-guard";
 
-export default function NewExamSessionPage() {
+export default async function NewExamSessionPage() {
+  await requireDashboardSession();
   return (
     <div>
       <PageHeader

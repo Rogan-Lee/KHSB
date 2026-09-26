@@ -12,6 +12,7 @@ import {
 } from "@/lib/mobile-data";
 import { getMobileStaffTasks } from "@/lib/mobile-tasks";
 import { prisma } from "@/lib/prisma";
+import { isStaff } from "@/lib/roles";
 
 // 직원 앱 홈(오늘) · 일정 · 내 할 일.
 // 홈은 여러 출처를 모으므로 항목별 실패를 허용한다 — 한 항목이 실패해도 나머지는 보여 주고,
@@ -409,12 +410,25 @@ export async function getMobileStaffCalendar(
 
 const todoSchema = z.object({ completed: z.boolean() });
 
-/** 웹 toggleTodo 와 같은 규칙 — 완료 시각 기록/해제. 명시적 상태로 받아 중복 탭에도 안전 */
-export async function setMobileTodoCompleted(todoId: string, input: unknown) {
+/**
+ * 웹 toggleTodo 와 같은 규칙 — 완료 시각 기록/해제. 명시적 상태로 받아 중복 탭에도 안전.
+ * 범위는 웹 getTodos 와 같게: 오프라인 운영진(isStaff)은 전체, 온라인 전용 역할은 본인이 쓰거나 맡은 할 일만.
+ */
+export async function setMobileTodoCompleted(
+  user: Pick<User, "id" | "role">,
+  todoId: string,
+  input: unknown,
+) {
   const parsed = todoSchema.safeParse(input);
   if (!parsed.success) throw new MobileApiError("입력값을 확인하세요", 400);
-  const existing = await prisma.todo.findUnique({ where: { id: todoId }, select: { id: true } });
-  if (!existing) throw new MobileApiError("할 일을 찾을 수 없습니다", 404);
+  const existing = await prisma.todo.findUnique({
+    where: { id: todoId },
+    select: { id: true, authorId: true, assigneeId: true },
+  });
+  const visible =
+    !!existing &&
+    (isStaff(user.role) || existing.authorId === user.id || existing.assigneeId === user.id);
+  if (!visible) throw new MobileApiError("할 일을 찾을 수 없습니다", 404);
   const todo = await prisma.todo.update({
     where: { id: todoId },
     data: {

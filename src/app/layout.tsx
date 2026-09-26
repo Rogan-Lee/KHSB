@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppToaster } from "@/components/app-toaster";
 import { KakaoSdkLoader } from "@/components/kakao-sdk-loader";
-import { Analytics } from "@vercel/analytics/react";
+// 토큰 URL 마스킹 래퍼 (beforeSend 는 함수 prop 이라 클라이언트 컴포넌트에서 전달)
+import { VercelAnalytics } from "@/components/vercel-analytics";
 
 // 도메인: NEXT_PUBLIC_APP_URL (예: https://app.example.com). 링크 미리보기(OG)·sitemap 기준.
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -42,7 +43,7 @@ export default function RootLayout({
         {children}
         <AppToaster />
         <KakaoSdkLoader />
-        <Analytics />
+        <VercelAnalytics />
       </body>
     </html>
   );

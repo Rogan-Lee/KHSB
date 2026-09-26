@@ -2,8 +2,10 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { PageHeader, Section } from "@/components/backoffice/ui";
 import { ExamSessionForm } from "@/components/exams/exam-session-form";
+import { requireDashboardSession } from "../../../_lib/page-guard";
 
 export default async function EditExamSessionPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireDashboardSession();
   const { id } = await params;
   const session = await prisma.examSession.findUnique({ where: { id } });
   if (!session) notFound();

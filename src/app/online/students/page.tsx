@@ -109,7 +109,9 @@ export default async function OnlineStudentsPage() {
     assignedStaffName: s.assignedStaff?.name ?? null,
     activeLinks: s.magicLinks.map((l) => ({
       id: l.id,
-      token: l.token,
+      // 매직링크 토큰 = 학생 포털 로그인 자격증명. 관리(원장) 권한자에게만 직렬화 —
+      // 컨설턴트/관리 멘토는 UI 에서 링크 관리자를 볼 수 없으므로 토큰도 내려보내지 않는다.
+      token: canManage ? l.token : "",
       expiresAt: l.expiresAt.toISOString(),
       issuedAt: l.issuedAt.toISOString(),
       lastAccessedAt: l.lastAccessedAt?.toISOString() ?? null,

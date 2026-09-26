@@ -23,9 +23,24 @@ import crypto from "node:crypto";
 /**
  * YYYY/MM 자동 폴더를 찾거나 생성한다. 연도 폴더가 없으면 함께 만든다.
  * 사진 업로드/import/멘토링 첨부에서 공통으로 재사용.
- * "use server" 파일이므로 export 된 async 함수여야 한다.
+ * 보안: "use server" export 는 공개 POST 엔드포인트이므로 직원 세션을 검증한다.
+ * 이 파일 내부에서는 인증이 끝난 뒤 ensureAutoFolderInternal 을 직접 쓴다.
  */
 export async function ensureAutoFolder(
+  refDate: Date,
+  createdById: string,
+): Promise<string> {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+  if (!(refDate instanceof Date) || Number.isNaN(refDate.getTime())) {
+    throw new Error("날짜가 올바르지 않습니다");
+  }
+  // createdById 는 호출자 본인만 허용 (클라이언트가 임의 작성자를 지정하지 못하게)
+  if (createdById !== session!.user!.id) throw new Error("Forbidden");
+  return ensureAutoFolderInternal(refDate, createdById);
+}
+
+async function ensureAutoFolderInternal(
   refDate: Date,
   createdById: string,
 ): Promise<string> {
@@ -217,7 +232,7 @@ export async function importPhotosFromDrive(driveUrl: string) {
       const autoKey = `${year}/${String(month).padStart(2, "0")}`;
 
       // 자동 폴더
-      const folderId = await ensureAutoFolder(refDate, session.user.id);
+      const folderId = await ensureAutoFolderInternal(refDate, session.user.id);
       const folder = { id: folderId };
 
       // 학생 자동 매칭 (파일명에 좌석+이름 있을 때만)

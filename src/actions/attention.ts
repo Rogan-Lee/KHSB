@@ -11,8 +11,9 @@ export async function flagStudentAttention(studentId: string, reason: string): P
   if (!session?.user) throw new Error("Unauthorized");
   requireStaff(session.user.role);
 
-  const trimmed = reason.trim();
+  const trimmed = typeof reason === "string" ? reason.trim() : "";
   if (!trimmed) throw new Error("사유를 입력하세요");
+  if (trimmed.length > 500) throw new Error("사유는 500자 이하로 입력하세요");
 
   await prisma.student.update({
     where: { id: studentId },

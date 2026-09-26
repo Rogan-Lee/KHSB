@@ -12,6 +12,7 @@ import {
   buildBlobKey,
   extension,
   isMobileMediaContext,
+  safeUploadContentType,
 } from "./shared";
 
 export const runtime = "nodejs";
@@ -89,16 +90,20 @@ export async function POST(request: NextRequest) {
 
   const blobKey = buildBlobKey(authz.prefix, file.name);
   const appUser = current.identity.appUser;
+  // 문서 컨텍스트는 확장자만으로도 통과하므로, 저장 타입은 허용 목록 안으로 강제 (HTML/SVG 등 차단)
+  const contentType = isDocumentContext
+    ? safeUploadContentType(file.type, file.name)
+    : file.type;
 
   try {
     const blob = await put(blobKey, file, {
       access: "public",
       addRandomSuffix: false,
-      contentType: file.type,
+      contentType,
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
     const attachment = {
-      mimeType: file.type,
+      mimeType: contentType,
       name: file.name,
       sizeBytes: file.size,
       url: blob.url,

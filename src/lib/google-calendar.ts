@@ -15,12 +15,23 @@ function createOAuth2Client() {
   );
 }
 
+/**
+ * Google 연동 시작 URL (앱 내부 경로).
+ * 실제 Google 인가 URL 은 /api/google-calendar/auth 가 CSRF state 를 발급하며 만든다.
+ * (state 없이 Google URL 을 직접 노출하면 콜백의 state 검증에 걸린다)
+ */
 export function getGoogleAuthUrl(): string {
+  return "/api/google-calendar/auth";
+}
+
+/** state 가 포함된 Google OAuth 인가 URL — /api/google-calendar/auth 에서만 사용 */
+export function buildGoogleAuthUrl(state: string): string {
   const oauth2Client = createOAuth2Client();
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: SCOPES,
     prompt: "consent", // refresh_token을 항상 받기 위해
+    state,
   });
 }
 

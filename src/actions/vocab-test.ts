@@ -68,6 +68,14 @@ export async function createVocabScore(formData: FormData) {
   const notes = (formData.get("notes") as string) || null;
 
   if (!studentId || !testDate || !totalWords) throw new Error("필수 입력값이 없습니다");
+  if (
+    !Number.isInteger(totalWords) || totalWords < 1 || totalWords > 1000 ||
+    !Number.isInteger(correctWords) || correctWords < 0 || correctWords > totalWords
+  ) {
+    throw new Error("문항 수·정답 수를 확인하세요");
+  }
+  if (Number.isNaN(new Date(testDate).getTime())) throw new Error("시험일이 올바르지 않습니다");
+  if (notes && notes.length > 1000) throw new Error("메모는 1000자 이하로 입력하세요");
 
   const score = totalWords > 0 ? Math.round((correctWords / totalWords) * 100) : 0;
 
@@ -100,6 +108,7 @@ export async function deleteVocabScore(id: string) {
 export async function getVocabAutoRecommendations() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   // 고3 학생 중 영어 모의고사 최근 등급 3 이상인 학생
   const students = await prisma.student.findMany({

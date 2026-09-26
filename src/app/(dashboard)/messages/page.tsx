@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { getUser } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/backoffice/ui";
 import { KakaoMessagePanel } from "@/components/messages/kakao-message-panel";
 import { BroadcastPushPanel } from "@/components/messages/broadcast-push-panel";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 // 데스크톱에서 대화·템플릿 패널이 화면 높이에 맞춰 안에서만 스크롤되도록 한다.
 // 셸 상단 바(56) + main 위·아래 여백(32·64) + 페이지 머리(~95) + 탭(44) + 탭 간격(20) ≈ 312px.
@@ -13,7 +13,7 @@ const PANEL_FRAME =
   "overflow-hidden rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default lg:h-[calc(100dvh-320px)] lg:min-h-[480px]";
 
 export default async function MessagesPage() {
-  const user = await getUser();
+  const { user } = await requireDashboardSession();
   const [students, templates] = await Promise.all([
     prisma.student.findMany({
       where: { status: "ACTIVE" },

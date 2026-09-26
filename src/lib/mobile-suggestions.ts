@@ -24,6 +24,15 @@ function isUnseen(
   return statusUpdatedAt.getTime() > studentReadAt.getTime();
 }
 
+/** 학생 측 미확인(직원 처리 후 안 본) 건의 수 — 배지용. 호출 측이 학생 신원을 먼저 검증한다. */
+export async function countUnseenStudentSuggestions(studentId: string): Promise<number> {
+  const rows = await prisma.studentSuggestion.findMany({
+    where: { studentId, statusUpdatedAt: { not: null } },
+    select: { statusUpdatedAt: true, studentReadAt: true },
+  });
+  return rows.filter((r) => isUnseen(r.statusUpdatedAt, r.studentReadAt)).length;
+}
+
 /** 본인 건의 목록(최신순) + 조회 시 읽음 처리. */
 export async function getMobileStudentSuggestions(studentId: string) {
   const rows = await prisma.studentSuggestion.findMany({

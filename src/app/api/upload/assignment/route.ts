@@ -8,20 +8,18 @@ export const runtime = "nodejs";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
-// 과제 첨부 허용 mime: pdf, png, jpg/jpeg, hwp, docx
-const ALLOWED_MIME_TYPES = [
-  "application/pdf",
-  "image/png",
-  "image/jpeg",
-  "image/jpg",
-  "application/x-hwp",
-  "application/haansofthwp",
-  "application/vnd.hancom.hwp",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // docx
-];
-
-// 확장자 기반 fallback (hwp는 브라우저가 mime을 비워서 보낼 때가 잦음)
-const ALLOWED_EXTENSIONS = ["pdf", "png", "jpg", "jpeg", "hwp", "docx"];
+// 확장자 → 저장 Content-Type 매핑.
+// 클라이언트가 보낸 file.type 을 그대로 쓰면 text/html 등으로 저장될 수 있으므로
+// 확장자 allowlist 를 기준으로 서버가 Content-Type 을 결정한다.
+// (hwp는 브라우저가 mime을 비워서 보낼 때가 잦음)
+const EXTENSION_MIME: Record<string, string> = {
+  pdf: "application/pdf",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  hwp: "application/x-hwp",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+};
 
 function sanitizeFileName(name: string): string {
   // 경로 분리자, 제어문자 제거
@@ -62,10 +60,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // blob 경로 세그먼트로 쓰이므로 id 형식만 허용 (경로 조작 방지)
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(assignmentId)) {
+    return NextResponse.json({ error: "assignmentId가 올바르지 않습니다" }, { status: 400 });
+  }
+
+  // 확장자는 반드시 allowlist 에 있어야 한다. 저장 Content-Type 은 확장자로 서버가 정하므로
+  // 클라이언트 mime(브라우저마다 hwp 를 빈 값·unknown 으로 보냄)은 판정에 쓰지 않는다.
   const ext = getExtension(file.name);
-  const mimeOk = ALLOWED_MIME_TYPES.includes(file.type);
-  const extOk = ALLOWED_EXTENSIONS.includes(ext);
-  if (!mimeOk && !extOk) {
+  const contentType = EXTENSION_MIME[ext];
+  if (!contentType) {
     return NextResponse.json(
       { error: "허용되지 않은 파일 형식입니다 (PDF, PNG, JPG, HWP, DOCX)" },
       { status: 400 }
@@ -80,13 +84,13 @@ export async function POST(request: NextRequest) {
     const blob = await put(key, buffer, {
       access: "public",
       token: process.env.BLOB_READ_WRITE_TOKEN,
-      contentType: file.type || undefined,
+      contentType,
     });
 
     return NextResponse.json({
       url: blob.url,
       fileName: safeName,
-      mimeType: file.type || "application/octet-stream",
+      mimeType: contentType,
       sizeBytes: file.size,
     });
   } catch (err) {

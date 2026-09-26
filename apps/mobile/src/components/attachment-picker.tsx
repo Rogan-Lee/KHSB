@@ -73,7 +73,8 @@ export function AttachmentPicker({
         toast('카메라 권한을 허용하면 바로 찍어서 올릴 수 있어요', 'error');
         return;
       }
-      const result = await ImagePicker.launchCameraAsync({ mediaTypes, quality: 0.6 });
+      // 카메라는 사진만 — 영상 촬영은 마이크 권한(NSMicrophoneUsageDescription)이 필요한데 앱에 넣지 않았다. 영상은 보관함에서 고른다.
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.6 });
       if (result.canceled || !result.assets[0]) return;
       onChange([...assets, result.assets[0]].slice(0, max));
     } catch {
@@ -107,7 +108,7 @@ export function AttachmentPicker({
           label="촬영"
           onPress={() => void takePhoto()}
           disabled={addDisabled}
-          a11y={allowVideo ? '카메라로 찍기' : '사진 찍기'}
+          a11y="사진 찍기"
         />
         <AddTile
           icon={ImagePlus}

@@ -600,11 +600,13 @@ export async function deleteContract(contractId: string) {
 /**
  * 주어진 일자(ymd) 에 활성인 계약을 반환. effectiveFrom <= ymd <= (effectiveTo ?? ∞).
  * 순수 read — 권한 체크 없음(서버 액션 내부 헬퍼). 단일 진입점.
+ * 보안: "use server" 파일의 export 는 공개 POST 엔드포인트가 되므로 export 하지 않는다
+ * (export 시 인증 없이 임의 직원의 시급·월급이 노출됨).
  *
  * TODO(PR 3.3+): PayrollSetting 직접 조회 코드(`calculateMonthlyPayroll` 등)를
  * 모두 이 함수로 교체. PayrollSetting 은 빠른 표시용 캐시로만 유지.
  */
-export async function getActiveContractFor(userId: string, ymd: Date) {
+async function getActiveContractFor(userId: string, ymd: Date) {
   if (!userId) return null;
   if (!(ymd instanceof Date) || Number.isNaN(ymd.getTime())) return null;
 

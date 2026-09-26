@@ -3,8 +3,10 @@ export const revalidate = 30;
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/backoffice/ui";
 import { TimetablePageClient } from "./timetable-client";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 export default async function TimetablePage() {
+  await requireDashboardSession();
   const [students, mentors] = await Promise.all([
     prisma.student.findMany({
       where: { status: "ACTIVE" },

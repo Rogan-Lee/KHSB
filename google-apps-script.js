@@ -24,9 +24,30 @@ const SHEET_NAME = '상담신청';
 const EMAIL = ''; // 알림 받을 이메일 주소 (빈 문자열이면 알림 없음)
 const WEBHOOK_URL = ''; // Next.js 웹훅 URL (예: https://your-app.vercel.app/api/webhooks/consultation)
 
+// 스프레드시트 수식 주입 방지: =,+,-,@ 로 시작하는 값은 텍스트로 강제 (공개 폼 입력)
+function cell(v) {
+  const s = v == null ? '' : String(v);
+  return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+}
+
+// 이메일 HTML 주입 방지
+function esc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
 function doPost(e) {
   try {
-    const data = JSON.parse(e.postData.contents);
+    const raw = JSON.parse(e.postData.contents);
+    const data = {
+      timestamp: raw.timestamp,
+      name: raw.name,
+      phone: raw.phone,
+      location: raw.location,
+      method: raw.method,
+    };
+    const row = [data.timestamp, data.name, data.phone, data.location, data.method].map(cell);
     const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
 
     // 시트가 없으면 자동 생성
@@ -34,9 +55,9 @@ function doPost(e) {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const newSheet = ss.insertSheet(SHEET_NAME);
       newSheet.appendRow(['접수일시', '성함', '연락처', '위치/규모', '현재관리방법']);
-      newSheet.appendRow([data.timestamp, data.name, data.phone, data.location, data.method]);
+      newSheet.appendRow(row);
     } else {
-      sheet.appendRow([data.timestamp, data.name, data.phone, data.location, data.method]);
+      sheet.appendRow(row);
     }
 
     // Next.js 웹훅 호출 (Slack 알림 + Lead DB 저장)
@@ -62,12 +83,12 @@ function doPost(e) {
         htmlBody: `
           <h3>새로운 상담 신청이 접수되었습니다</h3>
           <table style="border-collapse:collapse;font-family:sans-serif;">
-            <tr><td style="padding:8px;font-weight:bold;border-bottom:1px solid #eee;">성함</td><td style="padding:8px;border-bottom:1px solid #eee;">${data.name}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;border-bottom:1px solid #eee;">연락처</td><td style="padding:8px;border-bottom:1px solid #eee;">${data.phone}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;border-bottom:1px solid #eee;">위치/규모</td><td style="padding:8px;border-bottom:1px solid #eee;">${data.location || '-'}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">현재 관리 방법</td><td style="padding:8px;">${data.method || '-'}</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;border-bottom:1px solid #eee;">성함</td><td style="padding:8px;border-bottom:1px solid #eee;">${esc(data.name)}</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;border-bottom:1px solid #eee;">연락처</td><td style="padding:8px;border-bottom:1px solid #eee;">${esc(data.phone)}</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;border-bottom:1px solid #eee;">위치/규모</td><td style="padding:8px;border-bottom:1px solid #eee;">${esc(data.location || '-')}</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;">현재 관리 방법</td><td style="padding:8px;">${esc(data.method || '-')}</td></tr>
           </table>
-          <p style="margin-top:16px;color:#888;font-size:13px;">접수일시: ${data.timestamp}</p>
+          <p style="margin-top:16px;color:#888;font-size:13px;">접수일시: ${esc(data.timestamp)}</p>
         `
       });
     }

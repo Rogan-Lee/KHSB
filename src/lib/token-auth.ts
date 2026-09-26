@@ -67,6 +67,10 @@ export type GateScope = "STUDENT" | "PARENT" | "STAFF";
 const GATE_COOKIE_PREFIX = "mlgate";
 const GATE_MAX_FAILURES = 5;
 const GATE_LOCKOUT_MINUTES = 10;
+// 장기 상한: 10분 창만 두면 토큰 하나당 하루 720회 → 휴대폰 뒷 4자리(1만 가지)를 링크 유효기간(30~90일) 안에
+// 다 훑을 수 있다. 토큰 단위로 24시간 실패 상한을 추가로 둔다 (정상 사용자는 하루 20회 틀릴 일이 없음).
+const GATE_DAILY_MAX_FAILURES = 20;
+const GATE_DAILY_WINDOW_HOURS = 24;
 
 function getGateSecret(): string {
   const secret = process.env.MAGIC_LINK_GATE_SECRET;
@@ -147,16 +151,20 @@ export async function clearGatePass(scope: GateScope, token: string): Promise<vo
  * 최근 GATE_LOCKOUT_MINUTES 안에 GATE_MAX_FAILURES 회 이상 실패 시 잠금.
  * 토큰 단위 / IP 단위 둘 다 본다 (어느 한쪽이라도 초과면 잠금).
  */
-export async function isGateLocked(
+async function countGateFailures(
   scope: GateScope,
-  token: string,
+  tokenHash: string,
   ip: string | null
-): Promise<boolean> {
-  const since = new Date(Date.now() - GATE_LOCKOUT_MINUTES * 60 * 1000);
-  const tokenHash = hashToken(token);
-  const [byToken, byIp] = await Promise.all([
+): Promise<{ byToken: number; byTokenDaily: number; byIp: number }> {
+  const now = Date.now();
+  const since = new Date(now - GATE_LOCKOUT_MINUTES * 60 * 1000);
+  const dailySince = new Date(now - GATE_DAILY_WINDOW_HOURS * 60 * 60 * 1000);
+  const [byToken, byTokenDaily, byIp] = await Promise.all([
     prisma.tokenGateAttempt.count({
       where: { scope, tokenHash, failedAt: { gte: since } },
+    }),
+    prisma.tokenGateAttempt.count({
+      where: { scope, tokenHash, failedAt: { gte: dailySince } },
     }),
     ip
       ? prisma.tokenGateAttempt.count({
@@ -164,7 +172,59 @@ export async function isGateLocked(
         })
       : Promise.resolve(0),
   ]);
-  return byToken >= GATE_MAX_FAILURES || byIp >= GATE_MAX_FAILURES;
+  return { byToken, byTokenDaily, byIp };
+}
+
+export async function isGateLocked(
+  scope: GateScope,
+  token: string,
+  ip: string | null
+): Promise<boolean> {
+  const c = await countGateFailures(scope, hashToken(token), ip);
+  return (
+    c.byToken >= GATE_MAX_FAILURES ||
+    c.byTokenDaily >= GATE_DAILY_MAX_FAILURES ||
+    c.byIp >= GATE_MAX_FAILURES
+  );
+}
+
+/**
+ * 시도 선점 (insert-then-count). 답을 비교하기 **전에** 실패 행을 먼저 기록하고 그 뒤에 센다.
+ * isGateLocked → 비교 → recordGateFailure 순서는 기록 전 요청들이 모두 잠금 검사를 통과하는 경쟁 조건이 있어,
+ * 수백 건을 동시에 쏘면 10분 창마다 5회가 아니라 수백 회를 시도할 수 있었다.
+ * 먼저 기록하면 k 번째로 기록된 요청의 카운트는 최소 k 이므로 창마다 최대 GATE_MAX_FAILURES 건만 통과한다.
+ *
+ * - locked: 선점 행은 지우고 반환 (잠긴 상태에서의 요청은 잠금 기간을 늘리지 않음 — 기존 동작 유지)
+ * - 통과: 답이 틀리면 선점 행이 그대로 실패 기록이 되고, 맞으면 releaseGateAttempt 로 지운다.
+ */
+export async function reserveGateAttempt(
+  scope: GateScope,
+  token: string,
+  ip: string | null,
+  ua: string | null
+): Promise<{ locked: true; long: boolean } | { locked: false; attemptId: string }> {
+  const tokenHash = hashToken(token);
+  const row = await prisma.tokenGateAttempt.create({
+    data: { scope, tokenHash, ip, ua },
+    select: { id: true },
+  });
+  const c = await countGateFailures(scope, tokenHash, ip);
+  // 방금 기록한 자기 행이 포함된 카운트 → "이전 실패가 상한 이상" 이면 잠금 (isGateLocked 와 같은 기준)
+  const shortLocked = c.byToken > GATE_MAX_FAILURES || c.byIp > GATE_MAX_FAILURES;
+  const dailyLocked = c.byTokenDaily > GATE_DAILY_MAX_FAILURES;
+  if (shortLocked || dailyLocked) {
+    await releaseGateAttempt(row.id);
+    // long: 10분 잠금이 아니라 24시간 상한에 걸린 경우 — 화면에서 "10분 후" 대신 새 링크 요청을 안내
+    return { locked: true, long: !shortLocked };
+  }
+  return { locked: false, attemptId: row.id };
+}
+
+/** 선점한 시도 행 제거 (검증 성공 / 잠금 시). */
+export async function releaseGateAttempt(attemptId: string): Promise<void> {
+  await prisma.tokenGateAttempt
+    .deleteMany({ where: { id: attemptId } })
+    .catch(() => {});
 }
 
 export async function recordGateFailure(

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    tokenGateAttempt: { count: vi.fn(), create: vi.fn() },
+    tokenGateAttempt: { count: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
   },
 }));
 vi.mock("next/headers", () => ({
@@ -19,9 +19,11 @@ import {
   normalizeDigits,
   phoneLast4,
   reportExpiresAt,
+  reserveGateAttempt,
   safeEqual,
   vocabExpiresAt,
 } from "@/lib/token-auth";
+import { prisma } from "@/lib/prisma";
 
 describe("checkExpiry", () => {
   const now = new Date("2026-05-13T00:00:00.000Z");
@@ -122,5 +124,63 @@ describe("safeEqual", () => {
   });
   it("returns false for different-length strings", () => {
     expect(safeEqual("12", "1234")).toBe(false);
+  });
+});
+
+describe("reserveGateAttempt (insert-then-count)", () => {
+  const mocked = prisma.tokenGateAttempt as unknown as {
+    count: ReturnType<typeof vi.fn>;
+    create: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
+  };
+
+  function setCounts(byToken: number, byTokenDaily: number, byIp: number) {
+    mocked.count.mockReset();
+    mocked.count
+      .mockResolvedValueOnce(byToken)
+      .mockResolvedValueOnce(byTokenDaily)
+      .mockResolvedValueOnce(byIp);
+  }
+
+  it("records the attempt before counting and lets it through under the limit", async () => {
+    vi.clearAllMocks();
+    mocked.create.mockResolvedValue({ id: "a1" });
+    mocked.deleteMany.mockResolvedValue({ count: 1 });
+    setCounts(5, 5, 5); // 자기 행 포함 5 → 이전 실패 4회
+    const r = await reserveGateAttempt("PARENT", "tok", "1.2.3.4", null);
+    expect(r).toEqual({ locked: false, attemptId: "a1" });
+    expect(mocked.create).toHaveBeenCalledTimes(1);
+    expect(mocked.create.mock.invocationCallOrder[0]).toBeLessThan(
+      mocked.count.mock.invocationCallOrder[0],
+    );
+    expect(mocked.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("locks and removes its own row once 5 prior failures exist in the window", async () => {
+    vi.clearAllMocks();
+    mocked.create.mockResolvedValue({ id: "a2" });
+    mocked.deleteMany.mockResolvedValue({ count: 1 });
+    setCounts(6, 6, 1);
+    const r = await reserveGateAttempt("PARENT", "tok", "1.2.3.4", null);
+    expect(r).toEqual({ locked: true, long: false });
+    expect(mocked.deleteMany).toHaveBeenCalledWith({ where: { id: "a2" } });
+  });
+
+  it("locks on the 24h per-token cap even when the 10-minute window is clear", async () => {
+    vi.clearAllMocks();
+    mocked.create.mockResolvedValue({ id: "a3" });
+    mocked.deleteMany.mockResolvedValue({ count: 1 });
+    setCounts(1, 21, 1);
+    const r = await reserveGateAttempt("STAFF", "tok", null, null);
+    expect(r).toEqual({ locked: true, long: true });
+  });
+
+  it("locks when the same IP already failed 5 times across tokens", async () => {
+    vi.clearAllMocks();
+    mocked.create.mockResolvedValue({ id: "a4" });
+    mocked.deleteMany.mockResolvedValue({ count: 1 });
+    setCounts(1, 1, 6);
+    const r = await reserveGateAttempt("PARENT", "other", "1.2.3.4", null);
+    expect(r).toEqual({ locked: true, long: false });
   });
 });

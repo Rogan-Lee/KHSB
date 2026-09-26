@@ -40,6 +40,26 @@ function formatSessionTitle(opts: {
   return `[${dateLabel} | ${opts.hostName} - ${opts.studentName}] (${timeLabel}) 일일 관리 세션`;
 }
 
+// ─────────────────── 헬퍼: 세션 사진 blob URL 검증 ───────────────────
+// /api/upload/mentoring-session 은 `mentoring-sessions/{sessionId}/...` 경로의 Vercel Blob 에만 올린다.
+// 클라가 넘긴 임의 URL 을 저장하면 deleteSessionPhoto 의 del() 로 다른 blob(제출물·리포트 등)을
+// 지울 수 있으므로, 해당 세션 prefix 의 Vercel Blob URL 만 허용한다.
+const SESSION_PHOTO_MIME = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]);
+
+function isSessionPhotoBlobUrl(raw: unknown, sessionId?: string): raw is string {
+  if (typeof raw !== "string") return false;
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:") return false;
+  if (!u.hostname.endsWith(".public.blob.vercel-storage.com")) return false;
+  const prefix = sessionId ? `/mentoring-sessions/${sessionId}/` : "/mentoring-sessions/";
+  return u.pathname.startsWith(prefix);
+}
+
 // ─────────────────── 1) 세션 예약 ───────────────────
 export async function createMentoringSession(params: {
   studentId: string;
@@ -311,6 +331,12 @@ export async function rescheduleMentoringSession(params: {
   const session = await auth();
   requireOnlineStaff(session?.user?.role);
 
+  if (
+    typeof params.durationMinutes !== "number" ||
+    !(params.durationMinutes >= 5 && params.durationMinutes <= 240)
+  ) {
+    throw new Error("세션 길이는 5~240분 사이여야 합니다");
+  }
   const startAt = new Date(params.scheduledAt);
   if (isNaN(startAt.getTime())) throw new Error("일시가 올바르지 않습니다");
 
@@ -374,13 +400,29 @@ export async function attachSessionPhoto(
 ) {
   const session = await auth();
   requireOnlineStaff(session?.user?.role);
-  if (data.tag === "KDA") throw new Error("KDA 태그는 더 이상 사용할 수 없습니다");
+  if (data.tag !== "EXTRA" && data.tag !== "FREE") {
+    throw new Error("KDA 태그는 더 이상 사용할 수 없습니다");
+  }
 
   const target = await prisma.mentoringSession.findUnique({
     where: { id: sessionId },
     select: { id: true, studentId: true },
   });
   if (!target) throw new Error("세션을 찾을 수 없습니다");
+
+  if (!isSessionPhotoBlobUrl(data.url, sessionId)) {
+    throw new Error("업로드된 사진 주소가 올바르지 않습니다");
+  }
+  if (data.thumbnailUrl != null && !isSessionPhotoBlobUrl(data.thumbnailUrl, sessionId)) {
+    throw new Error("업로드된 사진 주소가 올바르지 않습니다");
+  }
+  if (!SESSION_PHOTO_MIME.has(data.mimeType)) {
+    throw new Error("이미지 파일만 첨부할 수 있습니다");
+  }
+  const caption =
+    typeof data.caption === "string" && data.caption.trim()
+      ? data.caption.trim().slice(0, 500)
+      : null;
 
   const created = await prisma.mentoringSessionPhoto.create({
     data: {
@@ -389,7 +431,7 @@ export async function attachSessionPhoto(
       thumbnailUrl: data.thumbnailUrl ?? null,
       mimeType: data.mimeType,
       tag: data.tag,
-      caption: data.caption?.trim() ? data.caption.trim() : null,
+      caption,
       uploadedById: session!.user.id,
     },
   });
@@ -409,9 +451,12 @@ export async function deleteSessionPhoto(id: string) {
   });
   if (!photo) throw new Error("사진을 찾을 수 없습니다");
 
-  // Blob 삭제 시도 (실패해도 DB 는 삭제)
+  // Blob 삭제 시도 (실패해도 DB 는 삭제). 세션 사진 prefix 의 blob 만 지운다 —
+  // 과거에 검증 없이 저장된 임의 URL 로 다른 blob 이 지워지는 것을 막는다.
   try {
-    const urls = [photo.url, photo.thumbnailUrl].filter(Boolean) as string[];
+    const urls = [photo.url, photo.thumbnailUrl].filter((u): u is string =>
+      isSessionPhotoBlobUrl(u, photo.sessionId)
+    );
     if (urls.length > 0) {
       await del(urls, { token: process.env.BLOB_READ_WRITE_TOKEN });
     }

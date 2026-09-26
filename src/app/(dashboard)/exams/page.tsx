@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { ClipboardList, Plus } from "lucide-react";
 import { EmptyState, PageHeader, TableCard } from "@/components/backoffice/ui";
 import { ExamSessionsTabs } from "@/components/exams/exam-sessions-tabs";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 export const dynamic = "force-dynamic";
 
 export default async function ExamsPage() {
+  await requireDashboardSession();
   const sessions = await prisma.examSession.findMany({
     orderBy: [{ examDate: "desc" }, { createdAt: "desc" }],
     include: {

@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
-import { hasGatePass, reportExpiresAt } from "@/lib/token-auth";
+import { checkExpiry, hasGatePass, reportExpiresAt } from "@/lib/token-auth";
 import { todayKST } from "@/lib/utils";
 import {
   sanitizeAttendance,
@@ -225,21 +225,37 @@ export async function rollbackScheduleProposal(id: string) {
 // ───────────────────── 학부모 (토큰 게이트) ─────────────────────
 // 핵심 로직은 src/lib/online/schedule-parent-decision.ts (학부모 앱과 공용). 여기서는 토큰 게이트만.
 
-/** 학부모 승인 — APPROVED. 게이트 통과 필요. 실행 예정일이 이미 도래했으면 즉시 반영. */
-export async function approveScheduleProposal(token: string) {
-  const proposal = await prisma.scheduleProposal.findUnique({ where: { token }, select: { id: true, studentId: true } });
+const MAX_PARENT_FEEDBACK_LEN = 2000;
+
+/** 학부모 토큰 → 제안 조회 + 만료/무효화 검증 + 게이트 통과 확인 (페이지와 같은 기준). */
+async function requireParentProposal(token: string) {
+  if (typeof token !== "string" || !token) throw new Error("스케줄을 찾을 수 없습니다");
+  const proposal = await prisma.scheduleProposal.findUnique({
+    where: { token },
+    select: { id: true, studentId: true, expiresAt: true, revokedAt: true },
+  });
   if (!proposal) throw new Error("스케줄을 찾을 수 없습니다");
+  if (checkExpiry({ expiresAt: proposal.expiresAt, revokedAt: proposal.revokedAt })) {
+    throw new Error("링크가 만료되었습니다");
+  }
   const passed = await hasGatePass("PARENT", token, proposal.studentId);
   if (!passed) throw new Error("본인 확인이 필요합니다");
+  return proposal;
+}
+
+/** 학부모 승인 — APPROVED. 게이트 통과 필요. 실행 예정일이 이미 도래했으면 즉시 반영. */
+export async function approveScheduleProposal(token: string) {
+  const proposal = await requireParentProposal(token);
   return approveScheduleProposalCore(proposal.id);
 }
 
 /** 학부모 반려 — REJECTED + 피드백. 게이트 통과 필요. */
 export async function rejectScheduleProposal(token: string, content: string) {
-  const proposal = await prisma.scheduleProposal.findUnique({ where: { token }, select: { id: true, studentId: true } });
-  if (!proposal) throw new Error("스케줄을 찾을 수 없습니다");
-  const passed = await hasGatePass("PARENT", token, proposal.studentId);
-  if (!passed) throw new Error("본인 확인이 필요합니다");
-  await rejectScheduleProposalCore(proposal.id, content);
+  const proposal = await requireParentProposal(token);
+  const text = typeof content === "string" ? content : "";
+  if (text.trim().length > MAX_PARENT_FEEDBACK_LEN) {
+    throw new Error(`의견은 ${MAX_PARENT_FEEDBACK_LEN}자 이하로 작성해 주세요`);
+  }
+  await rejectScheduleProposalCore(proposal.id, text);
   return { ok: true };
 }

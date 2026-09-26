@@ -1,18 +1,24 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { clearOAuthStateCookie, verifyOAuthState } from "@/lib/oauth-state";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session?.user) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/sign-in", request.url));
   }
 
   const code = request.nextUrl.searchParams.get("code");
   const error = request.nextUrl.searchParams.get("error");
 
-  if (error || !code) {
-    return NextResponse.redirect(new URL("/messages?kakao=error", request.url));
+  // CSRF 방어: connect 에서 발급한 state 쿠키와 대조 (공격자 code 로 피해자 계정에 연동 방지)
+  const stateOk = verifyOAuthState(request, "kakao", session.user.id);
+
+  if (error || !code || !stateOk) {
+    const res = NextResponse.redirect(new URL("/messages?kakao=error", request.url));
+    clearOAuthStateCookie(res, "kakao");
+    return res;
   }
 
   const clientId = process.env.KAKAO_REST_API_KEY!;
@@ -51,7 +57,9 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.redirect(new URL("/messages?kakao=connected", request.url));
+    const res = NextResponse.redirect(new URL("/messages?kakao=connected", request.url));
+    clearOAuthStateCookie(res, "kakao");
+    return res;
   } catch (err) {
     console.error("[kakao callback] error:", err);
     return NextResponse.redirect(new URL("/messages?kakao=error", request.url));

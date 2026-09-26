@@ -80,7 +80,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/students", label: "원생 관리", icon: Users, feature: "students" },
       { href: "/waitlist", label: "대기자 관리", icon: UserPlus },
       { href: "/seat-map", label: "좌석 배치도", icon: MapPin, feature: "seat-map" },
-      { href: "/merit-demerit", label: "상벌점", icon: Star, feature: "merit-demerit" },
+      { href: "/merit-demerit", label: "상벌점", icon: Star, feature: "merit-demerit", show: isStaff },
       { href: "/vocab-test", label: "영단어 시험", icon: BookOpen, feature: "vocab-test" },
       // 등원 스케줄(시간표 제안→학부모 승인 검토) — 자습실 운영진 전체
       { href: "/online/schedules", label: "등원 스케줄", icon: CalendarClock, show: isStaff },

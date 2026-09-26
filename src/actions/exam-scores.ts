@@ -2,10 +2,15 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { requireAnyStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { ExamType } from "@/generated/prisma";
 
 export async function getExamScores(studentId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
+
   return prisma.examScore.findMany({
     where: { studentId },
     orderBy: { examDate: "desc" },
@@ -19,6 +24,7 @@ export async function getExamScores(studentId: string) {
 export async function getExamNameSuggestions(examType: ExamType): Promise<string[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   // distinct + orderBy examDate desc — examDate 기준 최신 입력부터 노출.
   // examName 기준 distinct 라 동일 examName 의 가장 최근 행이 대표로 선택됨.
@@ -48,6 +54,7 @@ export async function createExamScore(data: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const record = await prisma.examScore.create({
     data: {
@@ -80,6 +87,7 @@ export async function updateExamScore(id: string, data: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const record = await prisma.examScore.update({
     where: { id },
@@ -102,6 +110,7 @@ export async function updateExamScore(id: string, data: {
 export async function deleteExamScore(id: string, studentId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   await prisma.examScore.delete({ where: { id } });
   revalidatePath(`/students/${studentId}`);
@@ -119,12 +128,20 @@ export interface ExamScoreCSVRow {
   notes?: string;
 }
 
+const MAX_IMPORT_ROWS = 5000;
+
 export async function bulkImportExamScores(rows: ExamScoreCSVRow[]): Promise<{
   created: number;
   errors: { row: number; studentName: string; reason: string }[];
 }> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
+
+  if (!Array.isArray(rows)) throw new Error("가져올 데이터 형식이 올바르지 않습니다");
+  if (rows.length > MAX_IMPORT_ROWS) {
+    throw new Error(`한 번에 최대 ${MAX_IMPORT_ROWS}행까지 가져올 수 있습니다`);
+  }
 
   // Load all students once
   const students = await prisma.student.findMany({ select: { id: true, name: true } });

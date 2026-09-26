@@ -43,9 +43,16 @@ next-env.d.ts
 
 /src/generated/prisma
 
+# App Store 심사용 데모 계정 비밀번호·초대 코드 (scripts/seed-review-demo.ts 가 씀, 저장소 공개라 커밋 금지)
+/.app-review/
+
 # local tooling artifacts (transient — not project assets)
 .claude/worktrees/
 .gstack/
 claude-talk-to-figma-mcp/
 .claude/scheduled_tasks.lock
 .claude/settings.json
+
+# CI 가 생성하는 운영 리포트(기능요청 트리아지·주간 건강 지표) — 공개 저장소에 커밋 금지.
+# GitHub Actions 아티팩트로만 보관한다 (.github/workflows/feature-triage.yml, health-report.yml).
+/reports/

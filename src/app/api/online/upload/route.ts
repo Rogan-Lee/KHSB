@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import sharp from "sharp";
+import { randomUUID } from "node:crypto";
 import { auth } from "@/lib/auth";
-import { isOnlineStaff, isStaff } from "@/lib/roles";
+import { isAnyStaff, isOnlineStaff, isStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
+import { assertCanManageStudent } from "@/lib/student-access";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs"; // sharp(HEIC 변환) 은 node 런타임 필요
@@ -19,6 +21,7 @@ const ALLOWED_MIMES = new Set<string>([
   "image/jpg",
   "image/webp",
   "image/gif",
+  "image/avif",
   "image/heic", // 아이폰 기본 사진 포맷 (아래서 JPEG 변환)
   "image/heif",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // docx
@@ -32,7 +35,7 @@ const ALLOWED_MIMES = new Set<string>([
 ]);
 
 const ALLOWED_EXTENSIONS = new Set<string>([
-  "pdf", "png", "jpg", "jpeg", "webp", "gif", "heic", "heif", "docx", "doc", "hwp", "hwpx", "zip",
+  "pdf", "png", "jpg", "jpeg", "jfif", "jpe", "webp", "gif", "avif", "heic", "heif", "docx", "doc", "hwp", "hwpx", "zip",
 ]);
 
 function getExt(filename: string): string {
@@ -132,21 +135,30 @@ export async function POST(request: NextRequest) {
     }
     blobPathPrefix = `online/chats/${chatId}`;
   } else if (context === "feedback") {
-    // 온라인 staff 가 피드백 작성 시 첨부
+    // 직원이 피드백 작성 시 첨부 — createFeedback 액션과 동일 인가(전 직원 + 담당 학생만)
     const submissionId = formData.get("submissionId");
     if (typeof submissionId !== "string" || !submissionId) {
       return NextResponse.json({ error: "submissionId 가 필요합니다" }, { status: 400 });
     }
     const session = await auth();
-    if (!session?.user || !isOnlineStaff(session.user.role)) {
+    if (!session?.user || !isAnyStaff(session.user.role)) {
       return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
     }
     const submission = await prisma.taskSubmission.findUnique({
       where: { id: submissionId },
-      select: { id: true },
+      select: { id: true, task: { select: { studentId: true } } },
     });
     if (!submission) {
       return NextResponse.json({ error: "제출물을 찾을 수 없습니다" }, { status: 404 });
+    }
+    try {
+      await assertCanManageStudent(
+        session.user.role,
+        session.user.id,
+        submission.task.studentId
+      );
+    } catch {
+      return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
     }
     blobPathPrefix = `online/feedback/${submissionId}`;
   } else {
@@ -178,7 +190,9 @@ export async function POST(request: NextRequest) {
   const ext = getExt(file.name);
   const mimeOk = ALLOWED_MIMES.has(file.type);
   const extOk = ALLOWED_EXTENSIONS.has(ext);
-  if (!mimeOk && !extOk) {
+  // Blob 의 서빙 content-type 은 경로 확장자로 결정되므로 확장자가 있으면 반드시 allowlist 여야 한다.
+  // (MIME 만 맞추고 .html/.svg 로 올려 공개 blob 에서 스크립트가 실행되는 것 방지)
+  if (ext ? !extOk : !mimeOk) {
     return NextResponse.json(
       { error: "허용되지 않는 파일 형식입니다 (PDF/이미지/DOCX/HWP/ZIP)" },
       { status: 415 }
@@ -209,7 +223,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const random = Math.random().toString(36).slice(2, 10);
+  // 공개 blob URL 이 곧 접근 권한 — 추측 불가능한 난수 사용
+  const random = randomUUID();
   const blobPath = `${blobPathPrefix}/${Date.now()}-${random}-${safeName(outName)}`;
 
   try {

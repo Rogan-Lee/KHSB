@@ -13,6 +13,9 @@ import { todayKST } from "@/lib/utils";
 
 type LunchStudent = { id: string; name: string };
 
+const MAX_MEMO_LEN = 300; // 신청 폼 textarea maxLength 와 동일
+const MAX_MENU_IDS = 100;
+
 /**
  * 학생의 미결제 주문을 선택한 메뉴 목록으로 통째로 교체(신청/수정/취소).
  * - 이미 결제완료된 날짜는 중복 결제 방지를 위해 무시
@@ -23,12 +26,15 @@ export async function submitLunchOrderForStudent(
   studentId: string,
   input: { menuIds: string[]; memo?: string },
 ) {
-  const memo = input.memo?.trim() || null;
+  const memo = (typeof input.memo === "string" ? input.memo : "").trim().slice(0, MAX_MEMO_LEN) || null;
+  const menuIds = Array.isArray(input.menuIds)
+    ? input.menuIds.filter((id): id is string => typeof id === "string").slice(0, MAX_MENU_IDS)
+    : [];
 
   const today = todayKST();
   const now = new Date();
   const menus = await prisma.lunchMenu.findMany({
-    where: { id: { in: input.menuIds }, closed: false, date: { gte: today } },
+    where: { id: { in: menuIds }, closed: false, date: { gte: today } },
   });
 
   // 이미 결제완료된 주문에 포함된 날짜는 제외
@@ -107,7 +113,7 @@ export async function requestLunchChangeForStudent(
   message: string,
   via = "",
 ) {
-  const msg = message.trim();
+  const msg = (typeof message === "string" ? message : "").trim();
   if (!msg) throw new MobileApiError("변경 요청 내용을 입력해 주세요", 400);
   await prisma.lunchChangeRequest.create({
     data: { studentId: student.id, message: msg.slice(0, 1000) },

@@ -11,6 +11,14 @@ import {
 
 export class PortalLinkCoreError extends Error {}
 
+/** 포털 링크 유효 일수 상한 — 서버 액션 인자는 클라이언트 입력이므로 1~90일로 고정 (영구 링크 방지). */
+export const MAX_PORTAL_LINK_VALID_DAYS = 90;
+export function clampPortalLinkDays(daysValid: unknown): number {
+  const n = Math.floor(Number(daysValid));
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_MAGIC_LINK_VALID_DAYS;
+  return Math.min(n, MAX_PORTAL_LINK_VALID_DAYS);
+}
+
 /** 학생의 현재 유효한(취소·만료 안 된) 최신 포털 링크 */
 export async function findActivePortalLink(studentId: string, now = new Date()) {
   return prisma.studentMagicLink.findFirst({
@@ -39,9 +47,13 @@ export async function issuePortalLinkForStudent(params: {
 }) {
   const student = await prisma.student.findUnique({
     where: { id: params.studentId },
-    select: { id: true },
+    select: { id: true, status: true },
   });
   if (!student) throw new PortalLinkCoreError("학생을 찾을 수 없습니다");
+  // 재원생이 아니면 validateMagicLink 가 거부하므로 발급해도 쓸 수 없다
+  if (student.status !== "ACTIVE") {
+    throw new PortalLinkCoreError("재원 중인 학생에게만 링크를 발급할 수 있습니다");
+  }
 
   if (params.reissue) {
     await revokeAllLinksForStudent(params.studentId);
@@ -55,7 +67,7 @@ export async function issuePortalLinkForStudent(params: {
   const link = await issueMagicLink({
     studentId: params.studentId,
     issuedById: params.issuedById,
-    daysValid: params.daysValid ?? DEFAULT_MAGIC_LINK_VALID_DAYS,
+    daysValid: clampPortalLinkDays(params.daysValid ?? DEFAULT_MAGIC_LINK_VALID_DAYS),
   });
   return { token: link.token, expiresAt: link.expiresAt, reused: false };
 }

@@ -1,5 +1,3 @@
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { CalendarClock, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
@@ -9,14 +7,16 @@ import { MonthlyReportPanel } from "@/components/reports/monthly-report-panel";
 import { MonthlyAdmissionInfoEditor } from "@/components/reports/monthly-admission-info-editor";
 import { MonthlyAwardsManager } from "@/components/reports/monthly-awards-manager";
 import { MonthlyNoticeEditor } from "@/components/reports/monthly-notice-editor";
+import { isStaff } from "@/lib/roles";
+import { requireDashboardSession } from "../../_lib/page-guard";
 
 export default async function MonthlyReportsPage({
   searchParams,
 }: {
   searchParams: Promise<{ year?: string; month?: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  // 리포트·분석은 자습실 직원 전용 (nav insights 그룹 = isStaff, 리포트 액션도 requireStaff)
+  await requireDashboardSession(isStaff);
 
   const params = await searchParams;
   const now = new Date();

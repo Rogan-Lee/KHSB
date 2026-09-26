@@ -10,6 +10,7 @@ import { Linking, StyleSheet, View } from 'react-native';
 
 import { radius, space, Text, toast, TONE_SOFT, type Tone } from '@/design';
 import type { ContentType } from '@/lib/api/student-contents';
+import { isWebUrl } from '@/lib/safe-url';
 
 // 웹 학생 포털 contents 페이지와 같은 유형 아이콘·색 (CONTENT_TYPE_META 색 계열을 SEED 톤으로)
 
@@ -61,6 +62,10 @@ export function contentDateLabel(iso: string) {
 
 /** 원문·팟캐스트·영상 링크는 앱 밖(브라우저·유튜브 등 해당 앱)에서 연다 */
 export async function openExternal(url: string) {
+  if (!isWebUrl(url)) {
+    toast('링크를 열지 못했어요', 'error');
+    return;
+  }
   try {
     await Linking.openURL(url);
   } catch {

@@ -556,6 +556,15 @@ model AuthVerification {
   @@index([expiresAt])
 }
 
+// better-auth 요청 제한 저장소(rateLimit.storage = "database").
+// 메모리 저장소는 서버리스 인스턴스마다 따로 세어 제한이 사실상 무력했다 → DB 로 공유.
+model AuthRateLimit {
+  id          String @id @default(cuid())
+  key         String @unique // "<ip>|<path>"
+  count       Int
+  lastRequest BigInt // epoch ms
+}
+
 // 공개 회원가입은 허용하지 않는다. 기존 직원 또는 학생에 연결된
 // 만료 가능한 1회용 초대 토큰을 검증한 경우에만 AuthUser가 생성된다.
 model AuthInvitation {
@@ -645,8 +654,8 @@ model StudentSuggestion {
 // IP+토큰 기준으로 분당 N회 잠금에 사용. 성공 시 삭제하지 않음(감사용).
 model TokenGateAttempt {
   id        String   @id @default(cuid())
-  scope     String // "STUDENT" | "PARENT" | "STAFF"
-  tokenHash String // SHA-256(token) — 원본 토큰 저장 금지
+  scope     String // "STUDENT" | "PARENT" | "STAFF" | "LOGIN"(로그인 계정 단위 실패 — src/lib/login-guard.ts)
+  tokenHash String // SHA-256(token 또는 로그인 아이디) — 원본 저장 금지
   ip        String?
   ua        String?
   failedAt  DateTime @default(now())

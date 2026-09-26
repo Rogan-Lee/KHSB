@@ -1,11 +1,9 @@
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import { NewFeatureRequestForm } from "@/components/feature-requests/new-feature-request-form";
 import { PageHeader } from "@/components/backoffice/ui";
+import { requireDashboardSession } from "../../_lib/page-guard";
 
 export default async function NewRequestPage() {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  await requireDashboardSession();
 
   return (
     <div className="max-w-3xl">

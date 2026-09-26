@@ -34,6 +34,7 @@ import {
   type Tone,
 } from "@/components/backoffice/ui";
 import { CalendarCheck, MessagesSquare, Phone, Scale } from "lucide-react";
+import { requireDashboardSession } from "../../_lib/page-guard";
 
 const ATTENDANCE_TYPE_MAP: Record<string, { label: string; tone: Tone }> = {
   NORMAL: { label: "정상", tone: "ok" },
@@ -57,6 +58,7 @@ export default async function StudentDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ tab?: string }>;
 }) {
+  await requireDashboardSession();
   const { id: rawId } = await params;
   await searchParams; // 탭(?tab=)은 StudentDetailTabs 가 URL 에서 직접 읽는다
   const id = decodeURIComponent(rawId);

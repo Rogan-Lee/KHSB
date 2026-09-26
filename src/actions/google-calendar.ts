@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/lib/auth";
+import { requireAnyStaff } from "@/lib/roles";
 import { getGoogleCalendarClient, isGoogleCalendarConfigured } from "@/lib/google-calendar";
 import type { calendar_v3 } from "googleapis";
 
@@ -20,6 +21,7 @@ export async function fetchGoogleCalendarEvents(
 ): Promise<GoogleCalendarEvent[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   if (!(await isGoogleCalendarConfigured())) return [];
 
@@ -101,6 +103,7 @@ export async function createGoogleCalendarEvent(data: {
 }): Promise<string | null> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   if (!(await isGoogleCalendarConfigured())) return null;
 
@@ -145,6 +148,7 @@ export async function updateGoogleCalendarEvent(
 ): Promise<void> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   if (!(await isGoogleCalendarConfigured())) return;
 
@@ -182,6 +186,7 @@ export async function updateGoogleCalendarEvent(
 export async function deleteGoogleCalendarEvent(googleEventId: string): Promise<void> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   if (!(await isGoogleCalendarConfigured())) return;
 

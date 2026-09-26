@@ -11,16 +11,16 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/backoffice/ui";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { auth } from "@/lib/auth";
 import { resolveDateRange, toIsoDate } from "@/lib/date-range";
 import { todayKST } from "@/lib/utils";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 export default async function HandoverPage({
   searchParams,
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
-  const session = await auth();
+  const session = await requireDashboardSession();
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;

@@ -17,13 +17,30 @@ interface SlackBlock {
   [key: string]: unknown;
 }
 
+/**
+ * Slack mrkdwn 제어문자 이스케이프 (&, <, >).
+ * 학생·학부모 입력이 `<!channel>` 전체 호출이나 `<https://악성|공지>` 위장 링크로 해석되지 않게 한다.
+ * *굵게* / _기울임_ 서식은 영향 없음.
+ */
+export function escapeSlack(text: unknown): string {
+  return String(text ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/**
+ * 문자열 메시지는 통째로 escapeSlack 처리한다 — 호출부들이 사용자 입력을 그대로 끼워 넣으므로.
+ * (문자열 메시지에서 Slack `<url|라벨>` 링크 문법을 쓰는 호출부는 없음. 링크가 필요하면 blocks 형식을 쓰고
+ *  사용자 값만 escapeSlack 으로 감쌀 것)
+ */
 export async function notifySlack(
   message: string | { blocks: SlackBlock[]; text?: string },
 ) {
   if (!WEBHOOK_URL) return;
 
   const body =
-    typeof message === "string" ? { text: message } : message;
+    typeof message === "string" ? { text: escapeSlack(message) } : message;
 
   try {
     await fetch(WEBHOOK_URL, {
@@ -46,7 +63,7 @@ export function formatConsultationAlert(data: {
   timestamp?: string;
 }) {
   return {
-    text: `🔔 새 상담 신청: ${data.name} (${data.phone})`,
+    text: `🔔 새 상담 신청: ${escapeSlack(data.name)} (${escapeSlack(data.phone)})`,
     blocks: [
       {
         type: "header",
@@ -55,15 +72,15 @@ export function formatConsultationAlert(data: {
       {
         type: "section",
         fields: [
-          { type: "mrkdwn", text: `*성함:*\n${data.name}` },
-          { type: "mrkdwn", text: `*연락처:*\n${data.phone}` },
+          { type: "mrkdwn", text: `*성함:*\n${escapeSlack(data.name)}` },
+          { type: "mrkdwn", text: `*연락처:*\n${escapeSlack(data.phone)}` },
           {
             type: "mrkdwn",
-            text: `*위치/규모:*\n${data.location || "-"}`,
+            text: `*위치/규모:*\n${escapeSlack(data.location || "-")}`,
           },
           {
             type: "mrkdwn",
-            text: `*현재 관리 방법:*\n${data.method || "-"}`,
+            text: `*현재 관리 방법:*\n${escapeSlack(data.method || "-")}`,
           },
         ],
       },
@@ -72,7 +89,7 @@ export function formatConsultationAlert(data: {
         elements: [
           {
             type: "mrkdwn",
-            text: `접수일시: ${data.timestamp || new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}`,
+            text: `접수일시: ${escapeSlack(data.timestamp) || new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}`,
           },
         ],
       },
@@ -99,8 +116,8 @@ export function formatFeatureRequestAlert(data: {
   const emoji = categoryEmoji[data.category] || "📝";
   const linkLine = data.url ? `\n[보기](${data.url})` : "";
   const text =
-    `📮 *새 건의사항* — ${data.title}\n` +
-    `• 작성자: ${data.authorName ?? "알 수 없음"}\n` +
+    `📮 *새 건의사항* — ${escapeSlack(data.title)}\n` +
+    `• 작성자: ${escapeSlack(data.authorName ?? "알 수 없음")}\n` +
     `• 카테고리: ${data.category}` +
     linkLine;
 
@@ -118,15 +135,15 @@ export function formatFeatureRequestAlert(data: {
       {
         type: "section",
         fields: [
-          { type: "mrkdwn", text: `*제목:*\n${data.title}` },
+          { type: "mrkdwn", text: `*제목:*\n${escapeSlack(data.title)}` },
           { type: "mrkdwn", text: `*우선순위:*\n${data.priority}` },
           {
             type: "mrkdwn",
-            text: `*작성자:*\n${data.authorName ?? "알 수 없음"}`,
+            text: `*작성자:*\n${escapeSlack(data.authorName ?? "알 수 없음")}`,
           },
           {
             type: "mrkdwn",
-            text: `*요청자:*\n${data.requester || "익명"}`,
+            text: `*요청자:*\n${escapeSlack(data.requester || "익명")}`,
           },
         ],
       },

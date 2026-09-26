@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { getParentReportDetailed } from "@/actions/parent-reports";
-import { getStudentAnalytics, type SubjectTrend } from "@/actions/analytics";
+import type { SubjectTrend } from "@/actions/analytics";
+import { computeStudentAnalytics } from "@/lib/student-analytics";
 import { hasGatePass } from "@/lib/token-auth";
 import { prisma } from "@/lib/prisma";
 import { parseMentoringNote } from "@/lib/mentoring-note";
@@ -39,7 +40,7 @@ export default async function ParentReportPage({
 
   const { student, mentoring, studyPlanNote, studyPlanImages, customNote } = report;
 
-  const analytics = await getStudentAnalytics(student.id);
+  const analytics = await computeStudentAnalytics(student.id);
 
   // 성적 추이 차트용 원본 점수 (공식/사설 모의 + 내신, 최근 50개)
   const examScores = await prisma.examScore.findMany({
