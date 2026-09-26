@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { ConsultationStatus, ConsultationType, ConsultationCategory, ConsultationOwner } from "@/generated/prisma";
-import { requireFullAccess, requireStaff } from "@/lib/roles";
+import { requireAnyStaff, requireFullAccess, requireStaff } from "@/lib/roles";
 import { notifySlack, formatConsultationAlert } from "@/lib/slack";
 
 export async function createConsultation(formData: FormData) {
@@ -108,6 +108,7 @@ export async function getConsultations(owner?: ConsultationOwner) {
 export async function getStudentConsultationHistory(studentId: string, excludeId?: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   return prisma.directorConsultation.findMany({
     where: {

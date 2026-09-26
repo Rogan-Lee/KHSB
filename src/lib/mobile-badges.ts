@@ -1,5 +1,5 @@
-import { countUnseenSuggestionUpdates } from "@/actions/student-suggestions";
 import { countNewParentReports } from "@/lib/mobile-parent-reports";
+import { countUnseenStudentSuggestions } from "@/lib/mobile-suggestions";
 import { prisma } from "@/lib/prisma";
 import { getSidebarBadges } from "@/lib/sidebar-badges";
 import { todayKST } from "@/lib/utils";
@@ -79,7 +79,7 @@ export async function getStudentBadges(studentId: string): Promise<StudentBadges
       },
     }),
     unreadAnswersForStudent(studentId),
-    countUnseenSuggestionUpdates(studentId),
+    countUnseenStudentSuggestions(studentId),
   ]);
   const b = {
     tasks: settled(tasks),

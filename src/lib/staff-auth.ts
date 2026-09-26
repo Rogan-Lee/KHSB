@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { createOpaqueToken } from "@/lib/auth-tokens";
 import { prisma } from "@/lib/prisma";
 import type { StaffMagicLink, User } from "@/generated/prisma";
 
@@ -11,12 +12,13 @@ export type ValidatedStaffMagicLink = {
 
 /**
  * 근무자 매직링크 신규 발급.
- * 토큰은 cuid 기본값을 사용하므로 DB 레벨 고유성 보장.
+ * 토큰은 CSPRNG(24바이트 base64url) — DB unique 제약으로 고유성 보장.
  * 만료일 기본 90일 (학생 30일보다 길게 — 상시 사용).
  *
  * 거절 조건:
  *  - 존재하지 않는 사용자
  *  - `status === TERMINATED` (퇴사자에게는 발급 금지)
+ *  - `role === STUDENT` (근무자 전용)
  *  - `phone` null/빈문자열 (본인 확인 게이트 무력화 방지)
  */
 export async function issueStaffMagicLink(
@@ -30,9 +32,14 @@ export async function issueStaffMagicLink(
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, status: true, phone: true },
+    select: { id: true, status: true, phone: true, role: true },
   });
   if (!user) throw new Error("근무자를 찾을 수 없습니다");
+
+  // 순찰 링크는 학생 상세 메모까지 보는 근무자용 → 학생 계정(role STUDENT)에는 발급 금지
+  if (user.role === "STUDENT") {
+    throw new Error("근무자 계정에만 매직링크를 발급할 수 있습니다");
+  }
 
   if (user.status === "TERMINATED") {
     throw new Error("퇴사 처리된 근무자에게는 매직링크를 발급할 수 없습니다");
@@ -49,6 +56,8 @@ export async function issueStaffMagicLink(
 
   return prisma.staffMagicLink.create({
     data: {
+      // 링크 토큰 = 열람 자격 → 스키마 기본값(cuid, 예측 가능) 대신 CSPRNG 토큰
+      token: createOpaqueToken(24),
       userId,
       issuedById: issuedById ?? null,
       expiresAt,
@@ -76,6 +85,7 @@ export const validateStaffMagicLink = cache(
     if (link.revokedAt) return null;
     if (link.expiresAt.getTime() < Date.now()) return null;
     if (link.user.status === "TERMINATED") return null;
+    if (link.user.role === "STUDENT") return null; // 근무자 전용 링크
 
     prisma.staffMagicLink
       .update({

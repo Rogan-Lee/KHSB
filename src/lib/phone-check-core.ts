@@ -17,6 +17,9 @@ export type PhoneCheckRow = {
   record: { status: PhoneCheckStatus; note: string | null } | null;
 };
 
+const MAX_NOTE_LEN = 200;
+const MAX_BULK_STUDENTS = 1000;
+
 /** "YYYY-MM-DD" → @db.Date 저장 규약(UTC 자정)에 맞는 Date. 형식 검증 포함. */
 export function parsePhoneCheckDate(date: string): Date {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("잘못된 날짜 형식입니다");
@@ -79,7 +82,9 @@ export async function upsertPhoneCheck(input: {
   checkedById: string;
 }): Promise<void> {
   const day = parsePhoneCheckDate(input.date);
-  const trimmed = input.note?.trim() || null;
+  // 웹 액션은 note 를 검증 없이 넘기므로 코어에서 문자열·길이를 정리 (모바일은 200자 검증 후 호출)
+  const trimmed =
+    typeof input.note === "string" ? input.note.trim().slice(0, MAX_NOTE_LEN) || null : null;
 
   await prisma.phoneCheckRecord.upsert({
     where: { studentId_date: { studentId: input.studentId, date: day } },
@@ -101,10 +106,13 @@ export async function bulkUpsertPhoneSubmitted(
   checkedById: string,
 ): Promise<number> {
   const day = parsePhoneCheckDate(date);
-  if (studentIds.length === 0) return 0;
+  if (!Array.isArray(studentIds)) throw new Error("학생 목록을 확인하세요");
+  const ids = [...new Set(studentIds.filter((id): id is string => typeof id === "string" && !!id))];
+  if (ids.length === 0) return 0;
+  if (ids.length > MAX_BULK_STUDENTS) throw new Error("한 번에 처리할 수 있는 학생 수를 넘었습니다");
 
   await prisma.$transaction(
-    studentIds.map((studentId) =>
+    ids.map((studentId) =>
       prisma.phoneCheckRecord.upsert({
         where: { studentId_date: { studentId, date: day } },
         create: { studentId, date: day, status: "SUBMITTED", checkedById },
@@ -112,5 +120,5 @@ export async function bulkUpsertPhoneSubmitted(
       }),
     ),
   );
-  return studentIds.length;
+  return ids.length;
 }

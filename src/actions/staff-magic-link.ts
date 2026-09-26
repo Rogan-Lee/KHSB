@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireStaff } from "@/lib/roles";
+import { requireFullAccess } from "@/lib/roles";
 import {
   issueStaffMagicLink,
   revokeStaffMagicLink,
@@ -16,7 +16,9 @@ import { notifySlack } from "@/lib/slack";
  */
 export async function issueLinkForStaff(userId: string) {
   const session = await auth();
-  requireStaff(session?.user?.role);
+  // 발급된 토큰은 그 근무자 이름으로 순찰 기록을 남길 수 있는 자격증명 → 원장/SUPER_ADMIN 만.
+  // (UI 도 /mentors — isFullAccess 페이지 — 에서만 호출)
+  requireFullAccess(session?.user?.role);
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -42,10 +44,10 @@ export async function issueLinkForStaff(userId: string) {
   };
 }
 
-/** 단일 링크 무효화. */
+/** 단일 링크 무효화. 원장/SUPER_ADMIN 만 (/mentors). */
 export async function revokeLink(linkId: string) {
   const session = await auth();
-  requireStaff(session?.user?.role);
+  requireFullAccess(session?.user?.role);
 
   await revokeStaffMagicLink(linkId);
   revalidatePath("/payroll");
@@ -55,11 +57,11 @@ export async function revokeLink(linkId: string) {
 
 /**
  * 근무자의 매직링크 목록(활성+무효화 포함, issuedAt desc).
- * admin UI 의 발급/무효화 패널 데이터 소스.
+ * admin UI 의 발급/무효화 패널 데이터 소스. 토큰 원문을 돌려주므로 원장/SUPER_ADMIN 만.
  */
 export async function listLinksForStaff(userId: string) {
   const session = await auth();
-  requireStaff(session?.user?.role);
+  requireFullAccess(session?.user?.role);
 
   const links = await prisma.staffMagicLink.findMany({
     where: { userId },

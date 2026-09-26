@@ -1,6 +1,7 @@
 // 학부모 리포트(멘토링 /r/[token]) 핵심 로직 — 웹 서버 액션(src/actions/parent-reports.ts)과
 // 모바일 API(src/lib/mobile-staff-parent-reports.ts)가 같이 쓴다. 인증·권한 검사는 호출 측 책임.
 
+import { createOpaqueToken } from "@/lib/auth-tokens";
 import { prisma } from "@/lib/prisma";
 import { reportExpiresAt } from "@/lib/token-auth";
 
@@ -21,6 +22,8 @@ export async function createParentReportRecord(params: {
 
   return prisma.parentReport.create({
     data: {
+      // 링크 토큰 = 열람 자격 → 스키마 기본값(cuid) 대신 CSPRNG 토큰
+      token: createOpaqueToken(24),
       studentId: mentoring.studentId,
       mentoringId: params.mentoringId,
       studyPlanImages: params.studyPlanImages ?? [],

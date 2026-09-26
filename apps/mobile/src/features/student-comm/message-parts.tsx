@@ -34,6 +34,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, IconTile, Press, Text, color, radius, space, text, toast } from '@/design';
 
 import { formatBytes } from './format';
+import { isWebUrl } from '@/lib/safe-url';
 
 type AttachmentLike = { url: string; name: string; mimeType: string; sizeBytes?: number };
 
@@ -51,6 +52,10 @@ export function attachmentKind(att: { mimeType?: string | null; name: string }):
 
 /** 첨부 열기 — 앱 안 브라우저(사진·PDF·영상 미리보기), 웹은 새 탭 */
 export async function openAttachment(url: string) {
+  if (!isWebUrl(url)) {
+    toast('파일을 열지 못했어요', 'error');
+    return;
+  }
   try {
     if (Platform.OS === 'web') {
       await Linking.openURL(url);

@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { countUnseenSuggestionUpdates } from "@/actions/student-suggestions";
+import { countUnseenSuggestionUpdates } from "@/lib/suggestion-handling";
 
 /** 학생 측 미확인 채팅 메시지 합계 (모든 담당자 채팅방 합산). */
 async function countUnreadChatMessagesForStudent(studentId: string): Promise<number> {

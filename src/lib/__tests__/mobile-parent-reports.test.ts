@@ -26,14 +26,14 @@ vi.mock("@/lib/prisma", () => {
     },
   };
 });
-vi.mock("@/actions/analytics", () => ({ getStudentAnalytics: vi.fn() }));
+vi.mock("@/lib/student-analytics", () => ({ computeStudentAnalytics: vi.fn() }));
 vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({ set: cookieSet, get: vi.fn(), delete: vi.fn() })),
   headers: vi.fn(),
 }));
 vi.mock("@/lib/app-url", () => ({ getAppUrl: () => "https://app.example.com" }));
 
-import { getStudentAnalytics } from "@/actions/analytics";
+import { computeStudentAnalytics } from "@/lib/student-analytics";
 import { prisma } from "@/lib/prisma";
 import {
   getParentReportDetail,
@@ -127,7 +127,7 @@ describe("openParentReport", () => {
     expect(ttl).toBeLessThanOrEqual(60_000);
   });
 
-  it("opens online reports directly (no gate on that page)", async () => {
+  it("opens online reports through the gate handoff too", async () => {
     vi.mocked(prisma.onlineParentReport.findUnique).mockResolvedValue({
       id: "o1",
       studentId: "student-1",
@@ -135,11 +135,11 @@ describe("openParentReport", () => {
       status: "SENT",
     } as never);
 
-    await expect(openParentReport(parent, "online", "o1")).resolves.toEqual({
-      mode: "web",
-      url: "https://app.example.com/r/online/otok",
-    });
-    expect(prisma.authVerification.create).not.toHaveBeenCalled();
+    const res = await openParentReport(parent, "online", "o1");
+    expect(res.mode).toBe("web");
+    expect(res.url).toMatch(/^https:\/\/app\.example\.com\/api\/parent-handoff\?n=/);
+    const arg = vi.mocked(prisma.authVerification.create).mock.calls[0][0];
+    expect(JSON.parse(arg.data.value)).toMatchObject({ kind: "online", token: "otok", studentId: "student-1" });
   });
 
   it("does not open unsent online reports", async () => {
@@ -346,7 +346,7 @@ describe("getParentReportDetail", () => {
     vi.mocked(prisma.vocabTestScore.findMany).mockResolvedValue([]);
     vi.mocked(prisma.vocabAttempt.findMany).mockResolvedValue([]);
     vi.mocked(prisma.examScore.findMany).mockResolvedValue([]);
-    vi.mocked(getStudentAnalytics).mockResolvedValue(null);
+    vi.mocked(computeStudentAnalytics).mockResolvedValue(null);
   }
 
   it("returns the full mentoring report even after the web link expired", async () => {
@@ -494,7 +494,7 @@ describe("getParentReportDetail", () => {
       { examType: "OFFICIAL_MOCK", examName: "6월 모평", examDate: new Date("2026-06-04T00:00:00Z"), subject: "국어", grade: 3 },
       { examType: "SCHOOL_EXAM", examName: "1학기 기말", examDate: new Date("2026-07-01T00:00:00Z"), subject: "수학", grade: null },
     ] as never);
-    vi.mocked(getStudentAnalytics).mockResolvedValue({
+    vi.mocked(computeStudentAnalytics).mockResolvedValue({
       avgImprovement: 1,
       mentoringCount: 7,
       studyHours: 120,

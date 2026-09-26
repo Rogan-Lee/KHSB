@@ -28,17 +28,32 @@ async function ownedAttempt(
   return attempt;
 }
 
-/** 기존 토큰 기반 액션의 plain Error 를 모바일 에러로 변환. */
+/** 사용자 안내용 한국어 메시지인지 (Prisma 등 내부 오류 문구는 그대로 내보내지 않는다) */
+const USER_FACING_MESSAGE = /[가-힣]/;
+
+/**
+ * 기존 토큰 기반 액션의 plain Error 를 모바일 에러로 변환.
+ * 액션이 던지는 한국어 안내 문구만 409 로 전달하고, 그 외(DB·런타임 오류)는 그대로 던져
+ * mobileApiErrorResponse 가 로그만 남기고 일반 500 문구로 응답하게 한다.
+ */
 async function viaToken<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (error) {
     if (error instanceof MobileApiError) throw error;
-    const message =
-      error instanceof Error ? error.message : "요청을 처리하지 못했습니다";
-    throw new MobileApiError(message, 409);
+    if (
+      error instanceof Error &&
+      !error.name.startsWith("PrismaClient") &&
+      USER_FACING_MESSAGE.test(error.message)
+    ) {
+      throw new MobileApiError(error.message, 409);
+    }
+    throw error;
   }
 }
+
+const MAX_ANSWER_LEN = 200;
+const MAX_ANSWER_TIME_MS = 60 * 60 * 1000;
 
 function statusLabel(status: string): string {
   return (
@@ -124,8 +139,14 @@ export async function answerMobileVocab(
   timeMs: number,
 ) {
   const attempt = await ownedAttempt(studentId, attemptId);
+  // 답안 길이·소요 시간 상한 (DB Int 범위 초과·과대 입력 방지)
+  const safeAnswer = String(answer ?? "").slice(0, MAX_ANSWER_LEN);
+  const safeTimeMs = Math.min(
+    Math.max(0, Math.floor(Number(timeMs)) || 0),
+    MAX_ANSWER_TIME_MS,
+  );
   await viaToken(() =>
-    submitVocabAnswer(attempt.token, itemId, answer, timeMs),
+    submitVocabAnswer(attempt.token, itemId, safeAnswer, safeTimeMs),
   );
   return { ok: true };
 }

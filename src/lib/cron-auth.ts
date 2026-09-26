@@ -1,4 +1,15 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+
+/**
+ * 상수 시간 문자열 비교.
+ * 길이가 다른 입력도 누설하지 않도록 양쪽을 SHA-256 으로 고정 길이화한 뒤 비교한다.
+ */
+function safeEqual(a: string, b: string): boolean {
+  const ha = createHash("sha256").update(a, "utf8").digest();
+  const hb = createHash("sha256").update(b, "utf8").digest();
+  return timingSafeEqual(ha, hb);
+}
 
 /**
  * Cron API route 인증 헬퍼.
@@ -14,8 +25,8 @@ export function verifyCronSecret(request: NextRequest): NextResponse | null {
     );
   }
 
-  const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${secret}`) {
+  const authHeader = request.headers.get("authorization") ?? "";
+  if (!safeEqual(authHeader, `Bearer ${secret}`)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { STAFF_ROLES } from "@/lib/roles";
+import { STAFF_ROLES, requireAnyStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 
 export type CSVImportRow = {
@@ -30,9 +30,49 @@ export type ImportResult = {
   errors: { row: number; name: string; reason: string }[];
 };
 
+const MAX_IMPORT_ROWS = 1000;
+const MAX_SCHEDULE_ROWS = 100;
+
+function validDayOfWeek(v: unknown): v is number {
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 6;
+}
+
+// 클라이언트가 보낸 일정 객체를 그대로 spread 하지 않고 허용 필드만 남긴다.
+function pickSchedules(studentId: string, schedules: CSVImportRow["schedules"]) {
+  if (!Array.isArray(schedules)) return [];
+  return schedules
+    .slice(0, MAX_SCHEDULE_ROWS)
+    .filter((s) => validDayOfWeek(s?.dayOfWeek) && typeof s.startTime === "string" && typeof s.endTime === "string")
+    .map((s) => ({
+      studentId,
+      dayOfWeek: s.dayOfWeek,
+      startTime: s.startTime.slice(0, 10),
+      endTime: s.endTime.slice(0, 10),
+    }));
+}
+
+function pickOutings(studentId: string, outings: CSVImportRow["outings"]) {
+  if (!Array.isArray(outings)) return [];
+  return outings
+    .slice(0, MAX_SCHEDULE_ROWS)
+    .filter((o) => validDayOfWeek(o?.dayOfWeek) && typeof o.outStart === "string" && typeof o.outEnd === "string")
+    .map((o) => ({
+      studentId,
+      dayOfWeek: o.dayOfWeek,
+      outStart: o.outStart.slice(0, 10),
+      outEnd: o.outEnd.slice(0, 10),
+    }));
+}
+
 export async function importStudentsCSV(rows: CSVImportRow[]): Promise<ImportResult> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
+
+  if (!Array.isArray(rows)) throw new Error("가져올 데이터 형식이 올바르지 않습니다");
+  if (rows.length > MAX_IMPORT_ROWS) {
+    throw new Error(`한 번에 최대 ${MAX_IMPORT_ROWS}행까지 가져올 수 있습니다`);
+  }
 
   const result: ImportResult = { created: 0, updated: 0, skipped: 0, errors: [] };
 
@@ -104,15 +144,13 @@ export async function importStudentsCSV(rows: CSVImportRow[]): Promise<ImportRes
       await prisma.attendanceSchedule.deleteMany({ where: { studentId } });
       await prisma.outingSchedule.deleteMany({ where: { studentId } });
 
-      if (row.schedules.length > 0) {
-        await prisma.attendanceSchedule.createMany({
-          data: row.schedules.map((s) => ({ ...s, studentId })),
-        });
+      const scheduleRows = pickSchedules(studentId, row.schedules);
+      const outingRows = pickOutings(studentId, row.outings);
+      if (scheduleRows.length > 0) {
+        await prisma.attendanceSchedule.createMany({ data: scheduleRows });
       }
-      if (row.outings.length > 0) {
-        await prisma.outingSchedule.createMany({
-          data: row.outings.map((o) => ({ ...o, studentId })),
-        });
+      if (outingRows.length > 0) {
+        await prisma.outingSchedule.createMany({ data: outingRows });
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);

@@ -1,13 +1,13 @@
 export const revalidate = 30;
 
-import { auth } from "@/lib/auth";
 import { getMeetingMinutesList } from "@/actions/meeting-minutes";
 import { getStaffList } from "@/actions/handover";
 import { MeetingMinutesBoard } from "@/components/meeting-minutes/meeting-minutes-board";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 export default async function MeetingMinutesPage() {
-  const [session, minutesList, staffList] = await Promise.all([
-    auth(),
+  const session = await requireDashboardSession();
+  const [minutesList, staffList] = await Promise.all([
     getMeetingMinutesList(),
     getStaffList(),
   ]);

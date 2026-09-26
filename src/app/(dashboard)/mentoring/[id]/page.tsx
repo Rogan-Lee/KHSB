@@ -18,6 +18,8 @@ import { MentoringStatusBadge } from "@/components/mentoring/mentoring-status";
 import { getStudentStudyAnalysis } from "@/actions/reports";
 import { PencilLine, UserRound } from "lucide-react";
 import { CountBadge, DescriptionList, EmptyState, PageHeader, Section, StatusBadge } from "@/components/backoffice/ui";
+import { isStaff } from "@/lib/roles";
+import { requireDashboardSession } from "../../_lib/page-guard";
 
 export default async function MentoringDetailPage({
   params,
@@ -26,8 +28,15 @@ export default async function MentoringDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ from?: string; studentId?: string }>;
 }) {
+  // 오프라인 멘토링 업무 — /mentoring 목록과 같은 기준 (온라인 전용 역할 제외).
+  // getStudentStudyAnalysis 는 자체 인증 없이 이 라우트의 보호에 의존한다.
+  await requireDashboardSession(isStaff);
+
   const { id } = await params;
-  const { from, studentId: fromStudentId } = await searchParams;
+  const { from, studentId: rawFromStudentId } = await searchParams;
+  // 뒤로가기 링크에 들어가는 쿼리 값 — id 형태(cuid)만 허용해 경로 조작(../, //) 차단
+  const fromStudentId =
+    rawFromStudentId && /^[A-Za-z0-9_-]+$/.test(rawFromStudentId) ? rawFromStudentId : undefined;
   const backUrl = from === "student" && fromStudentId
     ? `/students/${fromStudentId}?tab=mentoring`
     : "/mentoring";

@@ -1,15 +1,13 @@
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { NewConsultationForm } from "@/components/consultations/new-consultation-form";
+import { requireDashboardSession } from "../../_lib/page-guard";
 
 export default async function NewConsultationPage({
   searchParams,
 }: {
   searchParams: Promise<{ owner?: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  await requireDashboardSession();
 
   const { owner: ownerParam } = await searchParams;
   const owner = ownerParam === "HEAD_TEACHER" ? "HEAD_TEACHER" : "DIRECTOR";

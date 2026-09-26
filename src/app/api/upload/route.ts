@@ -1,5 +1,6 @@
 import { put } from "@vercel/blob";
 import { auth } from "@/lib/auth";
+import { isAnyStaff } from "@/lib/roles";
 import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
 
@@ -26,6 +27,10 @@ export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  // 호출처는 모두 직원 화면(대시보드·온라인 관리) — 직원 외 계정 차단
+  if (!isAnyStaff(session.user.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const formData = await request.formData();

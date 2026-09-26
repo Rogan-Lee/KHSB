@@ -63,6 +63,7 @@ import type { StaffCapabilities } from '@/lib/capabilities';
 import { useMobileQuery } from '@/lib/mobile-api';
 import { useResponsive } from '@/lib/responsive';
 import { useSession } from '@/lib/session';
+import { isWebUrl } from '@/lib/safe-url';
 
 type Priority = {
   key: string;
@@ -357,7 +358,11 @@ export default function StaffHomeScreen() {
                   variant={s.inProgress ? 'primary' : 'gray'}
                   accessibilityLabel={`${s.studentName} Meet 입장`}
                   onPress={() => {
-                    void Linking.openURL(s.meetUrl!).catch(() => toast('링크를 열지 못했어요', 'error'));
+                    if (!isWebUrl(s.meetUrl)) {
+                      toast('링크를 열지 못했어요', 'error');
+                      return;
+                    }
+                    void Linking.openURL(s.meetUrl).catch(() => toast('링크를 열지 못했어요', 'error'));
                   }}>
                   입장
                 </Button>

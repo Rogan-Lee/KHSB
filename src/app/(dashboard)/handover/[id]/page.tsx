@@ -1,6 +1,5 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@/lib/auth";
 import { getHandoverById, recordHandoverView } from "@/actions/handover";
 import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -12,14 +11,14 @@ import { ChecklistToggleButton } from "./checklist-toggle-button";
 import { TaskToggleButton } from "./task-toggle-button";
 import { HandoverComments } from "./handover-comments";
 import { isFullAccess } from "@/lib/roles";
+import { requireDashboardSession } from "../../_lib/page-guard";
 
 export default async function HandoverDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  const session = await requireDashboardSession();
 
   const { id } = await params;
   const handover = await getHandoverById(id);

@@ -1,10 +1,10 @@
 export const revalidate = 30;
 
 import { getOverallAnalytics, getAttendanceTimeStats } from "@/actions/analytics";
-import { auth } from "@/lib/auth";
+import { isStaff } from "@/lib/roles";
 import { todayKST } from "@/lib/utils";
-import { redirect } from "next/navigation";
 import { AnalyticsDashboard } from "@/components/analytics/analytics-dashboard";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 function lastDaysRange(days: number) {
   const to = todayKST();
@@ -14,8 +14,8 @@ function lastDaysRange(days: number) {
 }
 
 export default async function AnalyticsPage() {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  // 리포트·분석 메뉴는 자습실 직원 전용(nav insights 그룹 = isStaff, getAttendanceTimeStats 도 requireStaff)
+  await requireDashboardSession(isStaff);
 
   const [data, d7, d30] = await Promise.all([
     getOverallAnalytics(),

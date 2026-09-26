@@ -82,7 +82,8 @@ export async function getStaffThread(meId: string, otherUserId: string) {
     where: { id: otherUserId },
     select: { id: true, name: true, role: true },
   });
-  if (!other) throw new MobileApiError("직원을 찾을 수 없습니다", 404);
+  // 직원 간 DM 전용 — 학생 계정과는 스레드를 만들지 않는다 (퇴사 직원과의 지난 대화 열람은 허용)
+  if (!other || other.role === "STUDENT") throw new MobileApiError("직원을 찾을 수 없습니다", 404);
 
   const pair = normalizePair(meId, otherUserId);
   const thread = await prisma.staffThread.upsert({
@@ -131,9 +132,12 @@ export async function sendStaffThreadMessage(
 
   const other = await prisma.user.findUnique({
     where: { id: otherUserId },
-    select: { id: true },
+    select: { id: true, role: true, status: true },
   });
-  if (!other) throw new MobileApiError("직원을 찾을 수 없습니다", 404);
+  // 새 메시지는 활성 직원에게만 (학생 계정·비활성 계정으로 푸시 발송 방지)
+  if (!other || other.role === "STUDENT" || other.status !== "ACTIVE") {
+    throw new MobileApiError("직원을 찾을 수 없습니다", 404);
+  }
 
   const pair = normalizePair(me.id, otherUserId);
   const now = new Date();

@@ -9,7 +9,9 @@ import { notifySlack } from "@/lib/slack";
 // 학부모 앱(src/lib/mobile-parent-inquiries.ts, ParentLink)이 같이 쓴다.
 
 export function validateParentFeedbackContent(content: string) {
-  if (!content.trim()) throw new MobileApiError("내용을 입력해 주세요", 400);
+  if (typeof content !== "string" || !content.trim()) {
+    throw new MobileApiError("내용을 입력해 주세요", 400);
+  }
   if (content.length > 2000) throw new MobileApiError("2000자 이내로 작성해 주세요", 400);
 }
 
@@ -18,15 +20,17 @@ export async function createOnlineParentFeedback(
   report: { id: string; studentName: string },
   params: { name?: string | null; content: string },
 ) {
+  // 무인증(토큰) 입력 — 이름은 문자열만, 길이 제한
+  const name = typeof params.name === "string" ? params.name.trim().slice(0, 50) : "";
   await prisma.onlineParentFeedback.create({
     data: {
       reportId: report.id,
-      name: params.name?.trim() || null,
+      name: name || null,
       content: params.content.trim(),
     },
   });
 
-  const label = params.name?.trim() ? `"${params.name.trim()}" 님` : "학부모님";
+  const label = name ? `"${name}" 님` : "학부모님";
   await notifySlack(
     `💬 *${report.studentName} 학부모 피드백 도착*\n${label}: ${params.content.slice(0, 200)}${params.content.length > 200 ? "..." : ""}\n_/online/reports/${report.id} 에서 확인_`,
   );

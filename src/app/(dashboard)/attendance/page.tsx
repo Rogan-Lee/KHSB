@@ -6,11 +6,11 @@ import { FilterLink } from "@/components/attendance/attendance-status";
 import { todayKST } from "@/lib/utils";
 import { offlineStudentWhere } from "@/lib/student-filters";
 import { listStudentPortalLinks } from "@/actions/student-portal-links";
-import { auth } from "@/lib/auth";
 import { isFullAccess } from "@/lib/roles";
 import { PortalLinksSheet } from "@/components/attendance/portal-links-sheet";
 import { Button } from "@/components/ui/button";
 import { PageHeader, StatCard, StatCards } from "@/components/backoffice/ui";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 export const revalidate = 30; // 30초 캐싱 (force-dynamic 대비 성능 향상)
 
@@ -19,6 +19,7 @@ export default async function AttendancePage({
 }: {
   searchParams: Promise<{ filter?: string }>;
 }) {
+  const session = await requireDashboardSession();
   const { filter } = await searchParams;
   const isAbsentFilter = filter === "absent";
   const isSelfStudyFilter = filter === "self-study";
@@ -28,8 +29,8 @@ export default async function AttendancePage({
   const dayOfWeek = kstNow.getUTCDay();
   const nowHHMM = kstNow.toISOString().slice(11, 16); // "HH:MM" KST
 
-  const [portalLinkRows, session] = await Promise.all([listStudentPortalLinks(), auth()]);
-  const canManagePortalLinks = isFullAccess(session?.user.role);
+  const portalLinkRows = await listStudentPortalLinks();
+  const canManagePortalLinks = isFullAccess(session.user.role);
 
   const students = await prisma.student.findMany({
     where: offlineStudentWhere({ status: "ACTIVE" }),

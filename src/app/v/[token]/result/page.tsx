@@ -7,6 +7,7 @@ import { VocabTopBar } from "../_components/vocab-top-bar";
 import { VocabNotice } from "../_components/vocab-notice";
 import { ResultWords } from "./result-words";
 import { ResultExitButton } from "./result-exit-button";
+import { portalHrefFromReferer } from "../portal-href";
 
 export const dynamic = "force-dynamic";
 
@@ -31,19 +32,7 @@ export default async function VocabResultPage({
       correctCount: true,
       totalQuestions: true,
       durationMs: true,
-      student: {
-        select: {
-          id: true,
-          name: true,
-          // 활성 매직링크가 있으면 결과 페이지에서 학생 포털로 돌아갈 수 있게 노출
-          magicLinks: {
-            where: { revokedAt: null, expiresAt: { gt: new Date() } },
-            orderBy: { issuedAt: "desc" },
-            take: 1,
-            select: { token: true },
-          },
-        },
-      },
+      student: { select: { id: true, name: true } },
       exam: { select: { title: true } },
       items: {
         orderBy: { order: "asc" },
@@ -63,8 +52,8 @@ export default async function VocabResultPage({
   const pass = score >= 80;
   const correct = attempt.correctCount;
   const wrong = Math.max(0, attempt.totalQuestions - attempt.correctCount);
-  const portalToken = attempt.student.magicLinks[0]?.token ?? null;
-  const portalHref = portalToken ? `/s/${portalToken}/vocab` : undefined;
+  // 포털에서 들어온 경우에만 포털 링크 노출 (응시 링크로 포털 토큰이 새지 않게 — ../portal-href.ts)
+  const portalHref = await portalHrefFromReferer(attempt.student.id);
 
   return (
     <>

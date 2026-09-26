@@ -11,13 +11,18 @@
   const ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 
   // ── 콘텐츠 API (로컬 테스트: ?api=http://localhost:3000 → 세션 동안 유지) ──
-  const qApi = new URLSearchParams(location.search).get('api');
+  // 보안: API 오버라이드는 로컬에서 띄운 랜딩(localhost/127.0.0.1)에서만 허용.
+  // 운영 도메인에서 허용하면 ?api=https://악성서버 링크로 bodyHtml 을 주입(DOM XSS)할 수 있다.
+  const IS_LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+  const qApi = IS_LOCAL ? new URLSearchParams(location.search).get('api') : null;
   try { if (qApi) sessionStorage.setItem('khsbApi', qApi); } catch (e) { /* 저장 불가 환경 */ }
   let API = SITE.api;
-  try { API = sessionStorage.getItem('khsbApi') || SITE.api; } catch (e) { /* 기본값 */ }
+  try { if (IS_LOCAL) API = sessionStorage.getItem('khsbApi') || SITE.api; } catch (e) { /* 기본값 */ }
   const TYPE_LABEL = { review: '후기', mentor: '선배 아티클', director: '원장 칼럼', podcast: '팟캐스트', article: '아티클' };
   const fmtDate = d => (d ? new Date(d).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) : '');
-  const postHref = p => (p.hasBody || !p.url ? `article.html?id=${encodeURIComponent(p.id)}` : p.url);
+  // 외부 링크는 http(s) 만 (javascript: 등 차단)
+  const safeUrl = u => (/^https?:\/\//i.test(String(u || '').trim()) ? String(u).trim() : '#');
+  const postHref = p => (p.hasBody || !p.url ? `article.html?id=${encodeURIComponent(p.id)}` : safeUrl(p.url));
   const isExternal = p => !(p.hasBody || !p.url);
   async function api(path) {
     const r = await fetch(API + path, { headers: { Accept: 'application/json' } });
@@ -408,5 +413,5 @@
   }
 
   observeNew();
-  window.KHSB = { api, storyCard, reviewCard, publishedReviewCard, TYPE_LABEL, fmtDate, esc, observeNew, openModal, postHref, API: () => API };
+  window.KHSB = { api, storyCard, reviewCard, publishedReviewCard, TYPE_LABEL, fmtDate, esc, safeUrl, observeNew, openModal, postHref, API: () => API };
 })();

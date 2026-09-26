@@ -4,6 +4,7 @@ import { SearchX, TimerOff } from "lucide-react";
 import { VocabExperience } from "./_components/vocab-runner";
 import { VocabNotice } from "./_components/vocab-notice";
 import { getRequestMeta } from "@/lib/token-auth";
+import { portalHrefFromReferer } from "./portal-href";
 
 export const dynamic = "force-dynamic";
 
@@ -20,18 +21,8 @@ export default async function VocabExamEntryPage({
       status: true,
       totalQuestions: true,
       expiresAt: true,
-      student: {
-        select: {
-          name: true,
-          // 활성 매직링크가 있으면 뒤로 가기·안내 화면에서 학생 포털로 돌아갈 수 있게
-          magicLinks: {
-            where: { revokedAt: null, expiresAt: { gt: new Date() } },
-            orderBy: { issuedAt: "desc" },
-            take: 1,
-            select: { token: true },
-          },
-        },
-      },
+      studentId: true,
+      student: { select: { name: true } },
       exam: { select: { title: true, questionCount: true, perQuestionSeconds: true } },
     },
   });
@@ -47,8 +38,8 @@ export default async function VocabExamEntryPage({
     );
   }
 
-  const portalToken = attempt.student.magicLinks[0]?.token ?? null;
-  const portalHref = portalToken ? `/s/${portalToken}/vocab` : undefined;
+  // 포털에서 들어온 경우에만 그 포털로 돌아가는 링크 (응시 링크로 포털 토큰이 새지 않게 — portal-href.ts)
+  const portalHref = await portalHrefFromReferer(attempt.studentId);
 
   if (attempt.status === "EXPIRED") {
     return <ExpiredNotice portalHref={portalHref} />;

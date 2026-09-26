@@ -8,7 +8,7 @@ import { z } from "zod";
 import { MentoringStatus } from "@/generated/prisma";
 import type { MentoringPhotoTag } from "@/generated/prisma";
 import { todayKST, nowKSTTimeString } from "@/lib/utils";
-import { requireStaff } from "@/lib/roles";
+import { isFullAccess, requireAnyStaff, requireStaff } from "@/lib/roles";
 import { ensureAutoFolder } from "@/actions/photos";
 
 const mentoringSchema = z.object({
@@ -23,6 +23,7 @@ const mentoringSchema = z.object({
 export async function createMentoring(formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   const raw = Object.fromEntries(formData.entries());
   const data = mentoringSchema.parse(raw);
@@ -87,6 +88,7 @@ export async function getMentorings(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   const baseWhere =
     session.user.role === "MENTOR" ? { mentorId: session.user.id } :
@@ -111,6 +113,7 @@ export async function getMentorings(
 export async function getMentoring(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   return prisma.mentoring.findUnique({
     where: { id },
@@ -145,6 +148,11 @@ export type MatchCandidate = {
 };
 
 export async function getMentoringMatches(mentorId: string, date?: string): Promise<MatchCandidate[]> {
+  // 보안: 공개 엔드포인트 — 원생 이름·학교·멘토링 메모를 반환하므로 직원만 허용
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const dayOfWeek = date ? new Date(date).getUTCDay() : kstNow.getUTCDay();
   const targetDate = date ? new Date(date) : todayKST();
@@ -245,6 +253,7 @@ export async function getMentoringMatches(mentorId: string, date?: string): Prom
 export async function sendFeedbackEmail(mentoringId: string): Promise<{ ok: boolean; message: string }> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   const mentoring = await prisma.mentoring.findUnique({
     where: { id: mentoringId },
@@ -289,6 +298,17 @@ export async function deleteMentorSchedule(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
+  // 본인 스케줄만 삭제. 원장/SUPER_ADMIN·총괄 멘토는 전원 스케줄 관리 가능 (mentors.ts 와 동일 정책)
+  const schedule = await prisma.mentorSchedule.findUnique({
+    where: { id },
+    select: { mentorId: true },
+  });
+  if (!schedule) throw new Error("스케줄을 찾을 수 없습니다");
+  const role = session.user.role;
+  if (schedule.mentorId !== session.user.id && !isFullAccess(role) && role !== "HEAD_MENTOR") {
+    throw new Error("삭제 권한이 없습니다");
+  }
+
   await prisma.mentorSchedule.delete({ where: { id } });
   revalidatePath("/mentoring/schedule");
 }
@@ -296,6 +316,7 @@ export async function deleteMentorSchedule(id: string) {
 export async function getMentorWeeklySchedules(mentorId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   return prisma.mentorSchedule.findMany({
     where: { mentorId },
@@ -306,6 +327,7 @@ export async function getMentorWeeklySchedules(mentorId: string) {
 export async function getAllMentorSchedulesToday(dayOfWeek: number) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   return prisma.mentorSchedule.findMany({
     where: { dayOfWeek },
@@ -326,6 +348,7 @@ export type MentorTodaySlot = {
 export async function getTodayWorkingMentors(): Promise<MentorTodaySlot[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const dayOfWeek = kstNow.getUTCDay();
@@ -516,6 +539,30 @@ export async function quickStartMentoring(studentId: string, mentorId: string): 
 // Photo 로 만들기 때문에 사진관리 화면에 자동 노출되고, YYYY/MM 자동 폴더로 분류된다.
 // ──────────────────────────────────────────────────────
 
+// /api/upload/mentoring 의 허용 MIME 과 동일
+const MENTORING_PHOTO_MIME_TYPES = new Set<string>([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
+
+/** Vercel Blob 공개 URL 이면서 mentoring/{mentoringId}/ 경로인지 */
+function isMentoringBlobUrl(raw: unknown, mentoringId: string): boolean {
+  if (typeof raw !== "string" || raw.length > 1000) return false;
+  try {
+    const u = new URL(raw);
+    return (
+      u.protocol === "https:" &&
+      u.hostname.endsWith(".public.blob.vercel-storage.com") &&
+      u.pathname.startsWith(`/mentoring/${mentoringId}/`)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function attachMentoringPhoto(
   mentoringId: string,
   data: {
@@ -531,12 +578,30 @@ export async function attachMentoringPhoto(
   const session = await auth();
   requireStaff(session?.user?.role);
   if (data.tag === "KDA") throw new Error("KDA 태그는 더 이상 사용할 수 없습니다");
+  if (data.tag !== "EXTRA" && data.tag !== "FREE") throw new Error("허용되지 않는 태그입니다");
 
   const target = await prisma.mentoring.findUnique({
     where: { id: mentoringId },
     select: { id: true, studentId: true },
   });
   if (!target) throw new Error("멘토링 기록을 찾을 수 없습니다");
+
+  // 보안: url 은 /api/upload/mentoring 이 이 멘토링 경로로 올린 Blob 만 허용.
+  // (임의 URL 을 기록한 뒤 deleteMentoringPhoto/deletePhoto 로 다른 Blob 을 지우거나
+  //  외부 URL 을 사진관리·리포트에 노출하는 것을 차단)
+  if (!isMentoringBlobUrl(data.url, mentoringId)) {
+    throw new Error("업로드된 파일 주소가 올바르지 않습니다");
+  }
+  if (data.thumbnailUrl && !isMentoringBlobUrl(data.thumbnailUrl, mentoringId)) {
+    throw new Error("업로드된 파일 주소가 올바르지 않습니다");
+  }
+  if (!MENTORING_PHOTO_MIME_TYPES.has(data.mimeType)) {
+    throw new Error("이미지 파일만 첨부할 수 있습니다");
+  }
+  const sizeBytes =
+    typeof data.sizeBytes === "number" && Number.isFinite(data.sizeBytes) && data.sizeBytes >= 0
+      ? Math.min(Math.round(data.sizeBytes), 10 * 1024 * 1024)
+      : 0;
 
   // 사진관리 YYYY/MM 자동 폴더 배정 (best-effort — 실패해도 folderId=null 로 저장)
   let folderId: string | null = null;
@@ -549,11 +614,11 @@ export async function attachMentoringPhoto(
   const created = await prisma.photo.create({
     data: {
       folderId,
-      fileName: data.fileName?.trim() || `mentoring-${Date.now()}`,
+      fileName: data.fileName?.trim().slice(0, 200) || `mentoring-${Date.now()}`,
       url: data.url,
       thumbnailUrl: data.thumbnailUrl ?? null,
       mimeType: data.mimeType,
-      sizeBytes: data.sizeBytes ?? 0,
+      sizeBytes,
       studentId: target.studentId,
       mentoringId,
       mentoringTag: data.tag,

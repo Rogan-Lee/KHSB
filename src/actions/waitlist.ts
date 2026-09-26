@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { checkMessageExists, createSmsQrCode, OCTOMO_RECEIVER } from "@/lib/octomo";
+import { grantGatePass, hasGatePass } from "@/lib/token-auth";
+import { createOpaqueToken } from "@/lib/auth-tokens";
 import type {
   BranchWaitStatus,
   WaitGender,
@@ -19,12 +21,52 @@ const RATE_WINDOW_MS = 10 * 60 * 1000; // 10분
 const SUBMIT_WINDOW_MS = 10 * 60 * 1000; // 인증 완료 후 제출 허용 시간
 const MAX_ISSUES_PER_WINDOW = 5;
 const MAX_VERIFY_ATTEMPTS = 10; // MO는 유저가 보낸 뒤 폴링이라 시도 여유
+const MAX_UNVERIFIED_INQUIRIES_PER_WINDOW = 3; // 미인증 문의 — 번호당 10분 내 접수 상한
+
+// 공개 폼 입력 길이 상한
+const NAME_MAX = 50;
+const SCHOOL_MAX = 50;
+const GRADE_MAX = 20;
+const NOTE_MAX = 2000;
+
+const WAIT_GENDERS: readonly string[] = ["MALE", "FEMALE"];
+const WAIT_GRADE_TYPES: readonly string[] = ["REPEAT", "ENROLLED"];
+const WAITLIST_KINDS: readonly string[] = ["WAITLIST", "INQUIRY"];
+
+// ─── 전화 인증 ↔ 브라우저 결속 ───
+// 인증 기록(PhoneVerification)은 번호 단위라, 결속이 없으면 남의 번호를 아는 사람이
+// (1) 피해자가 문자를 보낸 직후 먼저 "보냈어요"를 눌러 인증을 가로채거나
+// (2) 피해자 인증 후 10분 안에 findExistingByPhone 으로 신청 내역(이름·학교·토큰)을 조회할 수 있다.
+// 발급·인증 시 HMAC 쿠키(token-auth 게이트 쿠키 재사용)를 심고, 이후 단계는 같은 브라우저만 허용한다.
+function issueGateKey(phone: string) {
+  return `waitlist-phone-issue:${phone}`;
+}
+function verifiedGateKey(phone: string) {
+  return `waitlist-phone-verified:${phone}`;
+}
+async function safeHasGatePass(key: string, subjectId: string): Promise<boolean> {
+  try {
+    return await hasGatePass("PARENT", key, subjectId);
+  } catch {
+    return false;
+  }
+}
+
+/** 이 브라우저에서 인증을 완료한, 제출 허용 시간 내의 인증 기록 (없으면 null) */
+async function findBoundVerification(phone: string) {
+  const verified = await prisma.phoneVerification.findFirst({
+    where: { phone, verifiedAt: { gt: new Date(Date.now() - SUBMIT_WINDOW_MS) } },
+    orderBy: { verifiedAt: "desc" },
+  });
+  if (!verified) return null;
+  return (await safeHasGatePass(verifiedGateKey(phone), verified.id)) ? verified : null;
+}
 
 type Result<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
 /** 휴대폰 번호 정규화 — 숫자만. 한국 휴대폰(010, 11자리)만 허용. */
 function normalizePhone(raw: string): string | null {
-  const digits = (raw ?? "").replace(/\D/g, "");
+  const digits = (typeof raw === "string" ? raw : "").replace(/\D/g, "");
   return /^01[0-9]\d{7,8}$/.test(digits) ? digits : null;
 }
 
@@ -49,10 +91,14 @@ export async function issuePhoneCode(rawPhone: string): Promise<IssueCodeResult>
     return { ok: false, error: "잠시 후 다시 시도해주세요 (발급 횟수 초과)" };
   }
 
-  const code = String(Math.floor(100000 + Math.random() * 900000)); // 6자리
-  await prisma.phoneVerification.create({
-    data: { phone, code, expiresAt: new Date(Date.now() + CODE_TTL_MS) },
+  const code = String(randomInt(100000, 1000000)); // 6자리
+  const expiresAt = new Date(Date.now() + CODE_TTL_MS);
+  const verification = await prisma.phoneVerification.create({
+    data: { phone, code, expiresAt },
+    select: { id: true },
   });
+  // 발급한 브라우저에만 "보냈어요"(confirm) 허용
+  await grantGatePass("PARENT", issueGateKey(phone), verification.id, expiresAt);
 
   const qrCode = await createSmsQrCode(code);
   return { ok: true, code, receiver: OCTOMO_RECEIVER, qrCode };
@@ -66,10 +112,19 @@ export async function confirmPhoneVerification(rawPhone: string): Promise<Result
   const phone = normalizePhone(rawPhone);
   if (!phone) return { ok: false, error: "올바른 휴대폰 번호를 입력해주세요" };
 
-  const verification = await prisma.phoneVerification.findFirst({
+  // 이 브라우저가 발급한 미인증 코드만 대상 (제3자가 같은 번호로 발급한 건 무시 — 가로채기·방해 방지)
+  const pending = await prisma.phoneVerification.findMany({
     where: { phone, verifiedAt: null, expiresAt: { gt: new Date() } },
     orderBy: { createdAt: "desc" },
+    take: MAX_ISSUES_PER_WINDOW,
   });
+  let verification: (typeof pending)[number] | null = null;
+  for (const v of pending) {
+    if (await safeHasGatePass(issueGateKey(phone), v.id)) {
+      verification = v;
+      break;
+    }
+  }
   if (!verification) return { ok: false, error: "인증번호를 먼저 발급받아주세요" };
   if (verification.attemptCount >= MAX_VERIFY_ATTEMPTS) {
     return { ok: false, error: "인증 시도 횟수를 초과했습니다. 다시 발급받아주세요" };
@@ -88,14 +143,22 @@ export async function confirmPhoneVerification(rawPhone: string): Promise<Result
     });
     return {
       ok: false,
-      error: `아직 문자 수신이 확인되지 않았어요. 인증번호 ${verification.code}를 ${OCTOMO_RECEIVER}로 보낸 뒤 다시 눌러주세요`,
+      error: `아직 문자 수신이 확인되지 않았어요. 화면의 인증번호를 ${OCTOMO_RECEIVER}로 보낸 뒤 다시 눌러주세요`,
     };
   }
 
+  const verifiedAt = new Date();
   await prisma.phoneVerification.update({
     where: { id: verification.id },
-    data: { verifiedAt: new Date() },
+    data: { verifiedAt },
   });
+  // 인증을 완료한 브라우저에만 제출·내역 조회 허용 (제출 허용 시간과 동일하게 만료)
+  await grantGatePass(
+    "PARENT",
+    verifiedGateKey(phone),
+    verification.id,
+    new Date(verifiedAt.getTime() + SUBMIT_WINDOW_MS),
+  );
   return { ok: true };
 }
 
@@ -122,10 +185,34 @@ export type WaitlistSubmitInput = {
 export async function submitWaitlist(
   input: WaitlistSubmitInput
 ): Promise<Result<{ token: string }>> {
+  if (!input || typeof input !== "object") return { ok: false, error: "잘못된 요청입니다" };
   const kind = input.kind ?? "WAITLIST";
+  if (!WAITLIST_KINDS.includes(kind)) return { ok: false, error: "잘못된 요청입니다" };
+  if (typeof input.phone !== "string" || typeof input.name !== "string") {
+    return { ok: false, error: "잘못된 요청입니다" };
+  }
   const phone = normalizePhone(input.phone);
   if (!phone) return { ok: false, error: "올바른 휴대폰 번호를 입력해주세요" };
   if (!input.name?.trim()) return { ok: false, error: "이름을 입력해주세요" };
+  // 공개 폼 — 길이·형식 제한 (DB 스팸/비정상 입력 방지)
+  const tooLong = (v: unknown, max: number) => v != null && (typeof v !== "string" || v.length > max);
+  if (
+    tooLong(input.name, NAME_MAX) ||
+    tooLong(input.school, SCHOOL_MAX) ||
+    tooLong(input.grade, GRADE_MAX) ||
+    tooLong(input.note, NOTE_MAX)
+  ) {
+    return { ok: false, error: "입력 길이를 확인해주세요" };
+  }
+  if (input.gender != null && !WAIT_GENDERS.includes(input.gender)) {
+    return { ok: false, error: "성별을 다시 선택해주세요" };
+  }
+  if (input.gradeType != null && !WAIT_GRADE_TYPES.includes(input.gradeType)) {
+    return { ok: false, error: "학년을 다시 선택해주세요" };
+  }
+  if (input.programId != null && typeof input.programId !== "string") {
+    return { ok: false, error: "잘못된 요청입니다" };
+  }
   // 대기 신청만 성별/학년 필수. 문의는 생략 가능.
   if (kind === "WAITLIST" && (!input.gender || !input.gradeType)) {
     return { ok: false, error: "성별과 학년을 선택해주세요" };
@@ -137,13 +224,24 @@ export async function submitWaitlist(
       ? input.entryPreference
       : null;
 
-  // 최근 인증 완료된 레코드 확인 — 대기 신청만 필수, 문의는 미인증 허용
-  const verified = await prisma.phoneVerification.findFirst({
-    where: { phone, verifiedAt: { gt: new Date(Date.now() - SUBMIT_WINDOW_MS) } },
-    orderBy: { verifiedAt: "desc" },
-  });
+  // 최근 인증 완료된 레코드 확인 (이 브라우저에서 인증한 것만) — 대기 신청만 필수, 문의는 미인증 허용
+  const verified = await findBoundVerification(phone);
   if (!verified && kind === "WAITLIST") {
     return { ok: false, error: "휴대폰 본인인증을 먼저 완료해주세요" };
+  }
+  if (!verified) {
+    // 미인증 문의는 번호당 접수 횟수 제한 (무인증 공개 엔드포인트 스팸 방지)
+    const recentInquiries = await prisma.waitlist.count({
+      where: {
+        phone,
+        kind: "INQUIRY",
+        phoneVerifiedAt: null,
+        createdAt: { gt: new Date(Date.now() - RATE_WINDOW_MS) },
+      },
+    });
+    if (recentInquiries >= MAX_UNVERIFIED_INQUIRIES_PER_WINDOW) {
+      return { ok: false, error: "잠시 후 다시 시도해주세요 (접수 횟수 초과)" };
+    }
   }
 
   const branch = await prisma.branch.findFirst({
@@ -155,10 +253,22 @@ export async function submitWaitlist(
     return { ok: false, error: "해당 지점은 현재 신청을 받지 않습니다" };
   }
 
+  // 프로그램은 해당 지점의 활성 프로그램만 허용
+  const programId = kind === "WAITLIST" ? input.programId || null : null;
+  if (programId) {
+    const program = await prisma.waitlistProgram.findFirst({
+      where: { id: programId, branchId: branch.id, isActive: true },
+      select: { id: true },
+    });
+    if (!program) return { ok: false, error: "선택한 프로그램을 찾을 수 없습니다" };
+  }
+
   const entry = await prisma.waitlist.create({
     data: {
+      // 상태 페이지 공개 토큰 — 스키마 기본값(cuid) 대신 CSPRNG 로 발급
+      token: createOpaqueToken(24),
       branchId: branch.id,
-      programId: kind === "WAITLIST" ? input.programId || null : null,
+      programId,
       name: input.name.trim(),
       school: input.school?.trim() || null,
       grade: input.grade?.trim() || null,
@@ -194,9 +304,8 @@ export type ExistingEntry = {
 export async function findExistingByPhone(rawPhone: string): Promise<ExistingEntry[]> {
   const phone = normalizePhone(rawPhone);
   if (!phone) return [];
-  const verified = await prisma.phoneVerification.findFirst({
-    where: { phone, verifiedAt: { gt: new Date(Date.now() - SUBMIT_WINDOW_MS) } },
-  });
+  // 이 브라우저에서 인증한 번호만 조회 허용 (번호만 아는 제3자의 조회 차단)
+  const verified = await findBoundVerification(phone);
   if (!verified) return [];
 
   const entries = await prisma.waitlist.findMany({

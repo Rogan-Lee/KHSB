@@ -1,7 +1,5 @@
 export const revalidate = 30;
 
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ConsultationsList } from "@/components/consultations/consultations-table";
 import { ConsultationOwnerTabs } from "@/components/consultations/consultation-owner-tabs";
@@ -10,14 +8,14 @@ import { PageHeader, StatCard, StatCards } from "@/components/backoffice/ui";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { resolveDateRange } from "@/lib/date-range";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 export default async function ConsultationsPage({
   searchParams,
 }: {
   searchParams: Promise<{ owner?: string; from?: string; to?: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  await requireDashboardSession();
 
   const { owner: ownerParam, from: fromParam, to: toParam } = await searchParams;
   const owner = ownerParam === "HEAD_TEACHER" ? "HEAD_TEACHER" : "DIRECTOR";

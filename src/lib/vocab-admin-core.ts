@@ -41,8 +41,23 @@ export async function assignVocabExam(params: {
   return { added: targets.length, skipped: skip.size };
 }
 
-/** 응시 링크 재발급 — 새 토큰·만료일·셔플 시드, 기존 응시 문항은 폐기(처음부터 다시). */
+/**
+ * 응시 링크 재발급 — 새 토큰·만료일·셔플 시드, 기존 응시 문항은 폐기(처음부터 다시).
+ * 제출 완료·취소된 응시는 재발급 불가 (채점 결과가 지워지므로). 웹 UI·모바일과 같은 규칙을 코어에서 강제.
+ */
 export async function reissueVocabAttemptLink(attemptId: string) {
+  const current = await prisma.vocabAttempt.findUnique({
+    where: { id: attemptId },
+    select: { status: true },
+  });
+  if (!current) throw new VocabAdminCoreError("응시 기록을 찾을 수 없습니다");
+  if (current.status === "SUBMITTED") {
+    throw new VocabAdminCoreError("제출을 마친 응시는 재발급할 수 없어요");
+  }
+  if (current.status === "EXPIRED") {
+    throw new VocabAdminCoreError("취소된 응시는 재발급할 수 없어요");
+  }
+
   const updated = await prisma.vocabAttempt.update({
     where: { id: attemptId },
     data: {

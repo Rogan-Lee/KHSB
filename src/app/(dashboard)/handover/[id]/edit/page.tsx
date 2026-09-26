@@ -1,18 +1,17 @@
-import { notFound, redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { notFound } from "next/navigation";
 import { getHandoverById, getStaffList } from "@/actions/handover";
 import { getChecklistTemplates } from "@/actions/checklist-templates";
 import { getMonthlyNotes } from "@/actions/monthly-notes";
 import { PageHeader } from "@/components/backoffice/ui";
 import { HandoverFormPageWrapper } from "@/components/handover/handover-form-page-wrapper";
+import { requireDashboardSession } from "../../../_lib/page-guard";
 
 export default async function EditHandoverPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  await requireDashboardSession();
 
   const { id } = await params;
 

@@ -7,7 +7,11 @@ import { requireAnyStaff } from "@/lib/roles";
 import { assertCanManageStudent } from "@/lib/student-access";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
+import { sanitizePortalAttachments } from "@/lib/portal-attachments";
 import type { TaskFeedbackStatus } from "@/generated/prisma";
+
+const MAX_FILES = 10;
+const MAX_NOTE_LEN = 2000;
 
 export type UploadedFile = {
   url: string;
@@ -43,9 +47,16 @@ export async function createOrUpdateSubmission(params: {
   if (!task || task.studentId !== session.student.id) {
     throw new Error("권한이 없습니다");
   }
-  if (params.files.length === 0) {
+  // 조용히 잘리지 않게 개수 초과는 명시적으로 거절
+  if (Array.isArray(params.files) && params.files.length > MAX_FILES) {
+    throw new Error(`파일은 ${MAX_FILES}개까지 첨부할 수 있습니다`);
+  }
+  // 클라이언트가 보낸 파일 메타를 그대로 저장하지 않는다 — https URL·필드 길이 정규화
+  const files = sanitizePortalAttachments(params.files, MAX_FILES);
+  if (files.length === 0) {
     throw new Error("최소 1개 이상의 파일을 첨부하세요");
   }
+  const note = (typeof params.note === "string" ? params.note : "").trim().slice(0, MAX_NOTE_LEN) || null;
 
   const latest = await prisma.taskSubmission.findFirst({
     where: { taskId: params.taskId },
@@ -61,8 +72,8 @@ export async function createOrUpdateSubmission(params: {
         taskId: params.taskId,
         studentId: session.student.id,
         version: 1,
-        files: params.files as unknown as object,
-        note: params.note?.trim() || null,
+        files: files as unknown as object,
+        note,
       },
     });
     isNewVersion = true;
@@ -71,8 +82,8 @@ export async function createOrUpdateSubmission(params: {
     await prisma.taskSubmission.update({
       where: { id: latest.id },
       data: {
-        files: params.files as unknown as object,
-        note: params.note?.trim() || null,
+        files: files as unknown as object,
+        note,
         submittedAt: new Date(),
       },
     });
@@ -83,8 +94,8 @@ export async function createOrUpdateSubmission(params: {
         taskId: params.taskId,
         studentId: session.student.id,
         version: latest.version + 1,
-        files: params.files as unknown as object,
-        note: params.note?.trim() || null,
+        files: files as unknown as object,
+        note,
       },
     });
     isNewVersion = true;
@@ -124,9 +135,13 @@ export async function createFeedback(params: {
   const session = await auth();
   requireAnyStaff(session?.user?.role);
 
-  if (!params.content.trim()) {
+  if (typeof params.content !== "string" || !params.content.trim()) {
     throw new Error("피드백 내용을 입력하세요");
   }
+  if (Array.isArray(params.files) && params.files.length > MAX_FILES) {
+    throw new Error(`파일은 ${MAX_FILES}개까지 첨부할 수 있습니다`);
+  }
+  const feedbackFiles = sanitizePortalAttachments(params.files, MAX_FILES);
 
   const submission = await prisma.taskSubmission.findUnique({
     where: { id: params.submissionId },
@@ -148,7 +163,7 @@ export async function createFeedback(params: {
       authorId: session!.user.id,
       content: params.content.trim(),
       status: params.status,
-      files: (params.files ?? []) as unknown as object,
+      files: feedbackFiles as unknown as object,
     },
   });
 

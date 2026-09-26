@@ -1,15 +1,13 @@
 export const revalidate = 30;
 
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { SeatMapBoard } from "@/components/seat-map/seat-map-board";
 import { offlineStudentWhere } from "@/lib/student-filters";
 import { PageHeader } from "@/components/backoffice/ui";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 export default async function SeatMapPage() {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  await requireDashboardSession();
 
   const students = await prisma.student.findMany({
     where: offlineStudentWhere({ status: "ACTIVE" }),

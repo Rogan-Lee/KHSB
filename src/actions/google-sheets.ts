@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { requireFullAccess } from "@/lib/roles";
+import { requireAnyStaff, requireFullAccess } from "@/lib/roles";
 import { getGoogleSheetsClient, isOAuthAppConfigured } from "@/lib/google-calendar";
 import { type CSVImportRow } from "./import";
 import { type ExamScoreCSVRow } from "./exam-scores";
@@ -205,6 +205,7 @@ async function fetchSheetData(sheetUrl: string, sheetName: string | null): Promi
 export async function getGoogleSheetsConfig(type: SheetType) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   return prisma.googleSheetsConfig.findUnique({ where: { id: type } });
 }

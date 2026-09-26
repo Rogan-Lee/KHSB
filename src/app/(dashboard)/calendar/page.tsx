@@ -5,21 +5,21 @@ import { parseSchool } from "@/lib/utils";
 import { CalendarView } from "@/components/calendar/calendar-view";
 import { fetchGoogleCalendarEvents } from "@/actions/google-calendar";
 import { isGoogleCalendarConfigured, isOAuthAppConfigured } from "@/lib/google-calendar";
-import { auth } from "@/lib/auth";
 import { GoogleCalendarConnectButton } from "@/components/calendar/google-calendar-connect-button";
 import { PageHeader } from "@/components/backoffice/ui";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 export default async function CalendarPage({
   searchParams,
 }: {
   searchParams: Promise<{ google_connected?: string; google_error?: string }>;
 }) {
+  const session = await requireDashboardSession();
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth() - 6, 1);
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 7, 0);
 
-  const [session, events, schoolRows, studentRows] = await Promise.all([
-    auth(),
+  const [events, schoolRows, studentRows] = await Promise.all([
     prisma.calendarEvent.findMany({
       where: { startDate: { gte: startOfMonth, lte: endOfMonth } },
       include: { student: { select: { id: true, name: true } } },

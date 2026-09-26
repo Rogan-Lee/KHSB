@@ -58,13 +58,13 @@
 <div class="ar-toast" id="arToast" role="status">링크를 복사했어요</div>
 
 <script src="mentors-data.js?v=seed4"></script>
-<script src="bx-core.js?v=bx20"></script>
+<script src="bx-core.js?v=bx21"></script>
 <script>
   // 강한 이야기 상세 — /api/public/content/:id (본문은 서버에서 안전한 HTML로 렌더됨)
   (() => {
     const root = document.getElementById('arRoot');
     const id = new URLSearchParams(location.search).get('id');
-    const { esc, fmtDate, TYPE_LABEL } = KHSB;
+    const { esc, safeUrl, fmtDate, TYPE_LABEL } = KHSB;
     const ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 
     function authorInfo(p) {
@@ -95,7 +95,7 @@
         ? `<div class="ar-body prose r">${p.bodyHtml}</div>`
         : '';
       const ext = p.url
-        ? `<div class="ar-body ar-ext"><a class="btn btn-dark" href="${esc(p.url)}" target="_blank" rel="noopener">${p.type === 'podcast' ? '팟캐스트 듣기' : '원문 보기'} ↗</a></div>`
+        ? `<div class="ar-body ar-ext"><a class="btn btn-dark" href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener">${p.type === 'podcast' ? '팟캐스트 듣기' : '원문 보기'} ↗</a></div>`
         : '';
       const author = p.authorName ? `
         <div class="ar-author r">${who ? `<a href="${esc(who.href)}">` : '<a>'}${ava}

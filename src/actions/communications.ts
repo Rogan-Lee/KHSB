@@ -2,10 +2,15 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { requireAnyStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { CommunicationType } from "@/generated/prisma";
 
 export async function getCommunications(studentId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
+
   return prisma.communication.findMany({
     where: { studentId },
     orderBy: { createdAt: "desc" },
@@ -19,6 +24,7 @@ export async function createCommunication(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const created = await prisma.communication.create({
     data: {
@@ -38,6 +44,7 @@ export async function createCommunication(
 export async function checkCommunication(id: string, studentId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   await prisma.communication.update({
     where: { id },
@@ -51,6 +58,7 @@ export async function checkCommunication(id: string, studentId: string) {
 export async function deleteCommunication(id: string, studentId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   await prisma.communication.delete({ where: { id } });
 

@@ -120,14 +120,8 @@ export async function markStudentSuggestionsRead(params: { studentToken: string 
   return { ok: true };
 }
 
-/** 학생 측 미확인(직원 처리 후 안 본) 건의 수 — 포털 배지용. */
-export async function countUnseenSuggestionUpdates(studentId: string): Promise<number> {
-  const rows = await prisma.studentSuggestion.findMany({
-    where: { studentId, statusUpdatedAt: { not: null } },
-    select: { statusUpdatedAt: true, studentReadAt: true },
-  });
-  return rows.filter((r) => isUnseen(r.statusUpdatedAt, r.studentReadAt)).length;
-}
+// 학생 측 미확인 건의 수(배지)는 @/lib/suggestion-handling 의 countUnseenSuggestionUpdates 사용
+// (서버 액션 파일에 두면 인증 없는 공개 엔드포인트가 되므로 lib 로 옮김).
 
 // ─────────────────────────── 직원 측 (세션 인증, 전 직원) ───────────────────────────
 

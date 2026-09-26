@@ -7,7 +7,8 @@ import { isFullAccess } from "@/lib/roles";
 
 async function assertDirector() {
   const session = await auth();
-  if (!isFullAccess(session?.user?.role)) throw new Error("Unauthorized");
+  if (!session?.user || !isFullAccess(session.user.role)) throw new Error("Unauthorized");
+  return session;
 }
 
 // 멘토 스케줄 관리는 총괄 멘토(HEAD_MENTOR)에게도 허용
@@ -64,7 +65,12 @@ export async function updateMentor(id: string, formData: FormData) {
 }
 
 export async function deleteMentor(id: string) {
-  await assertDirector();
+  const session = await assertDirector();
+  // UI(mentor-manager)와 동일 기준을 서버에서 강제: 본인·원장·시스템 관리자 계정은 삭제 불가
+  if (id === session.user.id) throw new Error("본인 계정은 삭제할 수 없습니다");
+  const target = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+  if (!target) throw new Error("직원을 찾을 수 없습니다");
+  if (isFullAccess(target.role)) throw new Error("원장·시스템 관리자 계정은 삭제할 수 없습니다");
   await prisma.user.delete({ where: { id } });
   revalidatePath("/mentors");
 }

@@ -1,12 +1,11 @@
 export const revalidate = 30;
 
-import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getWeeklyPlanData } from "@/actions/mentoring-plan";
 import { WeeklyPlanBoard } from "@/components/mentoring/weekly-plan-board";
 import { offlineStudentWhere } from "@/lib/student-filters";
 import { PageHeader } from "@/components/backoffice/ui";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 function getThisMondayKST(): string {
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
@@ -17,8 +16,7 @@ function getThisMondayKST(): string {
 }
 
 export default async function MentoringPlanPage() {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  const session = await requireDashboardSession();
 
   const role = session.user.role;
   const readonly = role === "MENTOR";

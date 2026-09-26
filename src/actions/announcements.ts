@@ -13,6 +13,7 @@ function requireAnnouncementEditor(role?: string | null) {
 export async function getAnnouncement(page: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnnouncementEditor(session.user.role);
 
   return prisma.announcement.findFirst({
     where: { page },
@@ -24,13 +25,18 @@ export async function getAnnouncement(page: string) {
 export async function getAnnouncementHistory(page: string, skip: number, take: number) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnnouncementEditor(session.user.role);
+
+  // 페이지네이션 파라미터 상한 — 클라이언트 값 그대로 쓰면 전체 테이블 덤프 가능
+  const safeSkip = Number.isInteger(skip) && skip > 0 ? skip : 0;
+  const safeTake = Number.isInteger(take) && take > 0 ? Math.min(take, 100) : 20;
 
   const [items, total] = await Promise.all([
     prisma.announcement.findMany({
       where: { page },
       orderBy: { createdAt: "desc" },
-      skip,
-      take,
+      skip: safeSkip,
+      take: safeTake,
       include: { author: { select: { name: true } } },
     }),
     prisma.announcement.count({ where: { page } }),

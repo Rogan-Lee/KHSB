@@ -4,12 +4,34 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
-import { reportExpiresAt, checkExpiry, getRequestMeta } from "@/lib/token-auth";
+import { reportExpiresAt, checkExpiry, getRequestMeta, hasGatePass } from "@/lib/token-auth";
+import { createOpaqueToken } from "@/lib/auth-tokens";
 import {
   createParentReportRecord,
   listStudentsForReportDispatch,
 } from "@/lib/parent-report-core";
 import { queueParentMentoringReportPush, queueParentReportPush } from "@/lib/mobile-push";
+
+const CUSTOM_NOTE_MAX = 50_000; // AI 고도화 5개 항목 합본이 길 수 있어 남용 방지 수준으로만 제한
+const MAX_STUDY_PLAN_IMAGES = 20;
+
+/** 학부모 화면(/r)에 <a href>/<img src> 로 그대로 렌더되므로 우리 Blob 저장소의 https URL 만 허용 */
+function isTrustedBlobUrl(raw: unknown): raw is string {
+  if (typeof raw !== "string" || raw.length > 1000) return false;
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" && u.hostname.endsWith(".public.blob.vercel-storage.com");
+  } catch {
+    return false;
+  }
+}
+
+function assertCustomNote(note: unknown) {
+  if (note == null) return;
+  if (typeof note !== "string" || note.length > CUSTOM_NOTE_MAX) {
+    throw new Error(`학부모 메시지는 ${CUSTOM_NOTE_MAX}자 이하로 입력하세요`);
+  }
+}
 
 export async function createParentReport(
   mentoringId: string,
@@ -20,12 +42,24 @@ export async function createParentReport(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  // 멘토링(오프라인) 화면 전용 — 일괄 생성 액션들과 동일하게 오프라인 직원만
+  requireStaff(session.user.role);
+
+  const studyPlanImages = data?.studyPlanImages ?? [];
+  if (
+    !Array.isArray(studyPlanImages) ||
+    studyPlanImages.length > MAX_STUDY_PLAN_IMAGES ||
+    !studyPlanImages.every(isTrustedBlobUrl)
+  ) {
+    throw new Error("학습 계획 이미지가 올바르지 않습니다");
+  }
+  assertCustomNote(data?.customNote);
 
   // 핵심 로직: src/lib/parent-report-core.ts — 모바일 API 와 공용
   const report = await createParentReportRecord({
     mentoringId,
     createdById: session.user.id,
-    studyPlanImages: data.studyPlanImages ?? [],
+    studyPlanImages,
     customNote: data.customNote,
   });
   // 학부모 앱 새 리포트 알림 (fire-and-forget)
@@ -160,6 +194,8 @@ export async function createParentReportsForStudents(
       }
       const created = await prisma.parentReport.create({
         data: {
+          // 공개 링크 토큰 — 스키마 기본값(cuid)은 예측 가능성이 있어 CSPRNG 로 명시 발급
+          token: createOpaqueToken(24),
           studentId: sid,
           mentoringId: m.id,
           studyPlanImages: [],
@@ -178,11 +214,12 @@ export async function createParentReportsForStudents(
         token: created.token,
       });
     } catch (e) {
+      console.error("[createParentReportsForStudents]", e);
       results.push({
         studentId: sid,
         studentName: "?",
         status: "failed",
-        reason: e instanceof Error ? e.message : "unknown",
+        reason: "리포트 생성 중 오류가 발생했습니다",
       });
     }
   }
@@ -241,6 +278,7 @@ export async function createParentReportsBulk(mentoringIds: string[]): Promise<B
 
       const created = await prisma.parentReport.create({
         data: {
+          token: createOpaqueToken(24),
           studentId: mentoring.studentId,
           mentoringId: mid,
           studyPlanImages: [],
@@ -258,11 +296,12 @@ export async function createParentReportsBulk(mentoringIds: string[]): Promise<B
         token: created.token,
       });
     } catch (e) {
+      console.error("[createParentReportsBulk]", e);
       results.push({
         mentoringId: mid,
         studentName: "?",
         status: "failed",
-        reason: e instanceof Error ? e.message : "unknown",
+        reason: "리포트 생성 중 오류가 발생했습니다",
       });
     }
   }
@@ -278,6 +317,7 @@ export async function updateParentReportNote(reportId: string, customNote: strin
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
   requireStaff(session.user.role);
+  assertCustomNote(customNote);
 
   await prisma.parentReport.update({
     where: { id: reportId },
@@ -301,7 +341,7 @@ export async function getParentReportDetailed(token: string) {
     where: { token },
     include: {
       student: {
-        select: { id: true, name: true, grade: true, school: true, parentPhone: true },
+        select: { id: true, name: true, grade: true, school: true },
       },
       mentoring: {
         select: {
@@ -337,7 +377,29 @@ export async function getParentReportDetailed(token: string) {
     })
     .catch(() => {});
 
-  return { ok: true as const, report };
+  // 보안: 이 함수는 "use server" export 라 토큰만으로 직접 호출될 수 있다.
+  // 본인 확인 게이트(생년월일/전화 뒷자리)를 통과하지 않은 호출에는 게이트 표시에 필요한
+  // student.id 외 내용을 비운다. (/r 페이지는 이후 hasGatePass 로 다시 판정해 게이트를 띄움)
+  let gated = false;
+  try {
+    gated = await hasGatePass("PARENT", token, report.student.id);
+  } catch {
+    gated = false;
+  }
+  const safe: NonNullable<typeof report> = gated
+    ? { ...report, lastAccessIp: null, lastAccessUa: null }
+    : {
+        ...report,
+        studyPlanNote: null,
+        studyPlanImages: [],
+        customNote: null,
+        lastAccessIp: null,
+        lastAccessUa: null,
+        student: { ...report.student, name: "", grade: "", school: null },
+        mentoring: null,
+      };
+
+  return { ok: true as const, report: safe };
 }
 
 /** 학부모 리포트 링크 무효화 (원장/관리자). */

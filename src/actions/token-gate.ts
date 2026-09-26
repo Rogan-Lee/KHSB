@@ -7,10 +7,10 @@ import {
   clearGatePass,
   getRequestMeta,
   grantGatePass,
-  isGateLocked,
   normalizeDigits,
   phoneLast4,
-  recordGateFailure,
+  releaseGateAttempt,
+  reserveGateAttempt,
   safeEqual,
   type GateScope,
 } from "@/lib/token-auth";
@@ -21,6 +21,7 @@ export type GateFailReason =
   | "expired"
   | "revoked"
   | "locked"
+  | "locked_long"
   | "invalid"
   | "no_credential";
 
@@ -36,7 +37,6 @@ export async function verifyStudentGate(
 ): Promise<GateResult> {
   const scope: GateScope = "STUDENT";
   const { ip, ua } = await getRequestMeta();
-  if (await isGateLocked(scope, token, ip)) return { ok: false, reason: "locked" };
 
   const link = await prisma.studentMagicLink.findUnique({
     where: { token },
@@ -47,20 +47,30 @@ export async function verifyStudentGate(
   if (fail) return { ok: false, reason: fail };
   if (!link.student.birthDate) return { ok: false, reason: "no_credential" };
 
+  // 시도 선점 후 비교 (동시 요청으로 잠금 우회 방지 — token-auth.ts reserveGateAttempt 참고)
+  const attempt = await reserveGateAttempt(scope, token, ip, ua);
+  if (attempt.locked) return { ok: false, reason: attempt.long ? "locked_long" : "locked" };
+
   const expected = birthDateToYYMMDD(link.student.birthDate);
   const given = normalizeDigits(birthInput);
   if (given.length !== 6 || !safeEqual(given, expected)) {
-    await recordGateFailure(scope, token, ip, ua);
-    return { ok: false, reason: "invalid" };
+    return { ok: false, reason: "invalid" }; // 선점 행이 실패 기록으로 남는다
   }
 
+  await releaseGateAttempt(attempt.attemptId);
   await grantGatePass(scope, token, link.student.id, link.expiresAt);
   return { ok: true };
 }
 
-// ───────────────────── 학부모 게이트 (/r, /sp, /cr) ─────────────────────
+// ───────────────────── 학부모 게이트 (/r, /r/online, /sp, /cr) ─────────────────────
 
-type ParentTokenModel = "parent-report" | "study-plan" | "consultation" | "schedule" | "monthly";
+type ParentTokenModel =
+  | "parent-report"
+  | "study-plan"
+  | "consultation"
+  | "schedule"
+  | "monthly"
+  | "online";
 
 async function resolveParentToken(
   model: ParentTokenModel,
@@ -116,6 +126,21 @@ async function resolveParentToken(
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     };
   }
+  if (model === "online") {
+    // 온라인 관리 보고서(/r/online). 만료 개념 없음 → 쿠키 만료는 30일 폴백. 발송(SENT)된 것만 열람 대상.
+    const r = await prisma.onlineParentReport.findUnique({
+      where: { token },
+      include: { student: { select: { id: true, parentPhone: true } } },
+    });
+    if (!r || r.status !== "SENT") return { ok: false, reason: "not_found" };
+    if (!r.student.parentPhone) return { ok: false, reason: "no_credential" };
+    return {
+      ok: true,
+      studentId: r.student.id,
+      parentPhone: r.student.parentPhone,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    };
+  }
   if (model === "schedule") {
     const r = await prisma.scheduleProposal.findUnique({
       where: { token },
@@ -157,19 +182,23 @@ export async function verifyParentGate(
 ): Promise<GateResult> {
   const scope: GateScope = "PARENT";
   const { ip, ua } = await getRequestMeta();
-  if (await isGateLocked(scope, token, ip)) return { ok: false, reason: "locked" };
 
   const resolved = await resolveParentToken(model, token);
   if (!resolved.ok) return { ok: false, reason: resolved.reason };
 
   const expected = phoneLast4(resolved.parentPhone);
-  const given = normalizeDigits(phoneInput);
   if (!expected) return { ok: false, reason: "no_credential" };
+
+  // 시도 선점 후 비교 (동시 요청으로 잠금 우회 방지 — token-auth.ts reserveGateAttempt 참고)
+  const attempt = await reserveGateAttempt(scope, token, ip, ua);
+  if (attempt.locked) return { ok: false, reason: attempt.long ? "locked_long" : "locked" };
+
+  const given = normalizeDigits(phoneInput);
   if (given.length !== 4 || !safeEqual(given, expected)) {
-    await recordGateFailure(scope, token, ip, ua);
-    return { ok: false, reason: "invalid" };
+    return { ok: false, reason: "invalid" }; // 선점 행이 실패 기록으로 남는다
   }
 
+  await releaseGateAttempt(attempt.attemptId);
   await grantGatePass(scope, token, resolved.studentId, resolved.expiresAt);
   return { ok: true };
 }
@@ -186,7 +215,6 @@ export async function verifyStaffGate(
 ): Promise<GateResult> {
   const scope: GateScope = "STAFF";
   const { ip, ua } = await getRequestMeta();
-  if (await isGateLocked(scope, token, ip)) return { ok: false, reason: "locked" };
 
   const link = await prisma.staffMagicLink.findUnique({
     where: { token },
@@ -200,12 +228,16 @@ export async function verifyStaffGate(
   const expected = phoneLast4(link.user.phone);
   if (!expected) return { ok: false, reason: "no_credential" };
 
+  // 시도 선점 후 비교 (동시 요청으로 잠금 우회 방지 — token-auth.ts reserveGateAttempt 참고)
+  const attempt = await reserveGateAttempt(scope, token, ip, ua);
+  if (attempt.locked) return { ok: false, reason: attempt.long ? "locked_long" : "locked" };
+
   const given = normalizeDigits(phoneInput);
   if (given.length !== 4 || !safeEqual(given, expected)) {
-    await recordGateFailure(scope, token, ip, ua);
-    return { ok: false, reason: "invalid" };
+    return { ok: false, reason: "invalid" }; // 선점 행이 실패 기록으로 남는다
   }
 
+  await releaseGateAttempt(attempt.attemptId);
   await grantGatePass(scope, token, link.user.id, link.expiresAt);
   return { ok: true };
 }

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { getUser } from "@/lib/auth";
 import { PageHeader } from "@/components/backoffice/ui";
 import { StaffDmPanel } from "@/components/messages/staff-dm-panel";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 // 데스크톱에서 대화 목록·대화창이 화면 높이에 맞춰 안에서만 스크롤되도록 한다.
 // 셸 상단 바(56) + main 위·아래 여백(32·64) + 페이지 머리(~100) ≈ 252px.
@@ -9,12 +9,12 @@ const PANEL_FRAME =
   "overflow-hidden rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default lg:h-[calc(100dvh-256px)] lg:min-h-[480px]";
 
 export default async function StaffMessagesPage() {
-  const user = await getUser();
+  const { user } = await requireDashboardSession();
   const staff = await prisma.user.findMany({
     where: {
       status: "ACTIVE",
       role: { not: "STUDENT" },
-      ...(user ? { id: { not: user.id } } : {}),
+      id: { not: user.id },
     },
     select: { id: true, name: true, role: true },
     orderBy: { name: "asc" },
