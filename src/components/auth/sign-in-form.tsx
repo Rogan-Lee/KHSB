@@ -43,8 +43,13 @@ export function SignInForm() {
           });
 
       if (result.error) {
-        toast.error("아이디 또는 비밀번호를 확인하세요");
-        setError("아이디 또는 비밀번호를 확인하세요");
+        // 429: IP 단위 요청 제한 또는 계정 단위 로그인 잠금 (src/lib/login-guard.ts)
+        const message =
+          result.error.status === 429
+            ? "로그인 시도가 너무 많아요. 잠시 후 다시 시도해 주세요."
+            : "아이디 또는 비밀번호를 확인하세요";
+        toast.error(message);
+        setError(message);
         return;
       }
 
