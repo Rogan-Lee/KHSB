@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 2026-05-18 prod token security: 매직링크/리포트 토큰 만료·취소·접근 로그
 -- ============================================================================
--- 대상: 프로덕션 DB (ulefrypbhdgbtkjjlnco.supabase.com)
+-- 대상: 프로덕션 DB (<prod-project-ref>.supabase.com)
 -- 출처: prisma migrate diff (feat/token-security 의 schema.prisma 기준)
 -- 관련: PR #254 (feat: 매직링크/리포트 토큰 보안)
 --

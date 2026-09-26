@@ -25,7 +25,7 @@
 **Why:** "5-10 facilities in 12 months" has no path to 5-10 facilities. Korean study room operators buy via word-of-mouth and KakaoTalk referrals — not SaaS directories.
 **Pros:** The current customer is your best salesperson. One referral ask could unlock 2-3 facilities immediately.
 **Cons:** None — this costs almost nothing.
-**Context:** Your story: "You're probably using Excel and Kakao. This replaced a $160/month LMS for our first customer. It's built specifically for 관리형 독서실 directors."
+**Context:** Your story: "You're probably using Excel and Kakao. It's built specifically for 관리형 독서실 directors."
 **Effort:** S (human: 1 day / CC: ~30 min for materials)
 **Blocked by:** Vercel Analytics data (observe first to know which features to demo).
 
@@ -35,11 +35,8 @@
 
 ## P2 — Important (do after P1s)
 
-### [P2] Fix DailyOuting ownership check (security)
-**What:** `updateDailyOuting` / `deleteDailyOuting` / `createDailyOuting` accept raw `id`/`studentId` with no authorization check that the caller manages that student. Any authenticated user can update/delete any outing record.
-**Fix:** Fetch the record first, assert `session.user` has access to the `studentId`. Same pattern as `assertDirector`.
-**Effort:** XS (CC: ~10 min)
-**Blocked by:** Nothing.
+### [P2] ~~DailyOuting authorization~~ ✅
+**Completed:** DailyOuting 액션은 `requireAnyStaff` 로 운영진만 호출할 수 있다.
 
 ### [P2] Fix daysSinceLast timezone (off-by-1 on KST boundary dates)
 **What:** `getWeeklyPlanData` uses `.setHours(0,0,0,0)` (server local TZ) instead of `.setUTCHours(0,0,0,0)` when computing `daysSinceLast`. On Vercel (UTC), this gives wrong results for KST midnight sessions.
@@ -106,11 +103,8 @@
 
 ## P3 — Track (low urgency)
 
-### [P3] Add a parent report expiry/revocation mechanism
-**What:** Add `expiresAt` field to ParentReport and StudyPlanReport. Allow directors to revoke shared links.
-**Why:** Currently, report tokens (cuid) are valid forever. A parent who receives a report link can access it indefinitely. Minor privacy concern.
-**Effort:** S (human: 4h / CC: ~20 min)
-**Blocked by:** Nothing.
+### [P3] ~~Add a parent report expiry/revocation mechanism~~ ✅
+**Completed:** 리포트·매직링크 토큰에 `expiresAt`/`revokedAt` 과 본인 확인 게이트가 적용되었다 (PR #254).
 
 ### [P3] Add Vercel Analytics page view tracking to identify hot features
 **What:** `import { Analytics } from "@vercel/analytics/react"` in layout.tsx. Review weekly which pages are most visited.

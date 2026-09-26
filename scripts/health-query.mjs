@@ -1,7 +1,10 @@
 import { neon, neonConfig } from "@neondatabase/serverless";
 
-const DATABASE_URL =
-  "postgresql://neondb_owner:npg_FXZf4GRiNh2s@ep-frosty-night-a1240d6o-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require";
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  console.error("DATABASE_URL 환경변수가 필요합니다");
+  process.exit(1);
+}
 
 neonConfig.poolQueryViaFetch = true;
 const sql = neon(DATABASE_URL);
