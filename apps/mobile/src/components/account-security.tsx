@@ -20,7 +20,7 @@ import {
 } from '@/design';
 import { authClient } from '@/lib/auth-client';
 import { useSession, type AppRole } from '@/lib/session';
-import { SUPPORT_TEL } from '@/lib/support';
+import { SUPPORT_EMAIL, SUPPORT_TEL } from '@/lib/support';
 
 // 계정 보안 — 비밀번호 변경·계정 삭제. 계정 화면(/account)과 예전 메뉴 화면이 같이 쓴다.
 
@@ -315,7 +315,7 @@ export function useDeleteAccount(options: { signOut?: () => Promise<void> } = {}
       }>
       <Notice title="바로 삭제돼요">{DELETE_REMOVED[role]}</Notice>
       <Notice title="독서실에 남아요">
-        {`${DELETE_KEPT[role]} 독서실 운영 기록이라 남아요. 이 기록도 지우려면 고객센터(${SUPPORT_TEL})로 요청해 주세요.`}
+        {`${DELETE_KEPT[role]} 독서실 운영 기록이라 이용이 끝난 뒤 3년 동안 보관해요. 그 전에 지우려면 고객센터(${SUPPORT_TEL}, ${SUPPORT_EMAIL})로 요청해 주세요.`}
       </Notice>
       <PasswordField
         label="비밀번호"
