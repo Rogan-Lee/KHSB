@@ -70,4 +70,6 @@ const SITE = {
   tel: '010-3145-5767',
   api: 'https://khsb.vercel.app',
   address: '경기 화성시 동탄반석로 130 (드림프라자) 10F',
+  // 고객지원 이메일 — 아직 없음(빈 값). 주소를 넣으면 privacy.html · support.html 에 이메일 줄이 자동으로 나타난다.
+  email: '',
 };

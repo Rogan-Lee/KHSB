@@ -47,6 +47,7 @@ import {
 import { API_BASE_URL, authClient } from '@/lib/auth-client';
 import { formatKoreanDateTime } from '@/lib/format';
 import { authenticatedFetch, useSession } from '@/lib/session';
+import { PRIVACY_URL, SUPPORT_URL, openHelpPage } from '@/lib/support';
 
 type Mode = 'sign-in' | 'invite';
 
@@ -480,7 +481,8 @@ export default function AuthScreen() {
             ) : !invitation ? (
               <View style={s.form}>
                 <Text variant="t4-regular" color="neutralMuted">
-                  독서실에서 받은 초대 링크를 눌러 앱을 열거나, 링크를 복사해 아래에 붙여 넣어 주세요.
+                  독서실에서 받은 초대 링크를 눌러 앱을 열거나, 링크를 복사해 아래에 붙여 넣어 주세요. 초대를 받지
+                  못했다면 아래 고객센터로 문의해 주세요.
                 </Text>
                 <TextField
                   label="초대 링크 또는 코드"
@@ -599,6 +601,9 @@ export default function AuthScreen() {
                   errorMessage={againError}
                   editable={!busyNow}
                 />
+                <Text variant="t3-regular" color="neutralSubtle">
+                  가입하면 강한선배 개인정보처리방침에 따라 입력한 정보가 처리돼요.
+                </Text>
                 {error != null && (
                   <Notice tone="bad" icon={CircleAlert}>
                     {error}
@@ -606,6 +611,14 @@ export default function AuthScreen() {
                 )}
               </View>
             )}
+
+            <View style={s.helpLinks}>
+              <HelpLink label="고객센터" onPress={() => void openHelpPage(SUPPORT_URL)} />
+              <Text variant="t3-regular" color="neutralSubtle" accessibilityElementsHidden importantForAccessibility="no">
+                ·
+              </Text>
+              <HelpLink label="개인정보처리방침" onPress={() => void openHelpPage(PRIVACY_URL)} />
+            </View>
           </View>
         </ScrollView>
         <BottomCTA background={color.bg.layerDefault} onHeight={setFooterH} maxWidth={CONTENT_WIDTH}>
@@ -620,6 +633,18 @@ export default function AuthScreen() {
         </BottomCTA>
       </KeyboardAvoidingView>
     </View>
+  );
+}
+
+// ─── 도움말 링크 (고객센터 · 개인정보처리방침) ──────────────────────
+
+function HelpLink({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Press onPress={onPress} scale={0} pressedBg accessibilityRole="link" style={s.helpLink}>
+      <Text variant="t3-medium" color="neutralSubtle">
+        {label}
+      </Text>
+    </Press>
   );
 }
 
@@ -689,6 +714,18 @@ const s = StyleSheet.create({
     minHeight: 44,
     justifyContent: 'center',
     paddingHorizontal: space.x3,
+    borderRadius: radius.r2,
+  },
+  helpLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: space.x8,
+  },
+  helpLink: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: space.x2,
     borderRadius: radius.r2,
   },
   card: {

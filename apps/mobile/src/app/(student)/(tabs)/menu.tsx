@@ -7,6 +7,7 @@ import {
   Coins,
   FileText,
   GraduationCap,
+  Headset,
   LogOut,
   Megaphone,
   MessageCircle,
@@ -48,6 +49,7 @@ import { STUDENT_HOME_PATH, type StudentHomeResponse } from '@/lib/api/student-h
 import { refreshBadges } from '@/lib/badges';
 import { useMobileQuery } from '@/lib/mobile-api';
 import { useSession } from '@/lib/session';
+import { SUPPORT_URL, openHelpPage } from '@/lib/support';
 
 // 웹 학생 포털 전체 탭(/s/[token]/menu)과 같은 구성: 프로필 → 학습 · 소통 · 생활 · 혜택 → 앱 설정.
 // 모든 항목이 앱 화면으로 열린다(포털 웹뷰 없음).
@@ -346,7 +348,13 @@ function AppSection() {
         href={ACCOUNT_ROUTE}
         leading={<IconTile icon={ShieldCheck} tone="gray" />}
         title="계정·보안"
-        description="로그인 정보, 기기 보안"
+        description="로그인 정보 · 비밀번호 · 회원 탈퇴"
+      />
+      <ListRow
+        onPress={() => void openHelpPage(SUPPORT_URL)}
+        leading={<IconTile icon={Headset} tone="gray" />}
+        title="고객센터"
+        description="자주 묻는 질문 · 문의 방법"
       />
       <ListRow
         onPress={() => void logout()}

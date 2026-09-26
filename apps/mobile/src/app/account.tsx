@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { Redirect, router, type Href } from 'expo-router';
-import { Bell, KeyRound, LogOut, UserX, Users } from 'lucide-react-native';
+import { Bell, FileText, Headset, KeyRound, LogOut, Phone, UserX, Users } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
@@ -26,13 +26,14 @@ import {
 import { accountRoleLabel, accountRoleTone } from '@/lib/api/auth';
 import { authClient } from '@/lib/auth-client';
 import { useSession } from '@/lib/session';
+import { PRIVACY_URL, SUPPORT_TEL, SUPPORT_URL, callSupport, openHelpPage } from '@/lib/support';
 
 /** 태블릿에서 설정 목록 폭 — 라벨과 값이 멀어지지 않게 기본(720)보다 좁게 가운데 */
 const SETTINGS_TABLET_WIDTH = 600;
 
 /**
  * 계정·보안 — 모든 역할 공통 (학생·직원·학부모 전체 메뉴에서 /account 로 연결).
- * 프로필 요약 · 로그인 정보 · 연결된 자녀(학부모) · 알림 설정 · 비밀번호 변경 · 로그아웃 · 계정 삭제
+ * 프로필 요약 · 로그인 정보 · 연결된 자녀(학부모) · 알림 설정 · 비밀번호 변경 · 도움말(고객센터·전화·개인정보처리방침) · 로그아웃 · 계정 삭제
  */
 export default function AccountScreen() {
   const { session, status, signOut } = useSession();
@@ -154,6 +155,26 @@ export default function AccountScreen() {
             />
           </Section>
 
+          <Section title="도움말" flush>
+            <ListRow
+              leading={<IconTile icon={Headset} size={40} />}
+              title="고객센터"
+              description="자주 묻는 질문과 문의 방법"
+              onPress={() => void openHelpPage(SUPPORT_URL)}
+            />
+            <ListRow
+              leading={<IconTile icon={Phone} size={40} />}
+              title="전화 문의"
+              trailing={SUPPORT_TEL}
+              onPress={() => void callSupport()}
+            />
+            <ListRow
+              leading={<IconTile icon={FileText} size={40} />}
+              title="개인정보처리방침"
+              onPress={() => void openHelpPage(PRIVACY_URL)}
+            />
+          </Section>
+
           <Section flush>
             <ListRow
               leading={<IconTile icon={LogOut} size={40} />}
@@ -169,7 +190,7 @@ export default function AccountScreen() {
                   계정 삭제
                 </Text>
               }
-              description="로그인 계정을 지우고 모든 기기에서 로그아웃해요"
+              description="회원 탈퇴 · 로그인 계정을 지우고 모든 기기에서 로그아웃해요"
               chevron={false}
               onPress={leaving ? undefined : del.start}
             />

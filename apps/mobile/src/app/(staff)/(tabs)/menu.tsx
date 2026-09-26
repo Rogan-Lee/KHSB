@@ -121,7 +121,7 @@ export default function StaffMenuScreen() {
       title: '설정',
       rows: [
         { dest: 'notifications', description: '받을 알림 고르기' },
-        { dest: 'account', description: '비밀번호·로그인 보안' },
+        { dest: 'account', description: '비밀번호 · 회원 탈퇴 · 고객센터' },
       ],
     },
   ];

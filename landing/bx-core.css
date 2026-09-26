@@ -336,6 +336,10 @@ button.fc.dark:hover, a.fc.dark:hover { background: #1f232b; }
 .gft-grid a { display: block; font-size: 14.5px; color: rgba(255, 255, 255, .72); margin-bottom: 11px; transition: color .15s; }
 .gft-grid a:hover { color: #fff; }
 .gft-bottom { max-width: 1236px; margin: 0 auto; padding: 22px 28px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: rgba(255, 255, 255, .42); border-top: 1px solid rgba(255, 255, 255, .1); }
+.gft-legal { display: inline-flex; gap: 18px; flex-wrap: wrap; }
+.gft-legal a { color: rgba(255, 255, 255, .72); transition: color .15s; }
+.gft-legal a:first-child { font-weight: 700; color: rgba(255, 255, 255, .88); } /* 개인정보처리방침은 눈에 띄게 */
+.gft-legal a:hover { color: #fff; }
 .gft-giant { font-size: clamp(84px, 21vw, 330px); font-weight: 900; letter-spacing: -.07em; line-height: .78; text-align: center; margin-top: 40px; white-space: nowrap; user-select: none;
   color: transparent; background: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 85%); -webkit-background-clip: text; background-clip: text; }
 /* 플로팅 CTA (landing.css .fab 재사용) */
