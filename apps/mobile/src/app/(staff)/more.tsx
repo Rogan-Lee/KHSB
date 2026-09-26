@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import type { Href } from 'expo-router';
 import {
   Banknote,
@@ -39,7 +39,12 @@ export default function StaffMoreScreen() {
   const canWriteTaskFeedback = ['SUPER_ADMIN', 'DIRECTOR', 'CONSULTANT'].includes(
     session?.staffRole ?? '',
   );
-  const [sheet, setSheet] = useState<'work' | 'handover' | 'patrol' | null>(null);
+  const params = useLocalSearchParams<{ sheet?: string }>();
+  const [sheet, setSheet] = useState<'work' | 'handover' | 'patrol' | null>(() =>
+    params.sheet === 'work' || params.sheet === 'handover' || params.sheet === 'patrol'
+      ? params.sheet
+      : null,
+  );
   const { data, error, isRefreshing, refresh, retry } =
     useMobileQuery<StaffOperationsResponse>('/api/mobile/v1/staff/operations');
 

@@ -10,6 +10,12 @@ import {
 import { Platform } from 'react-native';
 
 import { API_BASE_URL, authClient } from '@/lib/auth-client';
+import {
+  Capabilities,
+  MobileNavRole,
+  StaffCapabilities,
+  StudentCapabilities,
+} from '@/lib/capabilities';
 
 export type AppRole = 'student' | 'staff';
 
@@ -18,7 +24,10 @@ export type MobileSession = {
   domainId: string;
   isOnlineManaged?: boolean;
   role: AppRole;
+  /** 세분 역할 — 역할별 내비게이션에 사용 */
+  navRole: MobileNavRole;
   staffRole?: string;
+  capabilities: Capabilities;
 };
 
 type SessionContextValue = {
@@ -34,6 +43,7 @@ type ProfileResponse =
       id: string;
       name: string;
       role: string;
+      capabilities: StaffCapabilities;
     }
   | {
       accountType: 'STUDENT';
@@ -41,11 +51,12 @@ type ProfileResponse =
       isOnlineManaged: boolean;
       name: string;
       role: 'STUDENT';
+      capabilities: StudentCapabilities;
     };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
-function authHeaders() {
+export function authHeaders() {
   if (Platform.OS === 'web') return undefined;
   const cookie = authClient.getCookie();
   return cookie ? { Cookie: cookie } : undefined;
@@ -74,13 +85,17 @@ async function fetchProfile(): Promise<MobileSession | null> {
         displayName: profile.name,
         domainId: profile.id,
         role: 'staff',
+        navRole: profile.capabilities.navRole,
         staffRole: profile.role,
+        capabilities: profile.capabilities,
       }
     : {
         displayName: profile.name,
         domainId: profile.id,
         isOnlineManaged: profile.isOnlineManaged,
         role: 'student',
+        navRole: 'student',
+        capabilities: profile.capabilities,
       };
 }
 

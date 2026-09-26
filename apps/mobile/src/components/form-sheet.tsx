@@ -10,7 +10,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, spacing } from '@/constants/theme';
 
@@ -26,13 +26,24 @@ export function FormSheet({
   title: string;
   visible: boolean;
 }>) {
+  // Modal 은 SafeAreaProvider 밖 별도 계층에 렌더되므로 native SafeAreaView 의
+  // inset 이 0 이 된다(닫기 버튼이 상태바 밑에 깔림). 부모 트리에서 읽은 inset 을
+  // 직접 패딩으로 적용한다.
+  const insets = useSafeAreaInsets();
   return (
     <Modal
       animationType="slide"
       onRequestClose={onClose}
       presentationStyle="fullScreen"
       visible={visible}>
-      <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
+      <View
+        style={[
+          styles.safeArea,
+          {
+            paddingTop: Math.max(insets.top, 12),
+            paddingBottom: insets.bottom,
+          },
+        ]}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.flex}>
@@ -57,7 +68,7 @@ export function FormSheet({
             {children}
           </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }

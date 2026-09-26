@@ -40,8 +40,11 @@ npm run web
 
 ```bash
 EXPO_PUBLIC_API_URL=https://example.com
-EXPO_PUBLIC_EAS_PROJECT_ID=123e4567-e89b-12d3-a456-426614174000
 ```
+
+EAS 프로젝트 `@rogan_lee/study-room-manager-mobile`이 연결되어 있어 Expo Push
+Token 발급에는 `app.json`의 프로젝트 ID를 사용합니다.
+`EXPO_PUBLIC_EAS_PROJECT_ID`는 프로젝트 ID를 임시로 재정의할 때만 사용합니다.
 
 서버에는 선택적으로 Expo Push Security의 `EXPO_ACCESS_TOKEN`을 설정합니다.
 푸시 영수증은 GitHub Actions가 `CRON_SECRET`으로 보호된
@@ -49,11 +52,23 @@ EXPO_PUBLIC_EAS_PROJECT_ID=123e4567-e89b-12d3-a456-426614174000
 `20260621030000_add_mobile_push_notifications` 마이그레이션을 승인된 DB 배포
 절차로 적용해야 합니다.
 
+## EAS 빌드
+
+EAS 프로필은 다음 용도로 분리되어 있습니다.
+
+- `simulator`: iOS 시뮬레이터 개발 클라이언트
+- `development`: 등록된 실기기 개발 클라이언트
+- `preview`: 운영 환경을 사용하는 내부 테스트 빌드
+- `production`: TestFlight/App Store 및 Google Play 빌드
+
+Expo 프로젝트 연결, Apple 자격 증명, 실기기 푸시 검증 절차는
+[`docs/mobile-release.md`](../../docs/mobile-release.md)를 따릅니다.
+
 ## 다음 구현
 
 1. 멘토링 일정 원격 푸시
-2. EAS Build와 iOS 푸시 자격 증명 연결
-3. 앱스토어·플레이스토어 배포 설정
+2. Apple Developer 로그인 후 배포 인증서와 APNs 키 연결
+3. TestFlight 내부 테스트와 스토어 메타데이터 준비
 
 `EXPO_PUBLIC_API_URL`에는 API 서버 주소만 설정합니다. 토큰과 개인정보는 소스 코드나
 `EXPO_PUBLIC_*` 환경변수에 넣지 않습니다.
