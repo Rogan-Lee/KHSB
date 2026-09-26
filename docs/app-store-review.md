@@ -75,9 +75,9 @@ Account deletion:
   Login screen > "초대받았어요" > paste <INVITE CODE> (creates a new parent account).
 
 Support and privacy:
-- In app: 전체 > 고객센터 / 계정·보안 > 도움말 (고객센터, 전화 문의, 개인정보처리방침),
+- In app: 전체 > 고객센터 / 계정·보안 > 도움말 (고객센터, 전화 문의, 이메일 문의, 개인정보처리방침),
   and links at the bottom of the login screen.
-- Support: https://www.kanghanseonbae.com/support.html
+- Support: https://www.kanghanseonbae.com/support.html (kanghanseonbae@naver.com)
 - Privacy policy: https://www.kanghanseonbae.com/privacy.html
 
 User-generated content: there is no public posting or chat between users. Messages,
@@ -97,12 +97,10 @@ photos.
 5. 권한 창 문구를 확인한다: 운영진 순찰 QR(카메라), 질문 사진 촬영(카메라), 사진 첨부(보관함).
 6. 제출 직전에 데모 계정 두 개로 로그인해 데이터를 확인하고, 심사 노트의 `<...>` 자리를 채운다.
 
-## 6. 개인정보처리방침 공개 전 확인할 것
+## 6. 개인정보처리방침 결정 사항 (2026-09-26)
 
-`landing/privacy.html`은 코드에서 확인한 사실로 작성했지만 법적 문서이므로 대표가 확인한 뒤 공개한다.
-
-- 개인정보 보호책임자(대표 강한지, 010-3145-5767)와 시행일(2026-09-26)
-- 보유 기간·법정 보존 기간, 열람·삭제 요청 처리 기한(10일 이내), 만 14세 미만 법정대리인 동의 문구
-- 처리 위탁·국외 이전 표: 첨부 파일 저장 위치(Vercel Blob 리전), 국외 수탁자별 연락처(개인정보 보호법 제28조의8에서 요구)
-- 고객지원 이메일이 생기면 `landing/bx-data.js`의 `SITE.email`에 넣는다. 두 페이지에 이메일 줄이 자동으로 나타난다.
+- 개인정보 보호책임자: 대표 강한지, 010-3145-5767, kanghanseonbae@naver.com. 시행일 2026-09-26.
+- 독서실 이용 기록 보유 기간: 이용 계약이 끝난 날부터 3년. 그 전이라도 삭제를 요청하면 법정 보존 대상이 아닌 정보는 바로 파기한다. 앱 계정 정보는 탈퇴 즉시 파기.
+- 국외 수탁자 연락처는 각 사 공식 개인정보처리방침(2026-09-26 확인)에서 옮겼다. 계약 주체 기준으로 Supabase는 Supabase Pte. Ltd.(싱가포르), Groq는 Groq LLC, Slack은 한국 워크스페이스 기준 Slack Technologies Limited(아일랜드)다.
+- Vercel Blob 저장소 리전은 대시보드에서 확인이 필요하다. 기본값은 iad1(미국)이다. 표에는 저장소를 Vercel(미국) 위탁으로 적었다.
 - 랜딩 푸터의 Instagram·YouTube 링크가 아직 `#`이다.

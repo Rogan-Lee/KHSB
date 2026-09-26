@@ -114,14 +114,14 @@
         </div>
         <dl class="sp-dl">
           <div><dt>주소</dt><dd>경기 화성시 동탄반석로 130 (드림프라자) 10F</dd></div>
-          <div data-site-email hidden><dt>이메일</dt><dd><a data-email-link href="#"></a></dd></div>
+          <div><dt>이메일</dt><dd><a href="mailto:kanghanseonbae@naver.com">kanghanseonbae@naver.com</a></dd></div>
         </dl>
         <div class="sp-inapp">
           <h3>앱 안에서도 문의할 수 있어요</h3>
           <ul>
             <li><b>학부모님</b><span><span class="ui">전체</span> 탭 → <span class="ui">원장님께 문의</span></span></li>
             <li><b>학생</b><span><span class="ui">전체</span> 탭 → <span class="ui">건의사항</span>, 또는 <span class="ui">메시지</span> 탭</span></li>
-            <li><b>로그인 전·계정 문제</b><span>위 전화번호로 문의해 주세요.</span></li>
+            <li><b>로그인 전·계정 문제</b><span>위 전화번호나 이메일로 문의해 주세요.</span></li>
           </ul>
         </div>
       </div>
@@ -146,7 +146,7 @@
         <details id="faq-id">
           <summary>아이디를 잊었거나 이메일을 바꾸고 싶어요</summary>
           <div class="faq-a">
-            <p>아이디 확인과 이메일 변경은 독서실에서 도와드려요. <a href="tel:+82-10-3145-5767">010-3145-5767</a>로 전화해 주세요.</p>
+            <p>아이디 확인과 이메일 변경은 독서실에서 도와드려요. <a href="tel:+82-10-3145-5767">010-3145-5767</a>로 전화하거나 <a href="mailto:kanghanseonbae@naver.com">kanghanseonbae@naver.com</a>로 메일을 보내 주세요.</p>
           </div>
         </details>
         <details id="faq-child">
@@ -172,8 +172,8 @@
               <li><span class="ui">계정 삭제</span>를 누르고 비밀번호를 확인하면 바로 삭제돼요.</li>
             </ol>
             <div class="faq-box"><b>삭제되는 정보</b><br>아이디·이메일·비밀번호, 로그인 기기와 알림 설정, 자녀 연결(학부모님 계정)</div>
-            <p>출결·학습·상담 기록은 독서실 운영 기록으로 남아요. 이 기록도 지우고 싶다면 전화로 요청해 주세요. 자세한 내용은 <a href="privacy.html#delete-account">개인정보처리방침</a>에서 확인할 수 있어요.</p>
-            <p>앱에 로그인할 수 없다면 <a href="tel:+82-10-3145-5767">010-3145-5767</a>로 전화해 계정 삭제를 요청할 수 있어요.</p>
+            <p>출결·학습·상담 기록은 독서실 운영 기록으로 이용이 끝난 날부터 3년 동안 보관한 뒤 지워요. 그 전에 지우고 싶다면 전화나 이메일로 요청해 주세요. 자세한 내용은 <a href="privacy.html#delete-account">개인정보처리방침</a>에서 확인할 수 있어요.</p>
+            <p>앱에 로그인할 수 없다면 <a href="tel:+82-10-3145-5767">010-3145-5767</a>로 전화하거나 <a href="mailto:kanghanseonbae@naver.com">kanghanseonbae@naver.com</a>로 계정 삭제를 요청할 수 있어요.</p>
           </div>
         </details>
       </div>
@@ -200,15 +200,6 @@
 <script src="bx-core.js?v=bx21"></script>
 <script>
   (() => {
-    // 고객지원 이메일 — bx-data.js SITE.email 이 있을 때만 표시
-    const email = (typeof SITE !== 'undefined' && SITE.email ? String(SITE.email) : '').trim();
-    if (email) {
-      document.querySelectorAll('[data-site-email]').forEach(row => {
-        const a = row.querySelector('[data-email-link]');
-        if (a) { a.href = 'mailto:' + email; a.textContent = email; }
-        row.hidden = false;
-      });
-    }
     // support.html#delete-account 처럼 FAQ 항목으로 들어오면 그 항목을 펼친다
     function openFromHash() {
       let id = '';

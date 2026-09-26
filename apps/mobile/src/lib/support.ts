@@ -11,8 +11,8 @@ const SITE_URL = 'https://www.kanghanseonbae.com';
 
 export const SUPPORT_URL = `${SITE_URL}/support.html`;
 export const PRIVACY_URL = `${SITE_URL}/privacy.html`;
-export const DELETE_ACCOUNT_HELP_URL = `${SUPPORT_URL}#delete-account`;
 export const SUPPORT_TEL = '010-3145-5767';
+export const SUPPORT_EMAIL = 'kanghanseonbae@naver.com';
 
 /** 고객지원·정책 페이지를 앱 안 브라우저로 연다 */
 export async function openHelpPage(url: string) {
@@ -33,5 +33,14 @@ export async function callSupport() {
     await Linking.openURL(`tel:${SUPPORT_TEL.replace(/\D/g, '')}`);
   } catch {
     await copyText(SUPPORT_TEL, `전화를 걸 수 없는 기기예요. 번호 ${SUPPORT_TEL}를 복사했어요`);
+  }
+}
+
+/** 이메일 문의 — 메일 앱이 없거나 계정이 설정되지 않은 기기는 주소를 복사해 준다 */
+export async function emailSupport() {
+  try {
+    await Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('[강한선배 앱] 문의')}`);
+  } catch {
+    await copyText(SUPPORT_EMAIL, `메일 앱을 열 수 없어요. 주소 ${SUPPORT_EMAIL}를 복사했어요`);
   }
 }
