@@ -41,21 +41,35 @@ function assertCanViewStudentTasks(
   if (!isResponsibleFor(student, user.id)) throw new MobileApiError(message, 403);
 }
 
+// 저장된 파일 표시용 — http(s) 외 스킴(javascript:, data: 등)은 내려보내지 않는다
 const fileSchema = z.object({
   mimeType: z.string().trim().min(1).max(160),
   name: z.string().trim().min(1).max(200),
   sizeBytes: z.number().int().min(0).max(50 * 1024 * 1024),
-  url: z.string().url().max(2000),
+  url: z
+    .string()
+    .url()
+    .max(2000)
+    .refine((url) => /^https?:\/\//i.test(url), "첨부 파일 주소가 올바르지 않아요"),
+});
+
+// 새로 받는 첨부 — 업로드 저장소 주소(https)만 허용
+const uploadFileSchema = fileSchema.extend({
+  url: z
+    .string()
+    .url()
+    .max(2000)
+    .refine((url) => url.startsWith("https://"), "첨부 파일 주소가 올바르지 않아요"),
 });
 
 const submissionSchema = z.object({
-  files: z.array(fileSchema).min(1, "최소 1개 이상의 파일을 첨부하세요").max(5),
+  files: z.array(uploadFileSchema).min(1, "최소 1개 이상의 파일을 첨부하세요").max(5),
   note: z.string().trim().max(2000).optional().nullable(),
 });
 
 const feedbackSchema = z.object({
   content: z.string().trim().min(1, "피드백 내용을 입력하세요").max(4000),
-  files: z.array(fileSchema).max(5).optional().default([]),
+  files: z.array(uploadFileSchema).max(5).optional().default([]),
   status: z.enum(["COMMENT", "NEEDS_REVISION", "APPROVED"]),
 });
 

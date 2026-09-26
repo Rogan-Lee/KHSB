@@ -7,14 +7,14 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     vocabAttempt: { findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
-    vocabAttemptItem: { findMany: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
+    vocabAttemptItem: { findMany: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
     vocabExam: { create: vi.fn() },
   },
 }));
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { finalizeVocabAttempt, createRetakeFromAttempt } from "@/actions/vocab-online";
+import { finalizeVocabAttempt, createRetakeFromAttempt, submitVocabAnswer } from "@/actions/vocab-online";
 
 const staff = { user: { id: "u1", role: "DIRECTOR", name: "원장" } };
 
@@ -110,5 +110,49 @@ describe("createRetakeFromAttempt", () => {
       items: [],
     } as never);
     await expect(createRetakeFromAttempt("a1")).rejects.toThrow();
+  });
+});
+
+describe("submitVocabAnswer", () => {
+  beforeEach(() => {
+    vi.mocked(prisma.vocabAttempt.findUnique).mockResolvedValue({
+      id: "a1",
+      status: "IN_PROGRESS",
+      expiresAt: null,
+      exam: { perQuestionSeconds: 10, title: "T" },
+    } as never);
+    vi.mocked(prisma.vocabAttemptItem.findUnique).mockResolvedValue({
+      id: "i1",
+      attemptId: "a1",
+      expectedAnswers: ["apple"],
+    } as never);
+    vi.mocked(prisma.vocabAttemptItem.updateMany).mockResolvedValue({ count: 1 } as never);
+  });
+
+  it("only records the first answer for an item (no re-answering)", async () => {
+    await submitVocabAnswer("tok", "i1", " apple ", 1234);
+    expect(prisma.vocabAttemptItem.updateMany).toHaveBeenCalledWith({
+      where: { id: "i1", attemptId: "a1", answeredAt: null },
+      data: expect.objectContaining({ studentAnswer: "apple", isCorrect: true, timeMs: 1234 }),
+    });
+  });
+
+  it("caps answer length and elapsed time from the public endpoint", async () => {
+    await submitVocabAnswer("tok", "i1", "x".repeat(5000), 1e15);
+    const arg = vi.mocked(prisma.vocabAttemptItem.updateMany).mock.calls[0][0] as {
+      data: { studentAnswer: string; timeMs: number };
+    };
+    expect(arg.data.studentAnswer.length).toBe(200);
+    expect(arg.data.timeMs).toBe(60 * 60 * 1000);
+  });
+
+  it("rejects an item that belongs to another attempt", async () => {
+    vi.mocked(prisma.vocabAttemptItem.findUnique).mockResolvedValue({
+      id: "i9",
+      attemptId: "other",
+      expectedAnswers: ["x"],
+    } as never);
+    await expect(submitVocabAnswer("tok", "i9", "x", 1)).rejects.toThrow("문항을 찾을 수 없습니다");
+    expect(prisma.vocabAttemptItem.updateMany).not.toHaveBeenCalled();
   });
 });

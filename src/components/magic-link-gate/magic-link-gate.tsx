@@ -24,6 +24,8 @@ function reasonToMessage(reason: string | undefined): string {
   switch (reason) {
     case "locked":
       return "여러 번 잘못 입력했어요. 10분 후 다시 시도해 주세요.";
+    case "locked_long":
+      return "오늘 시도 횟수를 넘었어요. 담당 원장님께 새 링크를 요청해 주세요.";
     case "invalid":
       return "입력한 값이 일치하지 않아요. 다시 확인해 주세요.";
     case "no_credential":

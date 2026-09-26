@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
+import { sanitizePortalAttachments } from "@/lib/portal-attachments";
 import {
   claimStudentQuestionFor,
   releaseStudentQuestionClaim,
@@ -25,24 +26,9 @@ const MAX_SUBJECT_LEN = 40;
 const MAX_CONTENT_LEN = 4000;
 const MAX_ATTACHMENTS = 6;
 
+// https:// 또는 같은 출처 상대 경로만 허용 — 프로토콜 상대("//host") 링크 차단 (@/lib/portal-attachments)
 function sanitizeAttachments(input: unknown): QuestionAttachment[] {
-  if (!Array.isArray(input)) return [];
-  return input
-    .filter(
-      (a): a is QuestionAttachment =>
-        !!a &&
-        typeof a === "object" &&
-        typeof (a as { url?: unknown }).url === "string" &&
-        ((a as { url: string }).url.startsWith("https://") ||
-          (a as { url: string }).url.startsWith("/"))
-    )
-    .slice(0, MAX_ATTACHMENTS)
-    .map((a) => ({
-      url: a.url,
-      name: typeof a.name === "string" ? a.name.slice(0, 200) : "첨부",
-      sizeBytes: typeof a.sizeBytes === "number" ? a.sizeBytes : 0,
-      mimeType: typeof a.mimeType === "string" ? a.mimeType : "application/octet-stream",
-    }));
+  return sanitizePortalAttachments(input, MAX_ATTACHMENTS);
 }
 
 // ─────────────────────────── 학생 측 (매직링크 토큰 인증) ───────────────────────────

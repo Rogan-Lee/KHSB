@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAnyStaff, requireStaff } from "@/lib/roles";
 import Groq from "groq-sdk";
 import { GROQ_MODEL } from "@/lib/groq";
 import {
@@ -37,6 +38,7 @@ async function callGroqWithRetry(
 export async function getMentoringContent(mentoringId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   return prisma.mentoring.findUnique({
     where: { id: mentoringId },
@@ -54,6 +56,7 @@ export async function getMentoringContent(mentoringId: string) {
 export async function enhanceMentoringWithAI(mentoringId: string): Promise<EnhancedMentoringContent> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   const mentoring = await prisma.mentoring.findUnique({
     where: { id: mentoringId },
@@ -134,6 +137,8 @@ export async function generateMonthlyMentoringSummary(
 ): Promise<string> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  // 월간 리포트 화면(/reports/monthly)은 전 직원 접근 가능 — 페이지와 동일 범위
+  requireAnyStaff(session.user.role);
 
   const start = new Date(year, month - 1, 1);
   const end = new Date(year, month, 0, 23, 59, 59);
@@ -193,8 +198,16 @@ export async function generateMonthlyMentoringSummary(
       throw new Error("AI 사용량 한도에 도달했습니다. 잠시 후 다시 시도해주세요.");
     }
     console.error("[generateMonthlyMentoringSummary] Groq 호출 실패:", error);
-    throw new Error(`AI 요약 생성 실패: ${err.message ?? "알 수 없는 오류"}`);
+    // 외부 API 원문 에러는 서버 로그에만 남기고 클라이언트엔 일반 메시지만 전달
+    throw new Error("AI 요약 생성에 실패했습니다. 잠시 후 다시 시도해주세요.");
   }
+}
+
+const MAX_ENHANCED_FIELD_LEN = 20000;
+
+function enhancedField(v: unknown): string | undefined {
+  if (typeof v !== "string") return undefined;
+  return v.slice(0, MAX_ENHANCED_FIELD_LEN);
 }
 
 export async function applyMentoringEnhancement(
@@ -203,15 +216,17 @@ export async function applyMentoringEnhancement(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  // 멘토링 수정 정책(updateMentoring)과 동일 — 자습실 스태프 이상
+  requireStaff(session.user.role);
 
   await prisma.mentoring.update({
     where: { id: mentoringId },
     data: {
-      content: data.content ?? undefined,
-      improvements: data.improvements ?? undefined,
-      weaknesses: data.weaknesses ?? undefined,
-      nextGoals: data.nextGoals ?? undefined,
-      notes: data.notes ?? undefined,
+      content: enhancedField(data?.content),
+      improvements: enhancedField(data?.improvements),
+      weaknesses: enhancedField(data?.weaknesses),
+      nextGoals: enhancedField(data?.nextGoals),
+      notes: enhancedField(data?.notes),
     },
   });
 }

@@ -2,6 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireAnyStaff } from "@/lib/roles";
 import Groq from "groq-sdk";
 import { GROQ_MODEL } from "@/lib/groq";
 
@@ -44,6 +45,7 @@ const ACADEMY_CONTEXT = `
 export async function generateFollowUpMessage(consultationId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const consultation = await prisma.directorConsultation.findUnique({
     where: { id: consultationId },

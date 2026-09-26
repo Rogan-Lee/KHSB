@@ -214,8 +214,19 @@ export async function toggleTodo(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
-  const existing = await prisma.todo.findUnique({ where: { id }, select: { isCompleted: true } });
+  const existing = await prisma.todo.findUnique({
+    where: { id },
+    select: { isCompleted: true, authorId: true, assigneeId: true },
+  });
   if (!existing) throw new Error("할 일을 찾을 수 없습니다");
+  // getTodos 와 동일 기준: 오프라인 직원은 전체, 그 외(온라인 직원 등)는 본인 작성·배정 건만
+  if (
+    !isStaff(session.user.role) &&
+    existing.authorId !== session.user.id &&
+    existing.assigneeId !== session.user.id
+  ) {
+    throw new Error("수정 권한이 없습니다");
+  }
 
   await prisma.todo.update({
     where: { id },

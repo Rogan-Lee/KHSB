@@ -15,12 +15,12 @@ import { getGoogleSheetsConfig } from "@/actions/google-sheets";
 import { isGoogleCalendarConfigured, getGoogleAuthUrl, isOAuthAppConfigured } from "@/lib/google-calendar";
 import { offlineStudentWhere } from "@/lib/student-filters";
 import { listStudentPortalLinks } from "@/actions/student-portal-links";
-import { auth } from "@/lib/auth";
 import { isFullAccess, isStaff } from "@/lib/roles";
 import { PortalLinksPanel } from "@/components/students/portal-links-panel";
 import { PreRegistrationPanel } from "@/components/students/pre-registration-panel";
 import { listPreRegistrations } from "@/actions/pre-registrations";
 import { GradePromotionDialog } from "@/components/students/grade-promotion-dialog";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 const VALID_TABS = ["list", "schedule", "pre-registration", "import", "scores-import", "sheets", "portal-links"] as const;
 type TabValue = (typeof VALID_TABS)[number];
@@ -30,12 +30,13 @@ export default async function StudentsPage({
 }: {
   searchParams: Promise<{ tab?: string }>;
 }) {
+  const session = await requireDashboardSession();
   const { tab } = await searchParams;
   const defaultTab: TabValue = (VALID_TABS as readonly string[]).includes(tab ?? "")
     ? (tab as TabValue)
     : "list";
 
-  const [students, studentsSheetConfig, scoresSheetConfig, googleConnected, portalLinkRows, session] = await Promise.all([
+  const [students, studentsSheetConfig, scoresSheetConfig, googleConnected, portalLinkRows] = await Promise.all([
     prisma.student.findMany({
       where: offlineStudentWhere(),
       include: {
@@ -49,12 +50,11 @@ export default async function StudentsPage({
     getGoogleSheetsConfig("scores"),
     isGoogleCalendarConfigured(),
     listStudentPortalLinks(),
-    auth(),
   ]);
   const preRegistrations = await listPreRegistrations();
   // 포털 링크 발급/재발급은 운영자 전원 허용, 사전등록 정식 전환은 원장 유지
-  const canManagePortalLinks = isStaff(session?.user.role);
-  const canFormalize = isFullAccess(session?.user.role);
+  const canManagePortalLinks = isStaff(session.user.role);
+  const canFormalize = isFullAccess(session.user.role);
 
   const googleAuthUrl = isOAuthAppConfigured() ? getGoogleAuthUrl() : "";
 

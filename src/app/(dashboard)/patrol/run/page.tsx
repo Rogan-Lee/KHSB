@@ -1,6 +1,8 @@
 import { getPatrolPortalData } from "@/actions/patrol";
 import { getAttentionStudents } from "@/lib/attention";
 import { PatrolDesktop } from "./_components/patrol-desktop";
+import { isStaff } from "@/lib/roles";
+import { requireDashboardSession } from "../../_lib/page-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +10,8 @@ export const dynamic = "force-dynamic";
 // 진입 즉시 진행 중 회차가 없으면 자동 시작(autoStart).
 // 모바일/외부 근무자는 매직링크 순찰 화면(/w/[token])을 사용.
 export default async function InAppPatrolRunPage() {
+  // /patrol, /patrol/qr 과 같은 기준 — 자습실 직원 전용 (getPatrolPortalData 도 requireStaff)
+  await requireDashboardSession(isStaff);
   const initial = await getPatrolPortalData(); // 세션 기반 (token 없음)
   const attention = await getAttentionStudents({
     rosterStudentIds: initial.roster.map((s) => s.id),

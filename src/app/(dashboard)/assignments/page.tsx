@@ -1,21 +1,22 @@
 export const revalidate = 30;
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
 import { PageHeader, StatCard, StatCards } from "@/components/backoffice/ui";
 import { AssignmentsOverview } from "@/components/assignments/assignments-overview";
 import { isFullAccess } from "@/lib/roles";
 import { offlineStudentWhere } from "@/lib/student-filters";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 export default async function AssignmentsPage() {
-  const session = await auth();
-  const isDirector = isFullAccess(session?.user?.role);
+  // 세션 필수 — 세션이 없으면 아래 mentorId 필터가 undefined 가 되어 전체 원생 과제가 노출된다.
+  const session = await requireDashboardSession();
+  const isDirector = isFullAccess(session.user.role);
 
   // 원생 목록 (활성 · 오프라인 자습실만)
   const students = await prisma.student.findMany({
     where: offlineStudentWhere({
       status: "ACTIVE",
-      ...(isDirector ? {} : { mentorId: session?.user?.id }),
+      ...(isDirector ? {} : { mentorId: session.user.id }),
     }),
     select: {
       id: true,

@@ -14,6 +14,7 @@ import {
 } from "@/lib/online/survey-template";
 
 const VALID_SECTION_KEYS = new Set(SURVEY_SECTIONS.map((s) => s.key));
+const MAX_SECTION_JSON_LEN = 50_000;
 const SECTION_BY_KEY = new Map(SURVEY_SECTIONS.map((s) => [s.key, s]));
 
 /** 컨설턴트·원장용 설문 조회. */
@@ -65,6 +66,9 @@ export async function upsertSurveySection(params: {
     where: { studentId },
   });
 
+  // 제출 후 수정은 UI 에서만 막혀 있었음 — 서버에서도 차단 (재설문은 reviseSurvey 로 submittedAt 초기화)
+  if (existing?.submittedAt) throw new Error("이미 제출된 설문은 수정할 수 없습니다");
+
   const currentSections =
     (existing?.sections as Record<string, unknown> | null) ?? emptySurveySections();
 
@@ -77,6 +81,10 @@ export async function upsertSurveySection(params: {
     nextValue = answer;
   } else {
     nextValue = answer;
+  }
+
+  if (JSON.stringify(nextValue ?? null).length > MAX_SECTION_JSON_LEN) {
+    throw new Error("입력 내용이 너무 깁니다");
   }
 
   const nextSections = {

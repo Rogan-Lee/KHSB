@@ -1,13 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import { NextRequest } from "next/server";
 import Groq from "groq-sdk";
 import { GROQ_MODEL } from "@/lib/groq";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireFullAccess } from "@/lib/roles";
+import { isFullAccess, requireFullAccess } from "@/lib/roles";
+import { verifyCronSecret } from "@/lib/cron-auth";
 import { notifySlack } from "@/lib/slack";
 import { queueParentReportPush } from "@/lib/mobile-push";
+import { hasGatePass } from "@/lib/token-auth";
 import {
   createOnlineParentFeedback,
   validateParentFeedbackContent,
@@ -41,6 +45,20 @@ type QueuedContent = {
   queuedAt: string;
   queuedById?: string;
 };
+
+/**
+ * 원장/SUPER_ADMIN 세션 또는 크론(Authorization: Bearer CRON_SECRET) 호출만 허용.
+ * "use server" 파일의 export 는 누구나 호출 가능한 공개 POST 엔드포인트이므로 반드시 인가해야 한다.
+ * /api/cron/online-*-report-draft 라우트가 배치 함수를 직접 import 하므로(세션 없음)
+ * 해당 라우트 요청의 Authorization 헤더로 크론 호출을 판별한다.
+ */
+async function requireFullAccessOrCron(): Promise<void> {
+  const session = await auth();
+  if (isFullAccess(session?.user?.role)) return;
+  const cronReq = new NextRequest("http://internal.local", { headers: await headers() });
+  if (verifyCronSecret(cronReq) === null) return;
+  throw new Error("Forbidden");
+}
 
 function weekRangeFromMonday(weekStartIso: string): {
   start: Date;
@@ -172,11 +190,24 @@ async function collectInputs(
   };
 }
 
-/** 단일 학생 주간 보고서 초안 생성 (upsert). 호출자가 요청한 weekStart 기준. */
+/** 단일 학생 주간 보고서 초안 생성 (upsert). 호출자가 요청한 weekStart 기준. 원장 전용. */
 export async function generateWeeklyReportDraft(params: {
   studentId: string;
   weekStart: string; // "YYYY-MM-DD"
 }): Promise<{ reportId: string; status: "DRAFT" | "DRAFT_FAILED" }> {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+  return generateWeeklyReportDraftCore(params);
+}
+
+// 인가는 호출자 책임 (export 금지 — 공개 서버액션이 된다)
+async function generateWeeklyReportDraftCore(params: {
+  studentId: string;
+  weekStart: string; // "YYYY-MM-DD"
+}): Promise<{ reportId: string; status: "DRAFT" | "DRAFT_FAILED" }> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(params.weekStart)) {
+    throw new Error("weekStart 는 YYYY-MM-DD 형식이어야 합니다");
+  }
   const { start, end } = weekRangeFromMonday(params.weekStart);
 
   try {
@@ -251,6 +282,8 @@ export async function batchGenerateWeeklyReports(params: {
   success: number;
   failed: number;
 }> {
+  await requireFullAccessOrCron();
+
   const studentIds =
     params.studentIds ??
     (await prisma.student.findMany({
@@ -264,7 +297,7 @@ export async function batchGenerateWeeklyReports(params: {
     const batch = studentIds.slice(i, i + GROQ_CONCURRENCY);
     const results = await Promise.allSettled(
       batch.map((studentId) =>
-        generateWeeklyReportDraft({ studentId, weekStart: params.weekStart })
+        generateWeeklyReportDraftCore({ studentId, weekStart: params.weekStart })
       )
     );
     for (const r of results) {
@@ -294,11 +327,11 @@ export async function regenerateReportDraft(reportId: string) {
 
   if (existing.type === "WEEKLY") {
     const weekStart = existing.periodStart.toISOString().slice(0, 10);
-    return generateWeeklyReportDraft({ studentId: existing.studentId, weekStart });
+    return generateWeeklyReportDraftCore({ studentId: existing.studentId, weekStart });
   }
   if (existing.type === "MONTHLY") {
     const yearMonth = existing.periodStart.toISOString().slice(0, 7);
-    return generateMonthlyReportDraft({
+    return generateMonthlyReportDraftCore({
       studentId: existing.studentId,
       yearMonth,
     });
@@ -421,12 +454,14 @@ export async function incrementReportView(params: {
   token: string;
   isUnique?: boolean;
 }) {
+  // 무인증 호출 — 객체({ not: "" } 등)가 Prisma 필터로 해석돼 전체 보고서를 갱신하지 않도록 문자열만 허용
+  if (typeof params?.token !== "string" || !params.token) return;
   await prisma.onlineParentReport
     .updateMany({
       where: { token: params.token, status: "SENT" },
       data: {
         viewCount: { increment: 1 },
-        uniqueViewCount: params.isUnique ? { increment: 1 } : undefined,
+        uniqueViewCount: params.isUnique === true ? { increment: 1 } : undefined,
         lastViewedAt: new Date(),
       },
     })
@@ -442,6 +477,9 @@ export async function submitParentFeedback(params: {
   name?: string | null;
   content: string;
 }) {
+  if (typeof params?.token !== "string" || !params.token) {
+    throw new Error("유효하지 않은 보고서입니다");
+  }
   validateParentFeedbackContent(params.content);
 
   const report = await prisma.onlineParentReport.findUnique({
@@ -454,6 +492,10 @@ export async function submitParentFeedback(params: {
   });
   if (!report || report.status !== "SENT") {
     throw new Error("유효하지 않은 보고서입니다");
+  }
+  // 페이지(/r/online/[token])와 같은 학부모 본인 확인 게이트 — 링크만으로는 작성 불가
+  if (!(await hasGatePass("PARENT", params.token, report.student.id))) {
+    throw new Error("본인 확인이 필요합니다");
   }
 
   // 핵심 로직: src/lib/online/parent-feedback.ts — 학부모 앱과 공용
@@ -587,11 +629,26 @@ async function collectMonthlyInputs(
   };
 }
 
+/** 단일 학생 월간 보고서 초안 생성 (upsert). 원장 전용. */
 export async function generateMonthlyReportDraft(params: {
   studentId: string;
   yearMonth: string;
   selectedExamSessionId?: string | null;
 }): Promise<{ reportId: string; status: "DRAFT" | "DRAFT_FAILED" }> {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+  return generateMonthlyReportDraftCore(params);
+}
+
+// 인가는 호출자 책임 (export 금지 — 공개 서버액션이 된다)
+async function generateMonthlyReportDraftCore(params: {
+  studentId: string;
+  yearMonth: string;
+  selectedExamSessionId?: string | null;
+}): Promise<{ reportId: string; status: "DRAFT" | "DRAFT_FAILED" }> {
+  if (!/^\d{4}-\d{2}$/.test(params.yearMonth)) {
+    throw new Error("yearMonth 는 YYYY-MM 형식이어야 합니다");
+  }
   const { start, end } = monthRange(params.yearMonth);
 
   // 명시 전달이 없으면 기존 리포트에 저장된 모의고사 선택을 유지(재생성 시 드리프트 방지)
@@ -677,7 +734,7 @@ export async function setMonthlyReportExamSession(
   if (report.type !== "MONTHLY") throw new Error("월간 리포트만 모의고사를 선택할 수 있습니다");
 
   const yearMonth = report.periodStart.toISOString().slice(0, 7);
-  return generateMonthlyReportDraft({ studentId: report.studentId, yearMonth, selectedExamSessionId: examSessionId });
+  return generateMonthlyReportDraftCore({ studentId: report.studentId, yearMonth, selectedExamSessionId: examSessionId });
 }
 
 /** 해당 학생의 성적이 있는 모의고사(ExamSession) 목록 — 셀렉터용 (원장). */
@@ -700,6 +757,8 @@ export async function batchGenerateMonthlyReports(params: {
   yearMonth: string;
   studentIds?: string[];
 }): Promise<{ total: number; success: number; failed: number }> {
+  await requireFullAccessOrCron();
+
   const studentIds =
     params.studentIds ??
     (await prisma.student.findMany({
@@ -713,7 +772,7 @@ export async function batchGenerateMonthlyReports(params: {
     const batch = studentIds.slice(i, i + GROQ_CONCURRENCY);
     const results = await Promise.allSettled(
       batch.map((studentId) =>
-        generateMonthlyReportDraft({ studentId, yearMonth: params.yearMonth })
+        generateMonthlyReportDraftCore({ studentId, yearMonth: params.yearMonth })
       )
     );
     for (const r of results) {
@@ -835,6 +894,8 @@ export async function notifyBatchComplete(params: {
   success: number;
   failed: number;
 }) {
+  await requireFullAccessOrCron();
+
   const emoji = params.failed === 0 ? "✅" : "⚠️";
   await notifySlack(
     `${emoji} 학부모 주간 보고서 초안 생성 완료 — 주 ${params.weekStartIso}\n` +

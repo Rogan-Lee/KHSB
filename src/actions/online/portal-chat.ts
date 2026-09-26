@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { isAnyStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
+import { sanitizePortalAttachments } from "@/lib/portal-attachments";
+import { ensureStudentPortalChats } from "@/lib/portal-chat-core";
 import type { PortalChatSenderType } from "@/generated/prisma/enums";
 
 export type ChatAttachment = {
@@ -17,64 +19,6 @@ export type ChatAttachment = {
 
 const MAX_CONTENT_LEN = 4000;
 const MAX_ATTACHMENTS = 5;
-
-/**
- * 학생의 담당 직원(mentor/consultant/staff)에 대해 채팅방 row를 보장.
- * 없으면 생성, 있으면 그대로. 반환은 보장된 chat row 목록 (lastMessageAt desc).
- */
-export async function ensureStudentPortalChats(studentId: string) {
-  const student = await prisma.student.findUnique({
-    where: { id: studentId },
-    select: {
-      id: true,
-      mentorId: true,
-      assignedMentorId: true,
-      assignedConsultantId: true,
-      assignedStaffId: true,
-    },
-  });
-  if (!student) throw new Error("학생을 찾을 수 없습니다");
-
-  // 온라인 배정(assigned*) + 오프라인 담당 멘토(mentorId) 모두 채팅 상대로 포함.
-  // 재원생은 mentorId 만 있는 경우가 많아 이를 포함해야 채팅이 동작.
-  const staffIds = [
-    ...new Set(
-      [
-        student.assignedMentorId,
-        student.assignedConsultantId,
-        student.assignedStaffId,
-        student.mentorId,
-      ].filter((id): id is string => !!id)
-    ),
-  ];
-
-  for (const staffId of staffIds) {
-    await prisma.portalChat.upsert({
-      where: { studentId_staffId: { studentId: student.id, staffId } },
-      update: {},
-      create: { studentId: student.id, staffId },
-    });
-  }
-
-  return prisma.portalChat.findMany({
-    where: { studentId: student.id, staffId: { in: staffIds } },
-    orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
-    include: {
-      staff: { select: { id: true, name: true, role: true } },
-      messages: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: {
-          id: true,
-          content: true,
-          senderType: true,
-          createdAt: true,
-          attachments: true,
-        },
-      },
-    },
-  });
-}
 
 /**
  * 학생 포털용 채팅 리스트 — 토큰 인증.
@@ -271,7 +215,14 @@ export async function getChatMessages(params: {
   before?: string; // ISO date — 페이지네이션
   limit?: number;
 }) {
-  const { chatId, studentToken, before, limit = 50 } = params;
+  const { chatId, studentToken, before } = params;
+  // take 는 클라이언트 입력 — 1~100 으로 제한 (음수 take 는 역방향 조회가 되므로 차단)
+  const limit =
+    typeof params.limit === "number" && Number.isFinite(params.limit)
+      ? Math.min(Math.max(Math.trunc(params.limit), 1), 100)
+      : 50;
+  const beforeDate = before ? new Date(before) : null;
+  if (beforeDate && Number.isNaN(beforeDate.getTime())) throw new Error("잘못된 요청입니다");
   const chat = await prisma.portalChat.findUnique({
     where: { id: chatId },
     select: {
@@ -304,7 +255,7 @@ export async function getChatMessages(params: {
   const messages = await prisma.portalChatMessage.findMany({
     where: {
       chatId,
-      ...(before ? { createdAt: { lt: new Date(before) } } : {}),
+      ...(beforeDate ? { createdAt: { lt: beforeDate } } : {}),
     },
     orderBy: { createdAt: "desc" },
     take: limit,
@@ -338,16 +289,18 @@ export async function sendChatMessage(params: {
   content: string;
   attachments?: ChatAttachment[];
 }) {
-  const { chatId, studentToken, content, attachments = [] } = params;
-  const trimmed = content.trim();
+  const { chatId, studentToken, content } = params;
+  if (Array.isArray(params.attachments) && params.attachments.length > MAX_ATTACHMENTS) {
+    throw new Error(`첨부는 ${MAX_ATTACHMENTS}개 이하만 가능합니다`);
+  }
+  // 클라이언트가 보낸 첨부 객체를 그대로 저장하지 않는다 — https URL·필드 길이 정규화
+  const attachments = sanitizePortalAttachments(params.attachments, MAX_ATTACHMENTS);
+  const trimmed = (typeof content === "string" ? content : "").trim();
   if (!trimmed && attachments.length === 0) {
     throw new Error("내용 또는 첨부가 필요합니다");
   }
   if (trimmed.length > MAX_CONTENT_LEN) {
     throw new Error(`메시지는 ${MAX_CONTENT_LEN}자 이하로 작성해 주세요`);
-  }
-  if (attachments.length > MAX_ATTACHMENTS) {
-    throw new Error(`첨부는 ${MAX_ATTACHMENTS}개 이하만 가능합니다`);
   }
 
   const chat = await prisma.portalChat.findUnique({

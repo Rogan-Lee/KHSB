@@ -2,12 +2,21 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireStaff } from "@/lib/roles";
+import { requireAnyStaff, requireStaff } from "@/lib/roles";
+
+// 학부모 월간 리포트(/r)에 노출되는 메모 — 길이 상한
+const NOTE_CONTENT_MAX = 5000;
+function assertNoteContent(content: unknown) {
+  if (typeof content !== "string" || content.length > NOTE_CONTENT_MAX) {
+    throw new Error(`메모는 ${NOTE_CONTENT_MAX}자 이하로 입력하세요`);
+  }
+}
 import { revalidatePath } from "next/cache";
 
 export async function getMonthlyNotes(year: number, month: number) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   return prisma.monthlyNote.findMany({
     where: { year, month },
@@ -24,6 +33,11 @@ export async function createMonthlyNote(data: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
+  assertNoteContent(data.content);
+  if (typeof data.studentName !== "string" || data.studentName.length > 50) {
+    throw new Error("학생 이름이 올바르지 않습니다");
+  }
 
   const note = await prisma.monthlyNote.create({
     data: {
@@ -44,6 +58,7 @@ export async function createMonthlyNote(data: {
 export async function updateMonthlyNote(id: string, content: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const existing = await prisma.monthlyNote.findUnique({ where: { id } });
   if (!existing) throw new Error("메모를 찾을 수 없습니다");
@@ -51,6 +66,7 @@ export async function updateMonthlyNote(id: string, content: string) {
     throw new Error("수정 권한이 없습니다");
   }
 
+  assertNoteContent(content);
   const note = await prisma.monthlyNote.update({
     where: { id },
     data: { content: content.trim() },
@@ -81,6 +97,7 @@ export async function toggleMonthlyNoteVisibility(id: string, visible: boolean) 
 export async function deleteMonthlyNote(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const existing = await prisma.monthlyNote.findUnique({ where: { id } });
   if (!existing) throw new Error("메모를 찾을 수 없습니다");

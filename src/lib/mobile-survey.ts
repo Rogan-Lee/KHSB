@@ -12,6 +12,7 @@ import {
 
 const SECTION_BY_KEY = new Map(SURVEY_SECTIONS.map((s) => [s.key, s]));
 const VALID_KEYS = new Set(SURVEY_SECTIONS.map((s) => s.key));
+const MAX_SECTION_JSON_LENGTH = 50_000;
 
 type StudentCtx = { id: string; grade: string | null };
 
@@ -73,6 +74,10 @@ export async function saveMobileSurveySection(
       throw new MobileApiError("섹션 값 형식이 올바르지 않습니다", 400);
     }
     nextValue = value;
+  }
+  // 클라이언트 JSON 을 그대로 저장하므로 섹션당 크기 상한 (정상 답변은 수 KB 수준)
+  if (JSON.stringify(nextValue).length > MAX_SECTION_JSON_LENGTH) {
+    throw new MobileApiError("답변이 너무 길어요. 내용을 줄여 주세요", 400);
   }
 
   const existing = await prisma.onboardingSurvey.findUnique({

@@ -1,5 +1,4 @@
-import { notFound, redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getTimetableEntries, getStudentSchoolEvents } from "@/actions/timetable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,14 +13,14 @@ import { StudentInfoReveal } from "@/components/mentoring/student-info-reveal";
 import { ConsultationRecordForm } from "@/components/consultations/consultation-record-form";
 import { FollowUpMessagePanel } from "@/components/consultations/followup-message-panel";
 import { CATEGORY_META, STATUS_META, TYPE_LABEL, formatKST } from "@/components/consultations/consultation-tones";
+import { requireDashboardSession } from "../../_lib/page-guard";
 
 export default async function ConsultationDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user) redirect("/sign-in");
+  await requireDashboardSession();
 
   const { id } = await params;
 

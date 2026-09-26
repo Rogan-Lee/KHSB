@@ -4,17 +4,19 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { startOfMonth, endOfMonth } from "date-fns";
-import { requireStaff, requireFullAccess } from "@/lib/roles";
+import { requireAnyStaff, requireStaff, requireFullAccess } from "@/lib/roles";
 import crypto from "crypto";
 import { calcStudyMinutes, diffMinutes } from "@/lib/study-time";
 import { queueParentReportPush } from "@/lib/mobile-push";
 
 // ─── 순공 시간 계산 헬퍼 — src/lib/study-time.ts (모바일 API 와 공용) ───────────
 
+// 보안: 아래 집계 헬퍼들은 인증이 없으므로 export 하지 않는다 ("use server" export = 공개 엔드포인트).
+
 /**
  * 학생의 월간 총 순공 시간(분) 계산 (AttendanceRecord + DailyOuting 차감).
  */
-export async function getMonthlyStudyMinutes(
+async function getMonthlyStudyMinutes(
   studentId: string,
   year: number,
   month: number
@@ -46,7 +48,7 @@ export async function getMonthlyStudyMinutes(
  * 모든 ACTIVE 학생의 월간 순공시간을 SQL 일괄 집계로 계산.
  * 개별 쿼리 N+1 문제 제거 (200쿼리 → 2쿼리).
  */
-export async function getStudyRankMap(year: number, month: number) {
+async function getStudyRankMap(year: number, month: number) {
   const start = startOfMonth(new Date(year, month - 1));
   const end = endOfMonth(new Date(year, month - 1));
 
@@ -101,7 +103,7 @@ export async function getStudyRankMap(year: number, month: number) {
 /**
  * 특정 학년의 월간 평균 순공시간(분) — getStudyRankMap 결과 재활용.
  */
-export async function getGradeAverageStudyMinutes(
+async function getGradeAverageStudyMinutes(
   grade: string,
   year: number,
   month: number,
@@ -173,13 +175,18 @@ async function getMonthlyOutingStats(
 /**
  * 멘토링 화면에서 멘토/학생이 함께 볼 수 있는 학습 정량 분석.
  * MonthlyReport 와 동일한 메트릭을 실시간 계산 (스냅샷 X).
- * 인증 안 함 — 멘토링 페이지 자체가 STAFF 전용 라우트라 그쪽에서 보호.
+ * 보안: export 된 서버 액션은 페이지 가드와 무관하게 직접 호출 가능하므로 직원 세션을 검증한다.
  */
 export async function getStudentStudyAnalysis(
   studentId: string,
   year: number,
   month: number,
 ) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  // 호출처: /mentoring/[id] (오프라인 직원 전용 페이지)
+  requireStaff(session.user.role);
+
   const start = startOfMonth(new Date(year, month - 1));
   const end = endOfMonth(new Date(year, month - 1));
 
@@ -228,7 +235,7 @@ export async function getStudentStudyAnalysis(
  * 월간 순찰 이상 집계. 순찰에서 기록을 남기지 않으면 이상 없음(OK),
  * 특이사항(NOTE)·자리비움(ABSENT)만 "이상 기록"으로 집계.
  */
-export async function getMonthlyPatrolIssues(studentId: string, year: number, month: number) {
+async function getMonthlyPatrolIssues(studentId: string, year: number, month: number) {
   const start = startOfMonth(new Date(year, month - 1));
   const end = endOfMonth(new Date(year, month - 1));
   const records = await prisma.patrolRecord.findMany({
@@ -321,7 +328,7 @@ export async function generateMonthlyReport(
 
   // 리포트 저장 후 자동 사진 첨부 (§2.22). 실패해도 리포트 생성은 유지.
   try {
-    await autoAttachPhotosToReport(report.id);
+    await autoAttachPhotosInternal(report.id);
   } catch {
     // Silent — 사진 첨부 실패가 리포트 실패로 이어지지 않도록
   }
@@ -336,6 +343,16 @@ export async function generateMonthlyReport(
  * - attachedPhotoIds 필드에 ID 배열 저장 (덮어쓰기)
  */
 export async function autoAttachPhotosToReport(reportId: string, limit = 3) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+  const safeLimit = Number.isInteger(limit) ? Math.min(Math.max(limit, 0), 20) : 3;
+  const count = await autoAttachPhotosInternal(reportId, safeLimit);
+  revalidatePath("/reports/monthly");
+  return count;
+}
+
+async function autoAttachPhotosInternal(reportId: string, limit = 3) {
   const report = await prisma.monthlyReport.findUnique({
     where: { id: reportId },
     select: { studentId: true, year: true, month: true },
@@ -403,9 +420,27 @@ export async function setReportPhotos(reportId: string, photoIds: string[]) {
   if (!session?.user) throw new Error("Unauthorized");
   requireStaff(session.user.role);
 
+  const report = await prisma.monthlyReport.findUnique({
+    where: { id: reportId },
+    select: { studentId: true },
+  });
+  if (!report) throw new Error("리포트를 찾을 수 없습니다");
+
+  // 학부모에게 나가는 리포트이므로 해당 학생의 사진만 첨부 허용 (다른 원생 사진 노출 방지)
+  const requested = Array.isArray(photoIds)
+    ? Array.from(new Set(photoIds.filter((id): id is string => typeof id === "string"))).slice(0, 50)
+    : [];
+  const owned = requested.length
+    ? await prisma.photo.findMany({
+        where: { id: { in: requested }, studentId: report.studentId },
+        select: { id: true },
+      })
+    : [];
+  const ownedIds = new Set(owned.map((p) => p.id));
+
   await prisma.monthlyReport.update({
     where: { id: reportId },
-    data: { attachedPhotoIds: photoIds },
+    data: { attachedPhotoIds: requested.filter((id) => ownedIds.has(id)) },
   });
   revalidatePath("/reports");
   revalidatePath("/reports/monthly");
@@ -459,9 +494,15 @@ export async function generateMonthlyReportsBulk(
   return results;
 }
 
+const REPORT_TEXT_MAX = 100_000; // 월간 멘토링 자동 추출 요약이 길 수 있어 남용 방지 수준으로만 제한
+
 export async function updateReportComment(id: string, overallComment: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+  if (typeof overallComment !== "string" || overallComment.length > REPORT_TEXT_MAX) {
+    throw new Error(`코멘트는 ${REPORT_TEXT_MAX}자 이하로 입력하세요`);
+  }
   await prisma.monthlyReport.update({ where: { id }, data: { overallComment } });
   revalidatePath("/reports");
 }
@@ -469,6 +510,10 @@ export async function updateReportComment(id: string, overallComment: string) {
 export async function updateReportMentoringSummary(id: string, mentoringSummary: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+  if (typeof mentoringSummary !== "string" || mentoringSummary.length > REPORT_TEXT_MAX) {
+    throw new Error(`종합의견은 ${REPORT_TEXT_MAX}자 이하로 입력하세요`);
+  }
   await prisma.monthlyReport.update({ where: { id }, data: { mentoringSummary } });
   revalidatePath("/reports");
 }
@@ -476,6 +521,7 @@ export async function updateReportMentoringSummary(id: string, mentoringSummary:
 export async function markReportSent(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
   const prev = await prisma.monthlyReport.findUnique({ where: { id }, select: { sentAt: true } });
   const updated = await prisma.monthlyReport.update({
     where: { id },
@@ -567,6 +613,7 @@ export async function extractMonthlyMentoringDigest(
 ): Promise<string> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
 
   const start = startOfMonth(new Date(year, month - 1));
   const end = endOfMonth(new Date(year, month - 1));
@@ -641,6 +688,7 @@ export async function ensureReportShareToken(id: string) {
 export async function getMonthlyAdmissionInfo(year: number, month: number, grade?: string | null) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   // 학년별 > 전체 순으로 찾기
   if (grade) {
@@ -680,6 +728,7 @@ export async function upsertMonthlyAdmissionInfo(
 export async function getMonthlyAwards(year: number, month: number) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
   return prisma.monthlyAward.findMany({
     where: { year, month },
     include: { student: { select: { id: true, name: true, grade: true } } },

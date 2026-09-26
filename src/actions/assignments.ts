@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { requireStaff } from "@/lib/roles";
+import { requireAnyStaff, requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { del } from "@vercel/blob";
 
@@ -19,9 +19,28 @@ const ASSIGNMENT_FILE_ALLOWED_MIMES = [
 
 const ASSIGNMENT_FILE_MAX_BYTES = 20 * 1024 * 1024; // 20MB
 
+/**
+ * /api/upload/assignment 가 발급한 Vercel Blob URL 인지 검증.
+ * 저장된 url 은 첨부 링크(href)로 렌더되고 삭제 시 del(url) 로 Blob 삭제에 쓰이므로,
+ * 임의 URL(javascript:, 외부 도메인, 다른 경로의 Blob)을 받지 않는다.
+ */
+function isAssignmentBlobUrl(raw: string, assignmentId?: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "https:") return false;
+  if (!u.hostname.endsWith(".public.blob.vercel-storage.com")) return false;
+  const prefix = assignmentId ? `/assignments/${assignmentId}/` : "/assignments/";
+  return u.pathname.startsWith(prefix);
+}
+
 export async function getAssignments(studentId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   return prisma.assignment.findMany({
     where: { studentId },
@@ -41,6 +60,7 @@ export async function createAssignment(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const assignment = await prisma.assignment.create({
     data: {
@@ -63,6 +83,7 @@ export async function createAssignment(
 export async function completeAssignment(id: string, studentId: string, note?: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   await prisma.assignment.update({
     where: { id },
@@ -80,6 +101,7 @@ export async function completeAssignment(id: string, studentId: string, note?: s
 export async function uncompleteAssignment(id: string, studentId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   await prisma.assignment.update({
     where: { id },
@@ -102,6 +124,7 @@ export async function updateAssignment(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   await prisma.assignment.update({
     where: { id },
@@ -120,6 +143,7 @@ export async function updateAssignment(
 export async function deleteAssignment(id: string, studentId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   await prisma.assignment.delete({ where: { id } });
 
@@ -145,6 +169,7 @@ export async function attachFileToAssignment(
   const sizeBytes = Number(fileMeta.sizeBytes);
 
   if (!url) throw new Error("파일 URL이 없습니다");
+  if (!isAssignmentBlobUrl(url, assignmentId)) throw new Error("파일 URL이 올바르지 않습니다");
   if (!fileName) throw new Error("파일명이 없습니다");
   if (!mimeType) throw new Error("MIME 타입이 없습니다");
   if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
@@ -167,7 +192,7 @@ export async function attachFileToAssignment(
     data: {
       assignmentId,
       url,
-      fileName,
+      fileName: fileName.slice(0, 200),
       mimeType,
       sizeBytes,
       uploadedById: session.user.id,
@@ -190,11 +215,13 @@ export async function deleteAssignmentFile(id: string) {
   });
   if (!file) throw new Error("파일을 찾을 수 없습니다");
 
-  // Blob 삭제 시도 (실패해도 DB 행은 제거)
-  try {
-    await del(file.url, { token: process.env.BLOB_READ_WRITE_TOKEN });
-  } catch (err) {
-    console.warn("[deleteAssignmentFile] Blob 삭제 실패, 계속 진행:", err);
+  // Blob 삭제 시도 (실패해도 DB 행은 제거). 과제 업로드 경로의 Blob 만 삭제한다.
+  if (isAssignmentBlobUrl(file.url, file.assignmentId)) {
+    try {
+      await del(file.url, { token: process.env.BLOB_READ_WRITE_TOKEN });
+    } catch (err) {
+      console.warn("[deleteAssignmentFile] Blob 삭제 실패, 계속 진행:", err);
+    }
   }
 
   await prisma.assignmentFile.delete({ where: { id } });
@@ -208,6 +235,7 @@ export async function deleteAssignmentFile(id: string) {
 export async function listAssignmentFiles(assignmentId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   return prisma.assignmentFile.findMany({
     where: { assignmentId },

@@ -62,6 +62,39 @@ export const ALLOWED_DOCUMENT_EXTENSIONS = new Set([
   "zip",
 ]);
 
+// 확장자 → 저장용 content-type (클라가 보낸 MIME 이 허용 목록 밖일 때만 사용)
+const CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  gif: "image/gif",
+  heic: "image/heic",
+  heif: "image/heif",
+  hwp: "application/x-hwp",
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  mov: "video/quicktime",
+  mp4: "video/mp4",
+  pdf: "application/pdf",
+  png: "image/png",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  webm: "video/webm",
+  webp: "image/webp",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  zip: "application/zip",
+};
+
+/**
+ * 공개 blob 에 저장할 content-type. 확장자만 허용 목록에 맞고 MIME 은 임의(text/html,
+ * image/svg+xml 등)인 요청이 브라우저가 렌더링하는 타입으로 저장되지 않도록,
+ * 허용 목록 밖 MIME 은 확장자 기준 타입(없으면 octet-stream)으로 바꾼다.
+ */
+export function safeUploadContentType(mimeType: string, filename: string) {
+  if (ALLOWED_DOCUMENT_MIME_TYPES.has(mimeType)) return mimeType;
+  return CONTENT_TYPE_BY_EXTENSION[extension(filename)] ?? "application/octet-stream";
+}
+
 // KDA 는 운영 종료 — 신규 업로드 차단 (과거 데이터는 표시 유지)
 const MENTORING_TAGS = new Set(["EXTRA", "FREE"]);
 

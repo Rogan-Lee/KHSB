@@ -99,13 +99,15 @@ export async function POST(request: NextRequest) {
   // 원본 업로드 (랜덤 경로로 blob 충돌 방지)
   const buffer = Buffer.from(await file.arrayBuffer());
   const ext = parsed.ext!;
+  // Content-Type 은 검증된 확장자로 결정 (클라이언트 file.type 을 신뢰하지 않음 — text/html 저장 방지)
+  const contentType = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
   const blobBase = `photos/${autoKey}/${Date.now()}-${crypto.randomUUID()}`;
 
   try {
     const originalBlob = await put(`${blobBase}.${ext}`, buffer, {
       access: "public",
       token: process.env.BLOB_READ_WRITE_TOKEN,
-      contentType: file.type || undefined,
+      contentType,
     });
 
     // 썸네일 생성 (sharp — HEIC는 입력 지원 환경마다 다름. 실패 시 원본을 썸네일로)
@@ -132,7 +134,7 @@ export async function POST(request: NextRequest) {
         fileName: finalFileName,
         url: originalBlob.url,
         thumbnailUrl,
-        mimeType: file.type || `image/${ext}`,
+        mimeType: contentType,
         sizeBytes: file.size,
         parsedDate: date!,
         parsedSeatNumber: seatNumber!,
@@ -152,8 +154,9 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (e) {
+    console.error("[photos/upload] 업로드 실패:", e);
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "업로드 실패", fileName: file.name },
+      { error: "업로드 실패", fileName: file.name },
       { status: 500 }
     );
   }

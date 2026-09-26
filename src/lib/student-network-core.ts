@@ -80,11 +80,13 @@ export async function loadStudentNetworkRequests(studentId: string): Promise<Net
 
 /** 네트워크 사용 신청. startAt/endAt은 "YYYY-MM-DDTHH:MM" (KST). */
 export async function requestNetworkForStudent(student: StudentRef, params: NetworkRequestInput) {
-  if (!(params.kind in NETWORK_KIND_LABELS)) {
+  // `in` 은 프로토타입 키("toString" 등)도 통과시키므로 own property 로 검사
+  if (typeof params.kind !== "string" || !Object.hasOwn(NETWORK_KIND_LABELS, params.kind)) {
     throw new MobileApiError("신청 유형을 선택해 주세요", 400);
   }
 
-  const target = (params.target ?? "").trim().slice(0, MAX_TARGET_LEN) || null;
+  const target =
+    (typeof params.target === "string" ? params.target : "").trim().slice(0, MAX_TARGET_LEN) || null;
   if (params.kind === "DOMAIN_ALLOW" && !target) {
     throw new MobileApiError("허용할 사이트 주소를 입력해 주세요", 400);
   }
@@ -92,13 +94,18 @@ export async function requestNetworkForStudent(student: StudentRef, params: Netw
     throw new MobileApiError("사용할 앱 이름을 입력해 주세요", 400);
   }
 
-  const reason = params.reason.trim();
+  const reason = (typeof params.reason === "string" ? params.reason : "").trim();
   if (!reason) throw new MobileApiError("사용 사유를 입력해 주세요", 400);
   if (reason.length > MAX_REASON_LEN) {
     throw new MobileApiError(`사유는 ${MAX_REASON_LEN}자 이하로 작성해 주세요`, 400);
   }
 
-  if (!DATETIME_RE.test(params.startAt) || !DATETIME_RE.test(params.endAt)) {
+  if (
+    typeof params.startAt !== "string" ||
+    typeof params.endAt !== "string" ||
+    !DATETIME_RE.test(params.startAt) ||
+    !DATETIME_RE.test(params.endAt)
+  ) {
     throw new MobileApiError("사용 시간을 선택해 주세요", 400);
   }
   const startAt = new Date(`${params.startAt}:00+09:00`);

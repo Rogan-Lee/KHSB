@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { HandoverPriority } from "@/generated/prisma";
-import { STAFF_ROLES, requireStaff, isFullAccess } from "@/lib/roles";
+import { STAFF_ROLES, requireStaff, requireAnyStaff, isAnyStaff, isFullAccess } from "@/lib/roles";
 import { todayKST } from "@/lib/utils";
 
 // ── 조회 ──────────────────────────────────────────────────────────────────────
@@ -12,6 +12,7 @@ import { todayKST } from "@/lib/utils";
 export async function getHandovers(options?: { date?: string; limit?: number }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const where = options?.date ? { date: new Date(options.date) } : undefined;
 
@@ -30,6 +31,7 @@ export async function getHandovers(options?: { date?: string; limit?: number }) 
 export async function getRecentHandovers(days = 14) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const since = todayKST();
   since.setDate(since.getDate() - days);
@@ -49,6 +51,7 @@ export async function getRecentHandovers(days = 14) {
 export async function getHandoversSince(sinceYMD: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const since = new Date(sinceYMD);
   if (isNaN(since.getTime())) throw new Error("잘못된 날짜");
@@ -73,6 +76,7 @@ export async function getHandoversSince(sinceYMD: string) {
 export async function getHandoversBetween(fromYMD: string, toYMD: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const from = new Date(fromYMD);
   const to = new Date(toYMD);
@@ -93,6 +97,7 @@ export async function getHandoversBetween(fromYMD: string, toYMD: string) {
 export async function getHandoverById(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   return prisma.handover.findUnique({
     where: { id },
@@ -145,6 +150,7 @@ export async function deleteHandoverComment(commentId: string) {
 export async function getTodayHandover() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const today = todayKST();
 
@@ -191,6 +197,7 @@ export async function createFullHandover(data: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const today = data.date ? new Date(data.date) : todayKST();
 
@@ -255,6 +262,7 @@ export async function updateFullHandover(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const existing = await prisma.handover.findUnique({ where: { id } });
   if (!existing) throw new Error("인수인계를 찾을 수 없습니다");
@@ -343,6 +351,7 @@ export async function updateHandover(
 export async function deleteHandover(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const existing = await prisma.handover.findUnique({ where: { id } });
   if (!existing) throw new Error("인수인계를 찾을 수 없습니다");
@@ -368,6 +377,7 @@ export async function deleteHandover(id: string) {
 export async function markHandoverRead(handoverId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   await prisma.handoverRead.upsert({
     where: { handoverId_userId: { handoverId, userId: session.user.id } },
@@ -391,7 +401,7 @@ export async function markHandoverRead(handoverId: string) {
  */
 export async function recordHandoverView(handoverId: string) {
   const session = await auth();
-  if (!session?.user) return;
+  if (!session?.user || !isAnyStaff(session.user.role)) return;
 
   await prisma.handoverRead.upsert({
     where: { handoverId_userId: { handoverId, userId: session.user.id } },
@@ -407,6 +417,7 @@ export async function recordHandoverView(handoverId: string) {
 export async function toggleHandoverTask(taskId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const task = await prisma.handoverTask.findUnique({ where: { id: taskId }, select: { isCompleted: true } });
   if (!task) throw new Error("할 일을 찾을 수 없습니다");
@@ -426,6 +437,7 @@ export async function toggleHandoverTask(taskId: string) {
 export async function toggleHandoverChecklist(itemId: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const item = await prisma.handoverChecklist.findUnique({
     where: { id: itemId },
@@ -451,6 +463,7 @@ export async function toggleHandoverChecklist(itemId: string) {
 export async function togglePin(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const existing = await prisma.handover.findUnique({ where: { id }, select: { isPinned: true } });
   if (!existing) throw new Error("인수인계를 찾을 수 없습니다");
@@ -464,6 +477,7 @@ export async function togglePin(id: string) {
 export async function getStaffList() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   return prisma.user.findMany({
     // 인수인계 담당자 picker — 퇴사자 제외

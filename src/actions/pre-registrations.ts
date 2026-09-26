@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireStaff, requireFullAccess } from "@/lib/roles";
+import { revokeAllLinksForStudent } from "@/lib/student-auth";
 
 const preRegSchema = z.object({
   name: z.string().min(1, "이름을 입력하세요").max(50),
@@ -147,6 +148,11 @@ export async function formalizePreRegistration(
     });
     return created;
   });
+
+  // 좌석 인계로 퇴원 처리된 기존 학생의 포털 매직링크 무효화 (심층 방어)
+  if (seat && opts?.checkoutOccupantId) {
+    await revokeAllLinksForStudent(opts.checkoutOccupantId);
+  }
 
   revalidatePath("/students");
   revalidatePath("/seat-map");

@@ -234,6 +234,11 @@ export function AssignmentPanel({
   function handlePrint() {
     const win = window.open("", "_blank");
     if (!win) return;
+    // about:blank 창은 앱과 같은 origin — 사용자 입력은 반드시 HTML 이스케이프 (stored XSS 방지)
+    const esc = (v: unknown) =>
+      String(v ?? "").replace(/[&<>"']/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!
+      );
     const pendingItems = items.filter((i) => !i.isCompleted);
     const today = new Date().toLocaleDateString("ko-KR", {
       year: "numeric", month: "long", day: "numeric",
@@ -243,7 +248,7 @@ export function AssignmentPanel({
       <html lang="ko">
       <head>
         <meta charset="UTF-8" />
-        <title>${studentName ?? "원생"} 과제표</title>
+        <title>${esc(studentName ?? "원생")} 과제표</title>
         <style>
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body { font-family: 'Malgun Gothic', sans-serif; padding: 24px; font-size: 13px; }
@@ -261,7 +266,7 @@ export function AssignmentPanel({
         </style>
       </head>
       <body>
-        <h1>${studentName ?? "원생"} 과제표</h1>
+        <h1>${esc(studentName ?? "원생")} 과제표</h1>
         <p class="meta">${today} 기준 · 미완료 ${pendingItems.length}개</p>
         ${pendingItems.length === 0
           ? '<p style="color:#666;text-align:center;padding:20px;">미완료 과제가 없습니다</p>'
@@ -289,10 +294,10 @@ export function AssignmentPanel({
                 <tr>
                   <td><span class="check"></span></td>
                   <td>
-                    <div style="font-weight:500">${item.title}</div>
-                    ${item.description ? `<div style="color:#6b7280;font-size:11px;margin-top:2px">${item.description}</div>` : ""}
+                    <div style="font-weight:500">${esc(item.title)}</div>
+                    ${item.description ? `<div style="color:#6b7280;font-size:11px;margin-top:2px">${esc(item.description)}</div>` : ""}
                   </td>
-                  <td>${item.subject ? `<span class="subject">${item.subject}</span>` : "-"}</td>
+                  <td>${item.subject ? `<span class="subject">${esc(item.subject)}</span>` : "-"}</td>
                   <td>${due}</td>
                 </tr>
               `;

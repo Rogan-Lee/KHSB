@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { requireAnyStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { CalendarEventType } from "@/generated/prisma";
 import { todayKST } from "@/lib/utils";
@@ -18,6 +19,7 @@ export async function getCalendarEvents(params?: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const where: Record<string, unknown> = {};
 
@@ -58,6 +60,7 @@ export async function createCalendarEvent(data: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   // Google Calendar 동기화 (선택)
   let googleEventId: string | null = null;
@@ -106,6 +109,7 @@ export async function updateCalendarEvent(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const existing = await prisma.calendarEvent.findUnique({ where: { id }, select: { googleEventId: true, allDay: true } });
 
@@ -140,6 +144,7 @@ export async function updateCalendarEvent(
 export async function getStudentUpcomingEvents(studentId: string, school: string | null) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const today = todayKST();
   const twoWeeksLater = new Date(today);
@@ -177,6 +182,7 @@ export async function getStudentUpcomingEvents(studentId: string, school: string
 export async function deleteCalendarEvent(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const existing = await prisma.calendarEvent.findUnique({ where: { id }, select: { googleEventId: true } });
 
@@ -197,6 +203,7 @@ export async function getStudentCalendarEvents(params: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const { studentId, schoolName, startDate, endDate } = params;
 

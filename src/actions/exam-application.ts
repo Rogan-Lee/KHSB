@@ -8,6 +8,7 @@ import { validateMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
 import { todayKST } from "@/lib/utils";
 import { normalizeMobile, phonesMatch } from "@/lib/phone";
+import { hasGatePass } from "@/lib/token-auth";
 import { ExamApplicationStatus } from "@/generated/prisma";
 import { assignExamSeatsRandomly } from "@/actions/exam-sessions";
 import {
@@ -48,8 +49,15 @@ type PublicResult<T = void> = { ok: true; data?: T } | { ok: false; error: strin
 async function verifiedStudents(phone: string) {
   const verified = await prisma.phoneVerification.findFirst({
     where: { phone, verifiedAt: { gt: new Date(Date.now() - SUBMIT_WINDOW_MS) } },
+    orderBy: { verifiedAt: "desc" },
   });
   if (!verified) return null; // 인증 미완료
+  // 인증을 완료한 그 브라우저만 허용 — 번호만 아는 제3자가 인증 직후 학생 목록을 조회·취소하지 못하게
+  // (waitlist.ts confirmPhoneVerification 이 심는 결속 쿠키와 같은 키)
+  const bound = await hasGatePass("PARENT", `waitlist-phone-verified:${phone}`, verified.id).catch(
+    () => false,
+  );
+  if (!bound) return null;
 
   // 저장 형식(하이픈 유무)이 제각각이라 DB where 대신 JS 매칭. 단일 시설 규모(수백 명)라 부담 없음.
   // ponytail: 전 학생 스캔. 학생 수가 수천 이상이면 정규화 컬럼+인덱스로 전환.

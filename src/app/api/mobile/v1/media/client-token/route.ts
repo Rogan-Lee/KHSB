@@ -9,6 +9,7 @@ import {
   buildBlobKey,
   extension,
   isMobileMediaContext,
+  safeUploadContentType,
 } from "../shared";
 
 export const runtime = "nodejs";
@@ -81,8 +82,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // 확장자만 허용 목록에 맞고 MIME 은 임의(text/html 등)일 수 있으므로 토큰·저장 타입은 허용 목록 안으로 강제.
+  // 앱은 응답의 contentType 으로 업로드한다 (apps/mobile/src/lib/media-upload.ts).
+  const contentType = safeUploadContentType(mimeType, filename);
+
   const isVideo =
-    mimeType.startsWith("video/") ||
+    contentType.startsWith("video/") ||
     VIDEO_EXTENSIONS.has(extension(filename));
   const maxSizeBytes = isVideo ? MAX_VIDEO_BYTES : MAX_FILE_BYTES;
   const sizeBytes = typeof body.sizeBytes === "number" ? body.sizeBytes : null;
@@ -113,13 +118,13 @@ export async function POST(request: NextRequest) {
     const clientToken = await generateClientTokenFromReadWriteToken({
       pathname,
       token: process.env.BLOB_READ_WRITE_TOKEN,
-      allowedContentTypes: [mimeType],
+      allowedContentTypes: [contentType],
       maximumSizeInBytes: maxSizeBytes,
       addRandomSuffix: false,
     });
     return Response.json({
       clientToken,
-      contentType: mimeType,
+      contentType,
       maxSizeBytes,
       pathname,
     });

@@ -16,6 +16,8 @@ import { queueParentDemeritPush } from "@/lib/mobile-push";
 export async function createMeritDemerit(formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  // 상벌점은 오프라인 자습실 운영 기능 — 모바일(requireMobileStaff)과 동일하게 오프라인 직원만
+  requireStaff(session.user.role);
 
   const raw = Object.fromEntries(formData.entries());
   const data = meritSchema.parse(raw);
@@ -31,6 +33,8 @@ export async function createMeritDemerit(formData: FormData) {
 export async function updateMeritDemerit(id: string, formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  // 상벌점은 오프라인 자습실 운영 기능 — 모바일(requireMobileStaff)과 동일하게 오프라인 직원만
+  requireStaff(session.user.role);
 
   const raw = Object.fromEntries(formData.entries());
   const data = meritUpdateSchema.parse(raw);
@@ -45,6 +49,8 @@ export async function updateMeritDemerit(id: string, formData: FormData) {
 export async function deleteMeritDemerit(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  // 상벌점은 오프라인 자습실 운영 기능 — 모바일(requireMobileStaff)과 동일하게 오프라인 직원만
+  requireStaff(session.user.role);
 
   const record = await deleteMeritRecord(id);
   if (!record) throw new Error("Not found");
@@ -56,6 +62,7 @@ export async function deleteMeritDemerit(id: string) {
 export async function toggleMeritDemeritVisibility(id: string, visible: boolean) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  // 상벌점은 오프라인 자습실 운영 기능 — 모바일(requireMobileStaff)과 동일하게 오프라인 직원만
   requireStaff(session.user.role);
 
   const record = await prisma.meritDemerit.findUnique({ where: { id } });
@@ -74,6 +81,8 @@ export async function toggleMeritDemeritVisibility(id: string, visible: boolean)
 export async function bulkDeleteMeritDemerits(ids: string[]) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  // 상벌점은 오프라인 자습실 운영 기능 — 모바일(requireMobileStaff)과 동일하게 오프라인 직원만
+  requireStaff(session.user.role);
   if (!ids.length) return;
 
   await prisma.meritDemerit.deleteMany({ where: { id: { in: ids } } });
@@ -83,6 +92,8 @@ export async function bulkDeleteMeritDemerits(ids: string[]) {
 export async function getMeritDemerits(studentId?: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  // 상벌점은 오프라인 자습실 운영 기능 — 모바일(requireMobileStaff)과 동일하게 오프라인 직원만
+  requireStaff(session.user.role);
 
   return prisma.meritDemerit.findMany({
     where: studentId ? { studentId } : undefined,
@@ -94,6 +105,8 @@ export async function getMeritDemerits(studentId?: string) {
 export async function getMeritsByRange(from: string, to: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  // 상벌점은 오프라인 자습실 운영 기능 — 모바일(requireMobileStaff)과 동일하게 오프라인 직원만
+  requireStaff(session.user.role);
 
   const fromDate = new Date(from);
   const toDate = new Date(to);
@@ -109,6 +122,8 @@ export async function getMeritsByRange(from: string, to: string) {
 export async function getStudentPointSummary() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  // 상벌점은 오프라인 자습실 운영 기능 — 모바일(requireMobileStaff)과 동일하게 오프라인 직원만
+  requireStaff(session.user.role);
 
   // 매월 1일 초기화: 현재 월의 상벌점만 집계
   const now = new Date();

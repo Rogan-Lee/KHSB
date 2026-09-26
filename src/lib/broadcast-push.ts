@@ -38,6 +38,11 @@ export async function broadcastPush(params: {
   title: string;
   body: string;
 }) {
+  // 서버 액션 인자는 런타임 검증이 없으므로 여기서 한 번 더 — 모르는 audience 가 ALL(필터 없음)로 새지 않게
+  if (!BROADCAST_AUDIENCES.includes(params.audience)) throw new Error("알림 대상을 선택해 주세요");
+  if (typeof params.title !== "string" || typeof params.body !== "string") {
+    throw new Error("제목과 내용을 입력해 주세요");
+  }
   const title = params.title.trim();
   const body = params.body.trim();
   if (!title || !body) throw new Error("제목과 내용을 입력해 주세요");

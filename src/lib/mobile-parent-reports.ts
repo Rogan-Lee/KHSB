@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { z } from "zod";
 
-import { getStudentAnalytics } from "@/actions/analytics";
+import { computeStudentAnalytics } from "@/lib/student-analytics";
 import { getAppUrl } from "@/lib/app-url";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
@@ -504,8 +504,6 @@ export async function openParentReport(
   if (target.webExpired || !target.token || !target.path) return { mode: "native", url: null };
 
   const appUrl = getAppUrl();
-  // 온라인 관리 보고서는 웹 페이지에 본인 확인 게이트가 없다 → 바로 연다
-  if (target.kind === "online") return { mode: "web", url: `${appUrl}${target.path}` };
 
   const nonce = crypto.randomBytes(32).toString("base64url");
   await prisma.authVerification.create({
@@ -573,14 +571,12 @@ export async function redeemParentHandoff(nonce: string | null): Promise<string 
   if (!target || target.studentId !== payload.studentId || target.webExpired) return null;
   if (!target.token || !target.path) return null;
 
-  if (target.kind !== "online") {
-    await grantGatePass(
-      "PARENT",
-      target.token,
-      target.studentId,
-      new Date(Date.now() + GATE_PASS_MS),
-    );
-  }
+  await grantGatePass(
+    "PARENT",
+    target.token,
+    target.studentId,
+    new Date(Date.now() + GATE_PASS_MS),
+  );
   return target.path;
 }
 
@@ -928,7 +924,7 @@ async function mentoringDetail(id: string): Promise<ParentMentoringReportDetail>
       take: TREND_SCORE_LIMIT,
       select: { examType: true, examName: true, examDate: true, subject: true, grade: true },
     }),
-    getStudentAnalytics(studentId),
+    computeStudentAnalytics(studentId),
   ]);
 
   // 멘토링 본문 — AI 노트면 항목별, 아니면 안내사항 + 원본 멘토링 기록

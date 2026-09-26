@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { requireStaff } from "@/lib/roles";
+import { requireAnyStaff, requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { AttendanceType } from "@/generated/prisma";
@@ -26,9 +26,60 @@ function toDateTime(dateStr: string, timeStr?: string) {
   return new Date(`${dateStr}T${timeStr}:00+09:00`);
 }
 
+async function requireStaffSession() {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
+  return session;
+}
+
+type ScheduleInput = { dayOfWeek: number; startTime: string; endTime: string };
+type OutingScheduleInput = { dayOfWeek: number; outStart: string; outEnd: string; reason?: string };
+
+const MAX_SCHEDULE_ROWS = 100;
+
+function assertDayOfWeek(v: unknown): number {
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 6) {
+    throw new Error("요일 값이 올바르지 않습니다");
+  }
+  return v;
+}
+
+function scheduleTime(v: unknown): string {
+  if (typeof v !== "string") throw new Error("시간 형식이 올바르지 않습니다");
+  return v.slice(0, 10);
+}
+
+// 클라이언트 객체를 그대로 spread 하지 않고 허용 필드만 남긴다 (id 등 임의 컬럼 주입 방지)
+function sanitizeSchedules(studentId: string, schedules: ScheduleInput[]) {
+  if (!Array.isArray(schedules) || schedules.length > MAX_SCHEDULE_ROWS) {
+    throw new Error("입실 일정 형식이 올바르지 않습니다");
+  }
+  return schedules.map((s) => ({
+    studentId,
+    dayOfWeek: assertDayOfWeek(s?.dayOfWeek),
+    startTime: scheduleTime(s?.startTime),
+    endTime: scheduleTime(s?.endTime),
+  }));
+}
+
+function sanitizeOutingSchedules(studentId: string, outings: OutingScheduleInput[]) {
+  if (!Array.isArray(outings) || outings.length > MAX_SCHEDULE_ROWS) {
+    throw new Error("외출 일정 형식이 올바르지 않습니다");
+  }
+  return outings.map((o) => ({
+    studentId,
+    dayOfWeek: assertDayOfWeek(o?.dayOfWeek),
+    outStart: scheduleTime(o?.outStart),
+    outEnd: scheduleTime(o?.outEnd),
+    ...(typeof o?.reason === "string" ? { reason: o.reason.slice(0, 200) } : {}),
+  }));
+}
+
 export async function upsertAttendance(formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const raw = Object.fromEntries(formData.entries());
   const data = recordSchema.parse(raw);
@@ -61,6 +112,7 @@ export async function upsertAttendance(formData: FormData) {
 }
 
 export async function getTodayAttendance() {
+  await requireStaffSession();
   const today = todayKST();
   const kstNow = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
   const dayOfWeek = kstNow.getUTCDay();
@@ -82,6 +134,7 @@ export async function getTodayAttendance() {
 }
 
 export async function getAttendanceByDate(date: Date) {
+  await requireStaffSession();
   return prisma.attendanceRecord.findMany({
     where: { date },
     include: { student: { select: { id: true, name: true, seat: true } } },
@@ -98,6 +151,7 @@ export async function saveAttendanceRecord(data: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   function toDateTime(dateStr: string, timeStr?: string) {
     if (!timeStr) return null;
@@ -198,16 +252,19 @@ export async function saveAttendanceSchedule(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
+
+  const scheduleRows = sanitizeSchedules(studentId, schedules);
 
   await prisma.attendanceSchedule.deleteMany({ where: { studentId } });
-  if (schedules.length > 0) {
+  if (scheduleRows.length > 0) {
     await prisma.attendanceSchedule.createMany({
-      data: schedules.map((s) => ({ ...s, studentId })),
+      data: scheduleRows,
     });
   }
 
   // 입실 요일 수에 따라 정규반/선택반 자동 분류
-  const dayCount = new Set(schedules.map((s) => s.dayOfWeek)).size;
+  const dayCount = new Set(scheduleRows.map((s) => s.dayOfWeek)).size;
   await prisma.student.update({
     where: { id: studentId },
     data: { classGroup: deriveClassGroup(dayCount) },
@@ -227,6 +284,7 @@ export async function saveOutingRecord(data: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   function toDateTime(dateStr: string, timeStr?: string) {
     if (!timeStr) return undefined;
@@ -263,18 +321,22 @@ export async function saveScheduleAndOutings(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
+
+  const scheduleRows = sanitizeSchedules(studentId, schedules);
+  const outingRows = sanitizeOutingSchedules(studentId, outings);
 
   // 입실 요일 수에 따라 정규반/선택반 자동 분류
-  const dayCount = new Set(schedules.map((s) => s.dayOfWeek)).size;
+  const dayCount = new Set(scheduleRows.map((s) => s.dayOfWeek)).size;
 
   await prisma.$transaction([
     prisma.attendanceSchedule.deleteMany({ where: { studentId } }),
-    ...(schedules.length > 0
-      ? [prisma.attendanceSchedule.createMany({ data: schedules.map((s) => ({ ...s, studentId })) })]
+    ...(scheduleRows.length > 0
+      ? [prisma.attendanceSchedule.createMany({ data: scheduleRows })]
       : []),
     prisma.outingSchedule.deleteMany({ where: { studentId } }),
-    ...(outings.length > 0
-      ? [prisma.outingSchedule.createMany({ data: outings.map((o) => ({ ...o, studentId })) })]
+    ...(outingRows.length > 0
+      ? [prisma.outingSchedule.createMany({ data: outingRows })]
       : []),
     prisma.student.update({
       where: { id: studentId },
@@ -294,11 +356,14 @@ export async function saveOutingSchedules(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
+
+  const outingRows = sanitizeOutingSchedules(studentId, outings);
 
   await prisma.outingSchedule.deleteMany({ where: { studentId } });
-  if (outings.length > 0) {
+  if (outingRows.length > 0) {
     await prisma.outingSchedule.createMany({
-      data: outings.map((o) => ({ ...o, studentId })),
+      data: outingRows,
     });
   }
 
@@ -323,6 +388,7 @@ export async function createDailyOuting(data: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const record = await prisma.dailyOuting.create({
     data: {
@@ -350,6 +416,7 @@ export async function updateDailyOuting(id: string, data: {
 }) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const before = await prisma.dailyOuting.findUnique({
     where: { id },
@@ -375,6 +442,7 @@ export async function updateDailyOuting(id: string, data: {
 export async function deleteDailyOuting(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   await prisma.dailyOuting.delete({ where: { id } });
   revalidatePath("/attendance");
@@ -533,6 +601,7 @@ export type OutingForDate = {
 export async function getOutingsForDate(
   date: Date
 ): Promise<Record<string, OutingForDate[]>> {
+  await requireStaffSession();
   const rows = await prisma.dailyOuting.findMany({
     where: { date },
     orderBy: [{ studentId: "asc" }, { sequence: "asc" }],

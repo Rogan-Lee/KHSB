@@ -6,12 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { PageHeader, Section } from "@/components/backoffice/ui";
 import { AcademicPlanEditor } from "@/components/academic-plans/academic-plan-editor";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 export default async function AcademicPlansPage({
   searchParams,
 }: {
   searchParams: Promise<{ year?: string; month?: string }>;
 }) {
+  await requireDashboardSession();
   const params = await searchParams;
   const now = new Date();
   const year = Number(params.year) || now.getFullYear();

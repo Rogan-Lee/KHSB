@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@/lib/auth";
+import { requireAnyStaff } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { ShiftType } from "@/generated/prisma";
@@ -15,6 +16,7 @@ function requireAdmin(role?: string) {
 export async function getChecklistTemplates() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
   return prisma.checklistTemplate.findMany({
     orderBy: { order: "asc" },
   });
@@ -73,6 +75,7 @@ export async function deleteChecklistTemplate(id: string) {
 export async function getRoutineCompletions(date: string): Promise<string[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
   const rows = await prisma.routineCompletion.findMany({
     where: { date: new Date(date) },
     select: { templateId: true },
@@ -84,6 +87,7 @@ export async function getRoutineCompletions(date: string): Promise<string[]> {
 export async function toggleRoutineCompletion(templateId: string, date: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const d = new Date(date);
   const existing = await prisma.routineCompletion.findUnique({

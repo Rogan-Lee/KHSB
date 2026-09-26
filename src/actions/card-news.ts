@@ -1,6 +1,8 @@
 "use server";
 
 import Groq from "groq-sdk";
+import dns from "node:dns/promises";
+import net from "node:net";
 import { GROQ_MODEL } from "@/lib/groq";
 import { auth } from "@/lib/auth";
 
@@ -68,13 +70,85 @@ function parseJSON<T>(text: string): T {
   return JSON.parse(cleaned) as T;
 }
 
+const MAX_REFERENCE_IMAGE_BYTES = 10 * 1024 * 1024; // 10MB
+const IMAGE_MIME_RE = /^image\/(png|jpe?g|webp|gif)$/i;
+const MAX_INPUT_FIELD_LEN = 2000;
+
+function isPrivateAddress(ip: string): boolean {
+  if (net.isIPv4(ip)) {
+    const [a, b] = ip.split(".").map(Number);
+    return (
+      a === 0 || a === 10 || a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      a >= 224
+    );
+  }
+  const v6 = ip.toLowerCase();
+  if (v6.startsWith("::ffff:")) return isPrivateAddress(v6.slice(7));
+  return v6 === "::" || v6 === "::1" || v6.startsWith("fc") || v6.startsWith("fd") || v6.startsWith("fe80");
+}
+
+// 사용자가 입력한 URL 을 서버가 대신 fetch 하므로(SSRF) http(s) + 공인 IP 호스트만 허용한다.
+async function assertPublicHttpUrl(raw: string): Promise<URL> {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    throw new Error("이미지 URL이 올바르지 않습니다");
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") throw new Error("이미지 URL이 올바르지 않습니다");
+  const host = u.hostname.replace(/^\[|\]$/g, "");
+  if (!host || host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal")) {
+    throw new Error("이미지 URL이 올바르지 않습니다");
+  }
+  const addrs = net.isIP(host) ? [{ address: host }] : await dns.lookup(host, { all: true }).catch(() => []);
+  if (addrs.length === 0 || addrs.some((a) => isPrivateAddress(a.address))) {
+    throw new Error("이미지 URL이 올바르지 않습니다");
+  }
+  return u;
+}
+
 async function urlToBase64(url: string): Promise<{ data: string; mimeType: string }> {
-  const res = await fetch(url);
+  let current = await assertPublicHttpUrl(url);
+  let res: Response | null = null;
+  // 리다이렉트는 매 hop 마다 호스트를 다시 검증 (최대 3회)
+  for (let hop = 0; hop <= 3; hop++) {
+    res = await fetch(current, { redirect: "manual" });
+    if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
+      current = await assertPublicHttpUrl(new URL(res.headers.get("location")!, current).toString());
+      res = null;
+      continue;
+    }
+    break;
+  }
+  if (!res) throw new Error("이미지를 불러올 수 없습니다");
   if (!res.ok) throw new Error(`이미지를 불러올 수 없습니다: ${res.status}`);
+  const mimeType = (res.headers.get("content-type") ?? "").split(";")[0].trim();
+  if (!IMAGE_MIME_RE.test(mimeType)) throw new Error("이미지 파일이 아닙니다");
+  const declared = Number(res.headers.get("content-length") ?? 0);
+  if (declared > MAX_REFERENCE_IMAGE_BYTES) throw new Error("이미지가 너무 큽니다 (최대 10MB)");
   const buffer = await res.arrayBuffer();
-  const mimeType = res.headers.get("content-type") ?? "image/jpeg";
+  if (buffer.byteLength > MAX_REFERENCE_IMAGE_BYTES) throw new Error("이미지가 너무 큽니다 (최대 10MB)");
   const data = Buffer.from(buffer).toString("base64");
   return { data, mimeType };
+}
+
+function clampInputs(template: CardNewsTemplate, inputs: Inputs): Inputs {
+  const clip = (v: unknown) => (typeof v === "string" ? v.slice(0, MAX_INPUT_FIELD_LEN) : "");
+  if (template === "announcement") {
+    const i = inputs as AnnouncementInputs;
+    return { title: clip(i?.title), date: clip(i?.date), target: clip(i?.target), details: clip(i?.details) };
+  }
+  if (template === "study-tip") {
+    const i = inputs as StudyTipInputs;
+    const mood = i?.mood === "calm" || i?.mood === "serious" ? i.mood : "energetic";
+    return { topic: clip(i?.topic), keyMessage: clip(i?.keyMessage), mood };
+  }
+  const i = inputs as TopStudentInputs;
+  return { period: clip(i?.period), students: clip(i?.students), subject: clip(i?.subject), message: clip(i?.message) };
 }
 
 function buildPrompt(template: CardNewsTemplate, inputs: Inputs): string {
@@ -172,13 +246,21 @@ export async function analyzeReferenceImage(
     let imageData: string;
     let mimeType: string;
 
-    if (input.type === "url") {
-      const result = await urlToBase64(input.url);
+    if (input?.type === "url") {
+      const result = await urlToBase64(String(input.url ?? ""));
       imageData = result.data;
       mimeType = result.mimeType;
+    } else if (input?.type === "base64") {
+      imageData = String(input.data ?? "");
+      mimeType = String(input.mimeType ?? "");
+      if (!IMAGE_MIME_RE.test(mimeType) || !/^[A-Za-z0-9+/=]+$/.test(imageData)) {
+        return { success: false, error: "이미지 파일이 아닙니다." };
+      }
+      if (imageData.length > Math.ceil((MAX_REFERENCE_IMAGE_BYTES * 4) / 3) + 4) {
+        return { success: false, error: "이미지가 너무 큽니다 (최대 10MB)." };
+      }
     } else {
-      imageData = input.data;
-      mimeType = input.mimeType;
+      return { success: false, error: "잘못된 요청입니다." };
     }
 
     const prompt = `이 카드뉴스 이미지를 분석해서 디자인 스타일을 추출해주세요. 반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 절대 포함하지 마세요.
@@ -231,8 +313,11 @@ export async function generateCardNewsSlides(
   }
 
   try {
+    if (template !== "announcement" && template !== "study-tip" && template !== "top-student") {
+      return { success: false, error: "잘못된 템플릿입니다." };
+    }
     const groq = getGroq();
-    const prompt = buildPrompt(template, inputs);
+    const prompt = buildPrompt(template, clampInputs(template, inputs));
 
     const response = await groq.chat.completions.create({
       model: GROQ_MODEL,

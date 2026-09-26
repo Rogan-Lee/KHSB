@@ -11,12 +11,14 @@ import { ExamApplicationAdmin } from "@/components/exams/exam-application-admin"
 import { EXAM_TYPE_LABELS } from "@/components/exams/exam-type-label";
 import { H_ROOM_SEATS } from "@/lib/exam-seats";
 import { offlineStudentWhere } from "@/lib/student-filters";
+import { requireDashboardSession } from "../../_lib/page-guard";
 
 export default async function ExamSessionDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireDashboardSession();
   const { id } = await params;
 
   const session = await prisma.examSession.findUnique({

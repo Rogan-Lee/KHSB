@@ -18,7 +18,15 @@ const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const VIDEO_EXT = /\.(mp4|mov|webm)$/i;
 
 const ALLOWED_CONTENT_TYPES = [
-  "image/*", // png/jpeg/webp/gif/heic/heif — 기존 route.ts 이미지 허용 범위 포괄
+  // 기존 route.ts 이미지 허용 범위. "image/*" 는 image/svg+xml(스크립트 실행 가능)까지 허용하므로 명시 나열.
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "image/gif",
+  "image/avif",
+  "image/heic",
+  "image/heif",
   "application/pdf",
   "video/mp4",
   "video/quicktime",
@@ -32,7 +40,12 @@ type ClientPayload = {
 };
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json()) as HandleUploadBody;
+  let body: HandleUploadBody;
+  try {
+    body = (await request.json()) as HandleUploadBody;
+  } catch {
+    return NextResponse.json({ error: "잘못된 요청 형식" }, { status: 400 });
+  }
 
   try {
     const jsonResponse = await handleUpload({

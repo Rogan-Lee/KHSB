@@ -6,8 +6,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { todayKST } from "@/lib/utils";
-import { requireFullAccess } from "@/lib/roles";
+import { requireAnyStaff, requireFullAccess } from "@/lib/roles";
 import { promoteGrade, type PromotionAction } from "@/lib/grade-promotion";
+import { revokeAllLinksForStudent } from "@/lib/student-auth";
 
 const studentSchema = z.object({
   name: z.string().min(1, "이름을 입력하세요").max(50),
@@ -37,9 +38,12 @@ const studentSchema = z.object({
   imageUrl: z.string().max(500).optional(),
 });
 
+const TEXT_FIELD_MAX = 2000;
+
 export async function createStudent(formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const raw = Object.fromEntries(formData.entries());
   const data = studentSchema.parse(raw);
@@ -79,6 +83,7 @@ export async function createStudent(formData: FormData) {
 export async function updateStudent(id: string, formData: FormData) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const raw = Object.fromEntries(formData.entries());
   const data = studentSchema.parse(raw);
@@ -119,8 +124,9 @@ export async function updateStudent(id: string, formData: FormData) {
 
 export async function deleteStudent(id: string) {
   const session = await auth();
-  if (!session?.user || session.user.role === "STUDENT")
-    throw new Error("Unauthorized");
+  if (!session?.user) throw new Error("Unauthorized");
+  // 하드 삭제(출결·멘토링·리포트 등 연쇄 삭제) — 원장/SUPER_ADMIN 전용. 일반 퇴실은 checkoutStudent.
+  requireFullAccess(session.user.role);
 
   await prisma.student.delete({ where: { id } });
   revalidatePath("/students");
@@ -130,13 +136,15 @@ export async function deleteStudent(id: string) {
 // 퇴실 처리: 소프트 삭제 (상태 변경 + 좌석 반납, 데이터는 보존)
 export async function checkoutStudent(id: string) {
   const session = await auth();
-  if (!session?.user || session.user.role === "STUDENT")
-    throw new Error("Unauthorized");
+  if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   await prisma.student.update({
     where: { id },
     data: { status: "WITHDRAWN", seat: null },
   });
+  // 퇴실 학생의 포털 매직링크 무효화 (validateMagicLink 의 ACTIVE 검사와 별개로 심층 방어)
+  await revokeAllLinksForStudent(id);
   revalidatePath("/students");
   revalidatePath("/seat-map");
 }
@@ -144,8 +152,8 @@ export async function checkoutStudent(id: string) {
 // 재입실 처리: 퇴원 학생을 다시 활성 상태로 전환
 export async function readmitStudent(id: string) {
   const session = await auth();
-  if (!session?.user || session.user.role === "STUDENT")
-    throw new Error("Unauthorized");
+  if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   await prisma.student.update({
     where: { id },
@@ -157,8 +165,8 @@ export async function readmitStudent(id: string) {
 // 좌석 이동 (빈 자리로)
 export async function moveStudentSeat(id: string, newSeat: string) {
   const session = await auth();
-  if (!session?.user || session.user.role === "STUDENT")
-    throw new Error("Unauthorized");
+  if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const existing = await prisma.student.findFirst({
     where: { seat: newSeat.trim(), id: { not: id } },
@@ -173,8 +181,8 @@ export async function moveStudentSeat(id: string, newSeat: string) {
 // 좌석 맞교환
 export async function swapStudentSeats(id1: string, id2: string) {
   const session = await auth();
-  if (!session?.user || session.user.role === "STUDENT")
-    throw new Error("Unauthorized");
+  if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   const [s1, s2] = await Promise.all([
     prisma.student.findUnique({ where: { id: id1 }, select: { seat: true } }),
@@ -197,8 +205,11 @@ export async function updateStudentStatus(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   await prisma.student.update({ where: { id }, data: { status } });
+  // 졸업은 링크를 영구 무효화. 휴원(INACTIVE)은 validateMagicLink 가 기간 중 막고, 복귀하면 기존 링크가 다시 동작
+  if (status === "GRADUATED") await revokeAllLinksForStudent(id);
   revalidatePath("/students");
   revalidatePath(`/students/${id}`);
 }
@@ -206,6 +217,7 @@ export async function updateStudentStatus(
 export async function updateStudentSeat(studentId: string, seat: string | null) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   // 같은 좌석을 이미 쓰는 학생이 있으면 먼저 비움
   if (seat) {
@@ -226,6 +238,12 @@ export async function patchStudentTextFields(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
+  for (const v of [fields.studentInfo, fields.changeNote, fields.dailyNote]) {
+    if (v !== undefined && (typeof v !== "string" || v.length > TEXT_FIELD_MAX)) {
+      throw new Error(`메모는 ${TEXT_FIELD_MAX}자 이하로 입력하세요`);
+    }
+  }
   const dailyNoteChange = fields.dailyNote !== undefined
     ? {
         dailyNote: fields.dailyNote || null,
@@ -244,6 +262,16 @@ export async function patchStudentTextFields(
 }
 
 type CheckDateKey = "vocabTestDate" | "pledgeDate" | "mockAnalysisDate" | "schoolAnalysisDate" | "plannerSentDate" | "weeklyPlanDate";
+// 보안: key 가 Prisma data 의 컬럼명으로 그대로 쓰이므로 런타임 화이트리스트 필수
+// (없으면 mentorId·seat·birthDate 등 임의 컬럼을 덮어쓰거나 전 학생 일괄 초기화 가능)
+const CHECK_DATE_KEYS: readonly string[] = [
+  "vocabTestDate", "pledgeDate", "mockAnalysisDate", "schoolAnalysisDate", "plannerSentDate", "weeklyPlanDate",
+];
+function assertCheckDateKey(key: unknown): asserts key is CheckDateKey {
+  if (typeof key !== "string" || !CHECK_DATE_KEYS.includes(key)) {
+    throw new Error("올바르지 않은 항목입니다");
+  }
+}
 
 export async function patchStudentCheckDate(
   id: string,
@@ -252,9 +280,13 @@ export async function patchStudentCheckDate(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
+  assertCheckDateKey(key);
+  const value = date ? new Date(date) : null;
+  if (value && Number.isNaN(value.getTime())) throw new Error("날짜 형식이 올바르지 않습니다");
   await prisma.student.update({
     where: { id },
-    data: { [key]: date ? new Date(date) : null },
+    data: { [key]: value },
   });
   revalidatePath("/attendance");
 }
@@ -269,11 +301,16 @@ export async function patchStudentAnalysisExempt(
 ) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
+  if (key !== "mockAnalysisExempt" && key !== "schoolAnalysisExempt") {
+    throw new Error("올바르지 않은 항목입니다");
+  }
+  const isExempt = exempt === true;
   // 면제 설정 시 같은 카테고리의 일자도 함께 비움 (제출 데이터 + 면제 동시 보유 방지)
   const dateKey = key === "mockAnalysisExempt" ? "mockAnalysisDate" : "schoolAnalysisDate";
   await prisma.student.update({
     where: { id },
-    data: exempt
+    data: isExempt
       ? { [key]: true, [dateKey]: null }
       : { [key]: false },
   });
@@ -283,6 +320,7 @@ export async function patchStudentAnalysisExempt(
 export async function resetWeeklyCheckDates() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   await prisma.student.updateMany({
     where: { status: "ACTIVE" },
@@ -298,6 +336,8 @@ export async function resetWeeklyCheckDates() {
 export async function resetCheckDateForAll(key: CheckDateKey) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
+  assertCheckDateKey(key);
 
   await prisma.student.updateMany({
     where: { status: "ACTIVE" },
@@ -356,6 +396,7 @@ export async function applyGradePromotion(changes: { studentId: string; after: s
 export async function getStudents() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   return prisma.student.findMany({
     include: { mentor: { select: { id: true, name: true } } },
@@ -366,6 +407,7 @@ export async function getStudents() {
 export async function getStudent(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  requireAnyStaff(session.user.role);
 
   return prisma.student.findUnique({
     where: { id },

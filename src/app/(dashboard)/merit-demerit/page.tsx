@@ -1,8 +1,7 @@
 export const revalidate = 30;
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { isFullAccess } from "@/lib/roles";
+import { isFullAccess, isStaff } from "@/lib/roles";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader, Section } from "@/components/backoffice/ui";
 import { MeritForm } from "@/components/merit-demerit/merit-form";
@@ -11,10 +10,12 @@ import { MeritRangeReport } from "@/components/merit-demerit/merit-range-report"
 import { MeritRanking } from "@/components/merit-demerit/merit-ranking";
 import { RewardShopAdmin } from "@/components/merit-demerit/reward-shop-admin";
 import { offlineStudentWhere } from "@/lib/student-filters";
+import { requireDashboardSession } from "../_lib/page-guard";
 
 export default async function MeritDemeritPage() {
-  const [session, students, recentMerits, redemptions, rewardItems] = await Promise.all([
-    auth(),
+  // 상벌점 액션은 오프라인 운영진(requireStaff) 전용 — 온라인 전용 역할은 화면도 막는다
+  const session = await requireDashboardSession(isStaff);
+  const [students, recentMerits, redemptions, rewardItems] = await Promise.all([
     prisma.student.findMany({
       where: offlineStudentWhere({ status: "ACTIVE" }),
       select: { id: true, name: true, grade: true, seat: true },

@@ -6,7 +6,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { ensureStudentPortalChats, type ChatAttachment } from "@/actions/online/portal-chat";
+import type { ChatAttachment } from "@/actions/online/portal-chat";
+import { ensureStudentPortalChats } from "@/lib/portal-chat-core";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_DISPLAY } from "@/lib/roles";
