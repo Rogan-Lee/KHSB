@@ -44,14 +44,14 @@
         "expo-secure-store",
         {
           "configureAndroidBackup": true,
-          "faceIDPermission": "강한선배 로그인 보호를 위해 Face ID를 사용합니다."
+          "faceIDPermission": false
         }
       ],
       [
         "expo-camera",
         {
           "barcodeScannerEnabled": true,
-          "cameraPermission": "좌석 QR 코드를 스캔하려면 카메라 접근 권한이 필요합니다.",
+          "cameraPermission": "순찰 중 좌석 QR 코드를 스캔하고, 질문·메시지·멘토링에 첨부할 사진을 찍으려면 카메라 접근 권한이 필요합니다.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
@@ -59,8 +59,9 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "질문과 멘토링에 사진을 첨부하려면 카메라 접근 권한이 필요합니다.",
-          "photosPermission": "질문과 멘토링에 사진을 첨부하려면 사진 보관함 접근 권한이 필요합니다."
+          "cameraPermission": "순찰 중 좌석 QR 코드를 스캔하고, 질문·메시지·멘토링에 첨부할 사진을 찍으려면 카메라 접근 권한이 필요합니다.",
+          "photosPermission": "질문·메시지·수행평가·멘토링 기록에 사진을 첨부하려면 사진 보관함 접근 권한이 필요합니다.",
+          "microphonePermission": false
         }
       ],
       [

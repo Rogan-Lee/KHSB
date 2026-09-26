@@ -4,6 +4,7 @@ import {
   CalendarClock,
   Check,
   GraduationCap,
+  Headset,
   LogOut,
   Megaphone,
   MessageSquareText,
@@ -40,6 +41,7 @@ import {
 import { refreshBadges } from '@/lib/badges';
 import { childMeta, useParentChild } from '@/lib/parent-child';
 import { useSession } from '@/lib/session';
+import { SUPPORT_URL, openHelpPage } from '@/lib/support';
 
 // 학부모 전체 탭 — 프로필(연결된 자녀) → 신청 · 소통 → 앱 설정 → 로그아웃.
 // 학생 앱 전체 탭과 같은 문법(흰 카드 + ListRow + IconTile).
@@ -280,7 +282,13 @@ function AppSection() {
         href={ROUTES.account}
         leading={<IconTile icon={ShieldCheck} tone="gray" />}
         title="계정·보안"
-        description="로그인 정보, 기기 보안"
+        description="로그인 정보 · 비밀번호 · 회원 탈퇴"
+      />
+      <ListRow
+        onPress={() => void openHelpPage(SUPPORT_URL)}
+        leading={<IconTile icon={Headset} tone="gray" />}
+        title="고객센터"
+        description="자주 묻는 질문 · 문의 방법"
       />
       <ListRow
         onPress={() => void logout()}

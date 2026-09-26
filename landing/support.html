@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="format-detection" content="telephone=no">
+  <title>강한선배 앱 고객지원 | 강한선배</title>
+  <meta name="description" content="강한선배 앱 고객지원. 가입, 비밀번호 재설정, 알림, 계정 삭제 방법과 전화 문의처를 안내합니다.">
+  <meta name="theme-color" content="#0b0c0f">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="강한선배 앱 고객지원 | 강한선배">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="landing.css?v=seed3">
+  <link rel="stylesheet" href="bx-core.css?v=bx21">
+  <style>
+    [hidden] { display: none !important; }
+    .dc { max-width: 780px; margin: 0 auto; padding: calc(var(--gnb-h) + 72px) 28px 0; color: var(--ink-2); }
+    .dc-eyebrow { display: inline-block; font-size: 13.5px; font-weight: 800; color: var(--brand); background: var(--brand-soft); border-radius: 999px; padding: 7px 13px; }
+    .dc-title { font-size: clamp(32px, 4.6vw, 48px); font-weight: 800; letter-spacing: -.05em; line-height: 1.2; margin-top: 18px; color: var(--ink); }
+    .dc-lead { font-size: clamp(16px, 1.6vw, 18px); color: var(--dim); line-height: 1.8; margin-top: 18px; }
+
+    .sp-jump { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+    .sp-jump a { font-size: 14px; font-weight: 700; color: var(--ink-2); background: var(--paper-2); border-radius: 999px; padding: 9px 14px; transition: background .2s, color .2s; }
+    .sp-jump a:hover { background: #eef0f3; color: var(--ink); }
+
+    .sp-sec { margin-top: 64px; scroll-margin-top: calc(var(--gnb-h) + 24px); }
+    .sp-sec > h2 { font-size: clamp(22px, 2.4vw, 28px); font-weight: 800; letter-spacing: -.04em; line-height: 1.35; color: var(--ink); }
+    .sp-sec > p { font-size: 16.5px; line-height: 1.85; margin-top: 12px; }
+    .faq-a a, .sp-dl dd a, .sp-biz dd a { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
+
+    .sp-card { margin-top: 20px; border-radius: 28px; background: var(--paper-2); padding: 30px; }
+    .sp-tel { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px 20px; }
+    .sp-tel small { display: block; font-size: 13.5px; font-weight: 700; color: var(--dim); }
+    .sp-card a.sp-tel-num { display: inline-block; margin-top: 4px; font-size: clamp(26px, 3.4vw, 34px); font-weight: 800; letter-spacing: -.02em; color: var(--ink); text-decoration: none; font-variant-numeric: tabular-nums; }
+    .sp-dl { display: grid; grid-template-columns: 4.5em 1fr; gap: 10px 16px; margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--hair); font-size: 15.5px; line-height: 1.6; }
+    .sp-dl > div { display: contents; }
+    .sp-dl dt { font-weight: 700; color: var(--dim); }
+    .sp-dl dd { min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
+    .sp-inapp { margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--hair); }
+    .sp-inapp h3 { font-size: 16.5px; font-weight: 800; letter-spacing: -.02em; color: var(--ink); }
+    .sp-inapp ul { list-style: none; display: grid; gap: 12px; margin-top: 14px; }
+    .sp-inapp li { display: grid; grid-template-columns: 10.5em 1fr; gap: 2px 14px; font-size: 15.5px; line-height: 1.75; }
+    .sp-inapp li b { font-weight: 700; color: var(--ink); }
+    .ui { display: inline-block; padding: 0 8px; border-radius: 7px; background: #fff; border: 1px solid var(--hair); font-size: .94em; font-weight: 700; line-height: 1.6; color: var(--ink); }
+
+    .faq { margin-top: 12px; border-top: 1px solid var(--hair); }
+    .faq details { border-bottom: 1px solid var(--hair); scroll-margin-top: calc(var(--gnb-h) + 24px); }
+    .faq summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 2px; font-size: clamp(16px, 1.8vw, 18.5px); font-weight: 700; letter-spacing: -.02em; line-height: 1.5; color: var(--ink); }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::after { content: "+"; content: "+" / ""; flex-shrink: 0; font-size: 24px; font-weight: 400; line-height: 1; color: var(--brand); transition: transform .3s var(--ease-out); }
+    .faq details[open] > summary::after { transform: rotate(45deg); }
+    .faq summary small { font-size: .82em; font-weight: 700; color: var(--faint); margin-left: 4px; }
+    .faq-a { padding: 0 2px 26px; font-size: 16px; line-height: 1.85; color: var(--ink-2); }
+    .faq-a > * + * { margin-top: 12px; }
+    .faq-a ol { list-style: none; counter-reset: st; }
+    .faq-a ol li { counter-increment: st; position: relative; padding-left: 34px; }
+    .faq-a ol li + li { margin-top: 8px; }
+    .faq-a ol li::before { content: counter(st); position: absolute; left: 0; top: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 13px; font-weight: 800; line-height: 24px; text-align: center; }
+    .faq-box { border-radius: 16px; background: var(--paper-2); padding: 14px 18px; font-size: 15px; line-height: 1.75; }
+    .faq-box b { color: var(--ink); }
+
+    .sp-links { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+    .sp-links a { display: flex; flex-direction: column; gap: 4px; border-radius: 22px; background: var(--paper-2); padding: 22px 24px; transition: background .2s, box-shadow .3s; }
+    .sp-links a:hover { background: #fff; box-shadow: var(--sh-md); }
+    .sp-links b { font-size: 17px; font-weight: 800; letter-spacing: -.03em; color: var(--ink); }
+    .sp-links span { font-size: 14.5px; color: var(--dim); line-height: 1.6; }
+    .sp-biz { display: grid; grid-template-columns: 7.5em 1fr; gap: 8px 16px; margin-top: 16px; font-size: 15px; line-height: 1.6; }
+    .sp-biz > div { display: contents; }
+    .sp-biz dt { color: var(--dim); font-weight: 700; }
+    .sp-biz dd { color: var(--ink-2); }
+
+    @media (max-width: 860px) {
+      .dc { padding: calc(var(--gnb-h) + 40px) 20px 0; }
+      .sp-sec { margin-top: 52px; }
+      .sp-card { padding: 24px 20px; border-radius: 24px; }
+      .sp-links { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      .sp-tel .btn { width: 100%; }
+      .sp-inapp li { grid-template-columns: 1fr; }
+      .sp-biz { grid-template-columns: 1fr; gap: 0; }
+      .sp-biz dd { margin-bottom: 10px; }
+    }
+  </style>
+</head>
+<body class="bx" data-page="support">
+<script src="bx-data.js?v=bx21"></script>
+<script src="bx-shell.js?v=bx20"></script>
+
+<main id="main">
+  <article class="dc">
+    <header>
+      <span class="dc-eyebrow">고객지원</span>
+      <h1 class="dc-title">강한선배 앱 고객지원</h1>
+      <p class="dc-lead">강한선배 앱은 동탄 관리형 독서실 강한선배의 학생·학부모님·운영진이 쓰는 전용 앱이에요. 독서실에 입회하면 초대를 받아 가입할 수 있어요.</p>
+      <div class="sp-jump" role="navigation" aria-label="이 페이지 안에서 이동">
+        <a href="#contact">문의하기</a>
+        <a href="#faq">자주 묻는 질문</a>
+        <a href="#delete-account">계정 삭제</a>
+        <a href="privacy.html">개인정보처리방침</a>
+      </div>
+    </header>
+
+    <section class="sp-sec" id="contact" aria-labelledby="contactTitle">
+      <h2 id="contactTitle">문의하기</h2>
+      <div class="sp-card">
+        <div class="sp-tel">
+          <div>
+            <small>전화 문의</small>
+            <a class="sp-tel-num" href="tel:+82-10-3145-5767">010-3145-5767</a>
+          </div>
+          <a class="btn btn-brand" href="tel:+82-10-3145-5767">전화 걸기</a>
+        </div>
+        <dl class="sp-dl">
+          <div><dt>주소</dt><dd>경기 화성시 동탄반석로 130 (드림프라자) 10F</dd></div>
+          <div data-site-email hidden><dt>이메일</dt><dd><a data-email-link href="#"></a></dd></div>
+        </dl>
+        <div class="sp-inapp">
+          <h3>앱 안에서도 문의할 수 있어요</h3>
+          <ul>
+            <li><b>학부모님</b><span><span class="ui">전체</span> 탭 → <span class="ui">원장님께 문의</span></span></li>
+            <li><b>학생</b><span><span class="ui">전체</span> 탭 → <span class="ui">건의사항</span>, 또는 <span class="ui">메시지</span> 탭</span></li>
+            <li><b>로그인 전·계정 문제</b><span>위 전화번호로 문의해 주세요.</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="sp-sec" id="faq" aria-labelledby="faqTitle">
+      <h2 id="faqTitle">자주 묻는 질문</h2>
+      <div class="faq">
+        <details id="faq-join">
+          <summary>앱은 어떻게 가입하나요?</summary>
+          <div class="faq-a">
+            <p>강한선배 앱은 독서실에서 보낸 초대로만 가입할 수 있어요. 받은 초대 링크를 누르거나, 앱 로그인 화면에서 <span class="ui">초대받았어요</span>를 누른 뒤 링크나 코드를 붙여 넣으면 가입 화면으로 이어져요.</p>
+            <p>초대를 받지 못했다면 독서실로 문의해 주세요.</p>
+          </div>
+        </details>
+        <details id="faq-password">
+          <summary>비밀번호를 잊었어요</summary>
+          <div class="faq-a">
+            <p>앱 로그인 화면에서 <span class="ui">비밀번호를 잊었어요</span>를 눌러 주세요. 가입할 때 적은 이메일로 비밀번호 재설정 링크를 보내 드려요. 메일이 보이지 않으면 스팸함도 확인해 주세요.</p>
+          </div>
+        </details>
+        <details id="faq-id">
+          <summary>아이디를 잊었거나 이메일을 바꾸고 싶어요</summary>
+          <div class="faq-a">
+            <p>아이디 확인과 이메일 변경은 독서실에서 도와드려요. <a href="tel:+82-10-3145-5767">010-3145-5767</a>로 전화해 주세요.</p>
+          </div>
+        </details>
+        <details id="faq-child">
+          <summary><span>자녀를 추가로 연결하고 싶어요 <small>학부모님</small></span></summary>
+          <div class="faq-a">
+            <p>독서실에 요청하면 자녀 연결 초대를 보내 드려요. 받은 초대로 앱의 <span class="ui">자녀 연결</span>에서 등록하면 돼요.</p>
+          </div>
+        </details>
+        <details id="faq-push">
+          <summary>알림이 오지 않아요</summary>
+          <div class="faq-a">
+            <p>먼저 앱 <span class="ui">전체</span> 탭 → <span class="ui">알림 설정</span>에서 받고 싶은 알림이 켜져 있는지 확인해 주세요.</p>
+            <p>그래도 오지 않으면 iPhone의 <span class="ui">설정</span> → <span class="ui">알림</span> → <span class="ui">강한선배</span>에서 알림 허용이 켜져 있는지 확인해 주세요.</p>
+          </div>
+        </details>
+        <details id="delete-account">
+          <summary>계정을 삭제(회원 탈퇴)하고 싶어요</summary>
+          <div class="faq-a">
+            <p>앱에서 바로 삭제할 수 있어요.</p>
+            <ol>
+              <li>앱 하단의 <span class="ui">전체</span> 탭을 눌러요.</li>
+              <li><span class="ui">계정·보안</span>을 눌러요.</li>
+              <li><span class="ui">계정 삭제</span>를 누르고 비밀번호를 확인하면 바로 삭제돼요.</li>
+            </ol>
+            <div class="faq-box"><b>삭제되는 정보</b><br>아이디·이메일·비밀번호, 로그인 기기와 알림 설정, 자녀 연결(학부모님 계정)</div>
+            <p>출결·학습·상담 기록은 독서실 운영 기록으로 남아요. 이 기록도 지우고 싶다면 전화로 요청해 주세요. 자세한 내용은 <a href="privacy.html#delete-account">개인정보처리방침</a>에서 확인할 수 있어요.</p>
+            <p>앱에 로그인할 수 없다면 <a href="tel:+82-10-3145-5767">010-3145-5767</a>로 전화해 계정 삭제를 요청할 수 있어요.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="sp-sec" id="more" aria-labelledby="moreTitle">
+      <h2 id="moreTitle">더 알아보기</h2>
+      <div class="sp-links">
+        <a href="privacy.html"><b>개인정보처리방침</b><span>어떤 정보를 왜 처리하고 언제 파기하는지 안내해요.</span></a>
+        <a href="landing.html"><b>강한선배 홈페이지</b><span>동탄 관리형 독서실 강한선배를 소개해요.</span></a>
+      </div>
+      <dl class="sp-biz">
+        <div><dt>앱 이름</dt><dd>강한선배</dd></div>
+        <div><dt>제공</dt><dd>강한선배(KHSB) 관리형 독서실</dd></div>
+        <div><dt>대표</dt><dd>강한지</dd></div>
+        <div><dt>사업자등록번호</dt><dd>678-93-01968</dd></div>
+        <div><dt>주소</dt><dd>경기 화성시 동탄반석로 130 (드림프라자) 10F</dd></div>
+        <div><dt>전화</dt><dd><a href="tel:+82-10-3145-5767">010-3145-5767</a></dd></div>
+      </dl>
+    </section>
+  </article>
+</main>
+
+<script src="bx-core.js?v=bx21"></script>
+<script>
+  (() => {
+    // 고객지원 이메일 — bx-data.js SITE.email 이 있을 때만 표시
+    const email = (typeof SITE !== 'undefined' && SITE.email ? String(SITE.email) : '').trim();
+    if (email) {
+      document.querySelectorAll('[data-site-email]').forEach(row => {
+        const a = row.querySelector('[data-email-link]');
+        if (a) { a.href = 'mailto:' + email; a.textContent = email; }
+        row.hidden = false;
+      });
+    }
+    // support.html#delete-account 처럼 FAQ 항목으로 들어오면 그 항목을 펼친다
+    function openFromHash() {
+      let id = '';
+      try { id = decodeURIComponent(location.hash.slice(1)); } catch (e) { return; }
+      const el = id && document.getElementById(id);
+      const d = el && (el.tagName === 'DETAILS' ? el : el.closest('details'));
+      if (!d) return;
+      d.open = true;
+      requestAnimationFrame(() => d.scrollIntoView({ block: 'start' }));
+    }
+    openFromHash();
+    addEventListener('hashchange', openFromHash);
+  })();
+</script>
+</body>
+</html>
