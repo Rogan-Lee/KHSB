@@ -71,7 +71,7 @@ GitHub Actions의 `Mobile EAS Build` 워크플로에서도 동일한 빌드를 �
 ## 5. TestFlight 제출
 
 최초 제출 전 App Store Connect에서 앱과 번들 ID
-`com.studyroommanager.mobile`을 생성한다.
+`com.khsb.mobile`을 생성한다. 심사 전 점검과 입력값은 [app-store-review.md](app-store-review.md)를 따른다.
 
 ```bash
 npx eas-cli@latest submit --platform ios --profile production

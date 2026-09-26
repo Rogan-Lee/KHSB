@@ -20,6 +20,7 @@ import {
 } from '@/design';
 import { authClient } from '@/lib/auth-client';
 import { useSession, type AppRole } from '@/lib/session';
+import { SUPPORT_EMAIL, SUPPORT_TEL } from '@/lib/support';
 
 // 계정 보안 — 비밀번호 변경·계정 삭제. 계정 화면(/account)과 예전 메뉴 화면이 같이 쓴다.
 
@@ -210,10 +211,17 @@ export function PasswordChangeSheet({ open, onClose }: { open: boolean; onClose:
 
 // ─── 계정 삭제 ──────────────────────────────────────────────────────
 
-const DELETE_NOTE: Record<AppRole, string> = {
-  student: '학습·출결 기록은 독서실에 그대로 남아요.',
-  staff: '근무·상담 기록은 독서실에 그대로 남아요.',
-  parent: '자녀 연결도 함께 해제돼요. 자녀의 기록은 독서실에 그대로 남아요.',
+// App Store 5.1.1(v): 무엇이 지워지고 무엇이 왜 남는지, 남은 기록은 어떻게 지우는지 삭제 전에 알린다.
+const DELETE_REMOVED: Record<AppRole, string> = {
+  student: '아이디·이메일·비밀번호, 로그인 기기와 알림 설정',
+  staff: '아이디·이메일·비밀번호, 로그인 기기와 알림 설정',
+  parent: '아이디·이메일·비밀번호, 로그인 기기와 알림 설정, 자녀 연결',
+};
+
+const DELETE_KEPT: Record<AppRole, string> = {
+  student: '출결·학습·상담 기록은',
+  staff: '근무·상담 기록은',
+  parent: '자녀의 출결·학습 기록과 보낸 문의는',
 };
 
 /**
@@ -233,7 +241,7 @@ export function useDeleteAccount(options: { signOut?: () => Promise<void> } = {}
   const start = async () => {
     const ok = await confirm({
       title: '계정을 삭제할까요?',
-      message: `로그인 계정이 삭제되고 모든 기기에서 로그아웃돼요. ${DELETE_NOTE[role]} 다시 쓰려면 독서실에서 새 초대를 받아야 해요.`,
+      message: '회원 탈퇴하면 로그인 계정이 바로 삭제되고 모든 기기에서 로그아웃돼요. 다시 쓰려면 독서실에서 새 초대를 받아야 해요.',
       confirmText: '삭제 진행',
       destructive: true,
     });
@@ -305,6 +313,10 @@ export function useDeleteAccount(options: { signOut?: () => Promise<void> } = {}
           </Button>
         </>
       }>
+      <Notice title="바로 삭제돼요">{DELETE_REMOVED[role]}</Notice>
+      <Notice title="독서실에 남아요">
+        {`${DELETE_KEPT[role]} 독서실 운영 기록이라 이용이 끝난 뒤 3년 동안 보관해요. 그 전에 지우려면 고객센터(${SUPPORT_TEL}, ${SUPPORT_EMAIL})로 요청해 주세요.`}
+      </Notice>
       <PasswordField
         label="비밀번호"
         value={password}

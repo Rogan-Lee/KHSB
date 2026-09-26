@@ -43,6 +43,9 @@ next-env.d.ts
 
 /src/generated/prisma
 
+# App Store 심사용 데모 계정 비밀번호·초대 코드 (scripts/seed-review-demo.ts 가 씀, 저장소 공개라 커밋 금지)
+/.app-review/
+
 # local tooling artifacts (transient — not project assets)
 .claude/worktrees/
 .gstack/
