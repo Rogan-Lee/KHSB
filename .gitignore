@@ -49,3 +49,7 @@ next-env.d.ts
 claude-talk-to-figma-mcp/
 .claude/scheduled_tasks.lock
 .claude/settings.json
+
+# CI 가 생성하는 운영 리포트(기능요청 트리아지·주간 건강 지표) — 공개 저장소에 커밋 금지.
+# GitHub Actions 아티팩트로만 보관한다 (.github/workflows/feature-triage.yml, health-report.yml).
+/reports/

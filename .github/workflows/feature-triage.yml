@@ -9,14 +9,11 @@ on:
 jobs:
   triage:
     runs-on: ubuntu-latest
+    # 리포트는 저장소에 커밋하지 않는다(공개 저장소). 아티팩트로만 보관.
+    # 저장소 파일이 필요 없으므로 checkout 하지 않고 권한도 최소화한다.
     permissions:
-      contents: write
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: tmp-main
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Fetch feature requests
         id: fetch
         run: |
@@ -82,21 +79,26 @@ jobs:
             ' /tmp/requests.json
           } > "$REPORT"
 
-          cat "$REPORT"
           echo "REPORT_PATH=$REPORT" >> $GITHUB_ENV
 
-      - name: Commit report
-        run: |
-          if [ -z "$(git status --porcelain reports/)" ]; then
-            echo "변경사항 없음"
-            exit 0
-          fi
-          git config user.email "actions@github.com"
-          git config user.name "GitHub Actions"
-          TODAY=$(TZ='Asia/Seoul' date '+%Y-%m-%d')
-          git add reports/
-          git commit -m "chore: daily triage report $TODAY"
-          git push origin tmp-main
+          # 공개 저장소에서는 Actions 로그·요약이 누구에게나 보이므로
+          # 요청 제목 등 본문은 출력하지 않고 집계 수치만 요약에 남긴다.
+          {
+            echo "### 기능요청 트리아지 ($TODAY)"
+            echo ""
+            echo "- 전체: ${{ steps.fetch.outputs.total }}건 (PENDING: ${{ steps.fetch.outputs.pending }}, IN_PROGRESS: ${{ steps.fetch.outputs.in_progress }})"
+            echo "- 긴급(URGENT/HIGH): ${{ steps.fetch.outputs.urgent }}건"
+            echo ""
+            echo "전체 리포트는 이 실행의 아티팩트(\`triage-report\`)에서 확인할 수 있습니다."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: triage-report
+          path: ${{ env.REPORT_PATH }}
+          retention-days: 30
+          if-no-files-found: error
 
       - name: Notify Slack
         run: |

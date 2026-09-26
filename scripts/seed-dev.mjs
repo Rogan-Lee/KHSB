@@ -2,6 +2,7 @@
 // 기본 원장/멘토/학생5명 + 본인 Clerk email SUPER_ADMIN + 온라인 학생 1명 전환.
 import { config } from "dotenv";
 import { spawnSync } from "child_process";
+import { createHash } from "node:crypto";
 
 config({ path: ".env.development.local", quiet: true });
 config({ path: ".env.local", quiet: true });
@@ -14,9 +15,15 @@ if (!devUrl) {
 }
 
 // 안전 가드: 프로덕션 project-ref 차단
-const PROD_PROJECT_REF = "<prod-project-ref>";
-if (devUrl.includes(PROD_PROJECT_REF)) {
-  console.error(`❌ DATABASE_URL 에 프로덕션 project-ref(${PROD_PROJECT_REF}) 감지. 중단.`);
+// 프로덕션 Supabase project-ref 의 SHA-256. 공개 저장소라 원문 대신 해시로 비교한다.
+const PROD_PROJECT_REF_SHA256 = "37276d3cbb4b3ab00f9978c8eb33b48f41a1a852506ebb19a9b890cae6db5247";
+const hasProdProjectRef = (url) =>
+  url
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .some((part) => createHash("sha256").update(part).digest("hex") === PROD_PROJECT_REF_SHA256);
+if (hasProdProjectRef(devUrl)) {
+  console.error("❌ DATABASE_URL 에 프로덕션 project-ref 감지. 중단.");
   process.exit(1);
 }
 

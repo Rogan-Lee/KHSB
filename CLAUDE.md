@@ -7,7 +7,7 @@
 - **Framework:** Next.js 16 (App Router), React 19, TypeScript 5
 - **Styling:** TailwindCSS v4, shadcn/ui
 - **ORM:** Prisma v7 + Supabase PostgreSQL (aws-1-ap-northeast-2, pgbouncer pooler)
-- **Auth:** Clerk (Google/Kakao OAuth)
+- **Auth:** better-auth (아이디/이메일 + 비밀번호, 초대 기반 가입, Expo 앱 세션)
 - **AI:** Groq SDK (LLaMA 3.3 70B)
 - **Deploy:** Vercel (icn1 Seoul)
 
@@ -65,3 +65,5 @@ landing/              # 강한선배 정적 랜딩 (www.kanghanseonbae.com)
 - 프로덕션 데이터 삭제/수정
 - `generated/prisma/` 내 파일 직접 수정
 - 환경변수(DATABASE_URL, CRON_SECRET 등)를 클라이언트 코드에 노출
+- **공개 저장소**: 비밀값(DB URL·키·비밀번호·초대 코드), 실명·연락처 등 개인정보, 운영 데이터·리포트를 커밋 (스크립트는 환경변수로 받기)
+- `"use server"` 파일에 인증 없는 export 두기 (모든 export 는 공개 엔드포인트) · (dashboard) page 에서 layout 권한 검사에만 의존하기 (`requireDashboardSession` 사용)

@@ -2,7 +2,12 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client";
 
-const USER_EMAIL = "admin@example.com";
+// 본인 로그인 이메일은 저장소에 두지 않는다 — SEED_ADMIN_EMAIL 환경변수(.env.local 등)로 지정.
+const USER_EMAIL = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase() ?? "";
+if (!USER_EMAIL) {
+  console.error("SEED_ADMIN_EMAIL 환경변수가 필요합니다 (SUPER_ADMIN 으로 만들 본인 이메일)");
+  process.exit(1);
+}
 const TEST_ONLINE_STUDENT_ID = "seed-s001"; // 기본 seed 의 첫 학생 "김지훈"
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
@@ -15,7 +20,7 @@ async function main() {
     update: { role: "SUPER_ADMIN" },
     create: {
       email: USER_EMAIL,
-      name: "이우혁",
+      name: "관리자",
       role: "SUPER_ADMIN",
     },
   });
