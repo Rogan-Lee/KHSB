@@ -239,7 +239,7 @@ function MentoringDetailBody({
             ) : null}
           </View>
           {data.cancelled ? (
-            <Badge tone="gray" size="md">
+            <Badge tone="bad" size="md">
               취소됨
             </Badge>
           ) : (

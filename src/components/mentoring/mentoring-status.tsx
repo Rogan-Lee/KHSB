@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 export const MENTORING_STATUS = {
   SCHEDULED: { label: "예정", tone: "info" },
   COMPLETED: { label: "완료", tone: "ok" },
-  CANCELLED: { label: "취소", tone: "gray" },
+  CANCELLED: { label: "취소", tone: "bad" },
   RESCHEDULED: { label: "일정변경", tone: "warn" },
 } as const satisfies Record<string, { label: string; tone: Tone }>;
 

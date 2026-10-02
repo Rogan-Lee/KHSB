@@ -457,7 +457,7 @@ function InfoTab({ data }: { data: OpsStudentProfile }) {
               key={m.id}
               align="start"
               meta={
-                <Badge tone={m.status === 'COMPLETED' ? 'ok' : m.status === 'CANCELLED' ? 'gray' : 'info'}>
+                <Badge tone={m.status === 'COMPLETED' ? 'ok' : m.status === 'CANCELLED' ? 'bad' : 'info'}>
                   {m.statusLabel}
                 </Badge>
               }

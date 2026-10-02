@@ -29,7 +29,7 @@ type MentoringRecord = {
 const STATUS_CONFIG: Record<MentoringStatus, { label: string; tone: Tone }> = {
   SCHEDULED: { label: "예정", tone: "info" },
   COMPLETED: { label: "완료", tone: "ok" },
-  CANCELLED: { label: "취소", tone: "gray" },
+  CANCELLED: { label: "취소", tone: "bad" },
   RESCHEDULED: { label: "변경", tone: "warn" },
 };
 
