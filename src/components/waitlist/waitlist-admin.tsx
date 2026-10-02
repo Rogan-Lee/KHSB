@@ -10,6 +10,7 @@ import type {
 } from "@/generated/prisma/enums";
 import { toast } from "sonner";
 import { applyLinkOrigin } from "@/lib/apply-domain";
+import { contactPhonesForDisplay } from "@/lib/waitlist-contact";
 import {
   setWaitlistStatus,
   cancelWaitlist,
@@ -107,7 +108,9 @@ type Branch = {
 type Entry = {
   id: string;
   name: string;
-  phone: string;
+  phone: string; // 작성자가 인증한 번호
+  parentPhone: string | null;
+  studentPhone: string | null;
   branchId: string;
   branchName: string;
   programId: string | null;
@@ -420,9 +423,15 @@ function EntriesTab({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap items-center gap-x1">
-                      <span className="whitespace-nowrap text-fg-neutral-muted">{e.phone || "—"}</span>
-                      {e.phone && !e.phoneVerifiedAt && <StatusBadge tone="warn">미인증</StatusBadge>}
+                    <div className="flex flex-col gap-x0_5">
+                      {contactPhonesForDisplay(e).map((c) => (
+                        <div key={c.label} className="flex flex-wrap items-center gap-x1">
+                          <span className="whitespace-nowrap t3-regular text-fg-neutral-subtle">{c.label}</span>
+                          <span className="whitespace-nowrap tabular-nums text-fg-neutral-muted">{c.phone}</span>
+                          {c.isApplicant && !e.phoneVerifiedAt && <StatusBadge tone="warn">미인증</StatusBadge>}
+                        </div>
+                      ))}
+                      {!e.phone && !e.parentPhone && !e.studentPhone && <span className="text-fg-placeholder">—</span>}
                     </div>
                   </TableCell>
                   <TableCell className="whitespace-nowrap">{e.branchName}</TableCell>
@@ -538,7 +547,7 @@ function ConsultationModal({ entry, onClose }: { entry: Entry; onClose: () => vo
       fd.set("type", "STUDENT");
     } else {
       fd.set("prospectName", entry.name);
-      fd.set("prospectPhone", entry.phone);
+      fd.set("prospectPhone", entry.parentPhone || entry.phone);
       fd.set("prospectGrade", entry.gradeType === "REPEAT" ? "N수생" : entry.gradeType === "ENROLLED" ? "재학생" : "");
       fd.set("category", "NEW_ADMISSION");
     }
@@ -657,7 +666,8 @@ function EditEntryModal({
   onClose: () => void;
   onSave: (data: {
     name: string;
-    phone: string;
+    parentPhone: string;
+    studentPhone: string;
     programId: string | null;
     gender: WaitGender;
     gradeType: WaitGradeType;
@@ -665,7 +675,10 @@ function EditEntryModal({
   }) => void;
 }) {
   const [name, setName] = useState(entry.name);
-  const [phone, setPhone] = useState(entry.phone);
+  const [parentPhone, setParentPhone] = useState(entry.parentPhone ?? "");
+  const [studentPhone, setStudentPhone] = useState(entry.studentPhone ?? "");
+  // 학부모/학생 구분 입력 이전 신청 — 기존 번호를 보여주고 어느 칸인지 채우게 한다
+  const legacyPhone = !entry.parentPhone && !entry.studentPhone ? entry.phone : null;
   const [programId, setProgramId] = useState(entry.programId ?? "");
   const [gender, setGender] = useState<WaitGender>(entry.gender ?? "MALE");
   const [gradeType, setGradeType] = useState<WaitGradeType>(entry.gradeType ?? "ENROLLED");
@@ -679,20 +692,34 @@ function EditEntryModal({
           <DialogDescription>{entry.branchName}</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-x4">
+          <FormField label="이름" htmlFor="waitlist-edit-name">
+            <Input id="waitlist-edit-name" value={name} onChange={(e) => setName(e.target.value)} />
+          </FormField>
           <div className="grid grid-cols-2 gap-x3">
-            <FormField label="이름" htmlFor="waitlist-edit-name">
-              <Input id="waitlist-edit-name" value={name} onChange={(e) => setName(e.target.value)} />
-            </FormField>
-            <FormField label="연락처" htmlFor="waitlist-edit-phone">
+            <FormField label="학부모 휴대폰" htmlFor="waitlist-edit-parent-phone">
               <Input
-                id="waitlist-edit-phone"
-                value={phone}
+                id="waitlist-edit-parent-phone"
+                value={parentPhone}
                 inputMode="numeric"
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => setParentPhone(e.target.value)}
+                className="tabular-nums"
+              />
+            </FormField>
+            <FormField label="학생 휴대폰" htmlFor="waitlist-edit-student-phone">
+              <Input
+                id="waitlist-edit-student-phone"
+                value={studentPhone}
+                inputMode="numeric"
+                onChange={(e) => setStudentPhone(e.target.value)}
                 className="tabular-nums"
               />
             </FormField>
           </div>
+          {legacyPhone && (
+            <p className="-mt-x2 t3-regular text-fg-neutral-subtle">
+              접수 번호 <span className="tabular-nums">{legacyPhone}</span> — 학부모/학생 구분 없이 받은 신청이에요.
+            </p>
+          )}
           <FormField label="프로그램" htmlFor="waitlist-edit-program">
             <select
               id="waitlist-edit-program"
@@ -746,7 +773,7 @@ function EditEntryModal({
           <Button variant="secondary" onClick={onClose}>
             닫기
           </Button>
-          <Button onClick={() => onSave({ name, phone, programId: programId || null, gender, gradeType, note: note || null })}>
+          <Button onClick={() => onSave({ name, parentPhone, studentPhone, programId: programId || null, gender, gradeType, note: note || null })}>
             저장
           </Button>
         </DialogFooter>

@@ -8,6 +8,12 @@ import { randomInt, randomUUID } from "node:crypto";
 import { checkMessageExists, createSmsQrCode, OCTOMO_RECEIVER } from "@/lib/octomo";
 import { grantGatePass, hasGatePass } from "@/lib/token-auth";
 import { createOpaqueToken } from "@/lib/auth-tokens";
+import {
+  normalizePhone,
+  splitContactPhones,
+  WAIT_APPLICANTS,
+  type WaitApplicant,
+} from "@/lib/waitlist-contact";
 import type {
   BranchWaitStatus,
   WaitGender,
@@ -63,12 +69,6 @@ async function findBoundVerification(phone: string) {
 }
 
 type Result<T = void> = { ok: true; data?: T } | { ok: false; error: string };
-
-/** 휴대폰 번호 정규화 — 숫자만. 한국 휴대폰(010, 11자리)만 허용. */
-function normalizePhone(raw: string): string | null {
-  const digits = (typeof raw === "string" ? raw : "").replace(/\D/g, "");
-  return /^01[0-9]\d{7,8}$/.test(digits) ? digits : null;
-}
 
 // ─── 공개 신청 흐름 (인증 불필요) ─────────────────────────────────────────────
 
@@ -168,7 +168,9 @@ export type WaitlistSubmitInput = {
   name: string;
   school?: string | null;
   grade?: string | null;
-  phone: string;
+  phone: string; // 작성자 번호 (본인인증 대상)
+  applicant?: WaitApplicant; // 작성자 — 학부모/학생
+  otherPhone?: string | null; // 작성자가 아닌 쪽 번호 (인증 없음)
   gender?: WaitGender | null;
   gradeType?: WaitGradeType | null;
   kind?: WaitlistKind;
@@ -193,6 +195,10 @@ export async function submitWaitlist(
   }
   const phone = normalizePhone(input.phone);
   if (!phone) return { ok: false, error: "올바른 휴대폰 번호를 입력해주세요" };
+  const applicant = input.applicant ?? "PARENT";
+  if (!WAIT_APPLICANTS.includes(applicant)) return { ok: false, error: "잘못된 요청입니다" };
+  const contacts = splitContactPhones({ kind, applicant, phone, otherPhone: input.otherPhone });
+  if (!contacts.ok) return contacts;
   if (!input.name?.trim()) return { ok: false, error: "이름을 입력해주세요" };
   // 공개 폼 — 길이·형식 제한 (DB 스팸/비정상 입력 방지)
   const tooLong = (v: unknown, max: number) => v != null && (typeof v !== "string" || v.length > max);
@@ -273,6 +279,8 @@ export async function submitWaitlist(
       school: input.school?.trim() || null,
       grade: input.grade?.trim() || null,
       phone,
+      parentPhone: contacts.parentPhone,
+      studentPhone: contacts.studentPhone,
       gender: kind === "WAITLIST" ? input.gender : null,
       gradeType: kind === "WAITLIST" ? input.gradeType : null,
       kind,
@@ -299,7 +307,8 @@ export type ExistingEntry = {
 
 /**
  * 인증된 휴대폰으로 이미 남긴 활성(미취소) 신청/문의 조회 — 중복 등록 전 확인용.
- * 인증된 폰만 조회 허용(타인 정보 열람 방지).
+ * 인증된 폰만 조회 허용(타인 정보 열람 방지). 작성자 번호뿐 아니라 학부모·학생 번호로 적힌 신청도 포함
+ * (학생이 신청하고 학부모가 현황을 보는 경우) — 그 번호의 주인임을 인증했으므로 열람해도 된다.
  */
 export async function findExistingByPhone(rawPhone: string): Promise<ExistingEntry[]> {
   const phone = normalizePhone(rawPhone);
@@ -309,7 +318,10 @@ export async function findExistingByPhone(rawPhone: string): Promise<ExistingEnt
   if (!verified) return [];
 
   const entries = await prisma.waitlist.findMany({
-    where: { phone, status: { not: "CANCELLED" } },
+    where: {
+      OR: [{ phone }, { parentPhone: phone }, { studentPhone: phone }],
+      status: { not: "CANCELLED" },
+    },
     include: { branch: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -425,7 +437,8 @@ export async function updateWaitlistEntry(
   id: string,
   data: {
     name?: string;
-    phone?: string;
+    parentPhone?: string | null;
+    studentPhone?: string | null;
     programId?: string | null;
     gender?: WaitGender;
     gradeType?: WaitGradeType;
@@ -435,11 +448,18 @@ export async function updateWaitlistEntry(
   const session = await auth();
   requireStaff(session?.user?.role);
 
-  let phone: string | undefined;
-  if (data.phone !== undefined) {
-    const normalized = normalizePhone(data.phone);
-    if (!normalized) return { ok: false, error: "올바른 휴대폰 번호를 입력해주세요" };
-    phone = normalized;
+  // 빈 값이면 null, 형식이 틀리면 에러 (undefined 는 변경 안 함)
+  const phones: { parentPhone?: string | null; studentPhone?: string | null } = {};
+  for (const [key, label] of [["parentPhone", "학부모"], ["studentPhone", "학생"]] as const) {
+    const raw = data[key];
+    if (raw === undefined) continue;
+    if (!raw?.trim()) {
+      phones[key] = null;
+      continue;
+    }
+    const normalized = normalizePhone(raw);
+    if (!normalized) return { ok: false, error: `${label} 휴대폰 번호를 확인해주세요` };
+    phones[key] = normalized;
   }
   if (data.name !== undefined && !data.name.trim()) {
     return { ok: false, error: "이름을 입력해주세요" };
@@ -449,7 +469,7 @@ export async function updateWaitlistEntry(
     where: { id },
     data: {
       ...(data.name !== undefined ? { name: data.name.trim() } : {}),
-      ...(phone !== undefined ? { phone } : {}),
+      ...phones,
       ...(data.programId !== undefined ? { programId: data.programId || null } : {}),
       ...(data.gender !== undefined ? { gender: data.gender } : {}),
       ...(data.gradeType !== undefined ? { gradeType: data.gradeType } : {}),
@@ -635,6 +655,8 @@ export async function bulkEnrollStudents(
         studentId: s.id,
         name: s.name,
         phone: (s.phone || s.parentPhone || "").replace(/\D/g, ""),
+        parentPhone: s.parentPhone.replace(/\D/g, "") || null,
+        studentPhone: s.phone?.replace(/\D/g, "") || null,
         status: "ENROLLED" as WaitlistStatus,
         enrolledAt: new Date(),
         kind: "WAITLIST" as WaitlistKind,

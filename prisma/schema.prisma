@@ -2306,7 +2306,9 @@ model Waitlist {
   name             String
   school           String? // 학교 (학생 구분용)
   grade            String? // 학년 (예: 고3, 중2)
-  phone            String
+  phone            String // 작성자가 본인인증한 번호 — 현황 조회·중복 확인 기준
+  parentPhone      String? // 학부모 휴대폰 (구분 입력 이전 신청은 null)
+  studentPhone     String? // 학생 휴대폰
   gender           WaitGender? // nullable — 기존 원생 일괄등록 시 없음
   gradeType        WaitGradeType? // nullable — 기존 원생 일괄등록 시 없음
   kind             WaitlistKind     @default(WAITLIST) // 대기신청 / 단순문의
