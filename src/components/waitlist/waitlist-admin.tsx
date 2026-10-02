@@ -9,6 +9,7 @@ import type {
   WaitlistStatus,
 } from "@/generated/prisma/enums";
 import { toast } from "sonner";
+import { applyLinkOrigin } from "@/lib/apply-domain";
 import {
   setWaitlistStatus,
   cancelWaitlist,
@@ -237,7 +238,7 @@ function ShareApply() {
   // SSR 과 첫 렌더를 맞추려고 마운트 뒤에 origin 을 읽는다 (기존 동작 유지)
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setOrigin(window.location.origin), []);
-  const link = `${origin}/apply`;
+  const link = `${applyLinkOrigin(origin)}/apply`;
   const [msg, setMsg] = useState(
     "안녕하세요! 대기 신청 안내드립니다.\n현재 정원이 가득 차 대기 신청만 받고 있어요. 아래 링크에서 1분이면 신청하실 수 있습니다 👇"
   );
@@ -356,7 +357,7 @@ function EntriesTab({
 
   async function copyGuideLink(e: Entry) {
     if (!e.guideToken) return;
-    const url = `${window.location.origin}/apply/guide/${e.guideToken}`;
+    const url = `${applyLinkOrigin(window.location.origin)}/apply/guide/${e.guideToken}`;
     try {
       await navigator.clipboard.writeText(url);
       toast.success("안내 링크가 복사되었습니다");
@@ -609,7 +610,7 @@ function GuideEditorModal({ entry, onClose }: { entry: Entry; onClose: () => voi
       toast.error(res.error);
       return;
     }
-    const url = `${window.location.origin}/apply/guide/${res.data!.token}`;
+    const url = `${applyLinkOrigin(window.location.origin)}/apply/guide/${res.data!.token}`;
     try {
       await navigator.clipboard.writeText(url);
       toast.success("안내 저장 + 링크 복사 완료");

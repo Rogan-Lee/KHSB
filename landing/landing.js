@@ -139,7 +139,7 @@ function toggleAcc(el) {
 window.toggleAcc = toggleAcc;
 
 // 입회 상담 신청 페이지 (운영 중인 앱의 /apply)
-const APPLY_URL = 'https://khsb.vercel.app/apply';
+const APPLY_URL = 'https://apply.kanghanseonbae.com/apply';
 
 // hero lead bar → 연락처를 들고 /apply 신청 페이지로 이동
 function goContact(e) {

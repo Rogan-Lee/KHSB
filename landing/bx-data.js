@@ -66,7 +66,7 @@ const SITE_NAV = [
   { key: 'winter', label: '윈터스쿨', href: 'recruit.html', badge: 'N' },
 ];
 const SITE = {
-  apply: 'https://khsb.vercel.app/apply',
+  apply: 'https://apply.kanghanseonbae.com/apply',
   tel: '010-3145-5767',
   api: 'https://khsb.vercel.app',
   address: '경기 화성시 동탄반석로 130 (드림프라자) 10F',
