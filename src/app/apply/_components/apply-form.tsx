@@ -10,6 +10,7 @@ import {
   findExistingByPhone,
   type ExistingEntry,
 } from "@/actions/waitlist";
+import { APPLICANT_LABEL, isOtherPhoneRequired, type WaitApplicant } from "@/lib/waitlist-contact";
 
 type Branch = {
   id: string;
@@ -76,7 +77,10 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
   const [name, setName] = useState("");
   const [school, setSchool] = useState("");
   const [grade, setGrade] = useState("");
+  // 작성자(학부모/학생) — phone 은 작성자 번호(본인인증), otherPhone 은 다른 쪽 번호
+  const [applicant, setApplicant] = useState<WaitApplicant>("PARENT");
   const [phone, setPhone] = useState("");
+  const [otherPhone, setOtherPhone] = useState("");
   const [note, setNote] = useState("");
   const [consent, setConsent] = useState(false);
 
@@ -131,6 +135,14 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
     }
   }
 
+  // 작성자를 바꾸면 두 번호 칸을 맞바꾼다 (인증은 새 작성자 번호로 다시)
+  function handleApplicantChange(next: WaitApplicant) {
+    if (next === applicant) return;
+    setApplicant(next);
+    handlePhoneChange(otherPhone);
+    setOtherPhone(phone);
+  }
+
   async function handleIssue() {
     setError(null);
     if (!phone.trim()) return setError("휴대폰 번호를 먼저 입력해주세요");
@@ -158,6 +170,9 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
   }
 
   const isInquiry = kind === "INQUIRY";
+  const applicantLabel = APPLICANT_LABEL[applicant];
+  const otherLabel = APPLICANT_LABEL[applicant === "PARENT" ? "STUDENT" : "PARENT"];
+  const otherRequired = isOtherPhoneRequired(kind, applicant);
 
   // 실제 등록 (중복 확인 통과 후 / "새로 등록" 선택 시)
   async function doSubmit() {
@@ -169,6 +184,8 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
       school: isInquiry ? null : school,
       grade: isInquiry ? null : grade,
       phone,
+      applicant,
+      otherPhone,
       gender: isInquiry ? null : gender,
       gradeType: isInquiry ? null : gradeType,
       kind,
@@ -191,7 +208,8 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
     if (!isInquiry && !gradeType) return setError("학년을 선택해주세요");
     if (!name.trim()) return setError("이름을 입력해주세요");
     if (isInquiry && !note.trim()) return setError("문의 내용을 입력해주세요");
-    if (!phone.trim()) return setError("휴대폰 번호를 입력해주세요");
+    if (!phone.trim()) return setError(`${applicantLabel} 휴대폰 번호를 입력해주세요`);
+    if (otherRequired && !otherPhone.trim()) return setError(`${otherLabel} 휴대폰 번호를 입력해주세요`);
     // 대기 신청만 본인인증 필수 — 단순 문의는 인증 없이 접수 가능
     if (!isInquiry && !verified) return setError("휴대폰 본인인증을 먼저 완료해주세요");
 
@@ -296,7 +314,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
         <div>
           <h2 className="text-base font-bold text-gray-900">신청 현황 조회</h2>
           <p className="mt-1 text-sm text-gray-500">
-            등록 시 인증한 번호로 본인인증하면 신청한 학생들의 순번을 확인할 수 있어요.
+            신청서에 적은 학부모·학생 번호 중 하나로 본인인증하면 신청한 학생들의 순번을 확인할 수 있어요.
           </p>
         </div>
         {phoneVerify}
@@ -539,7 +557,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
 
       {/* 정보 입력 */}
       <section>
-        <SectionTitle>{isInquiry ? "연락받으실 정보를 적어주세요" : "학생 정보를 적어주세요"}</SectionTitle>
+        <SectionTitle>{isInquiry ? "문의하시는 분 정보를 적어주세요" : "학생 정보를 적어주세요"}</SectionTitle>
         <div className="space-y-3">
           <input
             value={name}
@@ -563,7 +581,42 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
               />
             </>
           )}
-          {phoneVerify}
+        </div>
+      </section>
+
+      {/* 연락처 — 작성자 번호는 본인인증, 다른 쪽은 입력만 */}
+      <section>
+        <SectionTitle>연락처를 적어주세요</SectionTitle>
+        <div className="space-y-5">
+          <div>
+            <p className="mb-2 text-sm font-medium text-gray-700">작성하시는 분</p>
+            <Toggle
+              value={applicant}
+              onChange={handleApplicantChange}
+              options={[
+                { value: "PARENT", label: "학부모" },
+                { value: "STUDENT", label: "학생" },
+              ]}
+            />
+          </div>
+          <div>
+            <p className="mb-2 text-sm font-medium text-gray-700">
+              {applicantLabel} 휴대폰 <span className="text-gray-400">(본인인증)</span>
+            </p>
+            {phoneVerify}
+          </div>
+          <div>
+            <p className="mb-2 text-sm font-medium text-gray-700">
+              {otherLabel} 휴대폰 {!otherRequired && <span className="text-gray-400">(선택)</span>}
+            </p>
+            <input
+              value={otherPhone}
+              onChange={(e) => setOtherPhone(e.target.value)}
+              inputMode="numeric"
+              placeholder={`${otherLabel} 핸드폰번호를 적어주세요`}
+              className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm"
+            />
+          </div>
         </div>
       </section>
 

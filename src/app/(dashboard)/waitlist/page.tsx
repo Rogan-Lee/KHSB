@@ -92,6 +92,8 @@ export default async function WaitlistAdminPage() {
           id: e.id,
           name: e.name,
           phone: e.phone,
+          parentPhone: e.parentPhone,
+          studentPhone: e.studentPhone,
           branchId: e.branchId,
           branchName: e.branch.name,
           programId: e.programId,
@@ -107,7 +109,9 @@ export default async function WaitlistAdminPage() {
             ? students
                 .filter((s) => s.id === e.studentId)
                 .map((s) => ({ id: s.id, name: s.name, grade: s.grade }))[0] ?? null
-            : phoneToStudent.get(normalizeDigits(e.phone)) ?? null,
+            : [e.parentPhone, e.studentPhone, e.phone]
+                .map((p) => phoneToStudent.get(normalizeDigits(p ?? "")))
+                .find(Boolean) ?? null,
           note: e.note,
           cancelReason: e.cancelReason,
           guideToken: e.guideToken,
