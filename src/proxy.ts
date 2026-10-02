@@ -1,5 +1,6 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { NextRequest, NextResponse } from "next/server";
+import { applyHostRedirect } from "@/lib/apply-domain";
 
 const PUBLIC_ROUTE_ROOTS = [
   "/sign-in",
@@ -31,6 +32,15 @@ export function isPublicPath(pathname: string) {
 }
 
 export function proxy(request: NextRequest) {
+  const applyRedirect = applyHostRedirect(
+    request.headers.get("host"),
+    request.nextUrl.pathname,
+    request.nextUrl.search,
+  );
+  if (applyRedirect) {
+    return NextResponse.redirect(applyRedirect);
+  }
+
   if (isPublicPath(request.nextUrl.pathname)) {
     return NextResponse.next();
   }
