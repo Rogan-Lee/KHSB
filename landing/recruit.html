@@ -15,35 +15,18 @@
   <meta property="og:image" content="photos/bx/hall.jpg">
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-  <link rel="stylesheet" href="landing.css?v=seed3">
-  <link rel="stylesheet" href="bx-core.css?v=bx21">
+  <link rel="stylesheet" href="landing.css?v=seed4">
+  <link rel="stylesheet" href="bx-core.css?v=bx27">
+  <link rel="stylesheet" href="winter.css?v=w13">
   <style>
     /* ── 2027 윈터스쿨 전용 ── */
-    .w-hero .phd-media::after { background: linear-gradient(180deg, rgba(10, 16, 30, .7) 0%, rgba(10, 16, 30, .35) 40%, rgba(8, 9, 12, .9) 100%); }
-    .w-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 26px; animation: bx-fade .9s .1s both; }
-    .w-badge { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 999px; font-size: 14px; font-weight: 700; background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .22); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
-    .w-badge.hot { background: var(--brand); border-color: var(--brand); }
-    .w-badge.hot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: w-pulse 1.6s ease-in-out infinite; }
-    @keyframes w-pulse { 50% { opacity: .3; } }
-    .w-note { font-size: 14px; color: rgba(255, 255, 255, .6); margin-top: 22px; animation: bx-fade 1s .5s both; }
-    .w-facts { position: relative; z-index: 2; max-width: 1180px; margin: -64px auto 0; display: grid; grid-template-columns: repeat(4, 1fr); background: #fff; border-radius: 28px; box-shadow: var(--sh-lg); overflow: hidden; }
-    .w-facts > div { padding: 30px 30px 28px; border-left: 1px solid var(--hair); }
-    .w-facts > div:first-child { border-left: 0; }
-    .w-facts span { font-size: 13.5px; font-weight: 700; color: var(--faint); }
-    .w-facts b { display: block; font-size: clamp(19px, 1.9vw, 24px); font-weight: 800; letter-spacing: -.04em; margin-top: 8px; color: var(--ink); }
-    .w-facts b small { font-size: 14px; color: var(--dim); font-weight: 600; margin-left: 4px; letter-spacing: -.01em; }
-    .w-facts .dd b { color: var(--brand); }
-    @media (max-width: 1236px) { .w-facts { margin-left: 28px; margin-right: 28px; } }
     /* 결과 */
     .w-kpis { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 16px; }
     .w-kpis .kpi b.txt { font-size: clamp(36px, 4vw, 54px); }
     .w-unis { margin-top: 56px; }
     .w-unis-label { text-align: center; font-size: 14px; font-weight: 700; color: var(--dim); margin-bottom: 22px; }
-    .w-rvs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 56px; }
+    .w-rvs { --vpad: 0px; margin-top: 56px; border-radius: 28px; overflow: hidden; }
     /* 관리 시스템 */
-    .w-sysband { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
-    .w-sysband div { border-radius: 22px; background: var(--night); color: rgba(255, 255, 255, .7); padding: 22px 24px; font-size: 14.5px; line-height: 1.5; }
-    .w-sysband b { display: block; font-size: 19px; font-weight: 800; letter-spacing: -.03em; color: #fff; margin-bottom: 4px; }
     .w-rules { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 28px; }
     /* 등록 절차 */
     .w-steps { list-style: none; counter-reset: ws; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 56px; }
@@ -55,78 +38,102 @@
     .w-prior { display: flex; align-items: flex-start; gap: 14px; margin-top: 16px; border-radius: 22px; background: var(--brand-soft); padding: 22px 26px; font-size: 15px; line-height: 1.7; color: var(--ink-2); }
     .w-prior b { color: var(--ink); }
     .w-prior .pr { flex-shrink: 0; font-size: 12.5px; font-weight: 800; color: #fff; background: var(--brand); border-radius: 999px; padding: 5px 12px; margin-top: 2px; }
-    @media (max-width: 1000px) {
-      .w-facts { grid-template-columns: 1fr 1fr; }
-      .w-facts > div:nth-child(3) { border-left: 0; }
-      .w-facts > div:nth-child(n+3) { border-top: 1px solid var(--hair); }
-      .w-sysband { grid-template-columns: 1fr 1fr; }
-      .w-steps { grid-template-columns: 1fr 1fr; }
-      .w-steps li::after { display: none; }
-    }
-    @media (max-width: 860px) {
-      .w-kpis, .w-rvs { grid-template-columns: 1fr; }
-      .w-facts > div { padding: 22px 20px; }
-      .w-steps { grid-template-columns: 1fr; }
-      .w-prior { flex-direction: column; gap: 10px; }
-    }
   </style>
 </head>
 <body class="bx" data-page="winter" data-gnb="dark">
-<script src="bx-data.js?v=bx21"></script>
+<script src="bx-data.js?v=bx25"></script>
 <script src="bx-shell.js?v=bx20"></script>
 
 <main id="main">
 
-<!-- HERO -->
-<header class="phd w-hero" data-gnb-dark>
-  <div class="phd-media"><img src="photos/bx/hall.jpg" alt="" fetchpriority="high"></div>
-  <div class="phd-inner">
-    <div class="w-badges">
-      <span class="w-badge hot">2027 윈터스쿨 모집 중</span>
-      <span class="w-badge">개강 <b data-dday="2027-01-01">D-</b></span>
-      <span class="w-badge">좌석 한정</span>
+<!-- HERO — 왼쪽 안내 칸(모집 상태 · 개강까지) + 오른쪽 제목 · 예약 · 넓은 사진 -->
+<header class="w-hero" data-gnb-dark>
+  <div class="wh-in">
+    <div class="wh-side">
+      <p class="wh-label">2027 윈터스쿨<span class="w-tag">모집 중</span></p>
+      <p class="w-seat" data-seats>좌석 한정</p>
+      <!-- 개강까지 남은 시간 — 플립 시계, 1초마다 넘어간다 (winter.js) -->
+      <div class="w-clock w-clock-hero" data-clock="hero" role="timer" hidden><p class="wc-label">개강까지</p><div class="wc-digits"></div></div>
     </div>
-    <h1 class="ph-title"><span class="ln"><span>겨울방학 두 달이면</span></span><span class="ln"><span>3월이 <em>달라집니다.</em></span></span></h1>
-    <p class="ph-lead">1월 1일부터 2월 28일까지, 하루 15시간을 관리합니다. <br class="pc">매 교시 출결을 확인하고 매주 1:1 멘토링을 하며, 그 기록을 학부모님께 보내드립니다.</p>
-    <div class="ph-actions">
-      <a class="btn btn-brand" href="https://apply.kanghanseonbae.com/apply" target="_blank" rel="noopener">온라인 사전 예약<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
-      <a class="btn btn-glass" href="tel:010-3145-5767">전화 상담하기</a>
+    <div class="wh-main">
+      <h1 class="wh-title"><span class="ln">겨울방학 두 달이면</span><span class="ln">3월이 <em>달라집니다.</em></span></h1>
+      <div class="wh-actions">
+        <a class="btn btn-brand" href="https://apply.kanghanseonbae.com/apply" target="_blank" rel="noopener">온라인 사전 예약<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a class="btn btn-glass" href="tel:010-3145-5767">전화 상담하기</a>
+        <p class="w-note">예비 고1 · 고2 · 고3 · N수 대상 · 섬머스쿨은 2027년 여름 오픈 예정</p>
+      </div>
+      <figure class="wh-media" data-parallax="25"><img src="photos/bx/hall.jpg" alt="강한선배 자습실 전경" fetchpriority="high"></figure>
+      <div class="w-facts">
+        <div><span>수강 기간</span><b>1/1(금) – 2/28(일)<small>2개월</small></b></div>
+        <div><span>운영 시간</span><b>09:00 – 24:00<small>연중무휴</small></b></div>
+        <div><span>수강 금액</span><b>월 69만 원<small>2개월 총 138만 원</small></b></div>
+        <div class="dd"><span>개강까지</span><b data-clock="facts" role="timer">D-</b></div>
+      </div>
     </div>
-    <p class="w-note">예비 고1 · 고2 · 고3 · N수 대상 · 섬머스쿨은 2027년 여름 오픈 예정</p>
   </div>
 </header>
 
-<div class="w-facts r">
-  <div><span>수강 기간</span><b>1/1(금) – 2/28(일)<small>2개월</small></b></div>
-  <div><span>운영 시간</span><b>09:00 – 24:00<small>연중무휴</small></b></div>
-  <div><span>수강 금액</span><b>월 69만 원<small>2개월 총 138만 원</small></b></div>
-  <div class="dd"><span>개강까지</span><b data-dday="2027-01-01">D-</b></div>
+<!-- 마감 안내 띠 -->
+<div class="w-strip">
+  <p><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.6v.4"/></svg><b>좌석이 차는 대로 마감됩니다.</b><span>입실 배정은 기존 재원생 다음, 대기금 납부 순서입니다.</span></p>
+  <a href="https://apply.kanghanseonbae.com/apply" target="_blank" rel="noopener">순번 확보하기<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
 </div>
+
+<!-- 소개 문장 — 스크롤에 맞춰 글자가 차례로 또렷해진다 (winter.js) -->
+<div class="w-intro">
+  <p class="w-say" data-say>1월 1일부터 2월 28일까지, <em>하루 15시간</em>을 관리합니다. 매 교시 출결을 확인하고 매주 1:1 멘토링을 하며, <em>그 기록을 학부모님께</em> 보내드립니다.</p>
+</div>
+
+<!-- 구획 탭 (1024px 미만) — 넓은 화면에서는 왼쪽 목차가 대신한다 -->
+<div class="w-tabs" role="navigation" aria-label="윈터스쿨 안내 구획">
+  <div class="w-tabs-in">
+    <a href="#results">입시 결과</a>
+    <a href="#exam">실전 모의고사</a>
+    <a href="#app">전용 앱</a>
+    <a href="#system">관리 시스템</a>
+    <a href="#program">등록 안내</a>
+    <a href="#faq">자주 묻는 질문</a>
+  </div>
+</div>
+
+<div class="w-body">
+<!-- 왼쪽 목차 (1024px 이상) — 화면 아래에 붙어 따라오고, 보고 있는 구획에 점이 찍힌다 -->
+<div class="w-rail" role="navigation" aria-label="윈터스쿨 안내 목차">
+  <a href="#results"><i></i><span>입시 결과</span></a>
+  <a href="#exam"><i></i><span>실전 모의고사</span></a>
+  <a href="#app"><i></i><span>전용 앱</span></a>
+  <a href="#system"><i></i><span>관리 시스템</span></a>
+  <a href="#program"><i></i><span>등록 안내</span></a>
+  <a href="#faq"><i></i><span>자주 묻는 질문</span></a>
+</div>
+<div class="w-main">
 
 <!-- 결과 -->
 <section class="bx-sec" id="results">
   <div class="bx-head r">
     <p class="eyebrow">숫자로 보는 강한선배</p>
-    <h2 class="bx-h2">강한선배 학생들의<br>입시 결과입니다.</h2>
+    <h2 class="bx-h2">강한선배 학생들의<br><span data-mark="underline">입시 결과</span>입니다.</h2>
     <p class="bx-sub">겨울 두 달을 자리만 지키다 보내면 남는 게 없습니다. 아래는 재원생들의 실제 기록입니다.</p>
   </div>
   <div class="w-kpis">
     <div class="kpi dark r"><p class="k-label">인서울 대학 합격</p><b data-stat="inSeoul"></b><p class="k-sub">재원생 3명 중 2명이 인서울 대학에 합격했습니다.</p></div>
     <div class="kpi r d1"><p class="k-label">성적 상승</p><b data-stat="rise"></b><p class="k-sub">재원생 10명 중 9명은 성적이 올랐습니다.</p></div>
-    <div class="kpi brand r d2"><p class="k-label">최상위 의약학 계열</p><b class="txt">의·치·약</b><p class="k-sub">합격생이 여러 명 나왔습니다.</p></div>
+    <div class="kpi brand r d2"><p class="k-label">최상위 의약학 계열</p><b class="txt">의·치·약</b><p class="k-sub">강한선배는 매 기수마다 의치약을 보냅니다.</p></div>
   </div>
   <div class="w-unis r">
     <p class="w-unis-label">2026학년도 강한선배 2기 합격 · 재학 대학</p>
     <div class="lmq" data-logos data-special data-speed="40"></div>
   </div>
-  <div class="w-rvs">
-    <figure class="rvc feat r"><blockquote class="rv-q">타이트한 관리가 오히려 좋았어요. 매 교시 확인받다 보니 도망갈 곳이 없었고, 고2 11월 모의고사보다 3월 모의고사 성적이 크게 올랐어요.</blockquote><figcaption class="rv-by"><span>윈터스쿨 수료생 · 고3</span><em class="rv-tag" style="font-style:normal">성적 상승</em></figcaption></figure>
-    <figure class="rvc r d1"><blockquote class="rv-q">혼자서는 절대 못 지켰을 겨울 루틴을 두 달 내내 지키게 해 줬어요. 공부 습관이 잡힌 채로 3월을 시작하니 1년이 달라졌어요.</blockquote><figcaption class="rv-by"><span>윈터스쿨 수료생 · N수</span><em class="rv-tag" style="font-style:normal">습관 형성</em></figcaption></figure>
+  <!-- 후기 줄 — 메인과 같은 카드(bx-core.js). 아래 세 면(등급 · 설문 · 학부모 후기)이 보이면 winter.js 가 숨긴다 -->
+  <div class="w-rvs vfl" data-w-fallback>
+    <div class="vrail" data-stories="review" data-mode="reviews" data-limit="12" tabindex="0" role="group" aria-label="합격생 · 재원생 후기"></div>
   </div>
+  <!-- 등급 향상 · 재원생 설문 · 학부모 후기 (winter-data.js → winter.js) -->
+  <div class="w-proof" data-w-proof hidden></div>
 </section>
 
 <!-- 실전 모의고사 — 매달 수능처럼 -->
-<section class="kband on-dark exam-band">
+<section class="kband on-dark exam-band" id="exam">
   <div class="kband-inner exam-grid">
     <div>
       <p class="eyebrow r">실전 훈련</p>
@@ -139,35 +146,61 @@
       </ul>
       
     </div>
-    <figure class="exam-shot r d2" data-ui-fallback><div class="pf"><img src="photos/ui/portal-exam.png?v=ui3" alt="모의고사 신청 화면" loading="lazy" onerror="this.closest('[data-ui-fallback]').remove()"></div><figcaption class="pf-cap"><b>모의고사 신청</b><span>실제 학생 앱 화면</span></figcaption></figure>
+    <figure class="exam-shot exam-photo r d2" data-ui-fallback><img src="photos/the-premium.jpg" alt="대성 더프리미엄(THE PREMIUM) 모의고사" loading="lazy" onerror="this.closest('[data-ui-fallback]').remove()"><figcaption class="pf-cap"><b>대성 더프리미엄 모의고사</b><span>매달 원내 시험실에서 응시</span></figcaption></figure>
   </div>
 </section>
 
-<!-- 실제 앱 화면 — 강한선배 앱 학생 · 학부모님 화면 (photos/ui/manifest.json, 화면이 없으면 섹션 숨김) -->
-<section class="bx-sec" data-ui-section>
+<!-- 전용 앱 — 핵심 기능만 골라 폰 한 대에서 화면을 바꿔 가며 보여 준다 (bx-core.js [data-fx] · 자동 넘김은 winter.js) -->
+<section class="bx-sec" id="app">
   <div class="bx-head r">
     <p class="eyebrow">강한선배 앱</p>
     <h2 class="bx-h2">강한선배 전용 앱으로<br>두 달을 빈틈없이 관리합니다.</h2>
     <p class="bx-sub">출결과 상벌점, 과제, 질의응답, 도시락 신청까지 윈터스쿨 두 달의 관리가 모두 전용 앱에서 이뤄지고, 학부모님도 같은 앱에서 바로 확인하십니다. 아래는 모두 실제 앱 화면입니다.</p>
   </div>
-  <div class="ui-rail" data-ui-rail="portal,parent,app"></div>
-  <div class="ui-rail-ctl"><button type="button" data-dir="-1" aria-label="이전 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></button><button type="button" data-dir="1" aria-label="다음 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></button></div>
-  
+  <div class="fx w-appfx" data-fx data-fx-auto>
+    <div class="fx-list r" role="group" aria-label="앱 핵심 기능">
+      <button type="button" class="fx-item" data-shot="photos/ui/portal-home.png?v=ui3" data-alt="학생 앱 홈 화면" data-cap="오늘 할 일과 과제, 공지, 신청 메뉴가 한 화면에 모여 있습니다.">
+        <b>학생 앱 홈 <em>학생</em></b>
+        <p>오늘 할 일과 과제, 공지, 신청 메뉴가 한 화면에 모여 있습니다.</p>
+      </button>
+      <button type="button" class="fx-item" data-shot="photos/ui/portal-points-history.png?v=ui3" data-alt="상벌점 내역 화면" data-cap="상점과 벌점이 사유와 함께 날짜별로 쌓입니다. 학부모님 리포트에도 그대로 실립니다.">
+        <b>상벌점 내역 <em>학생</em></b>
+        <p>상점과 벌점이 사유와 함께 날짜별로 쌓입니다. 학부모님 리포트에도 그대로 실립니다.</p>
+      </button>
+      <button type="button" class="fx-item" data-shot="photos/ui/portal-qna-thread.png?v=ui3" data-alt="사진 질문 · 멘토 답변 화면" data-cap="모르는 문제를 사진으로 올리면 근무 중인 멘토가 풀이로 답합니다.">
+        <b>사진 질문 · 멘토 답변 <em>학생</em></b>
+        <p>모르는 문제를 사진으로 올리면 근무 중인 멘토가 풀이로 답합니다.</p>
+      </button>
+      <button type="button" class="fx-item" data-shot="photos/ui/portal-exam.png?v=ui3" data-alt="모의고사 신청 화면" data-cap="매달 보는 실전 모의고사를 앱에서 신청하고 확정 여부를 확인합니다.">
+        <b>모의고사 신청 <em>학생</em></b>
+        <p>매달 보는 실전 모의고사를 앱에서 신청하고 확정 여부를 확인합니다.</p>
+      </button>
+      <button type="button" class="fx-item" data-shot="photos/ui/portal-lunch.png?v=ui3" data-alt="도시락 신청 화면" data-cap="주차별 메뉴를 보고 필요한 끼니만 미리 신청합니다.">
+        <b>도시락 신청 <em>학생</em></b>
+        <p>주차별 메뉴를 보고 필요한 끼니만 미리 신청합니다.</p>
+      </button>
+      <button type="button" class="fx-item" data-shot="photos/ui/parent-monthly-top.png?v=ui3" data-alt="월간 리포트 화면" data-cap="한 달의 멘토링, 상벌점, 순찰 기록을 한 장에 정리해 학부모님께 보내드립니다.">
+        <b>월간 리포트 <em>학부모님</em></b>
+        <p>한 달의 멘토링, 상벌점, 순찰 기록을 한 장에 정리해 학부모님께 보내드립니다.</p>
+      </button>
+    </div>
+    <div class="fx-stage r d1">
+      <figure class="pf"><img src="photos/ui/portal-home.png?v=ui3" alt="학생 앱 홈 화면"></figure>
+      <p class="wa-cap" data-fx-cap>오늘 할 일과 과제, 공지, 신청 메뉴가 한 화면에 모여 있습니다.</p>
+    </div>
+  </div>
 </section>
 
-<!-- 관리 시스템 — 카드 → 시트 모달 -->
+<!-- 관리 시스템 — 시간표 · 좌석 · 순찰 · QR 기록은 펼쳐서 보여 주고(winter.js), 그 밖의 카드는 누르면 시트 모달 -->
 <section class="bx-sec" id="system">
   <div class="bx-head r">
     <p class="eyebrow">밀착 학습 관리</p>
-    <h2 class="bx-h2">하루 15시간 동안<br>이렇게 관리합니다.</h2>
-    <p class="bx-sub">카드를 누르면 실제 운영 방식과 앱 화면을 볼 수 있습니다. 출결, 벌점, 멘토링 기록은 학부모님께도 모두 공유됩니다.</p>
+    <h2 class="bx-h2"><span data-mark="underline">하루 15시간</span> 동안<br>이렇게 관리합니다.</h2>
+    <p class="bx-sub">시간표와 좌석, 순찰, 기록 방식을 아래에 그대로 보여드립니다. 출결, 벌점, 멘토링 기록은 학부모님께도 모두 공유됩니다.</p>
   </div>
-  <div class="w-sysband r">
-    <div><b>지정 좌석제</b>전 좌석</div>
-    <div><b>20분 단위</b>순찰</div>
-    <div><b>09:00 – 24:00</b>연중무휴</div>
-    <div><b>QR 기반</b>학습 태도 기록</div>
-  </div>
+  <!-- 시간표(지금 시각 표시) · 지정 좌석 · 순찰 기록 · QR 기록 (winter-data.js focus → winter.js) -->
+  <div class="w-cares" data-cares></div>
+  <p class="w-more r">그 밖의 관리 <span>카드를 누르면 자세한 운영 방식을 볼 수 있습니다.</span></p>
   <div class="fcg">
     <button type="button" class="fc r" data-modal="m-attend"><span class="fc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><h3>지문 출입 · 매 교시 출결</h3><p>입·퇴실은 지문으로 자동 기록되고, 교시마다 자리에 앉아 있는지 사람이 확인합니다.</p><span class="fc-more">자세히 보기 →</span></button>
     <button type="button" class="fc r d1" data-modal="m-phone"><span class="fc-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg></span><h3>휴대폰 · 네트워크 관리</h3><p>휴대폰은 전원을 꺼서 잠가 두고, 네트워크는 학습 사이트만 열어 둡니다.</p><span class="fc-more">자세히 보기 →</span></button>
@@ -185,10 +218,15 @@
 
 <!-- 수강 안내 -->
 <section class="bx-sec" id="program">
-  <div class="bx-head r">
-    <p class="eyebrow">등록 안내 · 좌석 한정</p>
-    <h2 class="bx-h2">좌석이 차는 대로 마감됩니다.<br>순번부터 확보하세요.</h2>
+  <div class="bx-head w-deadline r">
+    <p class="w-label">등록 안내 · 좌석 한정</p>
+    <h2 class="bx-h2">좌석이 차는 대로 마감됩니다.<br><span data-mark="highlight">순번부터 확보하세요.</span></h2>
     <p class="bx-sub">수강 기간 2027년 1/1(금) ~ 2/28(일) · 설 연휴 휴무 없음 · 2개월 과정</p>
+    <!-- 개강까지 남은 시간 — 플립 시계 (winter.js) -->
+    <div class="w-clock w-clock-big" data-clock="big" role="timer" hidden><p class="wc-label">개강까지</p><div class="wc-digits"></div></div>
+    <a class="btn btn-dark w-cta-bar" href="https://apply.kanghanseonbae.com/apply" target="_blank" rel="noopener">온라인 사전 예약<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+    <!-- 잔여 좌석 · 예약 현황 — 실제 신청 내역이 있을 때만 (winter.js) -->
+    <p class="w-live" data-seats-line hidden></p>
   </div>
   <div class="price-grid r d1">
     <div class="price-card">
@@ -232,13 +270,15 @@
 
 <!-- FAQ -->
 <section class="bx-sec" id="faq">
-  <div class="fx-faq r">
+  <div class="fx-faq">
     <div class="fx-faq-left">
-      <p class="eyebrow">자주 묻는 질문</p>
-      <h2 class="bx-h2">궁금한 점이<br>남아 있으신가요?</h2>
-      <p>여기 없는 내용은 전화로 물어보셔도 되고, 온라인 사전 예약 후 상담 때 말씀해 주셔도 됩니다.</p>
+      <div class="w-faq-head r">
+        <p class="eyebrow">자주 묻는 질문</p>
+        <h2 class="bx-h2">궁금한 점이<br>남아 있으신가요?</h2>
+        <p>여기 없는 내용은 전화로 물어보셔도 되고, 온라인 사전 예약 후 상담 때 말씀해 주셔도 됩니다.</p>
+      </div>
     </div>
-    <div class="faq-list">
+    <div class="faq-list r d1">
       <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">규칙이 너무 엄격한 것 아닌가요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">처음에는 그렇게 느끼실 수 있습니다. 규칙이 많은 건 다 같이 공부에 집중하는 분위기를 지키기 위해서입니다. 졸업생 후기에도 적응하고 나니 공부 습관을 바로잡는 데 큰 도움이 됐다는 이야기가 있습니다.</div></div></div>
       <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">입·출결 알림이 오나요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">네, 입실하고 퇴실할 때마다 알림이 자동으로 갑니다. 말없이 자리를 비우면 관리자가 학생에게 먼저 연락하고, 답이 없으면 학부모님께 연락드립니다.</div></div></div>
       <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">대기 등록 후 입실 확정은 언제 통보받나요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">기존 재원생을 먼저 자동 배정하고, 그다음 대기금을 낸 순서대로 입실을 배정합니다. 확정 연락 시기는 원내 일정에 따라 달라질 수 있어서, 신청하신 뒤 원내로 한 번 문의해 주시면 안내드리겠습니다.</div></div></div>
@@ -247,11 +287,19 @@
       <div class="acc-item"><div class="acc-q" onclick="toggleAcc(this)">중도 퇴실하면 환불되나요?<span class="acc-pm">+</span></div><div class="acc-a"><div class="acc-a-inner">관련 법령과 학원 교습비 반환 기준에 따라 환불해 드립니다. 교습 기간이 얼마나 지났는지에 따라 돌려받는 금액이 달라지니, 위쪽 '중도 퇴실 환불 기준' 버튼에서 구간별 기준표를 확인해 주세요.</div></div></div>
     </div>
   </div>
+  <!-- 전화 상담 가능 시간 · 카카오톡 채널 — 질문 목록 아래에 나란히 (winter-data.js callHours · kakao → winter.js) -->
+  <div class="w-contact" data-w-contact hidden>
+    <div class="r" data-w-hours></div>
+    <div class="r d1" data-w-kakao></div>
+  </div>
 </section>
+
+</div><!-- /.w-main -->
+</div><!-- /.w-body -->
 
 <!-- CTA -->
 <section class="ctab r">
-  <div class="ctab-media"><img src="photos/bx/entrance.jpg" alt="" loading="lazy"></div>
+  <div class="ctab-media" data-parallax="25"><img src="photos/bx/entrance.jpg" alt="" loading="lazy"></div>
   <div class="ctab-in">
     <p class="eyebrow">좌석 한정 · 대기금 납부 순 배정</p>
     <h2>이번 겨울방학은<br>강한선배에서 보내세요.</h2>
@@ -323,6 +371,9 @@
     </table>
   </div></dialog>
 
-<script src="bx-core.js?v=bx21"></script>
+<script src="bx-core.js?v=bx24"></script>
+<script src="winter-data.js?v=w16"></script>
+<script src="vendor/rough-notation.iife.js?v=0.5.1"></script>
+<script src="winter.js?v=w13"></script>
 </body>
 </html>
