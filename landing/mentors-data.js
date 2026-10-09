@@ -1,6 +1,6 @@
 // ── 멘토 · 운영진 공용 데이터 (landing.js · mentors.js · mentor.js 가 공유) ──
 // 상세 소개·인터뷰 문구는 강한선배 제공 해시태그·이력을 바탕으로 작성. 사진은 photo 필드로 교체.
-// avatar = 사진 없을 때 표시할 한글 이니셜(성 한자 사용 금지), grad = 카드 사진영역 그라데이션, tint = 상세 히어로 배경
+// avatar = 사진 없을 때 표시할 한글 이니셜(성 한자 사용 금지), photoPad = 카드에서 사진 위쪽을 채울 배경색(선택), grad = 사진 없을 때 상세 · 학습 관리 페이지의 원형 아바타 배경, tint = 상세 히어로 배경
 const MENTORS = {
   // ── 선배 멘토진 (실제 인물, 사진순서) ──────────────────────
   naeun: {
@@ -56,7 +56,7 @@ const MENTORS = {
     ],
   },
   seonhyeok: {
-    name: '김선혁 멘토', avatar: '선', photo: 'photos/seonhyeok.jpg', grad: 'linear-gradient(135deg,#7C6BF0,#4C39C2)', tint: '#E3DEFB',
+    name: '김선혁 멘토', avatar: '선', photo: 'photos/seonhyeok.jpg?v=2', photoPad: '#fafafa', grad: 'linear-gradient(135deg,#7C6BF0,#4C39C2)', tint: '#E3DEFB',
     badges: ['연세대 치대', '최상위권', '미적·과탐'], role: '담임 멘토 · 이과 최상위권·과탐 강점',
     cardLine: '“최상위권은 결국 개념을 얼마나 정확히 아느냐에서 갈립니다.”',
     oneliner: '"최상위권은 결국 개념을 얼마나 정확히 아느냐에서 갈립니다. 미적분과 과탐은 원리부터 다시 잡습니다."',
@@ -187,37 +187,114 @@ function staffCardInner(id) {
   </a>`;
 }
 
-// 플립 카드 내부 HTML (landing.js · mentors.js 공용). featured=true 면 노란 강조 카드.
-function mentorCardInner(id, featured) {
+// 멘토 카드 (landing.js · mentors.html 공용) — 큰 인물 사진 아래 이름 · 이력 · 한 문장. 누르면 소개 패널이 열린다(맨 아래).
+// 화살표는 같은 그림 두 개를 나란히 두고 hover 때 옆으로 밀어 교체한다 (bx-core.css 의 .mtc-go).
+const MTC_ARROW = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+function mentorCard(id, i) {
   const m = MENTORS[id];
-  const photoCls = featured ? 'mf-photo mf-photo-feat' : 'mf-photo';
-  const photoStyle = featured ? '' : ` style="background:${m.grad};"`;
-  const ribbon = featured ? '<span class="mf-ribbon">대표 멘토</span>' : '';
-  const badgeCls = featured ? 'mf-badge mf-badge-feat' : 'mf-badge';
-  const plusCls = featured ? 'mf-plus mf-plus-feat' : 'mf-plus';
-  const photo = m.photo
-    ? `<div class="${photoCls}"><img class="mf-pic" src="${m.photo}" alt="${m.name}" loading="lazy"></div>`
-    : `<div class="${photoCls}"${photoStyle}><span class="mf-init">${m.avatar}</span></div>`;
-  const tl = m.timeline.map(t => `<li><b>${t.year}</b><span>${t.text}</span></li>`).join('');
-  const subj = m.subjects.map(s => `<span>${s}</span>`).join('');
-  return `<a class="flip-inner" href="mentor.html?id=${id}">
-    <div class="flip-face flip-front">
-      ${ribbon}
-      ${photo}
-      <span class="${plusCls}" aria-hidden="true">+</span>
-      <div class="mf-body">
-        <span class="${badgeCls}">${m.badges.join(' · ')}</span>
-        <p class="mf-name">${m.name}</p>
-        <p class="mf-role">${m.role}</p>
-        <p class="mf-line">${m.cardLine}</p>
-      </div>
-    </div>
-    <div class="flip-face flip-back">
-      <p class="mb-name">${m.name}</p>
-      <p class="mb-role">${m.role}</p>
-      <ul class="mb-timeline">${tl}</ul>
-      <div class="mb-subjects">${subj}</div>
-      <span class="mb-more">전체 이력 · 인터뷰 보기 →</span>
-    </div>
+  const pic = m.photo
+    ? `<img src="${m.photo}" alt="" loading="lazy">`
+    : `<span class="mtc-init">${m.avatar}</span>`;
+  // photoPad: 얼굴만 가까이 찍힌 정사각 사진은 아래에 붙이고, 위쪽을 사진 배경색으로 채워 다른 카드와 얼굴 크기를 맞춘다
+  const pad = m.photo && m.photoPad ? ` pad" style="background:${m.photoPad}` : '';
+  return `<a class="mtc" href="mentor.html?id=${id}" style="--i:${i}">
+    <span class="mtc-pic${pad}">${pic}<span class="mtc-go" aria-hidden="true"><span>${MTC_ARROW}${MTC_ARROW}</span></span></span>
+    <span class="mtc-txt">
+      <b class="mtc-name">${m.name}</b>
+      <span class="mtc-tags">${m.badges.join(' · ')}</span>
+      <span class="mtc-line">${m.cardLine}</span>
+    </span>
   </a>`;
 }
+
+// 카드를 채우고, 묶음 위쪽이 화면 가운데를 지날 때 한 장씩 올라오게 한다.
+// 숨김은 .mtc-fx 가 붙은 뒤에만 걸린다 — 스크립트가 실패해도 카드는 그대로 보인다.
+function mountMentorCards(box, ids) {
+  if (!box) return;
+  ids = ids.filter(id => MENTORS[id]);
+  box.innerHTML = ids.map(mentorCard).join('');
+  box.style.setProperty('--n', ids.length);
+  if (!('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  box.classList.add('mtc-fx');
+  const io = new IntersectionObserver(es => {
+    if (!es.some(e => e.isIntersecting)) return;
+    box.classList.add('mtc-on');
+    io.disconnect();
+  }, { rootMargin: '0px 0px -50% 0px' });
+  io.observe(box);
+}
+
+// ── 멘토 소개 패널 ──
+// mentor.html?id=… 링크(멘토 카드 · 운영진 카드 · 본문 속 링크)를 누르면 페이지를 옮기지 않고
+// 오른쪽(768px 이하는 아래)에서 소개가 열린다. 새 탭 열기와 주소 직접 접근은 mentor.html 그대로.
+let mtp = null;
+function mentorPanel() {
+  if (mtp) return mtp;
+  document.body.insertAdjacentHTML('beforeend', `<dialog class="mtp" aria-labelledby="mtpName">
+  <div class="mtp-card">
+    <button type="button" class="mtp-x" aria-label="닫기"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <div class="mtp-scroll">
+      <div class="mtp-head">
+        <div class="mtp-pic"></div>
+        <div class="mtp-id">
+          <div><h3 class="mtp-name" id="mtpName"></h3><p class="mtp-tags"></p></div>
+          <p class="mtp-say"></p>
+        </div>
+      </div>
+      <div class="mtp-body"></div>
+    </div>
+    <div class="mtp-fade" aria-hidden="true"></div>
+  </div>
+</dialog>`);
+  mtp = document.body.lastElementChild;
+  const scroll = mtp.querySelector('.mtp-scroll');
+  // 아래에 더 읽을 내용이 남아 있을 때만 흐림 띠를 보인다
+  mtp.syncFade = () => mtp.firstElementChild.classList.toggle('more', scroll.scrollTop + scroll.clientHeight < scroll.scrollHeight - 1);
+  scroll.addEventListener('scroll', mtp.syncFade, { passive: true });
+  mtp.addEventListener('click', e => { if (e.target === mtp || e.target.closest('.mtp-x')) closeMentorPanel(); });
+  mtp.addEventListener('cancel', e => { e.preventDefault(); closeMentorPanel(); });
+  mtp.addEventListener('close', () => document.documentElement.classList.remove('md-open'));
+  // 뒤로 가기는 페이지를 떠나지 않고 패널만 닫는다
+  addEventListener('popstate', () => closeMentorPanel(true));
+  return mtp;
+}
+
+function openMentorPanel(id) {
+  const m = MENTORS[id];
+  const d = mentorPanel();
+  if (!m || d.open) return;
+  const sec = (title, html) => html ? `<section class="mtp-sec"><h4>${title}</h4>${html}</section>` : '';
+  d.querySelector('.mtp-pic').innerHTML = m.photo ? `<img src="${m.photo}" alt="">` : `<span class="mtc-init">${m.avatar}</span>`;
+  d.querySelector('.mtp-name').textContent = m.name;
+  d.querySelector('.mtp-tags').textContent = m.badges.join(' · ');
+  d.querySelector('.mtp-say').textContent = m.oneliner;
+  d.querySelector('.mtp-body').innerHTML =
+    sec('소개', m.bio && `<p>${m.bio}</p>`) +
+    sec('이력', (m.timeline || []).length && `<ul class="mtp-tl">${m.timeline.map(t => `<li><span>${t.year}</span><span>${t.text}</span></li>`).join('')}</ul>`) +
+    sec('강점 분야', (m.subjects || []).length && `<p>${m.subjects.join(' · ')}</p>`) +
+    sec('인터뷰', (m.interview || []).length && `<dl class="mtp-qa">${m.interview.map(qa => `<div><dt>${qa.q}</dt><dd>${qa.a}</dd></div>`).join('')}</dl>`) +
+    `<a class="btn btn-brand mtp-cta" href="https://apply.kanghanseonbae.com/apply" target="_blank" rel="noopener">담임 멘토 배정 상담</a>`;
+  d.showModal();
+  document.documentElement.classList.add('md-open');
+  d.querySelector('.mtp-scroll').scrollTop = 0;
+  d.syncFade();
+  history.pushState({ mtp: id }, '');
+  requestAnimationFrame(() => d.classList.add('on'));
+}
+
+function closeMentorPanel(fromHistory) {
+  if (!mtp || !mtp.classList.contains('on')) return;
+  mtp.classList.remove('on');
+  setTimeout(() => mtp.close(), 100);
+  if (!fromHistory && history.state && history.state.mtp) history.back();
+}
+
+document.addEventListener('click', e => {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  const a = e.target.closest('a[href^="mentor.html?id="]');
+  if (!a || a.target === '_blank' || typeof HTMLDialogElement === 'undefined') return;
+  const id = new URL(a.href).searchParams.get('id');
+  if (!MENTORS[id]) return;
+  e.preventDefault();
+  openMentorPanel(id);
+});

@@ -24,12 +24,12 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <link rel="preload" as="image" href="photos/bx/hero-mentoring.jpg" fetchpriority="high">
-  <link rel="stylesheet" href="landing.css?v=seed3">
-  <link rel="stylesheet" href="bx-core.css?v=bx21">
+  <link rel="stylesheet" href="landing.css?v=seed4">
+  <link rel="stylesheet" href="bx-core.css?v=bx27">
   <link rel="stylesheet" href="bx-scenes.css?v=bx20">
 </head>
 <body class="bx" data-page="home" data-gnb="dark">
-<script src="bx-data.js?v=bx21"></script>
+<script src="bx-data.js?v=bx25"></script>
 <script src="bx-shell.js?v=bx20"></script>
 
 <!-- 좌측 섹션 인디케이터 (표시 전용) — bx-scenes.js 가 [data-rail] 섹션으로 채움 -->
@@ -173,7 +173,7 @@
       </ul>
       <a class="btn btn-brand r d2" href="care-study.html" style="margin-top:34px">학습 관리 · 실전 훈련 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
     </div>
-    <figure class="exam-shot r d2" data-ui-fallback><div class="pf"><img src="photos/ui/portal-exam.png?v=ui3" alt="모의고사 신청 화면" loading="lazy" onerror="this.closest('[data-ui-fallback]').remove()"></div><figcaption class="pf-cap"><b>모의고사 신청</b><span>실제 학생 앱 화면</span></figcaption></figure>
+    <figure class="exam-shot exam-photo r d2" data-ui-fallback><img src="photos/the-premium.jpg" alt="대성 더프리미엄(THE PREMIUM) 모의고사" loading="lazy" onerror="this.closest('[data-ui-fallback]').remove()"><figcaption class="pf-cap"><b>대성 더프리미엄 모의고사</b><span>매달 원내 시험실에서 응시</span></figcaption></figure>
   </div>
 </section>
 
@@ -295,12 +295,14 @@
     <p class="eyebrow">합격생 · 재원생 후기</p>
     <h2 class="bx-h2">다녀 본 학생과<br>학부모님 이야기.</h2>
   </div>
-  <div class="rvg" data-stories="review" data-mode="reviews" data-limit="5" data-feature></div>
+  <!-- 위: 후기 카드(왼쪽으로) · 아래: 등급 향상 카드(오른쪽으로) — 카드와 흐름은 bx-core.js -->
+  <div class="vfl bleed r">
+    <div class="vrail" data-stories="review" data-mode="reviews" data-limit="12" tabindex="0" role="group" aria-label="합격생 · 재원생 후기"></div>
+    <div class="vrail" data-grades data-lead="rise" data-flow="-1" tabindex="0" role="group" aria-label="성적 향상 사례"></div>
+  </div>
+  <p class="vfl-note">개인정보 보호를 위해 이름은 가렸으며, 화면의 사례는 예시입니다.</p>
   <div class="bx-more r"><a class="btn btn-line" href="stories.html?type=review">후기 더 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
 </section>
-<div class="tm-wrap r">
-  <div class="tm-row"><div class="tm-track tm-right" id="grTrack"></div></div>
-</div>
 
 <!-- 대표 인사말 — 풀 인물 사진 + 패럴랙스 -->
 <section class="bx-sec leader-bx" id="leader" data-rail="원장">
@@ -341,7 +343,7 @@
     <h2 class="bx-h2">최상위권 대학 재학생이<br>합격까지 1:1로 지도합니다.</h2>
     <p class="bx-sub">성적, 성향, 입시 전략에 맞춰 서울대·연세대·고려대 재학생 중 가장 잘 맞는 멘토를 담임으로 배정합니다. 희망 대학 설정부터 성적 분석, 주간 계획까지 담임 멘토가 1:1로 전담합니다.</p>
   </div>
-  <div class="mentor-strip r d1" id="mentorCards"></div>
+  <div class="mentor-strip" id="mentorCards"></div>
   <div class="bx-more r"><a href="mentors.html" class="btn btn-line">전체 멘토 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
 </section>
 
@@ -486,8 +488,8 @@
   </div>
 </dialog>
 
-<script src="mentors-data.js?v=seed4"></script>
-<script src="landing.js?v=bx20"></script>
+<script src="mentors-data.js?v=seed6"></script>
+<script src="landing.js?v=bx22"></script>
 <script>
   // 학습 공간 라이트박스 (bx-core.js 가 모달을 생성)
   window.BX_GALLERY = [
@@ -496,7 +498,7 @@
     ['photos/space7.jpg', '자습실 좌석'], ['photos/space10.jpg', '집중 부스 존'], ['photos/space6.jpg', '자습실 전경'],
   ];
 </script>
-<script src="bx-core.js?v=bx21"></script>
+<script src="bx-core.js?v=bx24"></script>
 <script src="bx-scenes.js?v=bx20"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { BranchWaitStatus, WaitGender, WaitGradeType } from "@/generated/prisma/enums";
 import {
@@ -11,6 +11,13 @@ import {
   type ExistingEntry,
 } from "@/actions/waitlist";
 import { APPLICANT_LABEL, isOtherPhoneRequired, type WaitApplicant } from "@/lib/waitlist-contact";
+import {
+  REFERRER_NAME_MAX,
+  WINTER_GRADES,
+  WINTER_GRADE_LABEL,
+  isWinterGradeRequired,
+  type WinterGrade,
+} from "@/lib/waitlist-winter";
 
 type Branch = {
   id: string;
@@ -39,13 +46,15 @@ function Toggle<T extends string>({
   value,
   options,
   onChange,
+  cols = 2,
 }: {
   value: T | null;
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
+  cols?: 2 | 3;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className={`grid gap-3 ${cols === 3 ? "grid-cols-3" : "grid-cols-2"}`}>
       {options.map((o) => (
         <button
           key={o.value}
@@ -73,6 +82,10 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
   const [gender, setGender] = useState<WaitGender | null>(null);
   const [gradeType, setGradeType] = useState<WaitGradeType | null>(null);
   const [entryPreference, setEntryPreference] = useState<"winter" | "immediate" | null>(null);
+  // 윈터 시즌 예비 학년 — 윈터를 고른 재학생만 필수 (isWinterGradeRequired)
+  const [winterGrade, setWinterGrade] = useState<WinterGrade | null>(null);
+  const [winterGradeMissing, setWinterGradeMissing] = useState(false);
+  const winterGradeRef = useRef<HTMLDivElement>(null);
   const [programId, setProgramId] = useState<string>("");
   const [name, setName] = useState("");
   const [school, setSchool] = useState("");
@@ -81,6 +94,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
   const [applicant, setApplicant] = useState<WaitApplicant>("PARENT");
   const [phone, setPhone] = useState("");
   const [otherPhone, setOtherPhone] = useState("");
+  const [referrerName, setReferrerName] = useState("");
   const [note, setNote] = useState("");
   const [consent, setConsent] = useState(false);
 
@@ -173,6 +187,22 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
   const applicantLabel = APPLICANT_LABEL[applicant];
   const otherLabel = APPLICANT_LABEL[applicant === "PARENT" ? "STUDENT" : "PARENT"];
   const otherRequired = isOtherPhoneRequired(kind, applicant);
+  const needsWinterGrade = isWinterGradeRequired({ kind, entryPreference, gradeType });
+
+  // 예비 학년 칸이 사라지는 선택(즉시 입실·선택 해제·N수생)으로 바꾸면 고른 값도 비운다
+  function clearWinterGrade() {
+    setWinterGrade(null);
+    setWinterGradeMissing(false);
+  }
+  function handleEntryPreferenceChange(v: "winter" | "immediate") {
+    const next = entryPreference === v ? null : v; // 다시 누르면 선택 해제 — 미선택 허용
+    setEntryPreference(next);
+    if (next !== "winter") clearWinterGrade();
+  }
+  function handleGradeTypeChange(v: WaitGradeType) {
+    setGradeType(v);
+    if (v === "REPEAT") clearWinterGrade();
+  }
 
   // 실제 등록 (중복 확인 통과 후 / "새로 등록" 선택 시)
   async function doSubmit() {
@@ -190,6 +220,8 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
       gradeType: isInquiry ? null : gradeType,
       kind,
       entryPreference: isInquiry ? null : entryPreference,
+      winterGrade: needsWinterGrade ? winterGrade : null,
+      referrerName: isInquiry ? null : referrerName,
       note,
       consentMarketing: consent,
     });
@@ -206,6 +238,12 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
     if (!branchId) return setError(isInquiry ? "문의할 지점을 선택해주세요" : "지점을 선택해주세요");
     if (!isInquiry && !gender) return setError("성별을 선택해주세요");
     if (!isInquiry && !gradeType) return setError("학년을 선택해주세요");
+    if (needsWinterGrade && !winterGrade) {
+      // 제출 버튼에서 멀리 있는 칸이라 그 자리로 올려 보여준다
+      setWinterGradeMissing(true);
+      winterGradeRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return setError("윈터 시즌 예비 학년을 선택해주세요");
+    }
     if (!name.trim()) return setError("이름을 입력해주세요");
     if (isInquiry && !note.trim()) return setError("문의 내용을 입력해주세요");
     if (!phone.trim()) return setError(`${applicantLabel} 휴대폰 번호를 입력해주세요`);
@@ -513,7 +551,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
             <SectionTitle>현재 학년</SectionTitle>
             <Toggle
               value={gradeType}
-              onChange={setGradeType}
+              onChange={handleGradeTypeChange}
               options={[
                 { value: "REPEAT", label: "N수생" },
                 { value: "ENROLLED", label: "재학생" },
@@ -523,15 +561,40 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
 
           <section>
             <SectionTitle>언제 입실을 희망하시나요? (선택)</SectionTitle>
-            {/* 다시 누르면 선택 해제 — 미선택 허용 */}
             <Toggle
               value={entryPreference}
-              onChange={(v) => setEntryPreference((prev) => (prev === v ? null : v))}
+              onChange={handleEntryPreferenceChange}
               options={[
                 { value: "winter", label: "윈터 시즌 입실 희망" },
                 { value: "immediate", label: "즉시 입실 희망" },
               ]}
             />
+            {needsWinterGrade && (
+              <div
+                ref={winterGradeRef}
+                className={`mt-3 rounded-lg border p-4 ${
+                  winterGradeMissing ? "border-red-300 bg-red-50" : "border-gray-200 bg-gray-50"
+                }`}
+              >
+                <p className="mb-2 text-sm font-medium text-gray-700">
+                  윈터 시즌에 몇 학년이 되나요? <span className="text-blue-600">(필수)</span>
+                </p>
+                <Toggle
+                  cols={3}
+                  value={winterGrade}
+                  onChange={(v) => {
+                    setWinterGrade(v);
+                    setWinterGradeMissing(false);
+                  }}
+                  options={WINTER_GRADES.map((g) => ({ value: g, label: WINTER_GRADE_LABEL[g] }))}
+                />
+                <p className={`mt-2 text-xs ${winterGradeMissing ? "text-red-500" : "text-gray-400"}`}>
+                  {winterGradeMissing
+                    ? "예비 학년을 선택해주세요"
+                    : "2027년 3월에 올라가는 학년을 골라주세요 (예: 지금 중3이면 예비고1)"}
+                </p>
+              </div>
+            )}
           </section>
         </>
       )}
@@ -619,6 +682,20 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
           </div>
         </div>
       </section>
+
+      {/* 추천인 — 대기 신청만, 선택 입력 */}
+      {!isInquiry && (
+        <section>
+          <SectionTitle>추천인이 있으신가요? (선택)</SectionTitle>
+          <input
+            value={referrerName}
+            onChange={(e) => setReferrerName(e.target.value)}
+            maxLength={REFERRER_NAME_MAX}
+            placeholder="소개해 준 지인 이름을 적어주세요"
+            className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm"
+          />
+        </section>
+      )}
 
       {/* 문의 내용 / 기타 요청 */}
       <section>

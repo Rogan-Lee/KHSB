@@ -2317,6 +2317,8 @@ model Waitlist {
   note             String?
   consentMarketing Boolean          @default(false)
   entryPreference  String? // 입실 희망 옵션: "winter"(윈터) / "immediate"(즉시 입실)
+  winterGrade      String? // 윈터 시즌 입실 희망 시 예비 학년: "pre_high1" / "pre_high2" / "pre_high3" (N수생은 null)
+  referrerName     String? // 추천인 — 소개해 준 지인 이름 (선택 입력)
   phoneVerifiedAt  DateTime?
   status           WaitlistStatus   @default(WAITING)
   invitedAt        DateTime?
