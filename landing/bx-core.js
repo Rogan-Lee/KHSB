@@ -155,6 +155,135 @@
       (el.hasAttribute('data-more') ? `<div class="utile special" style="background:var(--brand);border-color:var(--brand);transition-delay:${(UNIS.length + 1) * 40}ms"><b>+ 2027</b><span style="color:rgba(255,255,255,.9)">다음 합격 소식을<br>기다려 주세요</span></div>` : '');
   });
 
+  // ── 후기 줄: 후기 카드 · 등급 향상 카드 · 흐르는 줄 ──
+  // 카드 구성은 고객사가 준 레퍼런스의 후기 줄 코드에서 옮겼다: 두 줄 제목 + 대학 로고 → 본문 → 아래 이름 띠 / 이름 · 총 ○등급 향상 → 과목별 전 → 후 칸 → 성적 향상 TIP.
+  const br = s => esc(s).replace(/&lt;br&gt;/g, '<br>'); // 데이터의 <br> 만 줄바꿈으로 허용
+  const TRI = '<svg width="9" height="11" viewBox="0 0 12 14" aria-hidden="true"><path d="M12 7 0 0v14z" fill="currentColor"/></svg>';
+  const uniOf = file => (file && UNIS.find(u => u.file === file)) || null;
+  const uniName = o => { const u = uniOf(o.university); return u ? `${esc(u.full)}${o.dept ? ` ${esc(o.dept)}` : ''}` : ''; };
+  const uniLogo = o => { const u = uniOf(o.university); return u ? `<span class="v-logo"><img src="logos/${esc(u.file)}.png" alt="" loading="lazy" draggable="false" onerror="this.parentNode.remove()"></span>` : ''; };
+  // 글이 길면 카드를 넓게, 짧으면 좁게 — 줄 수가 비슷해져 카드 높이가 고르게 맞는다
+  const fitW = (len, base, per, min, max) => Math.round(Math.min(max, Math.max(min, base + len * per)));
+  // v: { title(두 줄, <br>), text, by, name, university?, dept?, href?, wrap? } — href 가 있으면 카드 전체가 링크
+  function voiceCard(v) {
+    const tag = v.href ? 'a' : 'article', uni = uniName(v);
+    return `<${tag} class="vc${v.wrap ? ' wrap' : ''}"${v.href ? ` href="${esc(v.href)}" draggable="false"` : ''} style="--cw:${fitW((v.text || '').length, 176, 2, 300, 520)}px">` +
+      `<header class="vc-top"><h4>${br(v.title)}</h4>${uniLogo(v)}</header>` +
+      (v.text ? `<p class="vc-body">${esc(v.text)}</p>` : '') +
+      `<p class="v-by"><span>${uni ? `<em>${uni}</em>` : ''}${esc(v.by || '')}</span><b>${esc(v.name || '')}${v.href ? ARROW : ''}</b></p></${tag}>`;
+  }
+  // g: { name, sub?, subjects: [[과목, 전, 후], …] (전 등급이 없으면 null), tip?, university?, dept? } — 합계는 과목별 향상폭을 더한다
+  function gradeCard(g) {
+    const up = ([, before, after]) => (before == null ? 0 : Math.max(0, before - after));
+    const total = g.subjects.reduce((sum, sub) => sum + up(sub), 0);
+    const uni = uniName(g);
+    const who = (uni ? `<b>${uni} 합격</b>` : '') + (g.sub ? `<span>${esc(g.sub)}</span>` : '');
+    return `<article class="gc"><header class="gc-top">${uniLogo(g)}<div class="gc-who"><p class="gc-name">${esc(g.name)}</p>${who ? `<p class="gc-sub">${who}</p>` : ''}</div>` +
+      `<p class="gc-sum"><span>총</span><b>${total}</b>등급 향상</p></header>` +
+      `<div class="gc-rows">${g.subjects.map(sub => { const [name, before, after] = sub, d = up(sub); return `<div class="gc-row${d ? ' up' : ''}"><span class="gc-s">${esc(name)}</span>` +
+        `<p class="gc-v"><i>${before == null ? '–' : esc(before)}</i><span class="sr">등급에서</span>${TRI}<b>${esc(after)}</b><u>등급</u></p>` +
+        `<em class="gc-d">${d ? `▲${d}` : '유지'}</em></div>`; }).join('')}</div>` +
+      (g.tip ? `<p class="gc-tip-l">성적 향상 <b>TIP</b></p><p class="gc-tip">${esc(g.tip)}</p>` : '') + '</article>';
+  }
+  // 줄 맨 앞에 끼우는 성과 숫자 카드 — bx-data.js STATS 의 값을 그대로 쓴다 (data-lead="rise")
+  const statCard = key => { const st = STATS[key]; return st ? `<article class="gs"><p class="gs-l">${esc(st.label)}</p><p class="gs-n">${fmtNum(st.value, st.dec || 0)}<i>${esc(st.unit)}</i></p><p class="gs-s">${esc(st.sub)}</p></article>` : ''; };
+  // 흐르는 줄: 카드 줄이 한쪽으로 천천히 흐르고 끝과 처음이 이어진다.
+  // 값은 같은 레퍼런스에서 읽었다: 한 프레임에 .4px(초당 24px), 줄마다 반대 방향, 마우스로 끌면 1.5배, 같은 묶음 세 벌을 이어 붙여 돌린다.
+  // 가로 스크롤 위에 얹은 것이라 손가락 · 트랙패드 · 방향키로도 그대로 넘어간다. 마우스를 올리거나 넘기는 동안에는 멈춘다.
+  // 카드가 세 장 이상이면 화면이 아무리 넓어도 흐른다 (모자라는 만큼 같은 묶음을 더 이어 붙인다). 움직임 줄이기 설정에서는 흐르지 않는다.
+  const FLOW_PX_PER_SEC = 24, FLOW_DRAG = 1.5, FLOW_SETS = 3;
+  function flowRail(rail, dir = 1, onMode) {
+    const own = [...rail.children];
+    let setW = 0, pos = 0, hold = 0, drag = null, dragged = false, hover = false, seen = false, raf = 0, t0 = 0;
+    const flowing = () => rail.classList.contains('is-flow');
+    function layout() {
+      const gap = parseFloat(getComputedStyle(rail).columnGap) || 0;
+      const w = own.reduce((sum, el) => sum + el.getBoundingClientRect().width + gap, 0);
+      const on = !RM && own.length > 2 && w > 0;
+      if (on) {
+        // 묶음 수: 줄을 다 덮고도 앞뒤로 한 벌씩 남게 (카드가 적거나 화면이 넓으면 더 이어 붙인다)
+        const need = Math.max(FLOW_SETS, Math.ceil(rail.clientWidth / w) + 2);
+        for (let i = rail.children.length / own.length; i < need; i++) own.forEach(el => {
+          const c = el.cloneNode(true);
+          c.dataset.clone = '';
+          c.setAttribute('aria-hidden', 'true');
+          if (c.matches('a')) c.tabIndex = -1;
+          rail.append(c);
+        });
+        if (!flowing()) {
+          rail.classList.add('is-flow');
+          setW = w;
+          rail.scrollLeft = pos = setW;
+        } else if (Math.abs(w - setW) > .5) {
+          // 폭이 바뀌면 묶음 안에서 보던 자리를 비율로 옮긴다
+          pos = w + (((pos % setW) + setW) % setW) / setW * w;
+          setW = w;
+          rail.scrollLeft = pos;
+        }
+      } else if (flowing()) {
+        $$('[data-clone]', rail).forEach(c => c.remove());
+        rail.classList.remove('is-flow', 'is-drag');
+        drag = null;
+        rail.scrollLeft = 0;
+      }
+      if (onMode) onMode();
+      run();
+    }
+    function tick(t) {
+      raf = requestAnimationFrame(tick);
+      const dt = Math.min(64, t - (t0 || t));
+      t0 = t;
+      const cur = rail.scrollLeft;
+      if (drag || hover || t < hold) pos = cur; // 사용자가 넘기는 동안에는 그 자리를 따른다
+      else pos += dir * FLOW_PX_PER_SEC * dt / 1000;
+      // 묶음 하나만큼 건너뛰어 끝과 처음을 잇는다 (가운데 묶음 안에서만 돈다)
+      const jump = pos >= setW * 2 ? -setW : pos <= 0 ? setW : 0;
+      pos += jump;
+      if (drag) drag.left += jump;
+      if (pos !== cur) rail.scrollLeft = pos;
+    }
+    function run() {
+      const want = flowing() && seen;
+      if (want && !raf) { t0 = 0; raf = requestAnimationFrame(tick); }
+      else if (!want && raf) { cancelAnimationFrame(raf); raf = 0; }
+    }
+    const pause = (ms = 1200) => { hold = Math.max(hold, performance.now() + ms); };
+    // 마우스: 6px 넘게 움직이면 끌기로 보고 줄을 넘긴다 (그보다 적으면 카드 링크가 그대로 눌린다)
+    rail.addEventListener('pointerdown', e => {
+      dragged = false;
+      if (!flowing() || e.pointerType !== 'mouse' || e.button) return;
+      drag = { x: e.clientX, left: rail.scrollLeft, id: e.pointerId, on: false };
+    });
+    rail.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x;
+      if (!drag.on) {
+        if (Math.abs(dx) < 6) return;
+        drag.on = true;
+        rail.classList.add('is-drag');
+        rail.setPointerCapture(drag.id);
+      }
+      rail.scrollLeft = drag.left - dx * FLOW_DRAG;
+    });
+    const drop = () => { dragged = !!(drag && drag.on); drag = null; rail.classList.remove('is-drag'); };
+    rail.addEventListener('pointerup', drop);
+    rail.addEventListener('pointercancel', drop);
+    rail.addEventListener('click', e => { if (dragged) { dragged = false; e.preventDefault(); e.stopPropagation(); } }, true);
+    rail.addEventListener('dragstart', e => e.preventDefault());
+    rail.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') hover = true; });
+    rail.addEventListener('pointerleave', () => { hover = false; if (drag && !drag.on) drag = null; });
+    rail.addEventListener('focusin', () => { hover = true; });
+    rail.addEventListener('focusout', () => { hover = false; });
+    // 손가락 · 트랙패드: 넘기는 동안과 관성이 남아 있는 동안에는 흐름을 멈춘다
+    ['touchstart', 'touchmove', 'wheel'].forEach(ev => rail.addEventListener(ev, () => pause(), { passive: true }));
+    rail.addEventListener('touchend', () => pause(1600), { passive: true });
+    rail.addEventListener('scroll', () => { if (performance.now() < hold) pause(700); }, { passive: true });
+    new IntersectionObserver(es => { seen = es[es.length - 1].isIntersecting; run(); }, { rootMargin: '120px 0px' }).observe(rail);
+    new ResizeObserver(layout).observe(rail);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+    layout();
+  }
+
   // ── 성적 상승 카드 (예시 데이터) ──
   function riseSvg(trend) {
     const w = 320, h = 72, pad = 8;
@@ -165,6 +294,8 @@
       `<polygon points="${pad},${h - pad} ${line} ${w - pad},${h - pad}" fill="url(#rg${trend.join('')})"/><polyline points="${line}" fill="none" stroke="#ff6600" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><circle cx="${last[0]}" cy="${last[1]}" r="4" fill="#ff6600"/></svg>`;
   }
   $$('[data-grades]').forEach(el => {
+    // 흐르는 줄(.vrail)에는 과목별 전 → 후 카드, 그 밖(공부 관리 페이지의 추이 그래프)에는 기존 그래프 카드
+    if (el.matches('.vrail')) { el.innerHTML = statCard(el.dataset.lead) + GRADES.map(gradeCard).join(''); flowRail(el, +el.dataset.flow || 1); return; }
     el.innerHTML = GRADES.map(g => `<div class="rise-card"><div class="rise-head"><div><p class="rise-name">${g.name}</p><p class="rise-sub">${g.sub}</p></div><span class="rise-badge">총 <b>${g.total}</b> 상승</span></div>` +
       `<div class="rise-chart">${riseSvg(g.trend)}</div><div class="rise-subjects">${g.chips.map(s => `<span class="rise-chip">${s[0]} <b>${s[1]}</b>▸<b class="up">${s[2]}</b></span>`).join('')}</div></div>`).join('');
   });
@@ -182,12 +313,13 @@
       <p class="stc-meta"><b>${type}</b>${fmtDate(p.publishedAt)}</p>
       <p class="stc-title">${esc(p.title)}</p>${p.summary ? `<p class="stc-sum">${esc(p.summary)}</p>` : ''}${by}</a>`;
   }
-  function reviewCard(r, feat) {
-    return `<figure class="rvc${feat ? ' feat' : ''} r"><blockquote class="rv-q">${esc(r.text)}</blockquote><figcaption class="rv-by"><span>${esc(r.meta)}</span><em class="rv-tag" style="font-style:normal">${esc(r.tag)}</em></figcaption></figure>`;
-  }
-  // 발행된 후기(type=review)를 후기 카드로 — 본문 대신 요약(없으면 제목)을 인용문으로
-  function publishedReviewCard(p, feat) {
-    return `<a class="rvc${feat ? ' feat' : ''} r" href="${esc(postHref(p))}"><blockquote class="rv-q">${esc(p.summary || p.title)}</blockquote><figcaption class="rv-by"><span>${esc(p.authorName || '')}${p.authorRole ? ` · ${esc(p.authorRole)}` : ''}</span><span class="rv-tag">후기 전문 →</span></figcaption></a>`;
+  // 기본 후기(bx-data.js REVIEWS)와 발행된 후기(type=review)를 같은 후기 카드로 — 발행된 후기는 요약을 본문으로 쓰고 카드 전체가 전문 링크
+  const reviewCard = r => voiceCard(r);
+  const publishedReviewCard = p => voiceCard({ title: p.title, text: p.summary, by: p.authorRole, name: p.authorName, href: postHref(p), wrap: true });
+  // 기본 후기(예시)가 화면에 나갈 때는 줄 아래에 예시라는 안내를 붙인다 (이미 안내가 있으면 그대로 둔다)
+  function sampleNote(el) {
+    const box = el.closest('.vfl');
+    if (box && !(box.nextElementSibling && box.nextElementSibling.matches('.vfl-note'))) box.insertAdjacentHTML('afterend', '<p class="vfl-note">개인정보 보호를 위해 이름은 가렸으며, 화면의 후기는 예시입니다.</p>');
   }
   async function renderStories(el) {
     const types = el.dataset.stories || '';
@@ -198,18 +330,19 @@
       const posts = (data && data.posts) || [];
       if (!posts.length) throw new Error('empty');
       if (mode === 'reviews') {
-        // 발행된 후기가 3개 미만이면 기본 후기로 채워 그리드가 비지 않게
-        const fill = REVIEWS.slice(0, Math.max(0, Math.min(limit, 3) - posts.length));
-        el.innerHTML = posts.map((p, i) => publishedReviewCard(p, i === 0 && el.hasAttribute('data-feature'))).join('') +
-          fill.map(r => reviewCard(r, false)).join('');
+        // 발행된 후기가 적으면 기본 후기로 채워 줄이 비지 않게
+        const fill = REVIEWS.slice(0, Math.max(0, Math.min(limit, REVIEWS.length) - posts.length));
+        el.innerHTML = posts.map(publishedReviewCard).join('') + fill.map(reviewCard).join('');
+        if (fill.length) sampleNote(el);
       } else {
         el.innerHTML = posts.map((p, i) => storyCard(p, i === 0 && el.hasAttribute('data-feature'))).join('');
       }
     } catch (e) {
-      if (mode === 'reviews') el.innerHTML = REVIEWS.slice(0, limit).map((r, i) => reviewCard(r, i === 0 && el.hasAttribute('data-feature'))).join('');
+      if (mode === 'reviews') { el.innerHTML = REVIEWS.slice(0, limit).map(reviewCard).join(''); sampleNote(el); }
       else if (el.dataset.empty === 'hide') { const sec = el.closest('[data-stories-section]'); if (sec) sec.hidden = true; }
       else el.innerHTML = `<div class="st-empty"><b>곧 첫 이야기가 발행됩니다</b>강한선배의 후기와 선배 멘토·원장님의 글을 이곳에서 만나보실 수 있어요.</div>`;
     }
+    if (mode === 'reviews' && el.matches('.vrail')) flowRail(el, +el.dataset.flow || 1);
     observeNew(el);
   }
   $$('[data-stories]').forEach(renderStories);
@@ -413,5 +546,5 @@
   }
 
   observeNew();
-  window.KHSB = { api, storyCard, reviewCard, publishedReviewCard, TYPE_LABEL, fmtDate, esc, safeUrl, observeNew, openModal, postHref, API: () => API };
+  window.KHSB = { api, storyCard, reviewCard, publishedReviewCard, voiceCard, gradeCard, flowRail, fitW, TYPE_LABEL, fmtDate, esc, safeUrl, observeNew, openModal, postHref, API: () => API };
 })();

@@ -14,21 +14,17 @@
   <meta property="og:description" content="강한선배 학생들의 실제 결과입니다. 재원생이 합격해 다니는 대학과 관리 성과.">
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-  <link rel="stylesheet" href="landing.css?v=seed3">
-  <link rel="stylesheet" href="bx-core.css?v=bx21">
+  <link rel="stylesheet" href="landing.css?v=seed4">
+  <link rel="stylesheet" href="bx-core.css?v=bx27">
   <style>
     .rs-kpis { margin-top: 80px; }
     .rs-kpis .kpi.wide b { font-size: clamp(56px, 7vw, 104px); }
     .rs-note { font-size: 13px; color: var(--faint); text-align: center; margin-top: 18px; }
-    .rs-grades { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-    .rs-grades .rise-card { width: auto; border-radius: 26px; }
     .rs-why .fc { min-height: 300px; }
-    @media (max-width: 1000px) { .rs-grades { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 600px) { .rs-grades { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body class="bx" data-page="results">
-<script src="bx-data.js?v=bx21"></script>
+<script src="bx-data.js?v=bx25"></script>
 <script src="bx-shell.js?v=bx20"></script>
 
 <main id="main">
@@ -78,9 +74,9 @@
   <div class="bx-head r">
     <p class="eyebrow">성적 상승 사례</p>
     <h2 class="bx-h2">강한선배의 학생들은<br>실제 성적 상승을 경험했습니다.</h2>
-    <p class="bx-sub">관리 기간 동안의 월별 등급 추이입니다. 선이 위로 갈수록 성적이 오른 것입니다.</p>
+    <p class="bx-sub">관리 전과 후의 등급을 과목별로 나란히 놓았습니다. 오른 과목은 주황색으로 표시했습니다.</p>
   </div>
-  <div class="rs-grades r d1" data-grades></div>
+  <div class="vfl bleed r d1"><div class="vrail" data-grades data-flow="-1" tabindex="0" role="group" aria-label="성적 향상 사례"></div></div>
   <p class="rs-note">개인정보 보호를 위해 이름은 가렸으며, 화면의 사례는 예시입니다.</p>
 </section>
 
@@ -93,7 +89,7 @@
     </div>
     <a class="btn btn-line r" href="stories.html?type=review">후기 전체 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
   </div>
-  <div class="rvg" data-stories="review" data-mode="reviews" data-limit="5" data-feature></div>
+  <div class="vfl bleed r"><div class="vrail" data-stories="review" data-mode="reviews" data-limit="12" tabindex="0" role="group" aria-label="합격생 · 재원생 후기"></div></div>
 </section>
 
 <!-- 결과를 만드는 관리 -->
@@ -123,6 +119,6 @@
 </section>
 
 </main>
-<script src="bx-core.js?v=bx21"></script>
+<script src="bx-core.js?v=bx24"></script>
 </body>
 </html>

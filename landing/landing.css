@@ -296,63 +296,22 @@ img.m-ava { object-fit: cover; background: #eee; }
 .gal-note { font-size: 12px; color: var(--faint); margin-top: 16px; }
 @media (max-width: 700px) { .gallery { grid-template-columns: 1fr 1fr; } }
 
-/* 멘토 플립 카드 (앞: 사진+한 문장 / 호버 시 뒤집혀 약력) */
-.mentor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 36px; perspective: 1800px; }
-.flip { height: 520px; perspective: 1200px; }
-.flip-inner { position: relative; display: block; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .7s cubic-bezier(.16,1,.3,1); text-decoration: none; color: inherit; }
-.flip:hover .flip-inner, .flip:focus-within .flip-inner { transform: rotateY(180deg); }
-.flip-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); border: 1px solid var(--line); }
-
-/* 앞면 */
-.flip-front { background: #fff; display: flex; flex-direction: column; }
-.mf-photo { position: relative; height: 320px; display: flex; align-items: center; justify-content: center; }
-.mf-photo img { width: 100%; height: 100%; object-fit: cover; }
-.mf-init { font-size: 78px; font-weight: 700; color: rgba(255,255,255,.92); }
-.mf-plus { position: absolute; left: 20px; top: 320px; transform: translateY(-50%); z-index: 2; width: 40px; height: 40px; border-radius: 50%; background: #fff; color: var(--ink); display: flex; align-items: center; justify-content: center; font-size: 23px; box-shadow: 0 5px 16px -4px rgba(0,0,0,.32); transition: transform .25s; }
-.flip:hover .mf-plus { transform: translateY(-50%) rotate(135deg); }
-.mf-body { flex: 1; padding: 22px 22px 24px; display: flex; flex-direction: column; }
+/* 운영진 카드 그리드 + 카드 글줄 (멘토 카드는 bx-core.css 의 .mtc) */
+.mentor-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 36px; }
 .mf-badge { align-self: flex-start; font-size: 11.5px; font-weight: 700; color: var(--purple); background: var(--brand-soft); border-radius: 999px; padding: 4px 11px; margin-bottom: 11px; }
 .mf-name { font-size: 21px; font-weight: 700; letter-spacing: -.02em; }
 .mf-role { font-size: 13px; color: var(--faint); margin: 3px 0 14px; }
 .mf-line { font-size: 17px; font-weight: 700; line-height: 1.55; letter-spacing: -.01em; color: var(--ink); margin-top: auto; }
 
-/* 뒷면 */
-.flip-back { background: var(--ink); color: #fff; transform: rotateY(180deg); padding: 32px 28px; display: flex; flex-direction: column; }
-.mb-name { font-size: 20px; font-weight: 700; }
-.mb-role { font-size: 13px; color: rgba(255,255,255,.55); margin: 3px 0 22px; }
-.mb-timeline { list-style: none; display: flex; flex-direction: column; gap: 13px; }
-.mb-timeline li { display: flex; gap: 14px; font-size: 13.5px; line-height: 1.5; }
-.mb-timeline b { flex-shrink: 0; width: 42px; color: var(--yellow); font-weight: 700; }
-.mb-timeline span { color: rgba(255,255,255,.82); }
-.mb-subjects { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 22px; }
-.mb-subjects span { font-size: 12px; font-weight: 500; color: rgba(255,255,255,.85); border: 1px solid rgba(255,255,255,.22); border-radius: 999px; padding: 5px 11px; }
-.mb-more { margin-top: auto; padding-top: 22px; font-size: 14px; font-weight: 700; color: var(--yellow); }
-
-/* featured (가운데, 레퍼런스 노란 Keynote 카드 느낌) */
-.flip.feat .flip-front { background: var(--yellow); }
-.flip.feat .mf-photo-feat { background:
-  repeating-linear-gradient(135deg, rgba(0,0,0,.055) 0 22px, rgba(0,0,0,0) 22px 44px),
-  linear-gradient(135deg, #FBD24A, #F2A93B); }
-.flip.feat .mf-badge-feat { color: #6B4E00; background: rgba(255,255,255,.62); }
-.flip.feat .mf-role { color: rgba(20,20,20,.52); }
-.flip.feat .mf-plus-feat { background: var(--ink); color: var(--yellow); }
-.mf-ribbon { position: absolute; top: 16px; right: 16px; z-index: 2; font-size: 11.5px; font-weight: 700; color: #6B4E00; background: rgba(255,255,255,.72); border-radius: 999px; padding: 5px 12px; }
-@media (prefers-reduced-motion: reduce) { .flip-inner { transition: none; } }
-
-/* 랜딩 멘토 — 풀블리드 가로 스크롤 스트립 (큰 카드 · 인물 사진용, 좌우로 넘쳐 스크롤) */
-.mentor-strip { display: flex; gap: 18px; align-items: flex-start; justify-content: safe center; margin-top: 36px; overflow-x: auto; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; width: 100vw; margin-left: calc(50% - 50vw); padding: 14px 28px 28px; scrollbar-width: none; }
+/* 랜딩 멘토 — 화면 폭 한 줄. 카드 수(--n)가 한 화면에 들어가면 가운데, 넘치면 가로 스크롤.
+   아래 여백 120px 은 카드가 올라오는 등장 구간(잘리거나 세로 스크롤이 생기지 않게) */
+.mentor-strip { display: flex; gap: 24px; align-items: flex-start; justify-content: safe center; margin-top: 36px; overflow-x: auto; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; width: 100vw; margin-left: calc(50% - 50vw); padding: 0 28px 120px; margin-bottom: -120px; scroll-padding-left: 28px; scrollbar-width: none; }
 .mentor-strip::-webkit-scrollbar { display: none; }
-.mentor-strip .flip { flex: 0 0 300px; scroll-snap-align: start; }
-.mentor-strip .flip:nth-child(even) { margin-top: 44px; }
+.mentor-strip .mtc { flex: 0 0 clamp(220px, calc((100vw - 56px - (var(--n, 5) - 1) * 24px) / var(--n, 5)), 300px); scroll-snap-align: start; }
 .mentors-cta { text-align: center; margin-top: 28px; }
-
-/* 전체 멘토 페이지 그리드 */
-.mentor-grid-all { grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 40px; align-items: start; }
-@media (max-width: 1100px) { .mentor-grid-all { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 820px) { .mentor-grid-all { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 600px) {
-  .mentor-strip .flip { flex: 0 0 80vw; }
-  .mentor-grid-all { grid-template-columns: 1fr; }
+@media (max-width: 768px) {
+  .mentor-strip { gap: 16px; }
+  .mentor-strip .mtc { flex-basis: 68vw; }
 }
 
 /* 총괄 카드 — 원장(대표) 카드와 동일 레이아웃, 실제 사진(컬러) */
