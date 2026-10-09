@@ -14,6 +14,7 @@ import {
   WAIT_APPLICANTS,
   type WaitApplicant,
 } from "@/lib/waitlist-contact";
+import { REFERRER_NAME_MAX, resolveWinterGrade } from "@/lib/waitlist-winter";
 import type {
   BranchWaitStatus,
   WaitGender,
@@ -175,6 +176,8 @@ export type WaitlistSubmitInput = {
   gradeType?: WaitGradeType | null;
   kind?: WaitlistKind;
   entryPreference?: string | null; // "winter" | "immediate" | null
+  winterGrade?: string | null; // 윈터 시즌 예비 학년 — "pre_high1" | "pre_high2" | "pre_high3"
+  referrerName?: string | null; // 추천인(지인 이름) — 선택
   note?: string;
   consentMarketing?: boolean;
 };
@@ -206,6 +209,7 @@ export async function submitWaitlist(
     tooLong(input.name, NAME_MAX) ||
     tooLong(input.school, SCHOOL_MAX) ||
     tooLong(input.grade, GRADE_MAX) ||
+    tooLong(input.referrerName, REFERRER_NAME_MAX) ||
     tooLong(input.note, NOTE_MAX)
   ) {
     return { ok: false, error: "입력 길이를 확인해주세요" };
@@ -229,6 +233,14 @@ export async function submitWaitlist(
     input.entryPreference === "winter" || input.entryPreference === "immediate"
       ? input.entryPreference
       : null;
+  // 윈터 시즌을 고른 재학생은 예비 학년 필수 — 그 외에는 값이 와도 저장하지 않는다
+  const winter = resolveWinterGrade({
+    kind,
+    entryPreference,
+    gradeType: input.gradeType,
+    winterGrade: input.winterGrade,
+  });
+  if (!winter.ok) return winter;
 
   // 최근 인증 완료된 레코드 확인 (이 브라우저에서 인증한 것만) — 대기 신청만 필수, 문의는 미인증 허용
   const verified = await findBoundVerification(phone);
@@ -285,6 +297,8 @@ export async function submitWaitlist(
       gradeType: kind === "WAITLIST" ? input.gradeType : null,
       kind,
       entryPreference: kind === "WAITLIST" ? entryPreference : null,
+      winterGrade: winter.winterGrade,
+      referrerName: kind === "WAITLIST" ? input.referrerName?.trim() || null : null,
       note: input.note?.trim() || null,
       consentMarketing: Boolean(input.consentMarketing),
       phoneVerifiedAt: verified?.verifiedAt ?? null,

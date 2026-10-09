@@ -102,6 +102,8 @@ export default async function WaitlistAdminPage() {
           gradeType: e.gradeType,
           kind: e.kind,
           entryPreference: e.entryPreference,
+          winterGrade: e.winterGrade,
+          referrerName: e.referrerName,
           phoneVerifiedAt: e.phoneVerifiedAt?.toISOString() ?? null,
           status: e.status,
           studentId: e.studentId,

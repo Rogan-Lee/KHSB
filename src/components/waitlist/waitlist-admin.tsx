@@ -11,6 +11,7 @@ import type {
 import { toast } from "sonner";
 import { applyLinkOrigin } from "@/lib/apply-domain";
 import { contactPhonesForDisplay } from "@/lib/waitlist-contact";
+import { winterGradeLabel } from "@/lib/waitlist-winter";
 import {
   setWaitlistStatus,
   cancelWaitlist,
@@ -119,6 +120,8 @@ type Entry = {
   gradeType: WaitGradeType | null;
   kind: "WAITLIST" | "INQUIRY";
   entryPreference: string | null; // "winter" | "immediate" | null
+  winterGrade: string | null; // 윈터 시즌 예비 학년 — "pre_high1" | "pre_high2" | "pre_high3"
+  referrerName: string | null; // 추천인(지인 이름)
   phoneVerifiedAt: string | null;
   status: WaitlistStatus;
   studentId: string | null;
@@ -311,13 +314,16 @@ function matchesFilter(e: Entry, f: EntryFilter): boolean {
   return e.status === f;
 }
 
-/** 입실 희망 뱃지 — winter/immediate 외 값(과거 데이터)은 미표시 */
-function EntryPreferenceBadge({ value }: { value: string | null }) {
+/** 입실 희망 뱃지 — winter/immediate 외 값(과거 데이터)은 미표시. 윈터는 예비 학년을 함께 표시 */
+function EntryPreferenceBadge({ value, winterGrade }: { value: string | null; winterGrade: string | null }) {
   if (value !== "winter" && value !== "immediate") return <span className="text-fg-placeholder">—</span>;
-  return value === "winter" ? (
-    <StatusBadge tone="info">윈터</StatusBadge>
-  ) : (
-    <StatusBadge tone="ok">즉시</StatusBadge>
+  if (value === "immediate") return <StatusBadge tone="ok">즉시</StatusBadge>;
+  const grade = winterGradeLabel(winterGrade);
+  return (
+    <div className="flex flex-wrap items-center gap-x1">
+      <StatusBadge tone="info">윈터</StatusBadge>
+      {grade && <span className="whitespace-nowrap t3-regular text-fg-neutral-muted">{grade}</span>}
+    </div>
   );
 }
 
@@ -421,6 +427,9 @@ function EntriesTab({
                         </span>
                       )}
                     </div>
+                    {e.referrerName && (
+                      <p className="mt-x0_5 t3-regular text-fg-neutral-subtle">추천인 {e.referrerName}</p>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-x0_5">
@@ -440,7 +449,7 @@ function EntriesTab({
                     {e.gender ? (e.gender === "MALE" ? "남" : "여") : "-"}
                   </TableCell>
                   <TableCell>
-                    <EntryPreferenceBadge value={e.entryPreference} />
+                    <EntryPreferenceBadge value={e.entryPreference} winterGrade={e.winterGrade} />
                   </TableCell>
                   <TableCell className="text-fg-neutral-muted">{e.programName ?? "—"}</TableCell>
                   <TableCell className="whitespace-nowrap t3-regular text-fg-neutral-subtle">{formatDateTime(e.createdAt)}</TableCell>
