@@ -275,8 +275,11 @@
     const pct = m => (((m - D0) / (D1 - D0)) * 100).toFixed(3);
     const head = (n, f) => `<header class="wm-head"><p class="wm-k"><b>0${n}</b>${esc(f.label)}</p><h3>${br(f.title)}</h3><p class="wm-sub">${esc(f.sub)}</p></header>`;
     // 01 시간표: 하루 막대 위에 지금 시각을 찍고, 아래에 오전 · 오후 · 야간 교시를 모두 적는다
+    // 식사 칸은 앞뒤 교시와 시간이 맞닿아 있어 그대로 그리면 붙어 보인다 → 쉬는 시간(교시 사이 간격)만큼 양쪽을 들여 다른 칸과 같은 간격을 둔다
+    const BREAK = toMin(rows[1][1]) - toMin(rows[0][2]);
+    const span = r => { const g = r[3] ? BREAK : 0; return `left:${pct(toMin(r[1]) + g)}%;width:${pct(toMin(r[2]) - toMin(r[1]) - g * 2 + D0)}%`; };
     const time = `<p class="wd-now"></p>` +
-      `<div class="wd-bar" aria-hidden="true">${rows.map(r => `<span class="wd-b${r[3] ? ' meal' : ''}" style="left:${pct(toMin(r[1]))}%;width:${pct(toMin(r[2]) + D0 - toMin(r[1]))}%"><b>${esc(r[3] ? r[0] : r[0].replace('교시', ''))}</b></span>`).join('')}<i class="wd-needle" hidden><em></em></i></div>` +
+      `<div class="wd-bar" aria-hidden="true">${rows.map(r => `<span class="wd-b${r[3] ? ' meal' : ''}" style="${span(r)}"><b>${esc(r[3] ? r[0] : r[0].replace('교시', ''))}</b></span>`).join('')}<i class="wd-needle" hidden><em></em></i></div>` +
       `<div class="wd-axis" aria-hidden="true">${[9, 12, 15, 18, 21, 24].map(h => `<span style="left:${pct(h * 60)}%">${pad(h)}:00</span>`).join('')}</div>` +
       `<div class="wd-cols">${F.time.blocks.map(b => `<div class="wd-col"><h4>${esc(b.name)}<span>${b.rows[0][1]} – ${b.rows[b.rows.length - 1][2]}</span></h4>` +
         `<ol>${b.rows.map(r => `<li${r[3] ? ' class="meal"' : ''}><b>${esc(r[0])}</b><span>${r[1]} – ${r[2]}</span><em>${toMin(r[2]) - toMin(r[1])}분</em></li>`).join('')}</ol></div>`).join('')}</div>`;
