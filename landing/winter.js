@@ -323,15 +323,16 @@
   }
 
   // ── R3 · R4. 전화 상담 가능 시간 · 관리자 상주 시간 · 카카오톡 채널 — 자주 묻는 질문 아래 ──
-  // 윗줄: 시간 카드 두 장(학기 중 / 방학을 나란히 적은 표) · 아랫줄: 카카오톡 채널
+  // 윗줄: 시간 카드 두 장(학기 중 · 방학 × 평일 · 주말 · 공휴일 표) · 아랫줄: 카카오톡 채널
   const contact = $('[data-w-contact]');
   const hoursSlot = $('[data-w-hours]');
   if (hoursSlot && ready(WINTER.callHours)) {
     const h = WINTER.callHours;
     hoursSlot.innerHTML = `<div class="wh-grid">${h.groups.map(g => `<div class="w-hours"><div class="wh-top"><p class="w-label">${esc(g.title)}</p>${sampleTag(h)}</div>` +
-      `<table class="wh-t"><thead><tr><td></td>${h.seasons.map(t => `<th scope="col">${esc(t)}</th>`).join('')}</tr></thead>` +
-      `<tbody>${g.rows.map(r => `<tr><th scope="row">${esc(r.label)}</th>${r.times.map(t => `<td>${esc(t)}</td>`).join('')}</tr>`).join('')}</tbody></table>` +
-      (g.breaks && g.breaks.length ? `<p class="wh-meal">휴게 시간 <b>${g.breaks.map(esc).join(' · ')}</b>${g.breaksNote ? `<span>${esc(g.breaksNote)}</span>` : ''}</p>` : '') +
+      // 줄 = 학기 중 · 방학, 열 = 평일 · 주말 · 공휴일 (긴 이름이 열 머리에 오도록)
+      `<table class="wh-t"><thead><tr><td></td>${g.rows.map(r => `<th scope="col">${esc(r.label)}</th>`).join('')}</tr></thead>` +
+      `<tbody>${h.seasons.map((season, i) => `<tr><th scope="row">${esc(season)}</th>${g.rows.map(r => `<td>${esc(r.times[i])}</td>`).join('')}</tr>`).join('')}</tbody></table>` +
+      (g.away && g.away.length ? `<p class="wh-meal"><b>${g.away.map(esc).join(' · ')}</b>${esc(g.awayText || '')}</p>` : '') +
       (g.call ? `<a class="btn btn-brand" href="tel:${SITE.tel}">${ICON.phone}전화 상담하기</a>` : '') + '</div>').join('')}</div>`;
   }
 

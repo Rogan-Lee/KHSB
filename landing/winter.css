@@ -438,15 +438,14 @@ body:has(.gnb.hide) .w-tabs { top: 0; }
 .w-hours, .w-kakao { border-radius: 28px; background: var(--paper-2); padding: 26px 24px 24px; }
 .w-hours { display: flex; flex-direction: column; height: 100%; }
 .wh-top { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-/* 시간표: 줄 = 평일 · 주말, 열 = 학기 중 · 방학 */
+/* 시간표: 줄 = 학기 중 · 방학, 열 = 평일 · 주말 · 공휴일 */
 .wh-t { width: 100%; margin: 18px 0 22px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .wh-t thead th { padding: 0 0 8px; text-align: right; font-size: 13px; font-weight: 700; color: var(--dim); }
 .wh-t tbody th { padding: 9px 8px 9px 0; text-align: left; font-size: 15px; font-weight: 600; color: var(--dim); white-space: nowrap; }
-.wh-t tbody td { padding: 9px 0 9px 8px; text-align: right; font-size: 15.5px; font-weight: 800; letter-spacing: -.03em; color: var(--ink); white-space: nowrap; }
+.wh-t tbody td { padding: 9px 0 9px 8px; text-align: right; font-size: 15px; font-weight: 800; letter-spacing: -.03em; color: var(--ink); white-space: nowrap; }
 .wh-t tbody tr { border-top: 1px solid var(--hair); }
 .wh-meal { margin: -4px 0 22px; padding-top: 14px; border-top: 1px solid var(--hair); font-size: 14px; line-height: 1.65; color: var(--dim); }
 .wh-meal b { font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.wh-meal span { display: block; }
 .wh-meal:last-child { margin-bottom: 0; }
 .w-hours .btn, .wk-btn { display: flex; align-items: center; justify-content: center; gap: 8px; height: 52px; padding: 0 18px; border-radius: 14px; font-size: 15.5px; font-weight: 700; letter-spacing: -.02em; white-space: nowrap; }
 .w-hours .btn { width: 100%; margin-top: auto; }
@@ -472,6 +471,7 @@ body:has(.gnb.hide) .w-tabs { top: 0; }
   .wk-big { font-size: 23px; }
   .wk-btn { min-width: 240px; padding: 0 28px; }
 }
+@media (min-width: 1001px) { .wh-t tbody td { font-size: clamp(15.5px, 1.55vw, 17px); } } /* 왼쪽 목차가 생겨 카드가 좁아지는 구간 */
 @media (min-width: 1237px) { .wh-t tbody td { font-size: 19px; } }
 
 /* ── 전용 앱: 핵심 기능만 골라 폰 한 대에서 화면을 바꿔 가며 보여 준다 (bx-core 의 기능 탐색기를 이 페이지 모양으로) ──
