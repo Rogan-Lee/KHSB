@@ -322,15 +322,18 @@
     setInterval(() => { if (!document.hidden) paint(); }, 30000);
   }
 
-  // ── R3 · R4. 전화 상담 가능 시간 · 카카오톡 채널 — 자주 묻는 질문 아래에 나란히 놓는다 ──
+  // ── R3 · R4. 전화 상담 가능 시간 · 관리자 상주 시간 · 카카오톡 채널 — 자주 묻는 질문 아래 ──
+  // 윗줄: 시간 카드 두 장(학기 중 · 방학 × 평일 · 주말 · 공휴일 표) · 아랫줄: 카카오톡 채널
   const contact = $('[data-w-contact]');
   const hoursSlot = $('[data-w-hours]');
   if (hoursSlot && ready(WINTER.callHours)) {
     const h = WINTER.callHours;
-    hoursSlot.innerHTML = `<div class="w-hours"><div class="wh-top"><p class="w-label">전화 상담 가능 시간</p>${sampleTag(h)}</div>` +
-      `<dl>${h.rows.map(r => `<dt>${esc(r.label)}</dt><dd>${esc(r.time)}</dd>`).join('')}</dl>` +
-      (h.meals.length ? `<p class="wh-meal">식사 시간 <b>${h.meals.map(esc).join(' · ')}</b>에는 전화 연결이 어려울 수 있습니다.</p>` : '') +
-      `<a class="btn btn-brand" href="tel:${SITE.tel}">${ICON.phone}전화 상담하기</a></div>`;
+    hoursSlot.innerHTML = `<div class="wh-grid">${h.groups.map(g => `<div class="w-hours"><div class="wh-top"><p class="w-label">${esc(g.title)}</p>${sampleTag(h)}</div>` +
+      // 줄 = 학기 중 · 방학, 열 = 평일 · 주말 · 공휴일 (긴 이름이 열 머리에 오도록)
+      `<table class="wh-t"><thead><tr><td></td>${g.rows.map(r => `<th scope="col">${esc(r.label)}</th>`).join('')}</tr></thead>` +
+      `<tbody>${h.seasons.map((season, i) => `<tr><th scope="row">${esc(season)}</th>${g.rows.map(r => `<td>${esc(r.times[i])}</td>`).join('')}</tr>`).join('')}</tbody></table>` +
+      (g.away && g.away.length ? `<p class="wh-meal"><b>${g.away.map(esc).join(' · ')}</b>${esc(g.awayText || '')}</p>` : '') +
+      (g.call ? `<a class="btn btn-brand" href="tel:${SITE.tel}">${ICON.phone}전화 상담하기</a>` : '') + '</div>').join('')}</div>`;
   }
 
   // 카카오톡 채널 추가 — 모바일은 버튼(카카오톡 앱으로 이동), PC 는 QR 을 함께 보여 준다
@@ -338,8 +341,10 @@
   const channelId = WINTER.kakao.channelId.trim();
   if (kakaoSlot && (channelId || PREVIEW)) {
     const url = channelId ? `https://pf.kakao.com/${encodeURIComponent(channelId)}/friend` : '#faq';
-    kakaoSlot.innerHTML = `<div class="w-kakao"><div class="wh-top"><p class="w-label">카카오톡 채널</p>${channelId ? '' : SAMPLE}</div>` +
-      `<div class="wk-row"><p class="wk-big">채널을 추가하고<br>채팅으로 물어보셔도 됩니다.</p><div class="wk-qr" data-wk-qr hidden><span>휴대폰으로 스캔</span></div></div>` +
+    const chName = WINTER.kakao.name ? `<p class="wk-name">채널 이름 <b>${esc(WINTER.kakao.name)}</b></p>` : '';
+    kakaoSlot.innerHTML = `<div class="w-kakao"><div class="wk-txt"><div class="wh-top"><p class="w-label">카카오톡 채널</p>${channelId ? '' : SAMPLE}</div>` +
+      `<p class="wk-big">채널을 추가하고<br>채팅으로 물어보셔도 됩니다.</p>${chName}</div>` +
+      `<div class="wk-qr" data-wk-qr hidden><span>휴대폰으로 스캔</span></div>` +
       `<a class="wk-btn" href="${url}"${channelId ? ' target="_blank" rel="noopener"' : ''}>${ICON.kakao}카카오톡 채널 추가</a></div>`;
     // PC 에서만 QR 을 만든다 (QR 생성기는 필요할 때 한 번 내려받는다). 채널 ID 가 없으면 로컬 미리보기용 예시 무늬.
     const qrBox = $('[data-wk-qr]', kakaoSlot);
