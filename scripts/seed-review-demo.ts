@@ -24,6 +24,7 @@ import { hashPassword } from "better-auth/crypto";
 
 import { PrismaClient } from "../src/generated/prisma/client";
 import { hashAuthToken } from "../src/lib/auth-tokens";
+import { APP_REVIEW_NOTES_LIMIT, appReviewNotes } from "./review-notes";
 
 // 운영 Supabase project-ref 의 SHA-256 (공개 저장소라 원문 대신 해시 — scripts/db-push.mjs 와 같은 값)
 const PROD_PROJECT_REF_SHA256 = "37276d3cbb4b3ab00f9978c8eb33b48f41a1a852506ebb19a9b890cae6db5247";
@@ -193,6 +194,14 @@ async function resetContent() {
   await prisma.examScore.deleteMany({ where: { studentId: SID } });
   await prisma.attendanceRecord.deleteMany({ where: { studentId: SID } });
   await prisma.attendanceSchedule.deleteMany({ where: { studentId: SID } });
+  // 신고·차단 기록 (FK 없이 id 로만 연결) — 심사자가 데모 계정으로 남긴 것
+  const demoIds = [SID, MENTOR, STAFF];
+  await prisma.contentReport.deleteMany({
+    where: { OR: [{ reporterId: { in: demoIds } }, { targetUserId: { in: demoIds } }] },
+  });
+  await prisma.userBlock.deleteMany({
+    where: { OR: [{ blockerId: { in: demoIds } }, { blockedId: { in: demoIds } }] },
+  });
 }
 
 async function createContent() {
@@ -500,6 +509,15 @@ async function ensureInvites(saved: string[] | undefined) {
 
 function reviewNotes(s: { studentPassword?: string; parentPassword?: string; staffPassword?: string; invites: string[] }) {
   const pw = (v: string | undefined) => v ?? "(모름 — --reset-passwords 로 재발급)";
+  const notes = appReviewNotes({
+    student: { username: STUDENT_USERNAME, password: pw(s.studentPassword) },
+    parent: { username: PARENT_USERNAME, password: pw(s.parentPassword) },
+    staff: { username: STAFF_USERNAME, password: pw(s.staffPassword) },
+    invites: s.invites,
+  });
+  if (notes.length > APP_REVIEW_NOTES_LIMIT) {
+    console.warn(`주의: 심사 메모가 ${notes.length}자입니다 (${APP_REVIEW_NOTES_LIMIT}자 제한) — scripts/review-notes.ts 를 줄여 주세요.`);
+  }
   return `# App Store 심사용 데모 계정 (${isProd ? "운영" : "개발"} DB ${projectRef})
 
 커밋 금지 — 저장소가 공개다. 갱신: ${new Date().toISOString()}
@@ -517,46 +535,13 @@ function reviewNotes(s: { studentPassword?: string; parentPassword?: string; sta
 - User name: ${STUDENT_USERNAME}
 - Password: ${pw(s.studentPassword)}
 
-## App Review Information > Notes
+## App Review Information > Notes · App Review 답장
+
+아래 글을 심사 메모(Notes)에 붙여 넣는다. Apple 이 추가 정보를 요청하면 답장에도 같은 글을 쓴다.
+${notes.length.toLocaleString("ko-KR")}자 (두 칸 모두 ${APP_REVIEW_NOTES_LIMIT.toLocaleString("ko-KR")}자 제한). 글은 scripts/review-notes.ts 에서 고친다.
 
 \`\`\`
-강한선배 (KHSB) is the member app of KHSB, a managed study hall in Dongtan, Korea.
-Anyone can enroll at the study hall; after enrolling, students and parents receive an
-invitation link or code from the study hall and create an account in the app
-(Login screen > "초대받았어요" tab). The app has no in-app purchases; lunch box orders
-are real meals served at the study hall and are paid by bank transfer.
-The UI is in Korean.
-
-Demo accounts (Login screen > "로그인" tab). All three are tied to a fictional student
-created for review; all data shown is sample data.
-- Student: ${STUDENT_USERNAME} / ${pw(s.studentPassword)}
-- Parent:  ${PARENT_USERNAME} / ${pw(s.parentPassword)}
-- Staff:   ${STAFF_USERNAME} / ${pw(s.staffPassword)}
-  (consultant role: sees only the student assigned to it — assignments, feedback,
-  messages, notices, calendar. Attendance, seat map, patrol QR and mentoring screens are
-  limited to on-site staff roles because they list every real student, so they are not
-  available to this review account.)
-
-Account deletion:
-- 전체 (last tab) > 계정·보안 > 계정 삭제 > confirm > enter password. The account is
-  deleted immediately and the user is signed out on all devices.
-- To test sign-up and deletion without removing the demo accounts, use one of these
-  one-time invite codes: Login screen > "초대받았어요" > paste the code > sign up
-  (creates a new parent account): ${s.invites.join(" or ")}
-
-Support and privacy:
-- In app: 전체 > 고객센터, and 전체 > 계정·보안 > 도움말 (고객센터, 전화 문의,
-  이메일 문의, 개인정보처리방침). Links are also at the bottom of the login screen.
-- Support: https://www.kanghanseonbae.com/support.html (kanghanseonbae@naver.com)
-- Privacy policy: https://www.kanghanseonbae.com/privacy.html
-
-User-generated content: there is no public posting or chat between users. Messages,
-questions and inquiries are one-to-one between a student/parent and study-hall staff.
-
-Permissions: the camera is used to scan seat QR codes during staff patrols and to take
-photos for questions, messages and mentoring notes. The photo library is used to attach
-photos.
-\`\`\`
+${notes}\`\`\`
 `;
 }
 
