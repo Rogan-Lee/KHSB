@@ -1,9 +1,11 @@
 import { useIsFocused } from 'expo-router';
+import { MoreVertical } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, FlatList, Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Avatar, ErrorState, Screen, Skeleton, Text, color, radius, space, toast } from '@/design';
+import { Avatar, ErrorState, HeaderIconButton, Screen, Skeleton, Text, color, radius, space, toast } from '@/design';
+import { BlockedBar, releaseBlock, useSafetyMenu } from '@/features/safety/safety-menu';
 // 채팅(ChatThread)과 같은 날짜 구분선·작성창·시각 표기를 쓴다 (S3 공용 조각)
 import { dayKey, dayLabel, formatClock } from '@/features/student-comm/format';
 import { DaySeparator, MessageComposer } from '@/features/student-comm/message-parts';
@@ -13,6 +15,7 @@ import {
   type StaffDmMessage,
   type StaffDmThreadResponse,
 } from '@/lib/api/staff-inbox';
+import type { SafetyUser } from '@/lib/api/safety';
 import { refreshBadges } from '@/lib/badges';
 import { useMobileQuery } from '@/lib/mobile-api';
 
@@ -59,7 +62,7 @@ function buildRows(messages: Bubble[]): Row[] {
 /**
  * 직원 1:1 대화 — 폰은 라우트(/(staff)/dm/[userId]) 로 push, 태블릿은 소통 탭 오른쪽 패널(inline).
  * 채팅과 같은 말풍선·작성창. 열려 있는 동안 10초마다 새 메시지를 확인한다.
- * 키보드 회피는 바깥 Screen 이 한다.
+ * 키보드 회피는 바깥 Screen 이 한다. 상대 말풍선을 길게 누르거나 헤더 ⋯ 로 신고·차단.
  */
 export function DmThread({
   userId,
@@ -124,6 +127,29 @@ export function DmThread({
   }
 
   const other = data?.other;
+  const blockedByMe = !!data?.blockedByMe;
+
+  // ─── 신고·차단 ───
+  const reload = () => {
+    void refresh();
+    onChangedRef.current?.();
+  };
+  const safety = useSafetyMenu(reload);
+  const partnerUser: SafetyUser | null = other ? { type: 'STAFF', id: other.id, name: other.name } : null;
+  const openMenu = (message?: Bubble) => {
+    if (!partnerUser) return;
+    safety.open({
+      user: partnerUser,
+      message: message ? { type: 'STAFF_DM_MESSAGE', id: message.id } : undefined,
+      copyText: message?.content || undefined,
+      blocked: blockedByMe,
+    });
+  };
+  const unblock = async () => {
+    if (partnerUser && (await releaseBlock(partnerUser))) reload();
+  };
+  const menuButton = <HeaderIconButton icon={MoreVertical} label="신고·차단" onPress={() => openMenu()} />;
+
   const rows = useMemo(
     () => buildRows(outbox ? [...(data?.messages ?? []), outbox] : (data?.messages ?? [])),
     [data, outbox],
@@ -142,10 +168,14 @@ export function DmThread({
       <Pressable style={s.empty} onPress={Keyboard.dismiss} accessible={false}>
         {other ? <Avatar name={other.name} size={56} /> : null}
         <Text variant="t6-bold" align="center" style={{ marginTop: space.x4 }}>
-          {other ? `${other.name} ${other.roleLabel}님께\n메시지를 보내 보세요` : '메시지를 보내 보세요'}
+          {!other
+            ? '메시지를 보내 보세요'
+            : blockedByMe
+              ? `${other.name} ${other.roleLabel}님을\n차단했어요`
+              : `${other.name} ${other.roleLabel}님께\n메시지를 보내 보세요`}
         </Text>
         <Text variant="t4-regular" color="neutralSubtle" align="center" style={{ marginTop: space.x1_5 }}>
-          운영진끼리만 보이는 대화예요.
+          {blockedByMe ? '상대가 보낸 글은 보이지 않아요.' : '운영진끼리만 보이는 대화예요.'}
         </Text>
       </Pressable>
     );
@@ -161,7 +191,7 @@ export function DmThread({
           item.kind === 'day' ? (
             <DaySeparator label={item.label} />
           ) : (
-            <DmBubble row={item} partnerName={other?.name ?? ''} />
+            <DmBubble row={item} partnerName={other?.name ?? ''} onLongPress={() => openMenu(item.m)} />
           )
         }
         keyboardShouldPersistTaps="handled"
@@ -188,15 +218,20 @@ export function DmThread({
   const content = (
     <View style={s.root}>
       {body}
-      <MessageComposer
-        value={draft}
-        onChangeText={setDraft}
-        onSend={() => void send()}
-        sending={sending}
-        disabled={!data}
-        placeholder="메시지 보내기"
-        bottomInset={inline ? 0 : insets.bottom}
-      />
+      {blockedByMe ? (
+        <BlockedBar onUnblock={() => void unblock()} bottomInset={inline ? 0 : insets.bottom} />
+      ) : (
+        <MessageComposer
+          value={draft}
+          onChangeText={setDraft}
+          onSend={() => void send()}
+          sending={sending}
+          disabled={!data}
+          placeholder="메시지 보내기"
+          bottomInset={inline ? 0 : insets.bottom}
+        />
+      )}
+      {safety.element}
     </View>
   );
 
@@ -204,20 +239,29 @@ export function DmThread({
 
   if (inline) {
     return (
-      <DetailPanel title={title} onClose={onClose} scroll={false}>
+      <DetailPanel title={title} onClose={onClose} right={menuButton} scroll={false}>
         {content}
       </DetailPanel>
     );
   }
 
   return (
-    <Screen kind="push" title={title} scroll={false} backFallback="/(staff)/(tabs)/inbox">
+    <Screen kind="push" title={title} scroll={false} backFallback="/(staff)/(tabs)/inbox" right={menuButton}>
       {content}
     </Screen>
   );
 }
 
-function DmBubble({ row, partnerName }: { row: Extract<Row, { kind: 'msg' }>; partnerName: string }) {
+function DmBubble({
+  row,
+  partnerName,
+  onLongPress,
+}: {
+  row: Extract<Row, { kind: 'msg' }>;
+  partnerName: string;
+  /** 상대 말풍선을 길게 눌렀을 때 (복사·신고·차단 메뉴) */
+  onLongPress: () => void;
+}) {
   const { m, showAvatar, showTime } = row;
   const time = showTime ? (
     <Text variant="t2-regular" color="placeholder" tabular style={s.time}>
@@ -242,11 +286,13 @@ function DmBubble({ row, partnerName }: { row: Extract<Row, { kind: 'msg' }>; pa
     <View style={[s.rowTheirs, { paddingTop: row.gap }]}>
       {showAvatar ? <Avatar name={partnerName || '?'} size={32} /> : <View style={{ width: 32 }} />}
       <View style={s.theirsLine}>
-        <View style={[s.bubble, s.bubbleTheirs, showAvatar && { borderTopLeftRadius: radius.r1_5 }]}>
-          <Text variant="t5-regular" selectable>
-            {m.content}
-          </Text>
-        </View>
+        <Pressable
+          onLongPress={onLongPress}
+          delayLongPress={350}
+          accessibilityHint="길게 누르면 복사·신고 메뉴가 열려요"
+          style={[s.bubble, s.bubbleTheirs, showAvatar && { borderTopLeftRadius: radius.r1_5 }]}>
+          <Text variant="t5-regular">{m.content}</Text>
+        </Pressable>
         {time}
       </View>
     </View>

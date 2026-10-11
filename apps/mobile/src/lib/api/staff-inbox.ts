@@ -91,6 +91,8 @@ export type StaffDmThreadSummary = {
   lastMessage: { content: string; mine: boolean; createdAt: string } | null;
   lastMessageAt: string;
   unread: number;
+  /** 내가 차단한 직원 (미리보기·안 읽음 수는 서버가 가린다) */
+  blockedByMe?: boolean;
 };
 
 export type StaffDmInboxResponse = {
@@ -105,6 +107,8 @@ export type StaffDmThreadResponse = {
   threadId: string;
   other: StaffDmPartner;
   messages: StaffDmMessage[];
+  /** 내가 차단한 직원 — 상대 글은 빠져서 온다 */
+  blockedByMe?: boolean;
 };
 
 export function sendStaffDm(userId: string, content: string) {

@@ -35,6 +35,7 @@ import {
   space,
   toast,
 } from '@/design';
+import { rememberTermsAgreedAtSignUp } from '@/features/safety/terms-gate';
 import {
   INVITE_TYPE_LABEL,
   INVITE_TYPE_TONE,
@@ -47,7 +48,7 @@ import {
 import { API_BASE_URL, authClient } from '@/lib/auth-client';
 import { formatKoreanDateTime } from '@/lib/format';
 import { authenticatedFetch, useSession } from '@/lib/session';
-import { PRIVACY_URL, SUPPORT_URL, openHelpPage } from '@/lib/support';
+import { PRIVACY_URL, SUPPORT_URL, TERMS_URL, openHelpPage } from '@/lib/support';
 
 type Mode = 'sign-in' | 'invite';
 
@@ -335,6 +336,8 @@ export default function AuthScreen() {
         }
         return;
       }
+      // 가입 화면 문구로 이용약관에 동의하고 가입했다 — 첫 로그인 동의 시트를 건너뛴다
+      await rememberTermsAgreedAtSignUp();
       await confirmLinkedAccount();
     } catch {
       setError('네트워크 연결을 확인하고 다시 시도해 주세요.');
@@ -602,7 +605,16 @@ export default function AuthScreen() {
                   editable={!busyNow}
                 />
                 <Text variant="t3-regular" color="neutralSubtle">
-                  가입하면 강한선배 개인정보처리방침에 따라 입력한 정보가 처리돼요.
+                  가입하면 강한선배{' '}
+                  <Text
+                    variant="t3-medium"
+                    color="neutralMuted"
+                    accessibilityRole="link"
+                    onPress={() => void openHelpPage(TERMS_URL)}
+                    style={{ textDecorationLine: 'underline' }}>
+                    이용약관·운영정책
+                  </Text>
+                  에 동의하게 되고, 개인정보처리방침에 따라 입력한 정보가 처리돼요.
                 </Text>
                 {error != null && (
                   <Notice tone="bad" icon={CircleAlert}>
@@ -614,6 +626,10 @@ export default function AuthScreen() {
 
             <View style={s.helpLinks}>
               <HelpLink label="고객센터" onPress={() => void openHelpPage(SUPPORT_URL)} />
+              <Text variant="t3-regular" color="neutralSubtle" accessibilityElementsHidden importantForAccessibility="no">
+                ·
+              </Text>
+              <HelpLink label="이용약관" onPress={() => void openHelpPage(TERMS_URL)} />
               <Text variant="t3-regular" color="neutralSubtle" accessibilityElementsHidden importantForAccessibility="no">
                 ·
               </Text>

@@ -12,6 +12,7 @@ import { InboxListSkeleton, InboxRow, PaneScroll } from './ui';
 const SEARCH_MIN = 7;
 
 function chatPreview(c: ChatSummary) {
+  if (c.blockedByMe) return '차단한 학생이에요';
   if (!c.lastMessage) return '아직 대화가 없어요';
   const body = c.lastMessage.content || (c.lastMessage.hasAttachments ? '사진·파일을 보냈어요' : '');
   return c.lastMessage.senderType === 'STAFF' ? `나: ${body}` : body;

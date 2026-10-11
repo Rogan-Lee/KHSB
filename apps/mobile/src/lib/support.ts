@@ -11,6 +11,8 @@ const SITE_URL = 'https://www.kanghanseonbae.com';
 
 export const SUPPORT_URL = `${SITE_URL}/support.html`;
 export const PRIVACY_URL = `${SITE_URL}/privacy.html`;
+/** 이용약관·운영정책 — 금지하는 글, 신고·차단, 운영진 조치 (가입·첫 로그인 때 동의) */
+export const TERMS_URL = `${SITE_URL}/terms.html`;
 export const SUPPORT_TEL = '010-3145-5767';
 export const SUPPORT_EMAIL = 'kanghanseonbae@naver.com';
 

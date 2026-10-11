@@ -10,6 +10,7 @@ import {
 
 import { RemotePushRegistration } from '@/components/remote-push-registration';
 import { color, FeedbackProvider } from '@/design';
+import { TermsGate } from '@/features/safety/terms-gate';
 import { useNotificationRouting } from '@/lib/notifications';
 import { SessionProvider } from '@/lib/session';
 
@@ -61,7 +62,9 @@ export default function RootLayout() {
                 <Stack.Screen name="(parent)" />
                 <Stack.Screen name="notifications" options={{ animation: 'slide_from_right' }} />
                 <Stack.Screen name="account" options={{ animation: 'slide_from_right' }} />
+                <Stack.Screen name="blocked-users" options={{ animation: 'slide_from_right' }} />
               </Stack>
+              <TermsGate />
             </FeedbackProvider>
           </ThemeProvider>
         </SessionProvider>

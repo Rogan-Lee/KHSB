@@ -1,11 +1,11 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { Archive, Camera, FileText, Images } from 'lucide-react-native';
+import { Archive, Ban, Camera, FileText, Images } from 'lucide-react-native';
 import { useContext, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { MessageThread } from '@/components/workflow-ui';
+import { MessageThread, type ThreadMessage } from '@/components/workflow-ui';
 import {
   Badge,
   ErrorState,
@@ -18,6 +18,7 @@ import {
   space,
   toast,
 } from '@/design';
+import { useSafetyMenu } from '@/features/safety/safety-menu';
 import {
   QUESTION_CONTENT_MAX,
   QUESTION_MAX_ATTACHMENTS,
@@ -41,6 +42,7 @@ import { MessageComposer, type ComposerAction } from './message-parts';
  * 질문 상세 — 웹 학생 포털 qna/[questionId] 와 같은 구성.
  * 머리(과목·상태 배지, 제목, 등록 시각) → 말풍선 스레드 → 하단 고정 답글 작성창(보관된 질문이면 숨김).
  * 라우트 화면(폰)과 태블릿 오른쪽 패널(inline)이 같이 쓴다. 키보드 회피는 바깥 Screen 이 한다.
+ * 멘토 답변을 길게 누르면 복사·신고·차단 메뉴가 열린다.
  */
 export function QuestionThreadView({
   questionId,
@@ -76,6 +78,20 @@ export function QuestionThreadView({
 
   // 보고 있는 동안 새 답변 확인 (15초, 앱 복귀 시 즉시)
   useLiveRefresh(retry, 15_000);
+
+  // 신고·차단 — 차단하면 그 멘토의 답변이 빠진 스레드를 다시 받는다
+  const safety = useSafetyMenu(() => {
+    void retry();
+    onChangedRef.current?.();
+  });
+  const openMenu = (m: ThreadMessage) => {
+    if (m.senderType !== 'STAFF' || !m.senderUserId) return;
+    safety.open({
+      user: { type: 'STAFF', id: m.senderUserId, name: m.senderName },
+      message: { type: 'QUESTION_MESSAGE', id: m.id },
+      copyText: m.content || undefined,
+    });
+  };
 
   const room = QUESTION_MAX_ATTACHMENTS - local.length;
 
@@ -217,7 +233,14 @@ export function QuestionThreadView({
             viewer="STUDENT"
             surface="canvas"
             emptyHint="첫 메시지를 작성해 보세요."
+            onLongPressMessage={openMenu}
           />
+
+          {(data.hiddenCount ?? 0) > 0 && (
+            <Notice tone="gray" icon={Ban}>
+              {`차단한 사용자의 글 ${data.hiddenCount}개는 보이지 않아요. 차단은 전체 > 계정·보안에서 풀 수 있어요.`}
+            </Notice>
+          )}
 
           {archived && (
             <Notice tone="gray" icon={Archive}>
@@ -241,6 +264,7 @@ export function QuestionThreadView({
           bottomInset={inTabs ? 0 : insets.bottom}
         />
       )}
+      {safety.element}
     </View>
   );
 }

@@ -156,12 +156,14 @@ export async function uploadQuestionAttachments(
 
 // ─── 채팅 ────────────────────────────────────────────────────────────
 
-export type ChatPartnerView = ChatPartner & { role?: string };
+export type ChatPartnerView = ChatPartner & { role?: string; userType?: 'STUDENT' | 'STAFF' };
 
 export type StudentChatItem = Omit<ChatSummary, 'partner'> & {
   partner: ChatPartnerView;
   /** 현재 담당자 여부 (false = 이전 담당자) */
   isCurrentAssignee?: boolean;
+  /** 내가 차단한 상대 (미리보기·안 읽음 수는 서버가 가린다) */
+  blockedByMe?: boolean;
 };
 
 export type StudentChatList = { chats: StudentChatItem[] };
@@ -173,4 +175,6 @@ export type ChatThreadView = Omit<ChatThreadResponse, 'messages' | 'partner'> & 
   messages: ChatMessageView[];
   /** 더 오래된 메시지가 남아 있음 (?before= 로 불러오기) */
   hasMore?: boolean;
+  /** 내가 차단한 상대 — 상대 글은 빠져서 온다 */
+  blockedByMe?: boolean;
 };
