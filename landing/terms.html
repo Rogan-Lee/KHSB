@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="format-detection" content="telephone=no">
+  <title>강한선배 앱 이용약관 및 운영정책 | 강한선배</title>
+  <meta name="description" content="강한선배 앱 이용약관 및 운영정책입니다. 계정 이용, 금지하는 행위, 신고와 차단, 운영진의 조치, 문의처를 안내합니다.">
+  <meta name="theme-color" content="#0b0c0f">
+  <link rel="icon" href="favicon.ico" sizes="32x32">
+  <link rel="icon" href="brand/icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="강한선배 앱 이용약관 및 운영정책 | 강한선배">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="landing.css?v=seed4">
+  <link rel="stylesheet" href="bx-core.css?v=bx27">
+  <style>
+    /* privacy.html 과 같은 문서 스타일 (이 페이지에서 쓰는 것만) */
+    [hidden] { display: none !important; }
+    .dc { max-width: 780px; margin: 0 auto; padding: calc(var(--gnb-h) + 72px) 28px 0; color: var(--ink-2); }
+    .dc-eyebrow { display: inline-block; font-size: 13.5px; font-weight: 800; color: var(--brand); background: var(--brand-soft); border-radius: 999px; padding: 7px 13px; }
+    .dc-title { font-size: clamp(32px, 4.6vw, 48px); font-weight: 800; letter-spacing: -.05em; line-height: 1.2; margin-top: 18px; color: var(--ink); }
+    .dc-lead { font-size: clamp(16px, 1.6vw, 18px); color: var(--dim); line-height: 1.8; margin-top: 18px; }
+    .dc-meta { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--hair); font-size: 14px; color: var(--faint); }
+    .dc-meta b { color: var(--ink-2); font-weight: 700; margin-left: 6px; }
+
+    .pv-toc { margin-top: 36px; border-radius: 24px; background: var(--paper-2); padding: 24px 26px; }
+    .pv-toc h2 { font-size: 15px; font-weight: 800; color: var(--ink); }
+    .pv-toc ol { list-style: none; margin-top: 10px; columns: 2; column-gap: 28px; }
+    .pv-toc li { break-inside: avoid; }
+    .pv-toc a { display: block; padding: 6px 0; font-size: 15px; line-height: 1.5; color: var(--ink-2); }
+    .pv-toc a:hover { color: var(--brand); }
+    .pv-toc a span { display: inline-block; min-width: 3.4em; font-weight: 700; color: var(--faint); font-variant-numeric: tabular-nums; }
+
+    .pv-sec { margin-top: 60px; scroll-margin-top: calc(var(--gnb-h) + 24px); }
+    .pv-sec h2 { font-size: clamp(21px, 2.2vw, 25px); font-weight: 800; letter-spacing: -.04em; line-height: 1.4; color: var(--ink); }
+    .pv-sec h2 span { color: var(--brand); margin-right: 8px; }
+    .pv-sec p, .pv-sec li { font-size: 16.5px; line-height: 1.85; }
+    .pv-sec p { margin-top: 14px; }
+    .pv-sec ol, .pv-sec ul { margin-top: 12px; padding-left: 1.4em; }
+    .pv-sec li + li { margin-top: 6px; }
+    .pv-sec li::marker { color: var(--brand); font-weight: 700; }
+    .pv-sec strong { color: var(--ink); }
+    .pv-sec a:not(.btn) { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+
+    .pv-note { margin-top: 18px; border-radius: 18px; background: var(--brand-soft); padding: 18px 20px; font-size: 15.5px; line-height: 1.75; color: var(--ink); }
+    .pv-note p { margin: 0; font-size: inherit; line-height: inherit; }
+    .pv-note p + p { margin-top: 6px; }
+
+    .ui { display: inline-block; padding: 0 8px; border-radius: 7px; background: #fff; border: 1px solid var(--hair); font-size: .94em; font-weight: 700; line-height: 1.6; color: var(--ink); }
+
+    .pv-card { margin-top: 18px; border-radius: 22px; background: var(--paper-2); padding: 22px 24px; }
+    .pv-dl { display: grid; grid-template-columns: 5.5em 1fr; gap: 10px 16px; font-size: 16px; line-height: 1.6; }
+    .pv-dl > div { display: contents; }
+    .pv-dl dt { font-weight: 700; color: var(--dim); }
+    .pv-dl dd { min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
+    .pv-dl a { font-weight: 700; }
+
+    .dc-foot { margin-top: 64px; padding-top: 28px; border-top: 1px solid var(--hair); display: flex; flex-wrap: wrap; gap: 10px; }
+
+    @media (max-width: 860px) {
+      .dc { padding: calc(var(--gnb-h) + 40px) 20px 0; }
+      .pv-toc { padding: 20px; border-radius: 20px; }
+      .pv-toc ol { columns: 1; }
+      .pv-sec { margin-top: 48px; }
+      .pv-sec p, .pv-sec li { font-size: 16px; }
+    }
+    @media (max-width: 680px) {
+      .pv-dl { grid-template-columns: 4.8em 1fr; }
+    }
+  </style>
+</head>
+<body class="bx" data-page="terms">
+<script src="bx-data.js?v=bx25"></script>
+<script src="bx-shell.js?v=bx20"></script>
+
+<main id="main">
+  <article class="dc">
+    <header>
+      <span class="dc-eyebrow">강한선배 앱</span>
+      <h1 class="dc-title">이용약관 및 운영정책</h1>
+      <p class="dc-lead">강한선배(KHSB) 관리형 독서실(이하 '강한선배')이 제공하는 강한선배 앱(이하 '앱')을 이용할 때 지켜야 할 약속입니다. 앱은 독서실의 학생·학부모·운영진이 함께 쓰는 공간이므로, 부적절한 글과 다른 사람을 괴롭히는 행위는 허용하지 않습니다.</p>
+      <p class="dc-meta"><span>시행일<b>2026년 10월 11일</b></span></p>
+    </header>
+
+    <div class="pv-toc" role="navigation" aria-labelledby="tocTitle">
+      <h2 id="tocTitle">목차</h2>
+      <ol>
+        <li><a href="#t1"><span>제1조</span>목적</a></li>
+        <li><a href="#t2"><span>제2조</span>계정</a></li>
+        <li><a href="#t3"><span>제3조</span>앱에서 주고받는 글</a></li>
+        <li><a href="#t4"><span>제4조</span>금지하는 행위</a></li>
+        <li><a href="#t5"><span>제5조</span>신고와 차단</a></li>
+        <li><a href="#t6"><span>제6조</span>운영진의 조치</a></li>
+        <li><a href="#t7"><span>제7조</span>서비스 변경·중단</a></li>
+        <li><a href="#t8"><span>제8조</span>문의</a></li>
+        <li><a href="#addendum"><span>부칙</span>시행일</a></li>
+      </ol>
+    </div>
+
+    <section class="pv-sec" id="t1" aria-labelledby="h1t">
+      <h2 id="h1t"><span>제1조</span>목적</h2>
+      <p>이 약관은 강한선배가 제공하는 앱의 이용 조건과 운영 기준을 정합니다. 앱을 이용하는 학생·학부모·운영진 모두에게 적용됩니다.</p>
+    </section>
+
+    <section class="pv-sec" id="t2" aria-labelledby="h2t">
+      <h2 id="h2t"><span>제2조</span>계정</h2>
+      <ol>
+        <li>앱은 독서실이 보낸 초대로만 가입할 수 있습니다.</li>
+        <li>가입할 때 이 약관에 동의합니다. 이 약관이 시행되기 전에 가입한 계정은 앱을 처음 열 때 동의합니다.</li>
+        <li>계정은 본인만 사용합니다. 다른 사람에게 계정을 빌려주거나 아이디와 비밀번호를 알려 주어서는 안 됩니다.</li>
+        <li>탈퇴(계정 삭제)는 앱의 <span class="ui">전체</span> 탭 → <span class="ui">계정·보안</span> → <span class="ui">계정 삭제</span>에서 언제든지 할 수 있습니다. 자세한 방법은 <a href="support.html#delete-account">고객지원의 계정 삭제 안내</a>에서 확인해 주세요.</li>
+      </ol>
+    </section>
+
+    <section class="pv-sec" id="t3" aria-labelledby="h3t">
+      <h2 id="h3t"><span>제3조</span>앱에서 주고받는 글</h2>
+      <ol>
+        <li>이 약관에서 '글'은 앱에서 주고받는 메시지, 질문, 건의, 문의와 여기에 첨부한 사진·파일을 말합니다.</li>
+        <li>글에 대한 책임은 그 글을 쓴 사람에게 있습니다.</li>
+      </ol>
+    </section>
+
+    <section class="pv-sec" id="t4" aria-labelledby="h4t">
+      <h2 id="h4t"><span>제4조</span>금지하는 행위</h2>
+      <p>강한선배는 부적절한 글과 다른 사람을 괴롭히는 행위를 <strong>허용하지 않습니다.</strong> 앱에서는 다음 행위를 해서는 안 됩니다.</p>
+      <ul>
+        <li>욕설, 비방, 협박, 따돌림 등 다른 사람을 괴롭히는 행위</li>
+        <li>성적이거나 혐오스러운 내용을 올리는 행위</li>
+        <li>다른 사람의 개인정보나 사진을 동의 없이 올리는 행위</li>
+        <li>불법 정보를 올리거나 광고·도배를 하는 행위</li>
+        <li>다른 사람을 사칭하는 행위</li>
+      </ul>
+      <div class="pv-note">
+        <p>강한선배는 이런 글과 행위에 <strong>무관용 원칙</strong>을 적용합니다. 한 번의 위반이라도 <a href="#t6">제6조</a>에 따른 조치 대상이 됩니다.</p>
+      </div>
+    </section>
+
+    <section class="pv-sec" id="t5" aria-labelledby="h5t">
+      <h2 id="h5t"><span>제5조</span>신고와 차단</h2>
+      <ol>
+        <li>부적절한 글을 받으면 앱에서 바로 신고하거나 보낸 사람을 차단할 수 있습니다. 받은 메시지를 길게 누르거나 대화 화면 오른쪽 위 메뉴를 눌러 <span class="ui">신고하기</span> 또는 <span class="ui">차단하기</span>를 선택합니다.</li>
+        <li>신고는 운영진(원장)에게 전달됩니다. 운영진은 <strong>접수 후 24시간 안에 신고 내용을 확인해 조치</strong>합니다.</li>
+        <li>차단하면 그 사람의 글이 더 보이지 않고, 서로 새 메시지를 보낼 수 없습니다.</li>
+        <li>차단은 앱의 <span class="ui">전체</span> 탭 → <span class="ui">계정·보안</span> → <span class="ui">차단한 사용자</span>에서 풀 수 있습니다.</li>
+        <li>차단한 사실은 담당 배정을 조정할 수 있도록 운영진에게도 전달됩니다.</li>
+      </ol>
+    </section>
+
+    <section class="pv-sec" id="t6" aria-labelledby="h6t">
+      <h2 id="h6t"><span>제6조</span>운영진의 조치</h2>
+      <p>이 약관을 위반한 사실이 확인되면 운영진은 다음 조치를 할 수 있습니다.</p>
+      <ul>
+        <li>해당 글 삭제</li>
+        <li>경고</li>
+        <li>앱 이용 제한(계정 정지)</li>
+      </ul>
+      <p>위반 정도가 심하면 독서실 이용 규정에 따른 조치가 함께 따를 수 있습니다.</p>
+    </section>
+
+    <section class="pv-sec" id="t7" aria-labelledby="h7t">
+      <h2 id="h7t"><span>제7조</span>서비스 변경·중단</h2>
+      <p>강한선배는 운영에 필요하면 앱의 기능을 바꿀 수 있고, 점검이나 장애가 있을 때는 서비스를 잠시 중단할 수 있습니다. 이 경우 미리 알리도록 노력합니다.</p>
+    </section>
+
+    <section class="pv-sec" id="t8" aria-labelledby="h8t">
+      <h2 id="h8t"><span>제8조</span>문의</h2>
+      <p>이 약관이나 신고 처리에 관해 궁금한 점은 아래 연락처로 문의해 주세요.</p>
+      <div class="pv-card">
+        <dl class="pv-dl">
+          <div><dt>운영</dt><dd>강한선배(KHSB) 관리형 독서실</dd></div>
+          <div><dt>대표</dt><dd>강한지</dd></div>
+          <div><dt>전화</dt><dd><a href="tel:+82-10-3145-5767">010-3145-5767</a></dd></div>
+          <div><dt>이메일</dt><dd><a href="mailto:kanghanseonbae@naver.com">kanghanseonbae@naver.com</a></dd></div>
+          <div><dt>주소</dt><dd>경기 화성시 동탄반석로 130 (드림프라자) 10F</dd></div>
+        </dl>
+      </div>
+      <p>앱에서 처리하는 개인정보는 <a href="privacy.html">개인정보처리방침</a>을 따릅니다.</p>
+    </section>
+
+    <section class="pv-sec" id="addendum" aria-labelledby="hat">
+      <h2 id="hat">부칙</h2>
+      <ol>
+        <li>이 약관은 2026년 10월 11일부터 적용됩니다.</li>
+        <li>내용이 바뀌면 앱 공지사항이나 이 페이지를 통해 알려 드립니다.</li>
+      </ol>
+    </section>
+
+    <div class="dc-foot">
+      <a class="btn btn-dark btn-sm" href="support.html">강한선배 앱 고객지원</a>
+      <a class="btn btn-soft btn-sm" href="privacy.html">개인정보처리방침</a>
+      <a class="btn btn-soft btn-sm" href="tel:+82-10-3145-5767">전화 문의 010-3145-5767</a>
+      <a class="btn btn-soft btn-sm" href="mailto:kanghanseonbae@naver.com">이메일 문의</a>
+    </div>
+  </article>
+</main>
+
+<script src="bx-core.js?v=bx25"></script>
+</body>
+</html>
