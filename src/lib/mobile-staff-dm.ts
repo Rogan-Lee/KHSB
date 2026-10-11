@@ -6,6 +6,7 @@ import { z } from "zod";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_DISPLAY } from "@/lib/roles";
+import { getBlockState, getBlockedKeys } from "@/lib/safety";
 import {
   getStaffThread,
   listStaffThreads,
@@ -30,8 +31,9 @@ async function assertDmPartner(meId: string, otherUserId: string) {
 
 /** DM 목록 + 새 메시지용 직원 목록 */
 export async function getMobileStaffDmInbox(meId: string) {
-  const [threads, staff] = await Promise.all([
+  const [threads, blocked, staff] = await Promise.all([
     listStaffThreads(meId),
+    getBlockedKeys({ type: "STAFF", id: meId }),
     prisma.user.findMany({
       where: { status: "ACTIVE", role: { not: "STUDENT" }, id: { not: meId } },
       select: { id: true, name: true, role: true },
@@ -43,13 +45,18 @@ export async function getMobileStaffDmInbox(meId: string) {
     // 열어보기만 하고 대화가 없는 스레드는 목록에서 뺀다
     threads: threads
       .filter((t) => t.lastMessage)
-      .map((t) => ({
-        id: t.id,
-        other: { id: t.other.id, name: t.other.name, roleLabel: roleLabel(t.other.role) },
-        lastMessage: t.lastMessage,
-        lastMessageAt: t.lastMessageAt,
-        unread: t.unread,
-      })),
+      .map((t) => {
+        // 내가 차단한 직원: 목록에는 남기되(차단 해제 진입점) 글 미리보기·안 읽음 수는 가린다
+        const blockedByMe = blocked.has(`STAFF:${t.other.id}`);
+        return {
+          id: t.id,
+          other: { id: t.other.id, name: t.other.name, roleLabel: roleLabel(t.other.role) },
+          blockedByMe,
+          lastMessage: blockedByMe && t.lastMessage ? { ...t.lastMessage, content: "" } : t.lastMessage,
+          lastMessageAt: t.lastMessageAt,
+          unread: blockedByMe ? 0 : t.unread,
+        };
+      }),
     staff: staff.map((u) => ({ id: u.id, name: u.name, roleLabel: roleLabel(u.role) })),
   };
 }
@@ -57,7 +64,10 @@ export async function getMobileStaffDmInbox(meId: string) {
 /** 스레드 조회 (없으면 생성) — 상대 메시지 읽음 처리 */
 export async function getMobileStaffDmThread(meId: string, otherUserId: string) {
   await assertDmPartner(meId, otherUserId);
-  const thread = await getStaffThread(meId, otherUserId);
+  const [thread, { blockedByMe }] = await Promise.all([
+    getStaffThread(meId, otherUserId),
+    getBlockState({ type: "STAFF", id: meId }, { type: "STAFF", id: otherUserId }),
+  ]);
   return {
     threadId: thread.threadId,
     other: {
@@ -65,7 +75,9 @@ export async function getMobileStaffDmThread(meId: string, otherUserId: string) 
       name: thread.other.name,
       roleLabel: roleLabel(thread.other.role),
     },
-    messages: thread.messages,
+    blockedByMe,
+    // 내가 차단한 상대의 글은 빼고 내 글만
+    messages: blockedByMe ? thread.messages.filter((m) => m.mine) : thread.messages,
   };
 }
 

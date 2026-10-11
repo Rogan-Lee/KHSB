@@ -9,6 +9,7 @@ import { z } from "zod";
 
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
+import { getBlockedKeys } from "@/lib/safety";
 import { notifySlack } from "@/lib/slack";
 
 const MAX_TITLE_LEN = 120;
@@ -143,6 +144,7 @@ export async function getMobileStudentQuestion(studentId: string, questionId: st
         select: {
           id: true,
           senderType: true,
+          senderUserId: true,
           content: true,
           attachments: true,
           createdAt: true,
@@ -152,6 +154,12 @@ export async function getMobileStudentQuestion(studentId: string, questionId: st
     },
   });
   if (!question) throw new MobileApiError("질문을 찾을 수 없어요", 404);
+
+  // 내가 차단한 직원의 답변은 뺀다 (hiddenCount 로 몇 개가 가려졌는지만 알린다)
+  const blocked = await getBlockedKeys({ type: "STUDENT", id: studentId });
+  const visible = question.messages.filter(
+    (m) => !(m.senderType === "STAFF" && m.senderUserId && blocked.has(`STAFF:${m.senderUserId}`)),
+  );
 
   const hasUnread = question.messages.some(
     (m) =>
@@ -174,9 +182,11 @@ export async function getMobileStudentQuestion(studentId: string, questionId: st
       createdAt: question.createdAt.toISOString(),
     },
     hasUnread,
-    messages: question.messages.map((m) => ({
+    hiddenCount: question.messages.length - visible.length,
+    messages: visible.map((m) => ({
       id: m.id,
       senderType: m.senderType,
+      senderUserId: m.senderUserId,
       senderName:
         m.senderType === "STUDENT" ? question.student.name : m.senderUser?.name ?? "멘토",
       content: m.content,

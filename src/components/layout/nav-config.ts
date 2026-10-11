@@ -27,6 +27,7 @@ import {
   NotebookText,
   Podcast,
   ScanLine,
+  ShieldAlert,
   Smartphone,
   Star,
   TrendingUp,
@@ -169,6 +170,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/mentors", label: "직원 관리", icon: UserCog, feature: "mentors" },
       { href: "/admin/auth", label: "계정 초대", icon: KeyRound },
+      // 앱 신고·차단 — 접수 후 24시간 안에 원장이 확인·처리
+      { href: "/moderation", label: "신고 관리", icon: ShieldAlert },
       { href: "/payroll", label: "급여 정산", icon: Wallet, feature: "payroll" },
       { href: "/payroll/me", label: "내 출퇴근", icon: Wallet, feature: "payroll" },
       { href: "/admin/school-stats", label: "학교별 통계", icon: Building2, feature: "school-stats" },

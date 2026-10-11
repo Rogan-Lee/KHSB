@@ -154,7 +154,13 @@ function ChatRow({ chat: c, selected, onPress }: { chat: StudentChatItem; select
   const unread = c.unread > 0;
   const last = c.lastMessage;
   const base = last ? last.content || (last.hasAttachments ? '첨부파일을 보냈어요' : '') : '';
-  const preview = last ? (last.senderType === 'STUDENT' ? `나: ${base}` : base) : '대화를 시작해 보세요';
+  const preview = c.blockedByMe
+    ? '차단한 상대예요'
+    : last
+      ? last.senderType === 'STUDENT'
+        ? `나: ${base}`
+        : base
+      : '대화를 시작해 보세요';
   const time = formatAgo(c.lastMessageAt);
 
   return (
@@ -174,6 +180,7 @@ function ChatRow({ chat: c, selected, onPress }: { chat: StudentChatItem; select
             {c.partner.name}
           </Text>
           <Badge>{c.partner.roleLabel}</Badge>
+          {c.blockedByMe ? <Badge tone="bad">차단</Badge> : null}
         </View>
       }
       description={

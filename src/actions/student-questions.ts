@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
+import { assertCanMessage } from "@/lib/safety";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
 import { sanitizePortalAttachments } from "@/lib/portal-attachments";
@@ -454,9 +455,11 @@ export async function answerStudentQuestion(params: {
 
   const question = await prisma.studentQuestion.findUnique({
     where: { id: params.questionId },
-    select: { id: true, status: true, claimedById: true },
+    select: { id: true, status: true, claimedById: true, studentId: true },
   });
   if (!question) throw new Error("질문을 찾을 수 없습니다");
+  // 앱에서 차단한 사이면 웹에서도 답변을 보낼 수 없다
+  await assertCanMessage({ type: "STAFF", id: me }, { type: "STUDENT", id: question.studentId });
 
   const content = (params.content ?? "").trim();
   if (content.length > MAX_CONTENT_LEN) {

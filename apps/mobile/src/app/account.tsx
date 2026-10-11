@@ -1,6 +1,6 @@
 import Constants from 'expo-constants';
 import { Redirect, router, type Href } from 'expo-router';
-import { Bell, FileText, Headset, KeyRound, LogOut, Mail, Phone, UserX, Users } from 'lucide-react-native';
+import { Ban, Bell, FileText, Headset, KeyRound, LogOut, Mail, Phone, ScrollText, UserX, Users } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 
@@ -31,6 +31,7 @@ import {
   SUPPORT_EMAIL,
   SUPPORT_TEL,
   SUPPORT_URL,
+  TERMS_URL,
   callSupport,
   emailSupport,
   openHelpPage,
@@ -41,7 +42,8 @@ const SETTINGS_TABLET_WIDTH = 600;
 
 /**
  * 계정·보안 — 모든 역할 공통 (학생·직원·학부모 전체 메뉴에서 /account 로 연결).
- * 프로필 요약 · 로그인 정보 · 연결된 자녀(학부모) · 알림 설정 · 비밀번호 변경 · 도움말(고객센터·전화·이메일·개인정보처리방침) · 로그아웃 · 계정 삭제
+ * 프로필 요약 · 로그인 정보 · 연결된 자녀(학부모) · 알림 설정 · 비밀번호 변경 · 차단한 사용자(학생·직원) ·
+ * 도움말(고객센터·전화·이메일·이용약관·개인정보처리방침) · 로그아웃 · 계정 삭제
  */
 export default function AccountScreen() {
   const { session, status, signOut } = useSession();
@@ -161,6 +163,15 @@ export default function AccountScreen() {
               title="비밀번호 변경"
               onPress={() => setPasswordOpen(true)}
             />
+            {/* 학부모는 1:1 대화가 없어 차단할 상대가 없다 */}
+            {session.role !== 'parent' && (
+              <ListRow
+                leading={<IconTile icon={Ban} size={40} />}
+                title="차단한 사용자"
+                description="차단을 풀 수 있어요"
+                href={'/blocked-users' as Href}
+              />
+            )}
           </Section>
 
           <Section title="도움말" flush>
@@ -181,6 +192,12 @@ export default function AccountScreen() {
               title="이메일 문의"
               trailing={SUPPORT_EMAIL}
               onPress={() => void emailSupport()}
+            />
+            <ListRow
+              leading={<IconTile icon={ScrollText} size={40} />}
+              title="이용약관·운영정책"
+              description="금지하는 글과 신고·차단 안내"
+              onPress={() => void openHelpPage(TERMS_URL)}
             />
             <ListRow
               leading={<IconTile icon={FileText} size={40} />}

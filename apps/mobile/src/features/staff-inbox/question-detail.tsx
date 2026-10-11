@@ -2,8 +2,10 @@ import type { ImagePickerAsset } from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import {
   Archive,
+  Ban,
   CircleCheck,
   MessageSquareReply,
+  MoreVertical,
   RotateCcw,
   UserCheck,
   UserX,
@@ -13,7 +15,7 @@ import { View } from 'react-native';
 
 import { AttachmentPicker } from '@/components/attachment-picker';
 import { DocAttachField } from '@/components/doc-attach-field';
-import { MessageThread } from '@/components/workflow-ui';
+import { MessageThread, type ThreadMessage } from '@/components/workflow-ui';
 import {
   Avatar,
   Badge,
@@ -21,7 +23,9 @@ import {
   Divider,
   ErrorState,
   FullSheet,
+  HeaderIconButton,
   InfoRow,
+  Notice,
   Screen,
   Section,
   Skeleton,
@@ -32,6 +36,8 @@ import {
   space,
   toast,
 } from '@/design';
+import { releaseBlock, useSafetyMenu } from '@/features/safety/safety-menu';
+import type { SafetyUser } from '@/lib/api/safety';
 import {
   answerQuestion,
   claimQuestion,
@@ -59,6 +65,7 @@ type Busy = null | 'claim' | 'status';
 
 /**
  * 학생 질문 답변 화면 본문 — 폰은 라우트(/(staff)/qna/[id]) 로 push, 태블릿은 소통 탭 오른쪽 패널(inline).
+ * 글을 길게 누르거나 헤더 ⋯ 로 신고·차단. 차단한 학생의 질문이면 답변 대신 차단 해제를 보여 준다.
  */
 export function QuestionDetail({
   questionId,
@@ -100,6 +107,33 @@ export function QuestionDetail({
     if (inline) onClose?.();
     else if (router.canGoBack()) router.back();
   };
+
+  // ─── 신고·차단 ───
+  const safety = useSafetyMenu(() => void changed());
+  const blockedByMe = !!data?.blockedByMe;
+  const studentUser: SafetyUser | null = q?.student
+    ? { type: 'STUDENT', id: q.student.id, name: q.student.name }
+    : null;
+  const openMenu = (m?: ThreadMessage) => {
+    // 다른 직원이 쓴 답변이면 그 직원, 아니면 질문한 학생이 대상
+    const user: SafetyUser | null =
+      m?.senderType === 'STAFF'
+        ? m.senderUserId
+          ? { type: 'STAFF', id: m.senderUserId, name: m.senderName }
+          : null
+        : studentUser;
+    if (!user) return;
+    safety.open({
+      user,
+      message: m ? { type: 'QUESTION_MESSAGE', id: m.id } : undefined,
+      copyText: m?.content || undefined,
+      blocked: user.type === 'STUDENT' && blockedByMe,
+    });
+  };
+  const unblock = async () => {
+    if (studentUser && (await releaseBlock(studentUser))) await changed();
+  };
+  const menuButton = <HeaderIconButton icon={MoreVertical} label="신고·차단" onPress={() => openMenu()} />;
 
   async function claim() {
     if (!q || busy) return;
@@ -229,13 +263,31 @@ export function QuestionDetail({
           </View>
         </Section>
 
+        {blockedByMe || (data.hiddenCount ?? 0) > 0 ? (
+          <Notice tone="gray" icon={Ban}>
+            {blockedByMe
+              ? '차단한 학생의 질문이에요. 학생이 쓴 글은 보이지 않아요.'
+              : `차단한 사용자의 글 ${data.hiddenCount}개는 보이지 않아요.`}
+          </Notice>
+        ) : null}
+
         <Section title="대화" description={`메시지 ${data.messages.length}개`}>
-          <MessageThread messages={data.messages} viewer="STAFF" surface="panel" emptyHint="아직 메시지가 없어요." />
+          <MessageThread
+            messages={data.messages}
+            viewer="STAFF"
+            surface="panel"
+            emptyHint="아직 메시지가 없어요."
+            onLongPressMessage={openMenu}
+          />
         </Section>
       </Stack>
     ) : null;
 
-  const answerButton = (
+  const answerButton = blockedByMe ? (
+    <Button variant="gray" size="lg" block onPress={() => void unblock()} style={inline ? { flex: 1 } : undefined}>
+      차단 해제
+    </Button>
+  ) : (
     <Button
       variant="primary"
       size="lg"
@@ -267,12 +319,14 @@ export function QuestionDetail({
         <DetailPanel
           title="학생 질문"
           onClose={onClose}
+          right={menuButton}
           footer={answerButton}
           refreshing={isRefreshing}
           onRefresh={() => void refresh()}>
           {content}
         </DetailPanel>
         {composer}
+        {safety.element}
       </>
     );
   }
@@ -283,12 +337,14 @@ export function QuestionDetail({
         kind="push"
         title="학생 질문"
         backFallback="/(staff)/(tabs)/inbox"
+        right={menuButton}
         refreshing={isRefreshing}
         onRefresh={() => void refresh()}
         footer={answerButton}>
         {content}
       </Screen>
       {composer}
+      {safety.element}
     </>
   );
 }

@@ -2609,3 +2609,58 @@ model StaffThreadMessage {
 
   @@index([threadId, createdAt])
 }
+
+// ─────────────────── 신고·차단 (App Store 1.2 · Google Play UGC) ───────────────────
+// 신고자·대상은 계정 종류가 달라(학생 Student.id · 직원 User.id · 학부모 AuthUser.id)
+// FK 대신 (종류, id) 쌍으로 적는다. 이름·신고 당시 글은 원문이 지워져도 남도록 함께 적어 둔다.
+
+enum SafetyActorType {
+  STUDENT
+  STAFF
+  PARENT
+}
+
+enum ContentReportStatus {
+  OPEN // 접수, 확인 대기
+  RESOLVED // 운영진 처리 완료
+}
+
+model ContentReport {
+  id             String              @id @default(cuid())
+  reporterType   SafetyActorType
+  reporterId     String
+  reporterName   String
+  targetType     String // "CHAT_MESSAGE" | "QUESTION_MESSAGE" | "STAFF_DM_MESSAGE" | "USER"
+  targetId       String? // 메시지 id (USER 신고는 null)
+  contextId      String? // 대화방·질문·직원 스레드 id — 어드민에서 맥락 확인용
+  targetUserType SafetyActorType
+  targetUserId   String
+  targetUserName String
+  reason         String // "ABUSE" | "SEXUAL" | "SPAM" | "PRIVACY" | "OTHER"
+  detail         String?             @db.Text
+  snapshot       String?             @db.Text // 신고 당시 글 (첨부는 "[첨부 n개]" 로)
+  status         ContentReportStatus @default(OPEN)
+  resolution     String? // "REMOVED" | "WARNED" | "RESTRICTED" | "DISMISSED"
+  resolutionNote String?             @db.Text
+  resolvedById   String?
+  resolvedByName String?
+  resolvedAt     DateTime?
+  createdAt      DateTime            @default(now())
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([reporterType, reporterId, createdAt])
+  @@index([targetUserType, targetUserId])
+}
+
+model UserBlock {
+  id          String          @id @default(cuid())
+  blockerType SafetyActorType
+  blockerId   String
+  blockedType SafetyActorType
+  blockedId   String
+  blockedName String
+  createdAt   DateTime        @default(now())
+
+  @@unique([blockerType, blockerId, blockedType, blockedId])
+  @@index([blockedType, blockedId])
+}

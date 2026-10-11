@@ -92,7 +92,13 @@ export function DmPanel({
                 title={t.other.name}
                 subtitle={t.other.roleLabel}
                 time={formatInboxTime(t.lastMessage?.createdAt ?? t.lastMessageAt)}
-                preview={t.lastMessage ? `${t.lastMessage.mine ? '나: ' : ''}${t.lastMessage.content}` : ''}
+                preview={
+                  t.blockedByMe
+                    ? '차단한 직원이에요'
+                    : t.lastMessage
+                      ? `${t.lastMessage.mine ? '나: ' : ''}${t.lastMessage.content}`
+                      : ''
+                }
                 unread={t.other.id === selectedId ? 0 : t.unread}
                 selected={t.other.id === selectedId}
                 onPress={() => onOpen(t.other.id)}

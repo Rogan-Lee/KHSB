@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAnyStaff } from "@/lib/roles";
+import { assertCanMessage } from "@/lib/safety";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
 import { sanitizePortalAttachments } from "@/lib/portal-attachments";
@@ -335,6 +336,14 @@ export async function sendChatMessage(params: {
     senderType = "STAFF";
     senderUserId = session.user.id;
   }
+
+  // 앱에서 차단한 사이면 웹에서도 새 메시지를 보낼 수 없다
+  const studentRef = { type: "STUDENT", id: chat.studentId } as const;
+  const staffRef = { type: "STAFF", id: chat.staffId } as const;
+  await assertCanMessage(
+    senderType === "STUDENT" ? studentRef : staffRef,
+    senderType === "STUDENT" ? staffRef : studentRef,
+  );
 
   const now = new Date();
   await prisma.$transaction([

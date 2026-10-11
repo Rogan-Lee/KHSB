@@ -1,8 +1,17 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useIsFocused } from 'expo-router';
-import { ArrowDown, Camera, ChevronLeft, FileText, Images } from 'lucide-react-native';
-import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ArrowDown, Camera, ChevronLeft, FileText, Images, MoreVertical } from 'lucide-react-native';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import {
   ActivityIndicator,
   AppState,
@@ -31,6 +40,7 @@ import {
   space,
   toast,
 } from '@/design';
+import { BlockedBar, releaseBlock, useSafetyMenu } from '@/features/safety/safety-menu';
 import { dayKey, dayLabel, formatClock } from '@/features/student-comm/format';
 import {
   BubbleAttachments,
@@ -38,6 +48,7 @@ import {
   MessageComposer,
   type ComposerAction,
 } from '@/features/student-comm/message-parts';
+import type { SafetyUser } from '@/lib/api/safety';
 import type { ChatMessageView, ChatPartnerView, ChatThreadView } from '@/lib/api/student-comm';
 import { refreshBadges } from '@/lib/badges';
 import {
@@ -52,6 +63,9 @@ const DEFAULT_POLL_MS = 5000;
 const GROUP_WINDOW_MS = 60_000;
 
 type UploadFileLike = Parameters<typeof uploadMobileChatFile>[0];
+
+/** 화면 헤더의 ⋯ 버튼이 대화 안의 신고·차단 메뉴를 열 때 쓴다 */
+export type ChatThreadActions = { openMenu: () => void };
 
 export type ChatThreadProps = {
   /** 예: '/api/mobile/v1/student/chats' | '/api/mobile/v1/staff/chats' */
@@ -73,9 +87,17 @@ export type ChatThreadProps = {
   onLoaded?: (info: { chatId: string; partner: ChatPartnerView }) => void;
   /** 내가 보냈거나 새 메시지를 읽었을 때 — 목록 새로고침 용도 */
   onActivity?: () => void;
+  /** 상대 정보 바가 없는 화면(showPartnerBar=false)에서 헤더 ⋯ 버튼과 연결 */
+  actionsRef?: RefObject<ChatThreadActions | null>;
 };
 
-type ThreadState = { partner: ChatPartnerView; messages: ChatMessageView[]; hasMore: boolean };
+type ThreadState = {
+  partner: ChatPartnerView;
+  messages: ChatMessageView[];
+  hasMore: boolean;
+  /** 내가 차단한 상대 — 상대 글은 서버가 빼고 준다 */
+  blockedByMe: boolean;
+};
 
 type Row =
   | { kind: 'day'; key: string; label: string }
@@ -151,6 +173,7 @@ function errorMessage(error: unknown, fallback: string) {
  *  · 날짜 구분선, 사진(크게 보기)·영상·파일 첨부, 위로 스크롤하면 이전 대화 불러오기
  *  · 화면이 보이는 동안 5초마다 + 앱이 다시 켜질 때 새 메시지 확인 (조회 = 읽음 처리 → 탭 배지 갱신)
  *  · 보내는 중엔 흐리게 먼저 보여 주고, 실패하면 토스트 + 쓰던 글·첨부를 되돌린다
+ *  · 상대 말풍선을 길게 누르거나 ⋯ 를 누르면 신고·차단 메뉴. 차단하면 작성창 대신 차단 안내가 뜬다
  */
 export function ChatThread(props: ChatThreadProps) {
   // 대화방이 바뀌면 상태를 통째로 새로 (다른 방 메시지가 섞이지 않게)
@@ -168,6 +191,7 @@ function ChatThreadInner({
   pollIntervalMs = DEFAULT_POLL_MS,
   onLoaded,
   onActivity,
+  actionsRef,
 }: ChatThreadProps) {
   const path = `${basePath}/${chatId}`;
   const insets = useSafeAreaInsets();
@@ -221,13 +245,19 @@ function ChatThreadInner({
       if (!alive.current) return;
       const prev = threadRef.current;
       const prevIds = new Set(prev?.messages.map((m) => m.id));
-      const messages = mergeLatest(prev?.messages ?? [], data.messages);
+      const blockedByMe = !!data.blockedByMe;
+      // 차단 상태가 바뀌면 가려지거나 다시 보일 글이 있으므로 합치지 않고 새로 받는다
+      const messages =
+        prev && prev.blockedByMe !== blockedByMe
+          ? data.messages
+          : mergeLatest(prev?.messages ?? [], data.messages);
       const freshFromPartner = prev != null && data.messages.some((m) => !m.mine && !prevIds.has(m.id));
       const keptOlder = !!prev && prev.messages.length > 0 && prev.messages[0].createdAt < (data.messages[0]?.createdAt ?? '');
       commit({
         partner: data.partner,
         messages,
         hasMore: keptOlder && prev ? prev.hasMore : !!data.hasMore,
+        blockedByMe,
       });
       setLoadError(null);
       if (prev == null) {
@@ -419,6 +449,7 @@ function ChatThreadInner({
         partner: data.partner,
         messages: mergeLatest(prev?.messages ?? [], data.messages),
         hasMore: prev?.hasMore ?? !!data.hasMore,
+        blockedByMe: !!data.blockedByMe,
       });
       callbacks.current.onActivity?.();
     } catch (error) {
@@ -436,6 +467,42 @@ function ChatThreadInner({
   };
 
   const rows = useMemo(() => (thread ? buildRows(thread.messages, outbox) : []), [thread, outbox]);
+
+  // ─── 신고·차단 ───
+  const safety = useSafetyMenu(() => {
+    void fetchLatest();
+    callbacks.current.onActivity?.();
+  });
+  const partnerUser: SafetyUser | null = thread
+    ? {
+        type: thread.partner.userType ?? (basePath.includes('/staff/') ? 'STUDENT' : 'STAFF'),
+        id: thread.partner.id,
+        name: thread.partner.name,
+      }
+    : null;
+  const blockedByMe = !!thread?.blockedByMe;
+  const openMenu = (message?: ChatMessageView) => {
+    if (!partnerUser) return;
+    safety.open({
+      user: partnerUser,
+      message: message ? { type: 'CHAT_MESSAGE', id: message.id } : undefined,
+      copyText: message?.content || undefined,
+      blocked: blockedByMe,
+    });
+  };
+  useEffect(() => {
+    if (!actionsRef) return;
+    actionsRef.current = { openMenu: () => openMenu() };
+    return () => {
+      actionsRef.current = null;
+    };
+  });
+  const unblock = async () => {
+    if (partnerUser && (await releaseBlock(partnerUser))) {
+      await fetchLatest();
+      callbacks.current.onActivity?.();
+    }
+  };
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const bottom = e.nativeEvent.contentOffset.y < 80;
@@ -462,11 +529,13 @@ function ChatThreadInner({
         <Avatar name={thread.partner.name} size={56} />
         <Text variant="t6-bold" align="center" style={{ marginTop: space.x4 }}>
           {thread.partner.name}
-          {thread.partner.roleLabel && thread.partner.role !== 'STUDENT' ? ` ${thread.partner.roleLabel}` : ''}님께
-          {'\n'}메시지를 보내보세요
+          {thread.partner.roleLabel && thread.partner.role !== 'STUDENT' ? ` ${thread.partner.roleLabel}` : ''}
+          {blockedByMe ? '님을\n차단했어요' : '님께\n메시지를 보내보세요'}
         </Text>
         <Text variant="t4-regular" color="neutralSubtle" align="center" style={{ marginTop: space.x1_5 }}>
-          질문이나 도움이 필요한 내용을{'\n'}편하게 남겨 주세요.
+          {blockedByMe
+            ? '상대가 보낸 글은 보이지 않아요.'
+            : '질문이나 도움이 필요한 내용을\n편하게 남겨 주세요.'}
         </Text>
       </Pressable>
     );
@@ -482,7 +551,12 @@ function ChatThreadInner({
             item.kind === 'day' ? (
               <DaySeparator label={item.label} />
             ) : (
-              <ChatBubble row={item} partnerName={thread.partner.name} accent={accentColor} />
+              <ChatBubble
+                row={item}
+                partnerName={thread.partner.name}
+                accent={accentColor}
+                onLongPress={() => openMenu(item.m)}
+              />
             )
           }
           onEndReached={() => void loadOlder()}
@@ -537,6 +611,15 @@ function ChatThreadInner({
                   {partner.roleLabel}
                 </Text>
               </View>
+              <Press
+                onPress={() => openMenu()}
+                scale={0}
+                pressedBg
+                hitSlop={6}
+                accessibilityLabel="신고·차단"
+                style={s.backBtn}>
+                <MoreVertical color={color.fg.neutral} size={22} strokeWidth={2} />
+              </Press>
             </>
           ) : (
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.x2_5 }}>
@@ -547,23 +630,28 @@ function ChatThreadInner({
         </View>
       )}
       {body}
-      <MessageComposer
-        value={draft}
-        onChangeText={setDraft}
-        onSend={() => void send()}
-        sending={sending}
-        uploading={uploading > 0}
-        disabled={!thread}
-        attachments={pending.map((a, i) => ({
-          key: `${a.url}-${i}`,
-          name: a.name,
-          mimeType: a.mimeType,
-          uri: a.url,
-        }))}
-        onRemoveAttachment={(key) => setPending((prev) => prev.filter((a, i) => `${a.url}-${i}` !== key))}
-        actions={actions}
-        bottomInset={bottomPad}
-      />
+      {blockedByMe ? (
+        <BlockedBar onUnblock={() => void unblock()} bottomInset={bottomPad} />
+      ) : (
+        <MessageComposer
+          value={draft}
+          onChangeText={setDraft}
+          onSend={() => void send()}
+          sending={sending}
+          uploading={uploading > 0}
+          disabled={!thread}
+          attachments={pending.map((a, i) => ({
+            key: `${a.url}-${i}`,
+            name: a.name,
+            mimeType: a.mimeType,
+            uri: a.url,
+          }))}
+          onRemoveAttachment={(key) => setPending((prev) => prev.filter((a, i) => `${a.url}-${i}` !== key))}
+          actions={actions}
+          bottomInset={bottomPad}
+        />
+      )}
+      {safety.element}
     </View>
   );
 
@@ -595,10 +683,13 @@ function ChatBubble({
   row,
   partnerName,
   accent,
+  onLongPress,
 }: {
   row: Extract<Row, { kind: 'msg' }>;
   partnerName: string;
   accent: string;
+  /** 상대 말풍선을 길게 눌렀을 때 (복사·신고·차단 메뉴) */
+  onLongPress: () => void;
 }) {
   const { m, showAvatar, showTime, sending } = row;
   const time = showTime ? (
@@ -614,7 +705,8 @@ function ChatBubble({
           ? [{ backgroundColor: accent }, showTime && { borderBottomRightRadius: radius.r1_5 }]
           : [s.bubbleTheirs, showAvatar && { borderTopLeftRadius: radius.r1_5 }],
       ]}>
-      <Text variant="t5-regular" color={m.mine ? 'staticWhite' : 'neutral'} selectable>
+      {/* 상대 글은 길게 누르면 메뉴(복사 포함)가 뜨므로 글자 선택은 내 글에만 */}
+      <Text variant="t5-regular" color={m.mine ? 'staticWhite' : 'neutral'} selectable={m.mine}>
         {m.content}
       </Text>
     </View>
@@ -643,10 +735,14 @@ function ChatBubble({
           </Text>
         ) : null}
         <View style={s.theirsLine}>
-          <View style={s.colTheirs}>
+          <Pressable
+            onLongPress={onLongPress}
+            delayLongPress={350}
+            accessibilityHint="길게 누르면 복사·신고 메뉴가 열려요"
+            style={s.colTheirs}>
             <BubbleAttachments attachments={m.attachments} mine={false} width={220} />
             {bubble}
-          </View>
+          </Pressable>
           {time}
         </View>
       </View>

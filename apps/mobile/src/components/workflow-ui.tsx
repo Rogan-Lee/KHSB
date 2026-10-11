@@ -1,5 +1,5 @@
 import { CircleAlert } from 'lucide-react-native';
-import { StyleSheet, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
 
 import { Avatar, Notice, Text, TextField, color, radius, space } from '@/design';
 import { formatBubbleTime } from '@/features/student-comm/format';
@@ -37,7 +37,7 @@ export function FormError({ message }: { message: string }) {
   );
 }
 
-type ThreadMessage = QuestionThreadResponse['messages'][number];
+export type ThreadMessage = QuestionThreadResponse['messages'][number];
 
 /**
  * 질문 스레드 말풍선 목록 — 웹 QuestionThread(portal) 와 같은 SEED 모양.
@@ -45,12 +45,14 @@ type ThreadMessage = QuestionThreadResponse['messages'][number];
  *  · 상대: 아바타 + 이름(멘토면 "○○ 멘토") + 말풍선, 아래 시각
  *  · 사진(1장 크게 / 여러 장 2열, 누르면 크게 보기)·영상·파일
  * surface: 회색 캔버스 위(canvas)면 상대 말풍선이 흰색, 흰 패널 위(panel, 기본)면 회색.
+ * onLongPressMessage 를 주면 상대 글을 길게 눌렀을 때 호출한다(복사·신고·차단 메뉴) — 그때 글자 선택은 끈다.
  */
 export function MessageThread({
   messages,
   viewer,
   surface = 'panel',
   emptyHint,
+  onLongPressMessage,
   style,
 }: {
   messages: ThreadMessage[];
@@ -58,6 +60,7 @@ export function MessageThread({
   surface?: 'canvas' | 'panel';
   /** 메시지가 없을 때 안내 */
   emptyHint?: string;
+  onLongPressMessage?: (message: ThreadMessage) => void;
   style?: StyleProp<ViewStyle>;
 }) {
   const onCanvas = surface === 'canvas';
@@ -106,7 +109,11 @@ export function MessageThread({
               <Text variant="t3-medium" color="neutralMuted" style={s.name} numberOfLines={1}>
                 {name}
               </Text>
-              <View style={s.theirsBody}>
+              <Pressable
+                onLongPress={onLongPressMessage ? () => onLongPressMessage(m) : undefined}
+                delayLongPress={350}
+                accessibilityHint={onLongPressMessage ? '길게 누르면 복사·신고 메뉴가 열려요' : undefined}
+                style={s.theirsBody}>
                 <BubbleAttachments attachments={m.attachments} mine={false} onCanvas={onCanvas} />
                 {hasBody && (
                   <View
@@ -115,12 +122,12 @@ export function MessageThread({
                       s.bubbleTheirs,
                       { backgroundColor: onCanvas ? color.bg.layerDefault : color.bg.neutralWeak },
                     ]}>
-                    <Text variant="t5-regular" selectable>
+                    <Text variant="t5-regular" selectable={!onLongPressMessage}>
                       {m.content}
                     </Text>
                   </View>
                 )}
-              </View>
+              </Pressable>
               {time}
             </View>
           </View>

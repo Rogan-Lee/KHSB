@@ -5,6 +5,7 @@
 import { MobileApiError } from "@/lib/mobile-auth";
 import { sendMobilePush } from "@/lib/mobile-push";
 import { prisma } from "@/lib/prisma";
+import { assertCanMessage } from "@/lib/safety";
 
 export const STAFF_DM_MAX_LEN = 4000;
 
@@ -138,6 +139,7 @@ export async function sendStaffThreadMessage(
   if (!other || other.role === "STUDENT" || other.status !== "ACTIVE") {
     throw new MobileApiError("직원을 찾을 수 없습니다", 404);
   }
+  await assertCanMessage({ type: "STAFF", id: me.id }, { type: "STAFF", id: otherUserId });
 
   const pair = normalizePair(me.id, otherUserId);
   const now = new Date();

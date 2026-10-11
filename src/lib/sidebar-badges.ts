@@ -11,7 +11,7 @@ export async function getSidebarBadges(
   userId: string,
   role?: string | null,
 ): Promise<Record<string, number>> {
-  const [requests, suggestions, questions, chats, proposals, examApps, lunchRequests, parentFeedback, staffDm] =
+  const [requests, suggestions, questions, chats, proposals, examApps, lunchRequests, parentFeedback, staffDm, reports] =
     await Promise.allSettled([
       // /requests — 내가 아직 안 본 열린 기능 요청
       prisma.featureRequest.count({
@@ -62,6 +62,10 @@ export async function getSidebarBadges(
           thread: { OR: [{ aUserId: userId }, { bUserId: userId }] },
         },
       }),
+      // /moderation — 처리 대기 신고 (원장만)
+      isFullAccess(role)
+        ? prisma.contentReport.count({ where: { status: "OPEN" } })
+        : Promise.resolve(0),
     ]);
 
   const badges: Record<string, number> = {};
@@ -92,6 +96,7 @@ export async function getSidebarBadges(
   set("/lunch", lunchRequests);
   set("/online/reports", parentFeedback);
   set("/staff-messages", staffDm);
+  set("/moderation", reports);
 
   return badges;
 }

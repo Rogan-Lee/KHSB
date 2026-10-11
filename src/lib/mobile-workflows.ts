@@ -8,6 +8,7 @@ import {
 } from "@/lib/mobile-data";
 import { prisma } from "@/lib/prisma";
 import { queueParentAttendancePush } from "@/lib/mobile-push";
+import { assertCanMessage, getBlockedKeys } from "@/lib/safety";
 import { notifySlack } from "@/lib/slack";
 
 const attachmentSchema = z.object({
@@ -209,7 +210,8 @@ export async function addMobileStudentQuestionMessage(
   return { ok: true };
 }
 
-export async function getMobileStaffQuestionThread(questionId: string) {
+/** viewerId 를 넘기면 그 직원이 차단한 사람의 글은 뺀다 (blockedByMe · hiddenCount) */
+export async function getMobileStaffQuestionThread(questionId: string, viewerId?: string) {
   const question = await prisma.studentQuestion.findUnique({
     where: { id: questionId },
     select: {
@@ -225,6 +227,7 @@ export async function getMobileStaffQuestionThread(questionId: string) {
           id: true,
           senderType: true,
           senderUser: { select: { name: true } },
+          senderUserId: true,
         },
       },
       status: true,
@@ -242,6 +245,16 @@ export async function getMobileStaffQuestionThread(questionId: string) {
     data: { staffReadAt: new Date() },
   });
 
+  const blocked = viewerId
+    ? await getBlockedKeys({ type: "STAFF", id: viewerId })
+    : new Set<string>();
+  const blockedByMe = blocked.has(`STUDENT:${question.student.id}`);
+  const visible = question.messages.filter((message) =>
+    message.senderType === "STUDENT"
+      ? !blockedByMe
+      : !(message.senderUserId && blocked.has(`STAFF:${message.senderUserId}`)),
+  );
+
   return {
     question: {
       claimedBy: question.claimedBy,
@@ -252,7 +265,9 @@ export async function getMobileStaffQuestionThread(questionId: string) {
       subject: question.subject,
       title: question.title,
     },
-    messages: question.messages.map((message) => ({
+    blockedByMe,
+    hiddenCount: question.messages.length - visible.length,
+    messages: visible.map((message) => ({
       attachments: serializeAttachments(message.attachments),
       content: message.content,
       createdAt: message.createdAt.toISOString(),
@@ -262,6 +277,7 @@ export async function getMobileStaffQuestionThread(questionId: string) {
           ? question.student.name
           : message.senderUser?.name ?? "멘토",
       senderType: message.senderType,
+      senderUserId: message.senderUserId,
     })),
   };
 }
@@ -274,9 +290,13 @@ export async function answerMobileStudentQuestion(
   const data = parseBody(messageSchema, input);
   const question = await prisma.studentQuestion.findUnique({
     where: { id: questionId },
-    select: { claimedById: true, id: true, status: true },
+    select: { claimedById: true, id: true, status: true, studentId: true },
   });
   if (!question) throw new MobileApiError("질문을 찾을 수 없습니다", 404);
+  await assertCanMessage(
+    { type: "STAFF", id: userId },
+    { type: "STUDENT", id: question.studentId },
+  );
 
   const now = new Date();
   await prisma.$transaction([

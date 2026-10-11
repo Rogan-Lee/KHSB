@@ -264,6 +264,8 @@ export type ChatSummary = {
   } | null;
   lastMessageAt: string | null;
   unread: number;
+  /** 내가 차단한 상대 (미리보기·안 읽음 수는 서버가 가린다) */
+  blockedByMe?: boolean;
 };
 
 export type ChatListResponse = { chats: ChatSummary[] };
@@ -284,6 +286,10 @@ export type ChatThreadResponse = {
 };
 
 export type QuestionThreadResponse = {
+  /** 직원 화면: 내가 차단한 학생의 질문 */
+  blockedByMe?: boolean;
+  /** 내가 차단한 사람의 글이라 빠진 메시지 수 */
+  hiddenCount?: number;
   messages: {
     attachments: MobileAttachment[];
     content: string;
@@ -291,6 +297,8 @@ export type QuestionThreadResponse = {
     id: string;
     senderName: string;
     senderType: 'STUDENT' | 'STAFF';
+    /** 직원이 쓴 글이면 그 직원 id (신고·차단 대상) */
+    senderUserId?: string | null;
   }[];
   question: {
     claimedBy?: { id: string; name: string } | null;
