@@ -90,6 +90,8 @@ type Secrets = {
   parentPassword?: string;
   staffPassword?: string;
   invites?: string[];
+  /** Apple 개발자 계정 명의 (독서실 명의가 아닐 때) — APP_REVIEW_DEVELOPER 환경변수로 한 번 넘기면 여기에 남는다 */
+  developerName?: string;
   updatedAt?: string;
 };
 
@@ -507,13 +509,20 @@ async function ensureInvites(saved: string[] | undefined) {
   return keep;
 }
 
-function reviewNotes(s: { studentPassword?: string; parentPassword?: string; staffPassword?: string; invites: string[] }) {
+function reviewNotes(s: {
+  studentPassword?: string;
+  parentPassword?: string;
+  staffPassword?: string;
+  invites: string[];
+  developerName?: string;
+}) {
   const pw = (v: string | undefined) => v ?? "(모름 — --reset-passwords 로 재발급)";
   const notes = appReviewNotes({
     student: { username: STUDENT_USERNAME, password: pw(s.studentPassword) },
     parent: { username: PARENT_USERNAME, password: pw(s.parentPassword) },
     staff: { username: STAFF_USERNAME, password: pw(s.staffPassword) },
     invites: s.invites,
+    developerName: s.developerName,
   });
   if (notes.length > APP_REVIEW_NOTES_LIMIT) {
     console.warn(`주의: 심사 메모가 ${notes.length}자입니다 (${APP_REVIEW_NOTES_LIMIT}자 제한) — scripts/review-notes.ts 를 줄여 주세요.`);
@@ -572,10 +581,15 @@ async function apply() {
   });
   const invites = await ensureInvites(saved.invites);
 
-  const secrets: Secrets = { studentPassword, parentPassword, staffPassword, invites, updatedAt: new Date().toISOString() };
+  const developerName = process.env.APP_REVIEW_DEVELOPER?.trim() || saved.developerName;
+  const secrets: Secrets = {
+    studentPassword, parentPassword, staffPassword, invites,
+    ...(developerName ? { developerName } : {}),
+    updatedAt: new Date().toISOString(),
+  };
   mkdirSync(SECRET_DIR, { recursive: true });
   writeFileSync(secretJson, JSON.stringify(secrets, null, 2));
-  writeFileSync(secretMd, reviewNotes({ studentPassword, parentPassword, staffPassword, invites }));
+  writeFileSync(secretMd, reviewNotes({ studentPassword, parentPassword, staffPassword, invites, developerName }));
   console.log(`완료 — 계정·초대 코드·심사 노트: ${secretMd}`);
 }
 

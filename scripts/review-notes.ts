@@ -10,11 +10,16 @@ export function appReviewNotes(s: {
   parent: { username: string; password: string };
   staff: { username: string; password: string };
   invites: string[];
+  /** 개발자 계정 명의가 독서실이 아닐 때만 — 6번 항목에 "누가 독서실을 대신해 올렸는지" 한 줄이 붙는다 (저장소가 공개라 값은 코드에 두지 않는다) */
+  developerName?: string;
 }) {
+  const publishedBy = s.developerName
+    ? ` The app is published by ${s.developerName} (individual developer account) on behalf of KHSB, the study hall operator.`
+    : "";
   return `Thank you for reviewing 강한선배 (KHSB). The requested information is below.
 
 1. SCREEN RECORDING
-Attached. Recorded on a physical iPhone running the latest iOS, from app launch: invitation sign-up, account deletion, login, terms agreement, the student flow (assignments, a photo question, messages, reporting and blocking) and the parent flow (attendance, reports, exam results, inquiry).
+Attached. Recorded on a physical iPhone running the latest iOS, from app launch: invitation sign-up, account deletion, login, terms agreement, the student flow (assignments, a photo question, messages, reporting and blocking) and the parent flow.
 
 2. PURPOSE AND AUDIENCE
 KHSB is a managed study hall (a paid study space with seats, attendance tracking and study coaching) in Dongtan, Hwaseong, South Korea. Its customers are students and their parents; the app is the companion to that offline service.
@@ -41,10 +46,10 @@ Account deletion: "전체" (last tab) > "계정·보안" > "계정 삭제" > con
 Sign-in runs on our own server (ID or email + password), with no third-party sign-in. The app has no payment processor, advertising or analytics SDK.
 
 5. REGIONS
-The app works the same in every region, with no region-specific features or content.
+The app works the same in every region.
 
 6. REGULATED INDUSTRY / THIRD-PARTY MATERIAL
-Not applicable. The app offers no financial, medical, legal or gambling services and does not distribute licensed third-party media.
+Not applicable. The app offers no financial, medical, legal or gambling services and does not distribute licensed third-party media.${publishedBy}
 
 USER-GENERATED CONTENT
 There is no public feed, profile or comment area. Messages and questions are private, one-to-one between an enrolled student or parent and study hall staff.
@@ -57,6 +62,5 @@ PAID CONTENT
 None. The app is free with no in-app purchases, subscriptions or digital goods. Lunch boxes are physical meals served at the study hall and paid by bank transfer outside the app. Merit points are granted by staff and cannot be bought.
 
 Support: https://www.kanghanseonbae.com/support.html
-Privacy: https://www.kanghanseonbae.com/privacy.html
 `;
 }
