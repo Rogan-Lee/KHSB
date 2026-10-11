@@ -12,11 +12,11 @@ export async function GET(
   context: { params: Promise<{ questionId: string }> },
 ) {
   try {
-    const [, { questionId }] = await Promise.all([
+    const [user, { questionId }] = await Promise.all([
       requireMobileStaff(request),
       context.params,
     ]);
-    return mobileJson(await getMobileStaffQuestionThread(questionId));
+    return mobileJson(await getMobileStaffQuestionThread(questionId, user.id));
   } catch (error) {
     return mobileApiErrorResponse(error);
   }

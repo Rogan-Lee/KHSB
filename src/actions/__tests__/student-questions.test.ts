@@ -18,6 +18,7 @@ vi.mock("@/lib/prisma", () => ({
       findMany: vi.fn(),
       count: vi.fn(),
     },
+    userBlock: { findMany: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -41,6 +42,7 @@ const staff = { user: { id: "u1", role: "MENTOR", name: "멘토김" } };
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(prisma.$transaction).mockResolvedValue([] as never);
+  vi.mocked(prisma.userBlock.findMany).mockResolvedValue([] as never);
 });
 
 describe("createStudentQuestion", () => {

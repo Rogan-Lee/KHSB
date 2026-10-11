@@ -33,6 +33,7 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    userBlock: { findMany: vi.fn() },
   },
 }));
 vi.mock("@/lib/slack", () => ({ notifySlack: vi.fn() }));
@@ -53,6 +54,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(prisma.$transaction).mockResolvedValue([] as never);
   vi.mocked(prisma.dailyOuting.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.userBlock.findMany).mockResolvedValue([] as never);
 });
 
 describe("mobile question workflows", () => {
@@ -145,6 +147,23 @@ describe("mobile question workflows", () => {
         }),
       }),
     );
+  });
+
+  it("rejects an answer when the student blocked this staff", async () => {
+    vi.mocked(prisma.studentQuestion.findUnique).mockResolvedValue({
+      claimedById: null,
+      id: "question-1",
+      status: "OPEN",
+      studentId: "student-1",
+    } as never);
+    vi.mocked(prisma.userBlock.findMany).mockResolvedValue([
+      { blockerId: "student-1", blockerType: "STUDENT" },
+    ] as never);
+
+    await expect(
+      answerMobileStudentQuestion("staff-1", "question-1", { content: "답변" }),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(prisma.questionMessage.create).not.toHaveBeenCalled();
   });
 });
 

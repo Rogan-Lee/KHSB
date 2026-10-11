@@ -2,6 +2,7 @@
 // 웹 src/actions/online/portal-chat.ts 의 토큰/세션 기반과 달리, 모바일은
 // requireMobile* 가드가 신원을 확정한 뒤 호출한다. 인가는 채팅방 소유권으로 판정.
 // 목록·스레드 규칙(현재/이전 담당자, 미확인 수, 읽음 처리)은 웹 학생 포털과 같다.
+// 차단(src/lib/safety.ts): 내가 차단한 상대의 글은 목록·스레드에서 빼고, 차단 관계면 전송을 막는다.
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -11,6 +12,7 @@ import { ensureStudentPortalChats } from "@/lib/portal-chat-core";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_DISPLAY } from "@/lib/roles";
+import { assertCanMessage, getBlockState, getBlockedKeys } from "@/lib/safety";
 import { notifySlack } from "@/lib/slack";
 
 const MAX_CONTENT_LEN = 4000;
@@ -104,7 +106,10 @@ async function currentAssigneeIds(studentId: string) {
  */
 export async function getStudentChats(studentId: string) {
   await ensureStudentPortalChats(studentId);
-  const current = await currentAssigneeIds(studentId);
+  const [current, blocked] = await Promise.all([
+    currentAssigneeIds(studentId),
+    getBlockedKeys({ type: "STUDENT", id: studentId }),
+  ]);
 
   const chats = await prisma.portalChat.findMany({
     where: {
@@ -135,15 +140,18 @@ export async function getStudentChats(studentId: string) {
   );
 
   return chats.map((c, i) => {
-    const last = c.messages[0] ?? null;
+    const blockedByMe = blocked.has(`STAFF:${c.staffId}`);
+    const last = blockedByMe ? null : c.messages[0] ?? null;
     return {
       id: c.id,
       isCurrentAssignee: current.has(c.staffId),
+      blockedByMe,
       partner: {
         id: c.staff.id,
         name: c.staff.name,
         role: c.staff.role as string,
         roleLabel: staffRoleLabel(c.staff.role),
+        userType: "STAFF" as const,
       },
       lastMessage: last
         ? {
@@ -154,7 +162,7 @@ export async function getStudentChats(studentId: string) {
           }
         : null,
       lastMessageAt: c.lastMessageAt?.toISOString() ?? null,
-      unread: unread[i],
+      unread: blockedByMe ? 0 : unread[i],
     };
   });
 }
@@ -189,6 +197,7 @@ export async function getStaffChats(staffId: string) {
     }
   }
 
+  const blocked = await getBlockedKeys({ type: "STAFF", id: staffId });
   const chats = await prisma.portalChat.findMany({
     where: { staffId },
     orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
@@ -215,14 +224,17 @@ export async function getStaffChats(staffId: string) {
   );
 
   return chats.map((c, i) => {
-    const last = c.messages[0] ?? null;
+    const blockedByMe = blocked.has(`STUDENT:${c.studentId}`);
+    const last = blockedByMe ? null : c.messages[0] ?? null;
     return {
       id: c.id,
+      blockedByMe,
       partner: {
         id: c.student.id,
         name: c.student.name,
         role: "STUDENT",
         roleLabel: studentLabel(c.student),
+        userType: "STUDENT" as const,
       },
       lastMessage: last
         ? {
@@ -233,7 +245,7 @@ export async function getStaffChats(staffId: string) {
           }
         : null,
       lastMessageAt: c.lastMessageAt?.toISOString() ?? null,
-      unread: unread[i],
+      unread: blockedByMe ? 0 : unread[i],
     };
   });
 }
@@ -259,10 +271,18 @@ async function loadOwnedChat(chatId: string, viewer: ChatViewer) {
   return chat;
 }
 
+/** 대화 상대 (신고·차단 판정용) */
+function partnerRef(chat: { studentId: string; staffId: string }, viewer: ChatViewer) {
+  return viewer.type === "STUDENT"
+    ? ({ type: "STAFF", id: chat.staffId } as const)
+    : ({ type: "STUDENT", id: chat.studentId } as const);
+}
+
 /**
  * 단일 채팅방 메시지 + 상대 정보.
  * 최신 구간 조회(before 없음) 시 상대가 보낸 새 메시지가 있을 때만 읽음 처리 — 5초 폴링에도 쓰기 부담이 없도록.
  * `before`(ISO) 로 이전 메시지를 페이지 단위로 불러온다. hasMore = 더 오래된 메시지가 남아 있음.
+ * 내가 차단한 상대면 상대 글은 빼고 내 글만 돌려준다(blockedByMe).
  */
 export async function getChatThread(
   chatId: string,
@@ -277,8 +297,13 @@ export async function getChatThread(
     if (Number.isNaN(before.getTime())) throw new MobileApiError("요청 형식을 확인해 주세요", 400);
   }
 
+  const { blockedByMe } = await getBlockState(viewer, partnerRef(chat, viewer));
   const rows = await prisma.portalChatMessage.findMany({
-    where: { chatId, ...(before ? { createdAt: { lt: before } } : {}) },
+    where: {
+      chatId,
+      ...(blockedByMe ? { senderType: viewer.type } : {}),
+      ...(before ? { createdAt: { lt: before } } : {}),
+    },
     orderBy: { createdAt: "desc" },
     take: limit + 1,
     include: { senderUser: { select: { id: true, name: true } } },
@@ -305,17 +330,20 @@ export async function getChatThread(
           name: chat.staff.name,
           role: chat.staff.role as string,
           roleLabel: staffRoleLabel(chat.staff.role),
+          userType: "STAFF" as const,
         }
       : {
           id: chat.student.id,
           name: chat.student.name,
           role: "STUDENT",
           roleLabel: studentLabel(chat.student),
+          userType: "STUDENT" as const,
         };
 
   return {
     chatId: chat.id,
     partner,
+    blockedByMe,
     hasMore,
     messages: messages.map((m) => ({
       id: m.id,
@@ -345,6 +373,7 @@ export async function sendChat(params: {
   }
 
   const chat = await loadOwnedChat(chatId, viewer);
+  await assertCanMessage(viewer, partnerRef(chat, viewer));
   const now = new Date();
   await prisma.$transaction([
     prisma.portalChatMessage.create({

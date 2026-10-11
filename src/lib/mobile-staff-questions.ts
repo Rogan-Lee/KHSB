@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
+import { getBlockedKeys } from "@/lib/safety";
 import {
   claimStudentQuestionFor,
   releaseStudentQuestionClaim,
@@ -28,7 +29,7 @@ function attachmentCount(value: unknown) {
  *  · waiting: 답변 대기 — 상태 OPEN 이거나, 답변 후 학생이 다시 물어본(마지막 메시지가 학생) 질문
  *  · mine:    내가 담당한 질문 (해결됨 포함)
  *  · all:     보관 제외 전체 (해결됨 포함)
- * 퇴원생 질문은 제외 (사이드바·탭 배지와 같은 기준).
+ * 퇴원생 질문은 제외 (사이드바·탭 배지와 같은 기준). 내가 차단한 학생의 질문도 뺀다.
  */
 export async function getMobileStaffQuestionInbox(
   userId: string,
@@ -36,7 +37,8 @@ export async function getMobileStaffQuestionInbox(
   now = new Date(),
 ) {
   const filter = parseFilter(rawFilter);
-  const rows = await prisma.studentQuestion.findMany({
+  const blocked = await getBlockedKeys({ type: "STAFF", id: userId });
+  const all = await prisma.studentQuestion.findMany({
     where: { status: { not: "ARCHIVED" }, student: { status: "ACTIVE" } },
     orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
     take: 300,
@@ -58,6 +60,8 @@ export async function getMobileStaffQuestionInbox(
       },
     },
   });
+
+  const rows = all.filter((q) => !blocked.has(`STUDENT:${q.student.id}`));
 
   const derived = rows.map((q) => {
     const last = q.messages[0] ?? null;
