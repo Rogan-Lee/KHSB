@@ -435,6 +435,8 @@ model Student {
   networkRequests      NetworkRequest[]
   phoneCheckRecords    PhoneCheckRecord[]
   parentLinks          ParentLink[]
+  tuitionProfile       TuitionProfile?
+  tuitionInvoices      TuitionInvoice[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 
@@ -2663,4 +2665,301 @@ model UserBlock {
 
   @@unique([blockerType, blockerId, blockedType, blockedId])
   @@index([blockedType, blockedId])
+}
+
+// ─────────────────────────── 수강료 청구·결제 ───────────────────────────
+// 운영진이 청구서(TuitionInvoice)를 발행 → 학부모가 앱에서 결제 링크(토스페이먼츠 링크페이)로 내거나
+// 현장 결제(지역화폐·카드 단말기)를 신청한다. 결제 시도마다 TuitionPayment 1행.
+// 납부 확정은 청구서당 한 번(paidPaymentId unique + 조건부 갱신). 환불은 TuitionRefund 로 따로 쌓는다.
+// 금융 기록이라 학생을 지워도 사라지지 않게 onDelete: Restrict. 로직은 src/lib/tuition/.
+
+enum TuitionInvoiceStatus {
+  REQUESTED // 결제 요청 (미납) — 연체는 dueDate 로 계산하고 저장하지 않는다
+  PAID // 납부 완료
+  PARTIALLY_REFUNDED // 일부 환불
+  REFUNDED // 전액 환불
+  CANCELED // 청구 취소 (납부 전)
+}
+
+enum TuitionPaymentMethod {
+  LINK // 온라인 결제 링크 (토스페이먼츠)
+  LOCAL_CURRENCY // 지역화폐 (현장)
+  ONSITE_CARD // 현장 카드 단말기
+  CASH // 현금
+  TRANSFER // 계좌이체
+}
+
+enum TuitionPaymentStatus {
+  PENDING // 결제 링크 발급 — 결제 대기 (가상계좌 입금 대기 포함)
+  ONSITE_REQUESTED // 학부모가 현장 결제 신청 — 직원 확인 대기
+  DONE // 결제 완료 (돈을 받음). 환불돼도 DONE 유지 — 환불은 TuitionRefund
+  CANCELED // 받지 않고 닫힘 (청구 취소·신청 철회·다른 방법으로 납부) — closedReason
+  FAILED // 결제 링크 생성 실패
+}
+
+enum TuitionRefundMethod {
+  PROVIDER // 결제사 취소 (온라인 결제)
+  MANUAL // 현장 단말기·현금·계좌로 직접 환불
+}
+
+enum TuitionRefundSource {
+  STAFF // 운영진 환불
+  AUTO_DUPLICATE // 중복·오결제 자동 환불
+  EXTERNAL // 결제사 상점관리자에서 직접 취소한 건을 반영
+}
+
+enum TuitionRefundStatus {
+  PENDING // 결제사 처리 중 (결과 미확정 포함)
+  DONE
+  FAILED // 환불되지 않음 — 금액 합계에 반영하지 않는다
+}
+
+enum TuitionRefundPolicy {
+  DAILY // 일할 계산 제안
+  ACADEMY_LAW // 학원법 구간식 제안
+  MANUAL // 제안 없이 직접 입력
+}
+
+enum TuitionTaxType {
+  EXEMPT // 면세 — 세액 없음
+  TAXABLE // 과세 — 청구 금액에 부가세 10% 포함
+}
+
+enum TuitionCashReceiptPurpose {
+  INCOME // 소득공제 (개인 — 휴대폰번호)
+  EXPENSE // 지출증빙 (사업자 — 사업자등록번호)
+}
+
+enum TuitionCashReceiptStatus {
+  REQUESTED // 발급 필요 (신청 정보 받음)
+  ISSUED // 발급 완료
+  CANCELED // 발급 취소
+}
+
+enum TuitionNoticeKind {
+  REQUEST // 청구 안내
+  REMIND // 미납 안내
+  RENEWAL // 이용 종료 전 재결제 안내
+  PAID // 납부 확인
+  REFUND // 환불 안내
+}
+
+// 수강료 설정 (단일 행)
+model TuitionSetting {
+  id                   String              @id @default("default")
+  defaultMonthlyFee    Int? // 원 — 학생별 수강료가 없을 때 쓰는 기본 월 수강료
+  dueDays              Int                 @default(7) // 발행일로부터 납부 기한까지 일수
+  leadDays             Int                 @default(7) // 다음 이용 시작 며칠 전부터 "청구 예정"에 올릴지
+  reminderDays         String              @default("7,3") // 이용 종료 N일 전 재결제 안내 (쉼표 구분)
+  refundPolicy         TuitionRefundPolicy @default(DAILY)
+  onlinePaymentEnabled Boolean             @default(true) // false 면 결제 링크를 내주지 않는다 (현장 결제만)
+  taxType              TuitionTaxType      @default(EXEMPT) // 과세 유형 — 청구서 발행 때 스냅샷
+  autoIssueEnabled     Boolean             @default(false) // 이용 종료 전에 다음 달 청구서를 자동 발행
+  autoIssueLeadDays    Int                 @default(3) // 이용 종료 며칠 전에 자동 발행할지
+  guideText            String?             @db.Text // 학부모 수강료 안내문 (마크다운)
+  onsiteGuideText      String?             @db.Text // 현장·지역화폐 결제 안내문
+  updatedById          String?
+  updatedAt            DateTime            @updatedAt
+}
+
+// 학생별 수강료
+model TuitionProfile {
+  id            String   @id @default(cuid())
+  studentId     String   @unique
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  monthlyFee    Int? // 원 — null 이면 기본 수강료
+  billingPaused Boolean  @default(false) // 청구 예정 목록에서 제외 (장학·면제 등)
+  memo          String?
+  updatedById   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model TuitionInvoice {
+  id             String               @id @default(cuid())
+  studentId      String
+  student        Student              @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  title          String // "11월 수강료" — 발행 시점 스냅샷
+  periodStart    DateTime             @db.Date // 이용 시작일 (KST)
+  periodEnd      DateTime             @db.Date // 이용 종료일 (KST, 포함)
+  months         Int // 개월 수 (선결제면 2 이상)
+  monthlyFee     Int // 원 — 발행 시점 월 수강료 스냅샷
+  discount       Int                  @default(0) // 원
+  extraItems     Json? // 추가 청구 항목 [{ name, amount }] (교재비 등) — 발행 시점 스냅샷
+  amount         Int // 원 — 청구 금액 = monthlyFee × months + 추가 항목 합 − discount
+  taxType        TuitionTaxType       @default(EXEMPT) // 발행 시점 과세 유형 (공급가액·세액 표시와 현금영수증에 쓴다)
+  parentMessage  String? // 학부모에게 보이는 안내 메시지
+  shareToken     String?              @unique // 앱 없이 여는 청구서 링크(/bill/<token>) 토큰 — 추측할 수 없는 난수
+  autoIssued     Boolean              @default(false) // 자동 청구로 발행됨
+  dueDate        DateTime             @db.Date // 납부 기한 (KST)
+  status         TuitionInvoiceStatus @default(REQUESTED)
+  memo           String? // 운영진 메모 (학부모에게 보이지 않음)
+  paidAt         DateTime?
+  paidAmount     Int                  @default(0) // 원 — 실제 받은 금액
+  paidPaymentId  String?              @unique // 납부로 확정된 TuitionPayment.id (FK 미설정) — 청구서당 한 건만
+  refundedAmount Int                  @default(0) // 원 — 환불 완료 누계 (TuitionRefund DONE 합으로 다시 계산)
+  coverageEnd    DateTime?            @db.Date // 실제 이용 종료일 — 납부 시 periodEnd, 환불하면 당겨진다. null = 이용 기간 없음
+  needsReview    Boolean              @default(false) // 운영진 확인 필요 (결제사에서 직접 취소됨 등)
+  issuedById     String? // 발행 운영진 User.id 스냅샷
+  issuedByName   String?
+  canceledAt     DateTime?
+  canceledById   String?
+  canceledByName String?
+  cancelReason   String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  payments     TuitionPayment[]
+  refunds      TuitionRefund[]
+  notices      TuitionNotice[]
+  cashReceipts TuitionCashReceipt[]
+
+  @@index([studentId, periodStart])
+  @@index([status, dueDate])
+  @@index([dueDate])
+}
+
+// 결제 시도 1건 — 온라인 결제 링크 1개, 또는 현장 결제 신청·확인 1건
+model TuitionPayment {
+  id                    String               @id @default(cuid())
+  invoiceId             String
+  invoice               TuitionInvoice       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  method                TuitionPaymentMethod
+  status                TuitionPaymentStatus
+  amount                Int // 원 — 결제 요청 금액 (청구 금액 스냅샷)
+  paidAmount            Int                  @default(0) // 원 — 실제 결제된 금액
+  refundedAmount        Int                  @default(0) // 원 — 이 결제에서 환불 완료된 누계
+  isDuplicate           Boolean              @default(false) // 납부로 인정되지 않은 결제 (중복·금액 불일치·취소된 청구서) — 자동 환불 대상
+  closedReason          String? // CANCELED 사유: EXPIRED · INVOICE_PAID · INVOICE_CANCELED · ONSITE_REQUESTED · WITHDRAWN · DISMISSED
+  // ── 온라인 결제 링크 ──
+  providerProductKey    String?              @unique // 결제 링크(상품) 키
+  payUrl                String? // 결제 링크 — null 이면 아직 만드는 중
+  expiresAt             DateTime? // 링크 유효 기한
+  checkoutStartedAt     DateTime? // 학부모가 마지막으로 결제창을 연 시각 (완료 전이면 "결제 미완료")
+  lastSyncedAt          DateTime? // 결제사 재조회 간격 제한용
+  linkSourcePaymentId   String? // 같은 링크에서 생긴 두 번째 주문이면 원래 결제 행 id
+  providerOrderKey      String?              @unique // 결제사 주문 키
+  providerPaymentKey    String?              @unique
+  providerMethod        String? // 결제수단 표시명 ("카드" · "가상계좌" 등)
+  cardIssuer            String? // 카드사·간편결제사 이름 (대사·문의 대응용)
+  cardType              String? // "신용" · "체크" 등
+  installmentMonths     Int? // 할부 개월 (0 = 일시불)
+  approvalNumber        String? // 승인번호 (현장 카드 결제는 단말기 승인번호를 직원이 적는다)
+  approvedAt            DateTime?
+  receiptUrl            String?
+  depositBank           String? // 가상계좌 입금 대기 안내
+  depositAccount        String?
+  depositDueAt          DateTime?
+  failCode              String?
+  failMessage           String?
+  // ── 현장 결제 ──
+  requestedByAuthUserId String? // 신청·결제를 시작한 학부모 AuthUser.id
+  requestedAt           DateTime?
+  confirmedById         String? // 결제를 확인한 운영진 User.id 스냅샷
+  confirmedByName       String?
+  confirmedAt           DateTime?
+  memo                  String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  refunds     TuitionRefund[]
+  cashReceipt TuitionCashReceipt?
+
+  @@index([invoiceId])
+  @@index([status, createdAt])
+  @@index([method, status])
+}
+
+model TuitionRefund {
+  id                     String              @id @default(cuid())
+  invoiceId              String
+  invoice                TuitionInvoice      @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  paymentId              String
+  payment                TuitionPayment      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  amount                 Int // 원
+  reason                 String
+  calcBasis              String? // 계산 근거 스냅샷 ("일할 계산 — …")
+  effectiveDate          DateTime?           @db.Date // 마지막 이용일 (이용 전 환불이면 시작 전날). null = 이용 기간 변경 없음
+  method                 TuitionRefundMethod
+  source                 TuitionRefundSource @default(STAFF)
+  status                 TuitionRefundStatus @default(PENDING)
+  idempotencyKey         String              @unique // 결제사 취소 멱등키 (자동 환불은 "auto-dup:<paymentId>" — 결제당 한 건)
+  providerTransactionKey String?             @unique // 결제사 취소 거래 키 — 같은 취소를 두 번 반영하지 않는다
+  attemptCount           Int                 @default(0)
+  lastAttemptAt          DateTime?
+  failCode               String?
+  failMessage            String?
+  requestedById          String?
+  requestedByName        String?
+  completedAt            DateTime?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  @@index([invoiceId])
+  @@index([paymentId])
+  @@index([status, createdAt])
+}
+
+// 현금영수증 — 현금·계좌이체로 받은 수납의 신청 정보와 발급 상태.
+// 발급 자체는 홈택스 등에서 하고, 여기에는 누구에게 무엇을 발급해야 하는지·했는지를 남긴다 (결제당 한 건).
+model TuitionCashReceipt {
+  id              String                    @id @default(cuid())
+  invoiceId       String
+  invoice         TuitionInvoice            @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  paymentId       String                    @unique
+  payment         TuitionPayment            @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  purpose         TuitionCashReceiptPurpose
+  identifier      String // 발급 번호 — 휴대폰번호(소득공제) 또는 사업자등록번호(지출증빙). 주민등록번호는 받지 않는다
+  amount          Int // 원 — 발급 대상 금액
+  supplyAmount    Int // 원 — 공급가액
+  taxAmount       Int // 원 — 세액
+  status          TuitionCashReceiptStatus  @default(REQUESTED)
+  approvalNumber  String? // 국세청 승인번호
+  requestedById   String?
+  requestedByName String?
+  issuedAt        DateTime?
+  issuedById      String?
+  issuedByName    String?
+  canceledAt      DateTime?
+  canceledById    String?
+  canceledByName  String?
+  cancelReason    String?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  @@index([invoiceId])
+  @@index([status, createdAt])
+}
+
+// 학부모 안내 발송 기록 — 도달 기기 수로 "앱 미설치" 학부모를 가려낸다
+model TuitionNotice {
+  id         String            @id @default(cuid())
+  invoiceId  String
+  invoice    TuitionInvoice    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  kind       TuitionNoticeKind
+  sentCount  Int               @default(0) // 푸시가 도달한 기기 수 (0 = 앱 미설치·알림 꺼짐)
+  dedupKey   String?           @unique // 자동 발송 중복 방지 ("REMIND:<invoiceId>:2026-11-05")
+  sentById   String? // 수동 발송한 운영진 (자동이면 null)
+  sentByName String?
+  createdAt  DateTime          @default(now())
+
+  @@index([invoiceId, createdAt])
+}
+
+// 수강료 변경 이력 (추가 전용) — 청구서 상세의 진행 기록과 분쟁 대응용.
+// 개인정보·결제사 응답 원문은 넣지 않는다.
+model TuitionEvent {
+  id        String   @id @default(cuid())
+  invoiceId String?
+  paymentId String?
+  refundId  String?
+  type      String // "INVOICE_ISSUED" · "PAYMENT_DONE" · "REFUND_FAILED" 등 (src/lib/tuition/types.ts)
+  source    String // "STAFF" · "PARENT" · "WEBHOOK" · "SYNC" · "CRON" · "SYSTEM"
+  actorId   String?
+  actorName String?
+  detail    String? // 사람이 읽는 한 줄 요약
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId, createdAt])
+  @@index([createdAt])
 }
