@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { applyHostRedirect, applyLinkOrigin } from "@/lib/apply-domain";
-import { isPublicPath } from "@/proxy";
+import { config as proxyConfig, isPublicPath } from "@/proxy";
 
 describe("isPublicPath", () => {
   it("allows public authentication and token routes", () => {
@@ -11,6 +11,9 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/api/mobile/v1/auth/me")).toBe(true);
     expect(isPublicPath("/api/public/content")).toBe(true);
     expect(isPublicPath("/api/public/content/abc123")).toBe(true);
+    // 시설 장비(사용 통제)는 세션 없이 장비 토큰으로 인증한다
+    expect(isPublicPath("/api/access-agent/state")).toBe(true);
+    expect(isPublicPath("/api/access-agent/report")).toBe(true);
   });
 
   it("lets the payment provider webhook through without a session", () => {
@@ -29,6 +32,22 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/students")).toBe(false);
     expect(isPublicPath("/student-management")).toBe(false);
     expect(isPublicPath("/api/mobile/v1/attendance")).toBe(false);
+    expect(isPublicPath("/access-control")).toBe(false);
+    expect(isPublicPath("/api/access-agents")).toBe(false);
+  });
+});
+
+describe("proxy matcher", () => {
+  const matches = (path: string) => new RegExp(`^${proxyConfig.matcher[0]}$`).test(path);
+  it("시설 장비 호출은 프록시를 거치지 않는다 (30초마다 불려 호출 수를 아낀다)", () => {
+    expect(matches("/api/access-agent/state")).toBe(false);
+    expect(matches("/api/access-agent/report")).toBe(false);
+  });
+  it("그 밖의 경로는 그대로 거친다", () => {
+    expect(matches("/access-control")).toBe(true);
+    expect(matches("/api/cron/network-revoke")).toBe(true);
+    expect(matches("/students")).toBe(true);
+    expect(matches("/favicon.ico")).toBe(false);
   });
 });
 

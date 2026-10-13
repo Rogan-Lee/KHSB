@@ -24,6 +24,8 @@ const PUBLIC_ROUTE_ROOTS = [
   "/api/parent-handoff",
   "/api/webhooks",
   "/api/cron",
+  // 시설 장비(사용 통제 동기화) — 세션 쿠키 없이 장비 토큰으로 자체 인증
+  "/api/access-agent",
   "/api/public", // 외부 정적 랜딩이 비로그인으로 fetch 하는 공개 콘텐츠 피드
 ];
 
@@ -58,5 +60,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  // api/access-agent: 시설 장비가 30초마다 부르고 자체 토큰으로 인증한다 — 프록시를 거치지 않게 해 호출 수를 아낀다
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/access-agent|.*\\..*).*)"],
 };
