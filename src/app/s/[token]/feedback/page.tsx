@@ -54,7 +54,13 @@ export default async function StudentFeedbackPage({
     where: { submission: { task: { studentId: session.student.id } } },
     orderBy: { createdAt: "desc" },
     take: 100,
-    include: {
+    // 목록에 쓰는 컬럼만 (첨부 files JSON 제외)
+    select: {
+      id: true,
+      content: true,
+      status: true,
+      readByStudentAt: true,
+      createdAt: true,
       author: { select: { name: true } },
       submission: {
         select: {

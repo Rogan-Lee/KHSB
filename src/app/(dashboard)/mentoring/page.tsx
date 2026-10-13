@@ -13,6 +13,7 @@ import { getAnnouncement } from "@/actions/announcements";
 import { getStudentsForReportDispatch } from "@/actions/parent-reports";
 import { isFullAccess, isStaff, isOnlineStaff } from "@/lib/roles";
 import { PageHeader, Section, StatCard, StatCards } from "@/components/backoffice/ui";
+import { latestIdsPerGroup } from "@/lib/db/latest-per-group";
 import { redirect } from "next/navigation";
 
 export const revalidate = 10;
@@ -59,18 +60,20 @@ export default async function MentoringPage({
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
   // 모든 쿼리를 병렬 실행
-  const [mentorings, todaySlots, mentors, vocabEnrolled, announcement, todayAttendance, meritAgg, reportRows] = await Promise.all([
+  const [mentoringRows, todaySlots, mentors, vocabEnrolled, announcement, todayAttendance, meritAgg, reportRows] = await Promise.all([
     prisma.mentoring.findMany({
       // 서버 측 날짜 필터 — 기본 전체, from/to 가 있을 때만 범위 적용 (멘토/원생/취소 필터는 클라이언트)
       where: hasRange ? { scheduledAt: { gte: rangeFrom!, lte: rangeTo! } } : undefined,
-      include: {
+      // 목록이 쓰는 필드만 — content·improvements 등 기록 장문은 상세(/mentoring/[id])에서만 (egress)
+      select: {
+        id: true,
+        scheduledAt: true,
+        scheduledTimeStart: true,
+        scheduledTimeEnd: true,
+        status: true,
+        notes: true,
         student: { select: { id: true, name: true, grade: true, seat: true, vocabTestDate: true, schedules: { select: { dayOfWeek: true, startTime: true, endTime: true } } } },
         mentor: { select: { id: true, name: true } },
-        parentReports: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: { id: true, token: true, createdAt: true },
-        },
         _count: { select: { photos: true } },
       },
       orderBy: { scheduledAt: "desc" },
@@ -105,6 +108,26 @@ export default async function MentoringPage({
     }),
     getStudentsForReportDispatch(),
   ]);
+
+  // 멘토링별 최신 학부모 리포트 1건 — 중첩 take 는 DB 에서 안 잘려 리포트 전부를 가져오므로 id 를 DB 에서 고른다
+  const latestReportIds = await latestIdsPerGroup({
+    table: "ParentReport",
+    groupBy: "mentoringId",
+    groupIds: mentoringRows.map((m) => m.id),
+    orderBy: [{ column: "createdAt", dir: "desc" }],
+  });
+  const latestReports =
+    latestReportIds.length > 0
+      ? await prisma.parentReport.findMany({
+          where: { id: { in: latestReportIds } },
+          select: { id: true, token: true, createdAt: true, mentoringId: true },
+        })
+      : [];
+  const reportByMentoring = new Map(latestReports.map(({ mentoringId, ...r }) => [mentoringId, r]));
+  const mentorings = mentoringRows.map((m) => {
+    const pr = reportByMentoring.get(m.id);
+    return { ...m, parentReports: pr ? [pr] : [] };
+  });
   const vocabEnrolledIds = vocabEnrolled.map((v) => v.studentId);
   const checkedInStudentIds = new Set(
     todayAttendance.filter((a) => !a.checkOut).map((a) => a.studentId)

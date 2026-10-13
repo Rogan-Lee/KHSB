@@ -22,6 +22,7 @@ import { prisma } from "@/lib/prisma";
 import { todayKST, cn } from "@/lib/utils";
 import { calcPointBalance } from "@/lib/points";
 import { getPortalBadgeCounts } from "@/lib/portal-badges";
+import { loadStudentPointTotals } from "@/lib/student-rewards-core";
 import { SURVEY_SECTIONS, isSectionComplete, parseGradeNumber } from "@/lib/online/survey-template";
 import {
   Avatar,
@@ -63,7 +64,7 @@ export default async function StudentPortalMenuPage({
   const isOnline = student.isOnlineManaged;
   const root = `/s/${token}`;
 
-  const [badges, lunchMenuCount, examApplyOpenCount, contentCount, survey, merits, redemptions] =
+  const [badges, lunchMenuCount, examApplyOpenCount, contentCount, survey, pointTotals] =
     await Promise.all([
       getPortalBadgeCounts(student.id),
       prisma.lunchMenu.count({ where: { date: { gte: todayKST() }, closed: false } }),
@@ -71,25 +72,27 @@ export default async function StudentPortalMenuPage({
         where: { applicationOpen: true, examDate: { gte: todayKST() } },
       }),
       prisma.contentPost.count({ where: { visible: true } }),
+      // 제출 여부만 먼저 — 설문 본문(sections)은 미제출일 때만 아래에서 조회
       isOnline
         ? prisma.onboardingSurvey.findUnique({
             where: { studentId: student.id },
-            select: { sections: true, submittedAt: true },
+            select: { submittedAt: true },
           })
         : Promise.resolve(null),
-      prisma.meritDemerit.findMany({
-        where: { studentId: student.id },
-        select: { type: true, points: true },
-      }),
-      prisma.rewardRedemption.findMany({
-        where: { studentId: student.id },
-        select: { status: true, points: true },
-      }),
+      loadStudentPointTotals(student.id),
     ]);
 
-  const { balance } = calcPointBalance({ merits, redemptions });
+  const { balance } = calcPointBalance(pointTotals);
 
-  const surveySections = (survey?.sections as Record<string, unknown> | null) ?? null;
+  // 제출 완료면 "제출 완료"만 보여 주므로 작성 개수 계산용 본문은 미제출일 때만 가져온다
+  const sectionsRow =
+    survey && !survey.submittedAt
+      ? await prisma.onboardingSurvey.findUnique({
+          where: { studentId: student.id },
+          select: { sections: true },
+        })
+      : null;
+  const surveySections = (sectionsRow?.sections as Record<string, unknown> | null) ?? null;
   const gradeCtx = { gradeNumber: parseGradeNumber(student.grade) };
   const surveyFilled = SURVEY_SECTIONS.filter((s) =>
     isSectionComplete(s, surveySections?.[s.key], gradeCtx)

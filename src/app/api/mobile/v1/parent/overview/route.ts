@@ -50,15 +50,16 @@ export async function GET(request: NextRequest) {
         },
         _sum: { points: true },
       }),
-      // 구버전 앱 호환: latestReportAt 은 예전 기준(취소·만료 안 된 멘토링 리포트) 그대로
-      prisma.parentReport.findMany({
+      // 구버전 앱 호환: latestReportAt 은 예전 기준(취소·만료 안 된 멘토링 리포트) 그대로.
+      // 자녀별 최신 시각만 쓰므로 리포트 전체 대신 groupBy _max
+      prisma.parentReport.groupBy({
+        by: ["studentId"],
         where: {
           studentId: { in: ids },
           revokedAt: null,
           OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
         },
-        orderBy: { createdAt: "desc" },
-        select: { createdAt: true, studentId: true },
+        _max: { createdAt: true },
       }),
       // 새 앱: 5종 리포트 모두 (공유 링크 만료와 무관 — 리포트함과 같은 기준)
       latestParentReportDates(ids),
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
           points.find((p) => p.studentId === child.id && p.type === type)?._sum
             .points ?? 0;
         const latestReportAt =
-          legacyReports.find((report) => report.studentId === child.id)?.createdAt ?? null;
+          legacyReports.find((report) => report.studentId === child.id)?._max.createdAt ?? null;
         const latestAnyReportAt = reports.get(child.id) ?? null;
 
         return {

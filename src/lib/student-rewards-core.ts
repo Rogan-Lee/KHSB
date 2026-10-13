@@ -35,6 +35,29 @@ export type RedemptionView = {
 
 type StudentRef = { id: string; name: string; grade: string };
 
+/**
+ * 잔액 계산용 합계 — 상벌점·교환 내역 행 전체 대신 유형/상태별 합계(groupBy)만 가져온다(egress 절감).
+ * 반환 형태는 calcPointBalance 입력과 같다(합계 행이 원래 행 여러 개를 대신).
+ */
+export async function loadStudentPointTotals(studentId: string) {
+  const [meritSums, redemptionSums] = await Promise.all([
+    prisma.meritDemerit.groupBy({
+      by: ["type"],
+      where: { studentId },
+      _sum: { points: true },
+    }),
+    prisma.rewardRedemption.groupBy({
+      by: ["status"],
+      where: { studentId },
+      _sum: { points: true },
+    }),
+  ]);
+  return {
+    merits: meritSums.map((m) => ({ type: m.type, points: m._sum.points ?? 0 })),
+    redemptions: redemptionSums.map((r) => ({ status: r.status, points: r._sum.points ?? 0 })),
+  };
+}
+
 /** 학생 포인트 화면 데이터 — 잔액 + 통합 내역 + 상품 + 내 신청. */
 export async function loadStudentPointsData(studentId: string) {
   const [merits, redemptions, items] = await Promise.all([
@@ -112,16 +135,7 @@ export async function requestRedemptionForStudent(
   const item = await prisma.rewardItem.findUnique({ where: { id: itemId } });
   if (!item || !item.active) throw new MobileApiError("상품을 찾을 수 없습니다", 404);
 
-  const [merits, redemptions] = await Promise.all([
-    prisma.meritDemerit.findMany({
-      where: { studentId },
-      select: { type: true, points: true },
-    }),
-    prisma.rewardRedemption.findMany({
-      where: { studentId },
-      select: { status: true, points: true },
-    }),
-  ]);
+  const { merits, redemptions } = await loadStudentPointTotals(studentId);
   const { balance } = calcPointBalance({ merits, redemptions });
   // ponytail: 대기중 신청분도 선차감해 중복 신청을 막는다 — 최종 검증은 승인 시점에 다시 수행
   const pendingReserved = redemptions

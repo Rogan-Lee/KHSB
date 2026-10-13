@@ -25,7 +25,10 @@ import {
 import { cn } from "@/lib/utils";
 import type { FeatureRequest, RequestStatus } from "@/generated/prisma";
 
-type FeatureRequestWithCount = FeatureRequest & {
+type FeatureRequestWithCount = Pick<
+  FeatureRequest,
+  "id" | "title" | "description" | "status" | "category" | "priority" | "relatedPage" | "requester" | "authorName" | "createdAt"
+> & {
   _count: { comments: number };
 };
 

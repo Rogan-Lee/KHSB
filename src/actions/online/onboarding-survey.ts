@@ -64,6 +64,7 @@ export async function upsertSurveySection(params: {
 
   const existing = await prisma.onboardingSurvey.findUnique({
     where: { studentId },
+    select: { sections: true, submittedAt: true },
   });
 
   // 제출 후 수정은 UI 에서만 막혀 있었음 — 서버에서도 차단 (재설문은 reviseSurvey 로 submittedAt 초기화)
@@ -94,6 +95,7 @@ export async function upsertSurveySection(params: {
 
   await prisma.onboardingSurvey.upsert({
     where: { studentId },
+    select: { id: true }, // 자동저장마다 설문 전체(sections)를 되돌려 받지 않도록
     update: { sections: nextSections as object },
     create: {
       studentId,
@@ -128,6 +130,7 @@ export async function submitSurvey(params: { studentToken: string }) {
 
   await prisma.onboardingSurvey.update({
     where: { studentId },
+    select: { id: true },
     data: { submittedAt: new Date() },
   });
 
@@ -151,11 +154,13 @@ export async function reviseSurvey(studentId: string) {
 
   const survey = await prisma.onboardingSurvey.findUnique({
     where: { studentId },
+    select: { version: true },
   });
   if (!survey) throw new Error("설문이 존재하지 않습니다");
 
   await prisma.onboardingSurvey.update({
     where: { studentId },
+    select: { id: true },
     data: {
       version: survey.version + 1,
       submittedAt: null,

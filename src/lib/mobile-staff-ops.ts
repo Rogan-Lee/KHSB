@@ -106,6 +106,17 @@ function serializeCommunication(c: CommunicationRow) {
 
 export type MobileCommunicationItem = ReturnType<typeof serializeCommunication>;
 
+/** 응답에 쓰는 컬럼만 (studentId·createdById·updatedAt 제외) */
+const communicationSelect = {
+  id: true,
+  type: true,
+  content: true,
+  isChecked: true,
+  checkedAt: true,
+  createdAt: true,
+  createdByName: true,
+} as const;
+
 async function requireActiveStudent(studentId: string) {
   const student = await prisma.student.findFirst({
     where: { id: studentId, status: "ACTIVE" },
@@ -120,6 +131,7 @@ export async function listStudentCommunications(studentId: string) {
     where: { studentId },
     orderBy: { createdAt: "desc" },
     take: 50,
+    select: communicationSelect,
   });
   return {
     items: rows.map(serializeCommunication),
@@ -142,6 +154,7 @@ export async function createStudentCommunication(
       createdById: user.id,
       createdByName: user.name ?? "알 수 없음",
     },
+    select: communicationSelect,
   });
   return { item: serializeCommunication(created) };
 }
@@ -162,6 +175,7 @@ export async function checkStudentCommunication(
   const updated = await prisma.communication.update({
     where: { id: communicationId },
     data: { isChecked: true, checkedAt: new Date() },
+    select: communicationSelect,
   });
   return { item: serializeCommunication(updated) };
 }
@@ -185,6 +199,30 @@ const MENTORING_STATUS_LABEL: Record<MentoringStatus, string> = {
 };
 
 /**
+ * 최근 멘토링 10건 — 요약(앞 120자)만 보여 주므로 본문(content)은 앞 240자(요약 + 앞쪽 공백 여유)만
+ * DB 에서 잘라 읽는다. Prisma select 로는 부분 문자열을 못 읽어 raw 쿼리를 쓴다.
+ */
+async function recentMentoringSummaries(studentId: string) {
+  return prisma.$queryRaw<
+    {
+      id: string;
+      scheduledAt: Date;
+      scheduledTimeStart: string | null;
+      status: MentoringStatus;
+      contentHead: string | null;
+      mentorName: string;
+    }[]
+  >`
+    SELECT m."id", m."scheduledAt", m."scheduledTimeStart", m."status"::text AS "status",
+           LEFT(m."content", 240) AS "contentHead", u."name" AS "mentorName"
+    FROM "Mentoring" m
+    JOIN "User" u ON u."id" = m."mentorId"
+    WHERE m."studentId" = ${studentId}
+    ORDER BY m."scheduledAt" DESC
+    LIMIT 10`;
+}
+
+/**
  * GET /staff/student/[id] — 기존 필드(info·assignments·scores)는 그대로 두고 확장.
  */
 export async function getStaffStudentProfile(
@@ -195,7 +233,7 @@ export async function getStaffStudentProfile(
   const context = getKstDayContext(now);
   const since = new Date(context.date.getTime() - 13 * DAY_MS);
 
-  const [base, extra, today, attentionById, meritTotals] = await Promise.all([
+  const [base, extra, recentMentorings, today, attentionById, meritTotals] = await Promise.all([
     getStaffMobileStudentDetail(studentId),
     prisma.student.findUnique({
       where: { id: studentId },
@@ -228,21 +266,14 @@ export async function getStaffStudentProfile(
             createdById: true,
           },
         },
-        communications: { orderBy: { createdAt: "desc" }, take: 50 },
-        mentorings: {
-          orderBy: { scheduledAt: "desc" },
-          take: 10,
-          select: {
-            id: true,
-            scheduledAt: true,
-            scheduledTimeStart: true,
-            status: true,
-            content: true,
-            mentor: { select: { name: true } },
-          },
+        communications: {
+          orderBy: { createdAt: "desc" },
+          take: 50,
+          select: communicationSelect,
         },
       },
     }),
+    recentMentoringSummaries(studentId),
     getStaffMobileAttendanceItem(studentId, now),
     loadAttentionMap([studentId]),
     getMeritTotals(studentId),
@@ -307,19 +338,19 @@ export async function getStaffStudentProfile(
       items: communications,
       unchecked: communications.filter((c) => !c.isChecked).length,
     },
-    mentorings: extra.mentorings.map((m) => {
+    mentorings: recentMentorings.map((m) => {
       const scheduledAt = m.scheduledTimeStart
         ? new Date(
             `${m.scheduledAt.toISOString().slice(0, 10)}T${m.scheduledTimeStart}:00+09:00`,
           )
         : m.scheduledAt;
-      const content = m.content?.trim() ?? "";
+      const content = m.contentHead?.trim() ?? "";
       return {
         id: m.id,
         scheduledAt: scheduledAt.toISOString(),
         status: m.status,
         statusLabel: MENTORING_STATUS_LABEL[m.status],
-        mentorName: m.mentor.name,
+        mentorName: m.mentorName,
         summary: content ? content.slice(0, 120) : null,
       };
     }),

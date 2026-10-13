@@ -86,11 +86,8 @@ const sessionSelect = {
   scheduledTimeEnd: true,
   status: true,
   student: { select: { grade: true, id: true, name: true, seat: true } },
-  parentReports: {
-    where: { revokedAt: null },
-    take: 1,
-    select: { id: true },
-  },
+  // 유무만 필요 — 목록의 중첩 take 는 DB 에서 안 잘리므로 행 대신 개수로 (egress)
+  _count: { select: { parentReports: { where: { revokedAt: null } } } },
 } as const;
 
 type SessionRow = {
@@ -102,7 +99,7 @@ type SessionRow = {
   scheduledTimeEnd: string | null;
   status: MentoringStatus;
   student: { grade: string; id: string; name: string; seat: string | null };
-  parentReports: { id: string }[];
+  _count: { parentReports: number };
 };
 
 function toSessionItem(row: SessionRow, user: StaffUser, now: Date) {
@@ -123,7 +120,7 @@ function toSessionItem(row: SessionRow, user: StaffUser, now: Date) {
     endTimeLabel: timing.endTimeLabel,
     state,
     stateLabel: STATE_LABEL[state],
-    hasParentReport: row.parentReports.length > 0,
+    hasParentReport: row._count.parentReports > 0,
   };
 }
 

@@ -71,17 +71,55 @@ export default async function StudentDetailPage({
         mentor: { select: { id: true, name: true } },
         schedules: { orderBy: { dayOfWeek: "asc" } },
         outings: { orderBy: { dayOfWeek: "asc" } },
-        attendances: { orderBy: { date: "desc" }, take: 30 },
-        merits: { orderBy: { date: "desc" }, take: 20 },
+        // 탭이 그리는 필드만 select — 면담 메모·멘토링 이전 회차 전달 등 안 쓰는 장문 제외 (egress 절감)
+        attendances: {
+          orderBy: { date: "desc" },
+          take: 30,
+          select: { id: true, date: true, type: true, checkIn: true, checkOut: true, notes: true },
+        },
+        merits: {
+          orderBy: { date: "desc" },
+          take: 20,
+          select: { id: true, date: true, type: true, points: true, category: true, reason: true },
+        },
         mentorings: {
           orderBy: { scheduledAt: "desc" },
           take: 20,
-          include: { mentor: { select: { name: true } } },
+          select: {
+            id: true,
+            scheduledAt: true,
+            scheduledTimeStart: true,
+            scheduledTimeEnd: true,
+            status: true,
+            content: true,
+            improvements: true,
+            weaknesses: true,
+            nextGoals: true,
+            notes: true,
+            mentor: { select: { name: true } },
+          },
         },
-        consultations: { orderBy: { scheduledAt: "desc" }, take: 10 },
-        communications: { orderBy: { createdAt: "desc" }, take: 30 },
+        consultations: {
+          orderBy: { scheduledAt: "desc" },
+          take: 10,
+          select: { id: true, scheduledAt: true, status: true, agenda: true, outcome: true },
+        },
+        communications: {
+          orderBy: { createdAt: "desc" },
+          take: 30,
+          select: {
+            id: true, type: true, content: true, isChecked: true, checkedAt: true, createdByName: true, createdAt: true,
+          },
+        },
         examScores: { orderBy: { examDate: "desc" } },
-        assignments: { orderBy: { createdAt: "desc" }, take: 20 },
+        assignments: {
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          select: {
+            id: true, title: true, subject: true, description: true, dueDate: true,
+            isCompleted: true, completedAt: true, completedNote: true, createdByName: true,
+          },
+        },
       },
     });
   } catch (e) {

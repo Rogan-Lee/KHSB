@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import {
   createParentReportsForStudents,
+  getParentReportNote,
   updateParentReportNote,
   type StudentReportRow,
   type BulkCreateByStudentResult,
@@ -87,10 +88,40 @@ export function MentoringReportTab({ rows }: Props) {
   }
   const [copied, setCopied] = useState(false);
 
-  // 활성 학생 바뀌면 편집 draft 리셋
-  useMemo(() => {
-    setNoteDraft(activeRow?.parentReport?.customNote ?? "");
-  }, [activeRow?.parentReport?.id, activeRow?.parentReport?.customNote]);
+  // customNote(장문)는 목록(rows)에 없다 — 선택한 원생 리포트 것만 불러와 reportId 별로 기억한다(egress 절감).
+  const activeReportId = activeRow?.parentReport?.id ?? null;
+  const [savedNotes, setSavedNotes] = useState<Record<string, string | null>>({});
+  const savedNote = activeReportId ? savedNotes[activeReportId] : undefined;
+  const noteLoading = !!activeReportId && savedNote === undefined;
+
+  // 활성 학생(리포트) 바뀌면 편집 draft 리셋 — 처음 보는 리포트면 내용을 불러온 뒤 채운다
+  useEffect(() => {
+    if (!activeReportId) {
+      setNoteDraft("");
+      return;
+    }
+    const cached = savedNotes[activeReportId];
+    if (cached !== undefined) {
+      setNoteDraft(cached ?? "");
+      return;
+    }
+    setNoteDraft("");
+    let cancelled = false;
+    getParentReportNote(activeReportId)
+      .then((note) => {
+        if (cancelled) return;
+        setSavedNotes((prev) => ({ ...prev, [activeReportId]: note }));
+        setNoteDraft(note ?? "");
+      })
+      .catch((e) => {
+        if (!cancelled) toast.error(e instanceof Error ? e.message : "내용을 불러오지 못했어요");
+      });
+    return () => {
+      cancelled = true;
+    };
+    // savedNotes 는 캐시 확인용 — 바뀔 때마다 다시 돌 필요 없음
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeReportId]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -185,7 +216,10 @@ export function MentoringReportTab({ rows }: Props) {
     if (!activeRow?.parentReport) return;
     setNoteSaving(true);
     try {
-      await updateParentReportNote(activeRow.parentReport.id, noteDraft);
+      const reportId = activeRow.parentReport.id;
+      await updateParentReportNote(reportId, noteDraft);
+      // 서버와 같은 규칙(빈 값 → null)으로 저장값 갱신
+      setSavedNotes((prev) => ({ ...prev, [reportId]: noteDraft || null }));
       toast.success("내용 저장");
       startTransition(() => router.refresh());
     } catch (e) {
@@ -508,7 +542,7 @@ export function MentoringReportTab({ rows }: Props) {
                         <h4 className="t5-bold text-fg-neutral">학부모에게 전할 내용</h4>
                         <p className="t3-regular text-fg-neutral-subtle">공유 페이지에 그대로 보여요</p>
                       </div>
-                      <Button variant="outline" size="xs" onClick={handleAiEnhance} disabled={aiBusy}>
+                      <Button variant="outline" size="xs" onClick={handleAiEnhance} disabled={aiBusy || noteLoading}>
                         {aiBusy ? <Loader2 className="animate-spin" /> : <Sparkles />}
                         {aiBusy ? "다듬는 중…" : "AI 고도화"}
                       </Button>
@@ -517,15 +551,16 @@ export function MentoringReportTab({ rows }: Props) {
                       value={noteDraft}
                       onChange={(e) => setNoteDraft(e.target.value)}
                       rows={14}
-                      placeholder="학부모에게 전달할 내용을 입력하세요. AI 고도화로 입시 컨설턴트 문체로 다듬을 수 있어요."
+                      disabled={noteLoading}
+                      placeholder={noteLoading ? "내용을 불러오는 중…" : "학부모에게 전달할 내용을 입력하세요. AI 고도화로 입시 컨설턴트 문체로 다듬을 수 있어요."}
                       className="resize-y"
                       aria-label="학부모에게 전할 내용"
                     />
                     <FormActions>
-                      {noteDraft !== (activeRow.parentReport.customNote ?? "") && (
+                      {!noteLoading && noteDraft !== (savedNote ?? "") && (
                         <span className="mr-auto t3-medium text-fg-warning">바뀐 내용이 있어요 — 저장해 주세요</span>
                       )}
-                      <Button size="sm" onClick={handleSaveNote} disabled={noteSaving || noteDraft === (activeRow.parentReport.customNote ?? "")}>
+                      <Button size="sm" onClick={handleSaveNote} disabled={noteSaving || noteLoading || noteDraft === (savedNote ?? "")}>
                         {noteSaving ? "저장 중…" : "저장"}
                       </Button>
                     </FormActions>

@@ -26,9 +26,15 @@ type OutingEntry = { outStart: string; outEnd: string; reason: string };
 type DayState = { enabled: boolean; flexStart: boolean; flexEnd: boolean; startTime: string; endTime: string; outings: OutingEntry[] };
 type ScheduleMap = Record<number, DayState>;
 
-type StudentWithSchedule = Student & { schedules: AttendanceSchedule[]; outings: OutingSchedule[] };
+type DaySchedule = Pick<AttendanceSchedule, "dayOfWeek" | "startTime" | "endTime">;
+type DayOuting = Pick<OutingSchedule, "dayOfWeek" | "outStart" | "outEnd" | "reason">;
+// 표가 읽는 필드만 — 원생 페이지 쿼리의 select 와 맞춘다(egress 절감).
+type StudentWithSchedule = Pick<Student, "id" | "name" | "grade" | "school" | "seat"> & {
+  schedules: DaySchedule[];
+  outings: DayOuting[];
+};
 
-function buildScheduleMap(schedules: AttendanceSchedule[], outings: OutingSchedule[]): ScheduleMap {
+function buildScheduleMap(schedules: DaySchedule[], outings: DayOuting[]): ScheduleMap {
   const map: ScheduleMap = {};
   for (const d of DAYS) {
     const s = schedules.find((sc) => sc.dayOfWeek === d.value);

@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { recentSessionsByStudent } from "@/lib/online/recent-sessions";
 import { getUser } from "@/lib/auth";
 import { isFullAccess, isOnlineStaff } from "@/lib/roles";
 import { Users } from "lucide-react";
@@ -22,20 +23,35 @@ export default async function OnlineStudentsPage() {
       // 재원/퇴원 처리 가능하도록 WITHDRAWN 도 함께 조회
       where: { isOnlineManaged: true, status: { in: ["ACTIVE", "WITHDRAWN"] } },
       orderBy: [{ status: "asc" }, { grade: "asc" }, { name: "asc" }],
-      include: {
+      // egress: 화면에서 쓰는 컬럼만 (학생 전 컬럼·세션 전체 이력 제외)
+      select: {
+        id: true,
+        name: true,
+        grade: true,
+        school: true,
+        status: true,
+        onlineStartedAt: true,
+        parentPhone: true,
+        parentEmail: true,
+        targetUniversity: true,
+        selectedSubjects: true,
+        admissionType: true,
+        assignedMentorId: true,
+        assignedConsultantId: true,
+        assignedStaffId: true,
         assignedMentor: { select: { id: true, name: true } },
         assignedConsultant: { select: { id: true, name: true } },
         assignedStaff: { select: { id: true, name: true } },
         magicLinks: {
           where: { revokedAt: null, expiresAt: { gt: new Date() } },
           orderBy: { issuedAt: "desc" },
-        },
-        mentoringSessions: {
-          orderBy: { scheduledAt: "desc" },
-          take: 20,
-          include: {
-            host: { select: { name: true } },
-            photos: { orderBy: { uploadedAt: "asc" } },
+          select: {
+            id: true,
+            token: true,
+            expiresAt: true,
+            issuedAt: true,
+            lastAccessedAt: true,
+            accessCount: true,
           },
         },
         _count: {
@@ -84,59 +100,68 @@ export default async function OnlineStudentsPage() {
       : Promise.resolve([]),
   ]);
 
+  // 학생별 최근 화상 세션 20건 — 중첩 take 대신 DB 에서 학생별로 잘라 가져온다
+  const sessionsByStudent = await recentSessionsByStudent(
+    onlineStudents.map((s) => s.id),
+    20
+  );
+
   const hdrs = await headers();
   const host = hdrs.get("host") ?? "localhost:3000";
   const proto = hdrs.get("x-forwarded-proto") ?? "http";
   const portalOrigin = `${proto}://${host}`;
 
-  const rows: OnlineStudentPanelRow[] = onlineStudents.map((s) => ({
-    studentId: s.id,
-    studentName: s.name,
-    grade: s.grade,
-    school: s.school,
-    status: s.status,
-    onlineStartedAt: s.onlineStartedAt?.toISOString() ?? null,
-    parentPhone: s.parentPhone,
-    parentEmail: s.parentEmail,
-    targetUniversity: s.targetUniversity,
-    selectedSubjects: s.selectedSubjects,
-    admissionType: s.admissionType,
-    assignedMentorId: s.assignedMentorId,
-    assignedConsultantId: s.assignedConsultantId,
-    assignedStaffId: s.assignedStaffId,
-    assignedMentorName: s.assignedMentor?.name ?? null,
-    assignedConsultantName: s.assignedConsultant?.name ?? null,
-    assignedStaffName: s.assignedStaff?.name ?? null,
-    activeLinks: s.magicLinks.map((l) => ({
-      id: l.id,
-      // 매직링크 토큰 = 학생 포털 로그인 자격증명. 관리(원장) 권한자에게만 직렬화 —
-      // 컨설턴트/관리 멘토는 UI 에서 링크 관리자를 볼 수 없으므로 토큰도 내려보내지 않는다.
-      token: canManage ? l.token : "",
-      expiresAt: l.expiresAt.toISOString(),
-      issuedAt: l.issuedAt.toISOString(),
-      lastAccessedAt: l.lastAccessedAt?.toISOString() ?? null,
-      accessCount: l.accessCount,
-    })),
-    pendingFeedbackCount: s._count.performanceTasks,
-    upcomingSessionCount: s.mentoringSessions.filter(
-      (ms) =>
-        (ms.status === "SCHEDULED" || ms.status === "IN_PROGRESS") &&
-        ms.scheduledAt.getTime() > Date.now()
-    ).length,
-    mentoringSessions: s.mentoringSessions.map((ms) => ({
-      id: ms.id,
-      title: ms.title,
-      status: ms.status,
-      scheduledAt: ms.scheduledAt.toISOString(),
-      durationMinutes: ms.durationMinutes,
-      meetUrl: ms.meetUrl,
-      calendarHtmlLink: ms.calendarHtmlLink,
-      notes: ms.notes,
-      summary: ms.summary,
-      hostName: ms.host.name,
-      photos: ms.photos,
-    })),
-  }));
+  const rows: OnlineStudentPanelRow[] = onlineStudents.map((s) => {
+    const mentoringSessions = sessionsByStudent.get(s.id) ?? [];
+    return {
+      studentId: s.id,
+      studentName: s.name,
+      grade: s.grade,
+      school: s.school,
+      status: s.status,
+      onlineStartedAt: s.onlineStartedAt?.toISOString() ?? null,
+      parentPhone: s.parentPhone,
+      parentEmail: s.parentEmail,
+      targetUniversity: s.targetUniversity,
+      selectedSubjects: s.selectedSubjects,
+      admissionType: s.admissionType,
+      assignedMentorId: s.assignedMentorId,
+      assignedConsultantId: s.assignedConsultantId,
+      assignedStaffId: s.assignedStaffId,
+      assignedMentorName: s.assignedMentor?.name ?? null,
+      assignedConsultantName: s.assignedConsultant?.name ?? null,
+      assignedStaffName: s.assignedStaff?.name ?? null,
+      activeLinks: s.magicLinks.map((l) => ({
+        id: l.id,
+        // 매직링크 토큰 = 학생 포털 로그인 자격증명. 관리(원장) 권한자에게만 직렬화 —
+        // 컨설턴트/관리 멘토는 UI 에서 링크 관리자를 볼 수 없으므로 토큰도 내려보내지 않는다.
+        token: canManage ? l.token : "",
+        expiresAt: l.expiresAt.toISOString(),
+        issuedAt: l.issuedAt.toISOString(),
+        lastAccessedAt: l.lastAccessedAt?.toISOString() ?? null,
+        accessCount: l.accessCount,
+      })),
+      pendingFeedbackCount: s._count.performanceTasks,
+      upcomingSessionCount: mentoringSessions.filter(
+        (ms) =>
+          (ms.status === "SCHEDULED" || ms.status === "IN_PROGRESS") &&
+          ms.scheduledAt.getTime() > Date.now()
+      ).length,
+      mentoringSessions: mentoringSessions.map((ms) => ({
+        id: ms.id,
+        title: ms.title,
+        status: ms.status,
+        scheduledAt: ms.scheduledAt.toISOString(),
+        durationMinutes: ms.durationMinutes,
+        meetUrl: ms.meetUrl,
+        calendarHtmlLink: ms.calendarHtmlLink,
+        notes: ms.notes,
+        summary: ms.summary,
+        hostName: ms.host.name,
+        photos: ms.photos,
+      })),
+    };
+  });
 
   const activeCount = onlineStudents.filter((s) => s.status === "ACTIVE").length;
   const withdrawnCount = onlineStudents.length - activeCount;

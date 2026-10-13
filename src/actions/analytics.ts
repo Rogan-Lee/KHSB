@@ -8,7 +8,7 @@ import {
   type AttendanceInterval,
   type AttendanceTimeStats,
 } from "@/lib/attendance-stats";
-import { computeStudentAnalytics } from "@/lib/student-analytics";
+import { computeStudentAnalytics, sumStayMsByStudent } from "@/lib/student-analytics";
 
 export interface SubjectTrend {
   subject: string;
@@ -55,17 +55,22 @@ export async function getOverallAnalytics(): Promise<OverallAnalytics> {
   // 같은 /analytics 페이지의 getAttendanceTimeStats 와 동일 범위 (전 원생 성적·재원시간)
   requireStaff(session.user.role);
 
+  // 계산에 쓰는 필드만 — 멘토링은 개수만(장문 컬럼 제외), 재원 시간은 DB 합산 (egress 절감)
   const students = await prisma.student.findMany({
     where: { status: "ACTIVE" },
-    include: {
-      examScores: { orderBy: { examDate: "asc" } },
-      mentorings: { where: { status: "COMPLETED" } },
-      attendances: {
-        where: { checkIn: { not: null }, checkOut: { not: null } },
-        select: { checkIn: true, checkOut: true },
+    select: {
+      id: true,
+      name: true,
+      grade: true,
+      school: true,
+      examScores: {
+        orderBy: { examDate: "asc" },
+        select: { subject: true, grade: true, examDate: true, examName: true },
       },
+      _count: { select: { mentorings: { where: { status: "COMPLETED" } } } },
     },
   });
+  const stayMsByStudent = await sumStayMsByStudent(students.map((s) => s.id));
 
   const studentAnalytics: StudentAnalytics[] = students.map((s) => {
     // 과목별 성적 추이
@@ -114,12 +119,8 @@ export async function getOverallAnalytics(): Promise<OverallAnalytics> {
         )
       : null;
 
-    // 총 재원 시간
-    const studyHours = s.attendances.reduce((sum, a) => {
-      if (!a.checkIn || !a.checkOut) return sum;
-      const diff = (new Date(a.checkOut).getTime() - new Date(a.checkIn).getTime()) / (1000 * 60 * 60);
-      return sum + (diff > 0 && diff < 24 ? diff : 0);
-    }, 0);
+    // 총 재원 시간 (완료 기록 중 0 초과 24시간 미만 합)
+    const studyHours = (stayMsByStudent.get(s.id) ?? 0) / (1000 * 60 * 60);
 
     return {
       studentId: s.id,
@@ -128,7 +129,7 @@ export async function getOverallAnalytics(): Promise<OverallAnalytics> {
       school: s.school,
       avgImprovement: avgImprovement !== null ? Math.round(avgImprovement * 10) / 10 : null,
       daysToImprovement,
-      mentoringCount: s.mentorings.length,
+      mentoringCount: s._count.mentorings,
       studyHours: Math.round(studyHours),
       subjects,
     };
@@ -177,15 +178,40 @@ export async function getStudentAnalytics(studentId: string): Promise<StudentAna
   return computeStudentAnalytics(studentId);
 }
 
-/** 기간 내 등원(재원) 시간 통계 — 일별 평균 추이, 요일별 평균 입실/재원, 학생별 합계 */
-export async function getAttendanceTimeStats(range: {
+type DateRange = {
   from: string; // "YYYY-MM-DD"
   to: string;
-}): Promise<AttendanceTimeStats> {
+};
+
+/** 기간 내 등원(재원) 시간 통계 — 일별 평균 추이, 요일별 평균 입실/재원, 학생별 합계 */
+export async function getAttendanceTimeStats(range: DateRange): Promise<AttendanceTimeStats> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
   requireStaff(session.user.role);
 
+  return buildAttendanceTimeStats(await loadAttendanceIntervals(range));
+}
+
+/**
+ * 여러 기간(예: 최근 7일·30일)의 재원 시간 통계를 한 번의 조회로 계산한다.
+ * 기간마다 따로 조회하면 겹치는 날짜의 출결 행을 중복으로 가져오므로 전체 범위를 한 번만 읽고 나눈다(egress 절감).
+ */
+export async function getAttendanceTimeStatsForRanges(ranges: DateRange[]): Promise<AttendanceTimeStats[]> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+  if (ranges.length === 0) return [];
+
+  // "YYYY-MM-DD" 문자열은 사전순 = 날짜순
+  const from = ranges.map((r) => r.from).reduce((a, b) => (b < a ? b : a));
+  const to = ranges.map((r) => r.to).reduce((a, b) => (b > a ? b : a));
+  const all = await loadAttendanceIntervals({ from, to });
+  return ranges.map((r) =>
+    buildAttendanceTimeStats(all.filter((i) => i.date >= r.from && i.date <= r.to)),
+  );
+}
+
+async function loadAttendanceIntervals(range: DateRange): Promise<AttendanceInterval[]> {
   const records = await prisma.attendanceRecord.findMany({
     where: {
       date: { gte: new Date(range.from), lte: new Date(range.to) },
@@ -204,7 +230,7 @@ export async function getAttendanceTimeStats(range: {
     },
   });
 
-  const intervals: AttendanceInterval[] = records.map((r) => ({
+  return records.map((r) => ({
     studentId: r.studentId,
     studentName: r.student.name,
     date: new Date(r.date).toISOString().slice(0, 10),
@@ -213,6 +239,4 @@ export async function getAttendanceTimeStats(range: {
     outStart: r.outStart,
     outEnd: r.outEnd,
   }));
-
-  return buildAttendanceTimeStats(intervals);
 }

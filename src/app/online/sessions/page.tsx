@@ -4,6 +4,7 @@ import { AlertTriangle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader, StatCard, StatCards } from "@/components/backoffice/ui";
 import { prisma } from "@/lib/prisma";
+import { recentSessionsByStudent } from "@/lib/online/recent-sessions";
 import { getUser } from "@/lib/auth";
 import { isOnlineStaff, isFullAccess } from "@/lib/roles";
 import {
@@ -34,16 +35,13 @@ export default async function MentoringSessionsPage() {
       grade: true,
       school: true,
       assignedMentor: { select: { name: true } },
-      mentoringSessions: {
-        orderBy: { scheduledAt: "desc" },
-        take: 30,
-        include: {
-          host: { select: { name: true } },
-          photos: { orderBy: { uploadedAt: "asc" } },
-        },
-      },
     },
   });
+  // 학생별 최근 세션 30건 — 중첩 take 는 DB 에서 안 잘려 전체 이력을 가져오므로 DB 에서 학생별로 자른다
+  const sessionsByStudent = await recentSessionsByStudent(
+    students.map((s) => s.id),
+    30
+  );
 
   const rows: MentoringPanelStudentRow[] = students.map((s) => ({
     studentId: s.id,
@@ -51,7 +49,7 @@ export default async function MentoringSessionsPage() {
     grade: s.grade,
     school: s.school,
     assignedMentorName: s.assignedMentor?.name ?? null,
-    sessions: s.mentoringSessions.map((ms) => ({
+    sessions: (sessionsByStudent.get(s.id) ?? []).map((ms) => ({
       id: ms.id,
       title: ms.title,
       status: ms.status,

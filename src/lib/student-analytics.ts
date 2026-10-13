@@ -6,18 +6,63 @@ import { todayKST } from "@/lib/utils";
 import { stayMs, weekStartOf } from "@/lib/attendance-stats";
 import type { StudentAnalytics, SubjectTrend } from "@/actions/analytics";
 
+/**
+ * 학생별 총 재원 시간(ms) — 완료 기록(입·퇴실 모두 있음) 중 0 초과 24시간 미만만 합산.
+ * 전체 출결 이력을 가져와 JS 로 더하던 것을 DB 에서 합산한다(egress 절감). 기록 없는 학생은 Map 에 없음.
+ */
+export async function sumStayMsByStudent(studentIds: readonly string[]): Promise<Map<string, number>> {
+  if (studentIds.length === 0) return new Map();
+  const rows = await prisma.$queryRaw<{ studentId: string; ms: number | null }[]>`
+    SELECT "studentId", SUM(EXTRACT(EPOCH FROM ("checkOut" - "checkIn")) * 1000)::float8 AS ms
+    FROM "AttendanceRecord"
+    WHERE "studentId" = ANY(${[...studentIds]}::text[])
+      AND "checkIn" IS NOT NULL AND "checkOut" IS NOT NULL
+      AND "checkOut" > "checkIn"
+      AND "checkOut" - "checkIn" < INTERVAL '24 hours'
+    GROUP BY "studentId"`;
+  return new Map(rows.map((r) => [r.studentId, Number(r.ms ?? 0)]));
+}
+
+/** 최근 4주(이번 주 포함) 주 시작일(월요일) 목록 — 오래된 순 */
+function recentWeekStarts(): string[] {
+  const thisWeek = weekStartOf(todayKST().toISOString().slice(0, 10));
+  const weekStarts: string[] = [];
+  for (let i = 3; i >= 0; i--) {
+    const d = new Date(`${thisWeek}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - i * 7);
+    weekStarts.push(d.toISOString().slice(0, 10));
+  }
+  return weekStarts;
+}
+
 export async function computeStudentAnalytics(studentId: string): Promise<StudentAnalytics | null> {
-  const student = await prisma.student.findUnique({
-    where: { id: studentId },
-    include: {
-      examScores: { orderBy: { examDate: "asc" } },
-      mentorings: { where: { status: "COMPLETED" } },
-      attendances: {
-        where: { checkIn: { not: null }, checkOut: { not: null } },
-        select: { date: true, checkIn: true, checkOut: true, outStart: true, outEnd: true },
+  const weekStarts = recentWeekStarts();
+  // 계산에 쓰는 필드만 — 멘토링은 개수만(장문 컬럼 제외), 출결은 주별 합계용 최근 4주만 (egress 절감)
+  const [student, stayMsTotals] = await Promise.all([
+    prisma.student.findUnique({
+      where: { id: studentId },
+      select: {
+        id: true,
+        name: true,
+        grade: true,
+        school: true,
+        examScores: {
+          orderBy: { examDate: "asc" },
+          select: { subject: true, grade: true, examDate: true, examName: true },
+        },
+        _count: { select: { mentorings: { where: { status: "COMPLETED" } } } },
+        attendances: {
+          where: {
+            checkIn: { not: null },
+            checkOut: { not: null },
+            date: { gte: new Date(`${weekStarts[0]}T00:00:00Z`) },
+          },
+          select: { date: true, checkIn: true, checkOut: true, outStart: true, outEnd: true },
+        },
       },
-    },
-  });
+    }),
+    sumStayMsByStudent([studentId]),
+  ]);
   if (!student) return null;
 
   const bySubject = new Map<string, typeof student.examScores>();
@@ -58,20 +103,10 @@ export async function computeStudentAnalytics(studentId: string): Promise<Studen
       )
     : null;
 
-  const studyHours = student.attendances.reduce((sum, a) => {
-    if (!a.checkIn || !a.checkOut) return sum;
-    const diff = (new Date(a.checkOut).getTime() - new Date(a.checkIn).getTime()) / (1000 * 60 * 60);
-    return sum + (diff > 0 && diff < 24 ? diff : 0);
-  }, 0);
+  // 총 재원 시간 — 전체 이력은 DB 에서 합산
+  const studyHours = (stayMsTotals.get(student.id) ?? 0) / (1000 * 60 * 60);
 
   // 최근 4주 주별 재원시간 합계 (이번 주 포함, 외출 차감)
-  const thisWeek = weekStartOf(todayKST().toISOString().slice(0, 10));
-  const weekStarts: string[] = [];
-  for (let i = 3; i >= 0; i--) {
-    const d = new Date(`${thisWeek}T00:00:00Z`);
-    d.setUTCDate(d.getUTCDate() - i * 7);
-    weekStarts.push(d.toISOString().slice(0, 10));
-  }
   const msByWeek = new Map(weekStarts.map((w) => [w, 0]));
   for (const a of student.attendances) {
     const ms = stayMs(a);
@@ -91,7 +126,7 @@ export async function computeStudentAnalytics(studentId: string): Promise<Studen
     school: student.school,
     avgImprovement,
     daysToImprovement,
-    mentoringCount: student.mentorings.length,
+    mentoringCount: student._count.mentorings,
     studyHours: Math.round(studyHours),
     subjects,
     weeklyStudyHours,

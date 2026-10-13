@@ -66,22 +66,29 @@ async function pendingCounts() {
 async function balancesFor(studentIds: string[]) {
   const ids = [...new Set(studentIds)];
   if (ids.length === 0) return new Map<string, number>();
+  // 상벌점·교환 내역 전체 대신 학생·유형별 합계만 (calcPointBalance 와 같은 식)
   const [merits, redemptions] = await Promise.all([
-    prisma.meritDemerit.findMany({
+    prisma.meritDemerit.groupBy({
+      by: ["studentId", "type"],
       where: { studentId: { in: ids } },
-      select: { studentId: true, type: true, points: true },
+      _sum: { points: true },
     }),
-    prisma.rewardRedemption.findMany({
+    prisma.rewardRedemption.groupBy({
+      by: ["studentId", "status"],
       where: { studentId: { in: ids } },
-      select: { studentId: true, status: true, points: true },
+      _sum: { points: true },
     }),
   ]);
   return new Map(
     ids.map((id) => [
       id,
       calcPointBalance({
-        merits: merits.filter((m) => m.studentId === id),
-        redemptions: redemptions.filter((r) => r.studentId === id),
+        merits: merits
+          .filter((m) => m.studentId === id)
+          .map((m) => ({ type: m.type, points: m._sum.points ?? 0 })),
+        redemptions: redemptions
+          .filter((r) => r.studentId === id)
+          .map((r) => ({ status: r.status, points: r._sum.points ?? 0 })),
       }).balance,
     ]),
   );

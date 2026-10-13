@@ -22,8 +22,13 @@ export default async function AssignmentsPage() {
       id: true,
       name: true,
       grade: true,
+      // 패널이 그리는 필드만 (egress 절감)
       assignments: {
         orderBy: { createdAt: "desc" },
+        select: {
+          id: true, title: true, subject: true, description: true, dueDate: true,
+          isCompleted: true, completedAt: true, completedNote: true, createdByName: true,
+        },
       },
     },
     orderBy: { name: "asc" },

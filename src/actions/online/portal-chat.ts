@@ -8,7 +8,7 @@ import { assertCanMessage } from "@/lib/safety";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
 import { sanitizePortalAttachments } from "@/lib/portal-attachments";
-import { ensureStudentPortalChats } from "@/lib/portal-chat-core";
+import { ensureStudentPortalChats, lastMessagesByChat } from "@/lib/portal-chat-core";
 import type { PortalChatSenderType } from "@/generated/prisma/enums";
 
 export type ChatAttachment = {
@@ -63,37 +63,34 @@ export async function listStudentChats(params: { studentToken: string }) {
       ],
     },
     orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
-    include: {
+    select: {
+      id: true,
+      staffId: true,
+      lastMessageAt: true,
+      studentReadAt: true,
       staff: { select: { id: true, name: true, role: true } },
-      messages: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: {
-          id: true,
-          content: true,
-          senderType: true,
-          createdAt: true,
-          attachments: true,
-        },
-      },
     },
   });
 
   // 정확한 unread 카운트: 학생이 읽은 시각 이후로 STAFF가 보낸 메시지
-  const unreadCounts = await Promise.all(
-    chats.map((c) =>
-      prisma.portalChatMessage.count({
-        where: {
-          chatId: c.id,
-          senderType: "STAFF",
-          createdAt: c.studentReadAt ? { gt: c.studentReadAt } : undefined,
-        },
-      })
-    )
-  );
+  const [lastByChat, unreadCounts] = await Promise.all([
+    // 방별 마지막 메시지만 DB 에서 골라 온다 (중첩 take 는 전체 메시지를 가져옴)
+    lastMessagesByChat(chats.map((c) => c.id)),
+    Promise.all(
+      chats.map((c) =>
+        prisma.portalChatMessage.count({
+          where: {
+            chatId: c.id,
+            senderType: "STAFF",
+            createdAt: c.studentReadAt ? { gt: c.studentReadAt } : undefined,
+          },
+        })
+      )
+    ),
+  ]);
 
   return chats.map((c, i) => {
-    const last = c.messages[0] ?? null;
+    const last = lastByChat.get(c.id) ?? null;
     return {
       id: c.id,
       staff: c.staff,
@@ -139,18 +136,30 @@ export async function listStaffInbox() {
     },
     select: { id: true },
   });
-  for (const s of myStudents) {
-    await prisma.portalChat.upsert({
-      where: { studentId_staffId: { studentId: s.id, staffId } },
-      update: {},
-      create: { studentId: s.id, staffId },
+  // 없는 방만 만든다 — 학생마다 upsert(전체 행 반환)하던 것을 존재 확인 1회 + createMany 로
+  const studentIds = myStudents.map((s) => s.id);
+  if (studentIds.length > 0) {
+    const existing = await prisma.portalChat.findMany({
+      where: { staffId, studentId: { in: studentIds } },
+      select: { studentId: true },
     });
+    const have = new Set(existing.map((c) => c.studentId));
+    const missing = studentIds.filter((id) => !have.has(id));
+    if (missing.length > 0) {
+      await prisma.portalChat.createMany({
+        data: missing.map((studentId) => ({ studentId, staffId })),
+        skipDuplicates: true,
+      });
+    }
   }
 
   const chats = await prisma.portalChat.findMany({
     where: { staffId },
     orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
-    include: {
+    select: {
+      id: true,
+      lastMessageAt: true,
+      staffReadAt: true,
       student: {
         select: {
           id: true,
@@ -159,34 +168,28 @@ export async function listStaffInbox() {
           grade: true,
         },
       },
-      messages: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: {
-          content: true,
-          senderType: true,
-          createdAt: true,
-          attachments: true,
-        },
-      },
     },
   });
 
   // 직원이 안 읽은 메시지 수: staffReadAt 이후 학생이 보낸 메시지 카운트
-  const unreadCounts = await Promise.all(
-    chats.map((c) =>
-      prisma.portalChatMessage.count({
-        where: {
-          chatId: c.id,
-          senderType: "STUDENT",
-          createdAt: c.staffReadAt ? { gt: c.staffReadAt } : undefined,
-        },
-      })
-    )
-  );
+  const [lastByChat, unreadCounts] = await Promise.all([
+    // 방별 마지막 메시지만 DB 에서 골라 온다 (중첩 take 는 전체 메시지를 가져옴)
+    lastMessagesByChat(chats.map((c) => c.id)),
+    Promise.all(
+      chats.map((c) =>
+        prisma.portalChatMessage.count({
+          where: {
+            chatId: c.id,
+            senderType: "STUDENT",
+            createdAt: c.staffReadAt ? { gt: c.staffReadAt } : undefined,
+          },
+        })
+      )
+    ),
+  ]);
 
   return chats.map((c, i) => {
-    const last = c.messages[0] ?? null;
+    const last = lastByChat.get(c.id) ?? null;
     return {
       id: c.id,
       student: c.student,
@@ -214,9 +217,11 @@ export async function getChatMessages(params: {
   chatId: string;
   studentToken?: string;
   before?: string; // ISO date — 페이지네이션
+  /** ISO date — 이 시각 이후(같은 시각 포함) 메시지만. 폴링 증분 조회용(매번 최근 50건 재전송 방지) */
+  after?: string;
   limit?: number;
 }) {
-  const { chatId, studentToken, before } = params;
+  const { chatId, studentToken, before, after } = params;
   // take 는 클라이언트 입력 — 1~100 으로 제한 (음수 take 는 역방향 조회가 되므로 차단)
   const limit =
     typeof params.limit === "number" && Number.isFinite(params.limit)
@@ -224,6 +229,8 @@ export async function getChatMessages(params: {
       : 50;
   const beforeDate = before ? new Date(before) : null;
   if (beforeDate && Number.isNaN(beforeDate.getTime())) throw new Error("잘못된 요청입니다");
+  const afterDate = after ? new Date(after) : null;
+  if (afterDate && Number.isNaN(afterDate.getTime())) throw new Error("잘못된 요청입니다");
   const chat = await prisma.portalChat.findUnique({
     where: { id: chatId },
     select: {
@@ -253,22 +260,39 @@ export async function getChatMessages(params: {
   }
   if (!viewer) throw new Error("권한이 없습니다");
 
-  const messages = await prisma.portalChatMessage.findMany({
-    where: {
-      chatId,
-      ...(beforeDate ? { createdAt: { lt: beforeDate } } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    include: {
-      senderUser: { select: { id: true, name: true } },
-    },
-  });
+  const messageSelect = {
+    id: true,
+    senderType: true,
+    content: true,
+    attachments: true,
+    flaggedForDailyLogAt: true,
+    createdAt: true,
+    senderUser: { select: { id: true, name: true } },
+  } as const;
+  // after: 그 시각 이후 것만 오래된 순으로 (같은 시각 메시지는 호출 측이 id 로 중복 제거)
+  const messages = afterDate
+    ? await prisma.portalChatMessage.findMany({
+        where: { chatId, createdAt: { gte: afterDate } },
+        orderBy: { createdAt: "asc" },
+        take: limit,
+        select: messageSelect,
+      })
+    : (
+        await prisma.portalChatMessage.findMany({
+          where: {
+            chatId,
+            ...(beforeDate ? { createdAt: { lt: beforeDate } } : {}),
+          },
+          orderBy: { createdAt: "desc" },
+          take: limit,
+          select: messageSelect,
+        })
+      ).reverse();
 
   return {
     chat: { id: chat.id, student: chat.student, staff: chat.staff },
     viewer,
-    messages: messages.reverse().map((m) => ({
+    messages: messages.map((m) => ({
       id: m.id,
       senderType: m.senderType,
       senderName:

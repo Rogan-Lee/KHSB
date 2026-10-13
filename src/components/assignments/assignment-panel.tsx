@@ -30,10 +30,16 @@ import {
 import type { Assignment } from "@/generated/prisma";
 import { AssignmentFiles, PendingFilePicker, uploadAssignmentFile } from "./assignment-files";
 
+/** 패널이 그리는 필드만 — 목록 쿼리는 이 필드만 select 하면 된다(egress 절감). */
+export type AssignmentItem = Pick<
+  Assignment,
+  "id" | "title" | "subject" | "description" | "dueDate" | "isCompleted" | "completedAt" | "completedNote" | "createdByName"
+>;
+
 interface Props {
   studentId: string;
   studentName?: string;
-  initialItems: Assignment[];
+  initialItems: AssignmentItem[];
   mentoringId?: string;
   compact?: boolean;
 }
@@ -68,7 +74,7 @@ export function AssignmentPanel({
   mentoringId,
   compact = false,
 }: Props) {
-  const [items, setItems] = useState<Assignment[]>(initialItems);
+  const [items, setItems] = useState<AssignmentItem[]>(initialItems);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
@@ -89,7 +95,7 @@ export function AssignmentPanel({
     setShowForm(true);
   }
 
-  function openEdit(item: Assignment) {
+  function openEdit(item: AssignmentItem) {
     setEditingId(item.id);
     setForm({
       title: item.title,
@@ -181,7 +187,7 @@ export function AssignmentPanel({
     }
   }
 
-  function handleComplete(item: Assignment) {
+  function handleComplete(item: AssignmentItem) {
     startTransition(async () => {
       try {
         await completeAssignment(item.id, studentId);
@@ -196,7 +202,7 @@ export function AssignmentPanel({
     });
   }
 
-  function handleUncomplete(item: Assignment) {
+  function handleUncomplete(item: AssignmentItem) {
     startTransition(async () => {
       try {
         await uncompleteAssignment(item.id, studentId);

@@ -31,7 +31,8 @@ export async function requireMobileParent(request: NextRequest) {
 
   const links = await prisma.parentLink.findMany({
     where: { authUserId: current.identity.id, student: { status: "ACTIVE" } },
-    include: {
+    // 학부모 요청마다 실행 — 링크 행 컬럼은 쓰지 않으므로 자녀 정보만
+    select: {
       student: { select: { grade: true, id: true, name: true, seat: true } },
     },
     orderBy: { createdAt: "asc" },

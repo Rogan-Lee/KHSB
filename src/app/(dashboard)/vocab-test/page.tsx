@@ -19,16 +19,30 @@ export default async function VocabTestPage() {
 
   const [studentsRaw, enrollments, scores, books, unitRows, exams, rosterStudents] =
     await Promise.all([
+      // 화면이 읽는 필드만 select (egress 절감)
       prisma.student.findMany({
         where: offlineStudentWhere({ status: "ACTIVE" }),
-        select: { id: true, name: true, grade: true, school: true, seat: true, vocabEnrollment: true },
+        select: { id: true, name: true, grade: true, school: true, seat: true },
       }),
       prisma.vocabTestEnrollment.findMany({
         where: { isActive: true },
-        include: { student: { select: { id: true, name: true, grade: true, school: true, seat: true, vocabTestDate: true } } },
+        select: {
+          studentId: true,
+          isActive: true,
+          reason: true,
+          student: { select: { id: true, name: true, grade: true, school: true, seat: true, vocabTestDate: true } },
+        },
       }),
       prisma.vocabTestScore.findMany({
-        include: { student: { select: { id: true, name: true, grade: true } } },
+        select: {
+          id: true,
+          testDate: true,
+          totalWords: true,
+          correctWords: true,
+          score: true,
+          notes: true,
+          student: { select: { id: true, name: true, grade: true } },
+        },
         orderBy: { testDate: "desc" },
         take: 200,
       }),
@@ -40,14 +54,31 @@ export default async function VocabTestPage() {
         },
       }),
       prisma.vocabBookEntry.groupBy({ by: ["bookId", "unit"], _count: { _all: true } }),
+      // examsForClient 가 쓰는 필드만 — entryIds(문항 id 배열)·응시 UA 등 제외 (egress 절감)
       prisma.vocabExam.findMany({
         orderBy: { createdAt: "desc" },
         take: 100,
-        include: {
+        select: {
+          id: true,
+          title: true,
+          direction: true,
+          questionCount: true,
+          perQuestionSeconds: true,
+          createdAt: true,
+          retakeOfId: true,
           book: { select: { name: true } },
           attempts: {
             orderBy: { assignedAt: "asc" },
-            include: { student: { select: { id: true, name: true, grade: true } } },
+            select: {
+              id: true,
+              token: true,
+              status: true,
+              score: true,
+              correctCount: true,
+              totalQuestions: true,
+              submittedAt: true,
+              student: { select: { id: true, name: true, grade: true } },
+            },
           },
         },
       }),

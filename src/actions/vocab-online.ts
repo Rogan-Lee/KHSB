@@ -428,6 +428,32 @@ async function getAttemptByToken(token: string) {
     where: { token },
     include: { exam: true },
   });
+  return ensureAttemptUsable(attempt);
+}
+
+/**
+ * 시험 정보(exam.entryIds 등) 없이 응시 상태만 — 문항마다 호출되는 답안 제출·최종 제출용.
+ * (egress: 문항당 시험 행 전체를 다시 읽지 않도록)
+ */
+async function getAttemptStateByToken(token: string) {
+  const attempt = await prisma.vocabAttempt.findUnique({
+    where: { token },
+    select: {
+      id: true,
+      status: true,
+      expiresAt: true,
+      startedAt: true,
+      score: true,
+      correctCount: true,
+      totalQuestions: true,
+    },
+  });
+  return ensureAttemptUsable(attempt);
+}
+
+async function ensureAttemptUsable<
+  A extends { id: string; status: string; expiresAt: Date | null },
+>(attempt: A | null): Promise<A> {
   if (!attempt) throw new Error("시험을 찾을 수 없습니다");
   if (attempt.status === "EXPIRED") throw new Error("만료되었거나 취소된 시험입니다");
   // expiresAt 자동 만료 (제출 전 응시 한정 — 이미 제출된 응시는 결과 조회 가능)
@@ -559,7 +585,7 @@ export async function submitVocabAnswer(
   answer: string,
   timeMs: number
 ) {
-  const attempt = await getAttemptByToken(token);
+  const attempt = await getAttemptStateByToken(token);
   if (attempt.status !== "IN_PROGRESS") return; // 이미 끝났으면 무시
   const item = await prisma.vocabAttemptItem.findUnique({
     where: { id: itemId },
@@ -626,7 +652,7 @@ export async function getStudentVocabHistory(
 }
 
 export async function finalizeVocabAttempt(token: string) {
-  const attempt = await getAttemptByToken(token);
+  const attempt = await getAttemptStateByToken(token);
   if (attempt.status === "SUBMITTED") {
     return { score: attempt.score ?? 0, correctCount: attempt.correctCount, totalQuestions: attempt.totalQuestions };
   }

@@ -64,7 +64,18 @@ export async function listScheduleProposalsForReview(sort: ProposalSort = "recen
   const rows = await prisma.scheduleProposal.findMany({
     where: { status: { in: ["SUBMITTED", "PROPOSED", "APPROVED", "REJECTED"] } },
     orderBy,
-    include: { student: { select: { id: true, name: true, grade: true } }, _count: { select: { feedbacks: true } } },
+    // egress: 목록에 쓰는 컬럼만 (일정 JSON·스냅샷·메모 제외)
+    select: {
+      id: true,
+      studentId: true,
+      status: true,
+      version: true,
+      scheduledFor: true,
+      updatedAt: true,
+      createdAt: true,
+      student: { select: { id: true, name: true, grade: true } },
+      _count: { select: { feedbacks: true } },
+    },
   });
   // 학생별 최신 버전만 남긴다 (정렬 순서 유지).
   const latestVersion = new Map<string, number>();

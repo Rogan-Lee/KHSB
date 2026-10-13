@@ -59,11 +59,21 @@ export async function GET(request: NextRequest) {
       authorName: true,
       authorRole: true,
       authorKey: true,
-      body: true, // hasBody 계산용 — 응답에는 포함하지 않음
     },
   });
 
-  const posts = rows.map(({ body, ...p }) => ({ ...p, hasBody: !!body?.trim() }));
+  // hasBody 계산 — 본문 전체를 가져오지 않고 본문 있는 글의 id 만 조회(egress 절감).
+  // 본문은 저장 시 trim() || null 로 정규화되므로(src/actions/content-posts.ts) null·빈 문자열만 거르면 된다.
+  const withBody =
+    rows.length > 0
+      ? await prisma.contentPost.findMany({
+          where: { id: { in: rows.map((r) => r.id) }, body: { not: null }, NOT: { body: "" } },
+          select: { id: true },
+        })
+      : [];
+  const hasBodyIds = new Set(withBody.map((r) => r.id));
+
+  const posts = rows.map((p) => ({ ...p, hasBody: hasBodyIds.has(p.id) }));
 
   return NextResponse.json({ posts }, { headers: CACHE_HEADERS });
 }

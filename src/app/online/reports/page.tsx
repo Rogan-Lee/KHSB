@@ -25,7 +25,7 @@ export default async function ReportsDashboardPage({
   const weekStart = week ?? shiftWeek(mondayOfKST(), -1); // 기본: 지난 주
   const weekStartDate = new Date(weekStart + "T00:00:00.000Z");
 
-  const [students, existingReports, reportsWithUnread] = await Promise.all([
+  const [students, existingReports, reportContents, reportsWithUnread] = await Promise.all([
     prisma.student.findMany({
       where: { isOnlineManaged: true, status: "ACTIVE" },
       select: {
@@ -40,10 +40,25 @@ export default async function ReportsDashboardPage({
     }),
     prisma.onlineParentReport.findMany({
       where: { type: "WEEKLY", periodStart: weekStartDate },
-      include: {
+      // 본문(content)은 아래 별도 조회 — 예약(QUEUED) 건은 봉인 프롬프트라 화면에 안 쓰므로 빼고 가져온다
+      select: {
+        id: true,
+        studentId: true,
+        status: true,
+        token: true,
+        updatedAt: true,
+        approvedAt: true,
+        sentAt: true,
+        viewCount: true,
+        sentChannels: true,
+        errorMessage: true,
         approvedBy: { select: { name: true } },
         _count: { select: { feedbacks: { where: { readAt: null } } } },
       },
+    }),
+    prisma.onlineParentReport.findMany({
+      where: { type: "WEEKLY", periodStart: weekStartDate, status: { not: "QUEUED" } },
+      select: { id: true, content: true },
     }),
     prisma.onlineParentReport.findMany({
       where: { feedbacks: { some: { readAt: null } } },
@@ -70,6 +85,7 @@ export default async function ReportsDashboardPage({
   );
 
   const reportByStudent = new Map(existingReports.map((r) => [r.studentId, r]));
+  const contentById = new Map(reportContents.map((r) => [r.id, r.content]));
 
   const rows: OnlineReportRow[] = students.map((s) => {
     const r = reportByStudent.get(s.id);
@@ -86,7 +102,7 @@ export default async function ReportsDashboardPage({
             status: r.status,
             token: r.token,
             markdown:
-              ((r.content as unknown as { markdown?: string })?.markdown) ?? "",
+              ((contentById.get(r.id) as unknown as { markdown?: string } | undefined)?.markdown) ?? "",
             updatedAt: r.updatedAt.toISOString(),
             approvedByName: r.approvedBy?.name ?? null,
             approvedAt: r.approvedAt?.toISOString() ?? null,

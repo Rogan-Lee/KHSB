@@ -50,6 +50,8 @@ export default async function ParentReportPage({
     },
     orderBy: { examDate: "desc" },
     take: 50,
+    // 차트가 쓰는 필드만 (egress)
+    select: { examDate: true, examName: true, subject: true, grade: true, percentile: true, examType: true },
   });
   // 최근 50개를 가져온 뒤 차트 표시용으로 시간순(오름차순) 복원
   examScores.reverse();

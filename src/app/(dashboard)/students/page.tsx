@@ -37,12 +37,25 @@ export default async function StudentsPage({
     : "list";
 
   const [students, studentsSheetConfig, scoresSheetConfig, googleConnected, portalLinkRows] = await Promise.all([
+    // 목록·일정 표가 읽는 필드만 select (전 컬럼 51개 대신 — egress 절감)
     prisma.student.findMany({
       where: offlineStudentWhere(),
-      include: {
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        parentPhone: true,
+        parentEmail: true,
+        grade: true,
+        school: true,
+        classGroup: true,
+        seat: true,
+        status: true,
+        startDate: true,
+        imageUrl: true,
+        studentInfo: true,
+        createdAt: true,
         mentor: { select: { name: true } },
-        schedules: true,
-        outings: true,
       },
       orderBy: [{ seat: { sort: "asc", nulls: "last" } }, { name: "asc" }],
     }),
@@ -62,7 +75,27 @@ export default async function StudentsPage({
   const inactive = students.filter((s) => s.status === "INACTIVE").length;
   const withdrawn = students.filter((s) => s.status === "WITHDRAWN").length;
   const graduated = students.filter((s) => s.status === "GRADUATED").length;
-  const activeStudents = students.filter((s) => s.status === "ACTIVE");
+  // 입퇴실 일정 탭은 재원생만 쓴다 — 퇴원·졸업생 일정까지 가져오지 않도록 재원생 것만 조회 (egress 절감)
+  const activeIds = students.filter((s) => s.status === "ACTIVE").map((s) => s.id);
+  const [activeSchedules, activeOutings] = activeIds.length
+    ? await Promise.all([
+        prisma.attendanceSchedule.findMany({
+          where: { studentId: { in: activeIds } },
+          select: { studentId: true, dayOfWeek: true, startTime: true, endTime: true },
+        }),
+        prisma.outingSchedule.findMany({
+          where: { studentId: { in: activeIds } },
+          select: { studentId: true, dayOfWeek: true, outStart: true, outEnd: true, reason: true },
+        }),
+      ])
+    : [[], []];
+  const activeStudents = students
+    .filter((s) => s.status === "ACTIVE")
+    .map((s) => ({
+      ...s,
+      schedules: activeSchedules.filter((x) => x.studentId === s.id),
+      outings: activeOutings.filter((x) => x.studentId === s.id),
+    }));
 
   const issuedLinks = portalLinkRows.filter((s) => s.token).length;
 

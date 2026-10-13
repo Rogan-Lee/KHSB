@@ -11,15 +11,28 @@ import { cn } from "@/lib/utils";
 import { ROLE_DISPLAY } from "@/lib/roles";
 import {
   getThread,
+  getThreadUpdates,
   listMyThreads,
   sendStaffMessage,
 } from "@/actions/staff-messages";
 
+// 열린 대화는 5초마다 "새 메시지만" 받고, 대화 목록(안 읽음 수·마지막 메시지)은 15초마다 갱신한다.
+// 예전엔 5초마다 대화 전체 + 목록 전체를 다시 받아 egress 가 컸다. 숨은 탭에선 둘 다 멈춘다.
 const POLL_INTERVAL_MS = 5000;
+const THREADS_POLL_EVERY = 3; // 3틱(15초)마다 목록 갱신
 
 type StaffOption = { id: string; name: string; role: string };
 type ThreadSummary = Awaited<ReturnType<typeof listMyThreads>>[number];
 type ThreadDetail = Awaited<ReturnType<typeof getThread>>;
+type ThreadMessage = ThreadDetail["messages"][number];
+
+/** 받은 새 메시지를 기존 대화 뒤에 붙인다 (id 중복 제거). 바뀐 게 없으면 prev 그대로. */
+function mergeMessages(prev: ThreadMessage[], incoming: ThreadMessage[]): ThreadMessage[] {
+  if (incoming.length === 0) return prev;
+  const seen = new Set(prev.map((m) => m.id));
+  const fresh = incoming.filter((m) => !seen.has(m.id));
+  return fresh.length === 0 ? prev : [...prev, ...fresh];
+}
 
 function timeShort(iso: string): string {
   const kst = new Date(new Date(iso).getTime() + 9 * 60 * 60 * 1000);
@@ -47,6 +60,20 @@ export function StaffDmPanel({ staff }: { staff: StaffOption[] }) {
   const [content, setContent] = useState("");
   const [isPending, startTransition] = useTransition();
   const scrollRef = useRef<HTMLDivElement>(null);
+  // 폴링 콜백에서 최신 대화 상태(마지막 메시지)를 읽기 위한 ref
+  const detailRef = useRef<ThreadDetail | null>(null);
+  useEffect(() => {
+    detailRef.current = detail;
+  }, [detail]);
+
+  const scrollToBottom = useCallback((smooth: boolean) => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        ...(smooth ? { behavior: "smooth" as const } : {}),
+      });
+    });
+  }, []);
 
   const refreshThreads = useCallback(async () => {
     try {
@@ -73,38 +100,58 @@ export function StaffDmPanel({ staff }: { staff: StaffOption[] }) {
     [refreshThreads]
   );
 
-  // 초기 로드 + 5초 폴링 (열린 대화 갱신 + 목록 갱신)
+  // 초기 로드 (이후 폴링은 아래 — 열린 대화 5초·목록 15초)
   useEffect(() => {
     // setThreads 는 await 이후(비동기)에 호출돼 연쇄 렌더를 만들지 않는다
     // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshThreads();
   }, [refreshThreads]);
 
+  /**
+   * 열린 대화의 새 메시지만 받아 붙인다(상대 메시지 읽음 처리는 서버가 getThread 와 똑같이 한다).
+   * 새 메시지가 있으면 true.
+   */
+  const pullNewMessages = useCallback(async (otherUserId: string): Promise<boolean> => {
+    const current = detailRef.current;
+    if (!current || current.other.id !== otherUserId) return false;
+    const last = current.messages[current.messages.length - 1];
+    const data = await getThreadUpdates(otherUserId, last ? { id: last.id, createdAt: last.createdAt } : null);
+    const latest = detailRef.current;
+    if (!latest || latest.other.id !== otherUserId) return false; // 그사이 다른 대화로 바꿨으면 버린다
+    if (mergeMessages(latest.messages, data.messages) === latest.messages) return false;
+    setDetail((prev) => {
+      if (!prev || prev.other.id !== otherUserId) return prev;
+      const messages = mergeMessages(prev.messages, data.messages);
+      return messages === prev.messages ? prev : { ...prev, messages };
+    });
+    return true;
+  }, []);
+
   useEffect(() => {
+    let tick = 0;
     const timer = setInterval(async () => {
       if (document.hidden) return;
-      refreshThreads();
+      tick += 1;
+      let threadsRefreshed = false;
+      if (tick % THREADS_POLL_EVERY === 0) {
+        refreshThreads();
+        threadsRefreshed = true;
+      }
       if (selectedUserId) {
         try {
-          const data = await getThread(selectedUserId);
-          setDetail((prev) => {
-            if (prev && prev.messages.length !== data.messages.length) {
-              requestAnimationFrame(() => {
-                scrollRef.current?.scrollTo({
-                  top: scrollRef.current.scrollHeight,
-                  behavior: "smooth",
-                });
-              });
-            }
-            return data;
-          });
+          const added = await pullNewMessages(selectedUserId);
+          if (added) {
+            scrollToBottom(true);
+            // 새 메시지가 오면 목록(마지막 메시지·순서)도 바로 맞춘다
+            if (!threadsRefreshed) refreshThreads();
+          }
         } catch {
           /* ignore */
         }
       }
     }, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [selectedUserId, refreshThreads]);
+  }, [selectedUserId, refreshThreads, pullNewMessages, scrollToBottom]);
 
   const handleSend = () => {
     if (!selectedUserId || !content.trim() || isPending) return;
@@ -113,15 +160,9 @@ export function StaffDmPanel({ staff }: { staff: StaffOption[] }) {
       try {
         await sendStaffMessage(selectedUserId, text);
         setContent("");
-        const data = await getThread(selectedUserId);
-        setDetail(data);
+        await pullNewMessages(selectedUserId);
         refreshThreads();
-        requestAnimationFrame(() => {
-          scrollRef.current?.scrollTo({
-            top: scrollRef.current.scrollHeight,
-            behavior: "smooth",
-          });
-        });
+        scrollToBottom(true);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "전송 실패");
       }

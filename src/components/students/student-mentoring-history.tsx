@@ -18,7 +18,6 @@ type MentoringRecord = {
   scheduledTimeEnd: string | null;
   status: MentoringStatus;
   content: string | null;
-  previousIssues: string | null;
   improvements: string | null;
   weaknesses: string | null;
   nextGoals: string | null;

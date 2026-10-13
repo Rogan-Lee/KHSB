@@ -1,6 +1,6 @@
 export const revalidate = 30;
 
-import { getOverallAnalytics, getAttendanceTimeStats } from "@/actions/analytics";
+import { getOverallAnalytics, getAttendanceTimeStatsForRanges } from "@/actions/analytics";
 import { isStaff } from "@/lib/roles";
 import { todayKST } from "@/lib/utils";
 import { AnalyticsDashboard } from "@/components/analytics/analytics-dashboard";
@@ -17,10 +17,10 @@ export default async function AnalyticsPage() {
   // 리포트·분석 메뉴는 자습실 직원 전용(nav insights 그룹 = isStaff, getAttendanceTimeStats 도 requireStaff)
   await requireDashboardSession(isStaff);
 
-  const [data, d7, d30] = await Promise.all([
+  // 7일·30일 통계는 30일 범위를 한 번만 조회해 나눈다 (egress 절감)
+  const [data, [d7, d30]] = await Promise.all([
     getOverallAnalytics(),
-    getAttendanceTimeStats(lastDaysRange(7)),
-    getAttendanceTimeStats(lastDaysRange(30)),
+    getAttendanceTimeStatsForRanges([lastDaysRange(7), lastDaysRange(30)]),
   ]);
 
   return <AnalyticsDashboard data={data} attendanceStats={{ d7, d30 }} />;

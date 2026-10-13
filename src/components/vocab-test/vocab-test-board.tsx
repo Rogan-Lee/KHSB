@@ -28,8 +28,14 @@ import { useSortableTable } from "@/hooks/use-sortable-table";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { useConfirmDialog } from "@/components/suggestions/use-confirm-dialog";
 
-type StudentBasic = { id: string; name: string; grade: string; school: string | null; seat: string | null; vocabEnrollment: VocabTestEnrollment | null };
-type ScoreWithStudent = VocabTestScore & { student: { id: string; name: string; grade: string } };
+// 보드가 읽는 필드만 — 페이지 쿼리의 select 와 맞춘다(egress 절감).
+type StudentBasic = { id: string; name: string; grade: string; school: string | null; seat: string | null };
+type EnrollmentRow = Pick<VocabTestEnrollment, "studentId" | "isActive" | "reason"> & {
+  student: { id: string; name: string; grade: string; school: string | null };
+};
+type ScoreWithStudent = Pick<VocabTestScore, "id" | "testDate" | "totalWords" | "correctWords" | "score" | "notes"> & {
+  student: { id: string; name: string; grade: string };
+};
 
 const REASON_LABEL: Record<string, { label: string; tone: Tone }> = {
   AUTO_GRADE3: { label: "자동(3등급↓)", tone: "bad" },
@@ -45,7 +51,7 @@ const DATE_FIELD_CLASS =
   "h-10 w-full justify-start gap-x2 rounded-r2 border-0 bg-bg-layer-default px-x3 t4-regular text-fg-neutral shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] hover:bg-bg-layer-default-pressed";
 
 // ── 대상자 관리 탭 — 전체 학생 리스트에서 체크박스로 선택/등록 ──
-function EnrollmentTab({ students, enrollments }: { students: StudentBasic[]; enrollments: (VocabTestEnrollment & { student: { id: string; name: string; grade: string; school: string | null } })[] }) {
+function EnrollmentTab({ students, enrollments }: { students: StudentBasic[]; enrollments: EnrollmentRow[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [query, setQuery] = useState("");
@@ -445,7 +451,7 @@ function ScoresTab({ enrollments, scores }: {
 // ── 메인 보드 ──
 export function VocabTestBoard({ students, enrollments, scores }: {
   students: StudentBasic[];
-  enrollments: (VocabTestEnrollment & { student: { id: string; name: string; grade: string; school: string | null } })[];
+  enrollments: EnrollmentRow[];
   scores: ScoreWithStudent[];
 }) {
   return (

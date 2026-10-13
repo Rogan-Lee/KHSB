@@ -5,6 +5,7 @@ import { AttendanceTable } from "@/components/attendance/attendance-table";
 import { FilterLink } from "@/components/attendance/attendance-status";
 import { todayKST } from "@/lib/utils";
 import { offlineStudentWhere } from "@/lib/student-filters";
+import { latestIdsPerGroup } from "@/lib/db/latest-per-group";
 import { listStudentPortalLinks } from "@/actions/student-portal-links";
 import { isFullAccess } from "@/lib/roles";
 import { PortalLinksSheet } from "@/components/attendance/portal-links-sheet";
@@ -29,27 +30,102 @@ export default async function AttendancePage({
   const dayOfWeek = kstNow.getUTCDay();
   const nowHHMM = kstNow.toISOString().slice(11, 16); // "HH:MM" KST
 
-  const portalLinkRows = await listStudentPortalLinks();
   const canManagePortalLinks = isFullAccess(session.user.role);
 
-  const students = await prisma.student.findMany({
-    where: offlineStudentWhere({ status: "ACTIVE" }),
-    include: {
-      attendances: { where: { date: today } },
-      schedules: { where: { dayOfWeek } },
-      outings: { where: { dayOfWeek } },
-      dailyOutings: { where: { date: today }, orderBy: { outStart: "asc" as const } },
-      communications: { orderBy: { createdAt: "desc" as const }, take: 30 },
-      assignments: { orderBy: { createdAt: "desc" as const }, take: 20 },
-      merits: { where: { date: today }, select: { type: true, points: true, date: true } },
-      vocabEnrollment: { select: { isActive: true } },
-      timetableEntries: {
-        where: { dayOfWeek },
-        select: { startTime: true, endTime: true, subject: true },
+  // 표가 읽는 필드만 select — 전 컬럼(51개)·관계 전 컬럼 대신 (egress 절감)
+  // 포털 링크 목록과 병렬로 — 아래 최근 요청/과제 조회가 한 단계 늘어난 만큼 대기 시간을 줄인다
+  const [portalLinkRows, baseStudents] = await Promise.all([
+    listStudentPortalLinks(),
+    prisma.student.findMany({
+      where: offlineStudentWhere({ status: "ACTIVE" }),
+      select: {
+        id: true,
+        name: true,
+        seat: true,
+        school: true,
+        grade: true,
+        classGroup: true,
+        studentInfo: true,
+        changeNote: true,
+        dailyNote: true,
+        dailyNoteDate: true,
+        vocabTestDate: true,
+        pledgeDate: true,
+        mockAnalysisDate: true,
+        schoolAnalysisDate: true,
+        plannerSentDate: true,
+        weeklyPlanDate: true,
+        mockAnalysisExempt: true,
+        schoolAnalysisExempt: true,
+        attendances: {
+          where: { date: today },
+          select: { checkIn: true, checkOut: true, type: true, notes: true, isAutoClosed: true },
+        },
+        schedules: { where: { dayOfWeek }, select: { startTime: true, endTime: true } },
+        outings: { where: { dayOfWeek }, select: { outStart: true, outEnd: true } },
+        dailyOutings: {
+          where: { date: today },
+          orderBy: { outStart: "asc" as const },
+          select: { id: true, outStart: true, outEnd: true, sequence: true, reason: true },
+        },
+        vocabEnrollment: { select: { isActive: true } },
+        timetableEntries: {
+          where: { dayOfWeek },
+          select: { startTime: true, endTime: true, subject: true },
+        },
       },
-    },
-    orderBy: { seat: "asc" },
-  });
+      orderBy: { seat: "asc" },
+    }),
+  ]);
+
+  // 요청/전달(최근 30)·과제(최근 20) — 목록의 중첩 take 는 DB 에서 안 잘려 학생 전원의 이력을 다 가져오므로
+  // 학생별 최신 id 만 DB 에서 고른 뒤 필요한 컬럼만 조회한다.
+  const studentIds = baseStudents.map((s) => s.id);
+  const [commIds, assignIds] = await Promise.all([
+    latestIdsPerGroup({
+      table: "Communication",
+      groupBy: "studentId",
+      groupIds: studentIds,
+      orderBy: [{ column: "createdAt", dir: "desc" }],
+      take: 30,
+    }),
+    latestIdsPerGroup({
+      table: "Assignment",
+      groupBy: "studentId",
+      groupIds: studentIds,
+      orderBy: [{ column: "createdAt", dir: "desc" }],
+      take: 20,
+    }),
+  ]);
+  const [commRows, assignRows] = await Promise.all([
+    commIds.length
+      ? prisma.communication.findMany({
+          where: { id: { in: commIds } },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true, studentId: true, type: true, content: true, isChecked: true,
+            checkedAt: true, createdByName: true, createdAt: true,
+          },
+        })
+      : [],
+    assignIds.length
+      ? prisma.assignment.findMany({
+          where: { id: { in: assignIds } },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true, studentId: true, title: true, subject: true, description: true, dueDate: true,
+            isCompleted: true, completedAt: true, completedNote: true, createdByName: true,
+          },
+        })
+      : [],
+  ]);
+  const commsByStudent = groupByStudent(commRows);
+  const assignsByStudent = groupByStudent(assignRows);
+  const students = baseStudents.map((s) => ({
+    ...s,
+    communications: commsByStudent.get(s.id) ?? [],
+    assignments: assignsByStudent.get(s.id) ?? [],
+  }));
 
   const withSchedule = students.filter((s) => s.schedules.length > 0);
   const normal = withSchedule.filter((s) => s.attendances[0]?.type === "NORMAL").length;
@@ -149,4 +225,14 @@ export default async function AttendancePage({
       <AttendanceTable students={visibleStudents} today={today.toISOString()} toolbarStart={filterChips} />
     </div>
   );
+}
+
+function groupByStudent<T extends { studentId: string }>(rows: T[]): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const r of rows) {
+    const list = map.get(r.studentId);
+    if (list) list.push(r);
+    else map.set(r.studentId, [r]);
+  }
+  return map;
 }

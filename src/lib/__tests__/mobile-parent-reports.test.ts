@@ -241,26 +241,27 @@ describe("redeemParentHandoff", () => {
 
 describe("listParentReports", () => {
   it("lists expired mentoring reports for linked parents but keeps the legacy list unchanged", async () => {
-    vi.mocked(prisma.parentReport.findMany).mockResolvedValue([
-      {
-        id: "new",
-        token: "t-new",
-        createdAt: new Date(Date.now() - 60_000),
-        expiresAt: future,
-        revokedAt: null,
-        customNote: "안내",
-        mentoring: { actualDate: null, scheduledAt: new Date("2026-09-24T01:00:00Z"), mentor: { name: "김멘토" } },
-      },
-      {
-        id: "old",
-        token: "t-old",
-        createdAt: new Date("2026-06-01T00:00:00Z"),
-        expiresAt: new Date("2026-07-01T00:00:00Z"),
-        revokedAt: null,
-        customNote: null,
-        mentoring: null,
-      },
-    ] as never);
+    vi.mocked(prisma.parentReport.findMany)
+      .mockResolvedValueOnce([
+        {
+          id: "new",
+          token: "t-new",
+          createdAt: new Date(Date.now() - 60_000),
+          expiresAt: future,
+          revokedAt: null,
+          mentoring: { actualDate: null, scheduledAt: new Date("2026-09-24T01:00:00Z"), mentor: { name: "김멘토" } },
+        },
+        {
+          id: "old",
+          token: "t-old",
+          createdAt: new Date("2026-06-01T00:00:00Z"),
+          expiresAt: new Date("2026-07-01T00:00:00Z"),
+          revokedAt: null,
+          mentoring: null,
+        },
+      ] as never)
+      // 구버전 hasNote — 메모 있는 리포트 id 만
+      .mockResolvedValueOnce([{ id: "new" }] as never);
     vi.mocked(prisma.monthlyReport.findMany).mockResolvedValue([]);
     vi.mocked(prisma.onlineParentReport.findMany).mockResolvedValue([]);
     vi.mocked(prisma.studyPlanReport.findMany).mockResolvedValue([]);
@@ -278,6 +279,13 @@ describe("listParentReports", () => {
     // 구버전 앱 응답: 만료 전 리포트만
     expect(inbox.items.map((i) => i.id)).toEqual(["new"]);
     expect(inbox.items[0].url).toBe("https://app.example.com/r/t-new");
+    expect(inbox.items[0].hasNote).toBe(true);
+    // 목록 조회는 customNote 본문을 싣지 않는다
+    expect(vi.mocked(prisma.parentReport.findMany).mock.calls[0][0]?.select).not.toHaveProperty("customNote");
+    expect(vi.mocked(prisma.parentReport.findMany).mock.calls[1][0]).toMatchObject({
+      where: { id: { in: ["new"] } },
+      select: { id: true },
+    });
     // 새 목록에는 웹 토큰이 실리지 않는다
     expect(JSON.stringify(inbox.reports)).not.toContain("t-new");
   });

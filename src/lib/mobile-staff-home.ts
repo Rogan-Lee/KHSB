@@ -7,10 +7,10 @@ import { MobileApiError } from "@/lib/mobile-auth";
 import { staffCapabilities } from "@/lib/mobile-capabilities";
 import {
   getKstDayContext,
-  getStaffMobileAttendance,
-  getStaffMobileMentoring,
+  getStaffMobileAttendanceSummary,
+  getStaffMobileMentoringSummary,
 } from "@/lib/mobile-data";
-import { getMobileStaffTasks } from "@/lib/mobile-tasks";
+import { countStaffTasksNeedingFeedback } from "@/lib/mobile-tasks";
 import { prisma } from "@/lib/prisma";
 import { isStaff } from "@/lib/roles";
 
@@ -221,8 +221,10 @@ export async function getMobileStaffToday(user: StaffUser, now = new Date()) {
     sessions,
   ] = await Promise.all([
     part("badges", true, () => getStaffBadges(user.id, user.role)),
-    part("attendance", off, () => getStaffMobileAttendance(now)),
-    part("mentoring", off, () => getStaffMobileMentoring(user.id, user.role, now)),
+    // 홈 카드는 집계만 — 학생 목록 전체(이름·연락처·메모·외출 등) 대신 상태 계산 컬럼만
+    part("attendance", off, () => getStaffMobileAttendanceSummary(now)),
+    // 홈은 건수만 — 목록(학생·멘토 이름 등) 대신 집계 전용 조회
+    part("mentoring", off, () => getStaffMobileMentoringSummary(user.id, user.role, now)),
     part("questions", off, () =>
       prisma.studentQuestion.count({ where: { status: "OPEN", student: { status: "ACTIVE" } } }),
     ),
@@ -266,7 +268,8 @@ export async function getMobileStaffToday(user: StaffUser, now = new Date()) {
       };
     }),
     // 수행평가 — 전 직원(원장은 전체, 그 외 담당 학생) · /staff/tasks 목록과 같은 범위
-    part("tasks", true, () => getMobileStaffTasks({ id: user.id, role: user.role }, now)),
+    // 홈은 "피드백 필요" 건수만 — 목록 300건 대신 집계 전용 조회 (같은 범위·기준)
+    part("tasks", true, () => countStaffTasksNeedingFeedback({ id: user.id, role: user.role }, now)),
     // 온라인 화상 관리 세션 — 내가 호스트인 오늘~내일 예정
     part("sessions", caps.onlineModule, async () => {
       const rows = await prisma.mentoringSession.findMany({
@@ -312,24 +315,25 @@ export async function getMobileStaffToday(user: StaffUser, now = new Date()) {
     priorities: {
       approvals: off && badges ? badges.approvals : null,
       openQuestions: openQuestions ?? null,
-      mentoringRecords: mentoring ? mentoring.summary.needsRecord : null,
+      mentoringRecords: mentoring ? mentoring.needsRecord : null,
       lunchRequests: off && badges ? badges.lunchRequests : null,
       unreadHandovers: unreadHandovers ?? null,
       suggestions: off && badges ? badges.suggestions : null,
-      tasksNeedFeedback: tasks ? tasks.summary.needsFeedback : null,
+      tasksNeedFeedback: tasks ?? null,
       unreadMessages: badges ? badges.chats + badges.dm : null,
     },
     attendance: attendance
       ? {
-          present: attendance.items.filter((i) => i.status === "입실").length,
-          away: attendance.summary.away,
-          notArrived: attendance.items.filter((i) => i.status === "미입실").length,
-          late: attendance.summary.late,
-          absent: attendance.summary.absent,
-          total: attendance.summary.total,
+          // 기존과 같게 present 는 "입실"만 (외출 제외)
+          present: attendance.inRoom,
+          away: attendance.away,
+          notArrived: attendance.notArrived,
+          late: attendance.late,
+          absent: attendance.absent,
+          total: attendance.total,
         }
       : null,
-    mentoringToday: mentoring ? mentoring.summary.today : null,
+    mentoringToday: mentoring ? mentoring.today : null,
     attention: attentionList
       ? {
           total: attentionList.length,

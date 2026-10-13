@@ -25,7 +25,15 @@ export default async function StudentDailyLogHistoryPage({
     where: { studentId: id },
     orderBy: { logDate: "desc" },
     take: 60,
-    include: { author: { select: { name: true } } },
+    // 화면에 쓰는 컬럼만 (카톡 원문 rawContent 제외)
+    select: {
+      id: true,
+      logDate: true,
+      summary: true,
+      tags: true,
+      isParentVisible: true,
+      author: { select: { name: true } },
+    },
   });
 
   const canSeeRaw = canViewKakaoRaw(user?.role);

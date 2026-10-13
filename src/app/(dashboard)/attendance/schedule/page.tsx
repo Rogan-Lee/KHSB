@@ -8,7 +8,14 @@ export default async function AttendanceSchedulePage() {
   await requireDashboardSession();
   const students = await prisma.student.findMany({
     where: offlineStudentWhere({ status: "ACTIVE" }),
-    include: { schedules: true, outings: true },
+    // 편집기가 읽는 필드만 (egress 절감)
+    select: {
+      id: true,
+      name: true,
+      grade: true,
+      schedules: { select: { dayOfWeek: true, startTime: true, endTime: true } },
+      outings: { select: { dayOfWeek: true, outStart: true, outEnd: true, reason: true } },
+    },
     orderBy: { name: "asc" },
   });
 

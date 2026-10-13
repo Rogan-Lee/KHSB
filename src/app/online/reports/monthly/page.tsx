@@ -56,7 +56,13 @@ export default async function MonthlyReportsPage({
     }),
     prisma.onlineParentReport.findMany({
       where: { type: "MONTHLY", periodStart },
-      include: {
+      // 표에 쓰는 컬럼만 (본문 content·프로필 스냅샷 제외)
+      select: {
+        id: true,
+        studentId: true,
+        status: true,
+        updatedAt: true,
+        viewCount: true,
         _count: { select: { feedbacks: { where: { readAt: null } } } },
       },
     }),

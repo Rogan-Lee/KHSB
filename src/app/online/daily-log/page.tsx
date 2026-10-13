@@ -34,11 +34,22 @@ export default async function DailyLogBoardPage({
       ...(viewAll ? {} : { assignedMentorId: user!.id }),
     },
     orderBy: { name: "asc" },
-    include: {
+    // egress: 화면에 쓰는 컬럼만 (학생 전 컬럼·카톡 원문 rawContent 제외)
+    select: {
+      id: true,
+      name: true,
+      grade: true,
+      school: true,
       dailyKakaoLogs: {
         where: { logDate: today },
         take: 1,
-        include: { author: { select: { name: true } } },
+        select: {
+          id: true,
+          summary: true,
+          tags: true,
+          isParentVisible: true,
+          author: { select: { name: true } },
+        },
       },
     },
   });

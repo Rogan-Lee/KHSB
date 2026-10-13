@@ -4,56 +4,72 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { isStaff, isFullAccess } from "@/lib/roles";
+import type { Prisma } from "@/generated/prisma/client";
 
 export type TodoRoleFilter = "MENTOR" | "STAFF" | "ALL";
 
-export async function getTodos(options?: { roleFilter?: TodoRoleFilter }) {
+// 목록 select — updatedAt 만 빼고 화면(목록·이력 다이얼로그)에서 쓰는 필드.
+const TODO_LIST_SELECT = {
+  id: true,
+  title: true,
+  content: true,
+  dueDate: true,
+  priority: true,
+  isCompleted: true,
+  completedAt: true,
+  authorId: true,
+  authorName: true,
+  assigneeId: true,
+  assigneeName: true,
+  category: true,
+  targetRole: true,
+  createdAt: true,
+  lastEditorId: true,
+  lastEditorName: true,
+  lastEditedAt: true,
+} satisfies Prisma.TodoSelect;
+
+export type TodoListRow = Prisma.TodoGetPayload<{ select: typeof TODO_LIST_SELECT }>;
+
+/** /todos 첫 화면에 같이 내려주는 최근 완료 건 수 — 나머지는 "더 보기"로 불러온다 */
+const RECENT_COMPLETED_TODOS = 30;
+
+async function requireTodoSession() {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
+  return session.user;
+}
 
-  // STAFF 이상은 전체 투두 조회, 그 외는 본인 것만
-  const baseWhere = isStaff(session.user.role)
+// STAFF 이상은 전체 투두 조회, 그 외는 본인 것만
+function todoScopeWhere(user: { id: string; role?: string | null }): Prisma.TodoWhereInput {
+  return isStaff(user.role)
     ? {}
     : {
         OR: [
-          { authorId: session.user.id },
-          { assigneeId: session.user.id },
+          { authorId: user.id },
+          { assigneeId: user.id },
         ],
       };
+}
 
-  // targetRole 필터:
-  //  - ALL/null/undefined → 모든 행 (null=legacy)
-  //  - MENTOR → targetRole IN ("MENTOR", "ALL") 또는 null
-  //  - STAFF  → targetRole IN ("STAFF", "ALL") 또는 null
-  const role = options?.roleFilter;
-  const roleWhere =
-    role === "MENTOR"
-      ? { OR: [{ targetRole: "MENTOR" }, { targetRole: "ALL" }, { targetRole: null }] }
-      : role === "STAFF"
-      ? { OR: [{ targetRole: "STAFF" }, { targetRole: "ALL" }, { targetRole: null }] }
-      : undefined;
+// 정렬 순서:
+//   1) category === "루틴" 인 행을 최상단으로 핀 (Sprint 6 PR 6.2)
+//   2) 미완료 → 완료
+//   3) 우선순위: URGENT > HIGH > NORMAL > LOW
+//   4) 기한 빠른 순 (null 은 뒤로)
+//   5) 최근 등록 순
+// Prisma 의 orderBy 만으로 (a) 문자열 필드 정확 매칭 (b) priority enum 순서를
+// 동시에 표현할 수 없어, 안정 정렬 가능한 컬럼들로만 DB 정렬을 받은 뒤
+// 메모리에서 (1)·(3) 키로 stable re-sort 한다. 운영 규모(수백 행) 내 OK.
+const TODO_DB_ORDER: Prisma.TodoOrderByWithRelationInput[] = [
+  { isCompleted: "asc" },
+  { dueDate: { sort: "asc", nulls: "last" } },
+  { createdAt: "desc" },
+];
 
-  const where = roleWhere ? { AND: [baseWhere, roleWhere] } : baseWhere;
+const PRIORITY_RANK: Record<string, number> = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
 
-  // 정렬 순서:
-  //   1) category === "루틴" 인 행을 최상단으로 핀 (Sprint 6 PR 6.2)
-  //   2) 미완료 → 완료
-  //   3) 우선순위: URGENT > HIGH > NORMAL > LOW
-  //   4) 기한 빠른 순 (null 은 뒤로)
-  //   5) 최근 등록 순
-  // Prisma 의 orderBy 만으로 (a) 문자열 필드 정확 매칭 (b) priority enum 순서를
-  // 동시에 표현할 수 없어, 안정 정렬 가능한 컬럼들로만 DB 정렬을 받은 뒤
-  // 메모리에서 (1)·(3) 키로 stable re-sort 한다. 운영 규모(수백 행) 내 OK.
-  const rows = await prisma.todo.findMany({
-    where,
-    orderBy: [
-      { isCompleted: "asc" },
-      { dueDate: { sort: "asc", nulls: "last" } },
-      { createdAt: "desc" },
-    ],
-  });
-
-  const PRIORITY_RANK: Record<string, number> = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
+function sortTodos<T extends TodoListRow>(rows: T[]): T[] {
   return rows.sort((a, b) => {
     // 1) 루틴 핀
     const ar = a.category === "루틴" ? 0 : 1;
@@ -72,6 +88,96 @@ export async function getTodos(options?: { roleFilter?: TodoRoleFilter }) {
     // 5) tie-break: 최근 등록 우선
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
+}
+
+export async function getTodos(options?: { roleFilter?: TodoRoleFilter }) {
+  const user = await requireTodoSession();
+  const baseWhere = todoScopeWhere(user);
+
+  // targetRole 필터:
+  //  - ALL/null/undefined → 모든 행 (null=legacy)
+  //  - MENTOR → targetRole IN ("MENTOR", "ALL") 또는 null
+  //  - STAFF  → targetRole IN ("STAFF", "ALL") 또는 null
+  const role = options?.roleFilter;
+  const roleWhere =
+    role === "MENTOR"
+      ? { OR: [{ targetRole: "MENTOR" }, { targetRole: "ALL" }, { targetRole: null }] }
+      : role === "STAFF"
+      ? { OR: [{ targetRole: "STAFF" }, { targetRole: "ALL" }, { targetRole: null }] }
+      : undefined;
+
+  const where = roleWhere ? { AND: [baseWhere, roleWhere] } : baseWhere;
+
+  const rows = await prisma.todo.findMany({ where, select: TODO_LIST_SELECT, orderBy: TODO_DB_ORDER });
+  return sortTodos(rows);
+}
+
+/**
+ * 미완료 할 일만 (홈 대시보드·인수인계 작성). 완료 이력은 계속 쌓이므로 여기선 가져오지 않는다 —
+ * 완료 개수가 필요하면 countCompletedTodos.
+ */
+export async function getPendingTodos(): Promise<TodoListRow[]> {
+  const user = await requireTodoSession();
+  const rows = await prisma.todo.findMany({
+    where: { AND: [todoScopeWhere(user), { isCompleted: false }] },
+    select: TODO_LIST_SELECT,
+    orderBy: TODO_DB_ORDER,
+  });
+  return sortTodos(rows);
+}
+
+/** 완료된 할 일 개수 (홈 대시보드 "오늘 업무 완료" 합계용) */
+export async function countCompletedTodos(): Promise<number> {
+  const user = await requireTodoSession();
+  return prisma.todo.count({ where: { AND: [todoScopeWhere(user), { isCompleted: true }] } });
+}
+
+/** 아직 화면에 안 불러온 완료 건 수 — 대상 역할(targetRole)별. 역할 필터별 완료 개수 계산용. */
+export type HiddenCompletedTodos = { targetRole: string | null; count: number }[];
+
+/**
+ * /todos 첫 화면 — 미완료 전체 + 최근 완료 RECENT_COMPLETED_TODOS 건.
+ * 완료 이력 전체를 매번 내려받지 않도록(egress) 나머지 완료 건은 개수만 hiddenCompleted 로 주고,
+ * 화면의 "이전 완료 더 보기"에서 getCompletedTodos 로 불러온다.
+ */
+export async function getTodoBoard(): Promise<{ todos: TodoListRow[]; hiddenCompleted: HiddenCompletedTodos }> {
+  const user = await requireTodoSession();
+  const scope = todoScopeWhere(user);
+  const completedWhere: Prisma.TodoWhereInput = { AND: [scope, { isCompleted: true }] };
+
+  const [pending, recentCompleted, completedByRole] = await Promise.all([
+    prisma.todo.findMany({
+      where: { AND: [scope, { isCompleted: false }] },
+      select: TODO_LIST_SELECT,
+      orderBy: TODO_DB_ORDER,
+    }),
+    prisma.todo.findMany({
+      where: completedWhere,
+      select: TODO_LIST_SELECT,
+      orderBy: [{ completedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+      take: RECENT_COMPLETED_TODOS,
+    }),
+    prisma.todo.groupBy({ by: ["targetRole"], where: completedWhere, _count: { _all: true } }),
+  ]);
+
+  const loadedByRole = new Map<string | null, number>();
+  for (const t of recentCompleted) loadedByRole.set(t.targetRole, (loadedByRole.get(t.targetRole) ?? 0) + 1);
+  const hiddenCompleted = completedByRole
+    .map((g) => ({ targetRole: g.targetRole, count: g._count._all - (loadedByRole.get(g.targetRole) ?? 0) }))
+    .filter((g) => g.count > 0);
+
+  return { todos: sortTodos([...pending, ...recentCompleted]), hiddenCompleted };
+}
+
+/** 완료된 할 일 전체 (/todos "이전 완료 더 보기") */
+export async function getCompletedTodos(): Promise<TodoListRow[]> {
+  const user = await requireTodoSession();
+  const rows = await prisma.todo.findMany({
+    where: { AND: [todoScopeWhere(user), { isCompleted: true }] },
+    select: TODO_LIST_SELECT,
+    orderBy: TODO_DB_ORDER,
+  });
+  return sortTodos(rows);
 }
 
 export async function createTodo(data: {

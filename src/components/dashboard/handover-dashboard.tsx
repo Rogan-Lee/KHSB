@@ -36,8 +36,10 @@ import { toggleTodo, getTodoVersions } from "@/actions/todos";
 import { createMonthlyNote } from "@/actions/monthly-notes";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type HandoverTask = { id: string; title: string; content: string; assigneeId: string | null; assigneeName: string | null; order: number; isCompleted: boolean; completedAt: Date | null };
-type HandoverChecklist = { id: string; templateId: string | null; title: string; shiftType: string; isChecked: boolean; order: number };
+type HandoverTask = { id: string; title: string; assigneeId: string | null; isCompleted: boolean; completedAt: Date | null };
+// 목록에선 루틴 개수·체크 수만 쓴다 — 루틴 칸에 펼칠 맨 앞 인수인계 체크리스트는 latestChecklist 로 따로 받는다
+type HandoverChecklist = { isChecked: boolean };
+type RoutineItem = { id: string; templateId: string | null; title: string; shiftType: string; isChecked: boolean; order: number };
 type HandoverRead = { userId: string; userName: string; readAt: Date; confirmedAt: Date | null };
 type Handover = { id: string; date: Date; content: string; priority: "URGENT" | "NORMAL"; category: string | null; isPinned: boolean; authorId: string; authorName: string; reads: HandoverRead[]; tasks: HandoverTask[]; checklist: HandoverChecklist[]; createdAt: Date };
 type ChecklistTemplate = { id: string; title: string; shiftType: string; order: number; isActive: boolean };
@@ -48,6 +50,8 @@ type Todo = { id: string; title: string; content: string | null; dueDate: Date |
 
 interface Props {
   handovers: Handover[];
+  /** 맨 앞(가장 최근) 인수인계의 루틴 체크리스트 */
+  latestChecklist: RoutineItem[];
   templates: ChecklistTemplate[];
   monthlyNotes: MonthlyNote[];
   students: Student[];
@@ -56,7 +60,10 @@ interface Props {
   currentUserName: string;
   year: number;
   month: number;
+  /** 미완료 할 일만 */
   todos: Todo[];
+  /** 완료된 할 일 개수 (완료 이력 행은 내려받지 않는다) */
+  completedTodoCount: number;
 }
 
 const DRAFT_KEY = "handover-form-draft";
@@ -82,7 +89,7 @@ function fmtMonthDay(d: Date) {
   return new Date(d).toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
 }
 
-export function HandoverDashboard({ handovers, templates, monthlyNotes, students, currentUserId, currentUserName, year, month, todos }: Props) {
+export function HandoverDashboard({ handovers, latestChecklist, templates, monthlyNotes, students, currentUserId, currentUserName, year, month, todos, completedTodoCount }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [localHandovers, setLocalHandovers] = useState<Handover[]>(handovers);
@@ -106,21 +113,20 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
   const myHandoverTasks: MyHandoverTask[] = localHandovers
     .flatMap((h) => h.tasks.filter((t) => t.assigneeId === currentUserId).map((t) => ({ ...t, handoverAuthorName: h.authorName, handoverDate: h.date, isSelfAssigned: h.authorId === currentUserId })));
 
-  // 루틴 체크리스트
-  const prevHandover = localHandovers[0];
-  const [routineItems, setRoutineItems] = useState<HandoverChecklist[]>(() =>
-    prevHandover?.checklist.length
-      ? prevHandover.checklist
+  // 루틴 체크리스트 (가장 최근 인수인계의 체크리스트, 없으면 템플릿)
+  const [routineItems, setRoutineItems] = useState<RoutineItem[]>(() =>
+    latestChecklist.length
+      ? latestChecklist
       : templates.filter((t) => t.isActive).map((t, i) => ({ id: `t-${t.id}`, templateId: t.id, title: t.title, shiftType: t.shiftType, isChecked: false, order: i }))
   );
 
-  // 내 투두 (미완료만 표시, 완료된 건 별도)
+  // 내 투두 (미완료만 표시, 완료된 건은 개수만 — 서버 완료 개수 + 여기서 체크한 것)
   const myPendingTodos = localTodos.filter((t) => !t.isCompleted);
-  const myCompletedTodos = localTodos.filter((t) => t.isCompleted);
+  const myCompletedCount = completedTodoCount + localTodos.filter((t) => t.isCompleted).length;
 
   // 전체 완료율
-  const totalItems = myHandoverTasks.length + routineItems.length + myPendingTodos.length + myCompletedTodos.length;
-  const doneItems = myHandoverTasks.filter((t) => t.isCompleted).length + routineItems.filter((c) => c.isChecked).length + myCompletedTodos.length;
+  const totalItems = myHandoverTasks.length + routineItems.length + myPendingTodos.length + myCompletedCount;
+  const doneItems = myHandoverTasks.filter((t) => t.isCompleted).length + routineItems.filter((c) => c.isChecked).length + myCompletedCount;
   const routineDone = routineItems.filter((c) => c.isChecked).length;
 
   // 루틴 → localStorage 동기화
@@ -354,7 +360,7 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
             actions={<SectionLink href="/todos">관리</SectionLink>}
             flush
           >
-            {localTodos.length === 0 ? (
+            {localTodos.length === 0 && completedTodoCount === 0 ? (
               <EmptyState
                 compact
                 icon={ListTodo}
@@ -409,11 +415,11 @@ export function HandoverDashboard({ handovers, templates, monthlyNotes, students
                     ))}
                   </ul>
                 )}
-                {(myCompletedTodos.length > 0 || myPendingTodos.length > 8) && (
+                {(myCompletedCount > 0 || myPendingTodos.length > 8) && (
                   <div className="flex items-center gap-x1 border-t border-stroke-neutral-muted px-x5 py-x3 t3-regular text-fg-neutral-subtle">
                     <span className="tabular-nums">
-                      {myCompletedTodos.length > 0 && `완료 ${myCompletedTodos.length}개`}
-                      {myCompletedTodos.length > 0 && myPendingTodos.length > 8 && " · "}
+                      {myCompletedCount > 0 && `완료 ${myCompletedCount}개`}
+                      {myCompletedCount > 0 && myPendingTodos.length > 8 && " · "}
                       {myPendingTodos.length > 8 && `+${myPendingTodos.length - 8}개 더`}
                     </span>
                     <Link href="/todos" className="ml-auto t3-medium text-fg-neutral-muted hover:text-fg-neutral">

@@ -32,7 +32,10 @@ export default async function ExamSessionDetailPage({
         include: { student: { select: { name: true, grade: true } } },
         orderBy: { appliedAt: "asc" },
       },
-      scores: true,
+      // 일괄 입력 표가 쓰는 필드만 (egress 절감)
+      scores: {
+        select: { studentId: true, subject: true, rawScore: true, grade: true, percentile: true, notes: true },
+      },
     },
   });
   if (!session) notFound();

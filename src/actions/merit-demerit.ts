@@ -112,11 +112,58 @@ export async function getMeritsByRange(from: string, to: string) {
   const toDate = new Date(to);
   toDate.setHours(23, 59, 59, 999);
 
+  // 화면(기간별 조회·오늘 내역)이 읽는 필드만 (egress 절감)
   return prisma.meritDemerit.findMany({
     where: { date: { gte: fromDate, lte: toDate } },
-    include: { student: { select: { id: true, name: true, grade: true } } },
+    select: {
+      id: true,
+      date: true,
+      type: true,
+      points: true,
+      reason: true,
+      category: true,
+      visibleInReport: true,
+      student: { select: { id: true, name: true, grade: true } },
+    },
     orderBy: [{ student: { name: "asc" } }, { date: "asc" }],
   });
+}
+
+/**
+ * 기간 내 원생별 상점·벌점 합계 — 랭킹용. 행 전체 대신 DB 에서 합산한다(egress 절감).
+ * 반환 순서는 getMeritsByRange 와 같은 학생 이름순(동점 시 화면 정렬이 이 순서를 유지).
+ */
+export async function getMeritTotalsByRange(from: string, to: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  // 상벌점은 오프라인 자습실 운영 기능 — 모바일(requireMobileStaff)과 동일하게 오프라인 직원만
+  requireStaff(session.user.role);
+
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  toDate.setHours(23, 59, 59, 999);
+
+  const sums = await prisma.meritDemerit.groupBy({
+    by: ["studentId", "type"],
+    where: { date: { gte: fromDate, lte: toDate } },
+    _sum: { points: true },
+  });
+  if (sums.length === 0) return [];
+
+  const totals = new Map<string, { merits: number; demerits: number }>();
+  for (const s of sums) {
+    const t = totals.get(s.studentId) ?? { merits: 0, demerits: 0 };
+    if (s.type === "MERIT") t.merits += s._sum.points ?? 0;
+    else t.demerits += s._sum.points ?? 0;
+    totals.set(s.studentId, t);
+  }
+
+  const students = await prisma.student.findMany({
+    where: { id: { in: [...totals.keys()] } },
+    select: { id: true, name: true, grade: true },
+    orderBy: { name: "asc" },
+  });
+  return students.map((s) => ({ id: s.id, name: s.name, grade: s.grade, ...totals.get(s.id)! }));
 }
 
 export async function getStudentPointSummary() {

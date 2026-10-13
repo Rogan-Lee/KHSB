@@ -26,13 +26,13 @@ export async function getExamNameSuggestions(examType: ExamType): Promise<string
   if (!session?.user) throw new Error("Unauthorized");
   requireAnyStaff(session.user.role);
 
-  // distinct + orderBy examDate desc — examDate 기준 최신 입력부터 노출.
-  // examName 기준 distinct 라 동일 examName 의 가장 최근 행이 대표로 선택됨.
-  const rows = await prisma.examScore.findMany({
+  // examName 별 가장 최근 examDate 순 — 최신 입력부터 노출.
+  // Prisma distinct 는 메모리에서 걸러 해당 종류 전체 행을 가져오므로 DB 에서 groupBy 로 집계 (egress 절감)
+  const rows = await prisma.examScore.groupBy({
+    by: ["examName"],
     where: { examType },
-    distinct: ["examName"],
-    orderBy: { examDate: "desc" },
-    select: { examName: true },
+    _max: { examDate: true },
+    orderBy: { _max: { examDate: "desc" } },
     take: 10,
   });
 

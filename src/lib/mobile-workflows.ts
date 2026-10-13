@@ -150,6 +150,7 @@ export async function getMobileStudentQuestionThread(
   await prisma.studentQuestion.update({
     where: { id: question.id },
     data: { studentReadAt: new Date() },
+    select: { id: true },
   });
 
   return {
@@ -195,6 +196,7 @@ export async function addMobileStudentQuestionMessage(
         questionId: question.id,
         senderType: "STUDENT",
       },
+      select: { id: true },
     }),
     prisma.studentQuestion.update({
       where: { id: question.id },
@@ -243,6 +245,7 @@ export async function getMobileStaffQuestionThread(questionId: string, viewerId?
   await prisma.studentQuestion.update({
     where: { id: question.id },
     data: { staffReadAt: new Date() },
+    select: { id: true },
   });
 
   const blocked = viewerId
@@ -308,6 +311,7 @@ export async function answerMobileStudentQuestion(
         senderType: "STAFF",
         senderUserId: userId,
       },
+      select: { id: true },
     }),
     prisma.studentQuestion.update({
       where: { id: question.id },
@@ -757,6 +761,7 @@ export async function completeMobileMentoring(
       status: "COMPLETED",
       weaknesses: data.weaknesses || null,
     },
+    select: { id: true },
   });
 
   return { ok: true };

@@ -130,7 +130,7 @@ export async function listParentReports(
             createdAt: true,
             expiresAt: true,
             revokedAt: true,
-            customNote: true,
+            // customNote(장문)는 싣지 않는다 — 구버전 hasNote 는 아래에서 id 조건 조회로 (egress)
             mentoring: {
               select: {
                 actualDate: true,
@@ -273,16 +273,28 @@ export async function listParentReports(
   for (const r of reports) counts[r.kind] += 1;
 
   const appUrl = getAppUrl();
-  const items: LegacyReportItem[] = mentoring
+  const legacy = mentoring
     .filter((r) => !r.expiresAt || r.expiresAt.getTime() > now.getTime())
-    .slice(0, 30)
-    .map((r) => ({
-      id: r.id,
-      createdAt: r.createdAt.toISOString(),
-      expiresAt: r.expiresAt?.toISOString() ?? null,
-      hasNote: !!r.customNote,
-      url: `${appUrl}/r/${r.token}`,
-    }));
+    .slice(0, 30);
+  // hasNote = !!customNote (빈 문자열은 없음) — 본문 대신 id 만
+  const withNote =
+    legacy.length > 0
+      ? await prisma.parentReport.findMany({
+          where: {
+            id: { in: legacy.map((r) => r.id) },
+            AND: [{ customNote: { not: null } }, { customNote: { not: "" } }],
+          },
+          select: { id: true },
+        })
+      : [];
+  const noted = new Set(withNote.map((r) => r.id));
+  const items: LegacyReportItem[] = legacy.map((r) => ({
+    id: r.id,
+    createdAt: r.createdAt.toISOString(),
+    expiresAt: r.expiresAt?.toISOString() ?? null,
+    hasNote: noted.has(r.id),
+    url: `${appUrl}/r/${r.token}`,
+  }));
 
   return {
     studentId,

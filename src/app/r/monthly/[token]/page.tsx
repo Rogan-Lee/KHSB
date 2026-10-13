@@ -111,6 +111,16 @@ export default async function MonthlyParentReportPage({
     },
     orderBy: { examDate: "asc" },
     take: 50,
+    // 화면·차트에 쓰는 컬럼만 (notes 등 제외)
+    select: {
+      examType: true,
+      examName: true,
+      examDate: true,
+      subject: true,
+      rawScore: true,
+      grade: true,
+      percentile: true,
+    },
   });
 
   // 최근 모의고사 그룹 (어떤 시험인지 명시: 직전 → 당월) — examDate+examName 기준 최신 2개

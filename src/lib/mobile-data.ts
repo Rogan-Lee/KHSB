@@ -499,6 +499,62 @@ export async function getStaffMobileAttendance(
   };
 }
 
+/**
+ * 오늘 입퇴실 집계만 — 홈·개요 카드용. 상태 규칙은 loadAttendanceItems 와 같고(외출 진행 중이면 "외출",
+ * 등원 예정 30분 지나도 미입실이면 지각), 이름·연락처·메모 등 목록 표시용 컬럼은 읽지 않는다.
+ */
+export async function getStaffMobileAttendanceSummary(now = new Date()) {
+  const context = getKstDayContext(now);
+  const students = await prisma.student.findMany({
+    where: offlineStudentWhere({ status: "ACTIVE" }),
+    select: {
+      attendances: {
+        where: { date: context.date },
+        take: 1,
+        select: { checkIn: true, checkOut: true, outEnd: true, outStart: true, type: true },
+      },
+      schedules: {
+        where: { dayOfWeek: context.dayOfWeek },
+        orderBy: { startTime: "asc" },
+        take: 1,
+        select: { startTime: true },
+      },
+      dailyOutings: {
+        where: { date: context.date },
+        select: { outStart: true, outEnd: true },
+      },
+    },
+  });
+
+  const rows = students.map((student) => {
+    const baseStatus = resolveAttendanceStatus(student.attendances[0]);
+    // 당일 외출 기록이 없으면 정기 예정만 있으므로 "외출중"이 될 수 없다 (목록과 같음)
+    const outingActive = student.dailyOutings.some(
+      (o) => resolveOutingStatus(o.outStart, o.outEnd) === "외출중",
+    );
+    const status: MobileAttendanceStatus =
+      baseStatus === "입실" && outingActive ? "외출" : baseStatus;
+    const isLate = isAttendanceLate(
+      status,
+      student.schedules[0]?.startTime ?? null,
+      context.nowTime,
+    );
+    return { status, isLate };
+  });
+  const countStatus = (status: MobileAttendanceStatus) =>
+    rows.filter((r) => r.status === status).length;
+
+  return {
+    absent: countStatus("결석"),
+    away: countStatus("외출"),
+    inRoom: countStatus("입실"),
+    late: rows.filter((r) => r.isLate).length,
+    notArrived: countStatus("미입실"),
+    present: rows.filter((r) => r.status === "입실" || r.status === "외출").length,
+    total: rows.length,
+  };
+}
+
 /** 학생 1명의 오늘 입퇴실 항목 (ACTIVE 가 아니면 null) */
 export async function getStaffMobileAttendanceItem(
   studentId: string,
@@ -517,25 +573,62 @@ function mentoringOwnerWhere(userId: string, role: Role) {
   return role === "MENTOR" ? { mentorId: userId } : {};
 }
 
+/** 직원 멘토링 목록 범위 — 최근 7일부터 예정·일정 변경, 가까운 순 100건 (목록·홈 집계 공용) */
+function staffMentoringListArgs(userId: string, role: Role, now: Date) {
+  const statuses: MentoringStatus[] = ["SCHEDULED", "RESCHEDULED"];
+  return {
+    where: {
+      ...mentoringOwnerWhere(userId, role),
+      status: { in: statuses },
+      scheduledAt: {
+        gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
+      },
+    },
+    orderBy: { scheduledAt: "asc" as const },
+    take: 100,
+  };
+}
+
+/** 예정 시각 — 시작 시각(HH:MM, KST)이 있으면 그날 그 시각 */
+function mentoringScheduledTime(session: { scheduledAt: Date; scheduledTimeStart: string | null }) {
+  return session.scheduledTimeStart
+    ? new Date(
+        `${session.scheduledAt.toISOString().slice(0, 10)}T${session.scheduledTimeStart}:00+09:00`,
+      )
+    : session.scheduledAt;
+}
+
+/**
+ * 홈 카드용 집계만 — getStaffMobileMentoring 의 summary 와 같은 값(같은 100건 기준).
+ * 학생·멘토 이름 등 목록 컬럼은 읽지 않는다.
+ */
+export async function getStaffMobileMentoringSummary(
+  userId: string,
+  role: Role,
+  now = new Date(),
+) {
+  const context = getKstDayContext(now);
+  const sessions = await prisma.mentoring.findMany({
+    ...staffMentoringListArgs(userId, role, now),
+    select: { scheduledAt: true, scheduledTimeStart: true },
+  });
+  // 목록과 같게 ISO 로 한 번 바꿔서 비교 (잘못된 시각이면 목록처럼 예외)
+  const times = sessions.map((s) => new Date(mentoringScheduledTime(s).toISOString()));
+  return {
+    needsRecord: times.filter((t) => t < now).length,
+    today: times.filter((t) => t >= context.start && t < context.end).length,
+  };
+}
+
 export async function getStaffMobileMentoring(
   userId: string,
   role: Role,
   now = new Date(),
 ) {
   const context = getKstDayContext(now);
-  const ownerWhere = mentoringOwnerWhere(userId, role);
-  const statuses: MentoringStatus[] = ["SCHEDULED", "RESCHEDULED"];
 
   const sessions = await prisma.mentoring.findMany({
-    where: {
-      ...ownerWhere,
-      status: { in: statuses },
-      scheduledAt: {
-        gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
-      },
-    },
-    orderBy: { scheduledAt: "asc" },
-    take: 100,
+    ...staffMentoringListArgs(userId, role, now),
     select: {
       id: true,
       mentor: { select: { name: true } },
@@ -549,11 +642,7 @@ export async function getStaffMobileMentoring(
   });
 
   const items = sessions.map((session) => {
-    const scheduledTime = session.scheduledTimeStart
-      ? new Date(
-          `${session.scheduledAt.toISOString().slice(0, 10)}T${session.scheduledTimeStart}:00+09:00`,
-        )
-      : session.scheduledAt;
+    const scheduledTime = mentoringScheduledTime(session);
     const needsRecord = scheduledTime < now;
 
     return {
@@ -650,7 +739,8 @@ export async function getStaffMobileOverview(
 ) {
   const context = getKstDayContext(now);
   const [attendance, openQuestions, todayMentoring] = await Promise.all([
-    getStaffMobileAttendance(now),
+    // 집계만 쓰므로 목록 전체 대신 상태 계산에 필요한 컬럼만
+    getStaffMobileAttendanceSummary(now),
     prisma.studentQuestion.count({ where: { status: "OPEN" } }),
     prisma.mentoring.count({
       where: {
@@ -664,11 +754,11 @@ export async function getStaffMobileOverview(
   return {
     date: context.dateKey,
     priorities: {
-      lateStudents: attendance.summary.late,
+      lateStudents: attendance.late,
       openQuestions,
     },
     stats: {
-      currentAttendance: attendance.summary.present,
+      currentAttendance: attendance.present,
       openQuestions,
       todayMentoring,
     },

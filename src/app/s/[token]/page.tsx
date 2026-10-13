@@ -26,6 +26,7 @@ import {
 import { todayKST, cn } from "@/lib/utils";
 import { calcPointBalance, pointsToKrw } from "@/lib/points";
 import { getPortalBadgeCounts } from "@/lib/portal-badges";
+import { loadStudentPointTotals } from "@/lib/student-rewards-core";
 import {
   Badge,
   ButtonLink,
@@ -97,17 +98,17 @@ export default async function StudentPortalHomePage({
     lunchMenuCount,
     examApplyOpenCount,
     contentCount,
-    merits,
-    redemptions,
+    pointTotals,
     badges,
   ] = await Promise.all([
     prisma.studentQuestion.count({
       where: { studentId: student.id, status: { in: ["OPEN", "ANSWERED"] } },
     }),
+    // 제출 여부만 먼저 — 설문 본문(sections)은 미제출일 때만 아래에서 조회
     isOnline
       ? prisma.onboardingSurvey.findUnique({
           where: { studentId: student.id },
-          select: { submittedAt: true, sections: true },
+          select: { submittedAt: true },
         })
       : Promise.resolve(null),
     prisma.performanceTask.groupBy({
@@ -144,14 +145,7 @@ export default async function StudentPortalHomePage({
       where: { applicationOpen: true, examDate: { gte: todayKST() } },
     }),
     prisma.contentPost.count({ where: { visible: true } }),
-    prisma.meritDemerit.findMany({
-      where: { studentId: student.id },
-      select: { type: true, points: true },
-    }),
-    prisma.rewardRedemption.findMany({
-      where: { studentId: student.id },
-      select: { status: true, points: true },
-    }),
+    loadStudentPointTotals(student.id),
     getPortalBadgeCounts(student.id),
   ]);
 
@@ -159,14 +153,22 @@ export default async function StudentPortalHomePage({
   const doneTasks = taskCounts.find((c) => c.status === "DONE")?._count._all ?? 0;
   const openTasks = totalTasks - doneTasks;
 
+  const surveySubmitted = !!survey?.submittedAt;
+  // 설문 카드는 미제출일 때만 보이므로 그때만 본문을 가져온다
+  const sectionsRow =
+    survey && !surveySubmitted
+      ? await prisma.onboardingSurvey.findUnique({
+          where: { studentId: student.id },
+          select: { sections: true },
+        })
+      : null;
   const sections =
-    (survey?.sections as Record<string, { answer?: string }> | null) ?? null;
+    (sectionsRow?.sections as Record<string, { answer?: string }> | null) ?? null;
   const filledSections = sections
     ? SURVEY_SECTIONS.filter((s) => (sections[s.key]?.answer ?? "").trim().length > 0).length
     : 0;
-  const surveySubmitted = !!survey?.submittedAt;
 
-  const { balance } = calcPointBalance({ merits, redemptions });
+  const { balance } = calcPointBalance(pointTotals);
 
   const daysLeft = daysUntil(session.link.expiresAt);
 

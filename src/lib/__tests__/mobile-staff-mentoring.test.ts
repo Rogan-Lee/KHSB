@@ -23,7 +23,7 @@ function row(over: Record<string, unknown>) {
     scheduledTimeEnd: null,
     status: "SCHEDULED",
     student: { grade: "고2", id: "s1", name: "이학생", seat: "12" },
-    parentReports: [],
+    _count: { parentReports: 0 },
     ...over,
   };
 }
@@ -41,7 +41,7 @@ describe("getStaffMentoringSchedule", () => {
         // 오늘 18:00 — 아직 → 예정
         row({ id: "later", scheduledTimeStart: "18:00" }),
         // 완료
-        row({ id: "done", scheduledTimeStart: "09:00", status: "COMPLETED", parentReports: [{ id: "r" }] }),
+        row({ id: "done", scheduledTimeStart: "09:00", status: "COMPLETED", _count: { parentReports: 1 } }),
         // 어제(KST) — 범위 밖
         row({ id: "yesterday", scheduledAt: new Date("2026-09-23T00:00:00Z"), scheduledTimeStart: "10:00" }),
       ] as never)
