@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { isFullAccess } from "@/lib/roles";
+import { isFullAccess, isStaff } from "@/lib/roles";
 import { todayKST } from "@/lib/utils";
 
 /**
@@ -11,7 +11,7 @@ export async function getSidebarBadges(
   userId: string,
   role?: string | null,
 ): Promise<Record<string, number>> {
-  const [requests, suggestions, questions, chats, proposals, examApps, lunchRequests, parentFeedback, staffDm, reports] =
+  const [requests, suggestions, questions, chats, proposals, examApps, lunchRequests, parentFeedback, staffDm, reports, tuitionOnsite] =
     await Promise.allSettled([
       // /requests — 내가 아직 안 본 열린 기능 요청
       prisma.featureRequest.count({
@@ -66,6 +66,10 @@ export async function getSidebarBadges(
       isFullAccess(role)
         ? prisma.contentReport.count({ where: { status: "OPEN" } })
         : Promise.resolve(0),
+      // /tuition — 직원 확인을 기다리는 현장 결제 신청 (자습실 직원 전체)
+      isStaff(role)
+        ? prisma.tuitionPayment.count({ where: { status: "ONSITE_REQUESTED" } })
+        : Promise.resolve(0),
     ]);
 
   const badges: Record<string, number> = {};
@@ -97,6 +101,7 @@ export async function getSidebarBadges(
   set("/online/reports", parentFeedback);
   set("/staff-messages", staffDm);
   set("/moderation", reports);
+  set("/tuition", tuitionOnsite);
 
   return badges;
 }

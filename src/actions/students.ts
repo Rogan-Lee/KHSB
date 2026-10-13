@@ -128,6 +128,12 @@ export async function deleteStudent(id: string) {
   // 하드 삭제(출결·멘토링·리포트 등 연쇄 삭제) — 원장/SUPER_ADMIN 전용. 일반 퇴실은 checkoutStudent.
   requireFullAccess(session.user.role);
 
+  // 수강료 청구·납부 기록은 금융 기록이라 지우지 않는다 — 기록이 있는 학생은 퇴실 처리로만 정리
+  const tuitionInvoices = await prisma.tuitionInvoice.count({ where: { studentId: id } });
+  if (tuitionInvoices > 0) {
+    throw new Error("수강료 기록이 있는 학생은 삭제할 수 없습니다. 퇴실 처리를 이용해 주세요");
+  }
+
   await prisma.student.delete({ where: { id } });
   revalidatePath("/students");
   redirect("/students");
