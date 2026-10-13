@@ -29,6 +29,7 @@ import {
   Receipt,
   ScanLine,
   ShieldAlert,
+  ShieldBan,
   Smartphone,
   Star,
   TrendingUp,
@@ -130,6 +131,8 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: Building2,
     items: [
       { href: "/patrol", label: "순찰 관리", icon: ScanLine },
+      // 시설 와이파이 앱·사이트 차단 — 자습실 운영진 전체 (규칙 변경은 화면 안에서 원장급만)
+      { href: "/access-control", label: "사용 통제", icon: ShieldBan, show: isStaff },
       { href: "/lunch", label: "점심 도시락", icon: Utensils },
       // 수강료 청구·수납 — 조회·현장 결제 확인은 직원 전체, 발행·환불·금액 합계는 원장급만 (화면 안에서 구분)
       { href: "/tuition", label: "수강료", icon: Receipt, show: isStaff },

@@ -26,6 +26,7 @@ src/
 ├── components/       # React 컴포넌트 (페이지별 하위 디렉토리)
 ├── generated/prisma/ # Prisma 생성 코드 (직접 수정 금지)
 └── lib/              # 유틸리티, 인증, Prisma 클라이언트
+access-agent/         # 시설 장비(사용 통제) 설치 안내. 장비에서 도는 스크립트(agent.mjs·install.sh·install.ps1)는 public/access-agent/ — 대시보드가 직접 내려 줌
 landing/              # 강한선배 정적 랜딩 (www.kanghanseonbae.com)
                       # 별도 Vercel 프로젝트 khsb-landing(Root Directory=landing), landing/ 변경 시에만 배포
 ```
@@ -44,6 +45,7 @@ landing/              # 강한선배 정적 랜딩 (www.kanghanseonbae.com)
 - **시간 처리:** `todayKST()`, `nowKSTTimeString()`, `toKSTDateTime()` from `@/lib/utils`
 - **Slack:** `import { notifySlack } from "@/lib/slack"` — fire-and-forget, 실패해도 비즈니스 로직 미차단
 - **Cron API:** `/api/cron/*` routes는 `Authorization: Bearer ${CRON_SECRET}` 필수
+- **사용 통제(앱·사이트 차단):** 정책 계산·AdGuard 규칙 변환은 `src/lib/access-control/`(순수 함수). 시설 장비는 `/api/access-agent/*` 로 정책을 받아 가며 `Authorization: Bearer <장비 토큰>` 으로 인증. 정책에 영향을 주는 변경 뒤에는 `bumpAccessRev()` 호출
 - **revalidatePath:** mutation 후 반드시 호출
 
 ## Language
