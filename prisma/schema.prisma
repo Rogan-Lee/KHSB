@@ -437,6 +437,9 @@ model Student {
   parentLinks          ParentLink[]
   tuitionProfile       TuitionProfile?
   tuitionInvoices      TuitionInvoice[]
+  accessRules          AccessRule[]
+  accessOverrides      AccessOverride[]
+  accessDevices        AccessDevice[]
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 
@@ -2961,5 +2964,129 @@ model TuitionEvent {
   createdAt DateTime @default(now())
 
   @@index([invoiceId, createdAt])
+  @@index([createdAt])
+}
+
+// ─────────────────── 앱·사이트 사용 통제 (시설 와이파이) ───────────────────
+// 정책의 단일 출처는 서버. 시설에 둔 장비(AdGuard Home + access-agent)가 주기적으로
+// 정책을 받아 가 적용한다 — 서버가 시설 안으로 접속하지 않는다 (src/lib/access-control).
+
+enum AccessAction {
+  BLOCK
+  ALLOW
+}
+
+enum AccessTargetKind {
+  ALL // 인터넷 전체 (와이파이 잠금)
+  SERVICE // 앱·서비스 (카탈로그 id — 유튜브·인스타그램 등)
+  DOMAIN // 사이트 주소
+}
+
+enum AccessScope {
+  GLOBAL // 시설 전체
+  STUDENT // 특정 학생의 기기
+}
+
+/// 상시 규칙 — 요일·시간대를 줄 수 있다 (KST)
+model AccessRule {
+  id            String           @id @default(cuid())
+  action        AccessAction
+  targetKind    AccessTargetKind
+  target        String           @default("") // SERVICE: 카탈로그 id, DOMAIN: 도메인, ALL: ""
+  label         String // 표시 이름 스냅샷
+  scope         AccessScope      @default(GLOBAL)
+  studentId     String?
+  student       Student?         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  daysOfWeek    Int[] // 0(일)~6(토). 비어 있으면 매일
+  startMinute   Int? // KST 자정 기준 분. null 이면 종일
+  endMinute     Int?
+  enabled       Boolean          @default(true)
+  note          String?
+  createdById   String?
+  createdByName String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([enabled])
+  @@index([studentId])
+}
+
+/// 일시 조치 — 시작~종료 시각 동안만 적용, 규칙보다 우선
+model AccessOverride {
+  id               String           @id @default(cuid())
+  action           AccessAction
+  targetKind       AccessTargetKind
+  target           String           @default("")
+  label            String
+  scope            AccessScope      @default(GLOBAL)
+  studentId        String?
+  student          Student?         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  startAt          DateTime
+  endAt            DateTime
+  reason           String?
+  networkRequestId String?          @unique // 승인된 학생 신청에서 만들어진 경우
+  createdById      String?
+  createdByName    String?
+  cancelledAt      DateTime?
+  cancelledByName  String?
+  createdAt        DateTime         @default(now())
+
+  @@index([endAt])
+  @@index([studentId])
+}
+
+enum AccessDeviceStatus {
+  UNASSIGNED // 장비가 발견함 — 아직 주인을 정하지 않음 (전체 규칙 적용)
+  ASSIGNED // 학생 기기
+  EXEMPT // 통제 제외 (직원·공용 기기)
+}
+
+/// 시설 와이파이에서 발견된 기기
+model AccessDevice {
+  id          String             @id @default(cuid())
+  mac         String             @unique // 소문자 aa:bb:cc:dd:ee:ff
+  hostname    String?
+  lastIp      String?
+  label       String? // 직원이 붙인 이름
+  status      AccessDeviceStatus @default(UNASSIGNED)
+  studentId   String?
+  student     Student?           @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  firstSeenAt DateTime           @default(now())
+  lastSeenAt  DateTime           @default(now())
+
+  @@index([studentId])
+  @@index([status, lastSeenAt])
+}
+
+/// 시설 장비(동기화 에이전트) 등록 — 토큰은 해시로만 저장
+model AccessAgent {
+  id             String    @id @default(cuid())
+  name           String
+  tokenHash      String    @unique // sha256 hex
+  tokenHint      String // 토큰 끝 4자 (화면 표시용)
+  enabled        Boolean   @default(true)
+  lastSeenAt     DateTime?
+  lastAppliedAt  DateTime?
+  appliedVersion String?
+  lastError      String?
+  software       String? // 예: "AdGuard Home v0.107.79"
+  agentVersion   String?
+  catalog        Json? // 장비가 올린 서비스 목록 [{ id, name, group, rules }]
+  catalogHash    String?
+  createdByName  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+/// 통제 변경 기록 (누가 무엇을 바꿨는지)
+model AccessEvent {
+  id        String   @id @default(cuid())
+  kind      String // RULE_CREATED, OVERRIDE_CREATED, DEVICE_ASSIGNED, PAUSED …
+  summary   String
+  actorId   String?
+  actorName String?
+  studentId String?
+  createdAt DateTime @default(now())
+
   @@index([createdAt])
 }

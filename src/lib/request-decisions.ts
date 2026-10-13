@@ -42,7 +42,7 @@ export async function decideNapRequest(
   });
 }
 
-/** 네트워크 신청 승인/거절 — 승인 시 어댑터로 정책 적용, 거절 전환 시 회수. */
+/** 네트워크 신청 승인/거절 — 승인 시 사용 통제에 일시 허용 등록, 거절 전환 시 회수. */
 export async function decideNetworkRequest(
   id: string,
   decision: "approve" | "reject",
@@ -51,11 +51,12 @@ export async function decideNetworkRequest(
   const req = await prisma.networkRequest.findUnique({ where: { id } });
   if (!req) throw new MobileApiError("신청을 찾을 수 없습니다", 404);
 
+  // appliedAt 이 null 로 남는 승인 = 자동 반영하지 못한 것 (학생이 적은 앱 이름·주소를 못 알아본 경우 등)
   let appliedAt = req.appliedAt;
   if (decision === "approve") {
-    appliedAt = (await applyNetworkPolicy(req)).appliedAt;
+    appliedAt = (await applyNetworkPolicy(req, decider)).appliedAt;
   } else if (req.status === "APPROVED" && req.appliedAt) {
-    await revokeNetworkPolicy(req);
+    await revokeNetworkPolicy(req, decider);
     appliedAt = null;
   }
 
