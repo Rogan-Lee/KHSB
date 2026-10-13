@@ -8,6 +8,7 @@ import {
   LogOut,
   Megaphone,
   MessageSquareText,
+  Receipt,
   ShieldCheck,
   UserPlus,
   Utensils,
@@ -38,16 +39,18 @@ import {
   type ParentLunchSummary,
   type ParentServicesSummary,
 } from '@/lib/api/parent-services';
+import type { ParentTuitionSummary } from '@/lib/api/parent-tuition';
 import { refreshBadges } from '@/lib/badges';
 import { childMeta, useParentChild } from '@/lib/parent-child';
 import { useSession } from '@/lib/session';
 import { SUPPORT_URL, openHelpPage } from '@/lib/support';
 
-// 학부모 전체 탭 — 프로필(연결된 자녀) → 신청 · 소통 → 앱 설정 → 로그아웃.
+// 학부모 전체 탭 — 프로필(연결된 자녀) → 신청(수강료 포함) · 소통 → 앱 설정 → 로그아웃.
 // 학생 앱 전체 탭과 같은 문법(흰 카드 + ListRow + IconTile).
 
 // 다른 에이전트가 만드는 화면 — typed routes 생성 전에도 컴파일되도록 Href 로 고정
 const ROUTES = {
+  tuition: '/(parent)/tuition' as Href,
   lunch: '/(parent)/lunch' as Href,
   schedule: '/(parent)/schedule' as Href,
   exams: '/(parent)/exams' as Href,
@@ -64,6 +67,14 @@ const LUNCH_TRAILING: Record<ParentLunchSummary, { label: string; tone: Tone } |
   unpaid: { label: '입금 대기', tone: 'warn' },
   claimed: { label: '입금 확인 중', tone: 'warn' },
   confirmed: { label: '신청 확정', tone: 'ok' },
+};
+
+const TUITION_TRAILING: Record<ParentTuitionSummary, { label: string; tone: Tone } | null> = {
+  none: null,
+  unpaid: { label: '결제 요청', tone: 'info' },
+  overdue: { label: '미납', tone: 'bad' },
+  onsite: { label: '현장 결제 신청', tone: 'warn' },
+  paid: { label: '납부 완료', tone: 'ok' },
 };
 
 type Item = {
@@ -87,7 +98,17 @@ export default function ParentMenuScreen() {
   const parentName = session?.displayName?.trim() || '학부모';
 
   const lunchTrailing = sum ? LUNCH_TRAILING[sum.lunch] : null;
+  // 구버전 서버는 tuition 이 없고, 새 서버가 모르는 값을 보내도 배지만 빠진다
+  const tuitionTrailing = sum?.tuition ? (TUITION_TRAILING[sum.tuition] ?? null) : null;
   const apply: Item[] = [
+    {
+      href: ROUTES.tuition,
+      label: '수강료',
+      description: '청구서 · 결제 · 납부 내역',
+      icon: Receipt,
+      tone: 'info',
+      trailing: tuitionTrailing ? <Badge tone={tuitionTrailing.tone}>{tuitionTrailing.label}</Badge> : undefined,
+    },
     {
       href: ROUTES.lunch,
       label: '점심 도시락',

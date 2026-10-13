@@ -12,6 +12,12 @@ describe("resolveNotificationHref", () => {
     expect(resolveNotificationHref({ url: "/(parent)/(tabs)/index" })).toBe("/(parent)/(tabs)");
   });
 
+  it("opens the parent tuition screen from a tuition push", () => {
+    expect(resolveNotificationHref({ url: "/(parent)/tuition", kind: "tuition", invoiceId: "inv_1" })).toBe(
+      "/(parent)/tuition",
+    );
+  });
+
   it("opens the detail screen when an id is attached", () => {
     expect(resolveNotificationHref({ url: "/student-tasks", taskId: "task_1" })).toBe(
       "/(student)/tasks/task_1",

@@ -159,6 +159,12 @@ export async function deleteOnlineStudent(studentId: string) {
   const session = await auth();
   requireFullAccess(session?.user?.role);
 
+  // 수강료 청구·납부 기록은 금융 기록이라 지우지 않는다 — 기록이 있는 학생은 퇴원 처리로만 정리
+  const tuitionInvoices = await prisma.tuitionInvoice.count({ where: { studentId } });
+  if (tuitionInvoices > 0) {
+    throw new Error("수강료 기록이 있는 학생은 삭제할 수 없습니다. 퇴원 처리를 이용해 주세요");
+  }
+
   await revokeAllLinksForStudent(studentId);
   await prisma.student.delete({ where: { id: studentId } });
 

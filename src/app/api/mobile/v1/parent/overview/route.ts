@@ -6,6 +6,11 @@ import {
   requireMobileParent,
 } from "@/lib/mobile-auth";
 import { latestParentReportDates } from "@/lib/mobile-parent-reports";
+import {
+  getOpenTuitionByStudent,
+  tuitionBannerOf,
+  type OpenTuition,
+} from "@/lib/mobile-parent-tuition";
 import { prisma } from "@/lib/prisma";
 import { todayKST } from "@/lib/utils";
 
@@ -36,7 +41,7 @@ export async function GET(request: NextRequest) {
       Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1),
     );
 
-    const [attendance, points, legacyReports, reports] = await Promise.all([
+    const [attendance, points, legacyReports, reports, tuition] = await Promise.all([
       prisma.attendanceRecord.findMany({
         where: { studentId: { in: ids }, date: today },
         select: { checkIn: true, checkOut: true, studentId: true, type: true },
@@ -63,6 +68,11 @@ export async function GET(request: NextRequest) {
       }),
       // 새 앱: 5종 리포트 모두 (공유 링크 만료와 무관 — 리포트함과 같은 기준)
       latestParentReportDates(ids),
+      // 새 앱: 홈 수강료 배너. 나중에 덧붙인 값이라 조회가 실패해도 홈은 그대로 내려 준다 (배너만 숨김)
+      getOpenTuitionByStudent(ids).catch((error) => {
+        console.error("[tuition:overview]", error instanceof Error ? error.message : error);
+        return new Map<string, OpenTuition[]>();
+      }),
     ]);
 
     return mobileJson({
@@ -86,6 +96,7 @@ export async function GET(request: NextRequest) {
           monthPoints: { merit: sumOf("MERIT"), demerit: sumOf("DEMERIT") },
           latestReportAt: latestReportAt?.toISOString() ?? null,
           latestAnyReportAt: latestAnyReportAt?.toISOString() ?? null,
+          tuition: tuitionBannerOf(tuition.get(child.id)),
         };
       }),
     });

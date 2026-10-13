@@ -1,3 +1,4 @@
+import type { ParentTuitionSummary } from '@/lib/api/parent-tuition';
 import { mutateMobileApi } from '@/lib/mobile-api';
 
 // 학부모 신청·소통 — 도시락 · 등원 스케줄 · 모의고사 신청 · 원장님께 문의 · 공지사항 · 전체 탭 요약.
@@ -27,6 +28,8 @@ export type ParentServicesSummary = {
   schedule: { pendingProposal: boolean };
   exams: { openCount: number; appliedCount: number };
   inquiries: { waitingCount: number };
+  /** 수강료 상태 (구버전 서버는 필드가 없다) */
+  tuition?: ParentTuitionSummary;
 };
 
 // ─── 도시락 ─────────────────────────────────────────────────────────

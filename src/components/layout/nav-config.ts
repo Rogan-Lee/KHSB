@@ -26,6 +26,7 @@ import {
   MessagesSquare,
   NotebookText,
   Podcast,
+  Receipt,
   ScanLine,
   ShieldAlert,
   Smartphone,
@@ -130,6 +131,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/patrol", label: "순찰 관리", icon: ScanLine },
       { href: "/lunch", label: "점심 도시락", icon: Utensils },
+      // 수강료 청구·수납 — 조회·현장 결제 확인은 직원 전체, 발행·환불·금액 합계는 원장급만 (화면 안에서 구분)
+      { href: "/tuition", label: "수강료", icon: Receipt, show: isStaff },
       { href: "/calendar", label: "캘린더", icon: CalendarDays, feature: "calendar" },
       { href: "/meeting-minutes", label: "회의록", icon: NotebookText, feature: "meeting-minutes" },
       { href: "/messages", label: "카카오 메시지", icon: MessageCircle, feature: "kakao-messages" },

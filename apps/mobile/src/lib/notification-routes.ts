@@ -43,6 +43,7 @@ const STATIC_ROUTES = new Set([
   '/(parent)/exams',
   '/(parent)/inquiries',
   '/(parent)/notices',
+  '/(parent)/tuition',
 ]);
 
 /** 상세 화면 (마지막 조각이 id) */

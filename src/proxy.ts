@@ -16,6 +16,8 @@ const PUBLIC_ROUTE_ROOTS = [
   "/v",
   "/w",
   "/apply",
+  // 수강료 청구서 링크 — 앱 없는 학부모가 로그인 없이 연다 (주소의 토큰이 곧 인증)
+  "/bill",
   "/api/auth",
   "/api/mobile/v1/auth",
   // 학부모 앱 WebView 1회용 핸드오프 (nonce 로 자체 인증, 세션 쿠키 없음)

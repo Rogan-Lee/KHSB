@@ -11,7 +11,8 @@ export default function ParentTabsLayout() {
     attendance: { label: '출결', icon: 'calendar' },
     reports: { label: '리포트', icon: 'report', badge: badges.reports },
     growth: { label: '성장', icon: 'growth' },
-    menu: { label: '전체', icon: 'menu', badge: badges.menu > 0 ? 'dot' : 0 },
+    // 승인 대기 스케줄 + 결제할 수강료
+    menu: { label: '전체', icon: 'menu', badge: badges.menu + (badges.tuition ?? 0) > 0 ? 'dot' : 0 },
   };
   return (
     <InTabsContext.Provider value>

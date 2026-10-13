@@ -30,7 +30,8 @@ export type StaffBadges = {
   menu: number;
 };
 
-export type ParentBadges = { reports: number; menu: number };
+/** tuition — 결제할 수강료 청구서 수 (구버전 서버는 필드가 없다) */
+export type ParentBadges = { reports: number; menu: number; tuition?: number };
 
 const listeners = new Set<() => void>();
 

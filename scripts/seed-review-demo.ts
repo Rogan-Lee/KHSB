@@ -182,6 +182,16 @@ async function upsertPeople() {
 // ─── 데이터 ─────────────────────────────────────────────────────────────
 
 async function resetContent() {
+  // 수강료 — 금융 기록이라 학생 삭제로는 지워지지 않는다(Restrict). 데모 학생 것만 직접 지운다
+  const invoiceIds = (
+    await prisma.tuitionInvoice.findMany({ where: { studentId: SID }, select: { id: true } })
+  ).map((i) => i.id);
+  await prisma.tuitionCashReceipt.deleteMany({ where: { invoiceId: { in: invoiceIds } } });
+  await prisma.tuitionRefund.deleteMany({ where: { invoiceId: { in: invoiceIds } } });
+  await prisma.tuitionPayment.deleteMany({ where: { invoiceId: { in: invoiceIds } } });
+  await prisma.tuitionEvent.deleteMany({ where: { invoiceId: { in: invoiceIds } } });
+  await prisma.tuitionInvoice.deleteMany({ where: { id: { in: invoiceIds } } });
+
   await prisma.taskFeedback.deleteMany({ where: { submission: { studentId: SID } } });
   await prisma.taskSubmission.deleteMany({ where: { studentId: SID } });
   await prisma.taskResult.deleteMany({ where: { studentId: SID } });
@@ -444,6 +454,22 @@ async function createContent() {
       },
     },
   });
+
+  await createTuition();
+}
+
+/** 수강료: 지난달 납부 완료(현장 카드) 1건 + 이번 달 결제 요청 1건 — 학부모 앱 수강료 화면 */
+async function createTuition() {
+  // 금액·상태·이력이 서로 맞아야 해서 행을 직접 넣지 않고 앱과 같은 코어 함수로 만든다 (알림은 보내지 않음)
+  const { issueInvoice, confirmOnsitePayment } = await import("../src/lib/tuition/core");
+  const actor = { id: STAFF, name: "데모 직원" };
+  const monthStart = `${TODAY.slice(0, 8)}01`;
+  const prevMonthStart = `${addDays(monthStart, -1).slice(0, 8)}01`;
+  const bill = { studentId: SID, months: 1, monthlyFee: 690_000, notify: false };
+
+  const paid = await issueInvoice({ ...bill, periodStart: prevMonthStart, dueDate: addDays(prevMonthStart, 4) }, actor);
+  await confirmOnsitePayment({ invoiceId: paid.invoiceId, method: "ONSITE_CARD" }, actor);
+  await issueInvoice({ ...bill, periodStart: monthStart, dueDate: addDays(TODAY, 5) }, actor);
 }
 
 // ─── 계정·초대 ──────────────────────────────────────────────────────────

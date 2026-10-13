@@ -437,6 +437,7 @@ export const PARENT_PUSH_ROUTES = {
   home: "/(parent)/(tabs)",
   reports: "/(parent)/(tabs)/reports",
   schedule: "/(parent)/schedule",
+  tuition: "/(parent)/tuition",
 } as const;
 
 type ParentPushMessage = {
@@ -445,14 +446,18 @@ type ParentPushMessage = {
   data: PushData & { url: string };
 };
 
-/** 자녀의 학부모들에게 푸시. 절대 throw 하지 않는다 (결과는 발송 수). */
+/**
+ * 자녀의 학부모들에게 푸시. 절대 throw 하지 않는다 (결과는 발송 수).
+ * 기본은 재원생만. includeInactive 는 퇴원한 뒤에도 알려야 하는 안내(수강료 환불 등)에만 쓴다.
+ */
 export async function notifyParentsOfStudent(
   studentId: string,
   message: ParentPushMessage,
+  options: { includeInactive?: boolean } = {},
 ) {
   try {
     const links = await prisma.parentLink.findMany({
-      where: { studentId, student: { status: "ACTIVE" } },
+      where: options.includeInactive ? { studentId } : { studentId, student: { status: "ACTIVE" } },
       select: { authUserId: true },
     });
     if (links.length === 0) return { sent: 0 };
