@@ -1,5 +1,6 @@
 import { countUnreadByChat } from "@/lib/mobile-chat";
 import { countNewParentReports } from "@/lib/mobile-parent-reports";
+import { countOpenTuitionInvoices } from "@/lib/mobile-parent-tuition";
 import { countUnreadByQuestion } from "@/lib/mobile-student-questions";
 import { countUnseenStudentSuggestions } from "@/lib/mobile-suggestions";
 import { prisma } from "@/lib/prisma";
@@ -140,12 +141,14 @@ export type ParentBadges = {
   /** 최근 7일 안에 새로 나온 리포트 수 (자녀 합) */
   reports: number;
   menu: number;
+  /** 결제할 수강료 청구서 수 (자녀 합). 구버전 앱이 menu 를 스케줄 점으로 쓰므로 menu 에 더하지 않는다 */
+  tuition: number;
 };
 
 export async function getParentBadges(studentIds: string[]): Promise<ParentBadges> {
   // 리포트함(멘토링·월간·온라인·공부 계획·상담)의 "새 리포트" 와 같은 규칙 — src/lib/mobile-parent-reports.ts
   const now = new Date();
-  const [reports, proposals] = await Promise.allSettled([
+  const [reports, proposals, tuition] = await Promise.allSettled([
     countNewParentReports(studentIds),
     // 전체 탭 점 배지 — 학부모 승인을 기다리는 등원 스케줄 제안 (mobile-parent-schedule.ts 와 같은 조건)
     prisma.scheduleProposal.count({
@@ -156,6 +159,7 @@ export async function getParentBadges(studentIds: string[]): Promise<ParentBadge
         OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
       },
     }),
+    countOpenTuitionInvoices(studentIds),
   ]);
-  return { reports: settled(reports), menu: settled(proposals) };
+  return { reports: settled(reports), menu: settled(proposals), tuition: settled(tuition) };
 }

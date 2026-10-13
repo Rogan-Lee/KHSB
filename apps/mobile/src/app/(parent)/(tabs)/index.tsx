@@ -1,3 +1,4 @@
+import type { Href } from 'expo-router';
 import {
   Bell,
   CalendarCheck,
@@ -6,6 +7,7 @@ import {
   GraduationCap,
   Megaphone,
   MessageCircle,
+  Receipt,
   TrendingUp,
   UserPlus,
   Users,
@@ -37,6 +39,7 @@ import {
 } from '@/features/parent/today-cards';
 import { kstToday } from '@/features/parent/today-format';
 import { TodayHero } from '@/features/parent/today-hero';
+import { TuitionHomeBanner } from '@/features/tuition/home-banner';
 import {
   parentApi,
   type ParentStudyStatsResponse,
@@ -47,7 +50,10 @@ import { useMobileQuery, type ParentOverviewResponse } from '@/lib/mobile-api';
 import { ChildSwitcher, useParentChild } from '@/lib/parent-child';
 import { useResponsive } from '@/lib/responsive';
 
-/** 학부모 홈(오늘) — 지금 상태 · 오늘 타임라인 · 이번 주 공부 시간 · 상벌점 · 리포트 · 공지 */
+// typed routes 생성 전에도 컴파일되도록 Href 로 고정
+const TUITION_ROUTE = '/(parent)/tuition' as Href;
+
+/** 학부모 홈(오늘) — (수강료 알림) · 지금 상태 · 오늘 타임라인 · 이번 주 공부 시간 · 상벌점 · 리포트 · 공지 */
 export default function ParentHomeScreen() {
   const { selected } = useParentChild();
   const { isTablet } = useResponsive();
@@ -100,10 +106,12 @@ export default function ParentHomeScreen() {
   if (!t) {
     body = today.error ? <ErrorState message={today.error} onRetry={today.retry} /> : <HomeSkeleton />;
   } else {
-    // 바로가기 — 학생·직원 홈과 같은 그리드 (새 리포트·승인 대기 스케줄은 점)
+    // 바로가기 — 학생·직원 홈과 같은 그리드 (새 리포트·승인 대기 스케줄·결제할 수강료는 점).
+    // 9개라서 폰은 3칸×3줄로 맞춘다 (기본 4칸이면 마지막 줄에 하나만 남는다). 태블릿은 기본 6칸.
     const shortcuts = (
       <Section title="바로가기">
         <ShortcutGrid
+          columns={isTablet ? undefined : 3}
           items={[
             { key: 'attendance', label: '출결', icon: CalendarCheck, tone: 'ok', href: '/(parent)/(tabs)/attendance' },
             { key: 'reports', label: '리포트', icon: FileText, tone: 'brand', href: '/(parent)/(tabs)/reports', dot: badges.reports > 0 },
@@ -111,6 +119,7 @@ export default function ParentHomeScreen() {
             { key: 'lunch', label: '도시락', icon: UtensilsCrossed, tone: 'warn', href: '/(parent)/lunch' },
             { key: 'schedule', label: '등원 스케줄', icon: CalendarClock, tone: 'violet', href: '/(parent)/schedule', dot: badges.menu > 0 },
             { key: 'exams', label: '모의고사', icon: GraduationCap, tone: 'info', href: '/(parent)/exams' },
+            { key: 'tuition', label: '수강료', icon: Receipt, tone: 'ok', href: TUITION_ROUTE, dot: overviewChild?.tuition != null },
             { key: 'inquiries', label: '원장님 문의', icon: MessageCircle, tone: 'brand', href: '/(parent)/inquiries' },
             { key: 'notices', label: '공지', icon: Megaphone, tone: 'gray', href: '/(parent)/notices' },
           ]}
@@ -156,7 +165,11 @@ export default function ParentHomeScreen() {
       maxWidth={isTablet ? 960 : undefined}
       refreshing={today.isRefreshing || week.isRefreshing || overview.isRefreshing}
       onRefresh={onRefresh}>
-      {body}
+      {/* 수강료 알림은 폰에서는 오늘 카드 위, 태블릿에서는 두 단 위에 한 줄로 */}
+      <Stack>
+        <TuitionHomeBanner banner={overviewChild?.tuition} />
+        {body}
+      </Stack>
     </Screen>
   );
 }

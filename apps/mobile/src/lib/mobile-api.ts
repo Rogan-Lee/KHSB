@@ -720,6 +720,17 @@ export type ParentOverviewChild = {
   latestReportAt: string | null;
   /** 5종 리포트 전체 기준 최신일 (구버전 앱 호환용 latestReportAt 은 멘토링 리포트 기준) */
   latestAnyReportAt?: string | null;
+  /**
+   * 결제할 수강료 청구서 (홈 배너용, 없으면 null). 구버전 서버는 필드 자체가 없다.
+   * lib/api/parent-tuition.ts 의 ParentTuitionBanner 와 같은 모양.
+   */
+  tuition?: {
+    invoiceId: string;
+    title: string;
+    amount: number;
+    dueDate: string;
+    overdue: boolean;
+  } | null;
 };
 
 export type ParentOverviewResponse = {

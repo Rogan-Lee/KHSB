@@ -2,7 +2,9 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { MobileApiError, requireMobileParent } from "@/lib/mobile-auth";
+import { getParentTuitionSummary } from "@/lib/mobile-parent-tuition";
 import { prisma } from "@/lib/prisma";
+import type { ParentTuitionSummary } from "@/lib/tuition/api-types";
 import { todayKST } from "@/lib/utils";
 
 // 학부모 앱 — 신청·소통 영역(도시락·등원 스케줄·모의고사·문의·공지) 공용 헬퍼 + 전체 탭 요약.
@@ -47,6 +49,12 @@ export type ParentLunchSummary = "closed" | "open" | "unpaid" | "claimed" | "con
 export async function getParentServicesSummary(authUserId: string, child: ParentChildRef) {
   const today = todayKST();
   const now = new Date();
+
+  // 수강료 요약은 나중에 덧붙인 값이다 — 조회가 실패해도 기존 요약은 그대로 내려 준다
+  const tuitionSummary: Promise<ParentTuitionSummary> = getParentTuitionSummary(child.id).catch((error) => {
+    console.error("[tuition:summary]", error instanceof Error ? error.message : error);
+    return "none";
+  });
 
   const [menuCount, pendingOrder, confirmedUpcoming, proposal, openExamCount, myApplications, openInquiries] =
     await Promise.all([
@@ -101,5 +109,6 @@ export async function getParentServicesSummary(authUserId: string, child: Parent
     schedule: { pendingProposal: !!proposal },
     exams: { openCount: openExamCount, appliedCount: myApplications },
     inquiries: { waitingCount: openInquiries },
+    tuition: await tuitionSummary,
   };
 }
