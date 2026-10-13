@@ -171,6 +171,25 @@ describe("이용 종료일·다음 청구", () => {
     ).toBe("2026-12-01");
   });
 
+  it("결제 기준일이 납부한 기간보다 뒤면 그 날부터, 아니면 무시한다", () => {
+    const base = { enrolledOn: d("2026-03-15"), today: d("2026-11-20") };
+    // 납부 이력 없음 — 등록일(15일) 대신 등록해 둔 기준일
+    expect(dateKey(nextPeriodStart({ ...base, coverageEnd: null, anchor: d("2026-11-25") }))).toBe("2026-11-25");
+    // 지난 날짜여도 발행하기 전까지는 그대로 (조용히 다음 달로 넘어가지 않는다)
+    expect(dateKey(nextPeriodStart({ ...base, coverageEnd: null, anchor: d("2026-10-25") }))).toBe("2026-10-25");
+    // 쉬었다가 다시 다니는 날짜를 정해 둔 경우
+    expect(dateKey(nextPeriodStart({ ...base, coverageEnd: d("2026-09-30"), anchor: d("2026-11-25") }))).toBe(
+      "2026-11-25",
+    );
+    // 기준일로 낸 청구서가 납부되면 그 뒤로는 납부한 기간에 이어서
+    expect(dateKey(nextPeriodStart({ ...base, coverageEnd: d("2026-12-24"), anchor: d("2026-11-25") }))).toBe(
+      "2026-12-25",
+    );
+    expect(dateKey(nextPeriodStart({ ...base, coverageEnd: d("2026-11-25"), anchor: d("2026-11-25") }))).toBe(
+      "2026-11-26",
+    );
+  });
+
   it("납부 이력이 없으면 등록일 주기에서 오늘이 속한 회차 시작일", () => {
     expect(
       dateKey(nextPeriodStart({ coverageEnd: null, enrolledOn: d("2026-03-15"), today: d("2026-11-20") })),

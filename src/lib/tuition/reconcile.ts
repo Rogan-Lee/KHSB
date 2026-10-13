@@ -274,7 +274,9 @@ export async function runTuitionAutoIssue(now: Date = new Date()): Promise<{ iss
     select: {
       studentId: true,
       coverageEnd: true,
-      student: { select: { name: true, tuitionProfile: { select: { monthlyFee: true, billingPaused: true } } } },
+      student: {
+        select: { name: true, tuitionProfile: { select: { monthlyFee: true, billingPaused: true, billingAnchor: true } } },
+      },
     },
   });
 
@@ -291,6 +293,11 @@ export async function runTuitionAutoIssue(now: Date = new Date()): Promise<{ iss
     const profile = invoice.student.tuitionProfile;
     const monthlyFee = profile?.monthlyFee ?? setting.defaultMonthlyFee;
     if (!isAutoIssueDue(coverageEnd, today, setting.autoIssueLeadDays) || profile?.billingPaused || !monthlyFee) {
+      skipped += 1;
+      continue;
+    }
+    // 납부 기간보다 뒤로 결제 기준일을 정해 둔 학생(휴원 뒤 복귀 등)은 이어서 청구하지 않는다 — 청구 예정에서 직접 발행
+    if (profile?.billingAnchor && profile.billingAnchor.getTime() > coverageEnd.getTime()) {
       skipped += 1;
       continue;
     }

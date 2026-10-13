@@ -2772,6 +2772,7 @@ model TuitionProfile {
   student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   monthlyFee    Int? // 원 — null 이면 기본 수강료
   billingPaused Boolean  @default(false) // 청구 예정 목록에서 제외 (장학·면제 등)
+  billingAnchor DateTime? @db.Date // 결제 기준일 — 다음 청구의 이용 시작일. 납부한 이용 기간보다 뒤일 때만 쓴다 (없으면 등록일 기준)
   memo          String?
   updatedById   String?
   createdAt     DateTime @default(now())
