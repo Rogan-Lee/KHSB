@@ -13,6 +13,18 @@ describe("isPublicPath", () => {
     expect(isPublicPath("/api/public/content/abc123")).toBe(true);
   });
 
+  it("lets the payment provider webhook through without a session", () => {
+    // 결제사 서버가 세션 쿠키 없이 부른다 — 인증은 라우트가 주소의 토큰으로 한다
+    expect(isPublicPath("/api/webhooks/toss")).toBe(true);
+    expect(isPublicPath("/api/webhooks-internal")).toBe(false);
+  });
+
+  it("opens tuition bill links without a session", () => {
+    // 학부모가 카카오톡으로 받은 청구서 링크 — 인증은 주소의 토큰으로 한다
+    expect(isPublicPath("/bill/abcDEF123_-token")).toBe(true);
+    expect(isPublicPath("/billing")).toBe(false);
+  });
+
   it("does not expose protected routes with similar prefixes", () => {
     expect(isPublicPath("/students")).toBe(false);
     expect(isPublicPath("/student-management")).toBe(false);
