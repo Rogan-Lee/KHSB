@@ -38,13 +38,23 @@ const SETTING = {
   onsiteGuideText: null,
 };
 
-function ending(studentId: string, coverageEnd: string, profile: { monthlyFee?: number | null; billingPaused?: boolean } | null = null) {
+function ending(
+  studentId: string,
+  coverageEnd: string,
+  profile: { monthlyFee?: number | null; billingPaused?: boolean; billingAnchor?: string } | null = null,
+) {
   return {
     studentId,
     coverageEnd: day(coverageEnd),
     student: {
       name: `학생-${studentId}`,
-      tuitionProfile: profile ? { monthlyFee: profile.monthlyFee ?? null, billingPaused: profile.billingPaused ?? false } : null,
+      tuitionProfile: profile
+        ? {
+            monthlyFee: profile.monthlyFee ?? null,
+            billingPaused: profile.billingPaused ?? false,
+            billingAnchor: profile.billingAnchor ? day(profile.billingAnchor) : null,
+          }
+        : null,
     },
   };
 }
@@ -119,6 +129,17 @@ describe("runTuitionAutoIssue", () => {
         { status: { in: ["PAID", "PARTIALLY_REFUNDED"] }, coverageEnd: { gt: day("2026-10-31") } },
       ],
     });
+  });
+
+  it("납부 기간보다 뒤로 결제 기준일을 정해 둔 학생은 이어서 청구하지 않는다", async () => {
+    vi.mocked(prisma.tuitionInvoice.findMany).mockResolvedValue([
+      ending("resume-later", "2026-10-31", { billingAnchor: "2026-12-01" }),
+      // 이미 지난 기준일(첫 청구에 쓰고 남은 값)은 영향이 없다
+      ending("old-anchor", "2026-10-31", { billingAnchor: "2026-08-01" }),
+    ] as never);
+
+    await expect(runTuitionAutoIssue(NOW)).resolves.toEqual({ issued: 1, skipped: 1 });
+    expect(vi.mocked(issueInvoice).mock.calls[0][0].studentId).toBe("old-anchor");
   });
 
   it("학생당 가장 늦은 이용 종료일 하나만 본다", async () => {

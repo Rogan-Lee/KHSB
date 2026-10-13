@@ -213,6 +213,8 @@ export type AdminTuitionStudent = {
   /** 학생별 → 기본 순으로 정해진 실제 적용 수강료 */
   effectiveMonthlyFee: number | null;
   billingPaused: boolean;
+  /** 등록해 둔 결제 기준일 (없으면 등록일 기준으로 계산한다) */
+  billingAnchor: string | null;
   memo: string | null;
   coverageEnd: string | null;
   /** 지금 발행한다면 이용 시작일 */
@@ -1058,7 +1060,7 @@ export async function getTuitionAdminData(input: {
       select: {
         ...STUDENT_REF_SELECT,
         startDate: true,
-        tuitionProfile: { select: { monthlyFee: true, billingPaused: true, memo: true } },
+        tuitionProfile: { select: { monthlyFee: true, billingPaused: true, billingAnchor: true, memo: true } },
       },
     }),
     // 학생별 "납부한 이용 기간의 끝" — 학생당 한 줄만 받는다
@@ -1089,7 +1091,8 @@ export async function getTuitionAdminData(input: {
     const profile = student.tuitionProfile;
     const coverageEnd = coverageByStudent.get(student.id) ?? null;
     const hasOpenInvoice = openStudentIds.has(student.id);
-    const nextStart = nextPeriodStart({ coverageEnd, enrolledOn: kstDateOf(student.startDate), today });
+    const anchor = profile?.billingAnchor ?? null;
+    const nextStart = nextPeriodStart({ coverageEnd, enrolledOn: kstDateOf(student.startDate), today, anchor });
     const monthlyFee = profile?.monthlyFee ?? setting.defaultMonthlyFee ?? null;
     const billingPaused = profile?.billingPaused ?? false;
 
@@ -1101,6 +1104,7 @@ export async function getTuitionAdminData(input: {
       monthlyFee: profile?.monthlyFee ?? null,
       effectiveMonthlyFee: monthlyFee,
       billingPaused,
+      billingAnchor: keyOrNull(anchor),
       memo: profile?.memo ?? null,
       coverageEnd: keyOrNull(coverageEnd),
       nextPeriodStart: dateKey(nextStart),

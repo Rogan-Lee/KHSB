@@ -20,7 +20,7 @@ import type { AdminTuitionStudent } from "@/lib/tuition/admin-data";
 import { parseReminderDays, type TuitionRefundPolicyValue, type TuitionTaxTypeValue } from "@/lib/tuition/calc";
 import type { TuitionProviderInfo } from "@/lib/tuition/provider-info";
 import type { TuitionSettingValues } from "@/lib/tuition/core";
-import { REFUND_POLICY_LABEL, TAX_TYPE_LABEL, won } from "@/lib/tuition/format";
+import { dotDate, REFUND_POLICY_LABEL, TAX_TYPE_LABEL, won } from "@/lib/tuition/format";
 import { callTuition, digitsOnly, MoneyInput, StudentCell, toAmount } from "./shared";
 
 const REFUND_POLICIES: TuitionRefundPolicyValue[] = ["DAILY", "ACADEMY_LAW", "MANUAL"];
@@ -408,9 +408,9 @@ function StudentFees({
 
   return (
     <Section
-      title="학생별 수강료"
+      title="학생별 수강료·결제 기준일"
       count={students.length}
-      description="월 수강료를 비워 두면 기본 월 수강료를 써요. ‘청구 제외’는 청구 예정 목록에서만 빠지고, 직접 발행은 할 수 있어요."
+      description="월 수강료를 비워 두면 기본 월 수강료를 써요. 결제 기준일은 다음 청구가 시작되는 날이고, 비워 두면 등록일 기준으로 계산해요. 한 번 납부하면 그 뒤로는 납부한 기간에 이어서 청구돼요. ‘청구 제외’는 청구 예정 목록에서만 빠지고, 직접 발행은 할 수 있어요."
       actions={
         <SearchField
           value={query}
@@ -436,6 +436,7 @@ function StudentFees({
               <TableRow>
                 <TableHead>학생</TableHead>
                 <TableHead>월 수강료 (원)</TableHead>
+                <TableHead>결제 기준일</TableHead>
                 <TableHead>청구 제외</TableHead>
                 <TableHead>메모</TableHead>
                 <TableHead className="text-right">저장</TableHead>
@@ -464,10 +465,14 @@ function StudentFeeRow({
   const [pending, startTransition] = useTransition();
   const [fee, setFee] = useState(student.monthlyFee === null ? "" : String(student.monthlyFee));
   const [paused, setPaused] = useState(student.billingPaused);
+  const [anchor, setAnchor] = useState(student.billingAnchor ?? "");
   const [memo, setMemo] = useState(student.memo ?? "");
 
   const dirty =
-    toAmount(fee) !== student.monthlyFee || paused !== student.billingPaused || memo.trim() !== (student.memo ?? "");
+    toAmount(fee) !== student.monthlyFee ||
+    paused !== student.billingPaused ||
+    anchor !== (student.billingAnchor ?? "") ||
+    memo.trim() !== (student.memo ?? "");
 
   function save() {
     startTransition(async () => {
@@ -477,6 +482,7 @@ function StudentFeeRow({
           monthlyFee: toAmount(fee),
           billingPaused: paused,
           memo: memo.trim() || null,
+          billingAnchor: anchor || null,
         }),
       );
       if (res.ok) {
@@ -502,6 +508,19 @@ function StudentFeeRow({
           placeholder={defaultMonthlyFee === null ? "미설정" : `기본 ${won(defaultMonthlyFee)}`}
           className="h-9 w-40"
         />
+      </TableCell>
+      <TableCell>
+        <Input
+          type="date"
+          aria-label={`${student.name} 결제 기준일`}
+          value={anchor}
+          disabled={pending}
+          onChange={(e) => setAnchor(e.target.value)}
+          className="h-9 w-[8.75rem] tabular-nums"
+        />
+        <p className="mt-x1 whitespace-nowrap t3-regular tabular-nums text-fg-neutral-subtle">
+          {student.hasOpenInvoice ? "미납 청구서 있음" : `다음 청구 ${dotDate(student.nextPeriodStart)}부터`}
+        </p>
       </TableCell>
       <TableCell>
         <label className="flex cursor-pointer items-center gap-x2 whitespace-nowrap t4-regular text-fg-neutral-muted">

@@ -112,7 +112,11 @@ export type TuitionProfileInput = {
   monthlyFee: number | null;
   billingPaused: boolean;
   memo?: string | null;
+  /** 결제 기준일 YYYY-MM-DD. null 이면 지운다(등록일 기준으로 돌아간다). 생략하면 그대로 둔다 */
+  billingAnchor?: string | null;
 };
+
+export type TuitionBillingAnchorInput = { studentId: string; billingAnchor: string };
 
 // ─── 인증 ──────────────────────────────────────────────────────────────
 
@@ -174,6 +178,14 @@ function parseInteger(value: unknown, min: number, max: number, message: string)
 function parseDate(value: unknown, message: string): string {
   if (typeof value !== "string" || !parseDateKey(value)) invalid(message);
   return value as string;
+}
+
+/** 결제 기준일 — 비우면 null (등록일 기준으로 계산) */
+function parseAnchorOrNull(value: unknown): Date | null {
+  if (value === null || value === "") return null;
+  const day = typeof value === "string" ? parseDateKey(value) : null;
+  if (!day) invalid("결제 기준일을 확인해 주세요");
+  return day;
 }
 
 function parseIdList(value: unknown, label: string, max: number): string[] {
@@ -601,7 +613,10 @@ export async function updateTuitionSetting(values: TuitionSettingInput): Promise
   return result;
 }
 
-/** 학생별 수강료 — monthlyFee 가 null 이면 기본 수강료를 쓴다. billingPaused 는 청구 예정 목록에서만 빠진다 */
+/**
+ * 학생별 수강료 — monthlyFee 가 null 이면 기본 수강료를 쓴다. billingPaused 는 청구 예정 목록에서만 빠진다.
+ * billingAnchor(결제 기준일)는 다음 청구의 이용 시작일이다.
+ */
 export async function updateTuitionProfile(input: TuitionProfileInput): Promise<TuitionResult> {
   const actor = await requireFullAccessActor();
   const result = await runTuition(async () => {
@@ -612,6 +627,7 @@ export async function updateTuitionProfile(input: TuitionProfileInput): Promise<
       monthlyFee: parseMonthlyFeeOrNull(input.monthlyFee, "월 수강료"),
       billingPaused: input.billingPaused,
       memo: parseOptionalText(input.memo, "메모", MEMO_MAX),
+      ...(input.billingAnchor === undefined ? {} : { billingAnchor: parseAnchorOrNull(input.billingAnchor) }),
       updatedById: actor.id,
     };
     const student = await prisma.student.findUnique({ where: { id: studentId }, select: { id: true } });
@@ -621,6 +637,39 @@ export async function updateTuitionProfile(input: TuitionProfileInput): Promise<
       create: { studentId, ...data },
       update: data,
     });
+  });
+  revalidatePath("/tuition");
+  return result;
+}
+
+/**
+ * 결제 기준일 여러 명 저장 — 청구 예정에서 지금은 발행하지 않고 다음 청구 시작일만 정해 둘 때.
+ * (시스템을 쓰기 전에 이미 받은 회차를 건너뛰거나, 학생마다 다른 결제일을 맞춰 둔다)
+ */
+export async function saveTuitionBillingAnchors(
+  items: TuitionBillingAnchorInput[],
+): Promise<TuitionResult<{ saved: number }>> {
+  const actor = await requireFullAccessActor();
+  const result = await runTuition(async () => {
+    if (!Array.isArray(items) || items.length === 0) invalid("결제 기준일을 저장할 학생을 선택해 주세요");
+    if (items.length > ISSUE_BATCH_MAX) invalid(`한 번에 ${ISSUE_BATCH_MAX}명까지 저장할 수 있습니다`);
+    const byStudent = new Map<string, Date>();
+    for (const item of items) {
+      if (typeof item !== "object" || item === null) invalid("결제 기준일을 확인해 주세요");
+      const anchor = parseAnchorOrNull(item.billingAnchor);
+      if (!anchor) invalid("결제 기준일을 확인해 주세요");
+      byStudent.set(parseId(item.studentId, "학생"), anchor as Date);
+    }
+    const studentIds = [...byStudent.keys()];
+    const found = await prisma.student.findMany({ where: { id: { in: studentIds } }, select: { id: true } });
+    if (found.length !== studentIds.length) throw new TuitionError("NOT_FOUND", "학생을 찾을 수 없습니다", 404);
+    await prisma.$transaction(
+      studentIds.map((studentId) => {
+        const data = { billingAnchor: byStudent.get(studentId) as Date, updatedById: actor.id };
+        return prisma.tuitionProfile.upsert({ where: { studentId }, create: { studentId, ...data }, update: data });
+      }),
+    );
+    return { saved: studentIds.length };
   });
   revalidatePath("/tuition");
   return result;

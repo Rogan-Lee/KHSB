@@ -2,19 +2,21 @@
 
 // 청구 예정 탭 (원장급) — 다음 이용 기간의 청구서를 내야 하는 학생. 줄마다 기간·금액·기한을 고쳐 한꺼번에 발행한다.
 // 발행은 학생마다 따로 처리되므로 일부만 실패할 수 있다. 실패한 학생은 사유와 함께 목록에 남는다.
+// 지금 발행할 학생이 아니면(이미 받은 회차, 결제일이 다른 학생) 이용 시작일만 "결제 기준일"로 저장해 목록에서 내린다.
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarCheck, ChevronDown, FilePlus2 } from "lucide-react";
+import { CalendarCheck, CalendarClock, ChevronDown, FilePlus2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState, Notice, StatusBadge, TableCard, Toolbar, type Tone } from "@/components/backoffice/ui";
 import { ConfirmDialog } from "@/components/backoffice/confirm-dialog";
-import { issueTuitionInvoices } from "@/actions/tuition";
+import { issueTuitionInvoices, saveTuitionBillingAnchors } from "@/actions/tuition";
 import type { AdminBillingTarget, BillingTargetReason } from "@/lib/tuition/admin-data";
+import { addMonthsClamped, dateKey, parseDateKey } from "@/lib/tuition/calc";
 import { dotDate, won } from "@/lib/tuition/format";
 import { cn } from "@/lib/utils";
 import {
@@ -61,6 +63,7 @@ export function BillingTab({
   const [notify, setNotify] = useState(true);
   const [failures, setFailures] = useState<Record<string, string>>({});
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [anchorConfirmOpen, setAnchorConfirmOpen] = useState(false);
   // 추가 항목·안내 메시지는 이번에 발행하는 모든 학생에게 똑같이 붙는다 (학생마다 다르게 하려면 따로 발행)
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [extraRows, setExtraRows] = useState<ExtraRowDraft[]>([]);
@@ -78,7 +81,10 @@ export function BillingTab({
   const ready = rows.filter((row) => row.evaluated.ok);
   const chosen = ready.filter((row) => selected.has(row.target.student.id));
   const total = chosen.reduce((sum, row) => sum + (row.evaluated.ok ? row.evaluated.amount : 0), 0);
-  const allSelected = ready.length > 0 && ready.every((row) => selected.has(row.target.student.id));
+  // 기준일 저장은 이용 시작일만 있으면 된다 — 수강료를 아직 안 정한 학생도 고를 수 있다
+  const selectable = rows.filter((row) => parseDateKey(row.draft.periodStart) !== null);
+  const picked = selectable.filter((row) => selected.has(row.target.student.id));
+  const allSelected = selectable.length > 0 && selectable.every((row) => selected.has(row.target.student.id));
   const failedCount = rows.filter((row) => failures[row.target.student.id]).length;
 
   function patch(studentId: string, base: IssueDraft, change: Partial<IssueDraft>) {
@@ -93,7 +99,41 @@ export function BillingTab({
     });
   }
   function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(ready.map((row) => row.target.student.id)));
+    setSelected(allSelected ? new Set() : new Set(selectable.map((row) => row.target.student.id)));
+  }
+
+  /** 이번 회차를 이미 받은 학생들 — 고른 줄의 이용 시작일을 각자 날짜 그대로 다음 달로 넘긴다 */
+  function shiftMonth() {
+    setDrafts((prev) => {
+      const next = { ...prev };
+      for (const row of picked) {
+        const start = parseDateKey(row.draft.periodStart);
+        if (start) next[row.target.student.id] = { ...row.draft, periodStart: dateKey(addMonthsClamped(start, 1)) };
+      }
+      return next;
+    });
+  }
+
+  function saveAnchors() {
+    const items = picked.map((row) => ({ studentId: row.target.student.id, billingAnchor: row.draft.periodStart }));
+    if (items.length === 0) return;
+    startTransition(async () => {
+      const res = await callTuition(() => saveTuitionBillingAnchors(items));
+      setAnchorConfirmOpen(false);
+      if (!res.ok) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(`${res.data.saved}명의 결제 기준일을 저장했어요`);
+      // 저장한 줄은 서버 값(= 방금 저장한 기준일)을 다시 받는다
+      setDrafts((prev) => {
+        const next = { ...prev };
+        for (const item of items) delete next[item.studentId];
+        return next;
+      });
+      setSelected(new Set());
+      router.refresh();
+    });
   }
 
   function issue() {
@@ -169,6 +209,22 @@ export function BillingTab({
         </div>
       </Toolbar>
 
+      {picked.length > 0 && (
+        <div className="mb-x3 flex flex-wrap items-center gap-x2 rounded-r3 bg-bg-layer-fill px-x4 py-x3">
+          <p className="w-full t3-regular text-fg-neutral-muted">
+            지금 발행할 학생이 아니면 이용 시작일을 다음 결제일로 맞춘 뒤 기준일로 저장하세요. 그 날짜 {leadDays}일
+            전에 다시 올라와요.
+          </p>
+          <Button variant="secondary" size="sm" onClick={shiftMonth} disabled={pending}>
+            이용 시작일 한 달 뒤로
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setAnchorConfirmOpen(true)} disabled={pending}>
+            <CalendarClock />
+            {picked.length}명 발행 없이 기준일 저장
+          </Button>
+        </div>
+      )}
+
       <div className="mb-x3 rounded-r3 bg-bg-layer-fill px-x4 py-x3">
         <button
           type="button"
@@ -234,8 +290,8 @@ export function BillingTab({
                 <Checkbox
                   checked={allSelected}
                   onCheckedChange={toggleAll}
-                  disabled={ready.length === 0 || pending}
-                  aria-label={`발행할 수 있는 ${ready.length}명 전체 선택`}
+                  disabled={selectable.length === 0 || pending}
+                  aria-label={`${selectable.length}명 전체 선택`}
                 />
               </TableHead>
               <TableHead className={CELL}>학생</TableHead>
@@ -250,7 +306,8 @@ export function BillingTab({
           <TableBody>
             {rows.map(({ target, draft, evaluated }) => {
               const id = target.student.id;
-              const checked = selected.has(id) && evaluated.ok;
+              const canSelect = parseDateKey(draft.periodStart) !== null;
+              const checked = selected.has(id) && canSelect;
               const failure = failures[id];
               return (
                 <TableRow key={id} data-state={checked ? "selected" : undefined}>
@@ -258,7 +315,7 @@ export function BillingTab({
                     <Checkbox
                       checked={checked}
                       onCheckedChange={() => toggle(id)}
-                      disabled={!evaluated.ok || pending}
+                      disabled={!canSelect || pending}
                       aria-label={`${target.student.name} 선택`}
                       className="mt-x2"
                     />
@@ -354,7 +411,19 @@ export function BillingTab({
       <p className="mt-x2 t3-regular text-fg-neutral-subtle">
         <span className="tabular-nums">{targets.length}명</span> · 다음 이용 시작 {leadDays}일 전부터 올라와요. 월 수강료를
         비워 둔 학생은 금액을 넣어야 발행할 수 있어요. (설정 탭에서 기본·학생별 수강료를 정해 두면 자동으로 채워져요)
+        이용 시작일은 학생별 결제 기준일이 있으면 그 날짜, 없으면 등록일 기준이에요.
       </p>
+
+      <ConfirmDialog
+        open={anchorConfirmOpen}
+        onOpenChange={setAnchorConfirmOpen}
+        title={`${picked.length}명의 결제 기준일을 저장할까요?`}
+        description={`청구서는 발행하지 않아요. 표에 적힌 이용 시작일이 학생별 결제 기준일로 저장되고, 그 날짜 ${leadDays}일 전에 청구 예정에 다시 올라와요. 이미 그 안에 들어온 학생은 목록에 그대로 남아요.`}
+        confirmLabel="기준일 저장"
+        pendingLabel="저장 중…"
+        pending={pending}
+        onConfirm={saveAnchors}
+      />
 
       <ConfirmDialog
         open={confirmOpen}

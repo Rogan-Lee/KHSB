@@ -371,6 +371,8 @@ export function coverageEndAfterRefund(
 
 /**
  * 다음 청구서의 이용 시작일.
+ *  · 결제 기준일을 등록해 두었고 납부한 이용 기간보다 뒤면 그 날
+ *    (시스템 밖에서 이미 받은 회차를 건너뛰거나, 쉬었다가 다시 다니는 날짜를 정해 둘 때)
  *  · 납부한 이용 기간이 있으면 그 종료일 다음 날
  *  · 없으면 등록일 기준 주기의 "오늘이 속한 회차" 시작일 (등록일이 미래면 등록일, 등록일을 모르면 오늘)
  */
@@ -378,8 +380,11 @@ export function nextPeriodStart(input: {
   coverageEnd: Date | null;
   enrolledOn: Date | null;
   today: Date;
+  /** 학생별로 등록한 결제 기준일 */
+  anchor?: Date | null;
 }): Date {
-  const { coverageEnd, enrolledOn, today } = input;
+  const { coverageEnd, enrolledOn, today, anchor } = input;
+  if (anchor && (!coverageEnd || anchor.getTime() > coverageEnd.getTime())) return anchor;
   if (coverageEnd) return addDays(coverageEnd, 1);
   if (!enrolledOn) return today;
   if (enrolledOn.getTime() >= today.getTime()) return enrolledOn;

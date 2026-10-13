@@ -4,10 +4,11 @@ vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    student: { findUnique: vi.fn() },
+    student: { findUnique: vi.fn(), findMany: vi.fn() },
     tuitionInvoice: { findMany: vi.fn() },
     tuitionProfile: { upsert: vi.fn() },
     tuitionSetting: { upsert: vi.fn() },
+    $transaction: vi.fn(async (ops: unknown[]) => ops),
   },
 }));
 vi.mock("@/lib/tuition/dev-origin", () => ({ devRequestOrigin: vi.fn(async () => "http://localhost:3100") }));
@@ -48,6 +49,7 @@ import {
   refreshTuitionInvoice,
   refundTuition,
   requestTuitionCashReceipt,
+  saveTuitionBillingAnchors,
   sendTuitionBillTalk,
   sendTuitionReminders,
   updateTuitionProfile,
@@ -120,6 +122,7 @@ const FULL_ACCESS_ACTIONS: Record<string, () => Promise<{ ok: boolean }>> = {
   sendTuitionReminders: () => sendTuitionReminders(["invoice-1"], "REMIND"),
   updateTuitionSetting: () => updateTuitionSetting(settingInput),
   updateTuitionProfile: () => updateTuitionProfile({ studentId: "student-1", monthlyFee: null, billingPaused: false }),
+  saveTuitionBillingAnchors: () => saveTuitionBillingAnchors([{ studentId: "student-1", billingAnchor: "2026-10-25" }]),
   markTuitionCashReceiptIssued: () => markTuitionCashReceiptIssued("receipt-1", "A12345678"),
   cancelTuitionCashReceipt: () => cancelTuitionCashReceipt("receipt-1", "잘못 등록"),
   exportTuitionCsv: () => exportTuitionCsv("2026-10"),
@@ -176,6 +179,7 @@ beforeEach(() => {
   vi.mocked(getTuitionExport).mockResolvedValue({ filename: "수강료_수납내역_2026-10.csv", csv: "학생", count: 0 });
   vi.mocked(getTuitionInvoiceDetail).mockResolvedValue({ today: "2026-10-10" } as never);
   vi.mocked(prisma.student.findUnique).mockResolvedValue({ id: "student-1" } as never);
+  vi.mocked(prisma.student.findMany).mockResolvedValue([{ id: "student-1" }] as never);
 });
 
 describe("권한", () => {
@@ -513,6 +517,23 @@ describe("updateTuitionProfile", () => {
     });
   });
 
+  it("결제 기준일은 보낸 경우에만 바꾼다 — 날짜면 저장, null·빈 값이면 지운다", async () => {
+    const base = { studentId: "student-1", monthlyFee: null, billingPaused: false };
+    await updateTuitionProfile({ ...base, billingAnchor: "2026-10-25" });
+    await updateTuitionProfile({ ...base, billingAnchor: null });
+    await updateTuitionProfile(base);
+    const saved = vi.mocked(prisma.tuitionProfile.upsert).mock.calls.map((call) => call[0].update);
+    expect(saved[0]).toMatchObject({ billingAnchor: new Date("2026-10-25T00:00:00.000Z") });
+    expect(saved[1]).toMatchObject({ billingAnchor: null });
+    expect(saved[2]).not.toHaveProperty("billingAnchor");
+
+    await expect(updateTuitionProfile({ ...base, billingAnchor: "2026-02-30" })).resolves.toMatchObject({
+      ok: false,
+      code: "INVALID_INPUT",
+    });
+    expect(prisma.tuitionProfile.upsert).toHaveBeenCalledTimes(3);
+  });
+
   it("없는 학생이면 NOT_FOUND, 금액이 틀리면 INVALID_INPUT", async () => {
     vi.mocked(prisma.student.findUnique).mockResolvedValue(null);
     await expect(
@@ -521,6 +542,40 @@ describe("updateTuitionProfile", () => {
     await expect(
       updateTuitionProfile({ studentId: "student-1", monthlyFee: 500, billingPaused: false }),
     ).resolves.toMatchObject({ ok: false, code: "INVALID_INPUT" });
+    expect(prisma.tuitionProfile.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("saveTuitionBillingAnchors", () => {
+  it("여러 학생의 결제 기준일을 한 번에 저장한다", async () => {
+    vi.mocked(prisma.student.findMany).mockResolvedValue([{ id: "student-1" }, { id: "student-2" }] as never);
+    await expect(
+      saveTuitionBillingAnchors([
+        { studentId: "student-1", billingAnchor: "2026-10-25" },
+        { studentId: "student-2", billingAnchor: "2026-11-03" },
+      ]),
+    ).resolves.toEqual({ ok: true, data: { saved: 2 } });
+    expect(prisma.tuitionProfile.upsert).toHaveBeenCalledTimes(2);
+    const second = { billingAnchor: new Date("2026-11-03T00:00:00.000Z"), updatedById: "user-director" };
+    expect(prisma.tuitionProfile.upsert).toHaveBeenLastCalledWith({
+      where: { studentId: "student-2" },
+      create: { studentId: "student-2", ...second },
+      update: second,
+    });
+  });
+
+  it("날짜가 틀리거나 없는 학생이 섞이면 아무도 저장하지 않는다", async () => {
+    vi.mocked(prisma.student.findMany).mockResolvedValue([{ id: "student-1" }] as never);
+    await expect(
+      saveTuitionBillingAnchors([
+        { studentId: "student-1", billingAnchor: "2026-10-25" },
+        { studentId: "student-x", billingAnchor: "2026-10-25" },
+      ]),
+    ).resolves.toMatchObject({ ok: false, code: "NOT_FOUND" });
+    await expect(
+      saveTuitionBillingAnchors([{ studentId: "student-1", billingAnchor: "" }]),
+    ).resolves.toMatchObject({ ok: false, code: "INVALID_INPUT" });
+    await expect(saveTuitionBillingAnchors([])).resolves.toMatchObject({ ok: false, code: "INVALID_INPUT" });
     expect(prisma.tuitionProfile.upsert).not.toHaveBeenCalled();
   });
 });
