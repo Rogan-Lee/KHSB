@@ -38,6 +38,8 @@ export async function requestNetwork(token: string, params: NetworkRequestInput)
 
 export type StaffNetworkRequestView = NetworkRequestView & {
   student: { id: string; name: string; grade: string };
+  /** 승인됐지만 자동으로 풀지 못했고 사용 시간이 아직 남은 신청 — 직원이 사용 통제에서 직접 풀어 줘야 한다 */
+  needsManualApply: boolean;
 };
 
 /** 네트워크 신청 목록 — 상태 필터(미지정 시 전체), 대기 우선. */
@@ -51,10 +53,15 @@ export async function listNetworkRequests(status?: NapStatus): Promise<StaffNetw
     take: 200,
     include: { student: { select: { id: true, name: true, grade: true } } },
   });
-  return requests.map((r) => ({ ...toNetworkRequestView(r), student: r.student }));
+  const now = new Date();
+  return requests.map((r) => ({
+    ...toNetworkRequestView(r),
+    student: r.student,
+    needsManualApply: r.status === "APPROVED" && !r.appliedAt && r.endAt > now,
+  }));
 }
 
-/** 네트워크 신청 승인/거절 — 승인 시 어댑터로 정책 적용, 거절 전환 시 회수. */
+/** 네트워크 신청 승인/거절 — 승인 시 사용 통제에 일시 허용 등록, 거절 전환 시 회수. */
 export async function decideNetworkRequest(id: string, decision: "approve" | "reject") {
   const session = await auth();
   requireStaff(session?.user?.role);

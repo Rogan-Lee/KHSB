@@ -8,14 +8,14 @@ import { notifySlack } from "@/lib/slack";
 export const dynamic = "force-dynamic";
 
 /**
- * 15분마다 실행 — 승인 후 장비에 적용(appliedAt != null)됐지만
- * 사용 종료 시각(endAt)이 지난 네트워크 신청을 어댑터로 회수한다.
+ * 하루 1회 실행 — 승인돼 정책에 반영(appliedAt != null)됐지만 사용 종료 시각(endAt)이 지난
+ * 네트워크 신청을 정리한다.
  *
- * 마킹 방식(스키마 변경 없이): 회수 후 appliedAt=null 로 되돌린다.
- * decideNetworkRequest 의 거절 전환 회수 처리와 동일한 컨벤션으로,
- * "status=APPROVED && appliedAt=null" = 회수 완료 상태를 뜻한다.
- * appliedAt != null 조건으로 걸러지므로 매 실행 같은 건을 다시 잡지 않으며,
- * 재실행/중복 호출 대비로 revokeNetworkPolicy 어댑터는 멱등이어야 한다(현재 no-op이라 안전).
+ * 실제 차단 복구는 이 크론을 기다리지 않는다: 일시 허용은 종료 시각이 지나면 정책 계산에서
+ * 저절로 빠지고 시설 장비가 다음 확인 때 반영한다 (src/lib/access-control). 여기서는 신청 기록만 맞춘다.
+ *
+ * 마킹 방식(스키마 변경 없이): 정리 후 appliedAt=null 로 되돌린다.
+ * "status=APPROVED && appliedAt=null && endAt 지남" = 정리 완료. revokeNetworkPolicy 는 여러 번 불러도 안전하다.
  */
 export async function GET(request: NextRequest) {
   const denied = verifyCronSecret(request);

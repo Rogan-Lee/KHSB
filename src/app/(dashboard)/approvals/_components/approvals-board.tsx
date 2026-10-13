@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Moon, Wifi, Check, X, type LucideIcon } from "lucide-react";
@@ -149,7 +150,7 @@ export function ApprovalsBoard({
     if (decision === "reject") {
       const ok = await confirm({
         title: `${who} 학생의 신청을 거절할까요?`,
-        description: kind === "nap" ? "입력한 메모가 있으면 함께 남아요." : "거절하면 네트워크 정책이 적용되지 않아요.",
+        description: kind === "nap" ? "입력한 메모가 있으면 함께 남아요." : "거절하면 차단이 풀리지 않아요.",
         confirmLabel: "거절",
         destructive: true,
       });
@@ -237,6 +238,16 @@ export function ApprovalsBoard({
                     {r.status === "APPROVED" && r.appliedAt
                       ? ` · 정책 적용 ${fmtDateTime(r.appliedAt)}`
                       : ""}
+                  </p>
+                )}
+                {/* 학생이 적은 앱 이름·주소를 못 알아본 승인 — 사용 시간이 남아 있을 때만 안내 */}
+                {r.needsManualApply && (
+                  <p className="mt-x1_5 t3-regular text-fg-warning">
+                    자동으로 풀리지 않았어요.{" "}
+                    <Link href="/access-control?tab=overrides" className="underline underline-offset-2">
+                      사용 통제
+                    </Link>
+                    에서 일시 허용을 직접 만들어 주세요.
                   </p>
                 )}
               </div>
