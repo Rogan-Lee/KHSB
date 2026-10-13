@@ -1,0 +1,21 @@
+name: Tuition Sync
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reconcile tuition payments
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --max-time 30 \
+            --retry 3 \
+            --retry-all-errors \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            https://khsb.vercel.app/api/cron/tuition-sync
