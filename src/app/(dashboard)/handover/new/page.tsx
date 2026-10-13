@@ -1,8 +1,7 @@
-import { prisma } from "@/lib/prisma";
-import { getRecentHandovers, getStaffList } from "@/actions/handover";
+import { getStaffList } from "@/actions/handover";
 import { getChecklistTemplates } from "@/actions/checklist-templates";
 import { getMonthlyNotes } from "@/actions/monthly-notes";
-import { getTodos } from "@/actions/todos";
+import { getPendingTodos } from "@/actions/todos";
 import { PageHeader } from "@/components/backoffice/ui";
 import { HandoverFormPageWrapper } from "@/components/handover/handover-form-page-wrapper";
 import { requireDashboardSession } from "../../_lib/page-guard";
@@ -14,21 +13,14 @@ export default async function NewHandoverPage() {
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
 
-  const [templates, staffList, recentHandovers, todos, monthlyNotes, students] =
+  // 할 일은 미완료만 쓴다 (예전엔 완료 이력까지 전체 조회 + 안 쓰는 최근 인수인계·학생 목록 조회)
+  const [templates, staffList, pendingTodos, monthlyNotes] =
     await Promise.all([
       getChecklistTemplates(),
       getStaffList(),
-      getRecentHandovers(1),
-      getTodos(),
+      getPendingTodos(),
       getMonthlyNotes(year, month),
-      prisma.student.findMany({
-        where: { status: "ACTIVE" },
-        select: { id: true, name: true, grade: true },
-        orderBy: { name: "asc" },
-      }),
     ]);
-
-  const pendingTodos = todos.filter((t) => !t.isCompleted);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -47,11 +39,7 @@ export default async function NewHandoverPage() {
           >["monthlyNotes"]
         }
         staffList={staffList}
-        pendingTodos={
-          pendingTodos as React.ComponentProps<
-            typeof HandoverFormPageWrapper
-          >["pendingTodos"]
-        }
+        pendingTodos={pendingTodos}
       />
     </div>
   );

@@ -221,6 +221,7 @@ async function generateWeeklyReportDraftCore(params: {
     };
 
     const report = await prisma.onlineParentReport.upsert({
+      select: { id: true }, // 반환 행 최소화 (content 장문 제외)
       where: {
         studentId_type_periodStart: {
           studentId: params.studentId,
@@ -248,6 +249,7 @@ async function generateWeeklyReportDraftCore(params: {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const report = await prisma.onlineParentReport.upsert({
+      select: { id: true }, // 반환 행 최소화 (content 장문 제외)
       where: {
         studentId_type_periodStart: {
           studentId: params.studentId,
@@ -361,6 +363,7 @@ export async function updateReportContent(params: {
   const content: ReportContent = { ...prev, markdown: params.markdown };
 
   await prisma.onlineParentReport.update({
+    select: { id: true }, // 반환 행 최소화 (content 장문 제외)
     where: { id: params.reportId },
     data: {
       content,
@@ -388,6 +391,7 @@ export async function approveReport(reportId: string) {
   }
 
   await prisma.onlineParentReport.update({
+    select: { id: true }, // 반환 행 최소화 (content 장문 제외)
     where: { id: reportId },
     data: {
       status: "APPROVED",
@@ -422,6 +426,7 @@ export async function markReportSent(params: {
   );
 
   await prisma.onlineParentReport.update({
+    select: { id: true }, // 반환 행 최소화 (content 장문 제외)
     where: { id: params.reportId },
     data: {
       status: "SENT",
@@ -673,6 +678,7 @@ async function generateMonthlyReportDraftCore(params: {
     const profileSnapshot = inputs.profile ?? undefined;
 
     const report = await prisma.onlineParentReport.upsert({
+      select: { id: true }, // 반환 행 최소화 (content 장문 제외)
       where: {
         studentId_type_periodStart: {
           studentId: params.studentId,
@@ -696,6 +702,7 @@ async function generateMonthlyReportDraftCore(params: {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const report = await prisma.onlineParentReport.upsert({
+      select: { id: true }, // 반환 행 최소화 (content 장문 제외)
       where: {
         studentId_type_periodStart: {
           studentId: params.studentId,
@@ -856,6 +863,7 @@ export async function batchEnqueueReports(params: {
       const content: QueuedContent = { queued: true, systemPrompt, userPrompt, queuedAt, queuedById };
 
       await prisma.onlineParentReport.upsert({
+        select: { id: true }, // 반환 행 최소화 (content 장문 제외)
         where: {
           studentId_type_periodStart: { studentId, type: params.type, periodStart: start },
         },

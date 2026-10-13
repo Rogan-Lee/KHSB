@@ -271,7 +271,18 @@ function serializeHandover(
   };
 }
 
-const handoverInclude = {
+// 응답에 쓰는 컬럼만 — include 는 monthlyNotesSnapshot(월간 메모 스냅샷 JSON) 등 전 컬럼을 가져온다
+const handoverSelect = {
+  authorId: true,
+  authorName: true,
+  category: true,
+  content: true,
+  createdAt: true,
+  date: true,
+  id: true,
+  isPinned: true,
+  priority: true,
+  recipientName: true,
   checklist: {
     orderBy: { order: "asc" as const },
     select: { id: true, isChecked: true, title: true },
@@ -296,7 +307,7 @@ export async function getMobileHandovers(userId: string, now = new Date()) {
   since.setUTCDate(since.getUTCDate() - 13);
   const handovers = await prisma.handover.findMany({
     where: { date: { gte: since } },
-    include: handoverInclude,
+    select: handoverSelect,
     orderBy: [
       { date: "desc" },
       { isPinned: "desc" },
@@ -322,7 +333,7 @@ export async function createMobileHandover(
       date: getKstDayContext(now).date,
       priority: data.priority,
     },
-    include: handoverInclude,
+    select: handoverSelect,
   });
   return serializeHandover(handover, user.id);
 }
@@ -347,6 +358,7 @@ export async function markMobileHandoverRead(
       confirmedAt: new Date(),
     },
     update: { confirmedAt: new Date() },
+    select: { id: true },
   });
   return { ok: true };
 }
@@ -369,6 +381,7 @@ export async function toggleMobileHandoverItem(
         completedAt: task.isCompleted ? null : new Date(),
         isCompleted: !task.isCompleted,
       },
+      select: { id: true },
     });
     return { ok: true };
   }
@@ -386,6 +399,7 @@ export async function toggleMobileHandoverItem(
       checkedByName: item.isChecked ? null : user.name || "알 수 없음",
       isChecked: !item.isChecked,
     },
+    select: { id: true },
   });
   return { ok: true };
 }

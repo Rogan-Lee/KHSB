@@ -59,8 +59,9 @@ export const validateMagicLink = cache(
     if (link.expiresAt.getTime() < Date.now()) return null;
     if (link.student.status !== "ACTIVE") return null;
 
+    // updateMany — 갱신된 행을 되돌려 받지 않는다 (포털 폴링마다 호출, egress)
     prisma.studentMagicLink
-      .update({
+      .updateMany({
         where: { id: link.id },
         data: {
           lastAccessedAt: new Date(),

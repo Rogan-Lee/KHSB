@@ -80,10 +80,10 @@ export type StudentReportRow = {
     mentorName: string;
     hasNotes: boolean;
   } | null;
+  /** customNote(장문)는 목록에 싣지 않는다 — 선택한 원생 것만 getParentReportNote 로 */
   parentReport: {
     id: string;
     token: string;
-    customNote: string | null;
     createdAt: Date;
   } | null;
 };
@@ -118,11 +118,24 @@ export async function getStudentsForReportDispatch(): Promise<StudentReportRow[]
       ? {
           id: r.parentReport.id,
           token: r.parentReport.token,
-          customNote: r.parentReport.customNote,
           createdAt: r.parentReport.createdAt,
         }
       : null,
   }));
+}
+
+/** 리포트 발송 탭 — 선택한 원생 리포트의 학부모 메시지(customNote)만 단건 조회 */
+export async function getParentReportNote(reportId: string): Promise<string | null> {
+  const session = await auth();
+  if (!session?.user) throw new Error("Unauthorized");
+  requireStaff(session.user.role);
+
+  const report = await prisma.parentReport.findUnique({
+    where: { id: reportId },
+    select: { customNote: true },
+  });
+  if (!report) throw new Error("리포트를 찾을 수 없습니다");
+  return report.customNote;
 }
 
 export type BulkCreateByStudentResult = {

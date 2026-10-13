@@ -29,16 +29,37 @@ export default async function PerformanceOverviewPage() {
       name: true,
       grade: true,
       school: true,
+      // egress: 화면에 쓰는 컬럼만 (결과 최종 파일 JSON·중복 FK 등 제외)
       performanceTasks: {
         orderBy: { dueDate: "asc" },
-        include: {
-          result: true,
+        select: {
+          id: true,
+          subject: true,
+          title: true,
+          description: true,
+          format: true,
+          scoreWeight: true,
+          dueDate: true,
+          status: true,
+          result: { select: { score: true, consultantSummary: true, includeInReport: true } },
           submissions: {
             orderBy: { version: "desc" },
-            include: {
+            select: {
+              id: true,
+              version: true,
+              files: true,
+              note: true,
+              submittedAt: true,
               feedbacks: {
                 orderBy: { createdAt: "asc" },
-                include: { author: { select: { name: true } } },
+                select: {
+                  id: true,
+                  content: true,
+                  status: true,
+                  createdAt: true,
+                  files: true,
+                  author: { select: { name: true } },
+                },
               },
             },
           },

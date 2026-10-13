@@ -3,13 +3,11 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { StatusBadge } from "@/components/backoffice/ui";
-import type { Student, User } from "@/generated/prisma";
+import type { StudentListRow } from "./students-table";
 import { STUDENT_STATUS } from "./student-status";
 import { StudentAvatar } from "./student-avatar";
 
-type StudentLike = Student & {
-  mentor: Pick<User, "name"> | null;
-};
+type StudentLike = StudentListRow;
 
 interface StudentsCardGridProps {
   students: StudentLike[];

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { latestIdsPerGroup } from "@/lib/db/latest-per-group";
 import { requireStaff } from "@/lib/roles";
 import { assertCanMessage } from "@/lib/safety";
 import { validateMagicLink } from "@/lib/student-auth";
@@ -105,28 +106,40 @@ export async function listStudentQuestions(params: { studentToken: string }) {
       studentReadAt: true,
       lastMessageAt: true,
       createdAt: true,
-      messages: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { senderType: true, content: true, attachments: true, createdAt: true },
-      },
     },
   });
 
-  const unreadCounts = await Promise.all(
-    questions.map((q) =>
-      prisma.questionMessage.count({
-        where: {
-          questionId: q.id,
-          senderType: "STAFF",
-          createdAt: q.studentReadAt ? { gt: q.studentReadAt } : undefined,
-        },
-      })
-    )
-  );
+  // 질문별 마지막 메시지만 DB 에서 골라 조회 (중첩 take:1 은 메시지 전체를 가져온다 — egress)
+  const [lastMessages, unreadCounts] = await Promise.all([
+    latestIdsPerGroup({
+      table: "QuestionMessage",
+      groupBy: "questionId",
+      groupIds: questions.map((q) => q.id),
+      orderBy: [{ column: "createdAt", dir: "desc" }],
+    }).then((ids) =>
+      ids.length === 0
+        ? []
+        : prisma.questionMessage.findMany({
+            where: { id: { in: ids } },
+            select: { questionId: true, senderType: true, content: true, attachments: true, createdAt: true },
+          })
+    ),
+    Promise.all(
+      questions.map((q) =>
+        prisma.questionMessage.count({
+          where: {
+            questionId: q.id,
+            senderType: "STAFF",
+            createdAt: q.studentReadAt ? { gt: q.studentReadAt } : undefined,
+          },
+        })
+      )
+    ),
+  ]);
+  const lastByQuestion = new Map(lastMessages.map((m) => [m.questionId, m]));
 
   return questions.map((q, i) => {
-    const last = q.messages[0] ?? null;
+    const last = lastByQuestion.get(q.id) ?? null;
     return {
       id: q.id,
       title: q.title,
@@ -314,28 +327,41 @@ export async function listStaffQuestionInbox(params?: { filter?: StaffInboxFilte
       claimedAt: true,
       student: { select: { id: true, name: true, grade: true, school: true } },
       claimedBy: { select: { id: true, name: true } },
-      messages: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { senderType: true, content: true, attachments: true, createdAt: true },
-      },
     },
   });
 
-  const unreadCounts = await Promise.all(
-    questions.map((q) =>
-      prisma.questionMessage.count({
-        where: {
-          questionId: q.id,
-          senderType: "STUDENT",
-          createdAt: q.staffReadAt ? { gt: q.staffReadAt } : undefined,
-        },
-      })
-    )
-  );
+  // 질문별 마지막 메시지 — 중첩 `messages: { take: 1 }` 은 DB 에서 안 잘려 최대 200개 질문의
+  // 메시지(본문·첨부) 전체를 가져왔다(egress). 질문별 최신 id 만 DB 에서 고른 뒤 그 행만 조회.
+  const [lastMessages, unreadCounts] = await Promise.all([
+    latestIdsPerGroup({
+      table: "QuestionMessage",
+      groupBy: "questionId",
+      groupIds: questions.map((q) => q.id),
+      orderBy: [{ column: "createdAt", dir: "desc" }],
+    }).then((ids) =>
+      ids.length === 0
+        ? []
+        : prisma.questionMessage.findMany({
+            where: { id: { in: ids } },
+            select: { questionId: true, senderType: true, content: true, attachments: true, createdAt: true },
+          })
+    ),
+    Promise.all(
+      questions.map((q) =>
+        prisma.questionMessage.count({
+          where: {
+            questionId: q.id,
+            senderType: "STUDENT",
+            createdAt: q.staffReadAt ? { gt: q.staffReadAt } : undefined,
+          },
+        })
+      )
+    ),
+  ]);
+  const lastByQuestion = new Map(lastMessages.map((m) => [m.questionId, m]));
 
   return questions.map((q, i) => {
-    const last = q.messages[0] ?? null;
+    const last = lastByQuestion.get(q.id) ?? null;
     return {
       id: q.id,
       title: q.title,

@@ -12,9 +12,13 @@ import { cn } from "@/lib/utils";
 import type { AttendanceSchedule, OutingSchedule, Student } from "@/generated/prisma";
 import { CalendarClock, ChevronDown, Plus, Trash2 } from "lucide-react";
 
-type StudentWithSchedules = Student & {
-  schedules: AttendanceSchedule[];
-  outings: OutingSchedule[];
+type DaySchedule = Pick<AttendanceSchedule, "dayOfWeek" | "startTime" | "endTime">;
+type DayOuting = Pick<OutingSchedule, "dayOfWeek" | "outStart" | "outEnd" | "reason">;
+
+// 편집기가 읽는 필드만 — 페이지 쿼리의 select 와 맞춘다(egress 절감).
+type StudentWithSchedules = Pick<Student, "id" | "name" | "grade"> & {
+  schedules: DaySchedule[];
+  outings: DayOuting[];
 };
 
 interface Props {
@@ -49,7 +53,7 @@ type DayRow = {
   outings: OutingEntry[];
 };
 
-function initRows(schedules: AttendanceSchedule[], outings: OutingSchedule[]): Record<number, DayRow> {
+function initRows(schedules: DaySchedule[], outings: DayOuting[]): Record<number, DayRow> {
   const map: Record<number, DayRow> = {};
   for (const d of DAYS) {
     const sch = schedules.find((s) => s.dayOfWeek === d.value);

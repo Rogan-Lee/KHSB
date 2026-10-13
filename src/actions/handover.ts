@@ -4,10 +4,44 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { HandoverPriority } from "@/generated/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import { STAFF_ROLES, requireStaff, requireAnyStaff, isAnyStaff, isFullAccess } from "@/lib/roles";
 import { todayKST } from "@/lib/utils";
 
 // ── 조회 ──────────────────────────────────────────────────────────────────────
+
+// 목록·상세 공용 스칼라 select — monthlyNotesSnapshot(작성 시점 월간 노트 전체 스냅샷, 화면 미사용)·updatedAt 제외.
+// 예전엔 include 로 전 컬럼을 가져와 날짜 범위 목록마다 스냅샷 장문이 같이 내려갔다(Supabase egress).
+const HANDOVER_SCALARS = {
+  id: true,
+  date: true,
+  content: true,
+  priority: true,
+  category: true,
+  isPinned: true,
+  authorId: true,
+  authorName: true,
+  recipientId: true,
+  recipientName: true,
+  createdAt: true,
+} satisfies Prisma.HandoverSelect;
+
+const READS_SELECT = {
+  select: { userId: true, userName: true, readAt: true, confirmedAt: true },
+} satisfies Prisma.Handover$readsArgs;
+
+// 인수인계 목록(보드) — 할 일은 화면에 쓰는 필드만, 루틴 체크리스트는 개수·체크 수만 쓰므로 isChecked 만.
+const HANDOVER_LIST_SELECT = {
+  ...HANDOVER_SCALARS,
+  reads: READS_SELECT,
+  tasks: {
+    orderBy: { order: "asc" },
+    select: { id: true, title: true, content: true, assigneeId: true, isCompleted: true, completedAt: true },
+  },
+  checklist: { orderBy: { order: "asc" }, select: { isChecked: true } },
+} satisfies Prisma.HandoverSelect;
+
+export type HandoverListItem = Prisma.HandoverGetPayload<{ select: typeof HANDOVER_LIST_SELECT }>;
 
 export async function getHandovers(options?: { date?: string; limit?: number }) {
   const session = await auth();
@@ -18,16 +52,16 @@ export async function getHandovers(options?: { date?: string; limit?: number }) 
 
   return prisma.handover.findMany({
     where,
-    include: {
-      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
-      tasks: { orderBy: { order: "asc" } },
-      checklist: { orderBy: { order: "asc" } },
-    },
+    select: HANDOVER_LIST_SELECT,
     orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
     take: options?.limit,
   });
 }
 
+/**
+ * 홈 대시보드용 최근 인수인계. 할 일은 제목·배정·완료만, 체크리스트는 개수·체크 수(isChecked)만 가져오고,
+ * 루틴 칸에 그대로 펼치는 맨 앞 인수인계의 체크리스트만 latestChecklist 로 따로 조회한다(egress 절감).
+ */
 export async function getRecentHandovers(days = 14) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
@@ -36,15 +70,37 @@ export async function getRecentHandovers(days = 14) {
   const since = todayKST();
   since.setDate(since.getDate() - days);
 
-  return prisma.handover.findMany({
+  const handovers = await prisma.handover.findMany({
     where: { date: { gte: since } },
-    include: {
-      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
-      tasks: { orderBy: { order: "asc" } },
-      checklist: { orderBy: { order: "asc" } },
+    select: {
+      id: true,
+      date: true,
+      content: true,
+      priority: true,
+      category: true,
+      isPinned: true,
+      authorId: true,
+      authorName: true,
+      createdAt: true,
+      reads: READS_SELECT,
+      tasks: {
+        orderBy: { order: "asc" },
+        select: { id: true, title: true, assigneeId: true, isCompleted: true, completedAt: true },
+      },
+      checklist: { orderBy: { order: "asc" }, select: { isChecked: true } },
     },
     orderBy: [{ date: "desc" }, { isPinned: "desc" }, { createdAt: "desc" }],
   });
+
+  const latestChecklist = handovers[0]
+    ? await prisma.handoverChecklist.findMany({
+        where: { handoverId: handovers[0].id },
+        orderBy: { order: "asc" },
+        select: { id: true, templateId: true, title: true, shiftType: true, isChecked: true, order: true },
+      })
+    : [];
+
+  return { handovers, latestChecklist };
 }
 
 /** since 이후 전체 조회 (이전 날짜 피커 경유). 상한 90일. */
@@ -63,17 +119,13 @@ export async function getHandoversSince(sinceYMD: string) {
 
   return prisma.handover.findMany({
     where: { date: { gte: effective } },
-    include: {
-      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
-      tasks: { orderBy: { order: "asc" } },
-      checklist: { orderBy: { order: "asc" } },
-    },
+    select: HANDOVER_LIST_SELECT,
     orderBy: [{ date: "desc" }, { isPinned: "desc" }, { createdAt: "desc" }],
   });
 }
 
 /** from ~ to (YYYY-MM-DD) 범위 조회. to 는 해당일 23:59:59 까지 포함. */
-export async function getHandoversBetween(fromYMD: string, toYMD: string) {
+export async function getHandoversBetween(fromYMD: string, toYMD: string): Promise<HandoverListItem[]> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
   requireAnyStaff(session.user.role);
@@ -85,15 +137,12 @@ export async function getHandoversBetween(fromYMD: string, toYMD: string) {
 
   return prisma.handover.findMany({
     where: { date: { gte: from, lte: toEnd } },
-    include: {
-      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
-      tasks: { orderBy: { order: "asc" } },
-      checklist: { orderBy: { order: "asc" } },
-    },
+    select: HANDOVER_LIST_SELECT,
     orderBy: [{ date: "desc" }, { isPinned: "desc" }, { createdAt: "desc" }],
   });
 }
 
+/** 상세·수정 화면용 단건 — 스냅샷만 빼고 화면에 쓰는 필드 전부. */
 export async function getHandoverById(id: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
@@ -101,11 +150,26 @@ export async function getHandoverById(id: string) {
 
   return prisma.handover.findUnique({
     where: { id },
-    include: {
-      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
-      tasks: { orderBy: { order: "asc" } },
-      checklist: { orderBy: { order: "asc" } },
-      comments: { orderBy: { createdAt: "asc" } },
+    select: {
+      ...HANDOVER_SCALARS,
+      reads: READS_SELECT,
+      tasks: {
+        orderBy: { order: "asc" },
+        select: {
+          id: true, title: true, content: true, assigneeId: true, assigneeName: true, order: true, isCompleted: true,
+        },
+      },
+      checklist: {
+        orderBy: { order: "asc" },
+        select: {
+          id: true, templateId: true, title: true, shiftType: true, isChecked: true,
+          checkedAt: true, checkedByName: true, order: true,
+        },
+      },
+      comments: {
+        orderBy: { createdAt: "asc" },
+        select: { id: true, authorId: true, authorName: true, content: true, createdAt: true },
+      },
     },
   });
 }
@@ -156,11 +220,7 @@ export async function getTodayHandover() {
 
   return prisma.handover.findFirst({
     where: { date: today },
-    include: {
-      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
-      tasks: { orderBy: { order: "asc" } },
-      checklist: { orderBy: { order: "asc" } },
-    },
+    select: HANDOVER_LIST_SELECT,
     orderBy: { createdAt: "desc" },
   });
 }
@@ -232,11 +292,8 @@ export async function createFullHandover(data: {
         })),
       },
     },
-    include: {
-      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
-      tasks: { orderBy: { order: "asc" } },
-      checklist: { orderBy: { order: "asc" } },
-    },
+    // 호출부(작성 폼)는 반환값을 쓰지 않는다 — 스냅샷 포함 전체 행을 돌려받지 않도록 id 만.
+    select: { id: true },
   });
 
   revalidatePath("/handover");
@@ -264,7 +321,7 @@ export async function updateFullHandover(
   if (!session?.user) throw new Error("Unauthorized");
   requireAnyStaff(session.user.role);
 
-  const existing = await prisma.handover.findUnique({ where: { id } });
+  const existing = await prisma.handover.findUnique({ where: { id }, select: { authorId: true } });
   if (!existing) throw new Error("인수인계를 찾을 수 없습니다");
   if (
     existing.authorId !== session.user.id &&
@@ -315,11 +372,8 @@ export async function updateFullHandover(
         },
       }),
     },
-    include: {
-      reads: { select: { userId: true, userName: true, readAt: true, confirmedAt: true } },
-      tasks: { orderBy: { order: "asc" } },
-      checklist: { orderBy: { order: "asc" } },
-    },
+    // 호출부(작성 폼)는 반환값을 쓰지 않는다 — 스냅샷 포함 전체 행을 돌려받지 않도록 id 만.
+    select: { id: true },
   });
 
   revalidatePath("/handover");
@@ -353,7 +407,7 @@ export async function deleteHandover(id: string) {
   if (!session?.user) throw new Error("Unauthorized");
   requireAnyStaff(session.user.role);
 
-  const existing = await prisma.handover.findUnique({ where: { id } });
+  const existing = await prisma.handover.findUnique({ where: { id }, select: { authorId: true } });
   if (!existing) throw new Error("인수인계를 찾을 수 없습니다");
   if (
     existing.authorId !== session.user.id &&

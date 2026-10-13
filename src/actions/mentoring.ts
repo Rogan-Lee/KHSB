@@ -169,13 +169,15 @@ export async function getMentoringMatches(mentorId: string, date?: string): Prom
       date: targetDate,
       type: { in: ["NORMAL", "TARDY"] },
     },
-    include: {
+    // 쓰는 필드만 (출결 전 컬럼 대신)
+    select: {
+      studentId: true, type: true, outStart: true, outEnd: true,
       student: {
         select: {
           id: true, name: true, grade: true, school: true,
           mentorId: true, mentoringNotes: true,
           internalScoreRange: true, mockScoreRange: true,
-          outings: { where: { dayOfWeek } },
+          outings: { where: { dayOfWeek }, select: { outStart: true, outEnd: true } },
         },
       },
     },
@@ -197,17 +199,18 @@ export async function getMentoringMatches(mentorId: string, date?: string): Prom
   const studentIds = presentStudents.map((a) => a.studentId);
 
   // 2. 각 학생의 마지막 completed 멘토링 조회
-  const lastMentorings = await prisma.mentoring.findMany({
+  // Prisma distinct 는 메모리에서 걸러 학생들의 멘토링 전부를 가져온다 → DB groupBy(MAX)로 학생당 1행 (egress)
+  const lastMentorings = await prisma.mentoring.groupBy({
+    by: ["studentId"],
     where: {
       studentId: { in: studentIds },
       status: { not: "CANCELLED" },
     },
-    orderBy: { scheduledAt: "desc" },
-    distinct: ["studentId"],
-    select: { studentId: true, scheduledAt: true },
+    _max: { scheduledAt: true },
   });
 
-  const lastMap = new Map(lastMentorings.map((m) => [m.studentId, m.scheduledAt]));
+  const lastMap = new Map<string, Date>();
+  for (const m of lastMentorings) if (m._max.scheduledAt) lastMap.set(m.studentId, m._max.scheduledAt);
 
   const today = todayKST();
 
@@ -371,12 +374,14 @@ export async function getTodayWorkingMentors(): Promise<MentorTodaySlot[]> {
       date: targetDate,
       type: { in: ["NORMAL", "TARDY"] },
     },
-    include: {
+    // 쓰는 필드만 (출결 전 컬럼 대신)
+    select: {
+      studentId: true, type: true, outStart: true, outEnd: true,
       student: {
         select: {
           id: true, name: true, grade: true, school: true,
           mentorId: true, mentoringNotes: true,
-          outings: { where: { dayOfWeek } },
+          outings: { where: { dayOfWeek }, select: { outStart: true, outEnd: true } },
         },
       },
     },
@@ -394,13 +399,13 @@ export async function getTodayWorkingMentors(): Promise<MentorTodaySlot[]> {
   const lastMap = new Map<string, Date>();
 
   if (studentIds.length > 0) {
-    const lastMentorings = await prisma.mentoring.findMany({
+    // Prisma distinct 는 메모리에서 걸러 학생들의 멘토링 전부를 가져온다 → DB groupBy(MAX)로 학생당 1행 (egress)
+    const lastMentorings = await prisma.mentoring.groupBy({
+      by: ["studentId"],
       where: { studentId: { in: studentIds }, status: { not: "CANCELLED" } },
-      orderBy: { scheduledAt: "desc" },
-      distinct: ["studentId"],
-      select: { studentId: true, scheduledAt: true },
+      _max: { scheduledAt: true },
     });
-    lastMentorings.forEach((m) => lastMap.set(m.studentId, m.scheduledAt));
+    for (const m of lastMentorings) if (m._max.scheduledAt) lastMap.set(m.studentId, m._max.scheduledAt);
   }
 
   const todayStart = todayKST();

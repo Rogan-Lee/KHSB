@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { SideNavigation as SeedSideNavigation } from "@seed-design/react";
@@ -39,6 +39,7 @@ interface DashboardShellProps {
 
 const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
 const VIEW_MODE_KEY = "adminViewMode";
+const BADGE_MIN_INTERVAL_MS = 30_000;
 type ViewMode = "web" | "mobile";
 
 export function DashboardShell({ user, children, sidebarBadges }: DashboardShellProps) {
@@ -52,10 +53,17 @@ export function DashboardShell({ user, children, sidebarBadges }: DashboardShell
   const [badges, setBadges] = useState(sidebarBadges);
 
   // 배지 갱신 — layout은 소프트 네비게이션에서 리렌더되지 않아 서버 스냅샷이 얼어붙는다.
-  // 페이지 이동·창 포커스·2분 주기로 폴링해 실시간에 가깝게 유지.
+  // 페이지 이동·창 포커스·2분 주기로 폴링하되, DB 전송량(egress)을 줄이려고
+  // 숨은 탭에선 쉬고, 직전 갱신 후 30초 안의 이동·포커스는 건너뛴다. 첫 렌더는 layout 스냅샷을 그대로 쓴다.
+  const lastBadgeFetch = useRef(0);
+  const refreshBadges = useRef<(force?: boolean) => void>(() => {});
   useEffect(() => {
     let alive = true;
-    const refresh = async () => {
+    lastBadgeFetch.current = Date.now();
+    refreshBadges.current = async (force = false) => {
+      if (document.hidden) return;
+      if (!force && Date.now() - lastBadgeFetch.current < BADGE_MIN_INTERVAL_MS) return;
+      lastBadgeFetch.current = Date.now();
       try {
         const res = await fetch("/api/sidebar-badges");
         if (!res.ok) return;
@@ -65,15 +73,22 @@ export function DashboardShell({ user, children, sidebarBadges }: DashboardShell
         // 네트워크 실패 시 기존 배지 유지
       }
     };
-    refresh();
-    const onFocus = () => refresh();
+    const onFocus = () => refreshBadges.current();
+    const onVisible = () => {
+      if (!document.hidden) refreshBadges.current();
+    };
     window.addEventListener("focus", onFocus);
-    const timer = setInterval(refresh, 120_000);
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = setInterval(() => refreshBadges.current(true), 120_000);
     return () => {
       alive = false;
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
       clearInterval(timer);
     };
+  }, []);
+  useEffect(() => {
+    refreshBadges.current();
   }, [pathname]);
 
   function changeCollapsed(next: boolean) {

@@ -36,6 +36,21 @@ function dayLabel(d: Date): string {
   return `${kstD.getUTCFullYear()}. ${kstD.getUTCMonth() + 1}. ${kstD.getUTCDate()}`;
 }
 
+/** 받은 메시지 중 가장 늦은 createdAt(ISO 문자열 비교) 으로 갱신 */
+function noteLatest(ref: { current: string | null }, list: ChatMessageView[]) {
+  for (const m of list) {
+    if (!ref.current || m.createdAt > ref.current) ref.current = m.createdAt;
+  }
+}
+
+// 동시에 보낸 메시지의 커밋 순서가 createdAt 순서와 어긋나도 놓치지 않도록 약간 겹쳐서 조회
+// (겹친 메시지는 seenIds 로 걸러진다)
+const POLL_OVERLAP_MS = 10_000;
+function pollSince(latest: string | null): string | undefined {
+  if (!latest) return undefined;
+  return new Date(Date.parse(latest) - POLL_OVERLAP_MS).toISOString();
+}
+
 export function ChatView({
   chatId,
   studentToken,
@@ -57,6 +72,10 @@ export function ChatView({
   const [messages, setMessages] = useState<ChatMessageView[]>(initialMessages);
   const scrollRef = useRef<HTMLDivElement>(null);
   const seenIds = useRef(new Set(initialMessages.map((m) => m.id)));
+  // 마지막으로 받은 메시지 시각 — 폴링은 이 시각 이후 것만 받아 온다(전체 재전송 방지)
+  const latestAt = useRef<string | null>(
+    initialMessages.length > 0 ? initialMessages[initialMessages.length - 1].createdAt : null
+  );
 
   const scrollToBottom = useCallback((smooth = false) => {
     const el = scrollRef.current;
@@ -84,13 +103,18 @@ export function ChatView({
         return;
       }
       try {
-        const data = await getChatMessages({ chatId, studentToken });
+        const data = await getChatMessages({
+          chatId,
+          studentToken,
+          after: pollSince(latestAt.current),
+        });
         if (!active) return;
         const fresh = data.messages.filter(
           (m: ChatMessageView) => !seenIds.current.has(m.id)
         );
         if (fresh.length > 0) {
           for (const m of fresh) seenIds.current.add(m.id);
+          noteLatest(latestAt, fresh);
           setMessages((prev) => [...prev, ...fresh]);
           // mark read since new staff message arrived (and if scrolled near bottom)
           if (viewer === "STUDENT" && fresh.some((m: ChatMessageView) => m.senderType === "STAFF")) {
@@ -136,12 +160,17 @@ export function ChatView({
         content,
         attachments,
       });
-      // refetch
-      const data = await getChatMessages({ chatId, studentToken });
+      // refetch — 마지막으로 받은 시각 이후 것만
+      const data = await getChatMessages({
+        chatId,
+        studentToken,
+        after: pollSince(latestAt.current),
+      });
       const fresh = data.messages.filter(
         (m: ChatMessageView) => !seenIds.current.has(m.id)
       );
       for (const m of fresh) seenIds.current.add(m.id);
+      noteLatest(latestAt, fresh);
       if (fresh.length > 0) {
         setMessages((prev) => [...prev, ...fresh]);
       }

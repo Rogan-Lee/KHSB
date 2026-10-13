@@ -39,7 +39,10 @@ export async function GET(request: NextRequest) {
         status: { in: ["OPEN", "IN_PROGRESS", "SUBMITTED", "NEEDS_REVISION"] },
         student: { isOnlineManaged: true, status: "ACTIVE" },
       },
-      include: {
+      // 알림 문구에 쓰는 컬럼만 (description 장문 제외)
+      select: {
+        subject: true,
+        title: true,
         student: {
           select: {
             name: true,

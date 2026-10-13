@@ -22,7 +22,15 @@ export default async function OnlineParentReportPublicPage({
 
   const report = await prisma.onlineParentReport.findUnique({
     where: { token },
-    include: {
+    // 화면에 쓰는 컬럼만 (프로필 스냅샷 등 제외)
+    select: {
+      studentId: true,
+      status: true,
+      type: true,
+      content: true,
+      periodStart: true,
+      periodEnd: true,
+      sentAt: true,
       student: { select: { name: true, grade: true } },
     },
   });

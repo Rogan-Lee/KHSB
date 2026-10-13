@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { startOfMonth, endOfMonth } from "date-fns";
@@ -44,35 +45,54 @@ async function getMonthlyStudyMinutes(
   return Math.max(attendanceMinutes - dailyOutingMinutes, 0);
 }
 
+/** SQL 판 diffMinutes — 두 시각 차이(분, 반올림), 하나라도 NULL 이거나 음수면 0. JS Math.round 와 같게 numeric 으로 반올림. */
+function sqlDiffMinutes(from: Prisma.Sql, to: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`(CASE WHEN ${from} IS NULL OR ${to} IS NULL THEN 0
+    ELSE GREATEST(ROUND(EXTRACT(EPOCH FROM (${to} - ${from}))::numeric / 60), 0) END)`;
+}
+
 /**
  * 모든 ACTIVE 학생의 월간 순공시간을 SQL 일괄 집계로 계산.
  * 개별 쿼리 N+1 문제 제거 (200쿼리 → 2쿼리).
+ * 월 전체 출결·외출 행을 가져와 JS 로 더하던 것을 DB 에서 학생별로 합산한다(egress 절감) —
+ * 계산식은 calcStudyMinutes / diffMinutes 와 동일.
  */
 async function getStudyRankMap(year: number, month: number) {
   const start = startOfMonth(new Date(year, month - 1));
   const end = endOfMonth(new Date(year, month - 1));
+  // Prisma 의 @db.Date 비교와 같게 UTC 날짜 부분으로 자른다
+  const startDate = start.toISOString().slice(0, 10);
+  const endDate = end.toISOString().slice(0, 10);
 
-  // 1. 출결 기반 체류시간 일괄 집계
-  const attendanceData = await prisma.attendanceRecord.findMany({
-    where: { date: { gte: start, lte: end }, student: { status: "ACTIVE" } },
-    select: { studentId: true, checkIn: true, checkOut: true, outStart: true, outEnd: true },
-  });
+  // 1. 출결 기반 체류시간 일괄 집계 (calcStudyMinutes: 체류 0분이면 0, 아니면 max(체류 - 외출, 0))
+  const total = sqlDiffMinutes(Prisma.sql`ar."checkIn"`, Prisma.sql`ar."checkOut"`);
+  const outing = sqlDiffMinutes(Prisma.sql`ar."outStart"`, Prisma.sql`ar."outEnd"`);
+  const attendanceData = await prisma.$queryRaw<{ studentId: string; minutes: number }[]>`
+    SELECT ar."studentId",
+      SUM(CASE WHEN ${total} = 0 THEN 0 ELSE GREATEST(${total} - ${outing}, 0) END)::int AS minutes
+    FROM "AttendanceRecord" ar
+    JOIN "Student" s ON s."id" = ar."studentId"
+    WHERE ar."date" >= ${startDate}::date AND ar."date" <= ${endDate}::date AND s."status" = 'ACTIVE'
+    GROUP BY ar."studentId"`;
 
-  // 2. 당일 외출 일괄 집계
-  const dailyOutingData = await prisma.dailyOuting.findMany({
-    where: { date: { gte: start, lte: end }, student: { status: "ACTIVE" } },
-    select: { studentId: true, outStart: true, outEnd: true },
-  });
+  // 2. 당일 외출 일괄 집계 (0분 초과만 차감)
+  const dailyOutingData = await prisma.$queryRaw<{ studentId: string; minutes: number }[]>`
+    SELECT o."studentId",
+      SUM(${sqlDiffMinutes(Prisma.sql`o."outStart"`, Prisma.sql`o."outEnd"`)})::int AS minutes
+    FROM "DailyOuting" o
+    JOIN "Student" s ON s."id" = o."studentId"
+    WHERE o."date" >= ${startDate}::date AND o."date" <= ${endDate}::date AND s."status" = 'ACTIVE'
+    GROUP BY o."studentId"`;
 
   // 학생별 순공시간 합산
   const minutesByStudent = new Map<string, number>();
 
   for (const r of attendanceData) {
-    const mins = calcStudyMinutes(r);
-    minutesByStudent.set(r.studentId, (minutesByStudent.get(r.studentId) ?? 0) + mins);
+    minutesByStudent.set(r.studentId, (minutesByStudent.get(r.studentId) ?? 0) + Number(r.minutes));
   }
   for (const o of dailyOutingData) {
-    const mins = diffMinutes(o.outStart, o.outEnd);
+    // 기존: 외출 행 중 0분 초과만 차감 — 0분 외출만 있던 학생도 맵에 들어가지 않았다
+    const mins = Number(o.minutes);
     if (mins > 0) {
       minutesByStudent.set(o.studentId, (minutesByStudent.get(o.studentId) ?? 0) - mins);
     }
@@ -263,6 +283,21 @@ export async function generateMonthlyReport(
   if (!session?.user) throw new Error("Unauthorized");
   requireStaff(session.user.role);
 
+  return buildMonthlyReport(studentId, year, month);
+}
+
+type StudyRankMap = Awaited<ReturnType<typeof getStudyRankMap>>;
+
+/**
+ * 월간 리포트 집계·저장 (인증은 호출부에서). 일괄 생성은 같은 달 순위표(rankMap)를 한 번만 계산해 넘긴다.
+ * 보안: export 하지 않는다 ("use server" export = 공개 엔드포인트).
+ */
+async function buildMonthlyReport(
+  studentId: string,
+  year: number,
+  month: number,
+  sharedRankMap?: StudyRankMap,
+) {
   const start = startOfMonth(new Date(year, month - 1));
   const end = endOfMonth(new Date(year, month - 1));
 
@@ -272,21 +307,24 @@ export async function generateMonthlyReport(
   });
   if (!student) throw new Error("학생을 찾을 수 없습니다");
 
-  const [attendances, merits, mentorings, rankMap] = await Promise.all([
+  // 집계에 쓰는 컬럼만 — 멘토링은 개수만(장문 컬럼 제외) (egress 절감)
+  const [attendances, merits, mentoringCount, rankMap] = await Promise.all([
     prisma.attendanceRecord.findMany({
       where: { studentId, date: { gte: start, lte: end } },
+      select: { type: true },
     }),
     prisma.meritDemerit.findMany({
       where: { studentId, date: { gte: start, lte: end } },
+      select: { type: true, points: true },
     }),
-    prisma.mentoring.findMany({
+    prisma.mentoring.count({
       where: {
         studentId,
         scheduledAt: { gte: start, lte: end },
         status: "COMPLETED",
       },
     }),
-    getStudyRankMap(year, month),
+    sharedRankMap ?? getStudyRankMap(year, month),
   ]);
 
   // 전월 순공 시간
@@ -308,7 +346,7 @@ export async function generateMonthlyReport(
     earlyLeaveCount: attendances.filter((a) => a.type === "EARLY_LEAVE").length,
     totalMerits: merits.filter((m) => m.type === "MERIT").reduce((a, m) => a + m.points, 0),
     totalDemerits: merits.filter((m) => m.type === "DEMERIT").reduce((a, m) => a + m.points, 0),
-    mentoringCount: mentorings.length,
+    mentoringCount,
     totalStudyMinutes: myRank?.minutes ?? 0,
     prevMonthStudyMinutes,
     studyRankInRoom: myRank?.rank ?? null,
@@ -320,10 +358,12 @@ export async function generateMonthlyReport(
     patrolAbsentCount: patrol.absentCount,
   };
 
+  // 호출부는 반환값을 쓰지 않는다 — 장문 컬럼(코멘트·요약)까지 돌려받지 않도록 id 만 (egress 절감)
   const report = await prisma.monthlyReport.upsert({
     where: { studentId_year_month: { studentId, year, month } },
     create: { studentId, year, month, ...stats },
     update: stats,
+    select: { id: true },
   });
 
   // 리포트 저장 후 자동 사진 첨부 (§2.22). 실패해도 리포트 생성은 유지.
@@ -470,6 +510,8 @@ export async function generateMonthlyReportsBulk(
   const unique = Array.from(new Set(studentIds));
   const results: BulkReportResult[] = [];
   let cursor = 0;
+  // 같은 달 순위표는 학생마다 다시 계산하지 않고 한 번만 (egress 절감). 실패하면 학생별 계산으로 폴백.
+  const rankMap = unique.length > 0 ? await getStudyRankMap(year, month).catch(() => undefined) : undefined;
 
   async function worker() {
     while (cursor < unique.length) {
@@ -477,7 +519,7 @@ export async function generateMonthlyReportsBulk(
       const sid = unique[idx];
       if (!sid) continue;
       try {
-        await generateMonthlyReport(sid, year, month);
+        await buildMonthlyReport(sid, year, month, rankMap);
         results.push({ studentId: sid, status: "success" });
       } catch (e) {
         results.push({
@@ -570,9 +612,10 @@ export async function ensureShareTokensBulk(ids: string[]) {
 
   if (ids.length === 0) return [];
 
+  // 토큰 확보에 쓰는 필드만 — 리포트 장문 컬럼 제외 (egress 절감)
   const reports = await prisma.monthlyReport.findMany({
     where: { id: { in: ids } },
-    include: { student: { select: { name: true } } },
+    select: { id: true, shareToken: true, student: { select: { name: true } } },
   });
 
   const results: { id: string; studentName: string; token: string }[] = [];

@@ -32,17 +32,23 @@ import {
 import { MoreHorizontal, ArrowLeftRight, LogOut, LogIn, ChevronRight, AlertTriangle, CircleAlert } from "lucide-react";
 import { checkoutStudent, readmitStudent, moveStudentSeat, swapStudentSeats, updateStudentSeat } from "@/actions/students";
 import { toast } from "sonner";
-import type { Student, User, AttendanceSchedule } from "@/generated/prisma";
+import type { Student, User } from "@/generated/prisma";
 import { useSortableTable } from "@/hooks/use-sortable-table";
 import { FormField, Notice, StatusBadge, TableCard } from "@/components/backoffice/ui";
 import { SortHead } from "./sort-head";
 import { StudentAvatar } from "./student-avatar";
 import { STUDENT_STATUS } from "./student-status";
 
-type StudentWithRelations = Student & {
+// 목록·카드가 읽는 필드만 — 원생 페이지 쿼리의 select 와 맞춘다(egress 절감).
+export type StudentListRow = Pick<
+  Student,
+  | "id" | "name" | "phone" | "parentPhone" | "parentEmail" | "grade" | "school" | "classGroup"
+  | "seat" | "status" | "startDate" | "imageUrl" | "studentInfo" | "createdAt"
+> & {
   mentor: Pick<User, "name"> | null;
-  schedules: AttendanceSchedule[];
 };
+
+type StudentWithRelations = StudentListRow;
 
 // ── 좌석 변경 다이얼로그 ──────────────────────────────
 function SeatChangeDialog({

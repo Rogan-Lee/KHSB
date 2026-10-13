@@ -23,9 +23,19 @@ export async function getAllAssignmentStatus(): Promise<AssignmentStatusRow[]> {
   const session = await auth();
   requireStaff(session?.user?.role);
 
+  // 위젯에 쓰는 컬럼만 — include 는 description·completedNote 등 장문까지 300행을 가져온다
   const rows = await prisma.assignment.findMany({
     where: { student: { status: "ACTIVE" } },
-    include: { student: { select: { id: true, name: true, grade: true } } },
+    select: {
+      id: true,
+      studentId: true,
+      title: true,
+      subject: true,
+      dueDate: true,
+      isCompleted: true,
+      completedAt: true,
+      student: { select: { name: true, grade: true } },
+    },
     orderBy: [{ isCompleted: "asc" }, { dueDate: "asc" }, { createdAt: "desc" }],
     take: 300,
   });

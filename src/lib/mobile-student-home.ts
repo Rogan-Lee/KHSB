@@ -132,13 +132,16 @@ export async function getMobileStudentHome(student: HomeStudent): Promise<Mobile
       where: { applicationOpen: true, examDate: { gte: today } },
     }),
     prisma.contentPost.count({ where: { visible: true } }),
-    prisma.meritDemerit.findMany({
+    // 잔액 계산엔 유형·상태별 합계만 필요 — 내역 전체 대신 groupBy
+    prisma.meritDemerit.groupBy({
+      by: ["type"],
       where: { studentId: student.id },
-      select: { type: true, points: true },
+      _sum: { points: true },
     }),
-    prisma.rewardRedemption.findMany({
+    prisma.rewardRedemption.groupBy({
+      by: ["status"],
       where: { studentId: student.id },
-      select: { status: true, points: true },
+      _sum: { points: true },
     }),
     getStudentBadges(student.id),
   ]);
@@ -146,7 +149,10 @@ export async function getMobileStudentHome(student: HomeStudent): Promise<Mobile
   const total = taskCounts.reduce((sum, c) => sum + c._count._all, 0);
   const done = taskCounts.find((c) => c.status === "DONE")?._count._all ?? 0;
 
-  const { balance } = calcPointBalance({ merits, redemptions });
+  const { balance } = calcPointBalance({
+    merits: merits.map((m) => ({ type: m.type, points: m._sum.points ?? 0 })),
+    redemptions: redemptions.map((r) => ({ status: r.status, points: r._sum.points ?? 0 })),
+  });
 
   let surveyView: MobileStudentHome["survey"] = null;
   if (isOnline) {

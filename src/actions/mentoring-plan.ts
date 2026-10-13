@@ -54,8 +54,13 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
       role: { in: ["HEAD_MENTOR", "MENTOR"] },
       mentorSchedules: { some: {} },
     },
-    include: {
-      mentorSchedules: { orderBy: { dayOfWeek: "asc" } },
+    select: {
+      id: true,
+      name: true,
+      mentorSchedules: {
+        orderBy: { dayOfWeek: "asc" },
+        select: { id: true, dayOfWeek: true, timeStart: true, timeEnd: true },
+      },
       students: {
         where: { status: "ACTIVE" },
         select: {
@@ -109,16 +114,18 @@ export async function getWeeklyPlanData(weekStart: string): Promise<WeeklyPlanMe
     ...extraStudentIds,
   ];
 
-  const lastMentorings = await prisma.mentoring.findMany({
+  // 학생별 최근 멘토링일 — Prisma distinct 는 메모리에서 걸러 전체 이력을 가져오므로 DB 에서 MAX 로 집계 (egress 절감)
+  const lastMentorings = await prisma.mentoring.groupBy({
+    by: ["studentId"],
     where: {
       studentId: { in: allStudentIds },
       status: { not: "CANCELLED" },
     },
-    orderBy: { scheduledAt: "desc" },
-    distinct: ["studentId"],
-    select: { studentId: true, scheduledAt: true },
+    _max: { scheduledAt: true },
   });
-  const lastMap = new Map(lastMentorings.map((m) => [m.studentId, m.scheduledAt]));
+  const lastMap = new Map(
+    lastMentorings.flatMap((m) => (m._max.scheduledAt ? [[m.studentId, m._max.scheduledAt] as const] : [])),
+  );
 
   const today = todayKST();
 

@@ -30,10 +30,11 @@ import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { CheckRow, ShiftBadge, stripMarkdownPreview } from "@/components/handover/handover-ui";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type HandoverTask = { id: string; title: string; content: string; assigneeId: string | null; assigneeName: string | null; order: number; isCompleted: boolean; completedAt: Date | null };
-type HandoverChecklist = { id: string; templateId: string | null; title: string; shiftType: string; isChecked: boolean; checkedAt: Date | null; checkedById: string | null; checkedByName: string | null; order: number };
+type HandoverTask = { id: string; title: string; content: string; assigneeId: string | null; isCompleted: boolean; completedAt: Date | null };
+// 목록에선 루틴 개수·체크 수만 쓴다 (서버도 isChecked 만 조회)
+type HandoverChecklist = { isChecked: boolean };
 type HandoverRead = { userId: string; userName: string; readAt: Date; confirmedAt: Date | null };
-type Handover = { id: string; date: Date; content: string; priority: "URGENT" | "NORMAL"; category: string | null; isPinned: boolean; authorId: string; authorName: string; recipientId: string | null; recipientName: string | null; reads: HandoverRead[]; tasks: HandoverTask[]; checklist: HandoverChecklist[]; monthlyNotesSnapshot: object | null; createdAt: Date };
+type Handover = { id: string; date: Date; content: string; priority: "URGENT" | "NORMAL"; category: string | null; isPinned: boolean; authorId: string; authorName: string; recipientId: string | null; recipientName: string | null; reads: HandoverRead[]; tasks: HandoverTask[]; checklist: HandoverChecklist[]; createdAt: Date };
 type Staff = { id: string; name: string; role: string };
 type RoutineTemplate = { id: string; title: string; shiftType: string; days: string; isActive: boolean; order: number };
 
@@ -50,7 +51,7 @@ interface Props {
   completedToday: string[];
   /** 오늘 날짜 ISO(YYYY-MM-DD, KST) */
   todayIso: string;
-  /** 서버 조회 범위 (URL ?from=&to=). 기본 최근 60일~오늘+14일 */
+  /** 서버 조회 범위 (URL ?from=&to=). 기본 최근 30일~(가장 늦은 인수인계·오늘) */
   initialDateFrom: string;
   initialDateTo: string;
 }

@@ -85,6 +85,7 @@ export async function applyGeneratedReport(params: {
 
   await prisma.onlineParentReport.update({
     where: { id: params.reportId },
+    select: { id: true }, // 반환 행 최소화 (content 장문 제외)
     data: {
       content: { markdown: md, generatedAt: new Date().toISOString() },
       status: "DRAFT",

@@ -17,7 +17,7 @@ import {
 import { getRecentHandovers, getStaffList } from "@/actions/handover";
 import { getChecklistTemplates } from "@/actions/checklist-templates";
 import { getMonthlyNotes } from "@/actions/monthly-notes";
-import { getTodos } from "@/actions/todos";
+import { countCompletedTodos, getPendingTodos } from "@/actions/todos";
 import { getAllAssignmentStatus, getEnrollmentDelta } from "@/actions/dashboard-widgets";
 import { getActivePatrolRoundBrief } from "@/actions/patrol";
 import { getAttentionStudents } from "@/lib/attention";
@@ -51,21 +51,29 @@ export default async function DashboardPage() {
     upcomingMentorings,
     recentMerits,
     upcomingConsultations,
-    recentHandovers,
+    { handovers: recentHandovers, latestChecklist },
     templates,
     monthlyNotes,
     students,
     staffList,
     todos,
+    completedTodoCount,
     allAssignments,
     enrollmentDelta,
     activePatrolRound,
     attentionStudents,
   ] = await Promise.all([
     prisma.student.count({ where: { status: "ACTIVE" } }),
+    // 아래 목록들은 화면에 쓰는 컬럼만 select (include 는 전 컬럼 — 멘토링·면담 장문까지 내려온다)
     prisma.attendanceRecord.findMany({
       where: { date: today },
-      include: { student: { select: { name: true, seat: true } } },
+      select: {
+        id: true,
+        type: true,
+        checkIn: true,
+        checkOut: true,
+        student: { select: { name: true, seat: true } },
+      },
     }),
     prisma.mentoring.findMany({
       where: {
@@ -73,7 +81,9 @@ export default async function DashboardPage() {
         scheduledAt: { gte: kstNow },
         ...(session?.user?.role === "MENTOR" ? { mentorId: session.user.id } : {}),
       },
-      include: {
+      select: {
+        id: true,
+        scheduledAt: true,
         student: { select: { name: true, grade: true } },
         mentor: { select: { name: true } },
       },
@@ -81,13 +91,26 @@ export default async function DashboardPage() {
       take: 6,
     }),
     prisma.meritDemerit.findMany({
-      include: { student: { select: { name: true } } },
+      select: {
+        id: true,
+        type: true,
+        points: true,
+        date: true,
+        createdAt: true,
+        student: { select: { name: true } },
+      },
       orderBy: { createdAt: "desc" },
       take: 6,
     }),
     prisma.directorConsultation.findMany({
       where: { status: "SCHEDULED" },
-      include: { student: { select: { name: true, grade: true } } },
+      select: {
+        id: true,
+        scheduledAt: true,
+        prospectName: true,
+        prospectGrade: true,
+        student: { select: { name: true, grade: true } },
+      },
       orderBy: { scheduledAt: "asc" },
       take: 5,
     }),
@@ -100,7 +123,9 @@ export default async function DashboardPage() {
       orderBy: { name: "asc" },
     }),
     getStaffList(),
-    getTodos(),
+    // 할 일은 미완료만 행으로, 완료는 개수만 (완료 이력 전체를 매번 받지 않도록)
+    getPendingTodos(),
+    countCompletedTodos(),
     getAllAssignmentStatus(),
     getEnrollmentDelta(year, month),
     getActivePatrolRoundBrief(),
@@ -350,7 +375,8 @@ export default async function DashboardPage() {
 
   return (
     <DashboardWrapper
-      handovers={recentHandovers as Parameters<typeof DashboardWrapper>[0]["handovers"]}
+      handovers={recentHandovers}
+      latestChecklist={latestChecklist}
       templates={templates}
       monthlyNotes={monthlyNotes as Parameters<typeof DashboardWrapper>[0]["monthlyNotes"]}
       students={students}
@@ -361,7 +387,8 @@ export default async function DashboardPage() {
       year={year}
       month={month}
       unreadCount={unreadCount}
-      todos={todos as Parameters<typeof DashboardWrapper>[0]["todos"]}
+      todos={todos}
+      completedTodoCount={completedTodoCount}
       dateLabel={dateLabel}
     >
       {dashboardContent}

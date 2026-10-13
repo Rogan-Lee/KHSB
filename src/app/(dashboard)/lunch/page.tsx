@@ -24,17 +24,41 @@ export default async function LunchAdminPage({
   const ym = /^\d{4}-\d{2}$/.test(ymParam ?? "") ? ymParam! : currentYearMonthKST();
 
   const [menus, orders, changeRequests, students, setting] = await Promise.all([
-    prisma.lunchMenu.findMany({ orderBy: { date: "asc" } }),
+    // 아래 props 매핑에 쓰는 컬럼만 select (include 는 전 컬럼)
+    prisma.lunchMenu.findMany({
+      orderBy: { date: "asc" },
+      select: { id: true, date: true, name: true, price: true, buffer: true, closed: true },
+    }),
     prisma.lunchOrder.findMany({
       orderBy: { createdAt: "asc" },
-      include: {
+      select: {
+        id: true,
+        paidStatus: true,
+        memo: true,
+        depositClaimedAt: true,
         student: { select: { id: true, name: true, grade: true, parentPhone: true } },
-        items: { include: { menu: { select: { id: true, date: true, name: true } } } },
+        items: {
+          select: {
+            id: true,
+            menuId: true,
+            price: true,
+            received: true,
+            menu: { select: { date: true, name: true } },
+          },
+        },
       },
     }),
     prisma.lunchChangeRequest.findMany({
       orderBy: { createdAt: "desc" },
-      include: { student: { select: { name: true, grade: true } } },
+      select: {
+        id: true,
+        message: true,
+        reply: true,
+        repliedByName: true,
+        createdAt: true,
+        repliedAt: true,
+        student: { select: { name: true, grade: true } },
+      },
     }),
     prisma.student.findMany({
       where: { status: "ACTIVE" },

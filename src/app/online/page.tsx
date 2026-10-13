@@ -101,7 +101,8 @@ export default async function OnlineHomePage() {
           },
           select: {
             id: true,
-            dailyKakaoLogs: { where: { logDate: today }, take: 1 },
+            // 기록 여부만 본다 — 본문(장문) 제외
+            dailyKakaoLogs: { where: { logDate: today }, take: 1, select: { id: true } },
           },
         })
       : Promise.resolve([]),

@@ -8,7 +8,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import type { ChatAttachment } from "@/actions/online/portal-chat";
-import { ensureStudentPortalChats } from "@/lib/portal-chat-core";
+import type { PortalChatSenderType } from "@/generated/prisma/enums";
+import { lastMessagesByChat } from "@/lib/portal-chat-core";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_DISPLAY } from "@/lib/roles";
@@ -101,47 +102,78 @@ async function currentAssigneeIds(studentId: string) {
 }
 
 /**
+ * 방별 미확인 수 — readAt 이후 상대(senderType)가 보낸 메시지. 방마다 count 하던 것을 groupBy 1회로.
+ * (목록·배지가 15~60초 폴링이라 쿼리 수·응답 바이트를 줄인다)
+ */
+export async function countUnreadByChat(
+  chats: readonly { id: string; readAt: Date | null }[],
+  senderType: PortalChatSenderType,
+): Promise<Map<string, number>> {
+  if (chats.length === 0) return new Map();
+  const rows = await prisma.portalChatMessage.groupBy({
+    by: ["chatId"],
+    where: {
+      senderType,
+      OR: chats.map((c) => ({
+        chatId: c.id,
+        ...(c.readAt ? { createdAt: { gt: c.readAt } } : {}),
+      })),
+    },
+    _count: { _all: true },
+  });
+  return new Map(rows.map((r) => [r.chatId, r._count._all]));
+}
+
+/**
  * 학생 채팅 목록 — 웹 listStudentChats 와 같은 기준.
  * 현재 담당자 방은 메시지가 없어도 항상, 이전 담당자 방은 대화가 한 번이라도 있었을 때만.
  */
 export async function getStudentChats(studentId: string) {
-  await ensureStudentPortalChats(studentId);
   const [current, blocked] = await Promise.all([
     currentAssigneeIds(studentId),
     getBlockedKeys({ type: "STUDENT", id: studentId }),
   ]);
-
-  const chats = await prisma.portalChat.findMany({
-    where: {
-      studentId,
-      OR: [{ staffId: { in: [...current] } }, { lastMessageAt: { not: null } }],
-    },
-    orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
-    include: {
-      staff: { select: { id: true, name: true, role: true } },
-      messages: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { content: true, senderType: true, createdAt: true, attachments: true },
+  const listChats = () =>
+    prisma.portalChat.findMany({
+      where: {
+        studentId,
+        OR: [{ staffId: { in: [...current] } }, { lastMessageAt: { not: null } }],
       },
-    },
-  });
+      orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        staffId: true,
+        lastMessageAt: true,
+        studentReadAt: true,
+        staff: { select: { id: true, name: true, role: true } },
+      },
+    });
 
-  const unread = await Promise.all(
-    chats.map((c) =>
-      prisma.portalChatMessage.count({
-        where: {
-          chatId: c.id,
-          senderType: "STAFF",
-          createdAt: c.studentReadAt ? { gt: c.studentReadAt } : undefined,
-        },
-      }),
+  // 현재 담당자 방 보장(ensureStudentPortalChats 와 같은 규칙) — 15초 폴링이라 담당자마다 upsert 하지 않고
+  // 목록에 없는(= 아직 없는) 방만 만든 뒤 다시 읽는다.
+  let chats = await listChats();
+  const have = new Set(chats.map((c) => c.staffId));
+  const missing = [...current].filter((staffId) => !have.has(staffId));
+  if (missing.length > 0) {
+    await prisma.portalChat.createMany({
+      data: missing.map((staffId) => ({ studentId, staffId })),
+      skipDuplicates: true,
+    });
+    chats = await listChats();
+  }
+
+  // 방별 마지막 메시지는 DB 에서 1건씩만 (중첩 take 는 모든 방의 전체 메시지를 가져옴)
+  const [lastByChat, unread] = await Promise.all([
+    lastMessagesByChat(chats.map((c) => c.id)),
+    countUnreadByChat(
+      chats.map((c) => ({ id: c.id, readAt: c.studentReadAt })),
+      "STAFF",
     ),
-  );
+  ]);
 
-  return chats.map((c, i) => {
+  return chats.map((c) => {
     const blockedByMe = blocked.has(`STAFF:${c.staffId}`);
-    const last = blockedByMe ? null : c.messages[0] ?? null;
+    const last = blockedByMe ? null : lastByChat.get(c.id) ?? null;
     return {
       id: c.id,
       isCurrentAssignee: current.has(c.staffId),
@@ -162,70 +194,66 @@ export async function getStudentChats(studentId: string) {
           }
         : null,
       lastMessageAt: c.lastMessageAt?.toISOString() ?? null,
-      unread: blockedByMe ? 0 : unread[i],
+      unread: blockedByMe ? 0 : unread.get(c.id) ?? 0,
     };
   });
 }
 
 /** 직원 인박스 — 담당 학생들과의 채팅방 (웹 listStaffInbox 와 같은 기준: 오프라인 멘토 포함). */
 export async function getStaffChats(staffId: string) {
-  const myStudents = await prisma.student.findMany({
-    where: {
-      status: "ACTIVE",
-      OR: [
-        { mentorId: staffId },
-        { assignedMentorId: staffId },
-        { assignedConsultantId: staffId },
-        { assignedStaffId: staffId },
-      ],
-    },
-    select: { id: true },
-  });
-  const studentIds = myStudents.map((s) => s.id);
-  if (studentIds.length > 0) {
-    const existing = await prisma.portalChat.findMany({
-      where: { staffId, studentId: { in: studentIds } },
-      select: { studentId: true },
+  const listChats = () =>
+    prisma.portalChat.findMany({
+      where: { staffId },
+      orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        lastMessageAt: true,
+        staffReadAt: true,
+        student: { select: { id: true, name: true, grade: true, school: true } },
+      },
     });
-    const have = new Set(existing.map((c) => c.studentId));
-    const missing = studentIds.filter((id) => !have.has(id));
-    if (missing.length > 0) {
-      await prisma.portalChat.createMany({
-        data: missing.map((studentId) => ({ studentId, staffId })),
-        skipDuplicates: true,
-      });
-    }
+
+  const [myStudents, initial, blocked] = await Promise.all([
+    prisma.student.findMany({
+      where: {
+        status: "ACTIVE",
+        OR: [
+          { mentorId: staffId },
+          { assignedMentorId: staffId },
+          { assignedConsultantId: staffId },
+          { assignedStaffId: staffId },
+        ],
+      },
+      select: { id: true },
+    }),
+    listChats(),
+    getBlockedKeys({ type: "STAFF", id: staffId }),
+  ]);
+
+  // 담당 학생 중 방이 없는 학생만 만든다 — 목록이 이 직원의 모든 방이라 따로 존재 확인할 필요 없음
+  let chats = initial;
+  const have = new Set(chats.map((c) => c.student.id));
+  const missing = myStudents.map((s) => s.id).filter((id) => !have.has(id));
+  if (missing.length > 0) {
+    await prisma.portalChat.createMany({
+      data: missing.map((studentId) => ({ studentId, staffId })),
+      skipDuplicates: true,
+    });
+    chats = await listChats();
   }
 
-  const blocked = await getBlockedKeys({ type: "STAFF", id: staffId });
-  const chats = await prisma.portalChat.findMany({
-    where: { staffId },
-    orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
-    include: {
-      student: { select: { id: true, name: true, grade: true, school: true } },
-      messages: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { content: true, senderType: true, createdAt: true, attachments: true },
-      },
-    },
-  });
-
-  const unread = await Promise.all(
-    chats.map((c) =>
-      prisma.portalChatMessage.count({
-        where: {
-          chatId: c.id,
-          senderType: "STUDENT",
-          createdAt: c.staffReadAt ? { gt: c.staffReadAt } : undefined,
-        },
-      }),
+  // 방별 마지막 메시지는 DB 에서 1건씩만 (중첩 take 는 모든 방의 전체 메시지를 가져옴)
+  const [lastByChat, unread] = await Promise.all([
+    lastMessagesByChat(chats.map((c) => c.id)),
+    countUnreadByChat(
+      chats.map((c) => ({ id: c.id, readAt: c.staffReadAt })),
+      "STUDENT",
     ),
-  );
+  ]);
 
-  return chats.map((c, i) => {
-    const blockedByMe = blocked.has(`STUDENT:${c.studentId}`);
-    const last = blockedByMe ? null : c.messages[0] ?? null;
+  return chats.map((c) => {
+    const blockedByMe = blocked.has(`STUDENT:${c.student.id}`);
+    const last = blockedByMe ? null : lastByChat.get(c.id) ?? null;
     return {
       id: c.id,
       blockedByMe,
@@ -245,7 +273,7 @@ export async function getStaffChats(staffId: string) {
           }
         : null,
       lastMessageAt: c.lastMessageAt?.toISOString() ?? null,
-      unread: blockedByMe ? 0 : unread[i],
+      unread: blockedByMe ? 0 : unread.get(c.id) ?? 0,
     };
   });
 }
@@ -306,7 +334,15 @@ export async function getChatThread(
     },
     orderBy: { createdAt: "desc" },
     take: limit + 1,
-    include: { senderUser: { select: { id: true, name: true } } },
+    // 5초 폴링 — 응답에 쓰는 컬럼만 (일일 보고 플래그·chatId 등 제외)
+    select: {
+      id: true,
+      senderType: true,
+      content: true,
+      attachments: true,
+      createdAt: true,
+      senderUser: { select: { name: true } },
+    },
   });
   const hasMore = rows.length > limit;
   const messages = rows.slice(0, limit).reverse();
@@ -319,6 +355,7 @@ export async function getChatThread(
         where: { id: chatId },
         data:
           viewer.type === "STUDENT" ? { studentReadAt: new Date() } : { staffReadAt: new Date() },
+        select: { id: true },
       });
     }
   }
@@ -384,6 +421,7 @@ export async function sendChat(params: {
         content: trimmed,
         attachments: data.attachments as unknown as object,
       },
+      select: { id: true },
     }),
     prisma.portalChat.update({
       where: { id: chatId },
@@ -392,6 +430,7 @@ export async function sendChat(params: {
         // 자기 측 readAt 만 갱신, 상대방 readAt 그대로
         ...(viewer.type === "STUDENT" ? { studentReadAt: now } : { staffReadAt: now }),
       },
+      select: { id: true },
     }),
   ]);
 
@@ -416,6 +455,7 @@ export async function markChatRead(chatId: string, viewer: ChatViewer) {
   await prisma.portalChat.update({
     where: { id: chatId },
     data: viewer.type === "STUDENT" ? { studentReadAt: new Date() } : { staffReadAt: new Date() },
+    select: { id: true },
   });
   return { ok: true };
 }

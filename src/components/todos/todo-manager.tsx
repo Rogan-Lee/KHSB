@@ -37,7 +37,7 @@ import {
 } from "@/components/backoffice/ui";
 import { ConfirmDialog } from "@/components/dashboard/confirm-dialog";
 import { CheckMark } from "@/components/handover/handover-ui";
-import { createTodo, updateTodo, deleteTodo, toggleTodo, getTodoVersions } from "@/actions/todos";
+import { createTodo, updateTodo, deleteTodo, toggleTodo, getTodoVersions, getCompletedTodos, type HiddenCompletedTodos } from "@/actions/todos";
 import { ChecklistManager } from "@/components/handover/checklist-manager";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -87,6 +87,8 @@ type Staff = { id: string; name: string; role: string };
 
 interface Props {
   initialTodos: Todo[];
+  /** 첫 화면에 안 불러온 완료 건 수(대상 역할별). "이전 완료 더 보기"로 불러온다. */
+  initialHiddenCompleted?: HiddenCompletedTodos;
   staffList: Staff[];
   currentUserId: string;
   currentUserName: string;
@@ -412,8 +414,11 @@ function isRoleFilter(v: string | null): v is RoleFilter {
   return v === "ALL" || v === "STAFF" || v === "MENTOR";
 }
 
-export function TodoManager({ initialTodos, staffList, currentUserId, currentUserRole, initialTemplates }: Props) {
+export function TodoManager({ initialTodos, initialHiddenCompleted = [], staffList, currentUserId, currentUserRole, initialTemplates }: Props) {
   const [todos, setTodos] = useState<Todo[]>(initialTodos);
+  // 아직 안 불러온 오래된 완료 건 (개수만) — 완료 개수 표시에 더해 준다
+  const [hiddenCompleted, setHiddenCompleted] = useState<HiddenCompletedTodos>(initialHiddenCompleted);
+  const [loadingCompleted, setLoadingCompleted] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [showForm, setShowForm] = useState(false);
   // 상단 탭: 투두리스트 / 루틴 (?tab=routine 딥링크 지원)
@@ -443,7 +448,7 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
   }
 
   // 클라이언트 필터: null/legacy 는 항상 매치, ALL 도 항상 매치
-  function matchesRole(t: Todo): boolean {
+  function matchesRole(t: { targetRole?: string | null }): boolean {
     if (roleFilter === "ALL") return true;
     const tr = t.targetRole;
     if (!tr || tr === "ALL") return true; // legacy/ALL 행은 항상 표시
@@ -454,6 +459,32 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
   const pending = visibleTodos.filter((t) => !t.isCompleted);
   const completed = visibleTodos.filter((t) => t.isCompleted);
   const overdue = visibleTodos.filter((t) => !t.isCompleted && isOverdue(t.dueDate, false));
+  // 완료 개수 = 불러온 완료 + 아직 안 불러온 완료(같은 역할 필터 기준)
+  const hiddenCompletedCount = hiddenCompleted.filter(matchesRole).reduce((n, g) => n + g.count, 0);
+  const hiddenCompletedTotal = hiddenCompleted.reduce((n, g) => n + g.count, 0);
+  const completedCount = completed.length + hiddenCompletedCount;
+
+  async function loadAllCompleted() {
+    setLoadingCompleted(true);
+    try {
+      const rows = (await getCompletedTodos()) as Todo[];
+      // 화면에서 바꾼 상태(수정·토글)는 유지하고, 서버 정렬 순서로 완료 목록을 채운다
+      setTodos((prev) => {
+        const localById = new Map(prev.map((t) => [t.id, t]));
+        const completedRows = rows.map((r) => {
+          const local = localById.get(r.id);
+          return local && local.isCompleted ? local : r;
+        });
+        const completedIds = new Set(completedRows.map((t) => t.id));
+        return [...prev.filter((t) => !t.isCompleted && !completedIds.has(t.id)), ...completedRows];
+      });
+      setHiddenCompleted([]);
+    } catch {
+      toast.error("완료 목록을 불러오지 못했어요");
+    } finally {
+      setLoadingCompleted(false);
+    }
+  }
 
   function handleToggle(id: string) {
     startTransition(async () => {
@@ -564,7 +595,7 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
           <StatCards cols={3}>
             <StatCard label="기한 초과" value={overdue.length} unit="개" tone={overdue.length > 0 ? "bad" : "gray"} />
             <StatCard label="진행 중" value={pending.length} unit="개" />
-            <StatCard label="완료" value={completed.length} unit="개" className="col-span-2 lg:col-span-1" />
+            <StatCard label="완료" value={completedCount} unit="개" className="col-span-2 lg:col-span-1" />
           </StatCards>
 
           <div className="flex flex-col gap-x4">
@@ -582,9 +613,9 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
             <Section title="진행 중" count={pending.length} flush>
               {pending.length === 0 ? (
                 <EmptyState
-                  icon={todos.length === 0 ? ListTodo : CheckCircle2}
-                  title={todos.length === 0 ? "아직 등록된 할 일이 없어요" : "모든 할 일을 끝냈어요"}
-                  description={todos.length === 0 ? "함께 챙길 일을 등록하면 담당자와 기한까지 관리할 수 있어요" : undefined}
+                  icon={todos.length === 0 && hiddenCompletedTotal === 0 ? ListTodo : CheckCircle2}
+                  title={todos.length === 0 && hiddenCompletedTotal === 0 ? "아직 등록된 할 일이 없어요" : "모든 할 일을 끝냈어요"}
+                  description={todos.length === 0 && hiddenCompletedTotal === 0 ? "함께 챙길 일을 등록하면 담당자와 기한까지 관리할 수 있어요" : undefined}
                   action={
                     <Button variant="secondary" onClick={openNewForm}>
                       <Plus />
@@ -600,11 +631,11 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
               )}
             </Section>
 
-            {/* 완료 목록 (접을 수 있음) */}
-            {completed.length > 0 && (
+            {/* 완료 목록 (접을 수 있음) — 처음엔 최근 완료분만, 나머지는 "더 보기" */}
+            {completedCount > 0 && (
               <Section
                 title="완료"
-                count={completed.length}
+                count={completedCount}
                 actions={
                   <Button
                     variant="ghost"
@@ -618,10 +649,18 @@ export function TodoManager({ initialTodos, staffList, currentUserId, currentUse
                 }
                 flush
               >
-                {showCompleted && (
+                {showCompleted && completed.length > 0 && (
                   <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
                     {completed.map(renderTodoRow)}
                   </ul>
+                )}
+                {showCompleted && hiddenCompletedCount > 0 && (
+                  <div className="border-t border-stroke-neutral-muted px-x5 py-x3">
+                    <Button variant="ghost" size="sm" onClick={loadAllCompleted} disabled={loadingCompleted}>
+                      <ChevronDown />
+                      {loadingCompleted ? "불러오는 중…" : `이전 완료 ${hiddenCompletedCount}개 더 보기`}
+                    </Button>
+                  </div>
                 )}
               </Section>
             )}

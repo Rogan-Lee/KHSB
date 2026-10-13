@@ -16,9 +16,22 @@ async function getSession() {
 
 export async function getFeatureRequests() {
   await getSession();
+  // 목록 화면에 쓰는 컬럼만 — seenById(본 사람 id 배열)·updatedAt 등은 제외
   return prisma.featureRequest.findMany({
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    include: { _count: { select: { comments: true } } },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      status: true,
+      category: true,
+      priority: true,
+      relatedPage: true,
+      requester: true,
+      authorName: true,
+      createdAt: true,
+      _count: { select: { comments: true } },
+    },
   });
 }
 

@@ -5,9 +5,7 @@ import { prisma } from "@/lib/prisma";
 // visible=true 인 글만, 최신 게시순 50개. 자체 작성 글(review·mentor·director)은 앱 상세 화면,
 // 외부 링크형(podcast·article)은 원문을 바로 연다.
 //
-// 스키마 호환: 이 브랜치의 ContentPost 에는 아직 body·authorName·authorRole 이 없을 수 있다
-// (자체 작성 글 확장이 별도 브랜치에서 진행 중). select 없이 전체 스칼라를 읽고 선택 필드로 다뤄서
-// 두 스키마 모두에서 컴파일·동작한다.
+// 목록은 본문(body, 마크다운 장문)을 쓰지 않으므로 select 로 목록 컬럼만 읽는다. 상세는 전체 스칼라.
 
 const CONTENT_TYPES = ["review", "mentor", "director", "podcast", "article"] as const;
 export type MobileContentType = (typeof CONTENT_TYPES)[number];
@@ -98,6 +96,16 @@ export async function getStudentContents(): Promise<{ items: MobileContentListIt
     where: { visible: true },
     orderBy: { publishedAt: "desc" },
     take: 50,
+    select: {
+      id: true,
+      type: true,
+      title: true,
+      summary: true,
+      url: true,
+      coverImageUrl: true,
+      publishedAt: true,
+      authorName: true,
+    },
   });
   return { items: rows.map(toListItem) };
 }

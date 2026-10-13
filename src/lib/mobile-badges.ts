@@ -1,4 +1,6 @@
+import { countUnreadByChat } from "@/lib/mobile-chat";
 import { countNewParentReports } from "@/lib/mobile-parent-reports";
+import { countUnreadByQuestion } from "@/lib/mobile-student-questions";
 import { countUnseenStudentSuggestions } from "@/lib/mobile-suggestions";
 import { prisma } from "@/lib/prisma";
 import { getSidebarBadges } from "@/lib/sidebar-badges";
@@ -10,23 +12,20 @@ const settled = (r: PromiseSettledResult<number>) => (r.status === "fulfilled" ?
 
 // ─── 학생 — 웹 학생 포털(getPortalBadgeCounts)과 같은 기준 ───────────────
 
+const sum = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 0);
+
+// 60초 폴링 — 방·질문마다 count 하던 것을 groupBy 1회로 (쿼리 수·응답 바이트 절감)
 async function unreadChatForStudent(studentId: string) {
   const chats = await prisma.portalChat.findMany({
     where: { studentId },
     select: { id: true, studentReadAt: true },
   });
-  const counts = await Promise.all(
-    chats.map((c) =>
-      prisma.portalChatMessage.count({
-        where: {
-          chatId: c.id,
-          senderType: "STAFF",
-          createdAt: c.studentReadAt ? { gt: c.studentReadAt } : undefined,
-        },
-      }),
+  return sum(
+    await countUnreadByChat(
+      chats.map((c) => ({ id: c.id, readAt: c.studentReadAt })),
+      "STAFF",
     ),
   );
-  return counts.reduce((a, b) => a + b, 0);
 }
 
 async function unreadAnswersForStudent(studentId: string) {
@@ -34,18 +33,12 @@ async function unreadAnswersForStudent(studentId: string) {
     where: { studentId },
     select: { id: true, studentReadAt: true },
   });
-  const counts = await Promise.all(
-    questions.map((q) =>
-      prisma.questionMessage.count({
-        where: {
-          questionId: q.id,
-          senderType: "STAFF",
-          createdAt: q.studentReadAt ? { gt: q.studentReadAt } : undefined,
-        },
-      }),
+  return sum(
+    await countUnreadByQuestion(
+      questions.map((q) => ({ id: q.id, readAt: q.studentReadAt })),
+      "STAFF",
     ),
   );
-  return counts.reduce((a, b) => a + b, 0);
 }
 
 export type StudentBadges = {

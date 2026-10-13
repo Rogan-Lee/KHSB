@@ -88,7 +88,7 @@ export default async function HandoverPage({
 
         <TabsContent value="daily">
           <HandoverBoard
-            initialHandovers={handovers as Parameters<typeof HandoverBoard>[0]["initialHandovers"]}
+            initialHandovers={handovers}
             staffList={staffList}
             currentUserId={session?.user?.id ?? ""}
             currentUserName={session?.user?.name ?? ""}

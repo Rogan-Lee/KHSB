@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { Trophy } from "lucide-react";
-import { getMeritsByRange } from "@/actions/merit-demerit";
+import { getMeritTotalsByRange } from "@/actions/merit-demerit";
 import { Input } from "@/components/ui/input";
 import { EmptyState, FilterChip, Skeleton } from "@/components/backoffice/ui";
 import { cn } from "@/lib/utils";
@@ -35,23 +35,16 @@ export function MeritRanking() {
 
   function load(ym: string, isAllTime: boolean) {
     startTransition(async () => {
-      let records;
+      // 원생별 합계만 서버에서 받는다(전체 내역 행 대신 — egress 절감). 이름순으로 온다.
+      let totals: RankEntry[];
       if (isAllTime) {
-        records = await getMeritsByRange("2000-01-01", "2099-12-31");
+        totals = await getMeritTotalsByRange("2000-01-01", "2099-12-31");
       } else {
         const { from, to } = toMonthRange(ym);
-        records = await getMeritsByRange(from, to);
+        totals = await getMeritTotalsByRange(from, to);
       }
 
-      const map: Record<string, RankEntry> = {};
-      for (const r of records) {
-        if (!map[r.student.id]) {
-          map[r.student.id] = { id: r.student.id, name: r.student.name, grade: r.student.grade, merits: 0, demerits: 0 };
-        }
-        if (r.type === "MERIT") map[r.student.id].merits += r.points;
-        else map[r.student.id].demerits += r.points;
-      }
-      const sorted = Object.values(map).sort(
+      const sorted = [...totals].sort(
         (a, b) => (b.merits - b.demerits) - (a.merits - a.demerits)
       );
       setRanking(sorted);

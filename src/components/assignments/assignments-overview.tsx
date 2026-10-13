@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AssignmentPanel } from "./assignment-panel";
+import { AssignmentPanel, type AssignmentItem } from "./assignment-panel";
 import { cn } from "@/lib/utils";
-import type { Assignment } from "@/generated/prisma";
 import { ArrowLeft, CheckCircle2, ChevronRight, ClipboardList, Users } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
 import { Avatar, EmptyState, FilterChip, ProgressBar, StatusBadge } from "@/components/backoffice/ui";
@@ -12,7 +11,7 @@ interface StudentWithAssignments {
   id: string;
   name: string;
   grade: string;
-  assignments: Assignment[];
+  assignments: AssignmentItem[];
 }
 
 interface Props {

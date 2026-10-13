@@ -4,6 +4,10 @@
 import { z } from "zod";
 
 import { MobileApiError } from "@/lib/mobile-auth";
+import {
+  countUnreadByQuestion,
+  latestQuestionMessageIds,
+} from "@/lib/mobile-student-questions";
 import { prisma } from "@/lib/prisma";
 import { getBlockedKeys } from "@/lib/safety";
 import {
@@ -53,18 +57,24 @@ export async function getMobileStaffQuestionInbox(
       claimedById: true,
       claimedBy: { select: { id: true, name: true } },
       student: { select: { id: true, name: true, grade: true, school: true } },
-      messages: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { senderType: true, content: true, attachments: true },
-      },
     },
   });
-
   const rows = all.filter((q) => !blocked.has(`STUDENT:${q.student.id}`));
 
+  // 질문별 마지막 메시지는 DB 에서 1건씩만 (중첩 take 는 최대 300개 질문의 전체 메시지를 가져옴).
+  // 대기·미확인 판정엔 보낸 쪽만 필요 — 본문·첨부는 아래에서 화면에 나갈 질문 것만 읽는다.
+  const lastIds = await latestQuestionMessageIds(rows.map((q) => q.id));
+  const lastMeta =
+    lastIds.length > 0
+      ? await prisma.questionMessage.findMany({
+          where: { id: { in: lastIds } },
+          select: { id: true, questionId: true, senderType: true },
+        })
+      : [];
+  const lastByQuestion = new Map(lastMeta.map((m) => [m.questionId, m]));
+
   const derived = rows.map((q) => {
-    const last = q.messages[0] ?? null;
+    const last = lastByQuestion.get(q.id) ?? null;
     const lastAt = q.lastMessageAt ?? q.createdAt;
     const lastSenderType = last?.senderType ?? null;
     // 해결된 질문에 학생이 다시 물은 경우도 대기로 본다(구버전 학생 앱은 RESOLVED 에도 추가 질문 가능)
@@ -85,42 +95,46 @@ export async function getMobileStaffQuestionInbox(
     filter === "waiting" ? d.waiting : filter === "mine" ? d.q.claimedById === userId : true,
   );
 
-  // 미확인 메시지 수 — 미확인 표시가 있는 질문만 센다 (쿼리 수 최소화)
-  const unreadCounts = await Promise.all(
-    visible.map((d) =>
-      d.hasUnread
-        ? prisma.questionMessage.count({
-            where: {
-              questionId: d.q.id,
-              senderType: "STUDENT",
-              createdAt: d.q.staffReadAt ? { gt: d.q.staffReadAt } : undefined,
-            },
-          })
-        : Promise.resolve(0),
+  const visibleLastIds = visible.flatMap((d) => (d.last ? [d.last.id] : []));
+  const [bodies, unreadByQuestion] = await Promise.all([
+    visibleLastIds.length > 0
+      ? prisma.questionMessage.findMany({
+          where: { id: { in: visibleLastIds } },
+          select: { id: true, content: true, attachments: true },
+        })
+      : Promise.resolve([]),
+    // 미확인 메시지 수 — 미확인 표시가 있는 질문만, groupBy 1회로 센다
+    countUnreadByQuestion(
+      visible.filter((d) => d.hasUnread).map((d) => ({ id: d.q.id, readAt: d.q.staffReadAt })),
+      "STUDENT",
     ),
-  );
+  ]);
+  const bodyById = new Map(bodies.map((b) => [b.id, b]));
 
   const overdueBefore = now.getTime() - OVERDUE_MS;
-  const items = visible.map((d, i) => ({
-    id: d.q.id,
-    title: d.q.title,
-    subject: d.q.subject,
-    status: d.q.status,
-    studentId: d.q.student.id,
-    studentName: d.q.student.name,
-    grade: d.q.student.grade,
-    school: d.q.student.school,
-    lastMessage: d.last?.content ?? "",
-    lastSenderType: d.lastSenderType,
-    attachmentCount: attachmentCount(d.last?.attachments),
-    lastMessageAt: d.lastAt.toISOString(),
-    createdAt: d.q.createdAt.toISOString(),
-    claimedBy: d.q.claimedBy,
-    claimedByMe: d.q.claimedById === userId,
-    unread: unreadCounts[i],
-    waiting: d.waiting,
-    overdue: d.waiting && d.lastAt.getTime() < overdueBefore,
-  }));
+  const items = visible.map((d) => {
+    const body = d.last ? bodyById.get(d.last.id) : undefined;
+    return {
+      id: d.q.id,
+      title: d.q.title,
+      subject: d.q.subject,
+      status: d.q.status,
+      studentId: d.q.student.id,
+      studentName: d.q.student.name,
+      grade: d.q.student.grade,
+      school: d.q.student.school,
+      lastMessage: body?.content ?? "",
+      lastSenderType: d.lastSenderType,
+      attachmentCount: attachmentCount(body?.attachments),
+      lastMessageAt: d.lastAt.toISOString(),
+      createdAt: d.q.createdAt.toISOString(),
+      claimedBy: d.q.claimedBy,
+      claimedByMe: d.q.claimedById === userId,
+      unread: d.hasUnread ? (unreadByQuestion.get(d.q.id) ?? 0) : 0,
+      waiting: d.waiting,
+      overdue: d.waiting && d.lastAt.getTime() < overdueBefore,
+    };
+  });
 
   const overdue = derived.filter(
     (d) => d.waiting && d.lastAt.getTime() < overdueBefore,

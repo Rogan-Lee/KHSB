@@ -16,12 +16,9 @@ import { EmptyState, FilterChip, SearchField, Segmented, TableCard, Toolbar } fr
 import { cn } from "@/lib/utils";
 import { StudentsTable } from "./students-table";
 import { StudentsCardGrid } from "./students-card-grid";
-import type { Student, User, AttendanceSchedule } from "@/generated/prisma";
+import type { StudentListRow } from "./students-table";
 
-type StudentWithRelations = Student & {
-  mentor: Pick<User, "name"> | null;
-  schedules: AttendanceSchedule[];
-};
+type StudentWithRelations = StudentListRow;
 
 interface StudentsListViewProps {
   students: StudentWithRelations[];

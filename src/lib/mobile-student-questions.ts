@@ -7,6 +7,8 @@
 
 import { z } from "zod";
 
+import type { QuestionMessageSenderType } from "@/generated/prisma/enums";
+import { latestIdsPerGroup } from "@/lib/db/latest-per-group";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
 import { getBlockedKeys } from "@/lib/safety";
@@ -72,6 +74,61 @@ function toAttachments(value: unknown): QuestionAttachmentView[] {
   return Array.isArray(value) ? (value as QuestionAttachmentView[]) : [];
 }
 
+/**
+ * 질문별 미확인 수 — readAt 이후 상대(senderType)가 보낸 메시지. 질문마다 count 하던 것을 groupBy 1회로.
+ * (목록·배지가 30~60초 폴링이라 쿼리 수·응답 바이트를 줄인다)
+ */
+export async function countUnreadByQuestion(
+  questions: readonly { id: string; readAt: Date | null }[],
+  senderType: QuestionMessageSenderType,
+): Promise<Map<string, number>> {
+  if (questions.length === 0) return new Map();
+  const rows = await prisma.questionMessage.groupBy({
+    by: ["questionId"],
+    where: {
+      senderType,
+      OR: questions.map((q) => ({
+        questionId: q.id,
+        ...(q.readAt ? { createdAt: { gt: q.readAt } } : {}),
+      })),
+    },
+    _count: { _all: true },
+  });
+  return new Map(rows.map((r) => [r.questionId, r._count._all]));
+}
+
+/**
+ * 질문별 마지막 메시지 1건 (목록 미리보기용).
+ * 목록 + 중첩 `messages: { take: 1 }` 는 DB 에서 안 잘려 모든 질문의 전체 메시지를 가져오므로
+ * 질문별 최신 id 만 DB 에서 고른 뒤 필요한 컬럼만 조회한다(egress 절감).
+ */
+export async function lastMessagesByQuestion(questionIds: readonly string[]) {
+  const ids = await latestQuestionMessageIds(questionIds);
+  if (ids.length === 0) return new Map<string, LastQuestionMessage>();
+  const rows = await prisma.questionMessage.findMany({
+    where: { id: { in: ids } },
+    select: { questionId: true, senderType: true, content: true, attachments: true },
+  });
+  return new Map<string, LastQuestionMessage>(rows.map((r) => [r.questionId, r]));
+}
+
+/** 질문별 마지막 메시지 id (중첩 `messages: { orderBy: createdAt desc, take: 1 }` 과 같은 기준) */
+export function latestQuestionMessageIds(questionIds: readonly string[]) {
+  return latestIdsPerGroup({
+    table: "QuestionMessage",
+    groupBy: "questionId",
+    groupIds: questionIds,
+    orderBy: [{ column: "createdAt", dir: "desc" }],
+  });
+}
+
+type LastQuestionMessage = {
+  questionId: string;
+  senderType: QuestionMessageSenderType;
+  content: string;
+  attachments: unknown;
+};
+
 /** 본인 질문 목록 — 최신 등록순 + 미확인 답변 수. 기존 앱 응답 필드(lastMessage 문자열 등)도 유지. */
 export async function listMobileStudentQuestions(studentId: string) {
   const questions = await prisma.studentQuestion.findMany({
@@ -86,30 +143,21 @@ export async function listMobileStudentQuestions(studentId: string) {
       studentReadAt: true,
       lastMessageAt: true,
       createdAt: true,
-      messages: {
-        orderBy: { createdAt: "desc" },
-        take: 1,
-        select: { senderType: true, content: true, attachments: true, createdAt: true },
-      },
     },
   });
 
-  const unreadCounts = await Promise.all(
-    questions.map((q) =>
-      prisma.questionMessage.count({
-        where: {
-          questionId: q.id,
-          senderType: "STAFF",
-          createdAt: q.studentReadAt ? { gt: q.studentReadAt } : undefined,
-        },
-      }),
+  const [lastByQuestion, unreadCounts] = await Promise.all([
+    lastMessagesByQuestion(questions.map((q) => q.id)),
+    countUnreadByQuestion(
+      questions.map((q) => ({ id: q.id, readAt: q.studentReadAt })),
+      "STAFF",
     ),
-  );
+  ]);
 
   return {
-    questions: questions.map((q, i) => {
-      const last = q.messages[0] ?? null;
-      const unread = unreadCounts[i];
+    questions: questions.map((q) => {
+      const last = lastByQuestion.get(q.id) ?? null;
+      const unread = unreadCounts.get(q.id) ?? 0;
       return {
         id: q.id,
         title: q.title,
@@ -170,6 +218,7 @@ export async function getMobileStudentQuestion(studentId: string, questionId: st
     await prisma.studentQuestion.update({
       where: { id: question.id },
       data: { studentReadAt: new Date() },
+      select: { id: true },
     });
   }
 

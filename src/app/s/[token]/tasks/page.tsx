@@ -41,6 +41,8 @@ export default async function StudentTasksPage({
   const tasks = await prisma.performanceTask.findMany({
     where: { studentId: session.student.id },
     orderBy: [{ dueDate: "asc" }],
+    // 목록에 쓰는 컬럼만 (description 장문 제외)
+    select: { id: true, title: true, subject: true, dueDate: true, format: true, status: true },
   });
 
   const upcoming = tasks.filter((t) => t.status !== "DONE");

@@ -1,11 +1,21 @@
 import { headers } from "next/headers";
+import { cache } from "react";
 
 import { authServer } from "@/lib/auth-server";
 import { prisma } from "@/lib/prisma";
 
 export async function getAuthIdentity(requestHeaders?: Headers) {
+  if (!requestHeaders) return getCookieAuthIdentity();
+  return resolveAuthIdentity(requestHeaders);
+}
+
+// 쿠키 세션 조회는 요청 단위로 1번만 — 페이지·레이아웃·서버 액션이 auth()/getUser() 를 여러 번 불러도
+// 세션·사용자 쿼리(4개)가 반복되지 않게 한다. (React cache 는 요청 범위 밖에선 캐시하지 않음)
+const getCookieAuthIdentity = cache(async () => resolveAuthIdentity(await headers()));
+
+async function resolveAuthIdentity(requestHeaders: Headers) {
   const session = await authServer.api.getSession({
-    headers: requestHeaders ?? (await headers()),
+    headers: requestHeaders,
   });
   if (!session) return null;
 

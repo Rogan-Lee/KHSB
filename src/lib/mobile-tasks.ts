@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Prisma, Role, TaskFeedbackStatus } from "@/generated/prisma";
+import { latestIdsPerGroup } from "@/lib/db/latest-per-group";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { staffCapabilities } from "@/lib/mobile-capabilities";
 import { prisma } from "@/lib/prisma";
@@ -295,6 +296,42 @@ export async function submitMobileStudentTask(
   return { ok: true, version };
 }
 
+/** 직원 수행평가 목록 범위 — 진행 중 + 최근 완료, 최근 수정순 300건 (목록·홈 집계 공용) */
+function staffTaskListArgs(user: StaffViewer | undefined, now: Date) {
+  const doneSince = new Date(now.getTime() - DONE_LOOKBACK_DAYS * DAY_MS);
+  return {
+    where: {
+      student: { status: "ACTIVE" as const, ...staffStudentWhere(user) },
+      OR: [{ status: { not: "DONE" as const } }, { updatedAt: { gte: doneSince } }],
+    },
+    orderBy: [{ updatedAt: "desc" as const }, { dueDate: "asc" as const }],
+    take: 300,
+  } satisfies Prisma.PerformanceTaskFindManyArgs;
+}
+
+/**
+ * 직원 홈 카드용 — getMobileStaffTasks 의 summary.needsFeedback 과 같은 값(같은 범위·같은 300건 기준).
+ * 목록(학생·제목·제출 이력 전체) 대신 상태와 "제출 완료 과제의 최신 제출본에 피드백이 있는지"만 센다.
+ */
+export async function countStaffTasksNeedingFeedback(user: StaffViewer, now = new Date()) {
+  const tasks = await prisma.performanceTask.findMany({
+    ...staffTaskListArgs(user, now),
+    select: { id: true, status: true },
+  });
+  const submittedIds = tasks.filter((t) => t.status === "SUBMITTED").map((t) => t.id);
+  // 과제별 최신 제출본 (목록의 submissions: { orderBy: version desc, take: 1 } 과 같은 기준)
+  const latestIds = await latestIdsPerGroup({
+    table: "TaskSubmission",
+    groupBy: "taskId",
+    groupIds: submittedIds,
+    orderBy: [{ column: "version", dir: "desc" }],
+  });
+  if (latestIds.length === 0) return 0;
+  return prisma.taskSubmission.count({
+    where: { id: { in: latestIds }, feedbacks: { none: {} } },
+  });
+}
+
 /**
  * 직원 수행평가 목록. user 를 넘기면 담당 학생으로 스코핑(원장·SA 는 전체).
  * user 없이 부르면 전체(구 호출부 호환) — 새 호출부는 반드시 user 를 넘길 것.
@@ -303,14 +340,8 @@ export async function getMobileStaffTasks(
   user?: StaffViewer,
   now = new Date(),
 ) {
-  const doneSince = new Date(now.getTime() - DONE_LOOKBACK_DAYS * DAY_MS);
   const tasks = await prisma.performanceTask.findMany({
-    where: {
-      student: { status: "ACTIVE", ...staffStudentWhere(user) },
-      OR: [{ status: { not: "DONE" } }, { updatedAt: { gte: doneSince } }],
-    },
-    orderBy: [{ updatedAt: "desc" }, { dueDate: "asc" }],
-    take: 300,
+    ...staffTaskListArgs(user, now),
     select: {
       _count: { select: { submissions: true } },
       dueDate: true,

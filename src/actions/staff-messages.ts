@@ -4,7 +4,12 @@ import { auth } from "@/lib/auth";
 import { broadcastPush, type BroadcastAudience } from "@/lib/broadcast-push";
 import { prisma } from "@/lib/prisma";
 import { requireAnyStaff, requireFullAccess } from "@/lib/roles";
-import { getStaffThread, listStaffThreads, sendStaffThreadMessage } from "@/lib/staff-dm";
+import {
+  getStaffThread,
+  getStaffThreadUpdates,
+  listStaffThreads,
+  sendStaffThreadMessage,
+} from "@/lib/staff-dm";
 
 // DM 상대 셀렉트(messages/page.tsx)는 STUDENT 외 전 직원을 보여주므로
 // 온라인 직원(CONSULTANT/MANAGER_MENTOR)도 포함하는 requireAnyStaff 로 판별.
@@ -29,6 +34,18 @@ export async function listMyThreads() {
 export async function getThread(otherUserId: string) {
   const me = await requireStaffSession();
   return getStaffThread(me.id, otherUserId);
+}
+
+/**
+ * 열린 대화 폴링 — after(마지막으로 받은 메시지) 이후 새 메시지만 받는다.
+ * getThread 와 같이 상대가 보낸 미확인 메시지는 읽음 처리.
+ */
+export async function getThreadUpdates(
+  otherUserId: string,
+  after: { id: string; createdAt: string } | null,
+) {
+  const me = await requireStaffSession();
+  return getStaffThreadUpdates(me.id, otherUserId, after);
 }
 
 /** 메시지 전송 + 상대에게 푸시 (fire-and-forget) */

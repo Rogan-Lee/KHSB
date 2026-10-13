@@ -10,9 +10,15 @@ import { cn } from "@/lib/utils";
 import { CheckCircle2, Circle, Trash2, ChevronDown, ChevronUp, Inbox, Plus } from "lucide-react";
 import type { Communication } from "@/generated/prisma";
 
+/** 패널이 그리는 필드만 — 목록 쿼리는 이 필드만 select 하면 된다(egress 절감). */
+export type CommunicationItem = Pick<
+  Communication,
+  "id" | "type" | "content" | "isChecked" | "checkedAt" | "createdByName" | "createdAt"
+>;
+
 interface Props {
   studentId: string;
-  initialItems: Communication[];
+  initialItems: CommunicationItem[];
   compact?: boolean; // 입퇴실/멘토링 패널에서 간소화 모드
 }
 
@@ -37,7 +43,7 @@ function formatRelative(date: Date) {
 }
 
 export function CommunicationPanel({ studentId, initialItems, compact = false }: Props) {
-  const [items, setItems] = useState<Communication[]>(initialItems);
+  const [items, setItems] = useState<CommunicationItem[]>(initialItems);
   const [activeType, setActiveType] = useState<"PARENT_REQUEST" | "STAFF_NOTE">("STAFF_NOTE");
   const [content, setContent] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -64,7 +70,7 @@ export function CommunicationPanel({ studentId, initialItems, compact = false }:
     });
   }
 
-  function handleCheck(item: Communication) {
+  function handleCheck(item: CommunicationItem) {
     startTransition(async () => {
       try {
         await checkCommunication(item.id, studentId);

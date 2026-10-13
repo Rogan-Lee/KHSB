@@ -1,3 +1,6 @@
+import type { Prisma } from "@/generated/prisma/client";
+import type { PortalChatSenderType } from "@/generated/prisma/enums";
+import { latestIdsPerGroup } from "@/lib/db/latest-per-group";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -38,4 +41,34 @@ export async function ensureStudentPortalChats(studentId: string): Promise<void>
       create: { studentId: student.id, staffId },
     });
   }
+}
+
+export type ChatLastMessage = {
+  chatId: string;
+  content: string;
+  senderType: PortalChatSenderType;
+  createdAt: Date;
+  attachments: Prisma.JsonValue;
+};
+
+/**
+ * 채팅방별 마지막 메시지 1건 (목록 미리보기용).
+ * 목록 + 중첩 `messages: { take: 1 }` 는 DB 에서 안 잘려 모든 방의 전체 메시지를 가져오므로
+ * 방별 최신 id 만 DB 에서 고른 뒤 필요한 컬럼만 조회한다(egress 절감).
+ */
+export async function lastMessagesByChat(
+  chatIds: readonly string[]
+): Promise<Map<string, ChatLastMessage>> {
+  const ids = await latestIdsPerGroup({
+    table: "PortalChatMessage",
+    groupBy: "chatId",
+    groupIds: chatIds,
+    orderBy: [{ column: "createdAt", dir: "desc" }],
+  });
+  if (ids.length === 0) return new Map();
+  const rows = await prisma.portalChatMessage.findMany({
+    where: { id: { in: ids } },
+    select: { chatId: true, content: true, senderType: true, createdAt: true, attachments: true },
+  });
+  return new Map(rows.map((r) => [r.chatId, r]));
 }

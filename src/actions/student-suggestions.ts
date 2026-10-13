@@ -140,7 +140,21 @@ export async function getStudentSuggestions(params?: {
       ...(params?.category ? { category: params.category } : {}),
     },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
-    include: { student: { select: { name: true, grade: true } } },
+    // 아래 매핑에 쓰는 컬럼만 (include 는 전 컬럼)
+    select: {
+      id: true,
+      category: true,
+      title: true,
+      content: true,
+      status: true,
+      staffReply: true,
+      handledByName: true,
+      handledAt: true,
+      createdAt: true,
+      studentId: true,
+      hiddenAt: true,
+      student: { select: { name: true, grade: true } },
+    },
   });
 
   return rows.map((r) => ({

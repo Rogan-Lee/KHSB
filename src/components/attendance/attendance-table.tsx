@@ -8,7 +8,7 @@ import { createMeritDemerit } from "@/actions/merit-demerit";
 import { createStudyPlanReport } from "@/actions/study-plan-reports";
 import { toast } from "sonner";
 import { cn, MERIT_CATEGORIES } from "@/lib/utils";
-import type { Assignment, AttendanceRecord, AttendanceSchedule, AttendanceType, Communication, DailyOuting, OutingSchedule, Student } from "@/generated/prisma";
+import type { AttendanceRecord, AttendanceSchedule, AttendanceType, DailyOuting, OutingSchedule, Student } from "@/generated/prisma";
 import { ArrowRightLeft, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, ImagePlus, LogIn, LogOut, MessageSquare, PanelRightOpen, Pin, Plus, Save, Search, SearchX, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { KakaoButton } from "@/components/ui/kakao-button";
@@ -18,8 +18,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TimePickerInput } from "@/components/ui/time-picker";
-import { CommunicationPanel } from "@/components/communications/communication-panel";
-import { AssignmentPanel } from "@/components/assignments/assignment-panel";
+import { CommunicationPanel, type CommunicationItem } from "@/components/communications/communication-panel";
+import { AssignmentPanel, type AssignmentItem } from "@/components/assignments/assignment-panel";
 import { StudentCalendarPanel } from "@/components/calendar/student-calendar-panel";
 import { useColumnWidths } from "@/hooks/use-column-widths";
 import { ColResizeHandle } from "@/components/ui/col-resize-handle";
@@ -33,16 +33,24 @@ const ATTENDANCE_COL_DEFAULTS: Record<string, number> = {
   studyPlan: 80, mockAnalysis: 80, schoolAnalysis: 80, vocab: 92,
 };
 
-type StudentWithAttendance = Student & {
-  attendances: AttendanceRecord[];
-  schedules: AttendanceSchedule[];
-  outings: OutingSchedule[];
-  dailyOutings: DailyOuting[];
-  communications: Communication[];
-  assignments: Assignment[];
-  merits: { type: string; points: number; date: Date }[];
+// 표가 실제로 읽는 필드만 — 페이지 쿼리의 select 와 맞춘다(egress 절감).
+type StudentWithAttendance = Pick<
+  Student,
+  | "id" | "name" | "seat" | "school" | "grade" | "classGroup"
+  | "studentInfo" | "changeNote" | "dailyNote" | "dailyNoteDate"
+  | "vocabTestDate" | "pledgeDate" | "mockAnalysisDate" | "schoolAnalysisDate" | "plannerSentDate" | "weeklyPlanDate"
+  | "mockAnalysisExempt" | "schoolAnalysisExempt"
+> & {
+  attendances: Pick<AttendanceRecord, "checkIn" | "checkOut" | "type" | "notes" | "isAutoClosed">[];
+  schedules: Pick<AttendanceSchedule, "startTime" | "endTime">[];
+  outings: ScheduledOuting[];
+  dailyOutings: Pick<DailyOuting, "id" | "outStart" | "outEnd" | "sequence" | "reason">[];
+  communications: CommunicationItem[];
+  assignments: AssignmentItem[];
   vocabEnrollment?: { isActive: boolean } | null;
 };
+
+type ScheduledOuting = Pick<OutingSchedule, "outStart" | "outEnd">;
 
 const TYPE_OPTIONS: { value: AttendanceType; label: string }[] = [
   { value: "NORMAL", label: "정상" },
@@ -325,7 +333,7 @@ export function AttendanceTable({ students, today, toolbarStart }: Props) {
       mockAnalysisDate: toISO(s.mockAnalysisDate),
       schoolAnalysisDate: toISO(s.schoolAnalysisDate),
       plannerSentDate: toISO(s.plannerSentDate),
-      weeklyPlanDate: toISO((s as unknown as Record<string, unknown>).weeklyPlanDate as Date | null | undefined),
+      weeklyPlanDate: toISO(s.weeklyPlanDate),
     }));
     return map;
   });
@@ -336,8 +344,8 @@ export function AttendanceTable({ students, today, toolbarStart }: Props) {
   const [localExempt, setLocalExempt] = useState<Map<string, AnalysisExemptState>>(() => {
     const map = new Map<string, AnalysisExemptState>();
     students.forEach((s) => map.set(s.id, {
-      mockAnalysisExempt: (s as unknown as Record<string, unknown>).mockAnalysisExempt as boolean ?? false,
-      schoolAnalysisExempt: (s as unknown as Record<string, unknown>).schoolAnalysisExempt as boolean ?? false,
+      mockAnalysisExempt: s.mockAnalysisExempt ?? false,
+      schoolAnalysisExempt: s.schoolAnalysisExempt ?? false,
     }));
     return map;
   });
@@ -2344,7 +2352,7 @@ function OutingTablePanel({
 }: {
   studentId: string;
   todayDate: string;
-  scheduledOutings: OutingSchedule[];
+  scheduledOutings: ScheduledOuting[];
   dailyOutings: MinimalOuting[];
   onDelete?: (id: string) => void;
   onUpsert?: (outing: { id: string; outStart: Date | null; outEnd: Date | null }) => void;
