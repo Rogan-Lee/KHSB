@@ -19,20 +19,20 @@ export function appReviewNotes(s: {
   return `Thank you for reviewing 강한선배 (KHSB). The requested information is below.
 
 1. SCREEN RECORDING
-Attached. Recorded on a physical iPhone running the latest iOS, from app launch: invitation sign-up, account deletion, login, terms agreement, the student flow (assignments, a photo question, messages, reporting and blocking) and the parent flow.
+Attached. Recorded on a physical iPhone, from app launch: invitation sign-up, account deletion, login, terms agreement, the student flow (assignments, a photo question, messages, reporting and blocking) and the parent flow (incl. tuition).
 
 2. PURPOSE AND AUDIENCE
 KHSB is a managed study hall (a paid study space with seats, attendance tracking and study coaching) in Dongtan, Hwaseong, South Korea. Its customers are students and their parents; the app is the companion to that offline service.
 - Students: schedule, assignments and feedback, study questions, messages to their teacher, vocabulary tests, lunch orders.
-- Parents: their child's attendance, mentoring reports, mock exam results, merit points, inquiries to the director.
+- Parents: their child's attendance, mentoring reports, mock exam results, merit points, tuition bills, inquiries to the director.
 - Staff: answer questions and messages, give feedback on assignments.
-It lets parents see how their child is studying and gives students one place to reach staff. It is not an internal or enterprise app: anyone can enroll at the study hall, and students and parents are the main users.
+It is not an internal or enterprise app: anyone can enroll at the study hall, and students and parents are the main users.
 
 3. ACCESS
 Accounts are created by invitation because each is linked to an enrolled student. The UI is in Korean. Demo accounts (Login screen > "로그인" tab), all tied to a fictional student with sample data:
 - Student: ${s.student.username} / ${s.student.password}
 - Parent: ${s.parent.username} / ${s.parent.password}
-- Staff: ${s.staff.username} / ${s.staff.password} (consultant role; sees only the demo student, so no real student data is shown)
+- Staff: ${s.staff.username} / ${s.staff.password} (consultant role; sees only the demo student, no real student data)
 Sign-up: Login screen > "초대받았어요" tab > paste a one-time invitation code > create a parent account. Codes: ${s.invites.join(" or ")}
 Account deletion: "전체" (last tab) > "계정·보안" > "계정 삭제" > confirm > enter password. The account is deleted immediately.
 
@@ -42,8 +42,8 @@ Account deletion: "전체" (last tab) > "계정·보안" > "계정 삭제" > con
 - Expo push service (via APNs): push notifications
 - Resend: password reset emails
 - Slack: internal alerts to staff
-- Groq (LLM API): helps staff tidy the wording of mentoring reports on the staff web dashboard; staff review it before sending. No AI feature for students or parents.
-Sign-in runs on our own server (ID or email + password), with no third-party sign-in. The app has no payment processor, advertising or analytics SDK.
+- Groq (LLM API): helps staff word mentoring reports on the staff web dashboard; staff review before sending. No AI feature for students or parents.
+Sign-in runs on our own server (ID or email + password), with no third-party sign-in. The app has no payment, advertising or analytics SDK.
 
 5. REGIONS
 The app works the same in every region.
@@ -59,7 +59,7 @@ There is no public feed, profile or comment area. Messages and questions are pri
 To try it: log in as the student > "메시지" tab > open a conversation > long-press a teacher's message.
 
 PAID CONTENT
-None. The app is free with no in-app purchases, subscriptions or digital goods. Lunch boxes are physical meals served at the study hall and paid by bank transfer outside the app. Merit points are granted by staff and cannot be bought.
+No in-app purchases, subscriptions or digital goods. Tuition for the offline study hall (seat and coaching) is billed by staff: in "전체" > "수강료" a parent views the bill and asks to pay at the front desk or opens the payment provider's web page in the browser (3.1.3(e)); the app never collects card details. Online payment is not enabled yet; the demo bill shows the front-desk option only. Lunch boxes are physical meals paid by bank transfer. Merit points are granted by staff and cannot be bought.
 
 Support: https://www.kanghanseonbae.com/support.html
 `;
