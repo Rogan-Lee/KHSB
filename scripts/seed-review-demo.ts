@@ -1,11 +1,14 @@
 /**
  * App Store 심사용 데모 — 가상 학생 1명(데이터 포함) + 학생·학부모·직원 로그인 계정 + 가입·탈퇴 시험용 학부모 초대 코드.
+ * `--client` 를 붙이면 같은 예시 데이터로 고객사 체험용 세트를 따로 만든다 (client-demo- 네임스페이스, trial.* 계정,
+ * 초대 코드·심사 메모 없음). 심사 계정은 심사관이 쓰고 있어 고객사와 나눠 쓰지 않는다.
  *
- * 운영 DB 에도 쓰므로 기존 데이터는 건드리지 않고 review-demo- 네임스페이스만 만들고 지운다. 저장소 루트에서 실행:
+ * 운영 DB 에도 쓰므로 기존 데이터는 건드리지 않고 review-demo-(체험용은 client-demo-) 네임스페이스만 만들고 지운다. 저장소 루트에서 실행:
  *   npx tsx --env-file=.env.development.local scripts/seed-review-demo.ts --apply     # 개발 DB
  *   npx tsx --env-file=.env.local scripts/seed-review-demo.ts --apply --prod         # 운영 DB
  *   … --apply --reset-passwords   비밀번호 새로 발급 (심사 중에는 쓰지 말 것)
  *   … --delete [--prod]           심사가 끝나면 데모 학생·계정·초대·데이터 전부 삭제
+ *   … --client                    위 명령 모두 체험용 세트에 적용 (예: --apply --prod --client)
  * 옵션 없이 실행하면 대상 DB 만 보여 주고 끝난다.
  * --apply 를 다시 돌리면 데모 학생 데이터(심사자가 남긴 질문 등 포함)를 새로 만든다. 계정·초대 코드는 유지.
  *
@@ -29,19 +32,25 @@ import { APP_REVIEW_NOTES_LIMIT, appReviewNotes } from "./review-notes";
 // 운영 Supabase project-ref 의 SHA-256 (공개 저장소라 원문 대신 해시 — scripts/db-push.mjs 와 같은 값)
 const PROD_PROJECT_REF_SHA256 = "37276d3cbb4b3ab00f9978c8eb33b48f41a1a852506ebb19a9b890cae6db5247";
 
-const SID = "review-demo-student";
-const MENTOR = "review-demo-mentor";
-const STAFF = "review-demo-staff";
-const STUDENT_AUTH = "review-demo-auth-student";
-const PARENT_AUTH = "review-demo-auth-parent";
-const STAFF_AUTH = "review-demo-auth-staff";
-const STUDENT_USERNAME = "appreview.student";
-const PARENT_USERNAME = "appreview.parent";
-const STAFF_USERNAME = "appreview.staff";
-const INVITE_COUNT = 2;
-const INVITE_DAYS = 90;
-
 const args = new Set(process.argv.slice(2));
+/** 고객사 체험용 세트 — 심사용과 id·계정·비밀 파일이 모두 다르다 */
+const CLIENT = args.has("--client");
+const NS = CLIENT ? "client-demo" : "review-demo";
+const LOGIN = CLIENT ? "trial" : "appreview";
+const LABEL = CLIENT ? "체험" : "데모";
+
+const SID = `${NS}-student`;
+const MENTOR = `${NS}-mentor`;
+const STAFF = `${NS}-staff`;
+const STUDENT_AUTH = `${NS}-auth-student`;
+const PARENT_AUTH = `${NS}-auth-parent`;
+const STAFF_AUTH = `${NS}-auth-staff`;
+const STUDENT_USERNAME = `${LOGIN}.student`;
+const PARENT_USERNAME = `${LOGIN}.parent`;
+const STAFF_USERNAME = `${LOGIN}.staff`;
+// 가입·탈퇴 시험용 초대 코드는 심사용에만 (체험은 만들어 둔 계정으로 로그인)
+const INVITE_COUNT = CLIENT ? 0 : 2;
+const INVITE_DAYS = 90;
 const mode = args.has("--delete") ? "delete" : args.has("--apply") ? "apply" : "check";
 
 function sanitizeUrl(raw: string) {
@@ -96,8 +105,9 @@ type Secrets = {
 };
 
 const SECRET_DIR = resolve(process.cwd(), ".app-review");
-const secretJson = resolve(SECRET_DIR, `${projectRef}.json`);
-const secretMd = resolve(SECRET_DIR, `${projectRef}.md`);
+const secretBase = CLIENT ? `${projectRef}-client` : projectRef;
+const secretJson = resolve(SECRET_DIR, `${secretBase}.json`);
+const secretMd = resolve(SECRET_DIR, `${secretBase}.md`);
 
 function loadSecrets(): Secrets {
   return existsSync(secretJson) ? (JSON.parse(readFileSync(secretJson, "utf8")) as Secrets) : {};
@@ -106,7 +116,7 @@ function loadSecrets(): Secrets {
 const EASY = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const easyChars = (n: number) => Array.from({ length: n }, () => EASY[randomInt(EASY.length)]).join("");
 const newPassword = () => `Khsb-${easyChars(10)}`;
-const newInviteCode = () => `appreview-${easyChars(12).toLowerCase()}`;
+const newInviteCode = () => `${LOGIN}-${easyChars(12).toLowerCase()}`;
 
 // ─── 삭제 ───────────────────────────────────────────────────────────────
 
@@ -141,28 +151,30 @@ async function deleteAll() {
 
 async function upsertPeople() {
   const mentor = {
-    email: "review-demo-mentor@example.com",
-    name: "김데모",
+    email: `${NS}-mentor@example.com`,
+    name: `김${LABEL}`,
     role: "MENTOR" as const,
     isMentor: true,
     status: "TERMINATED" as const,
     terminatedAt: new Date(),
-    terminationNote: "App Store 심사용 데모 멘토(로그인 불가). 심사 후 scripts/seed-review-demo.ts --delete 로 삭제",
+    terminationNote: CLIENT
+      ? "고객사 체험용 데모 멘토(로그인 불가). 체험 후 scripts/seed-review-demo.ts --delete --client 로 삭제"
+      : "App Store 심사용 데모 멘토(로그인 불가). 심사 후 scripts/seed-review-demo.ts --delete 로 삭제",
   };
   await prisma.user.upsert({ where: { id: MENTOR }, update: mentor, create: { id: MENTOR, ...mentor } });
 
   const staff = {
     email: `${STAFF_USERNAME}@example.com`,
-    name: "데모 직원",
+    name: `${LABEL} 직원`,
     role: "CONSULTANT" as const,
     status: "ACTIVE" as const,
   };
   await prisma.user.upsert({ where: { id: STAFF }, update: staff, create: { id: STAFF, ...staff } });
 
   const student = {
-    name: "데모 학생",
+    name: `${LABEL} 학생`,
     grade: "고2",
-    school: "데모고등학교",
+    school: `${LABEL}고등학교`,
     parentPhone: "010-0000-0000",
     startDate: dateOnly(addDays(TODAY, -60)),
     status: "ACTIVE" as const,
@@ -174,7 +186,9 @@ async function upsertPeople() {
     internalScoreRange: "1~2등급",
     mockScoreRange: "1~2등급",
     selectedSubjects: "국어, 수학, 영어, 사회·문화, 생활과윤리",
-    studentInfo: "App Store 심사용 데모 학생입니다. 실제 학생이 아니며 심사가 끝나면 삭제합니다.",
+    studentInfo: CLIENT
+      ? "고객사 체험용 데모 학생입니다. 실제 학생이 아니며 체험이 끝나면 삭제합니다."
+      : "App Store 심사용 데모 학생입니다. 실제 학생이 아니며 심사가 끝나면 삭제합니다.",
   };
   await prisma.student.upsert({ where: { id: SID }, update: student, create: { id: SID, ...student } });
 }
@@ -462,13 +476,17 @@ async function createContent() {
 async function createTuition() {
   // 금액·상태·이력이 서로 맞아야 해서 행을 직접 넣지 않고 앱과 같은 코어 함수로 만든다 (알림은 보내지 않음)
   const { issueInvoice, confirmOnsitePayment } = await import("../src/lib/tuition/core");
-  const actor = { id: STAFF, name: "데모 직원" };
+  const actor = { id: STAFF, name: `${LABEL} 직원` };
   const monthStart = `${TODAY.slice(0, 8)}01`;
   const prevMonthStart = `${addDays(monthStart, -1).slice(0, 8)}01`;
   const bill = { studentId: SID, months: 1, monthlyFee: 690_000, notify: false };
 
   const paid = await issueInvoice({ ...bill, periodStart: prevMonthStart, dueDate: addDays(prevMonthStart, 4) }, actor);
-  await confirmOnsitePayment({ invoiceId: paid.invoiceId, method: "ONSITE_CARD" }, actor);
+  const { paymentId } = await confirmOnsitePayment({ invoiceId: paid.invoiceId, method: "ONSITE_CARD" }, actor);
+  // 납부 시각을 지난달 납부 기한 무렵으로 — 어드민 "이번 달 수납" 합계에 데모 금액이 섞이지 않게
+  const paidAt = at(addDays(prevMonthStart, 2), "18:30");
+  await prisma.tuitionInvoice.update({ where: { id: paid.invoiceId }, data: { paidAt } });
+  await prisma.tuitionPayment.update({ where: { id: paymentId }, data: { confirmedAt: paidAt } });
   await issueInvoice({ ...bill, periodStart: monthStart, dueDate: addDays(TODAY, 5) }, actor);
 }
 
@@ -543,6 +561,22 @@ function reviewNotes(s: {
   developerName?: string;
 }) {
   const pw = (v: string | undefined) => v ?? "(모름 — --reset-passwords 로 재발급)";
+  // 체험용은 심사 메모 없이 계정만
+  if (CLIENT) {
+    return `# 고객사 체험용 데모 계정 (${isProd ? "운영" : "개발"} DB ${projectRef})
+
+커밋 금지 — 저장소가 공개다. 갱신: ${new Date().toISOString()}
+가상 학생 "${LABEL} 학생"과 예시 데이터에 연결된 계정이다. 체험이 끝나면 --delete${isProd ? " --prod" : ""} --client 로 지운다.
+
+| 계정 | 아이디 | 비밀번호 |
+|---|---|---|
+| 학생 | ${STUDENT_USERNAME} | ${pw(s.studentPassword)} |
+| 학부모 | ${PARENT_USERNAME} | ${pw(s.parentPassword)} |
+| 직원(컨설턴트 — 체험 학생만 보임) | ${STAFF_USERNAME} | ${pw(s.staffPassword)} |
+
+앱 로그인 화면 > "로그인" 탭에서 아이디·비밀번호로 들어간다.
+`;
+  }
   const notes = appReviewNotes({
     student: { username: STUDENT_USERNAME, password: pw(s.studentPassword) },
     parent: { username: PARENT_USERNAME, password: pw(s.parentPassword) },
@@ -589,15 +623,15 @@ async function apply() {
   await createContent();
 
   const studentPassword = await ensureAccount({
-    id: STUDENT_AUTH, username: STUDENT_USERNAME, name: "데모 학생", studentId: SID,
+    id: STUDENT_AUTH, username: STUDENT_USERNAME, name: `${LABEL} 학생`, studentId: SID,
     saved: saved.studentPassword, reset,
   });
   const parentPassword = await ensureAccount({
-    id: PARENT_AUTH, username: PARENT_USERNAME, name: "데모 학생 학부모",
+    id: PARENT_AUTH, username: PARENT_USERNAME, name: `${LABEL} 학생 학부모`,
     saved: saved.parentPassword, reset,
   });
   const staffPassword = await ensureAccount({
-    id: STAFF_AUTH, username: STAFF_USERNAME, name: "데모 직원", appUserId: STAFF,
+    id: STAFF_AUTH, username: STAFF_USERNAME, name: `${LABEL} 직원`, appUserId: STAFF,
     saved: saved.staffPassword, reset,
   });
   await prisma.parentLink.upsert({
@@ -616,7 +650,7 @@ async function apply() {
   mkdirSync(SECRET_DIR, { recursive: true });
   writeFileSync(secretJson, JSON.stringify(secrets, null, 2));
   writeFileSync(secretMd, reviewNotes({ studentPassword, parentPassword, staffPassword, invites, developerName }));
-  console.log(`완료 — 계정·초대 코드·심사 노트: ${secretMd}`);
+  console.log(`완료 — ${CLIENT ? "체험용 계정" : "계정·초대 코드·심사 노트"}: ${secretMd}`);
 }
 
 async function main() {
