@@ -2,8 +2,8 @@
 // 스크립트 태그 자리에 GNB·모바일 드로어를 즉시 그려 깜빡임이 없다.
 // 페이지는 <body data-page="results" data-gnb="dark|light"> 로 현재 메뉴·히어로 톤을 알린다.
 // 방문 통계: GA4(privacy.html 제6·10조에 고지). 모든 페이지가 이 셸을 거치므로 여기서 한 번만 붙인다.
-// 운영 도메인에서만 — 로컬·Vercel 미리보기 방문이 통계에 섞이지 않게.
-if (SITE.ga && location.hostname.endsWith('kanghanseonbae.com')) {
+// 운영 도메인에서만 — 로컬·Vercel 미리보기 방문이 통계에 섞이지 않게. 헤드리스 브라우저(점검용 자동 방문·봇)도 뺀다.
+if (SITE.ga && location.hostname.endsWith('kanghanseonbae.com') && !navigator.userAgent.includes('HeadlessChrome')) {
   window.dataLayer = window.dataLayer || [];
   window.gtag = function () { dataLayer.push(arguments); }; // 배열 말고 arguments 그대로 넣어야 gtag 가 읽는다
   gtag('js', new Date());
