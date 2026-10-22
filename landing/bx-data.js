@@ -99,4 +99,5 @@ const SITE = {
   api: 'https://khsb.vercel.app',
   address: '경기 화성시 동탄반석로 130 (드림프라자) 10F',
   email: 'kanghanseonbae@naver.com',
+  ga: 'G-7W83ME2QP6', // GA4 측정 ID — 비우면 통계 스크립트를 싣지 않는다
 };
