@@ -2,8 +2,9 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "ignoreCommand": "git diff --quiet HEAD^ HEAD -- .",
   "redirects": [
-    { "source": "/go/:source", "destination": "/?utm_source=:source&utm_medium=link", "permanent": false },
-    { "source": "/go/:source/:page", "destination": "/:page.html?utm_source=:source&utm_medium=link", "permanent": false }
+    { "source": "/go/:source(instagram|kakao|naver_place|naver_blog|daangn|flyer)", "destination": "/?utm_source=:source&utm_medium=link", "permanent": false },
+    { "source": "/go/:source(instagram|kakao|naver_place|naver_blog|daangn|flyer)/:page(recruit|mentors|results|program|space|stories|director)", "destination": "/:page.html?utm_source=:source&utm_medium=link", "permanent": false },
+    { "source": "/go/:rest*", "destination": "/", "permanent": false }
   ],
   "rewrites": [
     { "source": "/", "destination": "/landing.html" },
