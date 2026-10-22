@@ -1,6 +1,21 @@
 // ══ 강한선배 GNB 셸 — <body> 맨 앞에서 동기 로드 (bx-data.js 다음) ══
 // 스크립트 태그 자리에 GNB·모바일 드로어를 즉시 그려 깜빡임이 없다.
 // 페이지는 <body data-page="results" data-gnb="dark|light"> 로 현재 메뉴·히어로 톤을 알린다.
+// 방문 통계: GA4(privacy.html 제6·10조에 고지). 모든 페이지가 이 셸을 거치므로 여기서 한 번만 붙인다.
+// 운영 도메인에서만 — 로컬·Vercel 미리보기 방문이 통계에 섞이지 않게.
+if (SITE.ga && location.hostname.endsWith('kanghanseonbae.com')) {
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function () { dataLayer.push(arguments); }; // 배열 말고 arguments 그대로 넣어야 gtag 가 읽는다
+  gtag('js', new Date());
+  gtag('config', SITE.ga);
+  document.head.appendChild(Object.assign(document.createElement('script'), { async: true, src: 'https://www.googletagmanager.com/gtag/js?id=' + SITE.ga }));
+  // 전환 버튼 — 페이지는 GA 가 page_location 으로 붙여 준다. GA4 관리 > 이벤트에서 '주요 이벤트'로 표시해 쓴다
+  document.addEventListener('click', e => {
+    const a = e.target.closest('a[href]');
+    if (a?.href.startsWith(SITE.apply)) gtag('event', 'click_apply');
+    else if (a?.protocol === 'tel:') gtag('event', 'click_tel');
+  });
+}
 (() => {
   const body = document.body;
   const page = body.dataset.page || '';
