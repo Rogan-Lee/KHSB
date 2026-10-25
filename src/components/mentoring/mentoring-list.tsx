@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState, useTransition, useEffect } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -217,24 +218,7 @@ function KebabMenu({ mentoring, onDelete }: { mentoring: Mentoring; onDelete: ()
   );
 }
 
-const FILTER_STORAGE_KEY = "mentoring-list-filters";
-
 type CancelFilter = "exclude" | "only" | "all";
-
-// 클라이언트에서만 유지하는 필터(즉시 적용). 날짜 범위는 URL 로 이동.
-type FilterState = {
-  mentor: string;
-  q: string;
-  cancel?: CancelFilter;
-};
-
-function loadFilters(): Partial<FilterState> {
-  try { return JSON.parse(sessionStorage.getItem(FILTER_STORAGE_KEY) ?? "{}"); } catch { return {}; }
-}
-
-function saveFilters(f: FilterState) {
-  try { sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(f)); } catch { /* ignore */ }
-}
 
 export function MentoringList({ mentorings, mentors, isDirector, currentUserId, checkedInStudentIds = [], vocabEnrolledStudentIds = [], attendanceNotes = {}, tardyStudentIds = [], meritPoints = {}, initialDateFrom, initialDateTo }: Props) {
   const router = useRouter();
@@ -243,18 +227,14 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
   const vocabEnrolledSet = new Set(vocabEnrolledStudentIds);
   const today = getToday();
 
-  // sessionStorage에서 필터 복원, 없으면 현재 로그인 사용자로 기본 필터
-  const saved = typeof window !== "undefined" ? loadFilters() : {};
-  const hasSavedMentor = typeof window !== "undefined" && sessionStorage.getItem(FILTER_STORAGE_KEY) !== null;
-  const defaultMentor = hasSavedMentor ? (saved.mentor ?? "all") : (currentUserId || "all");
-
-  const [selectedMentorId, setSelectedMentorId] = useState<string>(defaultMentor);
+  // 필터는 다른 화면 갔다 와도 유지(세션 한정). 저장값이 없으면 담당 멘토는 현재 로그인 사용자
+  const [selectedMentorId, setSelectedMentorId] = useStickyState("mentoring-list:mentor", currentUserId || "all");
   // 날짜는 URL(?from=&to=) → initialDateFrom/To 로 들어옴. 입력은 staged 상태로 변경하고 "조회" 클릭 시 navigate.
   const [dateFrom, setDateFrom] = useState<string>(initialDateFrom);
   const [dateTo, setDateTo] = useState<string>(initialDateTo);
   const [isRefetching, startRefetching] = useTransition();
-  const [query, setQuery] = useState(saved.q ?? "");
-  const [cancelFilter, setCancelFilter] = useState<CancelFilter>(saved.cancel ?? "exclude");
+  const [query, setQuery] = useStickyState("mentoring-list:query", "");
+  const [cancelFilter, setCancelFilter] = useStickyState<CancelFilter>("mentoring-list:cancel", "exclude");
   const [page, setPage] = useState(0);
 
   // URL 이 바뀌어 초기값이 갱신되면 staged 입력도 동기화
@@ -291,7 +271,7 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
   const [parentReportOpenId, setParentReportOpenId] = useState<string | null>(null);
   const [bulkGenerating, setBulkGenerating] = useState(false);
   const [bulkResults, setBulkResults] = useState<Record<string, "pending" | "created" | "existing" | "failed">>({});
-  const [showOnlyWithReport, setShowOnlyWithReport] = useState(false);
+  const [showOnlyWithReport, setShowOnlyWithReport] = useStickyState("mentoring-list:onlyWithReport", false);
   const [isBulkPending, startBulkTransition] = useTransition();
   // 메모 인라인 편집: 클릭한 행만 textarea, 다른 행은 텍스트만.
   const [notesEditingId, setNotesEditingId] = useState<string | null>(null);
@@ -322,11 +302,6 @@ export function MentoringList({ mentorings, mentors, isDirector, currentUserId, 
       }
     });
   }
-
-  // 필터 변경 시 sessionStorage에 저장(날짜는 URL 소관이라 제외)
-  useEffect(() => {
-    saveFilters({ mentor: selectedMentorId, q: query, cancel: cancelFilter });
-  }, [selectedMentorId, query, cancelFilter]);
 
   // 클라이언트 필터가 바뀌면 첫 페이지로 리셋
   useEffect(() => {

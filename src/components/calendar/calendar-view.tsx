@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { useRouter } from "next/navigation";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from "@/actions/calendar";
 import { toast } from "sonner";
@@ -100,7 +101,7 @@ export function CalendarView({ initialEvents, schools = [], students = [], googl
   const today = new Date();
   const router = useRouter();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [viewMode, setViewMode] = useState<"month" | "week">("month");
+  const [viewMode, setViewMode] = useStickyState<"month" | "week">("calendar:viewMode", "month");
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [weekStart, setWeekStart] = useState<Date>(() => getWeekStart(today));
@@ -108,11 +109,11 @@ export function CalendarView({ initialEvents, schools = [], students = [], googl
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<CalendarEventType | "ALL">("ALL");
-  const [filterSchool, setFilterSchool] = useState<string>("ALL");
-  const [filterStudent, setFilterStudent] = useState<string>("ALL");
+  const [filterType, setFilterType] = useStickyState<CalendarEventType | "ALL">("calendar:type", "ALL");
+  const [filterSchool, setFilterSchool] = useStickyState<string>("calendar:school", "ALL");
+  const [filterStudent, setFilterStudent] = useStickyState<string>("calendar:student", "ALL");
   const [isPending, startTransition] = useTransition();
-  const [showGoogleEvents, setShowGoogleEvents] = useState(googleCalendarConfigured);
+  const [showGoogleEvents, setShowGoogleEvents] = useStickyState("calendar:google", googleCalendarConfigured);
   const [removedGoogleIds, setRemovedGoogleIds] = useState<Set<string>>(new Set());
   const [googleEventOverrides, setGoogleEventOverrides] = useState<Record<string, { title: string; description: string | null; startDate: Date; endDate: Date | null; allDay: boolean }>>({});
   // 동적으로 추가 로드된 Google 이벤트 (초기 prop 범위 밖 이동 시)

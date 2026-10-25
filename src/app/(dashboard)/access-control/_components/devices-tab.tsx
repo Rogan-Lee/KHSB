@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { MonitorSmartphone, Trash2 } from "lucide-react";
 import { deleteAccessDevice, type AccessDeviceView, type AccessOverview } from "@/actions/access-control";
 import type { AccessDeviceStatus } from "@/lib/access-control/types";
@@ -45,8 +46,8 @@ export function DevicesTab({ overview }: { overview: AccessOverview }) {
   const { devices, students } = overview;
   const { busyKey, run } = useAccessAction();
   const { confirm, dialog } = useConfirmDialog();
-  const [filter, setFilter] = useState<Filter>("ALL");
-  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useStickyState<Filter>("access-devices:filter", "ALL");
+  const [query, setQuery] = useStickyState("access-devices:query", "");
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const q = query.trim().toLowerCase();

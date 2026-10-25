@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -122,12 +123,12 @@ export function PerformancePanel({
   rows: PerfPanelStudentRow[];
   canManage: boolean;
 }) {
-  const [filter, setFilter] = useState<StudentFilterState>(defaultFilterState);
+  const [filter, setFilter] = useStickyState<StudentFilterState>("online-performance:filter", defaultFilterState);
   const [activeStudentId, setActiveStudentId] = useState<string | null>(
     rows[0]?.studentId ?? null
   );
   const [statusFilter, setStatusFilter] =
-    useState<PerformanceTaskStatus | "ALL">("ALL");
+    useStickyState<PerformanceTaskStatus | "ALL">("online-performance:status", "ALL");
   // 마감 D-day 계산 기준 시각 — 화면을 연 시점으로 고정
   const [now] = useState(() => Date.now());
 

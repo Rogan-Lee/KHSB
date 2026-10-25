@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import Link from "next/link";
 import { ChevronDown, LayoutGrid, List, Plus, RotateCcw, SearchX, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,13 +24,6 @@ interface StudentsListViewProps {
   students: StudentWithRelations[];
 }
 
-// 검색어·퇴원생 보기는 탭을 옮겨 다녀도 유지(세션 한정)
-const STUDENTS_FILTER_KEY = "students-table-filters";
-function loadStudentFilters(): { q?: string; withdrawn?: boolean } {
-  if (typeof window === "undefined") return {};
-  try { return JSON.parse(sessionStorage.getItem(STUDENTS_FILTER_KEY) ?? "{}"); } catch { return {}; }
-}
-
 // FilterChip 과 같은 모양 — 드롭다운 트리거용
 const CHIP_BASE =
   "inline-flex h-8 shrink-0 items-center gap-x1 rounded-full px-x3 t3-medium transition-colors outline-none focus-visible:outline-2 focus-visible:outline-stroke-focus-ring";
@@ -43,15 +36,12 @@ function ChipDivider() {
 }
 
 export function StudentsListView({ students }: StudentsListViewProps) {
-  const [view, setView] = useState<"list" | "grid">("list");
-  const [query, setQuery] = useState<string>(() => loadStudentFilters().q ?? "");
-  const [showWithdrawn, setShowWithdrawn] = useState<boolean>(() => loadStudentFilters().withdrawn ?? false);
-  const [mentorFilter, setMentorFilter] = useState<string>("ALL");
-  const [classGroup, setClassGroup] = useState<string | null>(null);
-
-  useEffect(() => {
-    try { sessionStorage.setItem(STUDENTS_FILTER_KEY, JSON.stringify({ q: query, withdrawn: showWithdrawn })); } catch {}
-  }, [query, showWithdrawn]);
+  // 필터는 다른 화면 갔다 와도 "초기화" 전까지 유지(세션 한정)
+  const [view, setView] = useStickyState<"list" | "grid">("students-list:view", "list");
+  const [query, setQuery] = useStickyState("students-list:query", "");
+  const [showWithdrawn, setShowWithdrawn] = useStickyState("students-list:withdrawn", false);
+  const [mentorFilter, setMentorFilter] = useStickyState("students-list:mentor", "ALL");
+  const [classGroup, setClassGroup] = useStickyState<string | null>("students-list:classGroup", null);
 
   // 반(정규반/선택반 등) 칩 — 실데이터에 존재하는 값만 노출
   const classGroups = [...new Set(students.map((s) => s.classGroup).filter((g): g is string => !!g))].sort(

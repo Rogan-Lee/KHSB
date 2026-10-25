@@ -4,6 +4,7 @@
 // "처리 필요" 필터만은 달과 상관없이 운영진이 손봐야 할 청구서를 전부 보여 준다.
 
 import { useMemo, useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -99,8 +100,8 @@ export function InvoicesTab({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [filter, setFilter] = useState<Filter>("ALL");
-  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useStickyState<Filter>("tuition-invoices:filter", "ALL");
+  const [query, setQuery] = useStickyState("tuition-invoices:query", "");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [exporting, startExport] = useTransition();

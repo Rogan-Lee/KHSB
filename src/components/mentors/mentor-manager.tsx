@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -107,11 +108,11 @@ export function MentorManager({ mentors: initialMentors, schedules, linksByUser,
   const [showAddForm, setShowAddForm] = useState(false);
   const [editing, setEditing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"active" | "terminated">("active");
+  const [statusFilter, setStatusFilter] = useStickyState<"active" | "terminated">("mentors:status", "active");
   const [statusDialogUser, setStatusDialogUser] = useState<MentorUser | null>(null);
   const [contractDialogOpen, setContractDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MentorUser | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useStickyState("mentors:query", "");
   const [isPending, startTransition] = useTransition();
 
   // Schedule edit state

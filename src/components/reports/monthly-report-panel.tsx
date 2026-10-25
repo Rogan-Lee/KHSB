@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { useRouter } from "next/navigation";
 import { generateMonthlyReportsBulk, markReportsSentBulk } from "@/actions/reports";
 import type { BulkReportResult } from "@/actions/reports";
@@ -43,8 +44,8 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
   const [bulkProgress, setBulkProgress] = useState<Record<string, "pending" | "success" | "failed">>({});
   const [bulkErrors, setBulkErrors] = useState<Record<string, string>>({});
   const [, startTransition] = useTransition();
-  const [query, setQuery] = useState("");
-  const [showOnlyGenerated, setShowOnlyGenerated] = useState(false);
+  const [query, setQuery] = useStickyState("monthly-report:query", "");
+  const [showOnlyGenerated, setShowOnlyGenerated] = useStickyState("monthly-report:onlyGenerated", false);
   const [enqueuing, setEnqueuing] = useState(false);
   const [confirm, confirmDialog] = useConfirmDialog();
 

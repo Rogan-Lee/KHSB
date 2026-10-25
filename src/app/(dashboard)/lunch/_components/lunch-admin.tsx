@@ -586,7 +586,7 @@ function OrderItemsCell({ order }: { order: Order }) {
 function OrdersTab({ orders, menus }: { orders: Order[]; menus: Menu[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [onlyUnpaid, setOnlyUnpaid] = useState(false);
+  const [onlyUnpaid, setOnlyUnpaid] = useStickyState("lunch-orders:onlyUnpaid", false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editSel, setEditSel] = useState<Set<string>>(new Set());
@@ -938,7 +938,7 @@ function LinksTab({
   orders: Order[];
 }) {
   const [pending, startTransition] = useTransition();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useStickyState("lunch-links:query", "");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   // 이미 신청한 학생 표시용

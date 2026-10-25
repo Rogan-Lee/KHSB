@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useId } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -430,7 +431,7 @@ export function TodoManager({ initialTodos, initialHiddenCompleted = [], staffLi
   const [formCategory, setFormCategory] = useState<string | undefined>(undefined);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [showCompleted, setShowCompleted] = useState(true);
+  const [showCompleted, setShowCompleted] = useStickyState("todos:showCompleted", true);
   const [historyTodo, setHistoryTodo] = useState<Todo | null>(null);
   // 대상 역할 필터 (전체 / 운영 / 멘토). localStorage 영속.
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");

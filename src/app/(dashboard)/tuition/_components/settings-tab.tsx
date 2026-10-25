@@ -4,6 +4,7 @@
 // 여기 값은 "청구 예정" 목록과 발행 화면의 기본값을 정할 뿐, 이미 발행한 청구서는 바꾸지 않는다.
 
 import { useMemo, useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ExternalLink, Users } from "lucide-react";
@@ -399,7 +400,7 @@ function StudentFees({
   students: AdminTuitionStudent[];
   defaultMonthlyFee: number | null;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useStickyState("tuition-fees:query", "");
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return students;

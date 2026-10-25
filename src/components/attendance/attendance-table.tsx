@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { useRouter } from "next/navigation";
 import { saveAttendanceRecord, createDailyOuting, updateDailyOuting, deleteDailyOuting, addOuting, deleteOuting } from "@/actions/attendance";
 import { patchStudentTextFields, patchStudentCheckDate, patchStudentAnalysisExempt, resetWeeklyCheckDates, resetCheckDateForAll } from "@/actions/students";
@@ -441,7 +442,7 @@ export function AttendanceTable({ students, today, toolbarStart }: Props) {
   type ActiveTimeInput = { studentId: string; field: "checkIn" | "checkOut" | "outing" | "return"; studentName: string };
   const [activeTimeInput, setActiveTimeInput] = useState<ActiveTimeInput | null>(null);
 
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useStickyState("attendance:query", "");
 
   // 현재 시각 (매분 갱신) — 입실 임박 하이라이트용
   const [nowMinutes, setNowMinutes] = useState(() => toMinutes(nowHHMM()));

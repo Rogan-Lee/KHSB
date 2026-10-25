@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
@@ -20,7 +21,7 @@ export function SchoolStatsBoard({
   rows: SchoolStatRow[];
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useStickyState("school-stats:query", "");
 
   const filteredBase = useMemo(() => {
     const q = query.trim().toLowerCase();

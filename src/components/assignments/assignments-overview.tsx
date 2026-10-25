@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { AssignmentPanel, type AssignmentItem } from "./assignment-panel";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, CheckCircle2, ChevronRight, ClipboardList, Users } from "lucide-react";
@@ -19,7 +20,7 @@ interface Props {
 }
 
 export function AssignmentsOverview({ students }: Props) {
-  const [filter, setFilter] = useState<"all" | "pending">("pending");
+  const [filter, setFilter] = useStickyState<"all" | "pending">("assignments:filter", "pending");
 
   const filtered = useMemo(
     () =>

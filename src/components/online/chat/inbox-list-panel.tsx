@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MessageCircle, Paperclip, SearchX } from "lucide-react";
@@ -55,7 +56,7 @@ export function InboxListPanel({
   const activeId = pathname.startsWith("/online/inbox/")
     ? pathname.split("/")[3]
     : null;
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useStickyState("online-inbox:query", "");
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();

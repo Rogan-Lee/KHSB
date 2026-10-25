@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -291,22 +292,17 @@ function ConsultationPreview({
 
 // ─── Main List ────────────────────────────────────────────────────────────────
 
-function loadConsultFilters(key: string) {
-  try { return JSON.parse(sessionStorage.getItem(key) ?? "{}"); } catch { return {}; }
-}
-
 type CategoryFilter = "ALL" | "ENROLLED" | "NEW_ADMISSION" | "CONSIDERING";
 type TypeFilter = "ALL" | "STUDENT" | "PARENT";
 
 export function ConsultationsList({ consultations, owner = "DIRECTOR", initialDateFrom, initialDateTo }: { consultations: Consultation[]; owner?: string; initialDateFrom: string; initialDateTo: string }) {
   const router = useRouter();
   // owner별 독립 필터 저장 (DIRECTOR/HEAD_TEACHER 카테고리 탭 구성이 달라 키 분리 필수)
-  const filterKey = `consultations-list-filters:${owner}`;
-  const saved = typeof window !== "undefined" ? loadConsultFilters(filterKey) : {};
-  const [query, setQuery] = useState<string>(saved.q ?? "");
-  const [statusFilter, setStatusFilter] = useState<Status | "ALL">(saved.status ?? "ALL");
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>(saved.category ?? "ALL");
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>(saved.type ?? "ALL");
+  const filterKey = `consultations-list:${owner}`;
+  const [query, setQuery] = useStickyState(`${filterKey}:query`, "");
+  const [statusFilter, setStatusFilter] = useStickyState<Status | "ALL">(`${filterKey}:status`, "ALL");
+  const [categoryFilter, setCategoryFilter] = useStickyState<CategoryFilter>(`${filterKey}:category`, "ALL");
+  const [typeFilter, setTypeFilter] = useStickyState<TypeFilter>(`${filterKey}:type`, "ALL");
   const [isPending, startTransition] = useTransition();
 
   // 미리 보기 시트 + 면담별 AI 메시지 상태
@@ -314,10 +310,6 @@ export function ConsultationsList({ consultations, owner = "DIRECTOR", initialDa
   const [sheetOpen, setSheetOpen] = useState(false);
   const [aiStates, setAiStates] = useState<Record<string, AiState>>({});
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
-
-  useEffect(() => {
-    try { sessionStorage.setItem(filterKey, JSON.stringify({ q: query, status: statusFilter, category: categoryFilter, type: typeFilter })); } catch {}
-  }, [filterKey, query, statusFilter, categoryFilter, typeFilter]);
 
   const q = query.trim().toLowerCase();
 

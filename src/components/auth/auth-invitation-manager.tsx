@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { toast } from "sonner";
 
 import {
@@ -359,7 +360,7 @@ export function AuthInvitationManager({
 
 function AccountsPanel({ accounts }: { accounts: AccountRow[] }) {
   const [isPending, startTransition] = useTransition();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useStickyState("accounts:query", "");
   const [resetTarget, setResetTarget] = useState<AccountRow | null>(null);
 
   const filtered = useMemo(() => {
@@ -596,7 +597,7 @@ function ParentInvitePanel({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [relation, setRelation] = useState("");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useStickyState("parent-invite:query", "");
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

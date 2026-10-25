@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -106,7 +107,7 @@ export function PatrolDesktop({
   const router = useRouter();
   const [data, setData] = useState(initial);
   const [scanning, setScanning] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useStickyState("patrol:query", "");
   const [target, setTarget] = useState<Target | null>(null);
   const [draftStatus, setDraftStatus] = useState<PatrolStatus>("OK");
   const [draftNote, setDraftNote] = useState("");
@@ -117,7 +118,7 @@ export function PatrolDesktop({
   const [flagFormOpen, setFlagFormOpen] = useState(false);
   const [flagReason, setFlagReason] = useState("");
   // 표시용: 미점검만 보기 · 회차 종료 확인
-  const [onlyUnchecked, setOnlyUnchecked] = useState(false);
+  const [onlyUnchecked, setOnlyUnchecked] = useStickyState("patrol:onlyUnchecked", false);
   const [endOpen, setEndOpen] = useState(false);
 
   const round = data.activeRound;
@@ -137,7 +138,7 @@ export function PatrolDesktop({
   const complete = rosterCount > 0 && remaining === 0;
 
   // 룸 칩 필터 — 실데이터에 존재하는 그룹만, 1개 이하면 칩 숨김
-  const [roomFilter, setRoomFilter] = useState<string | null>(null);
+  const [roomFilter, setRoomFilter] = useStickyState<string | null>("patrol:room", null);
   const rooms = useMemo(() => {
     const set = new Set<string>();
     for (const s of data.roster) {
