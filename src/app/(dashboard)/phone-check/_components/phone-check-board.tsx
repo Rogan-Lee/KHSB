@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, X, UserX, ShieldCheck, Loader2, SearchX, Smartphone } from "lucide-react";
@@ -65,7 +66,7 @@ const STATUSES = Object.keys(STATUS_META) as PhoneCheckStatus[];
 export function PhoneCheckBoard({ date, initialRows }: { date: string; initialRows: PhoneCheckRow[] }) {
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useStickyState("phone-check:query", "");
   const [onlyUnchecked, setOnlyUnchecked] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [pending, startTransition] = useTransition();

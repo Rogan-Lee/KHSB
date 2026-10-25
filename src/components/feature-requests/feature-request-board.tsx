@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useTransition, type ReactNode } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -178,8 +179,8 @@ function RequestRow({
 
 export function FeatureRequestBoard({ requests }: { requests: FeatureRequestWithCount[] }) {
   const router = useRouter();
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useStickyState<string>("requests:status", "ALL");
+  const [categoryFilter, setCategoryFilter] = useStickyState<string>("requests:category", "ALL");
 
   const filtered = requests.filter((r) => {
     if (statusFilter !== "ALL" && r.status !== statusFilter) return false;

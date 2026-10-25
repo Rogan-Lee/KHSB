@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { Clock, Plus, ShieldBan, Trash2 } from "lucide-react";
 import {
   deleteAccessRule,
@@ -22,9 +23,9 @@ export function RulesTab({ overview }: { overview: AccessOverview }) {
   const { rules, canManage } = overview;
   const { busyKey, run } = useAccessAction();
   const { confirm, dialog } = useConfirmDialog();
-  const [actionFilter, setActionFilter] = useState<AccessAction | null>(null);
-  const [scopeFilter, setScopeFilter] = useState<AccessScope | null>(null);
-  const [query, setQuery] = useState("");
+  const [actionFilter, setActionFilter] = useStickyState<AccessAction | null>("access-rules:action", null);
+  const [scopeFilter, setScopeFilter] = useStickyState<AccessScope | null>("access-rules:scope", null);
+  const [query, setQuery] = useStickyState("access-rules:query", "");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 

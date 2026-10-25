@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -85,7 +86,7 @@ export function OnlineReportsPanel({
   const [activeStudentId, setActiveStudentId] = useState<string | null>(
     rows[0]?.studentId ?? null
   );
-  const [filter, setFilter] = useState<StudentFilterState>(defaultFilterState);
+  const [filter, setFilter] = useStickyState<StudentFilterState>("online-reports:filter", defaultFilterState);
   const [onlyWithReport, setOnlyWithReport] = useState(false);
   const filterOptions = useMemo(() => deriveFilterOptions(rows), [rows]);
   const [bulkBusy, setBulkBusy] = useState(false);

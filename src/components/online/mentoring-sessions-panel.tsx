@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import Link from "next/link";
 import { ArrowUpRight, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,7 @@ export function MentoringSessionsPanel({
 }: {
   rows: MentoringPanelStudentRow[];
 }) {
-  const [filter, setFilter] = useState<StudentFilterState>(defaultFilterState);
+  const [filter, setFilter] = useStickyState<StudentFilterState>("online-sessions:filter", defaultFilterState);
   // 처음엔 가장 가까운 예정 세션 보유 학생 자동 선택
   const initialActive = useMemo(() => {
     const withUpcoming = rows

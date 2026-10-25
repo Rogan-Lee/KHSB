@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { Button } from "@/components/ui/button";
 import { Input, inputBaseClass } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -54,9 +55,9 @@ const DATE_FIELD_CLASS =
 function EnrollmentTab({ students, enrollments }: { students: StudentBasic[]; enrollments: EnrollmentRow[] }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useStickyState("vocab-enroll:query", "");
   const [reason, setReason] = useState<VocabEnrollReason>("CUSTOM");
-  const [gradeFilter, setGradeFilter] = useState<string>("ALL");
+  const [gradeFilter, setGradeFilter] = useStickyState<string>("vocab-enroll:grade", "ALL");
   const { confirm, dialog } = useConfirmDialog();
 
   const enrolledMap = new Map(enrollments.map((e) => [e.studentId, e]));
@@ -240,7 +241,7 @@ function ScoresTab({ enrollments, scores }: {
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [studentFilter, setStudentFilter] = useState<string>("ALL");
+  const [studentFilter, setStudentFilter] = useStickyState<string>("vocab-scores:student", "ALL");
   const [studentQuery, setStudentQuery] = useState("");
   const [comboOpen, setComboOpen] = useState(false);
   const { confirm, dialog } = useConfirmDialog();

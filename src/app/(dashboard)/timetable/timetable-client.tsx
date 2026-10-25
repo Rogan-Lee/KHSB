@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { getTimetableEntries, getAttendanceAutoBlocks, getStudentSchoolEvents, type SchoolEventInfo } from "@/actions/timetable";
 import { TimetableGrid, TimetableEntry, AutoBlock } from "@/components/timetable/timetable-grid";
 import { DayView } from "@/components/timetable/day-view";
@@ -34,10 +35,10 @@ export function TimetablePageClient({ students, mentors }: Props) {
   const [autoBlocks, setAutoBlocks] = useState<AutoBlock[]>([]);
   const [schoolEvents, setSchoolEvents] = useState<SchoolEventInfo[]>([]);
   const [loading, startTransition] = useTransition();
-  const [viewMode, setViewMode] = useState<ViewMode>("weekly");
+  const [viewMode, setViewMode] = useStickyState<ViewMode>("timetable:view", "weekly");
 
   // Mentor filter
-  const [selectedMentorId, setSelectedMentorId] = useState<string | null>(null);
+  const [selectedMentorId, setSelectedMentorId] = useStickyState<string | null>("timetable:mentor", null);
 
   // Search state
   const [query, setQuery] = useState("");

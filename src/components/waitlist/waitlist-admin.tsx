@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { useRouter } from "next/navigation";
 import type {
   BranchWaitStatus,
@@ -166,7 +167,7 @@ export function WaitlistAdmin({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [tab, setTab] = useState<"entries" | "branches">("entries");
+  const [tab, setTab] = useStickyState<"entries" | "branches">("waitlist:tab", "entries");
   const [error, setError] = useState<string | null>(null);
 
   function run(action: () => Promise<{ ok: boolean; error?: string }>) {
@@ -340,7 +341,7 @@ function EntriesTab({
   run: (a: () => Promise<{ ok: boolean; error?: string }>) => void;
   pending: boolean;
 }) {
-  const [filter, setFilter] = useState<EntryFilter>("WAITING");
+  const [filter, setFilter] = useStickyState<EntryFilter>("waitlist:entryFilter", "WAITING");
   const [editing, setEditing] = useState<Entry | null>(null);
   const [guiding, setGuiding] = useState<Entry | null>(null);
   const [consulting, setConsulting] = useState<Entry | null>(null);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { toast } from "sonner";
 import { useDraft } from "@/hooks/use-draft";
 import { Button } from "@/components/ui/button";
@@ -57,7 +58,7 @@ export function MonthlyNotesPanel({
   const [showForm, setShowForm] = useState(false);
   const [studentQuery, setStudentQuery] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useStickyState("handover-notes:query", "");
 
   const [formDraft, setFormDraft, clearFormDraft] = useDraft<{
     content: string;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -71,7 +72,7 @@ export function DailyLogPanel({
   const [activeStudentId, setActiveStudentId] = useState<string | null>(
     rows.find((r) => !r.log)?.studentId ?? rows[0]?.studentId ?? null
   );
-  const [filter, setFilter] = useState<StudentFilterState>(defaultFilterState);
+  const [filter, setFilter] = useStickyState<StudentFilterState>("online-daily-log:filter", defaultFilterState);
   const [onlyUnrecorded, setOnlyUnrecorded] = useState(false);
   const filterOptions = useMemo(() => deriveFilterOptions(rows), [rows]);
 

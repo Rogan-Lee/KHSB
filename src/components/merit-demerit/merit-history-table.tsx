@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -36,11 +37,6 @@ type MeritRecord = {
   visibleInReport: boolean;
   student: { name: string; grade: string };
 };
-
-const MERIT_FILTER_KEY = "merit-history-filters";
-function loadMeritFilters() {
-  try { return JSON.parse(sessionStorage.getItem(MERIT_FILTER_KEY) ?? "{}"); } catch { return {}; }
-}
 
 const HEAD_CLASS = "h-10 whitespace-nowrap px-x4 t3-medium text-fg-neutral-subtle";
 
@@ -153,8 +149,7 @@ function EditMeritDialog({
 
 export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
   const router = useRouter();
-  const saved = typeof window !== "undefined" ? loadMeritFilters() : {};
-  const [query, setQuery] = useState<string>(saved.q ?? "");
+  const [query, setQuery] = useStickyState("merit-history:query", "");
   const [todayOnly, setTodayOnly] = useState<boolean>(false);
   // "오늘만"은 서버에서 오늘자 전체를 조회한다 (records prop은 최신 50건이라 오늘 기록이 잘릴 수 있음).
   const [todayRecords, setTodayRecords] = useState<MeritRecord[] | null>(null);
@@ -163,10 +158,6 @@ export function MeritHistoryTable({ records }: { records: MeritRecord[] }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [isBulkPending, startBulkTransition] = useTransition();
   const { confirm, dialog } = useConfirmDialog();
-
-  useEffect(() => {
-    try { sessionStorage.setItem(MERIT_FILTER_KEY, JSON.stringify({ q: query })); } catch {}
-  }, [query]);
 
   const q = query.trim().toLowerCase();
   const todayStr = (() => {

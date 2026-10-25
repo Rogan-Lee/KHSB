@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState, useTransition, useEffect } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SortableHeader } from "@/components/ui/sortable-header";
@@ -173,8 +174,8 @@ export function MeritRangeReport() {
   const [to, setTo] = useState(today);
   const [results, setResults] = useState<MeritRecord[] | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [sortKey, setSortKey] = useState<SortKey>("net");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [sortKey, setSortKey] = useStickyState<SortKey>("merit-range:sortKey", "net");
+  const [sortDir, setSortDir] = useStickyState<SortDir>("merit-range:sortDir", "desc");
 
   // 진입 시 기본 기간(최근 1주일)으로 자동 1회 조회 — 빈 화면 대신 바로 결과 표시.
   useEffect(() => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { BarChart3, ChevronDown, GraduationCap, TrendingUp } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -65,11 +66,11 @@ export function AnalyticsDashboard({
   data: OverallAnalytics;
   attendanceStats: { d7: AttendanceTimeStats; d30: AttendanceTimeStats };
 }) {
-  const [tab, setTab] = useState<TabKey>("overview");
+  const [tab, setTab] = useStickyState<TabKey>("analytics:tab", "overview");
   const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useStickyState<string | null>("analytics:student", null);
   const [comboOpen, setComboOpen] = useState(false);
-  const [rangeDays, setRangeDays] = useState<7 | 30>(30);
+  const [rangeDays, setRangeDays] = useStickyState<7 | 30>("analytics:range", 30);
 
   const stayStats = rangeDays === 7 ? attendanceStats.d7 : attendanceStats.d30;
 

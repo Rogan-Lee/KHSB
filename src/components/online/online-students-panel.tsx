@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -108,7 +109,7 @@ export function OnlineStudentsPanel({
   portalOrigin: string;
   canManage: boolean;
 }) {
-  const [filter, setFilter] = useState<StudentFilterState>(defaultFilterState);
+  const [filter, setFilter] = useStickyState<StudentFilterState>("online-students:filter", defaultFilterState);
   const [activeStudentId, setActiveStudentId] = useState<string | null>(
     rows[0]?.studentId ?? null
   );

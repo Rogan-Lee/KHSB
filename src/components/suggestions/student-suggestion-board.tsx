@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Trash2, MessageSquareReply, Loader2, EyeOff, Eye, MessageSquarePlus } from "lucide-react";
@@ -58,8 +59,8 @@ export function StudentSuggestionBoard({
   initial: StaffSuggestionView[];
   canDelete: boolean;
 }) {
-  const [statusFilter, setStatusFilter] = useState<SuggestionStatus | "ALL">("ALL");
-  const [categoryFilter, setCategoryFilter] = useState<SuggestionCategory | "ALL">("ALL");
+  const [statusFilter, setStatusFilter] = useStickyState<SuggestionStatus | "ALL">("suggestions:status", "ALL");
+  const [categoryFilter, setCategoryFilter] = useStickyState<SuggestionCategory | "ALL">("suggestions:category", "ALL");
   const { confirm, dialog } = useConfirmDialog();
 
   const filtered = useMemo(

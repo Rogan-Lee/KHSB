@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,7 +104,7 @@ export function ChecklistManager({ initialTemplates, editable = true }: { initia
   const [deleteTarget, setDeleteTarget] = useState<Template | null>(null);
 
   // 보기 모드: 요일별 개요 / 목록 관리
-  const [view, setView] = useState<"byday" | "list">("byday");
+  const [view, setView] = useStickyState<"byday" | "list">("handover-checklist:view", "byday");
   // 요일별 보기에서 선택된 요일 (기본 오늘)
   const [selectedDay, setSelectedDay] = useState<number>(() => todayKST().getUTCDay());
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -49,8 +50,8 @@ export function MentoringReportTab({ rows }: Props) {
   const [, startTransition] = useTransition();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeStudentId, setActiveStudentId] = useState<string | null>(rows[0]?.studentId ?? null);
-  const [query, setQuery] = useState("");
-  const [showOnlyWithReport, setShowOnlyWithReport] = useState(false);
+  const [query, setQuery] = useStickyState("mentoring-report:query", "");
+  const [showOnlyWithReport, setShowOnlyWithReport] = useStickyState("mentoring-report:onlyWithReport", false);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [enqueuing, setEnqueuing] = useState(false);
   const [enqueueConfirmOpen, setEnqueueConfirmOpen] = useState(false);
