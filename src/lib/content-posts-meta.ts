@@ -61,3 +61,31 @@ export function findAuthorPreset(key: string | null | undefined): AuthorPreset |
   if (!key) return undefined;
   return AUTHOR_PRESETS.find((a) => a.key === key);
 }
+
+/** 유튜브 링크 → 영상 ID (watch · youtu.be · shorts · live · embed). 유튜브가 아니면 null */
+export function youtubeId(url: string | null | undefined): string | null {
+  return (
+    String(url ?? "").match(
+      /(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/))([\w-]{11})/,
+    )?.[1] ?? null
+  );
+}
+
+// 랜딩 홈 '영상' 칸 — 팟캐스트(유튜브) 중 기본 영상 1개(가운데) + 추가 영상 최대 2개(양옆).
+// AppSetting 에 JSON {"main": id, "extra": [id, id]} 로 저장. 없으면 최신 영상 순으로 자동.
+export const LANDING_VIDEOS_KEY = "landing.videos";
+export const LANDING_VIDEO_EXTRA_MAX = 2;
+
+export function parseLandingVideos(value: string | null | undefined): { main: string | null; extra: string[] } {
+  try {
+    const o = JSON.parse(value ?? "");
+    return {
+      main: typeof o?.main === "string" ? o.main : null,
+      extra: Array.isArray(o?.extra)
+        ? o.extra.filter((x: unknown): x is string => typeof x === "string").slice(0, LANDING_VIDEO_EXTRA_MAX)
+        : [],
+    };
+  } catch {
+    return { main: null, extra: [] };
+  }
+}

@@ -65,6 +65,42 @@
 .mf-text .w.on { color: var(--ink); }
 .mf-text .w.em.on { color: var(--brand); }
 
+/* ②-1 영상 — 가운데 한 편을 크게, 양옆은 작고 흐리게. 크기 · 투명도는 landing.js 가 스크롤 위치로 매 프레임 계산
+   (transition 을 걸면 스크롤과 따로 놀아 끊겨 보인다). 레일은 화면 끝까지 펼치고 양옆 여백을 (화면 − 슬라이드)/2 로 둬서
+   처음 · 마지막 영상도 가운데에 선다 */
+.vid-rail { --vid-w: min(900px, 72vw); position: relative; display: flex; gap: 24px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 0 calc(50vw - var(--vid-w) / 2); margin: 0 calc(50% - 50vw); scrollbar-width: none; }
+.vid-rail::-webkit-scrollbar { display: none; }
+.vid-slide { flex: 0 0 var(--vid-w); scroll-snap-align: center; }
+.vid-card { will-change: transform, opacity; }
+.vid-slide:not(.on) { cursor: pointer; }
+.vid-slide:not(.on) .vid-play i, .vid-slide:not(.on) .vid-cap { opacity: 0; }
+.vid-media { position: relative; aspect-ratio: 16 / 9; border-radius: 28px; overflow: hidden; background: var(--night); }
+.vid-media iframe, .vid-play { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.vid-play { padding: 0; background: none; cursor: pointer; }
+.vid-play img { width: 100%; height: 100%; object-fit: cover; }
+.vid-play i { position: absolute; left: 50%; top: 50%; width: 84px; height: 84px; margin: -42px 0 0 -42px; border-radius: 50%; background: var(--brand); transition: transform .25s var(--ease-out), opacity .3s; }
+.vid-play i::after { content: ""; position: absolute; left: 34px; top: 27px; border-style: solid; border-width: 15px 0 15px 24px; border-color: transparent transparent transparent #fff; }
+.on .vid-play:hover i, .on .vid-play:focus-visible i { transform: scale(1.08); }
+.vid-cap { text-align: center; transition: opacity .3s; }
+.vid-title { font-size: clamp(19px, 1.8vw, 24px); font-weight: 800; letter-spacing: -.04em; line-height: 1.4; color: var(--ink); margin-top: 22px; }
+.vid-sum { font-size: 16px; color: var(--dim); line-height: 1.7; margin-top: 8px; }
+.vid-by { font-size: 14px; font-weight: 600; color: var(--faint); margin-top: 8px; }
+.vid-ctl { align-items: center; gap: 12px; margin-top: 32px; }
+.vid-ctl .btn { height: 46px; padding: 0 22px; font-size: 15px; }
+.vid-ctl .vid-arrow[hidden] { display: none; }
+.vid-ctl .vid-arrow:disabled { opacity: .35; cursor: default; box-shadow: none; }
+@media (max-width: 860px) {
+  .vid-rail { --vid-w: 76vw; gap: 10px; }
+  .vid-media { border-radius: 20px; }
+  .vid-play i { width: 64px; height: 64px; margin: -32px 0 0 -32px; }
+  .vid-play i::after { left: 25px; top: 20px; border-width: 12px 0 12px 19px; }
+  .vid-title { margin-top: 16px; }
+}
+
+/* 후기 — 바로 아래가 아이의 하루(회색 면)라 여백을 둔다 */
+#voices { padding-bottom: 140px; }
+@media (max-width: 860px) { #voices { padding-bottom: 100px; } }
+
 /* ③ 아이의 하루 — 스티키 폰 */
 .sc-day { height: 660vh; background: var(--paper-2); }
 .sc-day .sticky { display: flex; align-items: center; }

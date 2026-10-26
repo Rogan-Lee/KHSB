@@ -72,6 +72,7 @@ import {
   type AuthorPreset,
   type ContentPostType,
 } from "@/lib/content-posts-meta";
+import { LandingVideosCard } from "./landing-videos-card";
 
 export type ContentPostRow = {
   id: string;
@@ -132,7 +133,13 @@ function authorModeOf(p: { authorKey: string | null; authorName: string | null }
   return AUTHOR_NONE;
 }
 
-export function ContentPostsAdmin({ posts }: { posts: ContentPostRow[] }) {
+export function ContentPostsAdmin({
+  posts,
+  landingVideos,
+}: {
+  posts: ContentPostRow[];
+  landingVideos: { main: string | null; extra: string[] };
+}) {
   const router = useRouter();
   const [busy, startTransition] = useTransition();
   const [filter, setFilter] = useState<Filter>("all");
@@ -280,6 +287,8 @@ export function ContentPostsAdmin({ posts }: { posts: ContentPostRow[] }) {
           ))}
         </TabsList>
       </Tabs>
+
+      {filter === "podcast" && <LandingVideosCard className="mt-x5" posts={posts} initial={landingVideos} />}
 
       <div className="mt-x5">
         <Toolbar>
