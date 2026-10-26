@@ -26,7 +26,7 @@
   <link rel="preload" as="image" href="photos/bx/hero-mentoring.jpg" fetchpriority="high">
   <link rel="stylesheet" href="landing.css?v=seed4">
   <link rel="stylesheet" href="bx-core.css?v=bx27">
-  <link rel="stylesheet" href="bx-scenes.css?v=bx20">
+  <link rel="stylesheet" href="bx-scenes.css?v=bx26">
 </head>
 <body class="bx" data-page="home" data-gnb="dark">
 <script src="bx-data.js?v=bx25"></script>
@@ -70,42 +70,19 @@
   </div>
 </section>
 
-<!-- ③ 아이의 하루 — 스티키 폰: 단계마다 그 기록이 남는 실제 화면으로 바뀌고, 마지막에 월간 리포트 -->
-<section class="sc sc-day" id="day" data-scene="day" data-rail="아이의 하루">
-  <div class="sticky">
-    <div class="day-grid">
-      <div class="day-copy">
-        <p class="eyebrow">강한선배의 하루 관리</p>
-        <h2 class="day-title">아이의 하루는<br>이렇게 기록됩니다.</h2>
-        <ol class="day-steps" id="daySteps">
-          <li data-i="0"><span class="ds-time">08:52 · 출결</span><b>들어오면 휴대폰부터 맡깁니다</b><p>휴대폰은 관리실에 보관하고, 교시가 시작될 때마다 자리에 있는지 확인합니다.</p></li>
-          <li data-i="1"><span class="ds-time">11:20 · 순찰</span><b>20분마다 자리를 확인합니다</b><p>조는지, 자리를 비웠는지, 바른 자세로 공부하고 있는지 돌면서 봅니다.</p></li>
-          <li data-i="2"><span class="ds-time">15:40 · 상벌점</span><b>생활 규정은 상벌점으로 엄격하게</b><p>지각, 잡담, 자리 이탈은 바로 벌점으로 기록하고, 끝까지 집중한 학생에게는 상점을 줍니다. 모든 상벌점에는 사유와 날짜가 남습니다.</p></li>
-          <li data-i="3"><span class="ds-time">19:30 · 멘토링</span><b>담임 멘토와 1:1 멘토링</b><p>최상위권 대학 재학생 담임 멘토가 매주 공부 계획과 컨디션을 점검합니다.</p></li>
-          <li data-i="4"><span class="ds-time">24:00 · 하원</span><b>마지막 교시까지 같이 있습니다</b><p>방학에는 오전 9시부터 밤 12시까지 관리하고, 아이는 앱에서 오늘의 공부 계획을 끝까지 체크합니다.</p></li>
-          <li data-i="5"><span class="ds-time">매달 · 리포트</span><b>모든 관리는 리포트에 기록됩니다</b><p>한 달 동안의 출결, 순찰, 상벌점, 멘토링 기록을 월간 리포트로 정리해 카카오톡으로 보내드립니다.</p></li>
-        </ol>
-      </div>
-      <div class="day-visual">
-        <div class="phone-wrap">
-        <div class="day-clock" aria-hidden="true">
-          <svg viewBox="0 0 120 120"><circle class="dc-track" cx="60" cy="60" r="52"/><circle class="dc-fill" id="dcFill" cx="60" cy="60" r="52"/></svg>
-          <div class="dc-txt"><b id="dcTime">08:52</b><span id="dcLabel">입실</span></div>
-        </div>
-        <!-- 단계마다 그 기록이 실제로 남는 화면 (photos/ui) -->
-        <figure class="pf day-pf">
-          <img class="on" src="photos/ui/parent-monthly-3.png?v=ui3" alt="월간 리포트의 원생 기록 — 출석과 하루 루틴" loading="lazy">
-          <img src="photos/ui/parent-monthly-4.png?v=ui3" alt="월간 리포트의 순찰 점검 기록" loading="lazy">
-          <img src="photos/ui/portal-points-history.png?v=ui3" alt="학생 앱의 상벌점 · 포인트 내역" loading="lazy">
-          <img src="photos/ui/parent-mentoring.png?v=ui3" alt="담임 멘토가 쓴 멘토링 리포트" loading="lazy">
-          <img src="photos/ui/portal-schedule.png?v=ui3" alt="학생 앱의 내 일정과 공부 계획" loading="lazy">
-          <img src="photos/ui/parent-monthly-top.png?v=ui3" alt="월간 리포트 첫 화면" loading="lazy">
-        </figure>
-        </div>
-        <p class="day-note"><b id="dayCap">월간 리포트 · 원생 기록</b><span>실제 화면 · 이름과 기록은 예시입니다</span></p>
-      </div>
-      </div>
-    </div>
+<!-- ②-1 영상 — 어드민 콘텐츠 > 팟캐스트 '홈페이지 영상'에서 고른 영상을 이 자리에서 재생 (landing.js, 0개면 숨김) -->
+<section class="bx-sec" id="videos" hidden>
+  <div class="bx-head r">
+    <p class="eyebrow">영상으로 만나는 강한선배</p>
+    <h2 class="bx-h2">강한선배 선생님들은<br>학생을 어떻게 지도할까요?</h2>
+    <p class="bx-sub">과목별 공부법부터 사소한 고민까지,<br>학생 <span class="nw">한 명 한 명을</span> 세심하게 살피는 원장님과 선생님들의 이야기를 확인해 보세요.</p>
+  </div>
+  <div class="vid-rail" tabindex="0" role="group" aria-label="강한선배 영상"></div>
+  <!-- 이전 · 영상 더 보기(강한 이야기 > 팟캐스트 · 링크 탭) · 다음 -->
+  <div class="ui-rail-ctl vid-ctl">
+    <button type="button" class="vid-arrow" data-dir="-1" aria-label="이전 영상" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <a class="btn btn-line" href="stories.html?type=podcast,article">영상 더 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+    <button type="button" class="vid-arrow" data-dir="1" aria-label="다음 영상" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></button>
   </div>
 </section>
 
@@ -145,6 +122,60 @@
     <div class="lmq" data-logos="rev" data-dir="right" data-special data-speed="36"></div>
   </div>
   <div class="bx-more r d2"><a class="btn btn-line" href="results.html">합격 결과 자세히 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+</section>
+
+<!-- 후기 -->
+<section class="bx-sec" id="voices" data-rail="후기">
+  <div class="bx-head r">
+    <p class="eyebrow">합격생 · 재원생 후기</p>
+    <h2 class="bx-h2">다녀 본 학생과<br>학부모님 이야기.</h2>
+  </div>
+  <!-- 위: 후기 카드(왼쪽으로) · 아래: 등급 향상 카드(오른쪽으로) — 카드와 흐름은 bx-core.js -->
+  <div class="vfl bleed r">
+    <div class="vrail" data-stories="review" data-mode="reviews" data-limit="12" tabindex="0" role="group" aria-label="합격생 · 재원생 후기"></div>
+    <div class="vrail" data-grades data-lead="rise" data-flow="-1" tabindex="0" role="group" aria-label="성적 향상 사례"></div>
+  </div>
+  <p class="vfl-note">개인정보 보호를 위해 이름은 가렸으며, 화면의 사례는 예시입니다.</p>
+  <div class="bx-more r"><a class="btn btn-line" href="stories.html?type=review">후기 더 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+</section>
+
+<!-- ③ 아이의 하루 — 스티키 폰: 단계마다 그 기록이 남는 실제 화면으로 바뀌고, 마지막에 월간 리포트 -->
+<section class="sc sc-day" id="day" data-scene="day" data-rail="아이의 하루">
+  <div class="sticky">
+    <div class="day-grid">
+      <div class="day-copy">
+        <p class="eyebrow">강한선배의 하루 관리</p>
+        <h2 class="day-title">아이의 하루는<br>이렇게 기록됩니다.</h2>
+        <ol class="day-steps" id="daySteps">
+          <li data-i="0"><span class="ds-time">08:52 · 출결</span><b>들어오면 휴대폰부터 맡깁니다</b><p>휴대폰은 관리실에 보관하고, 교시가 시작될 때마다 자리에 있는지 확인합니다.</p></li>
+          <li data-i="1"><span class="ds-time">11:20 · 순찰</span><b>20분마다 자리를 확인합니다</b><p>조는지, 자리를 비웠는지, 바른 자세로 공부하고 있는지 돌면서 봅니다.</p></li>
+          <li data-i="2"><span class="ds-time">15:40 · 상벌점</span><b>생활 규정은 상벌점으로 엄격하게</b><p>지각, 잡담, 자리 이탈은 바로 벌점으로 기록하고, 끝까지 집중한 학생에게는 상점을 줍니다. 모든 상벌점에는 사유와 날짜가 남습니다.</p></li>
+          <li data-i="3"><span class="ds-time">19:30 · 멘토링</span><b>담임 멘토와 1:1 멘토링</b><p>최상위권 대학 재학생 담임 멘토가 매주 공부 계획과 컨디션을 점검합니다.</p></li>
+          <li data-i="4"><span class="ds-time">24:00 · 하원</span><b>마지막 교시까지 같이 있습니다</b><p>방학에는 오전 9시부터 밤 12시까지 관리하고, 아이는 앱에서 오늘의 공부 계획을 끝까지 체크합니다.</p></li>
+          <li data-i="5"><span class="ds-time">매달 · 리포트</span><b>모든 관리는 리포트에 기록됩니다</b><p>한 달 동안의 출결, 순찰, 상벌점, 멘토링 기록을 월간 리포트로 정리해 카카오톡으로 보내드립니다.</p></li>
+        </ol>
+      </div>
+      <div class="day-visual">
+        <div class="phone-wrap">
+        <div class="day-clock" aria-hidden="true">
+          <svg viewBox="0 0 120 120"><circle class="dc-track" cx="60" cy="60" r="52"/><circle class="dc-fill" id="dcFill" cx="60" cy="60" r="52"/></svg>
+          <div class="dc-txt"><b id="dcTime">08:52</b><span id="dcLabel">입실</span></div>
+        </div>
+        <!-- 단계마다 그 기록이 실제로 남는 화면 (photos/ui) -->
+        <figure class="pf day-pf">
+          <img class="on" src="photos/ui/parent-monthly-3.png?v=ui3" alt="월간 리포트의 원생 기록 — 출석과 하루 루틴" loading="lazy">
+          <img src="photos/ui/parent-monthly-4.png?v=ui3" alt="월간 리포트의 순찰 점검 기록" loading="lazy">
+          <img src="photos/ui/portal-points-history.png?v=ui3" alt="학생 앱의 상벌점 · 포인트 내역" loading="lazy">
+          <img src="photos/ui/parent-mentoring.png?v=ui3" alt="담임 멘토가 쓴 멘토링 리포트" loading="lazy">
+          <img src="photos/ui/portal-schedule.png?v=ui3" alt="학생 앱의 내 일정과 공부 계획" loading="lazy">
+          <img src="photos/ui/parent-monthly-top.png?v=ui3" alt="월간 리포트 첫 화면" loading="lazy">
+        </figure>
+        </div>
+        <p class="day-note"><b id="dayCap">월간 리포트 · 원생 기록</b><span>실제 화면 · 이름과 기록은 예시입니다</span></p>
+      </div>
+      </div>
+    </div>
+  </div>
 </section>
 
 <!-- 실제 앱 화면 — 강한선배 앱 학생 · 학부모님 화면 (photos/ui/manifest.json, 화면이 없으면 섹션 숨김) -->
@@ -289,21 +320,6 @@
   </ol>
 </section>
 
-<!-- 후기 -->
-<section class="bx-sec" id="voices" data-rail="후기">
-  <div class="bx-head r">
-    <p class="eyebrow">합격생 · 재원생 후기</p>
-    <h2 class="bx-h2">다녀 본 학생과<br>학부모님 이야기.</h2>
-  </div>
-  <!-- 위: 후기 카드(왼쪽으로) · 아래: 등급 향상 카드(오른쪽으로) — 카드와 흐름은 bx-core.js -->
-  <div class="vfl bleed r">
-    <div class="vrail" data-stories="review" data-mode="reviews" data-limit="12" tabindex="0" role="group" aria-label="합격생 · 재원생 후기"></div>
-    <div class="vrail" data-grades data-lead="rise" data-flow="-1" tabindex="0" role="group" aria-label="성적 향상 사례"></div>
-  </div>
-  <p class="vfl-note">개인정보 보호를 위해 이름은 가렸으며, 화면의 사례는 예시입니다.</p>
-  <div class="bx-more r"><a class="btn btn-line" href="stories.html?type=review">후기 더 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
-</section>
-
 <!-- 대표 인사말 — 풀 인물 사진 + 패럴랙스 -->
 <section class="bx-sec leader-bx" id="leader" data-rail="원장">
   <div class="lb-grid">
@@ -366,7 +382,7 @@
     </div>
     <a class="btn btn-line r" href="stories.html">전체 이야기 보기<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
   </div>
-  <div class="stg" data-stories="mentor,director,article,podcast" data-limit="3" data-empty="hide"></div>
+  <div class="stg" data-stories="mentor,director,article" data-limit="3" data-empty="hide"></div>
 </section>
 
 <!-- 시즌 모집 -->
@@ -489,7 +505,7 @@
 </dialog>
 
 <script src="mentors-data.js?v=seed6"></script>
-<script src="landing.js?v=bx22"></script>
+<script src="landing.js?v=bx28"></script>
 <script>
   // 학습 공간 라이트박스 (bx-core.js 가 모달을 생성)
   window.BX_GALLERY = [

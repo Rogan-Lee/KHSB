@@ -4,7 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
-import { isContentPostType, isInternalType, type ContentPostType } from "@/lib/content-posts-meta";
+import {
+  isContentPostType,
+  isInternalType,
+  LANDING_VIDEO_EXTRA_MAX,
+  LANDING_VIDEOS_KEY,
+  youtubeId,
+  type ContentPostType,
+} from "@/lib/content-posts-meta";
 
 export type ContentPostInput = {
   type: ContentPostType;
@@ -104,5 +111,32 @@ export async function deleteContentPost(id: string) {
 export async function toggleContentPostVisible(id: string, visible: boolean) {
   await requireStaffSession();
   await prisma.contentPost.update({ where: { id }, data: { visible } });
+  revalidatePath("/contents");
+}
+
+/** 랜딩 홈 영상 칸 — 기본 영상(가운데) + 추가 영상(양옆, 최대 2). 기본 영상을 비우면 자동(최신 영상 순)으로 되돌린다. */
+export async function setLandingVideos(main: string | null, extra: string[]) {
+  await requireStaffSession();
+  if (!main) {
+    await prisma.appSetting.deleteMany({ where: { key: LANDING_VIDEOS_KEY } });
+    revalidatePath("/contents");
+    return;
+  }
+  const ids = [main, ...extra.filter(Boolean)];
+  if (ids.length > 1 + LANDING_VIDEO_EXTRA_MAX) throw new Error(`추가 영상은 ${LANDING_VIDEO_EXTRA_MAX}개까지 고를 수 있습니다`);
+  if (new Set(ids).size !== ids.length) throw new Error("같은 영상을 두 번 고를 수 없습니다");
+  const rows = await prisma.contentPost.findMany({
+    where: { id: { in: ids }, type: "podcast" },
+    select: { url: true },
+  });
+  if (rows.length !== ids.length) throw new Error("영상을 찾을 수 없습니다");
+  if (rows.some((r) => !youtubeId(r.url))) throw new Error("유튜브 링크인 팟캐스트만 고를 수 있습니다");
+
+  const value = JSON.stringify({ main, extra: ids.slice(1) });
+  await prisma.appSetting.upsert({
+    where: { key: LANDING_VIDEOS_KEY },
+    update: { value },
+    create: { key: LANDING_VIDEOS_KEY, value },
+  });
   revalidatePath("/contents");
 }
