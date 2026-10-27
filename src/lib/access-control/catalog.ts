@@ -307,6 +307,16 @@ const KR_PRESETS: KrPreset[] = [
   { id: "kr:wrtn", name: "뤼튼", group: "ai", domains: ["wrtn.ai"], aliases: ["wrtn"] },
 ];
 
+/** 규칙 추가 창의 "추천 묶음" — 학습에 방해되는 대표 서비스 30개 (카카오톡·AI 는 시설마다 달라 뺐다) */
+export const RECOMMENDED_BLOCK_IDS: string[] = [
+  "youtube", "netflix", "kr:tving", "kr:wavve", "kr:coupangplay", "disneyplus", "kr:chzzk", "kr:soop",
+  "instagram", "tiktok", "twitter", "discord",
+  "kr:naver-webtoon", "kr:kakao-webtoon",
+  "kr:dcinside", "kr:fmkorea", "kr:theqoo", "kr:instiz", "kr:natepann", "kr:arcalive", "kr:inven",
+  "leagueoflegends", "kr:nexon", "kr:krafton", "kr:supercell", "roblox", "steam", "kr:hoyoverse",
+  "kr:musinsa", "kr:ably",
+];
+
 /**
  * 차단 우회 방지 규칙.
  *  · iCloud 비공개 릴레이·Firefox DoH 는 "이 이름이 없다(NXDOMAIN)"로 답하면 기기가 스스로 끈다 (각 사 공식 방식).
