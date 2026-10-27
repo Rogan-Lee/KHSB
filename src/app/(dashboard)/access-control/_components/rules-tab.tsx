@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useStickyState } from "@/hooks/use-sticky-state";
 import { Clock, Plus, ShieldBan, Trash2 } from "lucide-react";
 import {
-  deleteAccessRule,
+  deleteAccessRules,
   setAccessRuleEnabled,
   type AccessOverview,
   type AccessRuleView,
@@ -12,12 +12,16 @@ import {
 import type { AccessAction, AccessScope } from "@/lib/access-control/types";
 import { EmptyState, FilterChip, SearchField, Section, StatusBadge, Toolbar } from "@/components/backoffice/ui";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Pager } from "@/components/ui/pager";
 import { useConfirmDialog } from "@/components/suggestions/use-confirm-dialog";
 import { Switch } from "seed-design/ui/switch";
 import { cn } from "@/lib/utils";
 import { RuleDialog } from "./rule-dialog";
 import { RuleScheduleDialog } from "./rule-schedule-dialog";
 import { ActionBadge, KindBadge, scheduleText, studentText, useAccessAction } from "./shared";
+
+const PAGE_SIZE = 10;
 
 export function RulesTab({ overview }: { overview: AccessOverview }) {
   const { rules, canManage } = overview;
@@ -39,6 +43,30 @@ export function RulesTab({ overview }: { overview: AccessOverview }) {
   // 열어 둔 사이 규칙이 지워졌으면 다이얼로그도 닫힌다
   const editing = rules.find((r) => r.id === editingId) ?? null;
 
+  // 필터·검색이 바뀌면 첫 페이지로 돌아가고 선택도 비운다
+  const viewKey = `${actionFilter}|${scopeFilter}|${q}`;
+  const [view, setView] = useState({ key: viewKey, page: 0, picked: new Set<string>() });
+  const { page, picked } = view.key === viewKey ? view : { page: 0, picked: new Set<string>() };
+  const pageCount = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
+  const current = Math.min(page, pageCount - 1);
+  const visible = shown.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE);
+  // 지워진 규칙은 선택에서 저절로 빠진다
+  const pickedRules = shown.filter((r) => picked.has(r.id));
+  const pickedOnPage = visible.filter((r) => picked.has(r.id)).length;
+
+  function setPage(p: number) {
+    setView({ key: viewKey, page: p, picked });
+  }
+
+  function pick(ids: string[], on: boolean) {
+    const next = new Set(picked);
+    for (const id of ids) {
+      if (on) next.add(id);
+      else next.delete(id);
+    }
+    setView({ key: viewKey, page: current, picked: next });
+  }
+
   function toggle(rule: AccessRuleView) {
     run(() => setAccessRuleEnabled(rule.id, !rule.enabled), {
       key: rule.id,
@@ -54,7 +82,21 @@ export function RulesTab({ overview }: { overview: AccessOverview }) {
       destructive: true,
     });
     if (!ok) return;
-    run(() => deleteAccessRule(rule.id), { key: rule.id, success: "규칙을 삭제했어요" });
+    run(() => deleteAccessRules([rule.id]), { key: rule.id, success: "규칙을 삭제했어요" });
+  }
+
+  async function removePicked() {
+    const ok = await confirm({
+      title: `선택한 규칙 ${pickedRules.length}개를 삭제할까요?`,
+      description: "삭제하면 되돌릴 수 없어요. 잠깐만 멈추려면 규칙을 꺼 두세요.",
+      confirmLabel: "삭제",
+      destructive: true,
+    });
+    if (!ok) return;
+    run(() => deleteAccessRules(pickedRules.map((r) => r.id)), {
+      key: "bulk",
+      success: (res) => `규칙 ${res.deleted}개를 삭제했어요`,
+    });
   }
 
   return (
@@ -129,70 +171,104 @@ export function RulesTab({ overview }: { overview: AccessOverview }) {
               <EmptyState compact icon={ShieldBan} title="조건에 맞는 규칙이 없어요" description="필터나 검색어를 바꿔 보세요." />
             )
           ) : (
-            <ul className="divide-y divide-stroke-neutral-muted">
-              {shown.map((r) => (
-                <li key={r.id} className="flex flex-col gap-x3 px-x5 py-x4 sm:flex-row sm:items-start">
-                  <div className="flex min-w-0 flex-1 items-start gap-x3">
-                    {canManage && (
-                      <Switch
-                        size="24"
-                        checked={r.enabled}
-                        disabled={busyKey === r.id}
-                        onCheckedChange={() => toggle(r)}
-                        inputProps={{ "aria-label": `${r.label} ${r.action === "BLOCK" ? "차단" : "허용"} 규칙 사용` }}
-                      />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-x2">
-                        <ActionBadge action={r.action} />
-                        <span className={cn("t4-bold", r.enabled ? "text-fg-neutral" : "text-fg-neutral-subtle")}>
-                          {r.label}
-                        </span>
-                        <KindBadge kind={r.targetKind} />
-                        {r.activeNow && <StatusBadge tone="brand">지금 적용</StatusBadge>}
-                        {r.overriddenNow && <StatusBadge tone="gray">다른 조치가 우선</StatusBadge>}
-                        {!r.enabled && <StatusBadge tone="gray">꺼짐</StatusBadge>}
-                      </div>
-                      <p className="mt-x1 t3-regular tabular-nums text-fg-neutral-subtle">
-                        <span className="t3-medium text-fg-neutral-muted">
-                          {r.student ? studentText(r.student) : "전체"}
-                        </span>
-                        {" · "}
-                        {scheduleText(r)}
-                      </p>
-                      {r.note && <p className="mt-x1_5 t4-regular text-fg-neutral-muted">{r.note}</p>}
-                      {r.createdByName && (
-                        <p className="mt-x1_5 t3-regular text-fg-neutral-subtle">{r.createdByName} 등록</p>
-                      )}
-                    </div>
-                  </div>
-                  {canManage && (
-                    <div className="flex shrink-0 gap-x2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={busyKey === r.id}
-                        onClick={() => setEditingId(r.id)}
-                        className="flex-1 sm:flex-none"
-                      >
-                        <Clock /> 시간 변경
+            <>
+              {canManage && (
+                <div className="flex items-center gap-x3 border-b border-stroke-neutral-muted bg-bg-layer-fill px-x5 py-x2_5">
+                  <Checkbox
+                    checked={pickedOnPage === 0 ? false : pickedOnPage === visible.length ? true : "indeterminate"}
+                    onCheckedChange={(v) => pick(visible.map((r) => r.id), v === true)}
+                    aria-label="이 페이지 규칙 모두 선택"
+                  />
+                  <span className="t3-medium tabular-nums text-fg-neutral-muted">
+                    {pickedRules.length > 0 ? `${pickedRules.length}개 선택` : "이 페이지 모두 선택"}
+                  </span>
+                  {pickedRules.length > 0 && (
+                    <div className="ml-auto flex gap-x2">
+                      <Button size="sm" variant="ghost" disabled={busyKey === "bulk"} onClick={() => pick(pickedRules.map((r) => r.id), false)}>
+                        선택 해제
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={busyKey === r.id}
-                        onClick={() => remove(r)}
-                        className="flex-1 sm:flex-none"
-                      >
-                        <Trash2 /> 삭제
+                      <Button size="sm" variant="secondary" disabled={busyKey === "bulk"} onClick={removePicked}>
+                        <Trash2 /> 선택 삭제
                       </Button>
                     </div>
                   )}
-                </li>
-              ))}
-            </ul>
+                </div>
+              )}
+              <ul className="divide-y divide-stroke-neutral-muted">
+                {visible.map((r) => (
+                  <li key={r.id} className="flex flex-col gap-x3 px-x5 py-x4 sm:flex-row sm:items-start">
+                    <div className="flex min-w-0 flex-1 items-start gap-x3">
+                      {canManage && (
+                        <span className="flex h-6 items-center">
+                          <Checkbox
+                            checked={picked.has(r.id)}
+                            onCheckedChange={(v) => pick([r.id], v === true)}
+                            aria-label={`${r.label} ${r.action === "BLOCK" ? "차단" : "허용"} 규칙 선택`}
+                          />
+                        </span>
+                      )}
+                      {canManage && (
+                        <Switch
+                          size="24"
+                          checked={r.enabled}
+                          disabled={busyKey === r.id}
+                          onCheckedChange={() => toggle(r)}
+                          inputProps={{ "aria-label": `${r.label} ${r.action === "BLOCK" ? "차단" : "허용"} 규칙 사용` }}
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x2">
+                          <ActionBadge action={r.action} />
+                          <span className={cn("t4-bold", r.enabled ? "text-fg-neutral" : "text-fg-neutral-subtle")}>
+                            {r.label}
+                          </span>
+                          <KindBadge kind={r.targetKind} />
+                          {r.activeNow && <StatusBadge tone="brand">지금 적용</StatusBadge>}
+                          {r.overriddenNow && <StatusBadge tone="gray">다른 조치가 우선</StatusBadge>}
+                          {!r.enabled && <StatusBadge tone="gray">꺼짐</StatusBadge>}
+                        </div>
+                        <p className="mt-x1 t3-regular tabular-nums text-fg-neutral-subtle">
+                          <span className="t3-medium text-fg-neutral-muted">
+                            {r.student ? studentText(r.student) : "전체"}
+                          </span>
+                          {" · "}
+                          {scheduleText(r)}
+                        </p>
+                        {r.note && <p className="mt-x1_5 t4-regular text-fg-neutral-muted">{r.note}</p>}
+                        {r.createdByName && (
+                          <p className="mt-x1_5 t3-regular text-fg-neutral-subtle">{r.createdByName} 등록</p>
+                        )}
+                      </div>
+                    </div>
+                    {canManage && (
+                      <div className="flex shrink-0 gap-x2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={busyKey === r.id}
+                          onClick={() => setEditingId(r.id)}
+                          className="flex-1 sm:flex-none"
+                        >
+                          <Clock /> 시간 변경
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={busyKey === r.id}
+                          onClick={() => remove(r)}
+                          className="flex-1 sm:flex-none"
+                        >
+                          <Trash2 /> 삭제
+                        </Button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </Section>
+        <Pager page={current} pageCount={pageCount} onPage={setPage} className="mt-x3" />
       </div>
 
       <div className="rounded-r4 bg-bg-layer-fill px-x5 py-x4">
