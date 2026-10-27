@@ -30,6 +30,8 @@ export type ParentServicesSummary = {
   inquiries: { waitingCount: number };
   /** 수강료 상태 (구버전 서버는 필드가 없다) */
   tuition?: ParentTuitionSummary;
+  /** 주차 등록 메뉴 노출 (주차장 계정이 설정된 시설만, 구버전 서버는 필드가 없다) */
+  parking?: boolean;
 };
 
 // ─── 도시락 ─────────────────────────────────────────────────────────

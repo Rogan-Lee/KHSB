@@ -2,6 +2,7 @@ import { useRouter, type Href } from 'expo-router';
 import {
   Bell,
   CalendarClock,
+  Car,
   Check,
   GraduationCap,
   Headset,
@@ -51,6 +52,7 @@ import { SUPPORT_URL, openHelpPage } from '@/lib/support';
 // 다른 에이전트가 만드는 화면 — typed routes 생성 전에도 컴파일되도록 Href 로 고정
 const ROUTES = {
   tuition: '/(parent)/tuition' as Href,
+  parking: '/(parent)/parking' as Href,
   lunch: '/(parent)/lunch' as Href,
   schedule: '/(parent)/schedule' as Href,
   exams: '/(parent)/exams' as Href,
@@ -109,6 +111,18 @@ export default function ParentMenuScreen() {
       tone: 'info',
       trailing: tuitionTrailing ? <Badge tone={tuitionTrailing.tone}>{tuitionTrailing.label}</Badge> : undefined,
     },
+    // 주차장 계정이 설정된 시설에서만 (구버전 서버는 필드가 없어 숨김)
+    ...(sum?.parking
+      ? [
+          {
+            href: ROUTES.parking,
+            label: '주차 등록',
+            description: '방문 차량 주차 할인 등록',
+            icon: Car,
+            tone: 'gray' as Tone,
+          },
+        ]
+      : []),
     {
       href: ROUTES.lunch,
       label: '점심 도시락',

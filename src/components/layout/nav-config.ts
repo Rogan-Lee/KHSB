@@ -5,6 +5,7 @@ import {
   Building2,
   Calendar,
   CalendarClock,
+  Car,
   CalendarDays,
   ClipboardCheck,
   ClipboardList,
@@ -134,6 +135,8 @@ export const NAV_GROUPS: NavGroup[] = [
       // 시설 와이파이 앱·사이트 차단 — 자습실 운영진 전체 (규칙 변경은 화면 안에서 원장급만)
       { href: "/access-control", label: "사용 통제", icon: ShieldBan, show: isStaff },
       { href: "/lunch", label: "점심 도시락", icon: Utensils },
+      // 학부모 앱 주차 등록 내역·부정 사용 의심 — 자습실 운영진 전체
+      { href: "/parking", label: "주차 등록", icon: Car, show: isStaff },
       // 수강료 청구·수납 — 조회·현장 결제 확인은 직원 전체, 발행·환불·금액 합계는 원장급만 (화면 안에서 구분)
       { href: "/tuition", label: "수강료", icon: Receipt, show: isStaff },
       { href: "/calendar", label: "캘린더", icon: CalendarDays, feature: "calendar" },
