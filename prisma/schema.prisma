@@ -435,6 +435,7 @@ model Student {
   networkRequests      NetworkRequest[]
   phoneCheckRecords    PhoneCheckRecord[]
   parentLinks          ParentLink[]
+  parkingRegistrations ParkingRegistration[]
   tuitionProfile       TuitionProfile?
   tuitionInvoices      TuitionInvoice[]
   accessRules          AccessRule[]
@@ -468,6 +469,7 @@ model AuthUser {
   accounts        AuthAccount[]
   pushTokens      DevicePushToken[]
   parentLinks     ParentLink[] // 학부모 계정 ↔ 자녀 학생 연결
+  parkingRegistrations ParkingRegistration[]
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
@@ -2564,6 +2566,27 @@ model ParentLink {
 
   @@unique([authUserId, studentId])
   @@index([studentId])
+}
+
+// 학부모 주차 등록 — 학부모가 앱에서 차량번호를 넣으면 서버가 주차장 웹할인 사이트에 할인을 적용한다.
+// 하루 한도 계산과 부정 사용 감지(src/lib/parking/rules.ts)의 근거 기록이다.
+model ParkingRegistration {
+  id         String   @id @default(cuid())
+  studentId  String
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  authUserId String // 등록한 학부모 계정
+  authUser   AuthUser @relation(fields: [authUserId], references: [id], onDelete: Cascade)
+  carNo      String // 공백 없는 전체 번호 (예: 12가3456)
+  date       DateTime @db.Date // KST 날짜
+  status     String // PENDING 처리 중 · OK 적용됨 · FAILED 실패 · BLOCKED 한도 초과
+  flags      String[] // 감지된 의심 사유 코드
+  message    String? // 실패·차단 사유
+  createdAt  DateTime @default(now())
+
+  @@index([date])
+  @@index([carNo, date])
+  @@index([studentId, date])
+  @@index([authUserId, createdAt])
 }
 
 // ─────────── 콘텐츠(팟캐스트/아티클) 노출 그릇 (Phase 5) ───────────

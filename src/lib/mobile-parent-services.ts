@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { MobileApiError, requireMobileParent } from "@/lib/mobile-auth";
 import { getParentTuitionSummary } from "@/lib/mobile-parent-tuition";
+import { parkingEnabled } from "@/lib/parking/wdc";
 import { prisma } from "@/lib/prisma";
 import type { ParentTuitionSummary } from "@/lib/tuition/api-types";
 import { todayKST } from "@/lib/utils";
@@ -110,5 +111,7 @@ export async function getParentServicesSummary(authUserId: string, child: Parent
     exams: { openCount: openExamCount, appliedCount: myApplications },
     inquiries: { waitingCount: openInquiries },
     tuition: await tuitionSummary,
+    // 주차 등록 메뉴 노출 여부 — 주차장 계정이 설정된 시설만
+    parking: parkingEnabled(),
   };
 }
