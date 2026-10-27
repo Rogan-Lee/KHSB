@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { buildAdguardConfig, MANAGED_CLIENT_TAG } from "@/lib/access-control/adguard";
-import { BYPASS_RULES, builtinCatalogRules, matchServiceByName, parseAgentCatalog } from "@/lib/access-control/catalog";
+import {
+  BYPASS_RULES,
+  builtinCatalogRules,
+  getCatalogEntry,
+  matchServiceByName,
+  parseAgentCatalog,
+  RECOMMENDED_BLOCK_IDS,
+} from "@/lib/access-control/catalog";
 import { normalizeDomain } from "@/lib/access-control/domain";
 import { EMPTY_POLICY, type DeviceInput, type EffectiveState, type PolicySet } from "@/lib/access-control/types";
 import { mapRequestTarget } from "@/lib/network-adapter";
@@ -248,5 +255,12 @@ describe("장비 입력 검증", () => {
       "junk",
     ]);
     expect(parsed).toEqual({ youtube: ["||youtube.com^"] });
+  });
+});
+
+describe("추천 묶음", () => {
+  it("30개 모두 기본 목록에 있다 (오타면 화면에서 조용히 빠진다)", () => {
+    expect(new Set(RECOMMENDED_BLOCK_IDS).size).toBe(30);
+    expect(RECOMMENDED_BLOCK_IDS.filter((id) => !getCatalogEntry(id))).toEqual([]);
   });
 });

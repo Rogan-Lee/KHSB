@@ -33,6 +33,7 @@ import { DAY_NAMES } from "@/lib/utils";
 
 const PATH = "/access-control";
 const MAX_TARGETS = 30;
+const MAX_DELETE_RULES = 200;
 const MAX_OVERRIDE_ROWS = 60;
 const MAX_OVERRIDE_MINUTES = 24 * 60;
 
@@ -259,16 +260,24 @@ export async function updateAccessRuleSchedule(
   return { ok: true };
 }
 
-/** 규칙 삭제. 원장급. */
-export async function deleteAccessRule(id: string): Promise<{ ok: true } | Fail> {
+/** 규칙 삭제 (한 개·여러 개). 원장급. */
+export async function deleteAccessRules(ids: string[]): Promise<{ ok: true; deleted: number } | Fail> {
   const actor = await fullAccessActor();
-  const rule = await prisma.accessRule.findUnique({ where: { id }, select: { label: true, action: true, studentId: true } });
-  if (!rule) return fail("규칙을 찾을 수 없습니다");
-  await prisma.accessRule.delete({ where: { id } });
+  const unique = [...new Set(Array.isArray(ids) ? ids.filter((id) => typeof id === "string") : [])];
+  if (unique.length === 0) return fail("삭제할 규칙을 골라 주세요");
+  if (unique.length > MAX_DELETE_RULES) return fail(`한 번에 ${MAX_DELETE_RULES}개까지 삭제할 수 있어요`);
+  const rules = await prisma.accessRule.findMany({
+    where: { id: { in: unique } },
+    select: { id: true, label: true, action: true, studentId: true },
+  });
+  if (rules.length === 0) return fail("규칙을 찾을 수 없습니다");
+  await prisma.accessRule.deleteMany({ where: { id: { in: rules.map((r) => r.id) } } });
   await bumpAccessRev();
-  await logAccessEvent("RULE_DELETED", `규칙 삭제 — ${actionLabel(rule.action)} · ${rule.label}`, actor, rule.studentId);
+  await Promise.all(
+    rules.map((r) => logAccessEvent("RULE_DELETED", `규칙 삭제 — ${actionLabel(r.action)} · ${r.label}`, actor, r.studentId)),
+  );
   revalidatePath(PATH);
-  return { ok: true };
+  return { ok: true, deleted: rules.length };
 }
 
 // ─────────────────────────── 일시 조치 (직원) ───────────────────────────

@@ -4,7 +4,7 @@ vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    accessRule: { createMany: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    accessRule: { createMany: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn(), delete: vi.fn(), deleteMany: vi.fn() },
     accessOverride: { createMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     accessDevice: { findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
     accessAgent: { create: vi.fn(), findUnique: vi.fn(), delete: vi.fn() },
@@ -21,7 +21,7 @@ import {
   createAccessRules,
   deleteAccessAgent,
   deleteAccessDevice,
-  deleteAccessRule,
+  deleteAccessRules,
   getAccessOverview,
   registerAccessAgent,
   setAccessHardening,
@@ -53,7 +53,7 @@ describe("권한", () => {
     ["createAccessRules", () => createAccessRules({ action: "BLOCK", targetKind: "ALL", scope: "GLOBAL" })],
     ["setAccessRuleEnabled", () => setAccessRuleEnabled("r1", false)],
     ["updateAccessRuleSchedule", () => updateAccessRuleSchedule("r1", {})],
-    ["deleteAccessRule", () => deleteAccessRule("r1")],
+    ["deleteAccessRules", () => deleteAccessRules(["r1"])],
     ["setAccessPause", () => setAccessPause({ paused: true })],
     ["setAccessHardening", () => setAccessHardening(false)],
     ["registerAccessAgent", () => registerAccessAgent("장비")],
@@ -140,6 +140,28 @@ describe("createAccessRules", () => {
     ] as never);
     const res = await createAccessRules({ action: "BLOCK", targetKind: "SERVICE", targets: ["youtube"], scope: "GLOBAL" });
     expect(res).toEqual({ ok: false, error: "같은 규칙이 이미 있어요" });
+  });
+});
+
+describe("deleteAccessRules", () => {
+  beforeEach(() => as("DIRECTOR"));
+
+  it("찾은 규칙만 한 번에 지우고, 규칙마다 기록을 남긴다", async () => {
+    vi.mocked(prisma.accessRule.findMany).mockResolvedValue([
+      { id: "r1", label: "유튜브", action: "BLOCK", studentId: null },
+      { id: "r2", label: "디시인사이드", action: "BLOCK", studentId: "s1" },
+    ] as never);
+    const res = await deleteAccessRules(["r1", "r2", "r2", "gone"]);
+    expect(res).toEqual({ ok: true, deleted: 2 });
+    expect(prisma.accessRule.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["r1", "r2"] } } });
+    expect(prisma.accessEvent.create).toHaveBeenCalledTimes(2);
+    expect(prisma.appSetting.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { key: "access_control.rev" } }));
+  });
+
+  it("빈 목록·없는 규칙은 거부한다", async () => {
+    expect((await deleteAccessRules([])).ok).toBe(false);
+    expect((await deleteAccessRules(["gone"])).ok).toBe(false);
+    expect(prisma.accessRule.deleteMany).not.toHaveBeenCalled();
   });
 });
 
