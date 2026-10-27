@@ -5,7 +5,7 @@
 
 const MOCK = process.env.PARKING_WDC_URL === "mock" && process.env.NODE_ENV !== "production";
 const BASE = (process.env.PARKING_WDC_URL?.trim() || "http://hsdream.iptime.org/WDC").replace(/\/$/, "");
-/** 적용할 할인 버튼 — 03 = "1시간"(60포인트). 지난 할인 491건이 모두 이 버튼이었다 */
+/** 적용할 할인 버튼 — 03 = "1시간"(60포인트). 직원이 지금까지 쓴 할인도 모두 이 버튼 */
 const DC_CODE = process.env.PARKING_WDC_DC_CODE?.trim() || "03";
 const TIMEOUT_MS = 8000;
 

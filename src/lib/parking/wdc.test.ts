@@ -2,16 +2,16 @@ import { expect, it } from "vitest";
 
 import { parseDiscountPage, samePlate } from "./wdc";
 
-// 2026-10-27 실제 할인 화면에서 필요한 줄만 (번호는 가짜)
+// 2026-10-27 실제 할인 화면에서 필요한 줄만 (번호·포인트는 가짜)
 const PAGE = `
-<input type="hidden" id="freePoint" name="freePoint" class="form-control" value="20540">
+<input type="hidden" id="freePoint" name="freePoint" class="form-control" value="1234">
 <input type="text" name="dcMin" value="1시간 5분" class="form-control" disabled>
-<a role="button" href="discount.do?userID=x&amp;userName=강한선배관리독서&userSetting=2&userSheets=0&carNo=12가3456&freePoint=20540&userPoint=0&dcCode=03" class="btn" onclick="return confirm('1시간 적용합니까?')">1시간</a>`;
+<a role="button" href="discount.do?userID=x&amp;userName=테스트&userSetting=2&userSheets=0&carNo=12가3456&freePoint=1234&userPoint=0&dcCode=03" class="btn" onclick="return confirm('1시간 적용합니까?')">1시간</a>`;
 
 it("할인 화면에서 할인 시간·포인트·버튼을 읽는다", () => {
   const p = parseDiscountPage(PAGE);
   expect(p.dcMin).toBe(65);
-  expect(p.freePoint).toBe(20540);
+  expect(p.freePoint).toBe(1234);
   expect(p.buttons).toHaveLength(1);
   const url = new URL(p.buttons[0], "http://example.com/WDC/");
   expect(url.searchParams.get("dcCode")).toBe("03");
