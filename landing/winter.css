@@ -598,3 +598,11 @@ body:has(.gnb.hide) .w-tabs { top: 0; }
 .bx-rm .wf-demo *, .bx-rm .wf-save, .bx-rm .wf-scan-qr::after { animation: none; }
 .bx-rm .w-bar, .bx-rm .w-tabs { transition: none; }
 .bx-rm .w-hero * { animation: none !important; }
+
+/* 얼리버드 — 수강 금액 카드 · 히어로 수강 금액. data-until 이 지나면 winter.js 가 지운다 */
+.w-facts b small.w-fact-early { color: var(--brand-2); }
+.w-early { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; padding: 14px 16px; border-radius: 16px; background: var(--brand-soft); text-align: left; }
+.we-tag { flex-shrink: 0; margin-top: 1px; font-size: 12px; font-weight: 800; color: #fff; background: var(--ink); border-radius: 999px; padding: 4px 10px; }
+.w-early b { display: block; font-size: 15px; font-weight: 800; letter-spacing: -.02em; line-height: 1.45; color: var(--ink); }
+.w-early b em { font-style: normal; color: var(--brand); }
+.w-early small { display: block; margin-top: 2px; font-size: 13px; color: var(--dim); }

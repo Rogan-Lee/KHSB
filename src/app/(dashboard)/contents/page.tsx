@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { isStaff } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { LANDING_VIDEOS_KEY, parseLandingVideos, toContentPostType } from "@/lib/content-posts-meta";
+import { LANDING_POPUP_KEY, parseLandingPopup } from "@/lib/landing-popup";
 import { ContentPostsAdmin } from "./_components/content-posts-admin";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +13,10 @@ export default async function ContentsPage() {
   if (!session?.user) redirect("/login");
   if (!isStaff(session.user.role)) redirect("/");
 
-  const [posts, landingVideos] = await Promise.all([
+  const [posts, landingVideos, landingPopup] = await Promise.all([
     prisma.contentPost.findMany({ orderBy: { publishedAt: "desc" } }),
     prisma.appSetting.findUnique({ where: { key: LANDING_VIDEOS_KEY }, select: { value: true } }),
+    prisma.appSetting.findUnique({ where: { key: LANDING_POPUP_KEY }, select: { value: true } }),
   ]);
 
   // 페이지 머리(PageHeader)는 "콘텐츠 추가" 버튼이 필터 상태를 쓰므로 ContentPostsAdmin 안에서 그린다.
@@ -35,6 +37,7 @@ export default async function ContentsPage() {
         visible: p.visible,
       }))}
       landingVideos={parseLandingVideos(landingVideos?.value)}
+      landingPopup={parseLandingPopup(landingPopup?.value)}
     />
   );
 }
