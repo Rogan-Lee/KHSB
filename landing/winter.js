@@ -16,6 +16,10 @@
   // 등장 · 글자 효과는 이 표시가 붙은 뒤에만 숨긴다 (스크립트가 실패하면 내용은 그대로 보인다)
   if (!RM) root.classList.add('w-fx');
 
+  // 기한이 있는 안내(얼리버드 등)는 data-until="YYYY-MM-DD"(한국 날짜, 그날까지 보임)가 지나면 지운다
+  const todayKST = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  $$('[data-until]').forEach(el => { if (todayKST > el.dataset.until) el.remove(); });
+
   const svg = (d, w = 20, extra = 'fill="none" stroke="currentColor" stroke-width="2.2"') => `<svg width="${w}" height="${w}" viewBox="0 0 24 24" ${extra}>${d}</svg>`;
   const ICON = {
     prev: svg('<path d="M15 6l-6 6 6 6"/>'),

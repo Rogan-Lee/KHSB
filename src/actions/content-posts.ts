@@ -12,6 +12,7 @@ import {
   youtubeId,
   type ContentPostType,
 } from "@/lib/content-posts-meta";
+import { LANDING_POPUP_KEY, type LandingPopup } from "@/lib/landing-popup";
 
 export type ContentPostInput = {
   type: ContentPostType;
@@ -137,6 +138,37 @@ export async function setLandingVideos(main: string | null, extra: string[]) {
     where: { key: LANDING_VIDEOS_KEY },
     update: { value },
     create: { key: LANDING_VIDEOS_KEY, value },
+  });
+  revalidatePath("/contents");
+}
+
+export type LandingPopupInput = Omit<LandingPopup, "updatedAt">;
+
+/** 랜딩 홈 공지 팝업 저장. 켜려면 제목 · 내용 필수, 버튼은 문구 · 링크를 같이. */
+export async function setLandingPopup(input: LandingPopupInput) {
+  await requireStaffSession();
+  const title = input.title?.trim() ?? "";
+  const body = input.body?.trim() ?? "";
+  const until = input.until?.trim() || null;
+  const ctaLabel = input.ctaLabel?.trim() || null;
+  const ctaUrl = input.ctaUrl?.trim() || null;
+  if (input.active && !title) throw new Error("팝업 제목을 입력해주세요");
+  if (input.active && !body) throw new Error("팝업 내용을 입력해주세요");
+  if (title.length > 100) throw new Error("제목은 100자까지 쓸 수 있습니다");
+  if (body.length > 10000) throw new Error("내용이 너무 깁니다");
+  if (until && (!/^\d{4}-\d{2}-\d{2}$/.test(until) || isNaN(new Date(`${until}T00:00:00+09:00`).getTime()))) {
+    throw new Error("표시 마지막 날이 올바르지 않습니다");
+  }
+  if (!!ctaLabel !== !!ctaUrl) throw new Error("버튼 문구와 링크를 함께 입력해주세요");
+  if (ctaLabel && ctaLabel.length > 30) throw new Error("버튼 문구는 30자까지 쓸 수 있습니다");
+  if (ctaUrl && !HTTP_URL.test(ctaUrl)) throw new Error("버튼 링크는 http:// 또는 https:// 로 시작해야 합니다");
+
+  const popup: LandingPopup = { active: !!input.active, title, body, until, ctaLabel, ctaUrl, updatedAt: new Date().toISOString() };
+  const value = JSON.stringify(popup);
+  await prisma.appSetting.upsert({
+    where: { key: LANDING_POPUP_KEY },
+    update: { value },
+    create: { key: LANDING_POPUP_KEY, value },
   });
   revalidatePath("/contents");
 }

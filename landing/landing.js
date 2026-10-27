@@ -181,3 +181,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     next.addEventListener('click', () => go(active + 1));
   }
 });
+
+// ── 홈 공지 팝업 — 어드민 콘텐츠 > '홈페이지 팝업'이 켜져 있고 기간 안일 때만 ──
+// '오늘 하루 보지 않기'는 이 브라우저에만 저장(KST 날짜 + 팝업 저장 시각 → 내용을 바꾸면 다시 뜬다).
+// 본문 HTML 은 서버(renderContentMarkdown)가 안전하게 렌더한 것.
+document.addEventListener('DOMContentLoaded', async () => {
+  if (!window.KHSB) return;
+  const { api, esc, safeUrl } = window.KHSB;
+  let p = null;
+  try { p = (await api('/api/public/landing-popup')).popup; } catch (e) { /* 못 불러오면 안 띄운다 */ }
+  if (!p) return;
+  const KEY = 'khsbPopupHide';
+  const stamp = `${p.id}|${new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10)}`;
+  try { if (localStorage.getItem(KEY) === stamp) return; } catch (e) { /* 저장소가 막혀 있으면 그냥 띄운다 */ }
+
+  document.body.insertAdjacentHTML('beforeend', `
+<dialog class="bx-modal sheet pop" id="popModal" aria-labelledby="popTitle">
+  <div class="sheet-card pop-card">
+    <div class="pop-scroll">
+      <p class="eyebrow">공지</p>
+      <h2 class="pop-title" id="popTitle">${esc(p.title)}</h2>
+      <div class="pop-body">${p.bodyHtml}</div>
+      ${p.cta ? `<a class="btn btn-brand pop-cta" href="${esc(safeUrl(p.cta.url))}" target="_blank" rel="noopener">${esc(p.cta.label)}</a>` : ''}
+    </div>
+    <div class="pop-foot"><button type="button" data-today>오늘 하루 보지 않기</button><button type="button" data-close>닫기</button></div>
+  </div>
+</dialog>`);
+  const d = document.getElementById('popModal');
+  const root = document.documentElement;
+  d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) d.close(); });
+  d.querySelector('[data-today]').addEventListener('click', () => {
+    try { localStorage.setItem(KEY, stamp); } catch (e) { /* 저장 못 하면 이번만 닫힘 */ }
+    d.close();
+  });
+  d.addEventListener('close', () => root.classList.remove('md-open'));
+  d.showModal();
+  root.classList.add('md-open');
+});

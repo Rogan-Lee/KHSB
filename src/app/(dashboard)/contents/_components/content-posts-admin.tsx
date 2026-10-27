@@ -73,6 +73,8 @@ import {
   type ContentPostType,
 } from "@/lib/content-posts-meta";
 import { LandingVideosCard } from "./landing-videos-card";
+import { LandingPopupButton } from "./landing-popup-button";
+import type { LandingPopup } from "@/lib/landing-popup";
 
 export type ContentPostRow = {
   id: string;
@@ -136,9 +138,11 @@ function authorModeOf(p: { authorKey: string | null; authorName: string | null }
 export function ContentPostsAdmin({
   posts,
   landingVideos,
+  landingPopup,
 }: {
   posts: ContentPostRow[];
   landingVideos: { main: string | null; extra: string[] };
+  landingPopup: LandingPopup | null;
 }) {
   const router = useRouter();
   const [busy, startTransition] = useTransition();
@@ -266,10 +270,13 @@ export function ContentPostsAdmin({
         title="콘텐츠"
         description="후기·선배 아티클·원장 칼럼을 쓰거나 팟캐스트·외부 링크를 올리면 랜딩 페이지와 학생 포털에 보여요."
         actions={
-          <Button onClick={openCreate}>
-            <Plus />
-            콘텐츠 추가
-          </Button>
+          <>
+            <LandingPopupButton initial={landingPopup} />
+            <Button onClick={openCreate}>
+              <Plus />
+              콘텐츠 추가
+            </Button>
+          </>
         }
       />
 
