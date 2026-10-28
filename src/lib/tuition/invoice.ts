@@ -9,8 +9,12 @@ import {
   MAX_PARENT_MESSAGE_LEN,
   normalizeExtraItems,
   parseDateKey,
+  calendarPeriodEnd,
+  daysInclusive,
+  monthEndOf,
   periodEndFor,
   periodsOverlap,
+  type ProratedCharge,
   type TuitionExtraItem,
 } from "@/lib/tuition/calc";
 import { dispatchTuitionEffects, type TuitionEffect } from "@/lib/tuition/effects";
@@ -26,6 +30,11 @@ export type IssueInvoiceInput = {
   periodStart: string;
   /** 1~12. 2 이상이면 선결제 */
   months: number;
+  /**
+   * 첫 달 일할(달 중간 입실 등) — 있으면 이용 기간은 달력 기준(시작일이 속한 달부터 months 번째 달 말일)이고
+   * 첫 달 수강료는 days × dailyRate. months 에는 일할 달도 센다 (15일 이후 입실 = 일할 + 다음 달 = 2)
+   */
+  prorated?: ProratedCharge | null;
   /** 월 수강료(원) */
   monthlyFee: number;
   /** 할인(원) */
@@ -66,11 +75,20 @@ export async function issueInvoice(
   if (!dueDate) throw new TuitionError("INVALID_INPUT", "납부 기한을 확인해 주세요");
   const extra = normalizeExtraItems(input.extraItems);
   if (!extra.ok) throw new TuitionError("INVALID_INPUT", extra.error);
+  const prorated = input.prorated ?? undefined;
+  if (prorated) {
+    if (periodStart.getUTCDate() === 1) throw new TuitionError("INVALID_INPUT", "1일에 시작하는 청구서는 일할로 내지 않습니다");
+    if (prorated.days > daysInclusive(periodStart, monthEndOf(periodStart))) {
+      throw new TuitionError("INVALID_INPUT", "일할 일수가 그달 남은 날보다 많습니다");
+    }
+  }
+  const periodEnd = prorated ? calendarPeriodEnd(periodStart, input.months) : periodEndFor(periodStart, input.months);
   const quote = calcInvoiceAmount({
     monthlyFee: input.monthlyFee,
     months: input.months,
     discount: input.discount,
     extraItems: extra.items,
+    prorated,
   });
   if (!quote.ok) throw new TuitionError("INVALID_INPUT", quote.error);
   const parentMessage = input.parentMessage?.trim() || null;
@@ -78,8 +96,7 @@ export async function issueInvoice(
     throw new TuitionError("INVALID_INPUT", `안내 메시지는 ${MAX_PARENT_MESSAGE_LEN}자 이내로 입력해 주세요`);
   }
 
-  const periodEnd = periodEndFor(periodStart, input.months);
-  const title = invoiceTitle(dateKey(periodStart), dateKey(periodEnd), input.months);
+  const title = invoiceTitle(dateKey(periodStart), dateKey(periodEnd), input.months, prorated?.days);
   const memo = input.memo?.trim().slice(0, MAX_MEMO_LEN) || null;
 
   const invoiceId = await prisma.$transaction(async (tx) => {

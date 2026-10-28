@@ -16,12 +16,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState, FormActions, FormField, Notice, SearchField, Section, StatusBadge } from "@/components/backoffice/ui";
-import { loadTuitionProviderBalance, updateTuitionProfile, updateTuitionSetting } from "@/actions/tuition";
+import { loadTuitionProviderBalance, updateTuitionPricing, updateTuitionProfile, updateTuitionSetting } from "@/actions/tuition";
 import type { AdminTuitionStudent } from "@/lib/tuition/admin-data";
 import { parseReminderDays, type TuitionRefundPolicyValue, type TuitionTaxTypeValue } from "@/lib/tuition/calc";
 import type { TuitionProviderInfo } from "@/lib/tuition/provider-info";
 import type { TuitionSettingValues } from "@/lib/tuition/core";
 import { dotDate, REFUND_POLICY_LABEL, TAX_TYPE_LABEL, won } from "@/lib/tuition/format";
+import { dailyRateOf, DEFAULT_TUITION_PRICING, validatePricing, type TuitionPricing } from "@/lib/tuition/pricing";
 import { callTuition, digitsOnly, MoneyInput, StudentCell, toAmount } from "./shared";
 
 const REFUND_POLICIES: TuitionRefundPolicyValue[] = ["DAILY", "ACADEMY_LAW", "MANUAL"];
@@ -30,7 +31,8 @@ const TAX_TYPES: TuitionTaxTypeValue[] = ["EXEMPT", "TAXABLE"];
 
 const REFUND_POLICY_HINT: Record<TuitionRefundPolicyValue, string> = {
   DAILY: "남은 일수만큼 일할 계산한 금액을 제안해요.",
-  ACADEMY_LAW: "월 단위로 1/3 경과 전 2/3, 1/2 경과 전 1/2, 이후 없음으로 제안해요.",
+  ACADEMY_LAW:
+    "강한선배 환불 규정(학원법)이에요. 이용 중인 달은 1/3 경과 전 2/3, 1/2 경과 전 1/2, 이후 없음, 시작 전인 달은 전액으로 제안해요. 천 원 미만은 절사해요.",
   MANUAL: "제안 없이 환불할 때마다 금액을 직접 입력해요.",
 };
 
@@ -48,9 +50,224 @@ export function SettingsTab({
 }) {
   return (
     <div className="flex flex-col gap-x6">
+      <PricingSection pricing={setting.pricing} />
       <SettingForm setting={setting} onlinePaymentAvailable={onlinePaymentAvailable} provider={provider} />
-      <StudentFees students={students} defaultMonthlyFee={setting.defaultMonthlyFee} />
+      <StudentFees students={students} />
     </div>
+  );
+}
+
+// ─── 수강료 산식 ──────────────────────────────────────────────────────
+
+type PlanDraft = { monthlyFee: string; prepayMonthlyFee: string; basisDays: string };
+type PricingDraft = { plans: Record<string, PlanDraft>; combineFromDay: string; calendarDays: string; dailyRoundUnit: number };
+
+function toPricingDraft(pricing: TuitionPricing): PricingDraft {
+  return {
+    plans: Object.fromEntries(
+      pricing.plans.map((plan) => [
+        plan.key,
+        { monthlyFee: String(plan.monthlyFee), prepayMonthlyFee: String(plan.prepayMonthlyFee), basisDays: String(plan.basisDays) },
+      ]),
+    ),
+    combineFromDay: String(pricing.combineFromDay),
+    calendarDays: String(pricing.calendarDays),
+    dailyRoundUnit: pricing.dailyRoundUnit,
+  };
+}
+
+/** 입력값 → 저장할 산식 (검사는 validatePricing — 서버도 같은 함수로 다시 본다) */
+function fromPricingDraft(draft: PricingDraft, base: TuitionPricing) {
+  const num = (text: string) => (text.trim() === "" ? Number.NaN : Number(text));
+  return validatePricing({
+    plans: base.plans.map((plan) => ({
+      key: plan.key,
+      monthlyFee: num(draft.plans[plan.key].monthlyFee),
+      prepayMonthlyFee: num(draft.plans[plan.key].prepayMonthlyFee),
+      basisDays: num(draft.plans[plan.key].basisDays),
+    })),
+    prepayMonths: base.prepayMonths,
+    calendarDays: num(draft.calendarDays),
+    combineFromDay: num(draft.combineFromDay),
+    dailyRoundUnit: draft.dailyRoundUnit,
+  });
+}
+
+const ROUND_UNITS = [1, 10, 100, 1000];
+const DAYS_INPUT = "h-9 w-20 text-right tabular-nums";
+
+/** 반별 금액과 일할 규칙 — 청구 일정·자동 청구·직접 발행이 모두 이 값으로 계산한다 */
+function PricingSection({ pricing }: { pricing: TuitionPricing }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [draft, setDraft] = useState(() => toPricingDraft(pricing));
+  const checked = fromPricingDraft(draft, pricing);
+  // 화면 미리보기는 고친 값이 맞을 때 그 값으로, 아니면 저장된 값으로
+  const view = checked.ok ? checked.pricing : pricing;
+  const dirty = JSON.stringify(draft) !== JSON.stringify(toPricingDraft(pricing));
+  const isDefault = JSON.stringify(draft) === JSON.stringify(toPricingDraft(DEFAULT_TUITION_PRICING));
+
+  function patchPlan(key: string, change: Partial<PlanDraft>) {
+    setDraft((prev) => ({ ...prev, plans: { ...prev.plans, [key]: { ...prev.plans[key], ...change } } }));
+  }
+
+  function save() {
+    if (!checked.ok) return;
+    startTransition(async () => {
+      const res = await callTuition(() => updateTuitionPricing(checked.pricing));
+      if (res.ok) {
+        toast.success("수강료 산식을 저장했어요. 청구 일정이 새 값으로 다시 계산돼요");
+        router.refresh();
+      } else {
+        toast.error(res.error);
+      }
+    });
+  }
+
+  return (
+    <Section
+      title="수강료 산식"
+      description="청구 일정·자동 청구·직접 발행이 이 값으로 금액을 계산해요. 반은 학생 정보의 ‘반’에 ‘선택’이 들어가면 선택반, 아니면 정규반이에요. 바꾼 값은 앞으로 내는 청구서부터 적용되고, 이미 발행한 청구서는 그대로예요."
+      className="max-w-3xl"
+      flush
+    >
+      <div className="border-t border-stroke-neutral-muted">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>반</TableHead>
+              <TableHead>월 수강료 (원)</TableHead>
+              <TableHead>{pricing.prepayMonths}달 선등록 월 수강료 (원)</TableHead>
+              <TableHead>일할 기준</TableHead>
+              <TableHead className="text-right">일 단가 (1달 · {pricing.prepayMonths}달)</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pricing.plans.map((plan) => {
+              const row = draft.plans[plan.key];
+              const viewPlan = view.plans.find((p) => p.key === plan.key) ?? plan;
+              return (
+                <TableRow key={plan.key}>
+                  <TableCell className="t4-medium">{plan.name}</TableCell>
+                  <TableCell>
+                    <MoneyInput
+                      aria-label={`${plan.name} 월 수강료`}
+                      value={row.monthlyFee}
+                      onValueChange={(digits) => patchPlan(plan.key, { monthlyFee: digits })}
+                      disabled={pending}
+                      className="h-9 w-32"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <MoneyInput
+                      aria-label={`${plan.name} 선등록 월 수강료`}
+                      value={row.prepayMonthlyFee}
+                      onValueChange={(digits) => patchPlan(plan.key, { prepayMonthlyFee: digits })}
+                      disabled={pending}
+                      className="h-9 w-32"
+                    />
+                    <span className="mt-x1 block t3-regular tabular-nums text-fg-neutral-subtle">
+                      {pricing.prepayMonths}달 {won(viewPlan.prepayMonthlyFee * pricing.prepayMonths)}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="flex items-center gap-x1_5 t4-regular">
+                      <Input
+                        aria-label={`${plan.name} 일할 기준 일수`}
+                        inputMode="decimal"
+                        value={row.basisDays}
+                        disabled={pending}
+                        onChange={(e) => patchPlan(plan.key, { basisDays: e.target.value.replace(/[^0-9.]/g, "").slice(0, 4) })}
+                        className={DAYS_INPUT}
+                      />
+                      일
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {won(dailyRateOf(viewPlan.monthlyFee, viewPlan, view))} · {won(dailyRateOf(viewPlan.prepayMonthlyFee, viewPlan, view))}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      <div className="flex flex-col gap-x4 border-t border-stroke-neutral-muted px-x6 py-x4">
+        <div className="flex flex-wrap items-center gap-x6 t4-regular text-fg-neutral">
+          <label className="flex items-center gap-x1_5">
+            <Input
+              aria-label="다음 달과 묶는 입실일"
+              inputMode="numeric"
+              value={draft.combineFromDay}
+              disabled={pending}
+              onChange={(e) => setDraft((prev) => ({ ...prev, combineFromDay: digitsOnly(e.target.value).slice(0, 2) }))}
+              className={DAYS_INPUT}
+            />
+            일 이후 입실이면 다음 달과 묶어 청구
+          </label>
+          <label className="flex items-center gap-x1_5">
+            달력 한 달 =
+            <Input
+              aria-label="달력 한 달 기준 일수"
+              inputMode="decimal"
+              value={draft.calendarDays}
+              disabled={pending}
+              onChange={(e) =>
+                setDraft((prev) => ({ ...prev, calendarDays: e.target.value.replace(/[^0-9.]/g, "").slice(0, 4) }))
+              }
+              className={DAYS_INPUT}
+            />
+            일
+          </label>
+          <label className="flex items-center gap-x1_5">
+            일 단가
+            <select
+              aria-label="일 단가 버림 단위"
+              value={draft.dailyRoundUnit}
+              disabled={pending}
+              onChange={(e) => setDraft((prev) => ({ ...prev, dailyRoundUnit: Number(e.target.value) }))}
+              className="h-9 rounded-r2 px-x2 shadow-[inset_0_0_0_1px_var(--seed-color-stroke-neutral-weak)] tabular-nums"
+            >
+              {ROUND_UNITS.map((unit) => (
+                <option key={unit} value={unit}>
+                  {unit === 1 ? "버림 없음" : `${won(unit)} 미만 버림`}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <ul className="flex list-disc flex-col gap-x1 pl-x5 t3-regular text-fg-neutral-muted">
+          <li>등록 기준은 매월 1일~말일이에요.</li>
+          <li>
+            {view.combineFromDay}일 전에 입실하면 입실일~말일을 일할로, {view.combineFromDay}일 이후에 입실하면 그달 일할과
+            다음 달 한 달을 한 청구서로 보내요.
+          </li>
+          <li>
+            일 단가는 월 수강료 ÷ 일할 기준 일수({view.calendarDays}일은 30일·31일 달 모두)
+            {view.dailyRoundUnit > 1 && `이고 ${won(view.dailyRoundUnit)} 미만은 버려요`}. 일할 기준이 {view.calendarDays}일보다
+            짧은 반은 남은 날을 그 비율로 줄여 세요.
+          </li>
+          <li>{pricing.prepayMonths}달 선등록은 일 단가를 포함한 모든 계산이 할인 금액 기준이에요.</li>
+        </ul>
+
+        {!checked.ok && <Notice tone="bad">{checked.error}</Notice>}
+        <FormActions>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setDraft(toPricingDraft(DEFAULT_TUITION_PRICING))}
+            disabled={pending || isDefault}
+          >
+            기본값으로
+          </Button>
+          <Button size="sm" onClick={save} disabled={pending || !dirty || !checked.ok}>
+            {pending ? "저장 중…" : "산식 저장"}
+          </Button>
+        </FormActions>
+      </div>
+    </Section>
   );
 }
 
@@ -146,7 +363,8 @@ function SettingForm({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [defaultFee, setDefaultFee] = useState(setting.defaultMonthlyFee === null ? "" : String(setting.defaultMonthlyFee));
+  // 반별 금액(수강료 산식)으로 바뀌어 화면에서는 고치지 않는다 — 저장할 때 기존 값을 그대로 보낸다
+  const defaultFee = setting.defaultMonthlyFee === null ? "" : String(setting.defaultMonthlyFee);
   const [dueDays, setDueDays] = useState(String(setting.dueDays));
   const [leadDays, setLeadDays] = useState(String(setting.leadDays));
   const [reminderDays, setReminderDays] = useState(setting.reminderDays);
@@ -164,7 +382,7 @@ function SettingForm({
       return;
     }
     if (autoIssueLeadDays === "" || Number(autoIssueLeadDays) > 30) {
-      toast.error("자동 청구 시점은 이용 종료 0~30일 전으로 입력해 주세요");
+      toast.error("자동 청구 시점은 이용 시작 0~30일 전으로 입력해 주세요");
       return;
     }
     startTransition(async () => {
@@ -201,20 +419,7 @@ function SettingForm({
       className="max-w-3xl"
     >
       <div className="flex flex-col gap-x5">
-        <div className="grid grid-cols-1 gap-x4 sm:grid-cols-3">
-          <FormField
-            label="기본 월 수강료 (원)"
-            htmlFor="tuition-setting-fee"
-            hint="학생별 수강료가 없는 학생에게 적용돼요."
-          >
-            <MoneyInput
-              id="tuition-setting-fee"
-              value={defaultFee}
-              onValueChange={setDefaultFee}
-              disabled={pending}
-              placeholder="미설정"
-            />
-          </FormField>
+        <div className="grid grid-cols-1 gap-x4 sm:grid-cols-2">
           <FormField label="납부 기한 일수" htmlFor="tuition-setting-due" required hint="발행일로부터 며칠 뒤까지 (0~60)">
             <Input
               id="tuition-setting-due"
@@ -226,7 +431,7 @@ function SettingForm({
             />
           </FormField>
           <FormField
-            label="청구 예정 표시 기준 일수"
+            label="청구 일정 표시 기준 일수"
             htmlFor="tuition-setting-lead"
             required
             hint="다음 이용 시작 며칠 전부터 올릴지 (0~60)"
@@ -307,22 +512,23 @@ function SettingForm({
             />
           </div>
           <div className="flex flex-wrap items-center gap-x2 t4-regular text-fg-neutral">
-            <label htmlFor="tuition-setting-auto-lead">이용 종료</label>
+            <label htmlFor="tuition-setting-auto-lead">이용 시작</label>
             <Input
               id="tuition-setting-auto-lead"
               inputMode="numeric"
               value={autoIssueLeadDays}
               disabled={pending || !autoIssueEnabled}
               onChange={(e) => setAutoIssueLeadDays(digitsOnly(e.target.value).slice(0, 2))}
-              aria-label="자동 청구 시점 (이용 종료 며칠 전, 0~30)"
+              aria-label="자동 청구 시점 (이용 시작 며칠 전, 0~30)"
               className="h-9 w-20 tabular-nums"
             />
             <span>일 전에 발행 (0~30)</span>
           </div>
           <p className="t3-regular text-fg-neutral-subtle">
-            이용 기간이 끝나는 학생에게 다음 1개월 청구서를 자동으로 발행하고 학부모에게 알림을 보내요. 2개월 이상
-            선결제와 처음 청구하는 학생은 직접 발행해 주세요. 청구 제외로 둔 학생과 수강료가 정해지지 않은 학생은
-            건너뛰어요.
+            청구 일정에서 ‘확인 필요’가 아닌 학생의 다음 청구서를 자동으로 발행하고 학부모에게 알림을 보내요. 신규는
+            입실일부터 말일까지 일할로(15일 이후 입실은 다음 달까지 한 청구서로) 나가요. 청구 시작일을 정해야 하는 기존
+            원생, 미납이 있는 학생, 퇴원 예정인 학생, 청구 제외로 둔 학생은 건너뛰어요. 세 달 선등록은 처음 한 번 직접
+            발행하면 그 뒤로는 같은 세 달(할인 금액)로 이어서 나가요.
           </p>
         </div>
 
@@ -393,13 +599,7 @@ function SettingForm({
 
 // ─── 학생별 수강료 ─────────────────────────────────────────────────────
 
-function StudentFees({
-  students,
-  defaultMonthlyFee,
-}: {
-  students: AdminTuitionStudent[];
-  defaultMonthlyFee: number | null;
-}) {
+function StudentFees({ students }: { students: AdminTuitionStudent[] }) {
   const [query, setQuery] = useStickyState("tuition-fees:query", "");
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -409,9 +609,9 @@ function StudentFees({
 
   return (
     <Section
-      title="학생별 수강료·결제 기준일"
+      title="학생별 수강료·청구 시작일"
       count={students.length}
-      description="월 수강료를 비워 두면 기본 월 수강료를 써요. 결제 기준일은 다음 청구가 시작되는 날이고, 비워 두면 등록일 기준으로 계산해요. 한 번 납부하면 그 뒤로는 납부한 기간에 이어서 청구돼요. ‘청구 제외’는 청구 예정 목록에서만 빠지고, 직접 발행은 할 수 있어요."
+      description="월 수강료를 비워 두면 반 금액을 써요(형제 할인처럼 다르게 받을 때만 적어 주세요). 청구 시작일은 시스템을 쓰기 전부터 다닌 학생이나 휴원 뒤 복귀처럼 다음 청구를 시작할 날을 정할 때만 써요. 한 번 납부하면 그 뒤로는 납부한 기간에 이어서 청구돼요. 보류 사유를 적으면 자동 청구하지 않고 청구 일정에 ‘확인 필요’로 올려요(지우면 다시 자동). ‘청구 제외’는 청구 일정에서 아예 빠지고, 직접 발행은 할 수 있어요."
       actions={
         <SearchField
           value={query}
@@ -437,15 +637,16 @@ function StudentFees({
               <TableRow>
                 <TableHead>학생</TableHead>
                 <TableHead>월 수강료 (원)</TableHead>
-                <TableHead>결제 기준일</TableHead>
+                <TableHead>청구 시작일</TableHead>
                 <TableHead>청구 제외</TableHead>
+                <TableHead>보류 사유</TableHead>
                 <TableHead>메모</TableHead>
                 <TableHead className="text-right">저장</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((student) => (
-                <StudentFeeRow key={student.id} student={student} defaultMonthlyFee={defaultMonthlyFee} />
+                <StudentFeeRow key={student.id} student={student} />
               ))}
             </TableBody>
           </Table>
@@ -455,24 +656,20 @@ function StudentFees({
   );
 }
 
-function StudentFeeRow({
-  student,
-  defaultMonthlyFee,
-}: {
-  student: AdminTuitionStudent;
-  defaultMonthlyFee: number | null;
-}) {
+function StudentFeeRow({ student }: { student: AdminTuitionStudent }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [fee, setFee] = useState(student.monthlyFee === null ? "" : String(student.monthlyFee));
   const [paused, setPaused] = useState(student.billingPaused);
   const [anchor, setAnchor] = useState(student.billingAnchor ?? "");
+  const [hold, setHold] = useState(student.holdReason ?? "");
   const [memo, setMemo] = useState(student.memo ?? "");
 
   const dirty =
     toAmount(fee) !== student.monthlyFee ||
     paused !== student.billingPaused ||
     anchor !== (student.billingAnchor ?? "") ||
+    hold.trim() !== (student.holdReason ?? "") ||
     memo.trim() !== (student.memo ?? "");
 
   function save() {
@@ -484,6 +681,7 @@ function StudentFeeRow({
           billingPaused: paused,
           memo: memo.trim() || null,
           billingAnchor: anchor || null,
+          holdReason: hold.trim() || null,
         }),
       );
       if (res.ok) {
@@ -506,14 +704,14 @@ function StudentFeeRow({
           value={fee}
           onValueChange={setFee}
           disabled={pending}
-          placeholder={defaultMonthlyFee === null ? "미설정" : `기본 ${won(defaultMonthlyFee)}`}
+          placeholder={`${student.planName} ${won(student.effectiveMonthlyFee)}`}
           className="h-9 w-40"
         />
       </TableCell>
       <TableCell>
         <Input
           type="date"
-          aria-label={`${student.name} 결제 기준일`}
+          aria-label={`${student.name} 청구 시작일`}
           value={anchor}
           disabled={pending}
           onChange={(e) => setAnchor(e.target.value)}
@@ -533,6 +731,17 @@ function StudentFeeRow({
           />
           제외
         </label>
+      </TableCell>
+      <TableCell>
+        <Input
+          aria-label={`${student.name} 보류 사유`}
+          value={hold}
+          maxLength={100}
+          disabled={pending}
+          onChange={(e) => setHold(e.target.value)}
+          placeholder="예: 다음 달 반 변경 상담 중"
+          className="h-9 min-w-40"
+        />
       </TableCell>
       <TableCell>
         <Input

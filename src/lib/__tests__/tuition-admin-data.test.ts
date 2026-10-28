@@ -24,6 +24,7 @@ vi.mock("@/lib/tuition/core", () => ({
 import { prisma } from "@/lib/prisma";
 import { getTuitionAdminData, getTuitionInvoiceDetail, tuitionAttentionOf } from "@/lib/tuition/admin-data";
 import { getTuitionProviderInfo, getTuitionSetting, isOnlinePaymentAvailable, refundMethodFor } from "@/lib/tuition/core";
+import { DEFAULT_TUITION_PRICING } from "@/lib/tuition/pricing";
 
 const day = (key: string) => new Date(`${key}T00:00:00.000Z`);
 const at = (isoString: string) => new Date(isoString);
@@ -43,6 +44,7 @@ const SETTING = {
   autoIssueLeadDays: 3,
   guideText: null,
   onsiteGuideText: null,
+  pricing: DEFAULT_TUITION_PRICING,
 };
 
 type InvoiceOverrides = Record<string, unknown> & { id: string; studentId?: string };
@@ -112,10 +114,33 @@ function studentRecord(id: string, overrides: Record<string, unknown> = {}) {
     grade: "고2",
     seat: null,
     status: "ACTIVE",
+    classGroup: "정규반",
     startDate: day("2026-03-10"),
+    endDate: null,
     tuitionProfile: null,
     ...overrides,
   };
+}
+
+type InvoiceFindManyArgs = { where?: { status?: string }; distinct?: string[] };
+
+/**
+ * 청구서 조회는 세 갈래다 — 목록(where.OR), 청구 일정의 학생별 마지막 납부(distinct), 결제 요청(status REQUESTED).
+ * paid 는 학생별 마지막 납부 줄, open 은 결제 요청 줄 (학생 id·기간·기한만)
+ */
+function mockInvoiceQueries(result: {
+  rows?: unknown[];
+  paid?: { studentId: string; coverageEnd: Date; months?: number }[];
+  open?: { studentId: string; periodEnd: Date; dueDate: Date }[];
+}) {
+  vi.mocked(prisma.tuitionInvoice.findMany).mockImplementation(((args: InvoiceFindManyArgs) =>
+    Promise.resolve(
+      args?.distinct
+        ? (result.paid ?? []).map((row) => ({ months: 1, ...row }))
+        : args?.where?.status === "REQUESTED"
+          ? (result.open ?? []).map((row) => ({ status: "REQUESTED", ...row }))
+          : (result.rows ?? []),
+    )) as never);
 }
 
 beforeEach(() => {
@@ -232,15 +257,24 @@ describe("getTuitionAdminData — 원장급", () => {
       unpaidCount: 2,
       overdueCount: 1,
       refunded: 100_000,
-      billingTargetCount: 0,
+      scheduledAmount: 0,
+      scheduledCount: 0,
+      attentionCount: 0,
     });
     expect(data.counts).toEqual({ monthInvoices: 4, requested: 1, overdue: 1, onsiteRequests: 0, cashReceiptTodo: 0 });
   });
 
-  it("청구 예정 — 납부한 기간이 끝나 가거나 없는 재원생만, 수강료는 학생별 → 기본 순", async () => {
-    vi.mocked(prisma.tuitionInvoice.findMany).mockResolvedValue([
-      invoiceRecord({ id: "inv-open", studentId: "has-open", dueDate: day("2026-10-15") }),
-    ] as never);
+  it("청구 일정 — 발행일이 다가온 학생은 지금 처리, 그 뒤 한 달은 일정으로, 막힌 이유와 함께", async () => {
+    const open = invoiceRecord({ id: "inv-open", studentId: "has-open", dueDate: day("2026-10-15") });
+    mockInvoiceQueries({
+      rows: [open],
+      paid: [
+        { studentId: "ending", coverageEnd: day("2026-10-14") }, // 다음 시작 10/15 — 5일 뒤
+        { studentId: "ended", coverageEnd: day("2026-09-30") },
+        { studentId: "far", coverageEnd: day("2026-10-31") }, // 다음 시작 11/1 — 22일 뒤
+      ],
+      open: [{ studentId: "has-open", periodEnd: open.periodEnd, dueDate: open.dueDate }],
+    });
     vi.mocked(prisma.student.findMany).mockResolvedValue([
       studentRecord("new"),
       studentRecord("ending", { tuitionProfile: { monthlyFee: 280_000, billingPaused: false, memo: "형제 할인" } }),
@@ -249,22 +283,27 @@ describe("getTuitionAdminData — 원장급", () => {
       studentRecord("has-open"),
       studentRecord("paused", { tuitionProfile: { monthlyFee: null, billingPaused: true, memo: null } }),
     ] as never);
-    vi.mocked(prisma.tuitionInvoice.groupBy).mockResolvedValue([
-      { studentId: "ending", _max: { coverageEnd: day("2026-10-14") } }, // 다음 시작 10/15 — 5일 뒤
-      { studentId: "ended", _max: { coverageEnd: day("2026-09-30") } },
-      { studentId: "far", _max: { coverageEnd: day("2026-10-31") } }, // 다음 시작 11/1 — 22일 뒤
-    ] as never);
 
     const data = await getTuitionAdminData({ ym: "2026-10", fullAccess: true, today: TODAY, now: NOW });
 
     expect(vi.mocked(prisma.student.findMany).mock.calls[0][0]?.where).toEqual({ status: "ACTIVE" });
-    expect(data.billingTargets.map((t) => [t.student.id, t.reason, t.periodStart, t.suggestedPeriodEnd, t.monthlyFee])).toEqual([
-      ["ended", "이용 기간 지남", "2026-10-01", "2026-10-31", 300_000],
-      // 납부한 적이 없으면 등록일(3/10) 주기에서 오늘이 속한 회차
-      ["new", "신규", "2026-10-10", "2026-11-09", 300_000],
-      ["ending", "이용 종료 임박", "2026-10-15", "2026-11-14", 280_000],
+    expect(
+      data.billingTargets.map((t) => [t.student.id, t.reason, t.periodStart, t.periodEnd, t.amount, t.issueOn, t.blockers]),
+    ).toEqual([
+      // 이용 시작이 7일 넘게 지났다 — 사람이 판단
+      ["ended", "이용 기간 지남", "2026-10-01", "2026-10-31", 550_000, "2026-09-28", ["STALE"]],
+      // 예전 방식(15일 주기)으로 낸 학생 — 15일부터라 그달 일할 + 11월을 한 청구서로 (일 단가 280,000 ÷ 30.5 → 9,100)
+      ["ending", "이용 종료 임박", "2026-10-15", "2026-11-30", 17 * 9_100 + 280_000, "2026-10-12", []],
+      // 시스템 전부터 다녔는데 낸 기록이 없다 — 청구 시작일을 정해야 한다 (미리보기 다음 달 1일)
+      ["new", "신규", "2026-11-01", "2026-11-30", 550_000, "2026-10-29", ["NO_ANCHOR"]],
     ]);
-    expect(data.kpi?.billingTargetCount).toBe(3);
+    // 미납 청구서가 덮는 기간(~10/31) 다음부터 — 청구 제외 학생은 일정에 없다
+    expect(data.scheduleAhead.map((t) => [t.student.id, t.periodStart, t.issueOn])).toEqual([
+      ["far", "2026-11-01", "2026-10-29"],
+      ["has-open", "2026-11-01", "2026-10-29"],
+    ]);
+    // 이번 달에 납부 기한이 오는 발행 예정은 ending(10/12 발행 → 10/19 기한)뿐 — 막힌 학생은 빼고
+    expect(data.kpi).toMatchObject({ scheduledAmount: 17 * 9_100 + 280_000, scheduledCount: 1, attentionCount: 2 });
 
     expect(data.students).toHaveLength(6);
     expect(data.students.find((s) => s.id === "ending")).toEqual({
@@ -274,8 +313,11 @@ describe("getTuitionAdminData — 원장급", () => {
       seat: null,
       monthlyFee: 280_000,
       effectiveMonthlyFee: 280_000,
+      prepayMonthlyFee: 280_000,
+      planName: "정규반",
       billingPaused: false,
       billingAnchor: null,
+      holdReason: null,
       memo: "형제 할인",
       coverageEnd: "2026-10-14",
       nextPeriodStart: "2026-10-15",
@@ -285,7 +327,7 @@ describe("getTuitionAdminData — 원장급", () => {
     expect(data.students.find((s) => s.id === "paused")).toMatchObject({ billingPaused: true, monthlyFee: null });
   });
 
-  it("결제 기준일을 등록한 학생은 그 날짜 기준으로 청구 예정에 오른다", async () => {
+  it("청구 시작일을 정해 둔 학생은 그 날짜 기준으로 청구 일정에 오른다", async () => {
     const anchored = (id: string, anchor: string) =>
       studentRecord(id, { tuitionProfile: { monthlyFee: null, billingPaused: false, billingAnchor: day(anchor), memo: null } });
     vi.mocked(prisma.student.findMany).mockResolvedValue([
@@ -294,10 +336,12 @@ describe("getTuitionAdminData — 원장급", () => {
       anchored("resume", "2026-10-12"), // 납부 기간(9/30)보다 뒤로 정해 둔 복귀일
       anchored("stale", "2026-09-01"), // 납부 기간(10/14)보다 앞 — 무시하고 이어서 청구
     ] as never);
-    vi.mocked(prisma.tuitionInvoice.groupBy).mockResolvedValue([
-      { studentId: "resume", _max: { coverageEnd: day("2026-09-30") } },
-      { studentId: "stale", _max: { coverageEnd: day("2026-10-14") } },
-    ] as never);
+    mockInvoiceQueries({
+      paid: [
+        { studentId: "resume", coverageEnd: day("2026-09-30") },
+        { studentId: "stale", coverageEnd: day("2026-10-14") },
+      ],
+    });
 
     const data = await getTuitionAdminData({ ym: "2026-10", fullAccess: true, today: TODAY, now: NOW });
 
@@ -312,11 +356,42 @@ describe("getTuitionAdminData — 원장급", () => {
     });
   });
 
-  it("기본 수강료도 없으면 수강료 미설정(null)으로 내려 준다", async () => {
-    vi.mocked(getTuitionSetting).mockResolvedValue({ ...SETTING, defaultMonthlyFee: null });
-    vi.mocked(prisma.student.findMany).mockResolvedValue([studentRecord("new")] as never);
+  it("반 이름으로 요금제를 고른다 — 이번 달 입실한 선택반 학생은 선택반 일 단가로 일할", async () => {
+    vi.mocked(prisma.student.findMany).mockResolvedValue([
+      studentRecord("sel", { classGroup: "선택반", startDate: day("2026-10-05") }),
+    ] as never);
     const data = await getTuitionAdminData({ ym: "2026-10", fullAccess: true, today: TODAY, now: NOW });
-    expect(data.billingTargets[0].monthlyFee).toBeNull();
+    // 10/5~10/31 = 27일 → 27 × 13 ÷ 30.5 = 11.5 → 12일 × 31,500
+    expect(data.billingTargets[0]).toMatchObject({
+      planName: "선택반",
+      monthlyFee: 410_000,
+      prorated: { days: 12, dailyRate: 31_500, calendarDays: 27 },
+      amount: 378_000,
+    });
+    expect(data.students[0]).toMatchObject({ planName: "선택반", effectiveMonthlyFee: 410_000, prepayMonthlyFee: 380_000 });
+  });
+});
+
+describe("getTuitionAdminData — 독촉", () => {
+  const notice = (createdAt: string) => [{ kind: "REMIND", sentCount: 1, createdAt: at(createdAt) }];
+
+  it("자동 안내가 끝났고 마지막 안내로부터 7일이 지난 미납만 독촉 목록에 올린다", async () => {
+    vi.mocked(prisma.tuitionInvoice.findMany).mockResolvedValue([
+      // 기한 20일 지남, 마지막 안내 13일 전
+      invoiceRecord({ id: "inv-dun", dueDate: day("2026-09-20"), notices: notice("2026-09-27T01:00:00.000Z") }),
+      // 기한 20일 지남, 이틀 전에 독촉함
+      invoiceRecord({ id: "inv-recent", studentId: "b", dueDate: day("2026-09-20"), notices: notice("2026-10-08T01:00:00.000Z") }),
+      // 기한 5일 지남 — 아직 자동 안내 기간
+      invoiceRecord({ id: "inv-auto", studentId: "c", dueDate: day("2026-10-05") }),
+      // 안내를 한 번도 못 보낸 오래된 미납
+      invoiceRecord({ id: "inv-never", studentId: "d", dueDate: day("2026-09-01") }),
+    ] as never);
+
+    const data = await getTuitionAdminData({ ym: "2026-10", fullAccess: true, today: TODAY, now: NOW });
+    expect(data.dunningInvoices.map((row) => row.id)).toEqual(["inv-dun", "inv-never"]);
+
+    const staff = await getTuitionAdminData({ ym: "2026-10", fullAccess: false, today: TODAY, now: NOW });
+    expect(staff.dunningInvoices).toEqual([]);
   });
 });
 

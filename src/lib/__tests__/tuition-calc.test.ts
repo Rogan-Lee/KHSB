@@ -6,10 +6,11 @@ import {
   coverageEndAfterRefund,
   dateKey,
   invoiceDisplayStatus,
-  isAutoIssueDue,
   isBillingDue,
   kstDateOf,
   nextPeriodStart,
+  monthEndOf,
+  calendarPeriodEnd,
   normalizeCashReceiptIdentifier,
   normalizeExtraItems,
   parseDateKey,
@@ -153,6 +154,73 @@ describe("suggestRefund", () => {
     expect(suggestRefund({ ...three, lastUsedDate: d("2026-11-20") }).amount).toBe(1_380_000);
     // 12월 31일 중 3일 이용 → 11월 0, 12월 460000, 1월 690000
     expect(suggestRefund({ ...three, lastUsedDate: d("2026-12-03") }).amount).toBe(1_150_000);
+  });
+
+  it("강한선배 환불 규정 예시 그대로 (교습기간 30일 · 정규반 550,000원, 천 원 미만 절사)", () => {
+    const regular = {
+      policy: "ACADEMY_LAW" as const,
+      paidAmount: 550_000,
+      refundable: 550_000,
+      periodStart: d("2026-11-01"),
+      periodEnd: d("2026-11-30"),
+      months: 1,
+    };
+    expect(suggestRefund({ ...regular, lastUsedDate: null }).amount).toBe(550_000);
+    // 9일 수강 → 1/3 경과 전 2/3: 366,666 → 366,000
+    const nine = suggestRefund({ ...regular, lastUsedDate: d("2026-11-09") });
+    expect(nine.amount).toBe(366_000);
+    expect(nine.lines).toEqual([
+      expect.objectContaining({ label: null, totalDays: 30, usedDays: 9, rule: "TWO_THIRDS", amount: 366_000 }),
+    ]);
+    expect(nine.basis).toBe("학원법 구간식 — 30일 중 9일 이용(1/3 경과 전 2/3) 366,000원 (천 원 미만 절사)");
+    // 딱 1/3(10일)이 지나면 1/2 구간
+    expect(suggestRefund({ ...regular, lastUsedDate: d("2026-11-10") }).lines[0].rule).toBe("HALF");
+    expect(suggestRefund({ ...regular, lastUsedDate: d("2026-11-14") }).amount).toBe(275_000);
+    expect(suggestRefund({ ...regular, lastUsedDate: d("2026-11-15") }).amount).toBe(0);
+  });
+
+  it("세 달 선등록 — 이용 중인 달은 구간, 남은 달은 전액, 나머지 원 단위는 마지막 달 몫", () => {
+    const s = suggestRefund({
+      policy: "ACADEMY_LAW",
+      paidAmount: 1_530_001,
+      refundable: 1_530_001,
+      periodStart: d("2027-01-01"),
+      periodEnd: d("2027-03-31"),
+      months: 3,
+      lastUsedDate: d("2027-01-09"),
+    });
+    expect(s.lines.map((line) => [line.label, line.rule, line.share, line.amount])).toEqual([
+      ["1개월차", "TWO_THIRDS", 510_000, 340_000],
+      ["2개월차", "FULL", 510_000, 510_000],
+      ["3개월차", "FULL", 510_001, 510_001],
+    ]);
+    expect(s.amount).toBe(1_360_001);
+    expect(s.basis).toContain("시작 전 2개월 전액 1,020,001원");
+  });
+
+  it("일할 첫 달이 있는 청구서(15일 이후 입실) — 첫 구간은 입실일~말일, 다음 달 몫은 월 수강료", () => {
+    // 10/20~11/30 · 12일 × 18,000 + 550,000 = 766,000
+    const combined = {
+      policy: "ACADEMY_LAW" as const,
+      paidAmount: 766_000,
+      refundable: 766_000,
+      periodStart: d("2026-10-20"),
+      periodEnd: d("2026-11-30"),
+      months: 2,
+      monthlyFee: 550_000,
+    };
+    const s = suggestRefund({ ...combined, lastUsedDate: d("2026-10-22") });
+    expect(s.lines.map((line) => [line.label, dateKey(line.start), dateKey(line.end), line.share, line.rule, line.amount])).toEqual([
+      // 12일 중 3일 이용(1/3 전) → 216,000 × 2/3 = 144,000
+      ["1개월차", "2026-10-20", "2026-10-31", 216_000, "TWO_THIRDS", 144_000],
+      ["2개월차", "2026-11-01", "2026-11-30", 550_000, "FULL", 550_000],
+    ]);
+    expect(s.amount).toBe(694_000);
+  });
+
+  it("환불 가능 금액을 넘으면 깎고, 깎기 전 합계를 남긴다", () => {
+    const s = suggestRefund({ ...base, refundable: 100_000, policy: "ACADEMY_LAW", lastUsedDate: d("2026-11-05") });
+    expect(s).toMatchObject({ amount: 100_000, cappedFrom: 460_000 });
   });
 });
 
@@ -313,13 +381,27 @@ describe("추가 청구 항목 · 세금 · 자동 청구", () => {
     expect(splitTax(690_000, "EXEMPT")).toEqual({ supplyAmount: 690_000, taxAmount: 0 });
   });
 
-  it("자동 청구 — 이용 종료 N일 전부터, 지난 지 7일까지만", () => {
-    const end = d("2026-11-30");
-    expect(isAutoIssueDue(end, d("2026-11-26"), 3)).toBe(false);
-    expect(isAutoIssueDue(end, d("2026-11-27"), 3)).toBe(true);
-    expect(isAutoIssueDue(end, d("2026-11-30"), 3)).toBe(true);
-    expect(isAutoIssueDue(end, d("2026-12-07"), 3)).toBe(true);
-    expect(isAutoIssueDue(end, d("2026-12-08"), 3)).toBe(false);
+  it("달력 기준 기간 — 그달 말일, 시작한 달부터 N번째 달 말일", () => {
+    expect(dateKey(monthEndOf(d("2027-02-10")))).toBe("2027-02-28");
+    expect(dateKey(calendarPeriodEnd(d("2026-10-20"), 1))).toBe("2026-10-31");
+    expect(dateKey(calendarPeriodEnd(d("2026-10-20"), 2))).toBe("2026-11-30");
+    expect(dateKey(calendarPeriodEnd(d("2026-11-01"), 3))).toBe("2027-01-31");
+  });
+
+  it("일할 청구 — 첫 달은 일수 × 일 단가(월 수강료를 넘지 않게), 나머지 달은 월 수강료", () => {
+    // 정규반 10/7 입실: 25일 × 18,000
+    expect(calcInvoiceAmount({ monthlyFee: 550_000, months: 1, prorated: { days: 25, dailyRate: 18_000 } })).toMatchObject({
+      ok: true,
+      tuition: 450_000,
+    });
+    // 10/20 입실: 12일 일할 + 11월 한 달
+    expect(calcInvoiceAmount({ monthlyFee: 550_000, months: 2, prorated: { days: 12, dailyRate: 18_000 } })).toMatchObject({
+      tuition: 216_000 + 550_000,
+    });
+    expect(calcInvoiceAmount({ monthlyFee: 550_000, months: 1, prorated: { days: 31, dailyRate: 18_000 } })).toMatchObject({
+      tuition: 550_000,
+    });
+    expect(calcInvoiceAmount({ monthlyFee: 550_000, months: 1, prorated: { days: 0, dailyRate: 18_000 } }).ok).toBe(false);
   });
 });
 

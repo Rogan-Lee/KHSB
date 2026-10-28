@@ -19,10 +19,11 @@ import { InvoiceDetailDialog } from "./invoice-detail-dialog";
 import { InvoicesTab } from "./invoices-tab";
 import { IssueDialog } from "./issue-dialog";
 import { OnsiteTab } from "./onsite-tab";
+import { OverviewTab } from "./overview-tab";
 import { RefundsTab } from "./refunds-tab";
 import { SettingsTab } from "./settings-tab";
 
-type Tab = "invoices" | "onsite" | "billing" | "refunds" | "cashReceipts" | "settings";
+type Tab = "overview" | "invoices" | "onsite" | "billing" | "refunds" | "cashReceipts" | "settings";
 
 /** 금액 카드 — 다섯 칸으로 나뉘는 폭에서도 억 단위 숫자가 넘치지 않게 한 단계 작은 글자를 쓴다 */
 function Money({ value }: { value: number }) {
@@ -31,15 +32,19 @@ function Money({ value }: { value: number }) {
 
 export function TuitionAdmin({ data, fullAccess }: { data: TuitionAdminData; fullAccess: boolean }) {
   const { ym, kpi, counts } = data;
-  const [storedTab, setTab] = useStickyState<Tab>("tuition-admin:tab", "invoices");
+  // 원장급은 한눈에 보기부터
+  const [storedTab, setTab] = useStickyState<Tab>("tuition-admin:tab", fullAccess ? "overview" : "invoices");
   const [detailId, setDetailId] = useState<string | null>(null);
   const [issueOpen, setIssueOpen] = useState(false);
 
-  // 청구 예정·설정은 원장급에게만 탭 자체를 만들지 않는다 (데이터도 내려오지 않는다)
+  // 한눈에 보기·청구 일정·설정은 원장급에게만 탭 자체를 만들지 않는다 (데이터도 내려오지 않는다)
   const tabs: { key: Tab; label: string; badge?: number }[] = [
+    ...(fullAccess && data.dashboard ? [{ key: "overview" as const, label: "한눈에 보기" }] : []),
     { key: "invoices", label: "청구·수납" },
     { key: "onsite", label: "현장 결제", badge: counts.onsiteRequests },
-    ...(fullAccess ? [{ key: "billing" as const, label: "청구 예정", badge: data.billingTargets.length }] : []),
+    ...(fullAccess
+      ? [{ key: "billing" as const, label: "청구 일정", badge: data.billingTargets.length + data.dunningInvoices.length }]
+      : []),
     { key: "refunds", label: "환불", badge: data.refunds.filter((refund) => refund.unresolved).length },
     { key: "cashReceipts", label: "현금영수증", badge: counts.cashReceiptTodo },
     ...(fullAccess ? [{ key: "settings" as const, label: "설정" }] : []),
@@ -96,7 +101,16 @@ export function TuitionAdmin({ data, fullAccess }: { data: TuitionAdminData; ful
 
       {kpi ? (
         <StatCards cols={5} className="mb-x6">
-          <StatCard label="청구 금액" value={<Money value={kpi.billed} />} unit="원" sub={`${counts.monthInvoices}건`} />
+          <StatCard
+            label="청구 금액"
+            value={<Money value={kpi.billed} />}
+            unit="원"
+            sub={
+              kpi.scheduledAmount > 0
+                ? `${counts.monthInvoices}건 · 발행 예정 포함 ${won(kpi.billed + kpi.scheduledAmount)}`
+                : `${counts.monthInvoices}건`
+            }
+          />
           <StatCard
             label="수납 금액"
             value={<Money value={kpi.received} />}
@@ -111,7 +125,13 @@ export function TuitionAdmin({ data, fullAccess }: { data: TuitionAdminData; ful
             sub={`${kpi.unpaidCount}건 · 연체 ${kpi.overdueCount}건`}
           />
           <StatCard label="환불 금액" value={<Money value={kpi.refunded} />} unit="원" />
-          <StatCard label="청구 예정" value={kpi.billingTargetCount} unit="명" sub="청구서를 발행할 학생" />
+          <StatCard
+            label="발행 예정"
+            value={<Money value={kpi.scheduledAmount} />}
+            unit="원"
+            tone={kpi.attentionCount > 0 ? "warn" : "gray"}
+            sub={`${kpi.scheduledCount}건 · 확인 필요 ${kpi.attentionCount}명`}
+          />
         </StatCards>
       ) : (
         // 직원에게는 금액 합계가 내려오지 않는다 — 건수만 보여 준다
@@ -139,6 +159,16 @@ export function TuitionAdmin({ data, fullAccess }: { data: TuitionAdminData; ful
       </Tabs>
 
       <div className="mt-x6">
+        {tab === "overview" && data.dashboard && (
+          <OverviewTab
+            dashboard={data.dashboard}
+            ym={ym}
+            today={data.today}
+            autoIssueEnabled={data.setting.autoIssueEnabled}
+            onGoToTab={setTab}
+            onOpenInvoice={setDetailId}
+          />
+        )}
         {tab === "invoices" && (
           <InvoicesTab
             invoices={data.invoices}
@@ -160,10 +190,16 @@ export function TuitionAdmin({ data, fullAccess }: { data: TuitionAdminData; ful
         {tab === "billing" && fullAccess && (
           <BillingTab
             targets={data.billingTargets}
+            ahead={data.scheduleAhead}
+            dunning={data.dunningInvoices}
             today={data.today}
             ym={ym}
             dueDays={data.setting.dueDays}
             leadDays={data.setting.leadDays}
+            autoIssueEnabled={data.setting.autoIssueEnabled}
+            autoIssueLeadDays={data.setting.autoIssueLeadDays}
+            prepayMonths={data.setting.pricing.prepayMonths}
+            onOpenInvoice={setDetailId}
           />
         )}
         {tab === "refunds" && <RefundsTab refunds={data.refunds} onOpenInvoice={setDetailId} />}
@@ -191,6 +227,7 @@ export function TuitionAdmin({ data, fullAccess }: { data: TuitionAdminData; ful
           today={data.today}
           ym={ym}
           dueDays={data.setting.dueDays}
+          prepayMonths={data.setting.pricing.prepayMonths}
           onClose={() => setIssueOpen(false)}
         />
       )}

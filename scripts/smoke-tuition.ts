@@ -568,7 +568,7 @@ async function main() {
     check(dupN.isDuplicate && dupN.refundedAmount === 690_000, "늦게 반영된 결제선생 결제는 중복 — 결제선생으로 전액 자동 취소");
     check(afterN.status === "PAID" && afterN.paidPaymentId !== coN.paymentId && afterN.refundedAmount === 0, "청구서는 현장 결제로 납부 유지");
 
-    console.log("\n16. 결제선생 현금영수증 — 바로 발급 · 동시 클릭 · 응답 유실 · 취소");
+    console.log("\n18. 결제선생 현금영수증 — 바로 발급 · 동시 클릭 · 응답 유실 · 취소");
     const crId = reRequested[0].id;
     const crOf = () => prisma.tuitionCashReceipt.findUniqueOrThrow({ where: { id: crId } });
     const liveReceipts = () => ps.payssamMockCashReceipts().filter((r) => r.canceledAt === null);

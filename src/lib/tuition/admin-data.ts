@@ -21,6 +21,18 @@ import type {
 } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 import {
+  ACTIVITY_LABEL,
+  agingBuckets,
+  DASHBOARD_MONTHS,
+  monthlyTrend,
+  scheduleByDay,
+  type AgingBucket,
+  type DashboardMonth,
+  type ScheduleDay,
+} from "@/lib/tuition/dashboard";
+import { SCHEDULE_BLOCKER_LABEL, type ScheduleBlocker } from "@/lib/tuition/schedule";
+import { loadTuitionSchedule } from "@/lib/tuition/schedule-data";
+import {
   addDays,
   addMonthsClamped,
   dateKey,
@@ -28,9 +40,8 @@ import {
   invoiceDisplayStatus,
   isBillingDue,
   kstDateOf,
-  nextPeriodStart,
+  needsDunning,
   parseDateKey,
-  periodEndFor,
   readExtraItems,
   refundableAmount,
   splitTax,
@@ -196,10 +207,31 @@ export type AdminBillingTarget = {
   coverageEnd: string | null;
   /** 다음 청구서의 이용 시작일 */
   periodStart: string;
-  /** 1개월 청구 시 이용 종료일 */
-  suggestedPeriodEnd: string;
-  /** 학생별 수강료 → 기본 수강료 순. 둘 다 없으면 null ("수강료 미설정") */
-  monthlyFee: number | null;
+  /** 다음 청구서의 이용 종료일 (달력 말일) */
+  periodEnd: string;
+  /** 청구서가 걸친 달 수 (일할 달 포함) */
+  months: number;
+  /** 첫 달이 일할이면 청구 일수·일 단가·그달 남은 날 */
+  prorated: { days: number; dailyRate: number; calendarDays: number } | null;
+  /** 이 청구에 쓰는 월 수강료 (학생별 → 반, 세 달 선등록이면 할인 금액) */
+  monthlyFee: number;
+  /** 한 달 청구의 월 수강료 (학생별 → 반) — 개월 수를 바꿀 때 되돌릴 금액 */
+  regularMonthlyFee: number;
+  /** 세 달 선등록으로 고르면 쓸 월 수강료 */
+  prepayMonthlyFee: number;
+  prepay: boolean;
+  /** 반 이름 (정규반·선택반) */
+  planName: string;
+  /** 청구 금액. 수강료를 모르면 null */
+  amount: number | null;
+  /** 자동 발행일 (이용 시작 N일 전) */
+  issueOn: string;
+  /** 자동 발행을 막는 이유. 비어 있으면 자동 청구가 켜져 있을 때 발행일에 나간다 */
+  blockers: ScheduleBlocker[];
+  /** 퇴원 예정일 */
+  withdrawOn: string | null;
+  /** 보류 사유 */
+  holdReason: string | null;
   reason: BillingTargetReason;
 };
 
@@ -210,16 +242,61 @@ export type AdminTuitionStudent = {
   seat: string | null;
   /** 학생별 수강료 (없으면 기본 수강료를 쓴다) */
   monthlyFee: number | null;
-  /** 학생별 → 기본 순으로 정해진 실제 적용 수강료 */
-  effectiveMonthlyFee: number | null;
+  /** 학생별 → 반 순으로 정해진 실제 적용 수강료 */
+  effectiveMonthlyFee: number;
+  /** 세 달 선등록 월 수강료 (학생별 → 반) */
+  prepayMonthlyFee: number;
+  /** 반 이름 (정규반·선택반) */
+  planName: string;
   billingPaused: boolean;
-  /** 등록해 둔 결제 기준일 (없으면 등록일 기준으로 계산한다) */
+  /** 등록해 둔 청구 시작일 */
   billingAnchor: string | null;
+  /** 보류 사유 — 있으면 자동 청구하지 않는다 */
+  holdReason: string | null;
   memo: string | null;
   coverageEnd: string | null;
   /** 지금 발행한다면 이용 시작일 */
   nextPeriodStart: string;
   hasOpenInvoice: boolean;
+};
+
+export type TuitionDashboard = {
+  /** 최근 DASHBOARD_MONTHS 달 (조회한 달까지, 오래된 달부터) */
+  months: DashboardMonth[];
+  /** 미납 경과일 구간 */
+  aging: AgingBucket[];
+  /** 조회한 달에 납부 기한이 오는 청구서 현황 */
+  issued: {
+    total: number;
+    amount: number;
+    auto: number;
+    manual: number;
+    paid: number;
+    /** 순수납액 */
+    paidAmount: number;
+    requested: number;
+    overdue: number;
+    refunded: number;
+    canceled: number;
+  };
+  /** 지금 발행할 수 있는(막힌 이유 없는) 청구 */
+  dueNow: { count: number; amount: number };
+  /** 지금 처리할 청구 중 막힌 이유별 인원 */
+  attention: { label: string; count: number }[];
+  /** 앞으로 한 달 날짜별 발행 일정 */
+  days: ScheduleDay[];
+  /** 오래 밀린 미납 (최대 6건) */
+  topOverdue: AdminInvoiceRow[];
+  /** 최근 돈 관련 활동 (최대 12건) */
+  activity: {
+    id: string;
+    label: string;
+    detail: string | null;
+    studentName: string | null;
+    actorName: string | null;
+    source: string;
+    createdAt: string;
+  }[];
 };
 
 export type TuitionKpi = {
@@ -235,7 +312,11 @@ export type TuitionKpi = {
   overdueCount: number;
   /** 조회한 달 청구서의 환불 금액 */
   refunded: number;
-  billingTargetCount: number;
+  /** 조회한 달에 납부 기한이 올 발행 예정 금액 (아직 안 낸 청구서, 막힌 학생 제외 — 학생마다 다음 청구까지만 계산) */
+  scheduledAmount: number;
+  scheduledCount: number;
+  /** 지금 처리할 청구 중 자동 발행이 막혀 확인이 필요한 학생 */
+  attentionCount: number;
 };
 
 /** 현금영수증 기록 — 발급은 홈택스 등에서 하고 여기에는 신청 정보·승인번호를 남긴다 */
@@ -302,8 +383,14 @@ export type TuitionAdminData = {
     /** 현금영수증 처리가 남은 수납 건수 */
     cashReceiptTodo: number;
   };
-  /** 원장급만. 직원이면 빈 배열 */
+  /** 원장급만 — 지금 처리할 청구 (발행일이 다가왔거나 기준일이 필요한 학생). 직원이면 빈 배열 */
   billingTargets: AdminBillingTarget[];
+  /** 원장급만 — 그 뒤 한 달 동안의 발행 일정. 직원이면 빈 배열 */
+  scheduleAhead: AdminBillingTarget[];
+  /** 원장급만 — 자동 안내가 끝나 독촉을 보내야 하는 미납. 직원이면 빈 배열 */
+  dunningInvoices: AdminInvoiceRow[];
+  /** 원장급만 — 한눈에 보기. 직원이면 null */
+  dashboard: TuitionDashboard | null;
   /** 원장급만. 직원이면 null */
   kpi: TuitionKpi | null;
   /** 원장급만. 직원이면 빈 배열 */
@@ -427,6 +514,12 @@ export type AdminInvoiceDetail = {
   /** 진행 기록 — 오래된 것부터 */
   events: { id: string; type: string; source: string; actorName: string | null; detail: string | null; createdAt: string }[];
 };
+
+/** 청구 일정 화면에 미리 보여 줄 발행 일정 (오늘부터 며칠 뒤까지) */
+const SCHEDULE_AHEAD_DAYS = 31;
+/** 한눈에 보기 — 최근 활동·오래 밀린 미납 개수 */
+const ACTIVITY_LIMIT = 12;
+const TOP_OVERDUE_LIMIT = 6;
 
 // ─── 조회 열 ───────────────────────────────────────────────────────────
 
@@ -1054,87 +1147,114 @@ export async function getTuitionAdminData(input: {
   };
 
   // 여기부터는 금액 합계와 학생별 수강료 — 원장급에게만 계산한다
-  if (!input.fullAccess) return { ...base, billingTargets: [], kpi: null, students: [] };
+  if (!input.fullAccess) {
+    return { ...base, billingTargets: [], scheduleAhead: [], dunningInvoices: [], dashboard: null, kpi: null, students: [] };
+  }
 
-  const [studentRecords, coverageRecords, receivedAggregate] = await Promise.all([
-    prisma.student.findMany({
-      // 재원 중인 학생 전부 (오프라인·온라인 관리 구분 없이)
-      where: { status: "ACTIVE" },
-      orderBy: { name: "asc" },
-      select: {
-        ...STUDENT_REF_SELECT,
-        startDate: true,
-        tuitionProfile: { select: { monthlyFee: true, billingPaused: true, billingAnchor: true, memo: true } },
-      },
-    }),
-    // 학생별 "납부한 이용 기간의 끝" — 학생당 한 줄만 받는다
-    prisma.tuitionInvoice.groupBy({
-      by: ["studentId"],
-      where: {
-        status: { in: ["PAID", "PARTIALLY_REFUNDED", "REFUNDED"] },
-        coverageEnd: { not: null },
-        student: { status: "ACTIVE" },
-      },
-      _max: { coverageEnd: true },
-    }),
+  const [scheduleStudents, receivedAggregate, historyRecords, eventRecords] = await Promise.all([
+    loadTuitionSchedule(today, setting),
     prisma.tuitionInvoice.aggregate({
       where: { paidAt: { gte: monthStartAt, lt: nextMonthStartAt } },
       _sum: { paidAmount: true },
     }),
+    // 한눈에 보기 — 최근 몇 달 청구서 (금액·상태·납부 시각만)
+    prisma.tuitionInvoice.findMany({
+      where: { dueDate: { gte: addMonthsClamped(monthStart, 1 - DASHBOARD_MONTHS), lte: monthEnd } },
+      select: { dueDate: true, amount: true, status: true, paidAt: true, paidAmount: true, refundedAmount: true },
+    }),
+    prisma.tuitionEvent.findMany({
+      where: { type: { in: Object.keys(ACTIVITY_LABEL) } },
+      orderBy: { createdAt: "desc" },
+      take: ACTIVITY_LIMIT,
+      select: { id: true, invoiceId: true, type: true, source: true, actorName: true, detail: true, createdAt: true },
+    }),
   ]);
-
-  const coverageByStudent = new Map<string, Date>();
-  for (const row of coverageRecords) {
-    if (row._max.coverageEnd) coverageByStudent.set(row.studentId, row._max.coverageEnd);
-  }
-  const openStudentIds = new Set(rows.filter((row) => row.status === "REQUESTED").map((row) => row.student.id));
 
   const students: AdminTuitionStudent[] = [];
   const billingTargets: AdminBillingTarget[] = [];
-  for (const student of studentRecords) {
-    const profile = student.tuitionProfile;
-    const coverageEnd = coverageByStudent.get(student.id) ?? null;
-    const hasOpenInvoice = openStudentIds.has(student.id);
-    const anchor = profile?.billingAnchor ?? null;
-    const nextStart = nextPeriodStart({ coverageEnd, enrolledOn: kstDateOf(student.startDate), today, anchor });
-    const monthlyFee = profile?.monthlyFee ?? setting.defaultMonthlyFee ?? null;
-    const billingPaused = profile?.billingPaused ?? false;
-
+  const scheduleAhead: AdminBillingTarget[] = [];
+  const aheadUntil = addDays(today, SCHEDULE_AHEAD_DAYS);
+  let scheduledAmount = 0;
+  let scheduledCount = 0;
+  for (const student of scheduleStudents) {
     students.push({
       id: student.id,
       name: student.name,
       grade: student.grade,
       seat: student.seat,
-      monthlyFee: profile?.monthlyFee ?? null,
-      effectiveMonthlyFee: monthlyFee,
-      billingPaused,
-      billingAnchor: keyOrNull(anchor),
-      memo: profile?.memo ?? null,
-      coverageEnd: keyOrNull(coverageEnd),
-      nextPeriodStart: dateKey(nextStart),
-      hasOpenInvoice,
+      monthlyFee: student.monthlyFee,
+      effectiveMonthlyFee: student.effectiveMonthlyFee,
+      prepayMonthlyFee: student.prepayMonthlyFee,
+      planName: student.planName,
+      billingPaused: student.billingPaused,
+      billingAnchor: keyOrNull(student.billingAnchor),
+      holdReason: student.holdReason,
+      memo: student.memo,
+      coverageEnd: keyOrNull(student.coverageEnd),
+      nextPeriodStart: dateKey(student.nextPeriodStart),
+      hasOpenInvoice: student.hasOpenInvoice,
     });
 
-    if (billingPaused || hasOpenInvoice || !isBillingDue(nextStart, today, setting.leadDays)) continue;
-    billingTargets.push({
-      student: {
-        id: student.id,
-        name: student.name,
-        grade: student.grade,
-        seat: student.seat,
-        status: student.status,
-      },
-      coverageEnd: keyOrNull(coverageEnd),
-      periodStart: dateKey(nextStart),
-      suggestedPeriodEnd: dateKey(periodEndFor(nextStart, 1)),
-      monthlyFee,
-      reason:
-        coverageEnd === null ? "신규" : coverageEnd.getTime() < today.getTime() ? "이용 기간 지남" : "이용 종료 임박",
+    student.entries.forEach((entry, index) => {
+      const target: AdminBillingTarget = {
+        student: { id: student.id, name: student.name, grade: student.grade, seat: student.seat, status: student.status },
+        coverageEnd: keyOrNull(student.coverageEnd),
+        periodStart: dateKey(entry.periodStart),
+        periodEnd: dateKey(entry.periodEnd),
+        months: entry.months,
+        prorated: entry.prorated,
+        monthlyFee: entry.monthlyFee,
+        regularMonthlyFee: student.effectiveMonthlyFee,
+        prepayMonthlyFee: student.prepayMonthlyFee,
+        prepay: entry.prepay,
+        planName: entry.planName,
+        amount: entry.amount,
+        issueOn: dateKey(entry.issueOn),
+        blockers: entry.blockers,
+        withdrawOn: keyOrNull(student.withdrawOn),
+        holdReason: student.holdReason,
+        reason:
+          entry.kind === "NEW"
+            ? "신규"
+            : entry.periodStart.getTime() <= today.getTime()
+              ? "이용 기간 지남"
+              : "이용 종료 임박",
+      };
+      // 지금 처리할 줄은 학생당 하나(가장 앞 청구) — 표의 입력값이 학생 단위다
+      const actNow =
+        index === 0 &&
+        (entry.blockers.includes("NO_ANCHOR") ||
+          entry.issueOn.getTime() <= today.getTime() ||
+          isBillingDue(entry.periodStart, today, setting.leadDays));
+      if (actNow) billingTargets.push(target);
+      else if (entry.issueOn.getTime() <= aheadUntil.getTime()) scheduleAhead.push(target);
+
+      // 발행 예정 금액 — 오늘 이후 발행일에 나가 납부 기한이 조회한 달에 오는 것
+      if (entry.blockers.length === 0 && entry.amount !== null) {
+        const issueDay = entry.issueOn.getTime() > today.getTime() ? entry.issueOn : today;
+        const due = addDays(issueDay, setting.dueDays);
+        if (due.getTime() >= monthStart.getTime() && due.getTime() <= monthEnd.getTime()) {
+          scheduledAmount += entry.amount;
+          scheduledCount += 1;
+        }
+      }
     });
   }
-  // 이용 시작일이 빠른(더 급한) 학생부터
-  billingTargets.sort(
-    (a, b) => a.periodStart.localeCompare(b.periodStart) || a.student.name.localeCompare(b.student.name, "ko"),
+  // 발행일이 빠른(더 급한) 학생부터
+  const byIssueOn = (a: AdminBillingTarget, b: AdminBillingTarget) =>
+    a.issueOn.localeCompare(b.issueOn) || a.student.name.localeCompare(b.student.name, "ko");
+  billingTargets.sort(byIssueOn);
+  scheduleAhead.sort(byIssueOn);
+
+  // 자동 안내가 끝난 미납 — 마지막 안내로부터 일정 기간이 지나면 독촉을 보내도록 올린다
+  const dunningInvoices = rows.filter(
+    (row) =>
+      row.displayStatus === "OVERDUE" &&
+      needsDunning(
+        parseDateKey(row.dueDate) as Date,
+        row.lastNotice ? kstDateOf(new Date(row.lastNotice.createdAt)) : null,
+        today,
+      ),
   );
 
   const kpi: TuitionKpi = {
@@ -1145,10 +1265,80 @@ export async function getTuitionAdminData(input: {
     unpaidCount: unpaidRows.length,
     overdueCount,
     refunded: monthRows.reduce((sum, row) => sum + row.refundedAmount, 0),
-    billingTargetCount: billingTargets.length,
+    scheduledAmount,
+    scheduledCount,
+    attentionCount: billingTargets.filter((target) => target.blockers.length > 0).length,
   };
 
-  return { ...base, billingTargets, kpi, students };
+  // 최근 활동의 학생 이름 — 기록에는 청구서 id 만 있다
+  const eventInvoiceIds = [...new Set(eventRecords.map((event) => event.invoiceId).filter((id): id is string => !!id))];
+  const eventInvoices = eventInvoiceIds.length
+    ? await prisma.tuitionInvoice.findMany({
+        where: { id: { in: eventInvoiceIds } },
+        select: { id: true, student: { select: { name: true } } },
+      })
+    : [];
+  const studentByInvoice = new Map(eventInvoices.map((invoice) => [invoice.id, invoice.student.name]));
+
+  const live = monthRows.filter((row) => row.status !== "CANCELED");
+  const attention = new Map<string, number>();
+  for (const target of billingTargets) {
+    for (const blocker of target.blockers) {
+      const label = SCHEDULE_BLOCKER_LABEL[blocker];
+      attention.set(label, (attention.get(label) ?? 0) + 1);
+    }
+  }
+  const dueNowTargets = billingTargets.filter(
+    (target) => target.blockers.length === 0 && target.amount !== null && target.issueOn <= dateKey(today),
+  );
+  const dashboard: TuitionDashboard = {
+    months: monthlyTrend(historyRecords, monthStart, today),
+    aging: agingBuckets(
+      rows.filter((row) => row.displayStatus === "OVERDUE"),
+      today,
+    ),
+    issued: {
+      total: live.length,
+      amount: live.reduce((sum, row) => sum + row.amount, 0),
+      auto: live.filter((row) => row.autoIssued).length,
+      manual: live.filter((row) => !row.autoIssued).length,
+      paid: live.filter((row) => row.status === "PAID" || row.status === "PARTIALLY_REFUNDED" || row.status === "REFUNDED").length,
+      paidAmount: live.reduce((sum, row) => sum + row.paidAmount - row.refundedAmount, 0),
+      requested: live.filter((row) => row.displayStatus === "REQUESTED").length,
+      overdue: live.filter((row) => row.displayStatus === "OVERDUE").length,
+      refunded: live.filter((row) => row.status === "REFUNDED" || row.status === "PARTIALLY_REFUNDED").length,
+      canceled: monthRows.length - live.length,
+    },
+    dueNow: {
+      count: dueNowTargets.length,
+      amount: dueNowTargets.reduce((sum, target) => sum + (target.amount ?? 0), 0),
+    },
+    attention: [...attention].map(([label, count]) => ({ label, count })),
+    days: scheduleByDay(
+      [...billingTargets, ...scheduleAhead].map((target) => ({
+        issueOn: target.issueOn,
+        amount: target.amount,
+        blocked: target.blockers.length > 0,
+      })),
+      today,
+      SCHEDULE_AHEAD_DAYS,
+    ),
+    topOverdue: rows
+      .filter((row) => row.displayStatus === "OVERDUE")
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+      .slice(0, TOP_OVERDUE_LIMIT),
+    activity: eventRecords.map((event) => ({
+      id: event.id,
+      label: ACTIVITY_LABEL[event.type] ?? event.type,
+      detail: event.detail,
+      studentName: event.invoiceId ? (studentByInvoice.get(event.invoiceId) ?? null) : null,
+      actorName: event.actorName,
+      source: event.source,
+      createdAt: event.createdAt.toISOString(),
+    })),
+  };
+
+  return { ...base, billingTargets, scheduleAhead, dunningInvoices, dashboard, kpi, students };
 }
 
 // ─── 청구서 상세 ───────────────────────────────────────────────────────

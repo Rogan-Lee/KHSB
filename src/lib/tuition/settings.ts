@@ -1,6 +1,7 @@
 // 수강료 설정 조회 — 단일 행("default"). 행이 없으면 기본값.
 import type { TuitionRefundPolicy, TuitionTaxType } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_TUITION_PRICING, readPricing, type TuitionPricing } from "@/lib/tuition/pricing";
 import { getTuitionProvider } from "@/lib/tuition/provider-registry";
 
 export type TuitionSettingValues = {
@@ -13,11 +14,13 @@ export type TuitionSettingValues = {
   onlinePaymentEnabled: boolean;
   /** 과세 유형 — 청구서를 발행할 때 그 청구서에 스냅샷으로 남는다 */
   taxType: TuitionTaxType;
-  /** 이용 종료 autoIssueLeadDays 일 전에 다음 1개월 청구서를 자동 발행 */
+  /** 다음 이용 시작 autoIssueLeadDays 일 전에 1개월 청구서를 자동 발행 (청구 일정 — schedule.ts) */
   autoIssueEnabled: boolean;
   autoIssueLeadDays: number;
   guideText: string | null;
   onsiteGuideText: string | null;
+  /** 반별 수강료·일할 산식 */
+  pricing: TuitionPricing;
 };
 
 export const TUITION_SETTING_DEFAULTS: TuitionSettingValues = {
@@ -25,13 +28,15 @@ export const TUITION_SETTING_DEFAULTS: TuitionSettingValues = {
   dueDays: 7,
   leadDays: 7,
   reminderDays: "7,3",
-  refundPolicy: "DAILY",
+  // 강한선배 환불 규정(교습비 반환 기준 = 학원법 구간식). 설정을 저장한 적이 없을 때의 기본값
+  refundPolicy: "ACADEMY_LAW",
   onlinePaymentEnabled: true,
   taxType: "EXEMPT",
   autoIssueEnabled: false,
   autoIssueLeadDays: 3,
   guideText: null,
   onsiteGuideText: null,
+  pricing: DEFAULT_TUITION_PRICING,
 };
 
 export async function getTuitionSetting(): Promise<TuitionSettingValues> {
@@ -49,6 +54,7 @@ export async function getTuitionSetting(): Promise<TuitionSettingValues> {
     autoIssueLeadDays: row.autoIssueLeadDays,
     guideText: row.guideText,
     onsiteGuideText: row.onsiteGuideText,
+    pricing: readPricing(row.pricing),
   };
 }
 

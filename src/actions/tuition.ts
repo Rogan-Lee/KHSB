@@ -13,6 +13,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isFullAccess, requireFullAccess, requireStaff } from "@/lib/roles";
 import { getTuitionInvoiceDetail, type AdminInvoiceDetail } from "@/lib/tuition/admin-data";
+import { validatePricing, type TuitionPricing } from "@/lib/tuition/pricing";
 import {
   MAX_INVOICE_AMOUNT,
   MAX_INVOICE_MONTHS,
@@ -21,6 +22,7 @@ import {
   normalizeExtraItems,
   parseDateKey,
   parseReminderDays,
+  type ProratedCharge,
 } from "@/lib/tuition/calc";
 import {
   billUrl,
@@ -62,6 +64,7 @@ const REMINDER_BATCH_MAX = 200;
 const TALK_BATCH_MAX = 100;
 const REASON_MAX = 300;
 const MEMO_MAX = 300;
+const HOLD_REASON_MAX = 100;
 const CALC_BASIS_MAX = 300;
 const GUIDE_TEXT_MAX = 5000;
 const SETTING_DAYS_MAX = 60;
@@ -113,8 +116,10 @@ export type TuitionProfileInput = {
   monthlyFee: number | null;
   billingPaused: boolean;
   memo?: string | null;
-  /** 결제 기준일 YYYY-MM-DD. null 이면 지운다(등록일 기준으로 돌아간다). 생략하면 그대로 둔다 */
+  /** 청구 시작일 YYYY-MM-DD. null 이면 지운다. 생략하면 그대로 둔다 */
   billingAnchor?: string | null;
+  /** 보류 사유. 빈 값·null 이면 보류를 푼다. 생략하면 그대로 둔다 */
+  holdReason?: string | null;
 };
 
 export type TuitionBillingAnchorInput = { studentId: string; billingAnchor: string };
@@ -218,6 +223,16 @@ function parseCashReceipt(raw: unknown): TuitionCashReceiptInput {
   return { purpose, identifier: parsed.identifier };
 }
 
+/** 첫 달 일할 — 없으면 null. 일수·일 단가는 양의 정수 */
+function parseProrated(raw: unknown): ProratedCharge | null {
+  if (raw === undefined || raw === null) return null;
+  const value = raw as Record<string, unknown>;
+  return {
+    days: parseInteger(value.days, 1, 31, "일할 일수를 확인해 주세요"),
+    dailyRate: parseInteger(value.dailyRate, 1, MAX_INVOICE_AMOUNT, "일 단가를 확인해 주세요"),
+  };
+}
+
 function parseIssueItem(raw: unknown): IssueInvoiceInput {
   if (typeof raw !== "object" || raw === null) invalid("청구 내용을 확인해 주세요");
   const item = raw as Record<string, unknown>;
@@ -227,6 +242,7 @@ function parseIssueItem(raw: unknown): IssueInvoiceInput {
     studentId: parseId(item.studentId, "학생"),
     periodStart: parseDate(item.periodStart, "이용 시작일을 확인해 주세요"),
     months: parseInteger(item.months, 1, MAX_INVOICE_MONTHS, `개월 수는 1~${MAX_INVOICE_MONTHS} 사이여야 합니다`),
+    prorated: parseProrated(item.prorated),
     monthlyFee: parseInteger(item.monthlyFee, 1, MAX_INVOICE_AMOUNT, "월 수강료를 확인해 주세요"),
     discount:
       item.discount === undefined ? 0 : parseInteger(item.discount, 0, MAX_INVOICE_AMOUNT, "할인 금액을 확인해 주세요"),
@@ -608,7 +624,7 @@ export async function updateTuitionSetting(values: TuitionSettingInput): Promise
         values.autoIssueLeadDays,
         0,
         AUTO_ISSUE_LEAD_DAYS_MAX,
-        `자동 청구 시점은 이용 종료 0~${AUTO_ISSUE_LEAD_DAYS_MAX}일 전 사이로 정해 주세요`,
+        `자동 청구 시점은 이용 시작 0~${AUTO_ISSUE_LEAD_DAYS_MAX}일 전 사이로 정해 주세요`,
       ),
       guideText: parseOptionalText(values.guideText, "학부모 안내문", GUIDE_TEXT_MAX),
       onsiteGuideText: parseOptionalText(values.onsiteGuideText, "현장 결제 안내문", GUIDE_TEXT_MAX),
@@ -639,6 +655,9 @@ export async function updateTuitionProfile(input: TuitionProfileInput): Promise<
       billingPaused: input.billingPaused,
       memo: parseOptionalText(input.memo, "메모", MEMO_MAX),
       ...(input.billingAnchor === undefined ? {} : { billingAnchor: parseAnchorOrNull(input.billingAnchor) }),
+      ...(input.holdReason === undefined
+        ? {}
+        : { holdReason: parseOptionalText(input.holdReason, "보류 사유", HOLD_REASON_MAX) }),
       updatedById: actor.id,
     };
     const student = await prisma.student.findUnique({ where: { id: studentId }, select: { id: true } });
@@ -648,6 +667,19 @@ export async function updateTuitionProfile(input: TuitionProfileInput): Promise<
       create: { studentId, ...data },
       update: data,
     });
+  });
+  revalidatePath("/tuition");
+  return result;
+}
+
+/** 수강료 산식 저장 (반별 금액·일할 기준) — 청구 일정·자동 청구가 다음 계산부터 이 값을 쓴다 */
+export async function updateTuitionPricing(pricing: TuitionPricing): Promise<TuitionResult> {
+  const actor = await requireFullAccessActor();
+  const result = await runTuition(async () => {
+    const checked = validatePricing(pricing);
+    if (!checked.ok) invalid(checked.error);
+    const data = { pricing: checked.pricing, updatedById: actor.id };
+    await prisma.tuitionSetting.upsert({ where: { id: "default" }, create: { id: "default", ...data }, update: data });
   });
   revalidatePath("/tuition");
   return result;

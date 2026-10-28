@@ -108,10 +108,15 @@ export function periodLabel(startKey: string, endKey: string): string {
 }
 
 /** 청구서 제목 — "11월 수강료", 선결제면 "11월~1월 수강료 (3개월)" */
-export function invoiceTitle(startKey: string, endKey: string, months: number): string {
+export function invoiceTitle(startKey: string, endKey: string, months: number, proratedDays?: number): string {
   const startMonth = Number(startKey.slice(5, 7));
-  if (months <= 1) return `${startMonth}월 수강료`;
   const endMonth = Number(endKey.slice(5, 7));
+  if (proratedDays) {
+    if (months <= 1) return `${startMonth}월 수강료 (일할 ${proratedDays}일)`;
+    const nextMonth = (startMonth % 12) + 1;
+    return `${startMonth}월 일할(${proratedDays}일) + ${nextMonth === endMonth ? `${endMonth}월` : `${nextMonth}월~${endMonth}월`} 수강료`;
+  }
+  if (months <= 1) return `${startMonth}월 수강료`;
   return `${startMonth}월~${endMonth}월 수강료 (${months}개월)`;
 }
 
