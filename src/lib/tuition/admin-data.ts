@@ -277,7 +277,6 @@ export type TuitionDashboard = {
     requested: number;
     overdue: number;
     refunded: number;
-    canceled: number;
   };
   /** 지금 발행할 수 있는(막힌 이유 없는) 청구 */
   dueNow: { count: number; amount: number };
@@ -1135,7 +1134,8 @@ export async function getTuitionAdminData(input: {
     refunds,
     cashReceipts,
     counts: {
-      monthInvoices: monthRows.length,
+      // 취소한 청구서는 건수에 넣지 않는다 (금액 합계와 같은 기준)
+      monthInvoices: monthRows.filter((row) => row.status !== "CANCELED").length,
       requested: unpaidRows.length - overdueCount,
       overdue: overdueCount,
       onsiteRequests: onsiteRequests.length,
@@ -1307,7 +1307,6 @@ export async function getTuitionAdminData(input: {
       requested: live.filter((row) => row.displayStatus === "REQUESTED").length,
       overdue: live.filter((row) => row.displayStatus === "OVERDUE").length,
       refunded: live.filter((row) => row.status === "REFUNDED" || row.status === "PARTIALLY_REFUNDED").length,
-      canceled: monthRows.length - live.length,
     },
     dueNow: {
       count: dueNowTargets.length,

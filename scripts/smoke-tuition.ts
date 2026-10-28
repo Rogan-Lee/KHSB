@@ -610,6 +610,27 @@ async function main() {
       "다시 누르면 같은 번호로 결과를 확인해 기록 — 두 번 발급되지 않음",
     );
 
+    console.log("\n19. 취소한 청구서 삭제 — 돈이 오간 적 없는 건만");
+    const invDel = await core.issueInvoice(
+      { studentId: f.id, periodStart: "2027-01-01", months: 1, monthlyFee: 690_000, dueDate: "2027-01-05", notify: false },
+      actor,
+    );
+    await core.sendTuitionNotices([invDel.invoiceId], "REQUEST", actor);
+    const openDel = await Promise.allSettled([core.deleteCanceledInvoice(invDel.invoiceId, actor)]);
+    check(codeOf(openDel[0]) === "INVALID_INPUT", "취소하지 않은 청구서는 삭제할 수 없음");
+    await core.cancelInvoice(invDel.invoiceId, "금액 잘못 입력", actor);
+    await core.deleteCanceledInvoice(invDel.invoiceId, actor);
+    check((await prisma.tuitionInvoice.findUnique({ where: { id: invDel.invoiceId } })) === null, "취소한 청구서 삭제");
+    check((await prisma.tuitionNotice.count({ where: { invoiceId: invDel.invoiceId } })) === 0, "안내 기록도 함께 지워짐");
+    const delEvent = await prisma.tuitionEvent.findFirst({ where: { invoiceId: invDel.invoiceId, type: "INVOICE_DELETED" } });
+    check(!!delEvent?.detail?.includes("금액 잘못 입력"), "삭제 기록은 남음 (취소 사유 포함)");
+    await prisma.tuitionEvent.deleteMany({ where: { invoiceId: invDel.invoiceId } });
+    const withMoney = await Promise.allSettled([core.deleteCanceledInvoice(invE.invoiceId, actor)]);
+    check(
+      codeOf(withMoney[0]) === "INVALID_INPUT" && (await prisma.tuitionInvoice.findUnique({ where: { id: invE.invoiceId } })) !== null,
+      "결제·환불 기록이 있는 취소 건은 삭제할 수 없음",
+    );
+
     console.log(`\n통과 ${passed}건`);
   } finally {
     await cleanup();

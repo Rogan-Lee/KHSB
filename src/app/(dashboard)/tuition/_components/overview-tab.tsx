@@ -217,7 +217,6 @@ function IssuedCard({
     { label: "결제 요청", count: issued.requested, tone: "gray" },
     { label: "연체", count: issued.overdue, tone: "bad" },
     { label: "환불", count: issued.refunded, tone: "gray" },
-    { label: "취소", count: issued.canceled, tone: "gray" },
   ];
   return (
     <Section

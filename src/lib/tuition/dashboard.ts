@@ -114,6 +114,7 @@ export function scheduleByDay(
 export const ACTIVITY_LABEL: Record<string, string> = {
   INVOICE_ISSUED: "청구서 발행",
   INVOICE_CANCELED: "청구 취소",
+  INVOICE_DELETED: "청구서 삭제",
   PAYMENT_DONE: "납부",
   ONSITE_REQUESTED: "현장 결제 신청",
   REFUND_DONE: "환불 완료",

@@ -223,3 +223,51 @@ export async function cancelInvoice(invoiceId: string, reason: string, actor: Tu
 
   dispatchTuitionEffects(effects);
 }
+
+/**
+ * 취소한 청구서 삭제 — 잘못 발행했다가 바로 취소한 것처럼 돈이 오간 적 없는 건만 (결제·환불·현금영수증 기록이 하나도 없음).
+ * 학부모 안내 기록(TuitionNotice)은 함께 지워지고, 진행 기록(TuitionEvent)은 남긴 채 삭제했다는 기록을 하나 더 남긴다.
+ * 결제 행은 DB 에서도 청구서 삭제를 막는다(onDelete Restrict) — 확인과 삭제 사이에 끼어든 결제가 있어도 지워지지 않는다.
+ */
+export async function deleteCanceledInvoice(invoiceId: string, actor: TuitionActor): Promise<void> {
+  const found = await prisma.tuitionInvoice.findUnique({
+    where: { id: invoiceId },
+    select: { studentId: true },
+  });
+  if (!found) throw new TuitionError("NOT_FOUND", "청구서를 찾을 수 없습니다", 404);
+
+  await prisma.$transaction(async (tx) => {
+    await lockTuitionStudent(tx, found.studentId);
+
+    const invoice = await tx.tuitionInvoice.findUnique({
+      where: { id: invoiceId },
+      select: {
+        status: true,
+        title: true,
+        amount: true,
+        cancelReason: true,
+        student: { select: { name: true } },
+        _count: { select: { payments: true, refunds: true, cashReceipts: true } },
+      },
+    });
+    if (!invoice) throw new TuitionError("NOT_FOUND", "청구서를 찾을 수 없습니다", 404);
+    if (invoice.status !== "CANCELED") {
+      throw new TuitionError("INVALID_INPUT", "취소한 청구서만 삭제할 수 있습니다", 409);
+    }
+    const { payments, refunds, cashReceipts } = invoice._count;
+    if (payments + refunds + cashReceipts > 0) {
+      throw new TuitionError("INVALID_INPUT", "결제·환불 기록이 있는 청구서는 삭제할 수 없습니다", 409);
+    }
+
+    await tx.tuitionInvoice.delete({ where: { id: invoiceId } });
+    await recordTuitionEvent(tx, {
+      type: "INVOICE_DELETED",
+      source: "STAFF",
+      invoiceId,
+      actor,
+      detail: `청구서 삭제 — ${invoice.student.name} · ${invoice.title} · ${won(invoice.amount)}${
+        invoice.cancelReason ? ` (취소 사유: ${invoice.cancelReason})` : ""
+      }`,
+    });
+  }, TUITION_TX);
+}
