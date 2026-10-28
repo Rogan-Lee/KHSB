@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { BellRing, CalendarCheck, CalendarClock, ChevronDown, FilePlus2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState, Notice, Section, StatusBadge, TableCard, Toolbar, type Tone } from "@/components/backoffice/ui";
 import { ConfirmDialog } from "@/components/backoffice/confirm-dialog";
@@ -443,13 +443,13 @@ export function BillingTab({
                     {failure && <p className="mt-x1 max-w-48 t3-medium text-fg-critical">{failure}</p>}
                   </TableCell>
                   <TableCell className={cn(CELL, "align-top")}>
-                    <Input
-                      type="date"
+                    <DatePicker
+                      size="sm"
                       aria-label={`${target.student.name} 이용 시작일`}
-                      value={draft.periodStart}
+                      value={draft.periodStart || null}
                       disabled={pending}
-                      onChange={(e) => patch(id, draft, { periodStart: e.target.value })}
-                      className={cn(FIELD, "w-[8.75rem] tabular-nums")}
+                      onChange={(value) => patch(id, draft, { periodStart: value ?? "" })}
+                      className={cn(FIELD, "w-[8.75rem]")}
                     />
                     <p className="mt-x1 whitespace-nowrap t3-regular tabular-nums text-fg-neutral-subtle">
                       {evaluated.periodEnd ? `~ ${dotDate(evaluated.periodEnd)}` : "—"}
@@ -520,13 +520,13 @@ export function BillingTab({
                     )}
                   </TableCell>
                   <TableCell className={cn(CELL, "align-top")}>
-                    <Input
-                      type="date"
+                    <DatePicker
+                      size="sm"
                       aria-label={`${target.student.name} 납부 기한`}
-                      value={draft.dueDate}
+                      value={draft.dueDate || null}
                       disabled={pending}
-                      onChange={(e) => patch(id, draft, { dueDate: e.target.value })}
-                      className={cn(FIELD, "w-[8.75rem] tabular-nums")}
+                      onChange={(value) => patch(id, draft, { dueDate: value ?? "" })}
+                      className={cn(FIELD, "w-[8.75rem]")}
                     />
                   </TableCell>
                 </TableRow>

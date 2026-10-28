@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField, Notice } from "@/components/backoffice/ui";
@@ -260,13 +261,12 @@ export function IssueDialog({
             <>
               <div className="grid grid-cols-2 gap-x3">
                 <FormField label="이용 시작일" htmlFor="tuition-issue-start" required>
-                  <Input
+                  <DatePicker
                     id="tuition-issue-start"
-                    type="date"
-                    value={draft.periodStart}
+                    value={draft.periodStart || null}
                     disabled={pending}
-                    onChange={(e) => patch({ periodStart: e.target.value })}
-                    className="tabular-nums"
+                    onChange={(value) => patch({ periodStart: value ?? "" })}
+                    className="w-full"
                   />
                 </FormField>
                 <FormField
@@ -321,13 +321,12 @@ export function IssueDialog({
                   />
                 </FormField>
                 <FormField label="납부 기한" htmlFor="tuition-issue-due" required>
-                  <Input
+                  <DatePicker
                     id="tuition-issue-due"
-                    type="date"
-                    value={draft.dueDate}
+                    value={draft.dueDate || null}
                     disabled={pending}
-                    onChange={(e) => patch({ dueDate: e.target.value })}
-                    className="tabular-nums"
+                    onChange={(value) => patch({ dueDate: value ?? "" })}
+                    className="w-full"
                   />
                 </FormField>
                 <FormField label="메모" htmlFor="tuition-issue-memo" hint="학부모에게는 보이지 않아요.">

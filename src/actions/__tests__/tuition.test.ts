@@ -5,7 +5,7 @@ vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    student: { findUnique: vi.fn(), findMany: vi.fn() },
+    student: { findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     tuitionInvoice: { findMany: vi.fn() },
     tuitionProfile: { upsert: vi.fn() },
     tuitionSetting: { upsert: vi.fn() },
@@ -17,6 +17,7 @@ vi.mock("@/lib/tuition/dev-origin", () => ({ devRequestOrigin: vi.fn(async () =>
 vi.mock("@/lib/tuition/core", () => ({
   issueInvoice: vi.fn(),
   cancelInvoice: vi.fn(),
+  deleteCanceledInvoice: vi.fn(),
   confirmOnsitePayment: vi.fn(),
   dismissOnsiteRequest: vi.fn(),
   requestRefund: vi.fn(),
@@ -40,6 +41,7 @@ import {
   cancelTuitionCashReceipt,
   cancelTuitionInvoice,
   confirmTuitionOnsitePayment,
+  deleteTuitionInvoice,
   dismissTuitionOnsiteRequest,
   exportTuitionCsv,
   getTuitionBillLink,
@@ -55,6 +57,7 @@ import {
   sendTuitionReminders,
   updateTuitionPricing,
   updateTuitionProfile,
+  updateTuitionProfilesBulk,
   updateTuitionSetting,
   type TuitionSettingInput,
 } from "@/actions/tuition";
@@ -62,6 +65,7 @@ import { getTuitionInvoiceDetail } from "@/lib/tuition/admin-data";
 import {
   cancelCashReceipt,
   cancelInvoice,
+  deleteCanceledInvoice,
   confirmOnsitePayment,
   dismissOnsiteRequest,
   ensureBillToken,
@@ -120,10 +124,13 @@ const STAFF_ACTIONS: Record<string, () => Promise<{ ok: boolean }>> = {
 const FULL_ACCESS_ACTIONS: Record<string, () => Promise<{ ok: boolean }>> = {
   issueTuitionInvoices: () => issueTuitionInvoices([issueItem]),
   cancelTuitionInvoice: () => cancelTuitionInvoice("invoice-1", "금액 잘못 입력"),
+  deleteTuitionInvoice: () => deleteTuitionInvoice("invoice-1"),
   refundTuition: () => refundTuition({ invoiceId: "invoice-1", amount: 100_000, reason: "중도 퇴실" }),
   sendTuitionReminders: () => sendTuitionReminders(["invoice-1"], "REMIND"),
   updateTuitionSetting: () => updateTuitionSetting(settingInput),
   updateTuitionProfile: () => updateTuitionProfile({ studentId: "student-1", monthlyFee: null, billingPaused: false }),
+  updateTuitionProfilesBulk: () =>
+    updateTuitionProfilesBulk({ studentIds: ["student-1", "student-2"], field: "billingAnchor", value: "2026-11-01" }),
   updateTuitionPricing: () => updateTuitionPricing(DEFAULT_TUITION_PRICING),
   saveTuitionBillingAnchors: () => saveTuitionBillingAnchors([{ studentId: "student-1", billingAnchor: "2026-10-25" }]),
   markTuitionCashReceiptIssued: () => markTuitionCashReceiptIssued("receipt-1", "A12345678"),
@@ -138,6 +145,7 @@ const ALL_ACTIONS = { ...STAFF_ACTIONS, ...FULL_ACCESS_ACTIONS };
 const coreMocks = [
   issueInvoice,
   cancelInvoice,
+  deleteCanceledInvoice,
   confirmOnsitePayment,
   dismissOnsiteRequest,
   requestRefund,
@@ -164,6 +172,8 @@ beforeEach(() => {
   vi.mocked(auth).mockResolvedValue(director);
   vi.mocked(issueInvoice).mockResolvedValue({ invoiceId: "invoice-new" });
   vi.mocked(cancelInvoice).mockResolvedValue(undefined);
+  vi.mocked(deleteCanceledInvoice).mockResolvedValue(undefined);
+  vi.mocked(prisma.student.count).mockResolvedValue(2 as never);
   vi.mocked(confirmOnsitePayment).mockResolvedValue({ paymentId: "payment-1" });
   vi.mocked(dismissOnsiteRequest).mockResolvedValue(undefined);
   vi.mocked(requestRefund).mockResolvedValue({ refundId: "refund-1", status: "DONE", failMessage: null });
@@ -523,6 +533,57 @@ describe("updateTuitionSetting", () => {
       defaultMonthlyFee: null,
       reminderDays: "",
     });
+  });
+});
+
+describe("updateTuitionProfilesBulk", () => {
+  const ids = ["student-1", "student-2"];
+
+  it("고른 학생 모두에게 한 항목만 같은 값으로 저장한다", async () => {
+    await expect(updateTuitionProfilesBulk({ studentIds: ids, field: "billingAnchor", value: "2026-11-01" })).resolves.toEqual({
+      ok: true,
+      data: { updated: 2 },
+    });
+    const calls = vi.mocked(prisma.tuitionProfile.upsert).mock.calls.map((call) => call[0]);
+    expect(calls.map((c) => c.where.studentId)).toEqual(ids);
+    expect(calls[0].update).toEqual({ billingAnchor: new Date("2026-11-01T00:00:00.000Z"), updatedById: "user-director" });
+    expect(calls[1].create).toEqual({
+      studentId: "student-2",
+      billingAnchor: new Date("2026-11-01T00:00:00.000Z"),
+      updatedById: "user-director",
+    });
+  });
+
+  it("빈 값이면 비운다 — 청구 시작일·월 수강료·보류 사유, 청구 제외는 true/false", async () => {
+    await updateTuitionProfilesBulk({ studentIds: ids, field: "billingAnchor", value: null });
+    await updateTuitionProfilesBulk({ studentIds: ids, field: "monthlyFee", value: null });
+    await updateTuitionProfilesBulk({ studentIds: ids, field: "holdReason", value: "  " });
+    await updateTuitionProfilesBulk({ studentIds: ids, field: "billingPaused", value: true });
+    const updates = vi.mocked(prisma.tuitionProfile.upsert).mock.calls.filter((_, i) => i % 2 === 0).map((c) => c[0].update);
+    expect(updates).toEqual([
+      { billingAnchor: null, updatedById: "user-director" },
+      { monthlyFee: null, updatedById: "user-director" },
+      { holdReason: null, updatedById: "user-director" },
+      { billingPaused: true, updatedById: "user-director" },
+    ]);
+  });
+
+  it("틀린 입력·없는 학생은 아무것도 바꾸지 않는다", async () => {
+    const bad = [
+      { studentIds: [], field: "billingAnchor", value: "2026-11-01" },
+      { studentIds: ids, field: "memo", value: "x" },
+      { studentIds: ids, field: "billingPaused", value: "true" },
+      { studentIds: ids, field: "billingAnchor", value: "2026-02-30" },
+      { studentIds: ids, field: "monthlyFee", value: 10 },
+    ];
+    for (const input of bad) {
+      await expect(updateTuitionProfilesBulk(input as never)).resolves.toMatchObject({ ok: false, code: "INVALID_INPUT" });
+    }
+    vi.mocked(prisma.student.count).mockResolvedValue(1 as never);
+    await expect(
+      updateTuitionProfilesBulk({ studentIds: ids, field: "holdReason", value: "상담 중" }),
+    ).resolves.toMatchObject({ ok: false, code: "NOT_FOUND" });
+    expect(prisma.tuitionProfile.upsert).not.toHaveBeenCalled();
   });
 });
 

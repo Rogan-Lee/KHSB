@@ -21,6 +21,14 @@ interface DatePickerProps {
   defaultValue?: string;
   /** 트리거 높이 — md(기본, 40px · 입력칸 규격) / sm(32px · 표 안 등 좁은 곳) */
   size?: "sm" | "md";
+  /** 트리거 버튼 id — FormField htmlFor 와 잇는다 */
+  id?: string;
+  "aria-label"?: string;
+  /** 오류 표시 (빨간 테두리) */
+  invalid?: boolean;
+  /** 고를 수 있는 날짜 범위 "YYYY-MM-DD" (포함) */
+  min?: string;
+  max?: string;
 }
 
 // SEED TextInput / SelectTrigger 와 같은 규격 — 높이 40, r2, 1px stroke-neutral-weak, 포커스·열림 2px stroke-neutral-contrast
@@ -47,6 +55,11 @@ export function DatePicker({
   required,
   defaultValue,
   size = "md",
+  id,
+  "aria-label": ariaLabel,
+  invalid,
+  min,
+  max,
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const [internalValue, setInternalValue] = useState(defaultValue ?? null);
@@ -100,8 +113,12 @@ export function DatePicker({
         ) : (
           <button
             type="button"
+            id={id}
+            aria-label={ariaLabel}
+            data-invalid={invalid || undefined}
             className={cn(
               FIELD_TRIGGER,
+              "data-[invalid=true]:shadow-[inset_0_0_0_2px_var(--seed-color-stroke-critical-solid)]",
               size === "sm" ? "h-8 px-x2_5 t3-regular" : "h-10 px-x3 t4-regular",
               className
             )}
@@ -119,6 +136,10 @@ export function DatePicker({
           selected={selected}
           onSelect={handleSelect}
           defaultMonth={selected}
+          disabled={[
+            ...(min ? [{ before: new Date(min + "T00:00:00") }] : []),
+            ...(max ? [{ after: new Date(max + "T00:00:00") }] : []),
+          ]}
           locale={ko}
           captionLayout="dropdown"
         />
