@@ -28,6 +28,7 @@ import {
   defaultIssueDraft,
   evaluateExtraRows,
   evaluateIssueDraft,
+  feeForMonths,
   MONTH_OPTIONS,
   newExtraRow,
   type ExtraRowDraft,
@@ -143,12 +144,15 @@ export function IssueDialog({
   today,
   ym,
   dueDays,
+  prepayMonths,
   onClose,
 }: {
   students: AdminTuitionStudent[];
   today: string;
   ym: string;
   dueDays: number;
+  /** 이 개월 수를 고르면 선등록 할인 금액으로 바꾼다 */
+  prepayMonths: number;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -265,12 +269,30 @@ export function IssueDialog({
                     className="tabular-nums"
                   />
                 </FormField>
-                <FormField label="개월 수" htmlFor="tuition-issue-months" required hint="2개월 이상이면 선결제예요.">
+                <FormField
+                  label="개월 수"
+                  htmlFor="tuition-issue-months"
+                  required
+                  hint={`2개월 이상이면 선결제예요. ${prepayMonths}개월이면 선등록 할인 금액으로 바뀌어요.`}
+                >
                   <select
                     id="tuition-issue-months"
                     value={draft.months}
                     disabled={pending}
-                    onChange={(e) => patch({ months: Number(e.target.value) })}
+                    onChange={(e) => {
+                      const months = Number(e.target.value);
+                      const picked = students.find((s) => s.id === studentId);
+                      patch({
+                        months,
+                        monthlyFee: picked
+                          ? feeForMonths(draft.monthlyFee, months, {
+                              monthlyFee: picked.effectiveMonthlyFee,
+                              prepayMonthlyFee: picked.prepayMonthlyFee,
+                              prepayMonths,
+                            })
+                          : draft.monthlyFee,
+                      });
+                    }}
                     className={nativeSelectClass}
                   >
                     {MONTH_OPTIONS.map((months) => (

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_TUITION_PRICING } from "@/lib/tuition/pricing";
 
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -52,6 +53,7 @@ import {
   saveTuitionBillingAnchors,
   sendTuitionBillTalk,
   sendTuitionReminders,
+  updateTuitionPricing,
   updateTuitionProfile,
   updateTuitionSetting,
   type TuitionSettingInput,
@@ -122,6 +124,7 @@ const FULL_ACCESS_ACTIONS: Record<string, () => Promise<{ ok: boolean }>> = {
   sendTuitionReminders: () => sendTuitionReminders(["invoice-1"], "REMIND"),
   updateTuitionSetting: () => updateTuitionSetting(settingInput),
   updateTuitionProfile: () => updateTuitionProfile({ studentId: "student-1", monthlyFee: null, billingPaused: false }),
+  updateTuitionPricing: () => updateTuitionPricing(DEFAULT_TUITION_PRICING),
   saveTuitionBillingAnchors: () => saveTuitionBillingAnchors([{ studentId: "student-1", billingAnchor: "2026-10-25" }]),
   markTuitionCashReceiptIssued: () => markTuitionCashReceiptIssued("receipt-1", "A12345678"),
   cancelTuitionCashReceipt: () => cancelTuitionCashReceipt("receipt-1", "잘못 등록"),
@@ -291,9 +294,28 @@ describe("issueTuitionInvoices", () => {
     expect(issueInvoice).toHaveBeenCalledTimes(2);
     expect(issueInvoice).toHaveBeenNthCalledWith(
       1,
-      { ...issueItem, studentId: "student-a", discount: 0, extraItems: [], parentMessage: null, memo: null, notify: true },
+      {
+        ...issueItem,
+        studentId: "student-a",
+        prorated: null,
+        discount: 0,
+        extraItems: [],
+        parentMessage: null,
+        memo: null,
+        notify: true,
+      },
       { id: "user-director", name: "원장" },
     );
+  });
+
+  it("일할 청구는 일수·일 단가를 함께 넘기고, 값이 틀리면 발행하지 않는다", async () => {
+    await issueTuitionInvoices([{ ...issueItem, prorated: { days: 12, dailyRate: 18_000 } }]);
+    expect(vi.mocked(issueInvoice).mock.calls[0][0].prorated).toEqual({ days: 12, dailyRate: 18_000 });
+
+    vi.mocked(issueInvoice).mockClear();
+    const res = await issueTuitionInvoices([{ ...issueItem, prorated: { days: 40, dailyRate: 18_000 } }]);
+    expect(issueInvoice).not.toHaveBeenCalled();
+    expect(res.ok && res.data.results[0]).toMatchObject({ ok: false, error: "일할 일수를 확인해 주세요" });
   });
 
   it("추가 항목과 학부모 안내 메시지를 다듬어 넘긴다", async () => {
@@ -534,6 +556,21 @@ describe("updateTuitionProfile", () => {
     expect(prisma.tuitionProfile.upsert).toHaveBeenCalledTimes(3);
   });
 
+  it("보류 사유는 보낸 경우에만 바꾼다 — 글이면 저장, 빈 값이면 푼다, 100자 넘으면 거절", async () => {
+    const base = { studentId: "student-1", monthlyFee: null, billingPaused: false };
+    await updateTuitionProfile({ ...base, holdReason: " 반 변경 상담 중 " });
+    await updateTuitionProfile({ ...base, holdReason: "" });
+    await updateTuitionProfile(base);
+    const saved = vi.mocked(prisma.tuitionProfile.upsert).mock.calls.map((call) => call[0].update);
+    expect(saved[0]).toMatchObject({ holdReason: "반 변경 상담 중" });
+    expect(saved[1]).toMatchObject({ holdReason: null });
+    expect(saved[2]).not.toHaveProperty("holdReason");
+    await expect(updateTuitionProfile({ ...base, holdReason: "가".repeat(101) })).resolves.toMatchObject({
+      ok: false,
+      code: "INVALID_INPUT",
+    });
+  });
+
   it("없는 학생이면 NOT_FOUND, 금액이 틀리면 INVALID_INPUT", async () => {
     vi.mocked(prisma.student.findUnique).mockResolvedValue(null);
     await expect(
@@ -757,5 +794,30 @@ describe("결제사 알림톡 청구서 · 포인트 잔액", () => {
       code: "PROVIDER_UNAVAILABLE",
       error: expect.stringContaining("결제선생에 연결하지 못했습니다"),
     });
+  });
+});
+
+describe("updateTuitionPricing", () => {
+  it("검사를 통과한 산식만 설정에 저장한다", async () => {
+    const pricing = {
+      ...DEFAULT_TUITION_PRICING,
+      plans: DEFAULT_TUITION_PRICING.plans.map((plan) => (plan.key === "REGULAR" ? { ...plan, monthlyFee: 560_000 } : plan)),
+    };
+    await expect(updateTuitionPricing(pricing)).resolves.toEqual({ ok: true, data: undefined });
+    const data = { pricing, updatedById: "user-director" };
+    expect(prisma.tuitionSetting.upsert).toHaveBeenCalledWith({
+      where: { id: "default" },
+      create: { id: "default", ...data },
+      update: data,
+    });
+  });
+
+  it("틀린 값이면 저장하지 않고 어느 칸이 틀렸는지 알려 준다", async () => {
+    await expect(updateTuitionPricing({ ...DEFAULT_TUITION_PRICING, combineFromDay: 40 })).resolves.toMatchObject({
+      ok: false,
+      code: "INVALID_INPUT",
+      error: "다음 달과 묶는 입실일은 2~28일 사이로 적어 주세요",
+    });
+    expect(prisma.tuitionSetting.upsert).not.toHaveBeenCalled();
   });
 });

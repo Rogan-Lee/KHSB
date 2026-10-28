@@ -6,10 +6,8 @@
 import { prisma } from "@/lib/prisma";
 import { notifySlack } from "@/lib/slack";
 import {
-  AUTO_ISSUE_GRACE_DAYS,
   addDays,
   dateKey,
-  isAutoIssueDue,
   kstDateOf,
   parseReminderDays,
   renewalReminderDay,
@@ -21,6 +19,8 @@ import { providerCanceledAmount, type ProviderOrder } from "@/lib/tuition/provid
 import { getTuitionProvider } from "@/lib/tuition/provider-registry";
 import { failRefund, processRefund } from "@/lib/tuition/refund";
 import { getTuitionSetting } from "@/lib/tuition/settings";
+import { isAutoIssuable, SCHEDULE_BLOCKER_LABEL } from "@/lib/tuition/schedule";
+import { loadTuitionSchedule } from "@/lib/tuition/schedule-data";
 import { applyProviderOrderNow } from "@/lib/tuition/settle";
 
 /** 응답 없는 환불을 이 시간·횟수 넘게 확인하지 못하면 실패로 닫고 사람에게 넘긴다 */
@@ -250,10 +250,10 @@ export async function runTuitionDailyNotices(now: Date = new Date()): Promise<{ 
 }
 
 /**
- * 하루 1회 — 자동 청구. 납부한 이용 기간이 곧 끝나는 재원생에게 다음 1개월 청구서를 발행한다 (설정이 켜져 있을 때만).
- *  · 처음 청구하는 학생은 대상이 아니다 (이용 시작일을 사람이 정해야 한다).
- *  · 선결제(여러 달)는 자동으로 만들지 않는다 — 운영진이 직접 발행한다.
- *  · 이미 다음 청구서가 있거나, 수강료가 정해지지 않았거나, 청구 제외로 둔 학생은 건너뛴다.
+ * 하루 1회 — 자동 청구 (설정이 켜져 있을 때만). 청구 일정(schedule.ts)에서 자동 발행일이 된 학생에게 다음 청구서를 낸다.
+ *  · 막힌 이유(기준일 없음·미납·퇴원 예정·수강료 없음·오래 지남)가 있으면 내지 않는다 — 화면 "청구 일정"과 같은 판단.
+ *  · 매월 1일~말일 기준. 신규는 입실일~말일 일할(15일 이후 입실은 다음 달까지 한 청구서), 그다음부터 매달 전액.
+ *  · 세 달 선등록은 처음엔 운영진이 직접 발행하고, 그 뒤로는 같은 세 달(할인 금액)로 이어서 낸다.
  * 발행은 issueInvoice 가 학생 단위로 줄을 세우고 기간 겹침을 막으므로, 겹쳐 실행돼도 한 건만 나간다.
  */
 export async function runTuitionAutoIssue(now: Date = new Date()): Promise<{ issued: number; skipped: number }> {
@@ -261,83 +261,54 @@ export async function runTuitionAutoIssue(now: Date = new Date()): Promise<{ iss
   if (!setting.autoIssueEnabled) return { issued: 0, skipped: 0 };
 
   const today = kstDateOf(now);
-  const ending = await prisma.tuitionInvoice.findMany({
-    where: {
-      status: { in: ["PAID", "PARTIALLY_REFUNDED"] },
-      coverageEnd: {
-        gte: addDays(today, -AUTO_ISSUE_GRACE_DAYS),
-        lte: addDays(today, setting.autoIssueLeadDays),
-      },
-      student: { status: "ACTIVE" },
-    },
-    orderBy: { coverageEnd: "desc" },
-    select: {
-      studentId: true,
-      coverageEnd: true,
-      student: {
-        select: { name: true, tuitionProfile: { select: { monthlyFee: true, billingPaused: true, billingAnchor: true } } },
-      },
-    },
-  });
+  const students = await loadTuitionSchedule(today, setting);
 
   let issued = 0;
   let skipped = 0;
   const names: string[] = [];
-  const seen = new Set<string>();
-  for (const invoice of ending) {
-    // 학생당 가장 늦은 이용 종료일 하나만 본다
-    if (seen.has(invoice.studentId)) continue;
-    seen.add(invoice.studentId);
-
-    const coverageEnd = invoice.coverageEnd as Date;
-    const profile = invoice.student.tuitionProfile;
-    const monthlyFee = profile?.monthlyFee ?? setting.defaultMonthlyFee;
-    if (!isAutoIssueDue(coverageEnd, today, setting.autoIssueLeadDays) || profile?.billingPaused || !monthlyFee) {
-      skipped += 1;
-      continue;
-    }
-    // 납부 기간보다 뒤로 결제 기준일을 정해 둔 학생(휴원 뒤 복귀 등)은 이어서 청구하지 않는다 — 청구 예정에서 직접 발행
-    if (profile?.billingAnchor && profile.billingAnchor.getTime() > coverageEnd.getTime()) {
-      skipped += 1;
-      continue;
-    }
-    // 더 늦게 끝나는 납부 기간이나 아직 안 낸 청구서가 있으면 이미 다음 청구가 나간 것
-    const later = await prisma.tuitionInvoice.count({
-      where: {
-        studentId: invoice.studentId,
-        OR: [
-          { status: "REQUESTED" },
-          { status: { in: ["PAID", "PARTIALLY_REFUNDED"] }, coverageEnd: { gt: coverageEnd } },
-        ],
-      },
-    });
-    if (later > 0) {
-      skipped += 1;
-      continue;
-    }
-
-    try {
-      await issueInvoice(
-        {
-          studentId: invoice.studentId,
-          periodStart: dateKey(addDays(coverageEnd, 1)),
-          months: 1,
-          monthlyFee,
-          dueDate: dateKey(addDays(today, setting.dueDays)),
-        },
-        null,
-      );
-      issued += 1;
-      names.push(invoice.student.name);
-    } catch (error) {
-      // 기간 겹침(다른 실행이 먼저 발행) 등 — 다음 학생으로 넘어간다
-      skipped += 1;
-      console.error("[tuition:auto-issue]", error instanceof Error ? error.message : error);
+  let blockedStudents = 0;
+  const blocked = new Map<string, number>();
+  for (const student of students) {
+    for (const entry of student.entries) {
+      // 아직 발행일 전 — 뒤 청구는 더 늦다
+      if (entry.issueOn.getTime() > today.getTime()) break;
+      if (!isAutoIssuable(entry, today)) {
+        skipped += 1;
+        blockedStudents += 1;
+        const reasons = entry.blockers.length > 0 ? entry.blockers.map((b) => SCHEDULE_BLOCKER_LABEL[b]) : ["금액 확인"];
+        for (const reason of reasons) blocked.set(reason, (blocked.get(reason) ?? 0) + 1);
+        // 앞 청구가 막히면 뒤 청구도 내지 않는다
+        break;
+      }
+      try {
+        await issueInvoice(
+          {
+            studentId: student.id,
+            periodStart: dateKey(entry.periodStart),
+            months: entry.months,
+            prorated: entry.prorated && { days: entry.prorated.days, dailyRate: entry.prorated.dailyRate },
+            monthlyFee: entry.monthlyFee,
+            dueDate: dateKey(addDays(today, setting.dueDays)),
+          },
+          null,
+        );
+        issued += 1;
+        names.push(student.name);
+      } catch (error) {
+        // 기간 겹침(다른 실행이 먼저 발행) 등 — 다음 학생으로 넘어간다
+        skipped += 1;
+        console.error("[tuition:auto-issue]", error instanceof Error ? error.message : error);
+        break;
+      }
     }
   }
 
-  if (issued > 0) {
-    await notifySlack(`[수강료] 자동 청구 ${issued}건 발행 — ${names.join(", ")}`);
+  const lines: string[] = [];
+  if (issued > 0) lines.push(`[수강료] 자동 청구 ${issued}건 발행 — ${names.join(", ")}`);
+  if (blocked.size > 0) {
+    const summary = [...blocked].map(([reason, count]) => `${reason} ${count}`).join(" · ");
+    lines.push(`[수강료] 발행일이 됐지만 확인이 필요해 보류한 학생 ${blockedStudents}명 (${summary}) — 수강료 > 청구 일정에서 확인해 주세요`);
   }
+  if (lines.length > 0) await notifySlack(lines.join("\n"));
   return { issued, skipped };
 }

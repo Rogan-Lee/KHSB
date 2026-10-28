@@ -77,6 +77,19 @@ export function periodEndFor(periodStart: Date, months: number): Date {
   return addDays(addMonthsClamped(periodStart, months), -1);
 }
 
+/** 그달 말일 */
+export function monthEndOf(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+}
+
+/** 달력 기준 이용 종료일 — 시작일이 속한 달부터 months 번째 달의 말일 (10/20 + 2개월 → 11/30) */
+export function calendarPeriodEnd(periodStart: Date, months: number): Date {
+  return new Date(Date.UTC(periodStart.getUTCFullYear(), periodStart.getUTCMonth() + months, 0));
+}
+
+/** 일할 청구 — 첫 달만 days × dailyRate (월 수강료를 넘지 않게), 나머지 달은 월 수강료 */
+export type ProratedCharge = { days: number; dailyRate: number };
+
 /** 두 기간(양 끝 포함)이 하루라도 겹치는지 */
 export function periodsOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
   return aStart.getTime() <= bEnd.getTime() && bStart.getTime() <= aEnd.getTime();
@@ -129,6 +142,8 @@ export function calcInvoiceAmount(input: {
   months: number;
   discount?: number;
   extraItems?: TuitionExtraItem[];
+  /** 첫 달이 일할이면 (신규 입실 등) — months 에는 일할 달도 센다 */
+  prorated?: ProratedCharge;
 }): InvoiceAmountResult {
   const { monthlyFee, months } = input;
   const discount = input.discount ?? 0;
@@ -141,7 +156,16 @@ export function calcInvoiceAmount(input: {
   if (!Number.isInteger(discount) || discount < 0) {
     return { ok: false, error: "할인 금액을 확인해 주세요" };
   }
-  const tuition = monthlyFee * months;
+  const { prorated } = input;
+  if (
+    prorated &&
+    (!Number.isInteger(prorated.days) || prorated.days < 1 || !Number.isInteger(prorated.dailyRate) || prorated.dailyRate < 1)
+  ) {
+    return { ok: false, error: "일할 일수·일 단가를 확인해 주세요" };
+  }
+  const tuition = prorated
+    ? Math.min(monthlyFee, prorated.days * prorated.dailyRate) + monthlyFee * (months - 1)
+    : monthlyFee * months;
   const extraTotal = (input.extraItems ?? []).reduce((sum, item) => sum + item.amount, 0);
   const gross = tuition + extraTotal;
   const amount = gross - discount;
@@ -212,6 +236,25 @@ export function refundableAmount(input: {
 
 // ─── 환불 제안 ─────────────────────────────────────────────────────────
 
+/** 환불 계산 한 줄 — 학원법은 한 달 단위 구간마다, 일할은 전체 기간 한 줄 */
+export type RefundLine = {
+  /** "1개월차" 등. 한 달짜리 청구면 null */
+  label: string | null;
+  start: Date;
+  end: Date;
+  totalDays: number;
+  /** 이 구간에서 이용한 일수 */
+  usedDays: number;
+  /** 이 구간 몫의 납부액 */
+  share: number;
+  /** FULL 시작 전 전액 · TWO_THIRDS 1/3 경과 전 · HALF 1/2 경과 전 · NONE 1/2 경과(또는 다 이용) · DAILY 남은 일수 비율 */
+  rule: "FULL" | "TWO_THIRDS" | "HALF" | "NONE" | "DAILY";
+  /** 절사 전 금액 */
+  raw: number;
+  /** 절사한 이 구간 환불액 */
+  amount: number;
+};
+
 export type RefundSuggestion = {
   /** 제안 금액 (환불 가능액을 넘지 않는다) */
   amount: number;
@@ -220,11 +263,35 @@ export type RefundSuggestion = {
   remainingDays: number;
   /** 계산 근거 — 환불 기록에 그대로 남긴다 */
   basis: string;
+  /** 어떻게 계산했는지 — 환불 화면에 그대로 보여 준다 */
+  lines: RefundLine[];
+  /** 절사 단위(원) */
+  roundUnit: number;
+  /** 계산 합계가 환불 가능 금액보다 커서 깎였으면 깎기 전 합계 */
+  cappedFrom: number | null;
 };
+
+/** 일할 금액은 10원 미만 절사 */
+const DAILY_ROUND_UNIT = 10;
+/** 학원법 구간식은 천 원 미만 절사 — 강한선배 환불 규정 예시(550,000원의 2/3 → 366,000원)와 같게 */
+const ACADEMY_ROUND_UNIT = 1_000;
+
+function floorTo(n: number, unit: number): number {
+  return Math.floor(n / unit) * unit;
+}
 
 /** 10원 미만 절사 */
 function floorTo10(n: number): number {
-  return Math.floor(n / 10) * 10;
+  return floorTo(n, DAILY_ROUND_UNIT);
+}
+
+const wonText = (n: number) => `${n.toLocaleString("ko-KR")}원`;
+
+/** 1/3 · 1/2 경과로 나누는 학원법 구간 — 딱 1/3 이 지난 날은 다음 구간 (30일 중 10일 → 1/2) */
+function academyRule(usedDays: number, totalDays: number): "TWO_THIRDS" | "HALF" | "NONE" {
+  if (usedDays * 3 < totalDays) return "TWO_THIRDS";
+  if (usedDays * 2 < totalDays) return "HALF";
+  return "NONE";
 }
 
 /**
@@ -238,6 +305,8 @@ export function suggestRefund(input: {
   periodStart: Date;
   periodEnd: Date;
   months: number;
+  /** 청구서의 월 수강료 — 일할 첫 달이 있는 청구서에서 달마다 몫을 나눌 때 쓴다 */
+  monthlyFee?: number;
   lastUsedDate: Date | null;
 }): RefundSuggestion {
   const { policy, paidAmount, periodStart, periodEnd } = input;
@@ -248,56 +317,113 @@ export function suggestRefund(input: {
       ? 0
       : Math.min(totalDays, Math.max(0, daysInclusive(periodStart, input.lastUsedDate)));
   const remainingDays = totalDays - usedDays;
-  const days = { totalDays, usedDays, remainingDays };
 
-  if (policy === "MANUAL") {
-    return { amount: 0, ...days, basis: "직접 입력 (자동 계산 없음)" };
-  }
-  if (usedDays === 0) {
-    return { amount: Math.min(paidAmount, refundable), ...days, basis: "이용 시작 전 — 전액" };
-  }
+  const finish = (lines: RefundLine[], roundUnit: number, basis: string): RefundSuggestion => {
+    const total = lines.reduce((sum, line) => sum + line.amount, 0);
+    return {
+      amount: Math.min(total, refundable),
+      totalDays,
+      usedDays,
+      remainingDays,
+      basis,
+      lines,
+      roundUnit,
+      cappedFrom: total > refundable ? total : null,
+    };
+  };
+  const whole = (rule: RefundLine["rule"], raw: number, amount: number): RefundLine => ({
+    label: null,
+    start: periodStart,
+    end: periodEnd,
+    totalDays,
+    usedDays,
+    share: paidAmount,
+    rule,
+    raw,
+    amount,
+  });
+
+  if (policy === "MANUAL") return finish([], 1, "직접 입력 (자동 계산 없음)");
+  if (usedDays === 0) return finish([whole("FULL", paidAmount, paidAmount)], 1, "이용 시작 전 — 전액");
 
   if (policy === "DAILY") {
-    const raw = floorTo10((paidAmount * remainingDays) / totalDays);
-    return {
-      amount: Math.min(raw, refundable),
-      ...days,
-      basis: `일할 계산 — 전체 ${totalDays}일 중 ${usedDays}일 이용, 남은 ${remainingDays}일분`,
-    };
+    const raw = (paidAmount * remainingDays) / totalDays;
+    return finish(
+      [whole("DAILY", raw, floorTo10(raw))],
+      DAILY_ROUND_UNIT,
+      `일할 계산 — 전체 ${totalDays}일 중 ${usedDays}일 이용, 남은 ${remainingDays}일분`,
+    );
   }
 
   // ACADEMY_LAW — 월 단위로 나눠, 이용 중인 달은 1/3 경과 전 2/3 · 1/2 경과 전 1/2 · 이후 없음,
   // 아직 시작하지 않은 달은 전액.
-  const segments = monthSegments(periodStart, periodEnd, input.months);
+  //  · 일할 첫 달이 있는 청구서(달 중간 시작 + 말일 끝): 첫 구간은 시작일~그달 말일, 나머지 달 몫은 월 수강료,
+  //    첫 달 몫은 그 나머지(할인·추가 항목도 여기에 붙는다).
+  //  · 그 밖에는 시작일부터 한 달씩 같은 몫으로 나누고, 나누어 떨어지지 않는 원 단위는 마지막 달 몫에 붙인다.
+  const calendar = isCalendarProrated(periodStart, periodEnd, input.months) && input.monthlyFee !== undefined;
+  const segments = calendar ? calendarSegments(periodStart, periodEnd) : monthSegments(periodStart, periodEnd, input.months);
   const share = Math.floor(paidAmount / segments.length);
+  // 일할 첫 달 청구서의 나머지 달 몫 = 월 수강료 (낸 돈이 모자라면 그만큼만)
+  const fullShare =
+    segments.length > 1 ? Math.min(input.monthlyFee ?? 0, Math.floor(paidAmount / (segments.length - 1))) : 0;
   const lastUsed = input.lastUsedDate as Date;
-  let raw = 0;
-  let untouched = 0;
-  let currentNote = "";
-  for (const seg of segments) {
-    if (lastUsed.getTime() < seg.start.getTime()) {
-      raw += share;
-      untouched += 1;
-    } else if (lastUsed.getTime() < seg.end.getTime()) {
-      const segDays = daysInclusive(seg.start, seg.end);
-      const used = daysInclusive(seg.start, lastUsed);
-      if (used * 3 < segDays) {
-        raw += Math.floor((share * 2) / 3);
-        currentNote = `이용 중인 달 ${segDays}일 중 ${used}일 이용(1/3 경과 전) 2/3`;
-      } else if (used * 2 < segDays) {
-        raw += Math.floor(share / 2);
-        currentNote = `이용 중인 달 ${segDays}일 중 ${used}일 이용(1/2 경과 전) 1/2`;
-      } else {
-        currentNote = `이용 중인 달 ${segDays}일 중 ${used}일 이용(1/2 경과) 환불 없음`;
-      }
-    }
+  const lines = segments.map((seg, index): RefundLine => {
+    const segShare = calendar
+      ? index === 0
+        ? paidAmount - fullShare * (segments.length - 1)
+        : fullShare
+      : index === segments.length - 1
+        ? paidAmount - share * (segments.length - 1)
+        : share;
+    const segDays = daysInclusive(seg.start, seg.end);
+    const used = Math.min(segDays, Math.max(0, daysInclusive(seg.start, lastUsed)));
+    const base = {
+      label: segments.length > 1 ? `${index + 1}개월차` : null,
+      start: seg.start,
+      end: seg.end,
+      totalDays: segDays,
+      usedDays: used,
+      share: segShare,
+    };
+    if (used === 0) return { ...base, rule: "FULL", raw: segShare, amount: segShare };
+    const rule = used >= segDays ? "NONE" : academyRule(used, segDays);
+    const raw = rule === "TWO_THIRDS" ? (segShare * 2) / 3 : rule === "HALF" ? segShare / 2 : 0;
+    return { ...base, rule, raw, amount: floorTo(raw, ACADEMY_ROUND_UNIT) };
+  });
+
+  const RULE_TEXT = { TWO_THIRDS: "1/3 경과 전 2/3", HALF: "1/2 경과 전 1/2", NONE: "1/2 경과 환불 없음" } as const;
+  const current = lines.find((line) => line.usedDays > 0 && line.usedDays < line.totalDays);
+  const untouched = lines.filter((line) => line.rule === "FULL");
+  const parts = [
+    current && current.rule !== "FULL" && current.rule !== "DAILY"
+      ? `${current.label ? `${current.label} ` : ""}${current.totalDays}일 중 ${current.usedDays}일 이용(${RULE_TEXT[current.rule]}) ${wonText(current.amount)}`
+      : "",
+    untouched.length > 0
+      ? `시작 전 ${untouched.length}개월 전액 ${wonText(untouched.reduce((sum, line) => sum + line.amount, 0))}`
+      : "",
+  ].filter(Boolean);
+  return finish(lines, ACADEMY_ROUND_UNIT, `학원법 구간식 — ${parts.join(" · ") || "환불 대상 기간 없음"} (천 원 미만 절사)`);
+}
+
+/** 일할 첫 달이 있는 청구서인지 — 달 중간에 시작해 달력 말일에 끝난다 (예전 방식의 "시작일부터 한 달" 청구서와 구별) */
+export function isCalendarProrated(periodStart: Date, periodEnd: Date, months: number): boolean {
+  return (
+    periodStart.getUTCDate() !== 1 &&
+    periodEnd.getTime() === calendarPeriodEnd(periodStart, months).getTime() &&
+    periodEnd.getTime() !== periodEndFor(periodStart, months).getTime()
+  );
+}
+
+/** 달력 달 단위 구간 — 첫 구간은 시작일~그달 말일 */
+function calendarSegments(periodStart: Date, periodEnd: Date): { start: Date; end: Date }[] {
+  const segments: { start: Date; end: Date }[] = [];
+  let start = periodStart;
+  while (start.getTime() <= periodEnd.getTime()) {
+    const end = monthEndOf(start);
+    segments.push({ start, end: end.getTime() > periodEnd.getTime() ? periodEnd : end });
+    start = addDays(end, 1);
   }
-  const parts = [currentNote, untouched > 0 ? `시작 전 ${untouched}개월 전액` : ""].filter(Boolean);
-  return {
-    amount: Math.min(floorTo10(raw), refundable),
-    ...days,
-    basis: `학원법 구간식 — ${parts.join(", ") || "환불 대상 기간 없음"}`,
-  };
+  return segments;
 }
 
 /** 이용 기간을 월 단위 구간으로 나눈다 (마지막 구간은 이용 종료일까지) */
@@ -403,15 +529,6 @@ export function isBillingDue(nextStart: Date, today: Date, leadDays: number): bo
 /** 이용 종료가 지난 지 이만큼 넘으면 자동 청구하지 않는다 (그만둔 학생일 수 있어 사람이 판단) */
 export const AUTO_ISSUE_GRACE_DAYS = 7;
 
-/**
- * 자동 청구 대상인지 — 이용 종료일이 leadDays 안으로 다가왔을 때부터, 지난 지 AUTO_ISSUE_GRACE_DAYS 일까지.
- * (cron 이 하루 이틀 빠져도 다음 실행에서 이어서 발행된다)
- */
-export function isAutoIssueDue(coverageEnd: Date, today: Date, leadDays: number): boolean {
-  const daysLeft = diffDays(today, coverageEnd);
-  return daysLeft <= leadDays && daysLeft >= -AUTO_ISSUE_GRACE_DAYS;
-}
-
 // ─── 안내 시점 (cron) ───────────────────────────────────────────────────
 
 /** 미납 안내를 보내는 날 — 납부 기한 기준 (음수 = 기한 전) */
@@ -421,6 +538,19 @@ export const UNPAID_REMINDER_OFFSETS = [-1, 0, 3, 7] as const;
 export function unpaidReminderOffset(dueDate: Date, today: Date): number | null {
   const offset = diffDays(dueDate, today);
   return (UNPAID_REMINDER_OFFSETS as readonly number[]).includes(offset) ? offset : null;
+}
+
+/** 자동 미납 안내가 끝난 뒤 이 간격마다 독촉하도록 화면에서 안내한다 */
+export const DUNNING_INTERVAL_DAYS = 7;
+
+/**
+ * 독촉이 필요한 미납인지 — 자동 안내(기한 7일 뒤가 마지막)가 끝났고, 마지막 안내로부터 DUNNING_INTERVAL_DAYS 일이 지났다.
+ * 운영진이 독촉을 보내면 그날부터 다시 센다.
+ */
+export function needsDunning(dueDate: Date, lastNoticeOn: Date | null, today: Date): boolean {
+  const lastAuto = UNPAID_REMINDER_OFFSETS[UNPAID_REMINDER_OFFSETS.length - 1];
+  if (diffDays(dueDate, today) <= lastAuto) return false;
+  return lastNoticeOn === null || diffDays(lastNoticeOn, today) >= DUNNING_INTERVAL_DAYS;
 }
 
 /** "7,3" → [7, 3]. 0~60 사이 정수만, 중복 제거, 큰 수부터 */

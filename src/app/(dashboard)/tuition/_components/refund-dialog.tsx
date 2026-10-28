@@ -30,6 +30,7 @@ import {
 import type { RefundOutcome, RequestRefundInput } from "@/lib/tuition/core";
 import { dotDate, periodLabel, REFUND_POLICY_LABEL, won } from "@/lib/tuition/format";
 import { cn } from "@/lib/utils";
+import { RefundBreakdown } from "./refund-breakdown";
 import { callTuition, MoneyInput, toAmount } from "./shared";
 
 type PeriodMode = "LAST_USED" | "BEFORE_USE" | "KEEP";
@@ -110,8 +111,14 @@ export function RefundDialog({
           periodStart,
           periodEnd,
           months: invoice.months,
+          monthlyFee: invoice.monthlyFee,
           lastUsedDate: mode === "BEFORE_USE" ? null : lastUsedDate,
         });
+  // 학원법 규정: 반환 사유 발생일(마지막 이용 다음 날, 이용 전이면 오늘)로부터 5일 이내 반환
+  const returnBy =
+    refundPolicy !== "ACADEMY_LAW" || !suggestion
+      ? null
+      : addDays(mode === "LAST_USED" && lastUsedDate ? addDays(lastUsedDate, 1) : today, 5);
   // 제안이 0원이면(직접 입력 방식·환불 대상 기간 없음) 칸을 비워 운영진이 직접 넣게 한다
   const suggestedDigits = duplicate ? String(refundable) : suggestion && suggestion.amount > 0 ? String(suggestion.amount) : "";
   const amountDigits = amountInput ?? suggestedDigits;
@@ -318,6 +325,10 @@ export function RefundDialog({
             </fieldset>
           )}
 
+          {!duplicate && suggestion && (
+            <RefundBreakdown suggestion={suggestion} policy={refundPolicy} returnBy={returnBy} />
+          )}
+
           <FormField
             label="환불 금액"
             htmlFor="tuition-refund-amount"
@@ -327,7 +338,9 @@ export function RefundDialog({
               duplicate
                 ? "중복으로 받은 금액 전부를 돌려줘요."
                 : suggestion
-                  ? `${REFUND_POLICY_LABEL[refundPolicy]} 제안 ${won(suggestion.amount)} · ${suggestion.basis}`
+                  ? suggestion.lines.length > 0
+                    ? `${REFUND_POLICY_LABEL[refundPolicy]} 제안 ${won(suggestion.amount)} — 어떻게 계산했는지는 위 계산 과정에서 볼 수 있어요. 고치면 ‘운영진 조정’으로 기록돼요.`
+                    : `${REFUND_POLICY_LABEL[refundPolicy]} — 금액을 직접 입력해 주세요.`
                   : mode === "KEEP"
                     ? "이용 기간을 바꾸지 않으므로 금액을 직접 입력해 주세요."
                     : "마지막 이용일을 이용 기간 안에서 골라 주세요."

@@ -69,12 +69,42 @@ describe("issueInvoice — 입력 검증", () => {
     [{ months: 13 }, "개월 수"],
     [{ monthlyFee: 0 }, "월 수강료"],
     [{ discount: 690_000 }, "청구 금액"],
+    // 일할 청구 — 달 중간 시작만, 그달 남은 날 안에서
+    [{ prorated: { days: 5, dailyRate: 18_000 } }, "1일에 시작"],
+    [{ periodStart: "2026-11-25", prorated: { days: 10, dailyRate: 18_000 } }, "남은 날"],
+    [{ periodStart: "2026-11-20", prorated: { days: 0, dailyRate: 18_000 } }, "일할 일수"],
   ])("잘못된 입력 %o 은 DB 에 닿기 전에 거절", async (patch, message) => {
     await expect(issueInvoice({ ...valid, ...patch }, actor)).rejects.toMatchObject({
       code: "INVALID_INPUT",
       message: expect.stringContaining(message),
     });
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("15일 이후 입실 — 그달 일할 + 다음 달을 달력 기간·금액·제목으로 저장한다", async () => {
+    const tx = {
+      $queryRaw: vi.fn(),
+      student: { findUnique: vi.fn().mockResolvedValue({ id: "s1", status: "ACTIVE" }) },
+      tuitionInvoice: { findMany: vi.fn().mockResolvedValue([]), create: vi.fn().mockResolvedValue({ id: "inv-new" }) },
+      tuitionSetting: { findUnique: vi.fn().mockResolvedValue(null) },
+      tuitionEvent: { create: vi.fn() },
+    };
+    vi.mocked(prisma.$transaction).mockImplementation((async (fn: (client: typeof tx) => unknown) => fn(tx)) as never);
+
+    // 11/20~11/30 = 11일 × 18,000 + 12월 550,000
+    await issueInvoice(
+      { ...valid, periodStart: "2026-11-20", months: 2, monthlyFee: 550_000, prorated: { days: 11, dailyRate: 18_000 } },
+      null,
+    );
+    expect(tx.tuitionInvoice.create.mock.calls[0][0].data).toMatchObject({
+      title: "11월 일할(11일) + 12월 수강료",
+      periodStart: new Date("2026-11-20T00:00:00.000Z"),
+      periodEnd: new Date("2026-12-31T00:00:00.000Z"),
+      months: 2,
+      monthlyFee: 550_000,
+      amount: 198_000 + 550_000,
+      autoIssued: true,
+    });
   });
 });
 

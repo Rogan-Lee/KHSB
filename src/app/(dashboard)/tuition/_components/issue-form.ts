@@ -4,10 +4,12 @@
 import {
   addDays,
   calcInvoiceAmount,
+  calendarPeriodEnd,
   dateKey,
   MAX_EXTRA_ITEM_NAME,
   parseDateKey,
   periodEndFor,
+  type ProratedCharge,
   type TuitionExtraItem,
 } from "@/lib/tuition/calc";
 import type { IssueInvoiceInput } from "@/lib/tuition/core";
@@ -15,6 +17,8 @@ import type { IssueInvoiceInput } from "@/lib/tuition/core";
 /** 입력 중인 값 — 금액은 숫자만 든 문자열 (비어 있을 수 있다) */
 export type IssueDraft = {
   periodStart: string;
+  /** 첫 달 일할(청구 일정이 계산한 값) — 있으면 이용 기간은 달력 기준이고 시작일·개월 수는 고정 */
+  prorated?: ProratedCharge;
   months: number;
   monthlyFee: string;
   discount: string;
@@ -60,7 +64,7 @@ export type IssueDraftResult =
       monthlyFee: number;
       discount: number;
       amount: number;
-      /** 월 수강료 × 개월 수 */
+      /** 수강료 합 (일할 첫 달 + 나머지 달) */
       tuition: number;
       extraTotal: number;
     }
@@ -68,6 +72,10 @@ export type IssueDraftResult =
 
 export function defaultIssueDraft(input: {
   periodStart: string;
+  /** 개월 수 (일할 달 포함, 기본 1) */
+  months?: number;
+  /** 첫 달 일할 */
+  prorated?: ProratedCharge | null;
   monthlyFee: number | null;
   today: string;
   dueDays: number;
@@ -75,7 +83,8 @@ export function defaultIssueDraft(input: {
   const today = parseDateKey(input.today);
   return {
     periodStart: input.periodStart,
-    months: 1,
+    ...(input.prorated ? { prorated: input.prorated } : {}),
+    months: input.months ?? 1,
     monthlyFee: input.monthlyFee === null ? "" : String(input.monthlyFee),
     discount: "",
     dueDate: today ? dateKey(addDays(today, input.dueDays)) : input.today,
@@ -84,7 +93,9 @@ export function defaultIssueDraft(input: {
 
 export function evaluateIssueDraft(draft: IssueDraft, extraItems: TuitionExtraItem[] = []): IssueDraftResult {
   const start = parseDateKey(draft.periodStart);
-  const periodEnd = start ? dateKey(periodEndFor(start, draft.months)) : null;
+  const periodEnd = start
+    ? dateKey(draft.prorated ? calendarPeriodEnd(start, draft.months) : periodEndFor(start, draft.months))
+    : null;
   if (!start) return { ok: false, periodEnd, error: "이용 시작일을 확인해 주세요", feeMissing: false };
   if (draft.monthlyFee === "") {
     return { ok: false, periodEnd, error: "월 수강료를 입력해 주세요", feeMissing: true };
@@ -94,6 +105,7 @@ export function evaluateIssueDraft(draft: IssueDraft, extraItems: TuitionExtraIt
     months: draft.months,
     discount: draft.discount === "" ? 0 : Number(draft.discount),
     extraItems,
+    prorated: draft.prorated,
   });
   if (!amount.ok) return { ok: false, periodEnd, error: amount.error, feeMissing: false };
   if (!parseDateKey(draft.dueDate)) {
@@ -108,6 +120,20 @@ export function evaluateIssueDraft(draft: IssueDraft, extraItems: TuitionExtraIt
     tuition: amount.tuition,
     extraTotal: amount.extraTotal,
   };
+}
+
+/**
+ * 개월 수를 바꿀 때의 월 수강료 — 세 달 선등록으로 바꾸면 할인 금액, 되돌리면 정상 금액.
+ * 운영진이 금액을 직접 고쳐 둔 경우(두 기본값 어느 쪽도 아니면)는 그대로 둔다.
+ */
+export function feeForMonths(
+  currentFee: string,
+  months: number,
+  fees: { monthlyFee: number; prepayMonthlyFee: number; prepayMonths: number },
+): string {
+  const defaults = [String(fees.monthlyFee), String(fees.prepayMonthlyFee)];
+  if (currentFee !== "" && !defaults.includes(currentFee)) return currentFee;
+  return String(months >= fees.prepayMonths ? fees.prepayMonthlyFee : fees.monthlyFee);
 }
 
 /** 검증을 통과한 입력값 → 발행 요청 */
@@ -126,6 +152,7 @@ export function toIssueInput(
     studentId,
     periodStart: draft.periodStart,
     months: draft.months,
+    prorated: draft.prorated ?? null,
     monthlyFee: evaluated.monthlyFee,
     discount: evaluated.discount,
     dueDate: draft.dueDate,

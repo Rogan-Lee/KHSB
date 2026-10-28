@@ -2761,6 +2761,7 @@ model TuitionSetting {
   autoIssueLeadDays    Int                 @default(3) // 이용 종료 며칠 전에 자동 발행할지
   guideText            String?             @db.Text // 학부모 수강료 안내문 (마크다운)
   onsiteGuideText      String?             @db.Text // 현장·지역화폐 결제 안내문
+  pricing              Json? // 수강료 산식 (반별 금액·일할 기준 — lib/tuition/pricing.ts). null 이면 코드 기본값
   updatedById          String?
   updatedAt            DateTime            @updatedAt
 }
@@ -2772,7 +2773,8 @@ model TuitionProfile {
   student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   monthlyFee    Int? // 원 — null 이면 기본 수강료
   billingPaused Boolean  @default(false) // 청구 예정 목록에서 제외 (장학·면제 등)
-  billingAnchor DateTime? @db.Date // 결제 기준일 — 다음 청구의 이용 시작일. 납부한 이용 기간보다 뒤일 때만 쓴다 (없으면 등록일 기준)
+  billingAnchor DateTime? @db.Date // 청구 시작일 — 다음 청구의 이용 시작일 (시스템 전부터 다닌 학생·복귀). 납부한 이용 기간보다 뒤일 때만 쓴다
+  holdReason    String? // 보류 사유 — 있으면 청구 일정에 "확인 필요"로 올리고 자동 청구하지 않는다
   memo          String?
   updatedById   String?
   createdAt     DateTime @default(now())
