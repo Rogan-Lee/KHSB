@@ -123,6 +123,15 @@ export type TuitionProfileInput = {
   holdReason?: string | null;
 };
 
+/** 학생 여러 명에게 한 항목을 한 번에 바꾼다. 값이 null·빈 값이면 비운다 (청구 제외는 true/false) */
+export type TuitionProfileBulkInput =
+  | { studentIds: string[]; field: "billingAnchor"; value: string | null }
+  | { studentIds: string[]; field: "monthlyFee"; value: number | null }
+  | { studentIds: string[]; field: "holdReason"; value: string | null }
+  | { studentIds: string[]; field: "billingPaused"; value: boolean };
+
+const BULK_PROFILE_MAX = 500;
+
 export type TuitionBillingAnchorInput = { studentId: string; billingAnchor: string };
 
 // ─── 인증 ──────────────────────────────────────────────────────────────
@@ -191,7 +200,7 @@ function parseDate(value: unknown, message: string): string {
 function parseAnchorOrNull(value: unknown): Date | null {
   if (value === null || value === "") return null;
   const day = typeof value === "string" ? parseDateKey(value) : null;
-  if (!day) invalid("결제 기준일을 확인해 주세요");
+  if (!day) invalid("청구 시작일을 확인해 주세요");
   return day;
 }
 
@@ -676,6 +685,49 @@ export async function updateTuitionProfile(input: TuitionProfileInput): Promise<
       create: { studentId, ...data },
       update: data,
     });
+  });
+  revalidatePath("/tuition");
+  return result;
+}
+
+/** 학생별 수강료 일괄 입력 — 고른 학생 모두에게 한 항목(청구 시작일·월 수강료·보류 사유·청구 제외)을 같은 값으로 (원장급) */
+export async function updateTuitionProfilesBulk(
+  input: TuitionProfileBulkInput,
+): Promise<TuitionResult<{ updated: number }>> {
+  const actor = await requireFullAccessActor();
+  const result = await runTuition(async () => {
+    if (typeof input !== "object" || input === null) invalid("일괄 입력 내용을 확인해 주세요");
+    const studentIds = parseIdList(input.studentIds, "학생", BULK_PROFILE_MAX);
+    let data: { billingAnchor: Date | null } | { monthlyFee: number | null } | { holdReason: string | null } | { billingPaused: boolean };
+    switch (input.field) {
+      case "billingAnchor":
+        data = { billingAnchor: parseAnchorOrNull(input.value) };
+        break;
+      case "monthlyFee":
+        data = { monthlyFee: parseMonthlyFeeOrNull(input.value, "월 수강료") };
+        break;
+      case "holdReason":
+        data = { holdReason: parseOptionalText(input.value, "보류 사유", HOLD_REASON_MAX) };
+        break;
+      case "billingPaused":
+        if (typeof input.value !== "boolean") invalid("청구 제외 여부를 확인해 주세요");
+        data = { billingPaused: input.value };
+        break;
+      default:
+        invalid("바꿀 항목을 확인해 주세요");
+    }
+    const found = await prisma.student.count({ where: { id: { in: studentIds } } });
+    if (found !== studentIds.length) throw new TuitionError("NOT_FOUND", "학생을 찾을 수 없습니다", 404);
+    await prisma.$transaction(
+      studentIds.map((studentId) =>
+        prisma.tuitionProfile.upsert({
+          where: { studentId },
+          create: { studentId, ...data, updatedById: actor.id },
+          update: { ...data, updatedById: actor.id },
+        }),
+      ),
+    );
+    return { updated: studentIds.length };
   });
   revalidatePath("/tuition");
   return result;

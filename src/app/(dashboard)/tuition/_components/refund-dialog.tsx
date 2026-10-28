@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { DescriptionList, FormField, Notice } from "@/components/backoffice/ui";
 import { refundTuition } from "@/actions/tuition";
 import type { AdminInvoiceDetail, AdminPaymentDetail } from "@/lib/tuition/admin-data";
@@ -295,19 +296,18 @@ export function RefundDialog({
                     <span className="mt-x0_5 block t3-regular text-fg-neutral-subtle">{option.hint}</span>
                     {option.value === "LAST_USED" && selected && (
                       <span className="mt-x2 flex flex-wrap items-center gap-x2">
-                        <Input
-                          type="date"
+                        <DatePicker
                           aria-label="마지막 이용일"
-                          value={lastUsed}
+                          value={lastUsed || null}
                           min={invoice.periodStart}
                           max={dateKey(maxLastUsed)}
                           disabled={pending}
-                          aria-invalid={!lastUsedValid}
-                          onChange={(e) => {
-                            setLastUsed(e.target.value);
+                          invalid={!lastUsedValid}
+                          onChange={(value) => {
+                            setLastUsed(value ?? "");
                             setAmountInput(null);
                           }}
-                          className="w-44 tabular-nums"
+                          className="w-44"
                         />
                         <span className="t3-regular text-fg-neutral-subtle">
                           {dotDate(invoice.periodStart)} ~ {dotDate(dateKey(maxLastUsed))} 안에서 골라 주세요

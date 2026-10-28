@@ -12,11 +12,19 @@ import { Switch } from "seed-design/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState, FormActions, FormField, Notice, SearchField, Section, StatusBadge } from "@/components/backoffice/ui";
-import { loadTuitionProviderBalance, updateTuitionPricing, updateTuitionProfile, updateTuitionSetting } from "@/actions/tuition";
+import {
+  loadTuitionProviderBalance,
+  updateTuitionPricing,
+  updateTuitionProfile,
+  updateTuitionProfilesBulk,
+  updateTuitionSetting,
+  type TuitionProfileBulkInput,
+} from "@/actions/tuition";
 import type { AdminTuitionStudent } from "@/lib/tuition/admin-data";
 import { parseReminderDays, type TuitionRefundPolicyValue, type TuitionTaxTypeValue } from "@/lib/tuition/calc";
 import type { TuitionProviderInfo } from "@/lib/tuition/provider-info";
@@ -601,11 +609,35 @@ function SettingForm({
 
 function StudentFees({ students }: { students: AdminTuitionStudent[] }) {
   const [query, setQuery] = useStickyState("tuition-fees:query", "");
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return students;
     return students.filter((s) => s.name.toLowerCase().includes(q) || s.grade.toLowerCase().includes(q));
   }, [students, query]);
+  // 목록에서 사라진 학생(퇴원 등)은 선택에서 뺀다
+  const selectedIds = students.filter((s) => selected.has(s.id)).map((s) => s.id);
+  const allShownSelected = filtered.length > 0 && filtered.every((s) => selected.has(s.id));
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleShown() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const s of filtered) {
+        if (allShownSelected) next.delete(s.id);
+        else next.add(s.id);
+      }
+      return next;
+    });
+  }
 
   return (
     <Section
@@ -632,9 +664,19 @@ function StudentFees({ students }: { students: AdminTuitionStudent[] }) {
         />
       ) : (
         <div className="border-t border-stroke-neutral-muted">
+          {selectedIds.length > 0 && (
+            <StudentFeesBulkBar studentIds={selectedIds} onDone={() => setSelected(new Set())} />
+          )}
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10 !pr-0">
+                  <Checkbox
+                    checked={allShownSelected}
+                    onCheckedChange={toggleShown}
+                    aria-label={query.trim() ? "검색된 학생 모두 선택" : "학생 모두 선택"}
+                  />
+                </TableHead>
                 <TableHead>학생</TableHead>
                 <TableHead>월 수강료 (원)</TableHead>
                 <TableHead>청구 시작일</TableHead>
@@ -646,7 +688,13 @@ function StudentFees({ students }: { students: AdminTuitionStudent[] }) {
             </TableHeader>
             <TableBody>
               {filtered.map((student) => (
-                <StudentFeeRow key={student.id} student={student} />
+                <StudentFeeRow
+                  // 일괄 입력으로 값이 바뀌면 행을 새로 그려 입력칸에 반영한다
+                  key={[student.id, student.monthlyFee, student.billingAnchor, student.holdReason, student.billingPaused, student.memo].join("|")}
+                  student={student}
+                  selected={selected.has(student.id)}
+                  onToggle={() => toggle(student.id)}
+                />
               ))}
             </TableBody>
           </Table>
@@ -656,7 +704,116 @@ function StudentFees({ students }: { students: AdminTuitionStudent[] }) {
   );
 }
 
-function StudentFeeRow({ student }: { student: AdminTuitionStudent }) {
+type BulkField = TuitionProfileBulkInput["field"];
+
+const BULK_FIELD_LABEL: Record<BulkField, string> = {
+  billingAnchor: "청구 시작일",
+  monthlyFee: "월 수강료",
+  holdReason: "보류 사유",
+  billingPaused: "청구 제외",
+};
+
+/** 고른 학생 모두에게 한 항목을 같은 값으로 — 비워 두고 적용하면 그 항목을 지운다 */
+function StudentFeesBulkBar({ studentIds, onDone }: { studentIds: string[]; onDone: () => void }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [field, setField] = useState<BulkField>("billingAnchor");
+  const [anchor, setAnchor] = useState<string | null>(null);
+  const [fee, setFee] = useState("");
+  const [hold, setHold] = useState("");
+  const [paused, setPaused] = useState<"true" | "false">("true");
+  const count = studentIds.length;
+
+  function apply() {
+    const input: TuitionProfileBulkInput =
+      field === "billingAnchor"
+        ? { studentIds, field, value: anchor }
+        : field === "monthlyFee"
+          ? { studentIds, field, value: toAmount(fee) }
+          : field === "holdReason"
+            ? { studentIds, field, value: hold.trim() || null }
+            : { studentIds, field, value: paused === "true" };
+    startTransition(async () => {
+      const res = await callTuition(() => updateTuitionProfilesBulk(input));
+      if (res.ok) {
+        toast.success(`${res.data.updated}명의 ${BULK_FIELD_LABEL[field]}을 바꿨어요`);
+        onDone();
+        router.refresh();
+      } else {
+        toast.error(res.error);
+      }
+    });
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-x2 border-b border-stroke-neutral-muted bg-bg-layer-fill px-x4 py-x3">
+      <span className="t4-bold text-fg-neutral">{count}명 선택</span>
+      <Select value={field} onValueChange={(value) => setField(value as BulkField)} disabled={pending}>
+        <SelectTrigger aria-label="일괄로 바꿀 항목" className="h-8 w-32">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {(Object.keys(BULK_FIELD_LABEL) as BulkField[]).map((key) => (
+            <SelectItem key={key} value={key}>
+              {BULK_FIELD_LABEL[key]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {field === "billingAnchor" && (
+        <DatePicker size="sm" aria-label="일괄 청구 시작일" value={anchor} onChange={setAnchor} disabled={pending} placeholder="날짜 선택 (비우면 지움)" />
+      )}
+      {field === "monthlyFee" && (
+        <MoneyInput
+          aria-label="일괄 월 수강료"
+          value={fee}
+          onValueChange={setFee}
+          disabled={pending}
+          placeholder="비우면 반 금액"
+          className="h-8 w-40"
+        />
+      )}
+      {field === "holdReason" && (
+        <Input
+          aria-label="일괄 보류 사유"
+          value={hold}
+          maxLength={100}
+          disabled={pending}
+          onChange={(e) => setHold(e.target.value)}
+          placeholder="비우면 보류를 풀어요"
+          className="h-8 w-56"
+        />
+      )}
+      {field === "billingPaused" && (
+        <Select value={paused} onValueChange={(value) => setPaused(value as "true" | "false")} disabled={pending}>
+          <SelectTrigger aria-label="일괄 청구 제외" className="h-8 w-32">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="true">청구 제외</SelectItem>
+            <SelectItem value="false">제외 해제</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+      <Button size="xs" onClick={apply} disabled={pending}>
+        {pending ? "적용 중…" : `${count}명에게 적용`}
+      </Button>
+      <Button variant="ghost" size="xs" onClick={onDone} disabled={pending}>
+        선택 해제
+      </Button>
+    </div>
+  );
+}
+
+function StudentFeeRow({
+  student,
+  selected,
+  onToggle,
+}: {
+  student: AdminTuitionStudent;
+  selected: boolean;
+  onToggle: () => void;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [fee, setFee] = useState(student.monthlyFee === null ? "" : String(student.monthlyFee));
@@ -694,7 +851,10 @@ function StudentFeeRow({ student }: { student: AdminTuitionStudent }) {
   }
 
   return (
-    <TableRow>
+    <TableRow data-state={selected ? "selected" : undefined}>
+      <TableCell className="w-10 !pr-0">
+        <Checkbox checked={selected} onCheckedChange={onToggle} aria-label={`${student.name} 선택`} />
+      </TableCell>
       <TableCell>
         <StudentCell student={student} />
       </TableCell>
@@ -709,16 +869,27 @@ function StudentFeeRow({ student }: { student: AdminTuitionStudent }) {
         />
       </TableCell>
       <TableCell>
-        <Input
-          type="date"
+        <DatePicker
+          size="sm"
           aria-label={`${student.name} 청구 시작일`}
-          value={anchor}
+          value={anchor || null}
           disabled={pending}
-          onChange={(e) => setAnchor(e.target.value)}
-          className="h-9 w-[8.75rem] tabular-nums"
+          onChange={(value) => setAnchor(value ?? "")}
+          placeholder="없음"
+          className="h-9 w-[8.75rem]"
         />
-        <p className="mt-x1 whitespace-nowrap t3-regular tabular-nums text-fg-neutral-subtle">
+        <p className="mt-x1 flex items-center gap-x1_5 whitespace-nowrap t3-regular tabular-nums text-fg-neutral-subtle">
           {student.hasOpenInvoice ? "미납 청구서 있음" : `다음 청구 ${dotDate(student.nextPeriodStart)}부터`}
+          {anchor && (
+            <button
+              type="button"
+              className="t3-medium text-fg-neutral-muted underline-offset-2 hover:underline disabled:opacity-50"
+              onClick={() => setAnchor("")}
+              disabled={pending}
+            >
+              지우기
+            </button>
+          )}
         </p>
       </TableCell>
       <TableCell>
