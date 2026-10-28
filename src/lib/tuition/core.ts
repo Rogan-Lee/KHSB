@@ -6,7 +6,13 @@
 //  · revalidatePath 는 호출 측 책임 (스크립트·cron·테스트에서도 코어를 부른다).
 //  · 푸시·Slack·결제사 정리 같은 커밋 뒤 작업은 코어가 응답 뒤(after)로 넘겨 실행한다.
 
-export { issueInvoice, cancelInvoice, MAX_PARENT_MESSAGE_LEN, type IssueInvoiceInput } from "@/lib/tuition/invoice";
+export {
+  issueInvoice,
+  cancelInvoice,
+  deleteCanceledInvoice,
+  MAX_PARENT_MESSAGE_LEN,
+  type IssueInvoiceInput,
+} from "@/lib/tuition/invoice";
 export {
   startCheckout,
   sendInvoiceTalk,

@@ -43,7 +43,7 @@ import {
   StudentCell,
 } from "./shared";
 
-type Filter = "ALL" | "REQUESTED" | "OVERDUE" | "PAID" | "REFUNDED" | "ATTENTION";
+type Filter = "ALL" | "REQUESTED" | "OVERDUE" | "PAID" | "REFUNDED" | "CANCELED" | "ATTENTION";
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "ALL", label: "전체" },
@@ -51,6 +51,7 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "OVERDUE", label: "미납" },
   { key: "PAID", label: "납부 완료" },
   { key: "REFUNDED", label: "환불" },
+  { key: "CANCELED", label: "취소" },
   { key: "ATTENTION", label: "처리 필요" },
 ];
 
@@ -60,7 +61,8 @@ function matchesFilter(row: AdminInvoiceRow, filter: Filter): boolean {
   if (!row.inMonth && !row.carriedOver) return false;
   switch (filter) {
     case "ALL":
-      return true;
+      // 취소한 청구서는 "취소"에서만 보인다
+      return row.status !== "CANCELED";
     case "REQUESTED":
       return row.displayStatus === "REQUESTED";
     case "OVERDUE":
@@ -69,6 +71,8 @@ function matchesFilter(row: AdminInvoiceRow, filter: Filter): boolean {
       return row.displayStatus === "PAID";
     case "REFUNDED":
       return row.displayStatus === "PARTIALLY_REFUNDED" || row.displayStatus === "REFUNDED";
+    case "CANCELED":
+      return row.status === "CANCELED";
   }
 }
 
@@ -78,6 +82,7 @@ const EMPTY_TEXT: Record<Filter, string> = {
   OVERDUE: "납부 기한이 지난 청구서가 없어요",
   PAID: "납부 완료된 청구서가 없어요",
   REFUNDED: "환불한 청구서가 없어요",
+  CANCELED: "취소한 청구서가 없어요",
   ATTENTION: "처리할 것이 없어요",
 };
 

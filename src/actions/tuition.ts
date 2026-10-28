@@ -29,6 +29,7 @@ import {
   cancelCashReceipt,
   cancelInvoice,
   confirmOnsitePayment,
+  deleteCanceledInvoice,
   dismissOnsiteRequest,
   ensureBillToken,
   getTuitionExport,
@@ -347,6 +348,14 @@ export async function cancelTuitionInvoice(invoiceId: string, reason: string): P
       actor,
     ),
   );
+  revalidatePath("/tuition");
+  return result;
+}
+
+/** 취소한 청구서 삭제 — 결제·환불 기록이 없는 건만 (원장급) */
+export async function deleteTuitionInvoice(invoiceId: string): Promise<TuitionResult> {
+  const actor = await requireFullAccessActor();
+  const result = await runTuition(() => deleteCanceledInvoice(parseId(invoiceId, "청구서"), actor));
   revalidatePath("/tuition");
   return result;
 }

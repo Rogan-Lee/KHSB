@@ -261,7 +261,8 @@ describe("getTuitionAdminData — 원장급", () => {
       scheduledCount: 0,
       attentionCount: 0,
     });
-    expect(data.counts).toEqual({ monthInvoices: 4, requested: 1, overdue: 1, onsiteRequests: 0, cashReceiptTodo: 0 });
+    // 건수도 취소 제외 (금액 합계와 같은 기준)
+    expect(data.counts).toEqual({ monthInvoices: 3, requested: 1, overdue: 1, onsiteRequests: 0, cashReceiptTodo: 0 });
   });
 
   it("청구 일정 — 발행일이 다가온 학생은 지금 처리, 그 뒤 한 달은 일정으로, 막힌 이유와 함께", async () => {

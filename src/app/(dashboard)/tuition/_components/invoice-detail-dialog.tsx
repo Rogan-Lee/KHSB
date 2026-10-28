@@ -7,7 +7,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Ban, Check, ExternalLink, Link2, RefreshCw, MessageSquareText, RotateCcw, Send } from "lucide-react";
+import { Ban, Check, ExternalLink, Link2, RefreshCw, MessageSquareText, RotateCcw, Send, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +23,7 @@ import { DescriptionList, FormField, Notice, Skeleton, StatusBadge, type Tone } 
 import { ConfirmDialog } from "@/components/backoffice/confirm-dialog";
 import {
   cancelTuitionInvoice,
+  deleteTuitionInvoice,
   getTuitionBillLink,
   loadTuitionInvoiceDetail,
   refreshTuitionInvoice,
@@ -124,6 +125,7 @@ export function InvoiceDetailDialog({
   const [cancelOpen, setCancelOpen] = useState(false);
   const [resendOpen, setResendOpen] = useState(false);
   const [talkOpen, setTalkOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   // 환불 다이얼로그는 열 때의 값을 그대로 들고 있는다 — 처리 뒤 상세를 다시 읽어도 결과 화면이 사라지지 않게
   const [refunding, setRefunding] = useState<{ detail: AdminInvoiceDetail; payment: AdminPaymentDetail } | null>(null);
 
@@ -149,6 +151,8 @@ export function InvoiceDetailDialog({
   const isOpen = invoice?.status === "REQUESTED";
   const onsiteRequest = detail?.payments.find((p) => p.status === "ONSITE_REQUESTED");
   const acceptedPayment = detail?.payments.find((p) => p.isAccepted);
+  // 돈이 오간 적 없는 취소 건만 지울 수 있다 (서버가 다시 확인한다)
+  const deletable = invoice?.status === "CANCELED" && detail?.payments.length === 0 && detail.refunds.length === 0;
   const canRefundAccepted =
     !!acceptedPayment &&
     (invoice?.status === "PAID" || invoice?.status === "PARTIALLY_REFUNDED") &&
@@ -185,6 +189,22 @@ export function InvoiceDetailDialog({
         reload();
       }
       await copyText(url, "청구서 링크를 복사했어요");
+    });
+  }
+
+  function remove() {
+    if (!invoice) return;
+    startTransition(async () => {
+      const res = await callTuition(() => deleteTuitionInvoice(invoice.id));
+      setDeleteOpen(false);
+      if (res.ok) {
+        toast.success("청구서를 삭제했어요");
+        router.refresh();
+        onClose();
+        return;
+      }
+      toast.error(res.error);
+      reload();
     });
   }
 
@@ -343,6 +363,18 @@ export function InvoiceDetailDialog({
                     청구 취소
                   </Button>
                 )}
+                {fullAccess && deletable && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDeleteOpen(true)}
+                    disabled={busy}
+                    className="text-fg-critical sm:ml-auto"
+                  >
+                    <Trash2 />
+                    청구서 삭제
+                  </Button>
+                )}
               </>
             )}
           </DialogFooter>
@@ -396,6 +428,22 @@ export function InvoiceDetailDialog({
         pendingLabel="보내는 중…"
         pending={busy}
         onConfirm={resend}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="청구서를 삭제할까요?"
+        description={
+          detail && invoice
+            ? `${detail.student.name} 학생 · ${invoice.title} · ${won(invoice.amount)}\n목록과 통계에서 완전히 사라지고 되돌릴 수 없어요. 삭제했다는 기록만 진행 기록에 남아요.`
+            : ""
+        }
+        confirmLabel="삭제"
+        pendingLabel="삭제 중…"
+        destructive
+        pending={busy}
+        onConfirm={remove}
       />
 
       {/* 보낼 때마다 포인트가 나가므로 한 번 더 확인한다 */}

@@ -45,6 +45,7 @@ export type TuitionEventSource = "STAFF" | "PARENT" | "WEBHOOK" | "SYNC" | "CRON
 export type TuitionEventType =
   | "INVOICE_ISSUED"
   | "INVOICE_CANCELED"
+  | "INVOICE_DELETED"
   | "LINK_CREATED"
   | "LINK_FAILED"
   | "BILL_TALK_SENT"
