@@ -800,7 +800,7 @@ describe("현금영수증", () => {
 });
 
 describe("결제사 정보", () => {
-  const PAYSSAM = { name: "payssam" as const, label: "결제선생", canNotify: true, partialCancel: false, testMode: true, hasBalance: true };
+  const PAYSSAM = { name: "payssam" as const, label: "결제선생", canNotify: true, partialCancel: false, testMode: true, hasBalance: true, cashReceipts: true };
 
   it("연동된 결제사와 할 수 있는 일을 화면에 내려 준다 (없으면 null)", async () => {
     const none = await getTuitionAdminData({ ym: "2026-10", fullAccess: false, today: TODAY, now: NOW });

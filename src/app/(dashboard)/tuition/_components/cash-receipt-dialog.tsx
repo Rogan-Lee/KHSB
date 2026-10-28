@@ -1,8 +1,8 @@
 "use client";
 
-// 현금영수증 기록 — 신청 등록·수정, 발급 완료 처리, 취소 폼과 그 버튼 묶음.
-// 현금영수증 탭과 청구서 상세가 같은 폼·같은 규칙을 쓴다. 발급 자체는 홈택스 등 밖에서 하고,
-// 여기에는 신청 정보와 국세청 승인번호만 남긴다. 버튼은 권한에 맞춰 숨기지만 실제 검사는 서버 액션이 한다.
+// 현금영수증 — 신청 등록·수정, 발급, 취소 폼과 그 버튼 묶음.
+// 현금영수증 탭과 청구서 상세가 같은 폼·같은 규칙을 쓴다. 결제선생이 연결돼 있으면 결제선생으로 바로 발급·취소하고,
+// 아니면 홈택스 등에서 발급한 뒤 국세청 승인번호만 남긴다. 버튼은 권한에 맞춰 숨기지만 실제 검사는 서버 액션이 한다.
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FormField, Notice } from "@/components/backoffice/ui";
 import {
   cancelTuitionCashReceipt,
+  issueTuitionCashReceipt,
   markTuitionCashReceiptIssued,
   requestTuitionCashReceipt,
 } from "@/actions/tuition";
@@ -103,11 +104,12 @@ export function CashReceiptNumberField({
 }
 
 /** 발급 뒤 환불로 금액이 달라진 영수증 안내 */
-export function CashReceiptStaleNotice({ fullAccess }: { fullAccess: boolean }) {
+export function CashReceiptStaleNotice({ fullAccess, viaProvider }: { fullAccess: boolean; viaProvider: boolean }) {
   return (
     <Notice tone="bad" title="현금영수증을 다시 발급해야 해요">
-      환불로 금액이 달라졌어요. 홈택스에서 기존 영수증을 취소한 뒤 여기서 ‘취소’로 기록하고, 남은 금액으로 다시
-      등록해 주세요.
+      {viaProvider
+        ? "환불로 금액이 달라졌어요. ‘취소’를 누르면 결제선생에서 기존 영수증이 취소돼요. 그다음 남은 금액으로 다시 등록해 발급해 주세요."
+        : "환불로 금액이 달라졌어요. 홈택스에서 기존 영수증을 취소한 뒤 여기서 ‘취소’로 기록하고, 남은 금액으로 다시 등록해 주세요."}
       {!fullAccess && " 취소 처리는 원장·관리자가 할 수 있어요."}
     </Notice>
   );
@@ -175,7 +177,7 @@ export function CashReceiptRequestDialog({
             <DialogDescription>
               {summary}
               <br />
-              발급은 홈택스 등에서 하고, 여기에는 신청 정보를 남겨요.
+              여기에는 신청 정보를 남겨요. 발급은 원장·관리자가 해요.
             </DialogDescription>
           </DialogHeader>
 
@@ -293,10 +295,69 @@ export function CashReceiptIssueDialog({
   );
 }
 
-/** 취소 — 신청을 거두거나, 홈택스에서 취소한 발급분을 기록한다 (원장급) */
+/** 결제선생으로 발급 — 국세청 승인번호는 결제선생 응답에서 받는다 (원장급) */
+export function CashReceiptProviderIssueDialog({
+  receipt,
+  summary,
+  onClose,
+  onDone,
+}: {
+  receipt: AdminCashReceiptInfo;
+  summary: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [pending, startTransition] = useTransition();
+
+  function submit() {
+    startTransition(async () => {
+      const res = await callTuition(() => issueTuitionCashReceipt(receipt.id));
+      if (res.ok) toast.success(`현금영수증을 발급했어요 · 승인번호 ${res.data.approvalNumber}`);
+      else toast.error(res.error);
+      if (res.ok || res.code !== "INVALID_INPUT") {
+        onDone();
+        onClose();
+      }
+    });
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && !pending && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>결제선생으로 발급</DialogTitle>
+          <DialogDescription>
+            {summary}
+            <br />
+            국세청에 바로 발급돼요. 금액은 지금 남아 있는 수납액 기준이에요.
+          </DialogDescription>
+        </DialogHeader>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-x4 gap-y-x1_5 t3-regular">
+          <dt className="text-fg-neutral-subtle">발급 구분</dt>
+          <dd className="text-fg-neutral">{CASH_RECEIPT_PURPOSE_LABEL[receipt.purpose]}</dd>
+          <dt className="text-fg-neutral-subtle">{PURPOSE_NUMBER_LABEL[receipt.purpose]}</dt>
+          <dd className="tabular-nums text-fg-neutral">{receipt.identifier}</dd>
+          <dt className="text-fg-neutral-subtle">금액</dt>
+          <dd className="tabular-nums text-fg-neutral">{cashReceiptAmountText(receipt)}</dd>
+        </dl>
+        <DialogFooter>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={pending}>
+            닫기
+          </Button>
+          <Button type="button" onClick={submit} disabled={pending}>
+            {pending ? "발급 중…" : "발급"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** 취소 — 신청을 거두거나 발급한 영수증을 취소한다. 결제선생으로 발급한 건은 결제선생에서 취소된다 (원장급) */
 export function CashReceiptCancelDialog({
   receiptId,
   issued,
+  viaProvider,
   summary,
   onClose,
   onDone,
@@ -304,6 +365,8 @@ export function CashReceiptCancelDialog({
   receiptId: string;
   /** 이미 발급 완료된 영수증인지 */
   issued: boolean;
+  /** 결제선생으로 발급한 건인지 */
+  viaProvider: boolean;
   summary: string;
   onClose: () => void;
   onDone: () => void;
@@ -316,7 +379,7 @@ export function CashReceiptCancelDialog({
     if (!value) return;
     startTransition(async () => {
       const res = await callTuition(() => cancelTuitionCashReceipt(receiptId, value));
-      if (res.ok) toast.success("현금영수증을 취소로 기록했어요");
+      if (res.ok) toast.success(issued && viaProvider ? "현금영수증을 취소했어요" : "현금영수증을 취소로 기록했어요");
       else toast.error(res.error);
       if (res.ok || res.code !== "INVALID_INPUT") {
         onDone();
@@ -340,9 +403,11 @@ export function CashReceiptCancelDialog({
             <DialogDescription>
               {summary}
               <br />
-              {issued
-                ? "홈택스에서 이미 발급한 영수증을 먼저 취소한 뒤에 눌러 주세요. 여기서는 취소했다는 기록만 남겨요."
-                : "신청을 거두고 취소로 기록해요."}
+              {issued && viaProvider
+                ? "결제선생에서 발급한 영수증을 취소해요. 취소한 영수증은 되살릴 수 없어요."
+                : issued
+                  ? "홈택스에서 이미 발급한 영수증을 먼저 취소한 뒤에 눌러 주세요. 여기서는 취소했다는 기록만 남겨요."
+                  : "신청을 거두고 취소로 기록해요."}
             </DialogDescription>
           </DialogHeader>
           <FormField label="취소 사유" htmlFor="tuition-cash-receipt-cancel" required hint="기록에 남아요.">
@@ -372,12 +437,13 @@ export function CashReceiptCancelDialog({
 
 // ─── 버튼 묶음 ─────────────────────────────────────────────────────────
 
-type Mode = "request" | "issue" | "cancel";
+type Mode = "request" | "issue" | "providerIssue" | "cancel";
 
 /**
  * 상태에 맞는 동작 버튼 + 열리는 폼.
  *  - 기록 없음 / 취소됨(남은 금액 있음): 신청 등록 (직원 전체)
- *  - 발급 필요: 수정 (직원 전체), 발급 완료 처리·취소 (원장급), 번호 복사 (원장급)
+ *  - 발급 필요: 수정 (직원 전체), 취소 (원장급), 그리고 (원장급)
+ *    결제선생 연결 시 결제선생으로 발급 / 아니면 번호 복사·발급 완료 처리 (홈택스 발급 기록)
  *  - 발급 완료: 취소 (원장급). 재발급 필요(stale)도 같다
  */
 export function CashReceiptActions({
@@ -385,6 +451,7 @@ export function CashReceiptActions({
   receipt,
   allowed,
   fullAccess,
+  providerIssue,
   summary,
   onDone,
 }: {
@@ -393,6 +460,8 @@ export function CashReceiptActions({
   /** 남은 수납액이 있어 등록할 수 있는지 */
   allowed: boolean;
   fullAccess: boolean;
+  /** 결제선생으로 바로 발급할 수 있는지 (결제선생 연결) */
+  providerIssue: boolean;
   summary: string;
   onDone: () => void;
 }) {
@@ -416,7 +485,12 @@ export function CashReceiptActions({
             수정
           </Button>
         )}
-        {requested && fullAccess && (
+        {requested && fullAccess && providerIssue && (
+          <Button size="xs" onClick={() => setMode("providerIssue")}>
+            결제선생으로 발급
+          </Button>
+        )}
+        {requested && fullAccess && !providerIssue && (
           <>
             <Button variant="outline" size="xs" onClick={() => copyText(receipt.identifier, "발급 번호를 복사했어요. 홈택스에 붙여 넣어 주세요")}>
               번호 복사
@@ -446,10 +520,14 @@ export function CashReceiptActions({
       {mode === "issue" && receipt && (
         <CashReceiptIssueDialog receiptId={receipt.id} summary={summary} onClose={() => setMode(null)} onDone={onDone} />
       )}
+      {mode === "providerIssue" && receipt && (
+        <CashReceiptProviderIssueDialog receipt={receipt} summary={summary} onClose={() => setMode(null)} onDone={onDone} />
+      )}
       {mode === "cancel" && receipt && (
         <CashReceiptCancelDialog
           receiptId={receipt.id}
           issued={issued}
+          viaProvider={receipt.viaProvider}
           summary={summary}
           onClose={() => setMode(null)}
           onDone={onDone}

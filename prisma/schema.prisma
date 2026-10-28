@@ -2919,6 +2919,7 @@ model TuitionCashReceipt {
   taxAmount       Int // 원 — 세액
   status          TuitionCashReceiptStatus  @default(REQUESTED)
   approvalNumber  String? // 국세청 승인번호
+  providerBillId  String?                   @unique // 결제사 발급 번호(결제선생 billId) — 결제사로 발급할 때만, 재발급마다 새 값
   requestedById   String?
   requestedByName String?
   issuedAt        DateTime?

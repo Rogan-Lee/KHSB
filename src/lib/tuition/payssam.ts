@@ -1,4 +1,4 @@
-// 결제선생(페이민트) 파트너 API v2 클라이언트 — 청구서 발송·재발송·조회·파기·결제 취소, 쌤포인트 조회.
+// 결제선생(페이민트) 파트너 API v2 클라이언트 — 청구서 발송·재발송·조회·파기·결제 취소, 쌤포인트 조회, 현금영수증 발급·취소·조회.
 // 스펙: https://developers.payssam.kr (2026-10 기준, v2.0.1). API 키는 서버에서만 읽는다.
 //
 // 결제선생의 "청구서" 한 장이 우리 결제 행 하나다 (billId = 결제 링크 키 = 주문 키, 청구서당 결제 한 건).
@@ -7,6 +7,9 @@
 //  · 조회는 billId 단건만 된다 (목록 API 없음) — 대조는 우리가 아는 billId 를 하나씩 조회한다.
 //  · 결제 취소는 청구서 전액만 된다. 부분 환불은 직접 돌려준 뒤 기록한다 (provider.partialCancel = false).
 //  · 매니저 사이트에서 직접 취소·파기하면 콜백이 오지 않는다 — 대조(조회)로 맞춘다.
+//  · 현금영수증은 청구서와 따로 발급한다 (현장 현금·계좌이체 수납분). 발급 한 번에 billId 하나, 취소는 발급 금액 전체만.
+//    2026-10-28 개발 환경에서 확인: 청구서 없이 단독 발급, 같은 billId 재발급 BILL_001, 취소된 건 재취소 BILL_ALREADY_CANCEL,
+//    금액이 다른 취소 BILL_003, 공급가액+세액≠금액 PAYMENT_001, 조회는 금액과 무관(해시만 맞으면 됨).
 //
 // 계정(파트너 계약·개발 키)이 생기기 전에 문서만 보고 쓴 코드다. 개발 키를 받으면 확인할 것
 // (scripts/check-payssam.ts 가 순서대로 돌려 본다):
@@ -18,7 +21,7 @@
 //  · productName·message 의 최대 길이, expireDt 가 발송일 이후 날짜를 받는지
 //  · 개발 환경의 billId 규칙(사업자등록번호 10자리 + 10자리)이 v2 에도 적용되는지 → PAYSSAM_BILL_PREFIX
 
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import {
   ProviderError,
@@ -26,6 +29,7 @@ import {
   type CreateLinkInput,
   type DeleteLinkContext,
   type ProviderCardInfo,
+  type ProviderCashReceipt,
   type ProviderLink,
   type ProviderOrder,
   type TuitionProvider,
@@ -45,8 +49,8 @@ const OK = "0000";
 const DUPLICATE_BILL = new Set(["BILL_001", "9800"]);
 /** 청구서 없음 (v2 · v1) */
 const BILL_NOT_FOUND = new Set(["BILL_003", "9980"]);
-/** 이미 취소된 청구서 (v2 · v1) */
-const ALREADY_CANCELED = new Set(["BILL_002", "9970"]);
+/** 이미 취소된 청구서·현금영수증 (v2 · v1) */
+const ALREADY_CANCELED = new Set(["BILL_002", "BILL_ALREADY_CANCEL", "9970"]);
 /** 반영 여부를 알 수 없는 오류 — 점검 중, 미분류 서버 오류 */
 const UNKNOWN_OUTCOME = new Set(["ERROR", "MAINTAINED_METHOD", "9999", "5000"]);
 
@@ -127,6 +131,28 @@ export function payssamBillId(prefix: string, paymentId: string, notify: boolean
   const room = BILL_ID_MAX - prefix.length - 1;
   const digest = BigInt(`0x${createHash("sha256").update(paymentId, "utf8").digest("hex")}`).toString(36);
   return `${prefix}${notify ? "t" : "u"}${digest.slice(0, room)}`;
+}
+
+/** 현금영수증 billId — 접두어 + r + 임의 값. 청구서 billId(u·t)와 겹치지 않고, 발급마다 새 값이다 */
+export function payssamCashReceiptKey(prefix: string): string {
+  const room = BILL_ID_MAX - prefix.length - 1;
+  return `${prefix}r${BigInt(`0x${randomBytes(16).toString("hex")}`).toString(36).slice(0, room)}`;
+}
+
+/** 현금영수증 조회 이력(발급 F · 취소 C) → 현재 상태. 발급 기록이 없으면 null */
+export function mapPayssamCashReceipt(info: Json[]): ProviderCashReceipt | null {
+  const issued = info.find((entry) => asString(entry.apprState) === "F");
+  if (!issued) return null;
+  const trader = asString(issued.trader);
+  return {
+    status: info.some((entry) => asString(entry.apprState) === "C") ? "CANCELED" : "ISSUED",
+    approvalNumber: asString(issued.apprNum),
+    amount: toInt(issued.apprPrice),
+    supplyAmount: toInt(issued.apprSupplyPrice),
+    taxAmount: toInt(issued.apprTax),
+    purpose: trader === "0" || trader === "소득공제" ? "INCOME" : trader === "1" || trader === "지출증빙" ? "EXPENSE" : null,
+    identifier: asString(issued.issuanceNumber),
+  };
 }
 
 const PAY_TYPE_LABEL: Record<string, string> = {
@@ -359,6 +385,62 @@ export function createPayssamClient(config: PayssamConfig, deps: PayssamDeps = {
       return { canceledAt: parsePayssamDateTime(data.apprCancelDt) };
     },
 
+    /** 현금영수증 발급 — 공급가액+세액이 금액과 같아야 한다 */
+    async issueCashReceipt(receipt: {
+      billId: string;
+      price: number;
+      supplyPrice: number;
+      tax: number;
+      /** 휴대폰번호 또는 사업자등록번호, 숫자만 */
+      issuanceNumber: string;
+      /** 개인(소득공제) 0 · 사업자(지출증빙) 1 */
+      trader: "0" | "1";
+      customerName?: string;
+    }): Promise<{ approvalNumber: string | null }> {
+      const price = String(receipt.price);
+      const data = await call("/cash-receipt/issue", {
+        ...auth,
+        cashReceipt: {
+          billId: receipt.billId,
+          hash: payssamHash([receipt.billId, price]),
+          price,
+          supplyPrice: String(receipt.supplyPrice),
+          tax: String(receipt.tax),
+          issuanceNumber: receipt.issuanceNumber,
+          trader: receipt.trader,
+          ...(receipt.customerName ? { customerName: receipt.customerName.slice(0, 60) } : {}),
+        },
+      });
+      return { approvalNumber: asString(data.apprCashNum) };
+    },
+
+    /** 현금영수증 발급 취소 — 발급 금액 전체 */
+    async cancelCashReceipt(billId: string, price: number, trader: "0" | "1"): Promise<void> {
+      const amount = String(price);
+      await call("/cash-receipt/cancel", {
+        ...auth,
+        cashReceipt: { billId, hash: payssamHash([billId, amount]), price: amount, trader },
+      });
+    },
+
+    /** 현금영수증 이력 조회. 없는 billId 면 null */
+    async readCashReceipt(billId: string, price: number): Promise<Json[] | null> {
+      const amount = String(price);
+      try {
+        const data = await call(
+          "/cash-receipt/read",
+          { ...auth, cashReceipt: { billId, hash: payssamHash([billId, amount]), price: amount } },
+          { retry: true },
+        );
+        return Array.isArray(data.info) ? data.info.map(asRecord).filter((entry): entry is Json => entry !== null) : [];
+      } catch (error) {
+        if (error instanceof ProviderError && error.kind === "rejected" && BILL_NOT_FOUND.has(error.code ?? "")) {
+          return null;
+        }
+        throw error;
+      }
+    },
+
     /** 쌤포인트 잔액 — 하위사업장 기준. 충전 주소도 함께 온다 */
     async remainCount(): Promise<{ balance: number | null; chargeUrl: string | null }> {
       const data = await call("/read/merchant/remain_count", { ...auth }, { retry: true });
@@ -516,6 +598,51 @@ export function createPayssamProvider(config: PayssamConfig, deps: PayssamDeps =
           { transactionKey: cancelKey(billId), amount: current.amount, reason: input.reason, canceledAt: canceledAt ?? new Date() },
         ],
       };
+    },
+
+    cashReceipts: {
+      newKey() {
+        return payssamCashReceiptKey(config.billPrefix);
+      },
+
+      async issue(input) {
+        try {
+          const { approvalNumber } = await client.issueCashReceipt({
+            billId: input.key,
+            price: input.amount,
+            supplyPrice: input.supplyAmount,
+            tax: input.taxAmount,
+            issuanceNumber: input.identifier,
+            trader: input.purpose === "EXPENSE" ? "1" : "0",
+            customerName: input.customerName,
+          });
+          if (approvalNumber) return { approvalNumber };
+        } catch (error) {
+          if (error instanceof ProviderError && error.kind === "rejected" && DUPLICATE_BILL.has(error.code ?? "")) {
+            throw new ProviderError(error.message, "rejected", "DUPLICATE");
+          }
+          throw error;
+        }
+        // 성공 응답에 승인번호가 없다 — 조회로 받아 온다
+        const found = mapPayssamCashReceipt((await client.readCashReceipt(input.key, input.amount)) ?? []);
+        if (found?.approvalNumber) return { approvalNumber: found.approvalNumber };
+        throw new ProviderError("현금영수증 승인번호를 받지 못했습니다", "unavailable");
+      },
+
+      async cancel(key, amount, purpose) {
+        try {
+          await client.cancelCashReceipt(key, amount, purpose === "EXPENSE" ? "1" : "0");
+        } catch (error) {
+          // 이미 취소된 영수증 — 앞선 요청이 반영된 것이다 (멱등)
+          if (error instanceof ProviderError && error.kind === "rejected" && ALREADY_CANCELED.has(error.code ?? "")) return;
+          throw error;
+        }
+      },
+
+      async get(key, amount) {
+        const info = await client.readCashReceipt(key, amount);
+        return info ? mapPayssamCashReceipt(info) : null;
+      },
     },
   };
 }

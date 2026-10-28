@@ -20,10 +20,13 @@ type Filter = "TODO" | "ALL";
 export function CashReceiptsTab({
   rows,
   fullAccess,
+  providerIssue,
   onOpenInvoice,
 }: {
   rows: AdminCashReceiptRow[];
   fullAccess: boolean;
+  /** 결제선생으로 바로 발급할 수 있는지 */
+  providerIssue: boolean;
   onOpenInvoice: (invoiceId: string) => void;
 }) {
   const router = useRouter();
@@ -32,12 +35,15 @@ export function CashReceiptsTab({
   const [picked, setPicked] = useState<Filter | null>(null);
   const filter: Filter = picked ?? (todoCount > 0 ? "TODO" : "ALL");
   const shown = filter === "TODO" ? rows.filter((row) => row.todo) : rows;
+  const stale = shown.filter((row) => row.receipt?.stale);
 
   return (
     <div>
       <p className="mb-x3 t3-regular text-fg-neutral-subtle">
-        현금영수증 발급은 홈택스 등에서 하고, 여기에는 신청 정보와 국세청 승인번호를 기록해요.
-        {!fullAccess && " 발급 완료 처리와 취소는 원장·관리자가 해요."}
+        {providerIssue
+          ? "현금영수증은 결제선생으로 바로 발급하고, 국세청 승인번호가 자동으로 남아요."
+          : "현금영수증 발급은 홈택스 등에서 하고, 여기에는 신청 정보와 국세청 승인번호를 기록해요."}
+        {!fullAccess && " 발급과 취소는 원장·관리자가 해요."}
       </p>
 
       <Toolbar>
@@ -145,6 +151,7 @@ export function CashReceiptsTab({
                         receipt={receipt}
                         allowed={row.amount > 0}
                         fullAccess={fullAccess}
+                        providerIssue={providerIssue}
                         summary={summary}
                         onDone={() => router.refresh()}
                       />
@@ -157,9 +164,9 @@ export function CashReceiptsTab({
         )}
       </TableCard>
 
-      {shown.some((row) => row.receipt?.stale) && (
+      {stale.length > 0 && (
         <div className="mt-x3">
-          <CashReceiptStaleNotice fullAccess={fullAccess} />
+          <CashReceiptStaleNotice fullAccess={fullAccess} viaProvider={stale.every((row) => row.receipt?.viaProvider)} />
         </div>
       )}
     </div>

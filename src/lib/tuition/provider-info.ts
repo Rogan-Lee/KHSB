@@ -15,6 +15,8 @@ export type TuitionProviderInfo = {
   testMode: boolean;
   /** 알림 발송에 선불 포인트를 쓰는 결제사인지 (잔액 조회 가능) */
   hasBalance: boolean;
+  /** 현금영수증을 결제사 API 로 바로 발급·취소할 수 있는지. false 면 홈택스에서 발급하고 승인번호만 기록한다 */
+  cashReceipts: boolean;
 };
 
 const LABEL = { payssam: "결제선생", toss: "토스페이먼츠", mock: "모의 결제" } as const;
@@ -30,6 +32,7 @@ export function getTuitionProviderInfo(): TuitionProviderInfo | null {
     partialCancel: provider.partialCancel,
     testMode: provider.testMode,
     hasBalance: typeof provider.getBalance === "function",
+    cashReceipts: provider.cashReceipts !== undefined,
   };
 }
 

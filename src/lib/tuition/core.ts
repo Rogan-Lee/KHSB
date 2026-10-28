@@ -49,7 +49,12 @@ export {
   getBillByToken,
   type BillView,
 } from "@/lib/tuition/bill-link";
-export { cancelCashReceipt, markCashReceiptIssued, requestCashReceipt } from "@/lib/tuition/cash-receipt";
+export {
+  cancelCashReceipt,
+  issueCashReceiptWithProvider,
+  markCashReceiptIssued,
+  requestCashReceipt,
+} from "@/lib/tuition/cash-receipt";
 export { getTuitionExport } from "@/lib/tuition/export";
 export {
   assertTuitionDailyAttempts,

@@ -97,6 +97,43 @@ export type CancelOrderInput = {
   refundAccount?: { bank: string; accountNumber: string; holderName: string };
 };
 
+/** 결제사로 발급한 현금영수증 (조회 결과) */
+export type ProviderCashReceipt = {
+  /** 발급됨 · 발급 뒤 취소됨 */
+  status: "ISSUED" | "CANCELED";
+  /** 국세청 승인번호 (발급 건) */
+  approvalNumber: string | null;
+  amount: number;
+  supplyAmount: number;
+  taxAmount: number;
+  purpose: "INCOME" | "EXPENSE" | null;
+  identifier: string | null;
+};
+
+export type IssueCashReceiptInput = {
+  /** 발급 번호 — cashReceipts.newKey() 로 만든 값. 결제사에서 한 번만 쓸 수 있다 */
+  key: string;
+  amount: number;
+  supplyAmount: number;
+  taxAmount: number;
+  purpose: "INCOME" | "EXPENSE";
+  /** 휴대폰번호(소득공제) 또는 사업자등록번호(지출증빙), 숫자만 */
+  identifier: string;
+  customerName?: string;
+};
+
+/** 현금영수증 발급·취소·조회 — 지원하는 결제사만 (TuitionProvider.cashReceipts) */
+export interface ProviderCashReceipts {
+  /** 새 발급 번호. 발급(재발급 포함)마다 새로 만든다 */
+  newKey(): string;
+  /** 발급 — 국세청 승인번호를 돌려준다. 이미 쓴 번호면 code "DUPLICATE" 로 거절한다 */
+  issue(input: IssueCashReceiptInput): Promise<{ approvalNumber: string }>;
+  /** 발급 취소 (발급 금액 전체). 이미 취소됐으면 성공으로 본다 */
+  cancel(key: string, amount: number, purpose: "INCOME" | "EXPENSE"): Promise<void>;
+  /** 조회 — 그 번호로 발급된 적이 없으면 null */
+  get(key: string, amount: number): Promise<ProviderCashReceipt | null>;
+}
+
 export interface TuitionProvider {
   readonly name: "toss" | "mock" | "payssam";
   /** 결제 금액 일부만 취소할 수 있는지. false 면 전액 취소만 된다 — 부분 환불은 직접 돌려준 뒤 기록한다 */
@@ -130,6 +167,8 @@ export interface TuitionProvider {
   listRecentOrders(limit?: number): Promise<ProviderOrder[]>;
   /** 주문 취소(환불). 반영된 뒤의 주문을 돌려준다 */
   cancelOrder(input: CancelOrderInput): Promise<ProviderOrder>;
+  /** 현금영수증 발급 API — 없으면 운영진이 홈택스에서 발급하고 승인번호만 기록한다 */
+  readonly cashReceipts?: ProviderCashReceipts;
 }
 
 /**

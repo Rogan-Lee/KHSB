@@ -250,6 +250,8 @@ export type AdminCashReceiptInfo = {
   supplyAmount: number;
   taxAmount: number;
   approvalNumber: string | null;
+  /** 결제사(결제선생) API 로 발급한(또는 발급을 시도한) 건 — 취소도 결제사에서 한다 */
+  viaProvider: boolean;
   requestedByName: string | null;
   issuedAt: string | null;
   issuedByName: string | null;
@@ -445,6 +447,7 @@ const CASH_RECEIPT_SELECT = {
   supplyAmount: true,
   taxAmount: true,
   approvalNumber: true,
+  providerBillId: true,
   requestedByName: true,
   issuedAt: true,
   issuedByName: true,
@@ -651,6 +654,7 @@ function toCashReceiptInfo(
     supplyAmount: receipt.supplyAmount,
     taxAmount: receipt.taxAmount,
     approvalNumber: receipt.approvalNumber,
+    viaProvider: receipt.providerBillId !== null,
     requestedByName: receipt.requestedByName,
     issuedAt: iso(receipt.issuedAt),
     issuedByName: receipt.issuedByName,
