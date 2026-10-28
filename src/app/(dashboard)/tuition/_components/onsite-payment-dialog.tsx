@@ -197,7 +197,7 @@ export function OnsitePaymentDialog({
                 <>
                   <FormField
                     label="현금영수증"
-                    hint="발급은 홈택스 등에서 해요. 여기에는 신청 정보만 남기고, 나중에 현금영수증 탭에서도 등록할 수 있어요."
+                    hint="여기에는 신청 정보만 남기고, 발급은 원장·관리자가 현금영수증 탭에서 해요. 나중에 등록해도 돼요."
                   >
                     <Select
                       value={receiptChoice}

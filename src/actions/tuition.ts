@@ -31,6 +31,7 @@ import {
   ensureBillToken,
   getTuitionExport,
   getTuitionProviderBalance,
+  issueCashReceiptWithProvider,
   issueInvoice,
   markCashReceiptIssued,
   requestCashReceipt,
@@ -508,7 +509,7 @@ export async function getTuitionBillLink(invoiceId: string): Promise<TuitionResu
 }
 
 // ─── 현금영수증 ─────────────────────────────────────────────────────────
-// 발급 자체는 홈택스 등에서 한다. 여기서는 신청 정보·승인번호·취소를 기록한다.
+// 결제선생이 연결돼 있으면 여기서 바로 발급·취소한다. 아니면 홈택스 등에서 발급하고 승인번호·취소를 기록한다.
 
 /** 현금영수증 신청 정보 등록·수정 (직원 전체 — 현장에서 수납하며 번호를 받아 적는다) */
 export async function requestTuitionCashReceipt(input: {
@@ -542,7 +543,17 @@ export async function markTuitionCashReceiptIssued(
   return result;
 }
 
-/** 현금영수증 취소 기록 — 신청을 거두거나, 발급한 영수증을 취소한 뒤 남긴다 (원장급) */
+/** 결제선생으로 바로 발급 — 승인번호는 결제선생 응답에서 받는다 (원장급) */
+export async function issueTuitionCashReceipt(
+  cashReceiptId: string,
+): Promise<TuitionResult<{ approvalNumber: string }>> {
+  const actor = await requireFullAccessActor();
+  const result = await runTuition(() => issueCashReceiptWithProvider(parseId(cashReceiptId, "현금영수증"), actor));
+  revalidatePath("/tuition");
+  return result;
+}
+
+/** 현금영수증 취소 — 신청을 거두거나, 발급한 영수증을 취소한다. 결제선생으로 발급한 건은 결제선생에서도 취소 (원장급) */
 export async function cancelTuitionCashReceipt(cashReceiptId: string, reason: string): Promise<TuitionResult> {
   const actor = await requireFullAccessActor();
   const result = await runTuition(() =>

@@ -9,7 +9,9 @@ import {
   createPayssamProvider,
   loadPayssamConfig,
   mapPayssamBill,
+  mapPayssamCashReceipt,
   parsePayssamDateTime,
+  payssamCashReceiptKey,
   payssamBillId,
   payssamHash,
   PAYSSAM_SANDBOX_URL,
@@ -17,6 +19,7 @@ import {
 } from "@/lib/tuition/payssam";
 import {
   createPayssamMockFetch,
+  payssamMockCashReceipt,
   payssamMockGet,
   payssamMockManagerCancel,
   payssamMockManagerDestroy,
@@ -493,6 +496,81 @@ describe("결제선생 어댑터 (모의 서버)", () => {
   it("쌤포인트 잔액과 충전 주소", async () => {
     payssamMockSetPoints(42);
     await expect(provider().getBalance?.()).resolves.toEqual({ balance: 42, chargeUrl: "https://manager.payssam.kr/" });
+  });
+});
+
+describe("결제선생 어댑터 — 현금영수증", () => {
+  const input = (key: string) => ({
+    key,
+    amount: 330_000,
+    supplyAmount: 300_000,
+    taxAmount: 30_000,
+    purpose: "INCOME" as const,
+    identifier: "01012345678",
+    customerName: "김학생",
+  });
+
+  it("발급 번호는 접두어 + r + 임의 값, 20자 이내이고 매번 다르다", () => {
+    const a = payssamCashReceiptKey("1234567890");
+    expect(a).toMatch(/^1234567890r[0-9a-z]{9}$/);
+    expect(payssamCashReceiptKey("1234567890")).not.toBe(a);
+    expect(payssamCashReceiptKey("").length).toBeLessThanOrEqual(20);
+  });
+
+  it("발급 → 조회 → 취소 → 다시 취소(멱등) → 조회", async () => {
+    const api = provider().cashReceipts!;
+    const key = api.newKey();
+    const { approvalNumber } = await api.issue(input(key));
+    expect(payssamMockCashReceipt(key)).toMatchObject({ price: 330_000, supplyPrice: 300_000, tax: 30_000, trader: "0" });
+
+    await expect(api.get(key, 330_000)).resolves.toEqual({
+      status: "ISSUED",
+      approvalNumber,
+      amount: 330_000,
+      supplyAmount: 300_000,
+      taxAmount: 30_000,
+      purpose: "INCOME",
+      identifier: "01012345678",
+    });
+    await api.cancel(key, 330_000, "INCOME");
+    await expect(api.cancel(key, 330_000, "INCOME")).resolves.toBeUndefined();
+    await expect(api.get(key, 0)).resolves.toMatchObject({ status: "CANCELED", approvalNumber });
+  });
+
+  it("같은 번호로 다시 발급하면 DUPLICATE, 없는 번호 조회는 null", async () => {
+    const api = provider().cashReceipts!;
+    const key = api.newKey();
+    await api.issue(input(key));
+    await expect(api.issue(input(key))).rejects.toMatchObject({ kind: "rejected", code: "DUPLICATE" });
+    await expect(api.get(api.newKey(), 1)).resolves.toBeNull();
+  });
+
+  it("공급가액+세액이 금액과 다르면 거절, 금액이 다른 취소도 거절", async () => {
+    const api = provider().cashReceipts!;
+    await expect(api.issue({ ...input(api.newKey()), taxAmount: 1 })).rejects.toMatchObject({
+      kind: "rejected",
+      code: "PAYMENT_001",
+    });
+    const key = api.newKey();
+    await api.issue(input(key));
+    await expect(api.cancel(key, 300_000, "INCOME")).rejects.toMatchObject({ kind: "rejected", code: "BILL_003" });
+  });
+
+  it("발급 응답을 못 받으면 알 수 없음 — 조회하면 발급된 것이 보인다", async () => {
+    const api = provider().cashReceipts!;
+    const key = api.newKey();
+    payssamMockSetFault("timeout", "/cash-receipt/issue");
+    await expect(api.issue(input(key))).rejects.toMatchObject({ kind: "unavailable" });
+    await expect(api.get(key, 330_000)).resolves.toMatchObject({ status: "ISSUED" });
+  });
+
+  it("조회 이력 해석 — 발급 기록이 없으면 null, 구분은 숫자·글자 둘 다 읽는다", () => {
+    expect(mapPayssamCashReceipt([])).toBeNull();
+    expect(mapPayssamCashReceipt([{ apprState: "F", trader: "지출증빙", apprNum: "1", apprPrice: "1000" }])).toMatchObject({
+      status: "ISSUED",
+      purpose: "EXPENSE",
+      amount: 1000,
+    });
   });
 });
 

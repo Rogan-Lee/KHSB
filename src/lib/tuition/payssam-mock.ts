@@ -1,6 +1,7 @@
 // 개발 전용 모의 결제선생 서버 — 파트너 계약·개발 키 없이 결제선생 연동 흐름을 로컬에서 돌려 본다.
 // 문서(https://developers.payssam.kr, v2)의 요청·응답 형식과 오류 코드를 그대로 흉내 낸다:
-// 청구서 발송(URL·TALK)·재발송·조회·파기·결제 취소·쌤포인트 조회, hash 검증, billId 중복 거절.
+// 청구서 발송(URL·TALK)·재발송·조회·파기·결제 취소·쌤포인트 조회, 현금영수증 발급·취소·조회, hash 검증, billId 중복 거절.
+// 현금영수증 오류 코드는 2026-10-28 개발 환경에서 실제로 받은 값이다.
 //
 // 실제 결제선생과 같다는 보장은 없다 — "문서를 우리가 읽은 대로" 만든 것이다. 우리 쪽 연동 로직
 // (콜백 처리, 전액 취소, 파기, 매니저 사이트 직접 취소 감지)을 확인하는 용도로만 쓴다.
@@ -28,11 +29,26 @@ export type PayssamMockBill = {
   cancelNumber: string | null;
 };
 
+export type PayssamMockCashReceipt = {
+  billId: string;
+  price: number;
+  supplyPrice: number;
+  tax: number;
+  issuanceNumber: string;
+  trader: "0" | "1";
+  customerName: string | null;
+  approvalNumber: string;
+  issuedAt: Date;
+  canceledAt: Date | null;
+  cancelNumber: string | null;
+};
+
 /** 다음 요청 한 번에만 적용할 장애 — 반영은 되고 응답만 못 받는 상황(timeout), 점검 중 응답(maintenance) */
 export type PayssamMockFault = "none" | "timeout" | "maintenance";
 
 type MockState = {
   bills: Map<string, PayssamMockBill>;
+  cashReceipts: Map<string, PayssamMockCashReceipt>;
   points: number;
   fault: PayssamMockFault;
   /** 장애를 걸 경로 ("/bill/cancel" 등). null 이면 다음 요청 아무 것에나 */
@@ -43,7 +59,9 @@ type MockState = {
 const globalForMock = globalThis as unknown as { __payssamMock?: MockState };
 
 function state(): MockState {
-  globalForMock.__payssamMock ??= { bills: new Map(), points: 100, fault: "none", faultPath: null, seq: 0 };
+  globalForMock.__payssamMock ??= { bills: new Map(), cashReceipts: new Map(), points: 100, fault: "none", faultPath: null, seq: 0 };
+  // 개발 서버가 코드만 다시 읽으면 예전 모양의 상태가 남아 있다
+  globalForMock.__payssamMock.cashReceipts ??= new Map();
   return globalForMock.__payssamMock;
 }
 
@@ -119,6 +137,8 @@ export function handlePayssamMock(path: string, rawBody: unknown): Reply {
   if (path === "/read/remain_count" || path === "/read/merchant/remain_count") {
     return finish(ok({ balance: s.points, chargeUrl: "https://manager.payssam.kr/" }));
   }
+
+  if (path.startsWith("/cash-receipt/")) return finish(handleCashReceipt(path, body.cashReceipt));
 
   const billInput = body.bill && typeof body.bill === "object" ? (body.bill as Record<string, unknown>) : null;
   const billId = text(billInput?.billId);
@@ -230,6 +250,77 @@ export function handlePayssamMock(path: string, rawBody: unknown): Reply {
   }
 }
 
+/** 현금영수증 발급·취소·조회 — 청구서와 billId 를 같이 쓴다 (청구서에 쓴 번호로는 발급할 수 없다) */
+function handleCashReceipt(path: string, raw: unknown): Reply {
+  const s = state();
+  const input = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+  const billId = text(input?.billId);
+  if (!input || !billId) return fail("VALIDATION_001", "정상적이지 않은 데이터입니다. 연동규격서를 확인하시기 바랍니다.", 400);
+  if (billId.length > 20) return fail("BILL_007", "billId는 20자 이하여야 합니다.", 400);
+  const price = text(input.price);
+  // 조회는 금액과 상관없이 해시만 맞으면 된다 (개발 환경 실측)
+  if (!/^\d{1,10}$/.test(price) || text(input.hash) !== sha256([billId, price])) {
+    return fail("VALIDATION_002", "정상적이지 않은 데이터입니다. 해싱값을 확인하시기 바랍니다.");
+  }
+  const existing = s.cashReceipts.get(billId) ?? null;
+
+  switch (path) {
+    case "/cash-receipt/issue": {
+      if (existing || s.bills.has(billId)) return fail("BILL_001", "이미 사용된 billId 입니다.");
+      const supplyPrice = text(input.supplyPrice);
+      const tax = text(input.tax);
+      const issuanceNumber = text(input.issuanceNumber);
+      const trader = text(input.trader);
+      if (!/^\d{1,10}$/.test(supplyPrice) || !/^\d{1,10}$/.test(tax) || !issuanceNumber || (trader !== "0" && trader !== "1")) {
+        return fail("VALIDATION_001", "정상적이지 않은 데이터입니다. 연동규격서를 확인하시기 바랍니다.", 400);
+      }
+      if (Number(supplyPrice) + Number(tax) !== Number(price)) return fail("PAYMENT_001", "5012:확인요망");
+      const receipt: PayssamMockCashReceipt = {
+        billId,
+        price: Number(price),
+        supplyPrice: Number(supplyPrice),
+        tax: Number(tax),
+        issuanceNumber,
+        trader,
+        customerName: text(input.customerName) || null,
+        approvalNumber: nextNumber(),
+        issuedAt: new Date(),
+        canceledAt: null,
+        cancelNumber: null,
+      };
+      s.cashReceipts.set(billId, receipt);
+      return ok({ billId, hash: input.hash, trader, apprCashNum: receipt.approvalNumber, issuanceNumber });
+    }
+    case "/cash-receipt/cancel": {
+      if (!existing || Number(price) !== existing.price) return fail("BILL_003", "bill_id와 금액을 확인해주세요.");
+      if (existing.canceledAt) return fail("BILL_ALREADY_CANCEL", "5008:취소불가");
+      existing.canceledAt = new Date();
+      existing.cancelNumber = nextNumber();
+      return ok({ billId, hash: input.hash, apprCashNum: existing.cancelNumber });
+    }
+    case "/cash-receipt/read": {
+      if (!existing) return fail("BILL_003", "청구서를 찾을 수 없습니다.");
+      // 실제 응답의 apprDt 는 연도 두 자리(YYMMDDhhmmss)다
+      const entry = (apprState: "F" | "C", apprNum: string | null, at: Date) => ({
+        apprPrice: String(existing.price),
+        apprSupplyPrice: String(existing.supplyPrice),
+        apprTax: String(existing.tax),
+        trader: existing.trader,
+        apprNum,
+        apprState,
+        apprDt: compact(at).slice(2),
+        issuanceNumber: existing.issuanceNumber,
+        ...(existing.customerName ? { customerName: existing.customerName } : {}),
+      });
+      const info = [entry("F", existing.approvalNumber, existing.issuedAt)];
+      if (existing.canceledAt) info.push(entry("C", existing.cancelNumber, existing.canceledAt));
+      return ok({ billId, info });
+    }
+    default:
+      return { status: 404, body: { code: "ERROR", message: "처리 중 오류가 발생하였습니다." } };
+  }
+}
+
 // ─── 모의 서버 주소 ─────────────────────────────────────────────────────
 
 /** 모의 결제선생의 결제 페이지가 떠 있는 우리 라우트 */
@@ -248,6 +339,14 @@ function mockOrigin(callbackUrl: string): string {
 
 export function payssamMockGet(billId: string): PayssamMockBill | null {
   return state().bills.get(billId) ?? null;
+}
+
+export function payssamMockCashReceipt(billId: string): PayssamMockCashReceipt | null {
+  return state().cashReceipts.get(billId) ?? null;
+}
+
+export function payssamMockCashReceipts(): PayssamMockCashReceipt[] {
+  return [...state().cashReceipts.values()];
 }
 
 /** 고객이 청구서에서 결제 — 미결제 청구서만. 결제된 청구서를 돌려준다 (콜백은 호출 측이 보낸다) */

@@ -168,7 +168,12 @@ export function TuitionAdmin({ data, fullAccess }: { data: TuitionAdminData; ful
         )}
         {tab === "refunds" && <RefundsTab refunds={data.refunds} onOpenInvoice={setDetailId} />}
         {tab === "cashReceipts" && (
-          <CashReceiptsTab rows={data.cashReceipts} fullAccess={fullAccess} onOpenInvoice={setDetailId} />
+          <CashReceiptsTab
+            rows={data.cashReceipts}
+            fullAccess={fullAccess}
+            providerIssue={data.provider?.cashReceipts ?? false}
+            onOpenInvoice={setDetailId}
+          />
         )}
         {tab === "settings" && fullAccess && (
           <SettingsTab

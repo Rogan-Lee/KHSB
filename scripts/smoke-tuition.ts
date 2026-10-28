@@ -568,6 +568,48 @@ async function main() {
     check(dupN.isDuplicate && dupN.refundedAmount === 690_000, "늦게 반영된 결제선생 결제는 중복 — 결제선생으로 전액 자동 취소");
     check(afterN.status === "PAID" && afterN.paidPaymentId !== coN.paymentId && afterN.refundedAmount === 0, "청구서는 현장 결제로 납부 유지");
 
+    console.log("\n16. 결제선생 현금영수증 — 바로 발급 · 동시 클릭 · 응답 유실 · 취소");
+    const crId = reRequested[0].id;
+    const crOf = () => prisma.tuitionCashReceipt.findUniqueOrThrow({ where: { id: crId } });
+    const liveReceipts = () => ps.payssamMockCashReceipts().filter((r) => r.canceledAt === null);
+    check(!!payssam?.cashReceipts, "결제선생은 현금영수증을 바로 발급할 수 있음");
+    const issues = await Promise.allSettled([
+      core.issueCashReceiptWithProvider(crId, actor),
+      core.issueCashReceiptWithProvider(crId, actor),
+    ]);
+    const crIssued = await crOf();
+    const crFirst = ps.payssamMockCashReceipt(crIssued.providerBillId ?? "");
+    check(issues.some((r) => r.status === "fulfilled") && liveReceipts().length === 1, "동시에 두 번 눌러도 결제선생 발급은 한 장");
+    check(crIssued.status === "ISSUED" && crIssued.approvalNumber === crFirst?.approvalNumber, "결제선생 승인번호로 발급 완료 기록");
+    check(
+      crFirst?.price === 600_000 && crFirst.trader === "1" && crFirst.issuanceNumber === "1234567890",
+      "남은 수납액(600,000원) · 지출증빙 · 사업자번호로 발급",
+    );
+
+    await core.cancelCashReceipt(crId, "환불로 재발급", actor);
+    check((await crOf()).status === "CANCELED" && liveReceipts().length === 0, "취소하면 결제선생에서도 취소");
+    await core.requestCashReceipt({ paymentId: cashF.id, purpose: "INCOME", identifier: "010-000-1234" }, actor);
+    check((await crOf()).providerBillId === null, "다시 등록하면 쓴 번호를 비움");
+
+    ps.payssamMockSetFault("timeout", "/cash-receipt/issue");
+    const lost = await Promise.allSettled([core.issueCashReceiptWithProvider(crId, actor)]);
+    const crPending = await crOf();
+    check(
+      codeOf(lost[0]) === "PROVIDER_UNAVAILABLE" && crPending.status === "REQUESTED" && !!crPending.providerBillId,
+      "응답을 못 받으면 번호를 남긴 채 발급 필요 (결제선생에는 발급돼 있음)",
+    );
+    const manualBlocked = await Promise.allSettled([core.markCashReceiptIssued(crId, "A12345678", actor)]);
+    check(manualBlocked[0].status === "rejected", "결과를 모르는 건은 홈택스 발급 기록을 막음");
+    await core.issueCashReceiptWithProvider(crId, actor);
+    const crResolved = await crOf();
+    check(
+      crResolved.status === "ISSUED" &&
+        crResolved.providerBillId === crPending.providerBillId &&
+        liveReceipts().length === 1 &&
+        crResolved.approvalNumber === liveReceipts()[0].approvalNumber,
+      "다시 누르면 같은 번호로 결과를 확인해 기록 — 두 번 발급되지 않음",
+    );
+
     console.log(`\n통과 ${passed}건`);
   } finally {
     await cleanup();

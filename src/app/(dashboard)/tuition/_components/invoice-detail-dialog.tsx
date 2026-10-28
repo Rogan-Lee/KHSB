@@ -260,7 +260,16 @@ export function InvoiceDetailDialog({
               </div>
             )}
             {state.status === "error" && <Notice tone="bad">{state.message}</Notice>}
-            {detail && <DetailBody detail={detail} fullAccess={fullAccess} busy={busy} onRefund={setRefunding} onChanged={reload} />}
+            {detail && (
+              <DetailBody
+                detail={detail}
+                fullAccess={fullAccess}
+                providerIssue={provider?.cashReceipts ?? false}
+                busy={busy}
+                onRefund={setRefunding}
+                onChanged={reload}
+              />
+            )}
           </div>
 
           <DialogFooter className="flex-row flex-wrap items-center justify-start gap-x2 sm:justify-start">
@@ -413,12 +422,15 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function DetailBody({
   detail,
   fullAccess,
+  providerIssue,
   busy,
   onRefund,
   onChanged,
 }: {
   detail: AdminInvoiceDetail;
   fullAccess: boolean;
+  /** 현금영수증을 결제선생으로 바로 발급할 수 있는지 */
+  providerIssue: boolean;
   busy: boolean;
   /** 현금영수증 처리 뒤 상세를 다시 읽는다 */
   onChanged: () => void;
@@ -539,6 +551,7 @@ function DetailBody({
                 key={payment.id}
                 payment={payment}
                 canRefund={fullAccess}
+                providerIssue={providerIssue}
                 busy={busy}
                 summary={`${student.name} · ${invoice.title}`}
                 onChanged={onChanged}
@@ -626,6 +639,7 @@ function DetailBody({
 function PaymentItem({
   payment,
   canRefund,
+  providerIssue,
   busy,
   summary,
   onChanged,
@@ -634,6 +648,7 @@ function PaymentItem({
   payment: AdminPaymentDetail;
   /** 원장급 여부 — 환불과 현금영수증 발급·취소 */
   canRefund: boolean;
+  providerIssue: boolean;
   busy: boolean;
   summary: string;
   onChanged: () => void;
@@ -710,6 +725,7 @@ function PaymentItem({
         <CashReceiptBlock
           payment={payment}
           fullAccess={canRefund}
+          providerIssue={providerIssue}
           summary={`${summary} · ${won(payment.paidAmount - payment.refundedAmount)}`}
           onChanged={onChanged}
         />
@@ -742,11 +758,13 @@ function PaymentItem({
 function CashReceiptBlock({
   payment,
   fullAccess,
+  providerIssue,
   summary,
   onChanged,
 }: {
   payment: AdminPaymentDetail;
   fullAccess: boolean;
+  providerIssue: boolean;
   summary: string;
   onChanged: () => void;
 }) {
@@ -788,7 +806,7 @@ function CashReceiptBlock({
 
       {receipt?.stale && (
         <div className="mt-x2">
-          <CashReceiptStaleNotice fullAccess={fullAccess} />
+          <CashReceiptStaleNotice fullAccess={fullAccess} viaProvider={receipt.viaProvider} />
         </div>
       )}
 
@@ -798,6 +816,7 @@ function CashReceiptBlock({
           receipt={receipt}
           allowed={payment.cashReceiptAllowed}
           fullAccess={fullAccess}
+          providerIssue={providerIssue}
           summary={summary}
           onDone={onChanged}
         />
