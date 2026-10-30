@@ -295,7 +295,7 @@
 .vq figcaption em { font-style: normal; font-size: 13px; font-weight: 700; color: var(--brand); background: var(--brand-soft); padding: 6px 12px; border-radius: 999px; }
 .bx .tm-wrap { margin-top: 28px; }
 
-/* 대표 · 총괄 */
+/* 대표 */
 .lb-grid { display: grid; grid-template-columns: 1fr 1.12fr; gap: 80px; align-items: center; }
 .lb-photo { position: relative; border-radius: 34px; overflow: hidden; aspect-ratio: 4 / 5; background: #eef0f2; }
 .lb-photo img { position: absolute; left: 0; top: -8%; width: 100%; height: 116%; object-fit: cover; object-position: center 18%; will-change: transform; }
@@ -306,12 +306,6 @@
 .lb-foot { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 42px; padding-top: 24px; border-top: 1px solid var(--hair); font-size: 15px; color: var(--dim); }
 .lb-foot b { color: var(--ink); margin-left: 4px; }
 .lb-more { font-size: 15px; font-weight: 700; color: var(--brand); }
-.chief-bx { display: grid; grid-template-columns: 170px 1fr; gap: 40px; align-items: center; margin-top: 64px; padding: 36px; border-radius: 30px; background: var(--paper-2); }
-.chief-bx img { width: 170px; height: 210px; object-fit: cover; object-position: center 22%; border-radius: 22px; }
-.chief-bx h3 { font-size: clamp(20px, 2.1vw, 26px); font-weight: 800; letter-spacing: -.04em; line-height: 1.35; margin-bottom: 12px; }
-.chief-bx p { font-size: 15.5px; line-height: 1.8; color: var(--dim); }
-.chief-bx p b { color: var(--ink); }
-.chief-bx .lb-more { display: inline-block; margin-top: 14px; }
 
 /* 멘토 · 운영진 여백 보정 */
 .bx .mentor-strip { margin-top: 0; }
@@ -407,8 +401,6 @@
   .vq-list { grid-template-columns: 1fr; }
   .vq { padding: 32px 28px; }
   .lb-grid { grid-template-columns: 1fr; gap: 40px; }
-  .chief-bx { grid-template-columns: 1fr; padding: 28px; gap: 22px; }
-  .chief-bx img { width: 100%; height: 280px; }
   .persona-bx { grid-template-columns: 1fr; padding: 40px 24px; gap: 32px; }
   .close-copy { left: 24px; right: 24px; }
   .rm-sheet { padding: 28px 22px; }

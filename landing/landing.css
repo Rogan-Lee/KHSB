@@ -314,9 +314,6 @@ img.m-ava { object-fit: cover; background: #eee; }
   .mentor-strip .mtc { flex-basis: 68vw; }
 }
 
-/* 총괄 카드 — 원장(대표) 카드와 동일 레이아웃, 실제 사진(컬러) */
-.chief-card .leader-photo img { object-position: center 22%; filter: none; }
-
 /* 운영진(조교) 카드 — 사진 영역 없는 텍스트 카드 */
 .staff-card { display: flex; flex-direction: column; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 28px 26px 24px; text-decoration: none; color: inherit; transition: box-shadow .2s ease, transform .2s ease; }
 .staff-card:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
