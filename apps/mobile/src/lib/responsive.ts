@@ -1,3 +1,4 @@
+import { createContext, useContext } from 'react';
 import { useWindowDimensions } from 'react-native';
 
 /**
@@ -6,11 +7,24 @@ import { useWindowDimensions } from 'react-native';
  */
 export const TABLET_BREAKPOINT = 700;
 
+/**
+ * Landscape tablet (every iPad in landscape is >= 1133pt, Android tablets ~1280dp).
+ * At this width the side navigation shows labels and the home becomes a 3-column dashboard.
+ */
+export const WIDE_BREAKPOINT = 1000;
+
+/** Width the tablet side navigation takes from the window (0 when none is shown). Set by TabletShell. */
+export const SidebarWidthContext = createContext(0);
+
 export type Responsive = {
   /** Current window width in points. */
   width: number;
+  /** Width left for screen content after the tablet side navigation. */
+  contentWidth: number;
   /** True on iPad-class widths (>= TABLET_BREAKPOINT). */
   isTablet: boolean;
+  /** True on landscape-tablet widths (>= WIDE_BREAKPOINT). */
+  isWide: boolean;
   /** Suggested column count for adaptive grids/sections (1 on phone, 2 on tablet). */
   columns: number;
   /** Horizontal screen gutter — wider on tablet so content breathes. */
@@ -37,10 +51,13 @@ export function splitColumns<T>(items: T[], n: number): T[][] {
 
 export function useResponsive(): Responsive {
   const { width } = useWindowDimensions();
+  const sidebar = useContext(SidebarWidthContext);
   const isTablet = width >= TABLET_BREAKPOINT;
   return {
     width,
+    contentWidth: width - sidebar,
     isTablet,
+    isWide: width >= WIDE_BREAKPOINT,
     columns: isTablet ? 2 : 1,
     gutter: isTablet ? 28 : 16,
   };

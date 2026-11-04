@@ -21,6 +21,8 @@ export {
   type ScreenProps,
 } from './screen';
 export { SeedTabBar, type TabItem } from './tab-bar';
+export { TabletShell, useStackAnimation, type SideNavItem, type SideNavProfile } from './side-nav';
+export { DashboardHeader, KpiTile, KpiRow, DashGrid, DashCol, DashboardSkeleton, DASHBOARD_MAX_WIDTH } from './dashboard';
 export { TabIcon, type TabIconName } from './tab-icons';
 export { BottomSheet, FullSheet } from './sheet';
 export { FeedbackProvider, useFeedback, confirm, toast, showImages } from './feedback';

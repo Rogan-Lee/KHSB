@@ -7,11 +7,14 @@ import {
   Avatar,
   Badge,
   CountBadge,
+  DashCol,
+  DashGrid,
   IconTile,
   ListRow,
   Screen,
   Section,
   Stack,
+  TABLET_WIDE,
   Text,
   confirm,
   space,
@@ -38,7 +41,7 @@ export default function StaffMenuScreen() {
   const { session, signOut } = useSession();
   const caps = useStaffCaps();
   const badges = useStaffBadges();
-  const { isTablet } = useResponsive();
+  const { isTablet, isWide } = useResponsive();
   // 순찰·근무 상태 요약 — 오프라인 운영진만 (/staff/operations 는 requireMobileStaff)
   const ops = useOptionalQuery<StaffOperationsResponse>(
     caps?.offlineOps ? STAFF_API.operations : null
@@ -132,8 +135,56 @@ export default function StaffMenuScreen() {
 
   const version = Constants.expoConfig?.version;
 
+  const renderSection = (sec: (typeof visible)[number]) => (
+    <Section key={sec.title} title={sec.title} flush>
+      {sec.rows.map((r) => {
+        const d = STAFF_DEST[r.dest];
+        return (
+          <ListRow
+            key={r.dest}
+            href={d.href}
+            leading={<IconTile icon={d.icon} tone={d.tone} />}
+            title={r.label ?? d.label}
+            description={r.description}
+            trailing={
+              (r.badge ?? 0) > 0 ? (
+                <CountBadge count={r.badge ?? 0} />
+              ) : r.value ? (
+                <Text variant="t4-medium" color={r.valueTone ?? 'neutralSubtle'} tabular>
+                  {r.value}
+                </Text>
+              ) : undefined
+            }
+          />
+        );
+      })}
+    </Section>
+  );
+  const logoutCard = (
+    <Section flush>
+      <ListRow
+        onPress={() => void logout()}
+        chevron={false}
+        leading={<IconTile icon={LogOut} tone="bad" />}
+        title={
+          <Text variant="t5-medium" color="critical">
+            로그아웃
+          </Text>
+        }
+      />
+    </Section>
+  );
+  // 두 칸 나누기 — 앞에서부터 행이 적은 칸에 넣는다
+  const columns: (typeof visible)[] = [[], []];
+  const weight = [0, 0];
+  for (const sec of visible) {
+    const i = weight[0] <= weight[1] ? 0 : 1;
+    columns[i].push(sec);
+    weight[i] += sec.rows.length + 1;
+  }
+
   return (
-    <Screen kind="tab" title="전체" maxWidth={isTablet ? 640 : undefined}>
+    <Screen kind="tab" title="전체" maxWidth={isWide ? TABLET_WIDE : isTablet ? 640 : undefined}>
       <Stack>
         <Section>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x4 }}>
@@ -150,44 +201,21 @@ export default function StaffMenuScreen() {
           </View>
         </Section>
 
-        {visible.map((sec) => (
-          <Section key={sec.title} title={sec.title} flush>
-            {sec.rows.map((r) => {
-              const d = STAFF_DEST[r.dest];
-              return (
-                <ListRow
-                  key={r.dest}
-                  href={d.href}
-                  leading={<IconTile icon={d.icon} tone={d.tone} />}
-                  title={r.label ?? d.label}
-                  description={r.description}
-                  trailing={
-                    (r.badge ?? 0) > 0 ? (
-                      <CountBadge count={r.badge ?? 0} />
-                    ) : r.value ? (
-                      <Text variant="t4-medium" color={r.valueTone ?? 'neutralSubtle'} tabular>
-                        {r.value}
-                      </Text>
-                    ) : undefined
-                  }
-                />
-              );
-            })}
-          </Section>
-        ))}
-
-        <Section flush>
-          <ListRow
-            onPress={() => void logout()}
-            chevron={false}
-            leading={<IconTile icon={LogOut} tone="bad" />}
-            title={
-              <Text variant="t5-medium" color="critical">
-                로그아웃
-              </Text>
-            }
-          />
-        </Section>
+        {isWide ? (
+          // 가로 태블릿: 행 수가 비슷하도록 두 칸에 나눠 담는다(순서는 유지)
+          <DashGrid>
+            <DashCol>{columns[0].map(renderSection)}</DashCol>
+            <DashCol>
+              {columns[1].map(renderSection)}
+              {logoutCard}
+            </DashCol>
+          </DashGrid>
+        ) : (
+          <>
+            {visible.map(renderSection)}
+            {logoutCard}
+          </>
+        )}
 
         {version ? (
           <Text variant="t2-regular" color="placeholder" align="center" style={{ paddingTop: space.x3 }}>

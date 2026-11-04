@@ -3,6 +3,8 @@ import {
   CircleCheck,
   CircleQuestionMark,
   ClipboardList,
+  Clock,
+  DoorOpen,
   BookOpenCheck,
   MessageCircle,
   MessageSquareText,
@@ -10,6 +12,8 @@ import {
   ScanLine,
   Stamp,
   TriangleAlert,
+  UserCheck,
+  Users,
   Utensils,
   Video,
   type LucideIcon,
@@ -21,9 +25,16 @@ import {
   Avatar,
   Badge,
   Button,
+  DashboardHeader,
+  DashboardSkeleton,
+  DashCol,
+  DashGrid,
+  DASHBOARD_MAX_WIDTH,
   ErrorState,
   HeaderIconButton,
   IconTile,
+  KpiRow,
+  KpiTile,
   ListRow,
   Notice,
   Screen,
@@ -182,7 +193,7 @@ const SHORTCUT_ORDER: StaffDest[] = [
 export default function StaffHomeScreen() {
   const { session } = useSession();
   const caps = useStaffCaps();
-  const { isTablet } = useResponsive();
+  const { isTablet, isWide } = useResponsive();
   const { data, error, isLoading, refresh, retry } = useMobileQuery<StaffTodayResponse>(STAFF_API.today);
   const { refreshing, onRefresh } = usePullRefresh(async () => {
     refreshBadges();
@@ -210,9 +221,16 @@ export default function StaffHomeScreen() {
 
   if (!data || !caps) {
     return (
-      <Screen kind="home" right={header} onRefresh={onRefresh} refreshing={refreshing}>
+      <Screen
+        kind="home"
+        right={header}
+        onRefresh={onRefresh}
+        refreshing={refreshing}
+        maxWidth={isTablet ? DASHBOARD_MAX_WIDTH : undefined}>
         {error && !isLoading ? (
           <ErrorState message={error} onRetry={() => void retry()} />
+        ) : isTablet ? (
+          <DashboardSkeleton columns={isWide ? 3 : 2} />
         ) : (
           <Stack>
             <View style={{ paddingHorizontal: space.x1, paddingTop: space.x2, paddingBottom: space.x3, gap: space.x2 }}>
@@ -496,9 +514,106 @@ export default function StaffHomeScreen() {
       </Section>
     ) : null;
 
-  // 폰: 한 줄로 쌓기 · 태블릿: 왼쪽(지금 할 일) / 오른쪽(학생·일정) 두 칸
-  const left = [failedNotice, patrolCard, attendanceCard, priorityCard, shortcutCard, sessionsCard].filter(Boolean);
-  const right = [attentionCard, scheduleCard, todoCard].filter(Boolean);
+  if (!isTablet) {
+    return (
+      <Screen kind="home" right={header} refreshing={refreshing} onRefresh={onRefresh}>
+        {greeting}
+        <Stack>
+          {[
+            failedNotice,
+            patrolCard,
+            attendanceCard,
+            priorityCard,
+            shortcutCard,
+            sessionsCard,
+            attentionCard,
+            scheduleCard,
+            todoCard,
+          ].filter(Boolean)}
+        </Stack>
+      </Screen>
+    );
+  }
+
+  // ── 태블릿 대시보드: 큰 머리말 → 숫자 타일 → 칸 ──
+  const a = data.attendance;
+  const attendanceHref = route('/(staff)/(tabs)/attendance');
+  const kpis = a ? (
+    <KpiRow key="kpis">
+      <KpiTile
+        label="재실"
+        value={a.present}
+        unit="명"
+        tone="positive"
+        icon={UserCheck}
+        iconTone="ok"
+        caption={`재원생 ${a.total}명`}
+        href={attendanceHref}
+      />
+      <KpiTile
+        label="외출"
+        value={a.away}
+        unit="명"
+        tone={a.away > 0 ? 'informative' : 'neutral'}
+        icon={DoorOpen}
+        iconTone="info"
+        caption="지금 자리를 비운 학생"
+        href={attendanceHref}
+      />
+      <KpiTile
+        label="미입실"
+        value={a.notArrived}
+        unit="명"
+        icon={Clock}
+        caption={a.absent > 0 ? `결석 ${a.absent}명` : '아직 오지 않은 학생'}
+        href={attendanceHref}
+      />
+      <KpiTile
+        label="지각"
+        value={a.late}
+        unit="명"
+        tone={a.late > 0 ? 'critical' : 'neutral'}
+        icon={TriangleAlert}
+        iconTone={a.late > 0 ? 'bad' : 'gray'}
+        caption="오늘 늦게 온 학생"
+        href={attendanceHref}
+      />
+    </KpiRow>
+  ) : (
+    // 자습실 운영 권한이 없는 직원: 내 업무 숫자
+    <KpiRow key="kpis">
+      <KpiTile
+        label="처리할 일"
+        value={pending}
+        unit="건"
+        tone={pending > 0 ? 'brand' : 'neutral'}
+        icon={Stamp}
+        iconTone="brand"
+      />
+      {data.attention && (
+        <KpiTile label="주의 학생" value={data.attention.total} unit="명" icon={Users} iconTone="warn" />
+      )}
+      {todos && <KpiTile label="내 할 일" value={todos.total} unit="개" icon={ClipboardList} iconTone="info" />}
+      {data.events && (
+        <KpiTile
+          label="오늘 일정"
+          value={data.events.total}
+          unit="건"
+          icon={CalendarDays}
+          iconTone="ok"
+          href={STAFF_DEST.calendar.href}
+        />
+      )}
+    </KpiRow>
+  );
+
+  // 가로: 처리할 일(넓게) · 주의 학생·할 일 · 오늘 일정(좁게) / 세로 태블릿: 두 칸
+  // 바로가기는 사이드바에 있어 가로에서는 뺀다(세로 레일에는 바로가기가 없음)
+  const main = [failedNotice, patrolCard, priorityCard, isWide ? null : shortcutCard, sessionsCard].filter(Boolean);
+  let mid = (isWide ? [attentionCard, todoCard] : [attentionCard, scheduleCard, todoCard]).filter(Boolean);
+  let side = (isWide ? [scheduleCard] : []).filter(Boolean);
+  if (mid.length === 0) [mid, side] = [side, []];
+  const cols = [main, mid, side].filter((c) => c.length > 0);
 
   return (
     <Screen
@@ -506,16 +621,22 @@ export default function StaffHomeScreen() {
       right={header}
       refreshing={refreshing}
       onRefresh={onRefresh}
-      maxWidth={isTablet ? 1040 : undefined}>
-      {greeting}
-      {isTablet ? (
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: space.x3 }}>
-          <Stack style={{ flex: 1, minWidth: 0 }}>{left}</Stack>
-          <Stack style={{ flex: 1, minWidth: 0 }}>{right}</Stack>
-        </View>
-      ) : (
-        <Stack>{[...left, ...right]}</Stack>
-      )}
+      maxWidth={DASHBOARD_MAX_WIDTH}>
+      <DashboardHeader
+        eyebrow={`${name}님, ${greetingText()}`}
+        title={pending > 0 ? `처리할 일이 ${pending}건 있어요` : '지금은 처리할 일이 없어요'}
+        subtitle={[formatDateKey(today, 'long'), data.patrol ? '순찰 진행 중' : null].filter(Boolean).join(' · ')}
+      />
+      <Stack>
+        {kpis}
+        <DashGrid>
+          {cols.map((col, i) => (
+            <DashCol key={i} flex={i === 0 ? 1.4 : i === 2 ? 0.9 : 1}>
+              {col}
+            </DashCol>
+          ))}
+        </DashGrid>
+      </Stack>
     </Screen>
   );
 }

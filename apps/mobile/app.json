@@ -9,7 +9,8 @@
     "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "com.khsb.mobile",
-      "supportsTablet": false,
+      "appleTeamId": "QUABYXMW2H",
+      "supportsTablet": true,
       "config": {
         "usesNonExemptEncryption": false
       }
@@ -70,6 +71,12 @@
           "color": "#0066ff",
           "defaultChannel": "reminders",
           "enableBackgroundRemoteNotifications": false
+        }
+      ],
+      [
+        "react-native-device-activity",
+        {
+          "appGroup": "group.com.khsb.mobile"
         }
       ]
     ],

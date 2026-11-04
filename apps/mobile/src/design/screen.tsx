@@ -19,7 +19,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { Press } from './press';
 import { Text } from './text';
-import { useResponsive } from '@/lib/responsive';
+import { SidebarWidthContext, useResponsive } from '@/lib/responsive';
 
 import { color, CONTENT_MAX_WIDTH, space } from './tokens';
 
@@ -60,7 +60,7 @@ export type ScreenProps = {
   maxWidth?: number;
   /** 스크롤 없이 자식이 직접 레이아웃 (채팅·TwoPane 등) */
   scroll?: boolean;
-  /** 본문 좌우 여백 (기본 x4) */
+  /** 본문 좌우 여백 (기본 폰 x4 · 태블릿 x6) */
   gutter?: number;
   contentStyle?: StyleProp<ViewStyle>;
   children?: ReactNode;
@@ -78,13 +78,14 @@ export function Screen({
   footer,
   maxWidth: maxWidthProp,
   scroll = true,
-  gutter = space.x4,
+  gutter: gutterProp,
   contentStyle,
   children,
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
   const { isTablet } = useResponsive();
   const maxWidth = maxWidthProp ?? (isTablet ? TABLET_CONTENT_WIDTH : CONTENT_MAX_WIDTH);
+  const gutter = gutterProp ?? (isTablet ? space.x6 : space.x4);
   const inTabs = useContext(InTabsContext) && (kind === 'home' || kind === 'tab');
   const [scrolled, setScrolled] = useState(false);
   const [footerH, setFooterH] = useState(0);
@@ -222,6 +223,8 @@ export function ScreenHeader({
 }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  // 태블릿 사이드바에 로고가 있으니 홈 헤더에서는 뺀다
+  const inShell = useContext(SidebarWidthContext) > 0;
 
   const back = () => {
     if (onBack) return onBack();
@@ -240,7 +243,7 @@ export function ScreenHeader({
         },
       ]}>
       <View style={[s.headerRow, maxWidth ? { maxWidth, width: '100%', alignSelf: 'center' } : null]}>
-        {kind === 'home' && (
+        {kind === 'home' && !inShell && (
           <View style={s.brand} accessibilityRole="header">
             <Image source={require('@/assets/images/icon.png')} style={s.logo} />
             <Text variant="t7-bold">강한선배</Text>

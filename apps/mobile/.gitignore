@@ -44,3 +44,6 @@ example
 # generated native folders
 /ios
 /android
+
+# react-native-device-activity 가 prebuild 때 만들어 내는 iOS 확장 타깃 (스크린타임)
+/targets

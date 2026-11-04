@@ -246,6 +246,32 @@ export async function syncTaskDeadlineNotifications(tasks: TaskReminderItem[]) {
   return scheduledCount;
 }
 
+const FOCUS_CHECK_ID = 'studyroom-focus-check';
+
+/** 집중 모드 "아직 공부 중인가요?" 알림을 date 에 (다시) 예약한다. 권한이 없으면 조용히 건너뛴다(3시간 자동 종료는 그대로). */
+export async function scheduleFocusCheck(date: Date) {
+  if (Platform.OS === 'web') return;
+  const Notifications = await getNotifications();
+  await Notifications.cancelScheduledNotificationAsync(FOCUS_CHECK_ID).catch(() => undefined);
+  if ((await requestNotificationPermission()) !== 'granted') return;
+  await Notifications.scheduleNotificationAsync({
+    identifier: FOCUS_CHECK_ID,
+    content: {
+      title: '아직 공부 중인가요?',
+      body: '계속하려면 눌러 주세요. 1시간 안에 답이 없으면 집중 모드가 풀려요.',
+      data: { source: FOCUS_CHECK_ID, url: '/(student)/focus' },
+      sound: 'default',
+    },
+    trigger: { channelId: REMINDER_CHANNEL, date, type: Notifications.SchedulableTriggerInputTypes.DATE },
+  });
+}
+
+export async function cancelFocusCheck() {
+  if (Platform.OS === 'web') return;
+  const Notifications = await getNotifications();
+  await Notifications.cancelScheduledNotificationAsync(FOCUS_CHECK_ID).catch(() => undefined);
+}
+
 export async function scheduleNotificationPreview() {
   if (Platform.OS === 'web') {
     throw new Error('알림 미리보기는 iOS·Android 앱에서 확인할 수 있어요.');

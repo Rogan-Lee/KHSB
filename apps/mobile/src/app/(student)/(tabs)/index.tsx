@@ -3,7 +3,10 @@ import {
   CalendarDays,
   Camera,
   ChevronRight,
+  CircleHelp,
   CircleUserRound,
+  ClipboardCheck,
+  Coins,
   FileText,
   GraduationCap,
   LayoutGrid,
@@ -23,10 +26,16 @@ import {
   Badge,
   Button,
   color,
-  Columns,
+  DashboardHeader,
+  DashboardSkeleton,
+  DashCol,
+  DashGrid,
+  DASHBOARD_MAX_WIDTH,
   ErrorState,
   HeaderIconButton,
   IconTile,
+  KpiRow,
+  KpiTile,
   ListRow,
   Press,
   ProgressBar,
@@ -38,7 +47,6 @@ import {
   Skeleton,
   space,
   Stack,
-  TABLET_WIDE,
   Text,
   useResponsive,
   type Shortcut,
@@ -51,14 +59,16 @@ import {
   TASK_STATUS,
   type StudentHomeResponse,
 } from '@/lib/api/student-home';
+import { FocusCard } from '@/features/student-focus/focus-card';
+import { FOCUS_SUPPORTED } from '@/features/student-focus/focus';
 import { refreshBadges } from '@/lib/badges';
 import { useMobileQuery } from '@/lib/mobile-api';
 import { useSession } from '@/lib/session';
 import { isWebUrl } from '@/lib/safe-url';
 
 // 웹 학생 포털 홈(/s/[token]/page.tsx)과 같은 정보구조·문구·카드 순서.
-// 폰: 웹과 똑같은 한 줄 카드 순서. 태블릿(≥700): 두 단 대시보드 —
-//   왼쪽 = 인사·수행평가·질문·초기 설문, 오른쪽 = 멘토링·시즌 신청·포인트·바로가기.
+// 폰: 웹과 똑같은 한 줄 카드 순서. 태블릿(≥700): 대시보드 —
+//   큰 머리말 → 숫자 타일(수행평가·질문·메시지·포인트) → 두 칸(수행평가·설문 / 멘토링·질문·시즌 신청).
 // 포털 웹뷰로 보내는 링크는 없다 — 모든 기능이 앱 화면으로 열린다.
 
 const openUrl = (url: string) => {
@@ -84,7 +94,7 @@ export default function StudentHomeScreen() {
   return (
     <Screen
       kind="home"
-      maxWidth={isTablet ? TABLET_WIDE : undefined}
+      maxWidth={isTablet ? DASHBOARD_MAX_WIDTH : undefined}
       right={
         // 웹 포털 홈처럼 알림함 없이 계정만 (알림 설정은 전체 탭)
         <HeaderIconButton icon={CircleUserRound} label="내 계정" href="/account" />
@@ -118,6 +128,7 @@ function HomeContent({
   name: string;
   isTablet: boolean;
 }) {
+  const { isWide } = useResponsive();
   const { badges, mentoring, tasks, survey, points, seasonal } = data;
   const isOnline = data.student.isOnlineManaged;
   const nextSession = mentoring.sessions[0];
@@ -376,14 +387,72 @@ function HomeContent({
   );
 
   if (isTablet) {
-    return (
-      <Stack>
-        <Columns
-          left={[greetingBlock, tasksCard, qnaCard, surveyCard]}
-          right={[mentoringCard, seasonalCard, pointsCard, shortcutCard]}
+    const kpis = (
+      <KpiRow>
+        {(isOnline || tasks.total > 0) && (
+          <KpiTile
+            label="수행평가"
+            value={tasks.open}
+            unit="건 진행 중"
+            caption={`${tasks.total}건 중 ${tasks.done}건 완료`}
+            icon={ClipboardCheck}
+            iconTone="info"
+            href="/(student)/(tabs)/tasks"
+          />
+        )}
+        <KpiTile
+          label="질문"
+          value={data.questions.open}
+          unit="건"
+          tone={badges.qna > 0 ? 'brand' : 'neutral'}
+          caption={badges.qna > 0 ? `새 답변 ${badges.qna}건` : '진행 중인 질문'}
+          icon={CircleHelp}
+          iconTone="brand"
+          href="/(student)/(tabs)/qna"
         />
-        {footNote}
-      </Stack>
+        <KpiTile
+          label="메시지"
+          value={badges.chat}
+          unit="건"
+          tone={badges.chat > 0 ? 'informative' : 'neutral'}
+          caption="안 읽은 메시지"
+          icon={MessageCircle}
+          iconTone="info"
+          href="/(student)/(tabs)/chat"
+        />
+        <KpiTile
+          label="내 포인트"
+          value={points.balance.toLocaleString('ko-KR')}
+          unit="점"
+          caption={`약 ${points.krw.toLocaleString('ko-KR')}원 상당`}
+          icon={Coins}
+          iconTone="warn"
+          href={POINTS_ROUTE}
+        />
+      </KpiRow>
+    );
+    // 포인트는 숫자 타일로 올라가고, 바로가기는 사이드바에 있어 가로에서는 뺀다(세로 레일엔 바로가기가 없음)
+    // 집중 모드 바로 시작은 넓은 칸 맨 위 (iOS 18+ 에서만 그려진다)
+    let left = [FOCUS_SUPPORTED ? <FocusCard key="focus" /> : null, tasksCard, surveyCard].filter(Boolean);
+    let right = [mentoringCard, qnaCard, seasonalCard, isWide ? null : shortcutCard].filter(Boolean);
+    if (left.length === 0) [left, right] = [right.slice(0, 1), right.slice(1)];
+    const studentInfo = [data.student.school, data.student.grade].filter(Boolean).join(' · ');
+    return (
+      <View>
+        <DashboardHeader
+          eyebrow={`${name}님, ${greeting()}`}
+          title={headline}
+          subtitle={studentInfo || undefined}
+        />
+        <Stack>
+          {kpis}
+          <DashGrid>
+            <DashCol flex={1.3}>{left}</DashCol>
+            {right.length > 0 && <DashCol>{right}</DashCol>}
+          </DashGrid>
+          {footNote}
+        </Stack>
+      </View>
     );
   }
 
@@ -391,6 +460,7 @@ function HomeContent({
   return (
     <Stack>
       {greetingBlock}
+      <FocusCard />
       {mentoringCard}
       {qnaCard}
       {seasonalCard}
@@ -465,27 +535,7 @@ function HomeSkeleton({ isTablet }: { isTablet: boolean }) {
     </View>
   );
 
-  if (isTablet) {
-    return (
-      <Columns
-        left={[greetingSk, tasksSk, qnaSk]}
-        right={[
-          pointsSk,
-          <View key="shortcuts" style={[s.card, { gap: space.x4 }]}>
-            <Skeleton style={{ width: 70, height: 22 }} />
-            <View style={s.skeletonGrid}>
-              {Array.from({ length: 8 }, (_, i) => (
-                <View key={i} style={s.skeletonTile}>
-                  <Skeleton style={{ width: 48, height: 48, borderRadius: radius.r4 }} />
-                  <Skeleton style={{ width: 44, height: 14 }} />
-                </View>
-              ))}
-            </View>
-          </View>,
-        ]}
-      />
-    );
-  }
+  if (isTablet) return <DashboardSkeleton kpis={4} columns={2} />;
 
   return (
     <Stack>
@@ -534,8 +584,6 @@ const s = StyleSheet.create({
     paddingHorizontal: space.x4,
     paddingVertical: space.x3_5,
   },
-  skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: space.x3 },
-  skeletonTile: { width: '25%', alignItems: 'center', gap: space.x2, paddingVertical: space.x1 },
   footNote: {
     flexDirection: 'row',
     alignItems: 'flex-start',
