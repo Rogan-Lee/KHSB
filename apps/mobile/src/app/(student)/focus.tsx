@@ -38,7 +38,7 @@ import { SubmitBlock } from '@/features/student-life/ui';
 export default function StudentFocusScreen() {
   return (
     <Screen kind="push" title="집중 모드" backFallback="/(student)/(tabs)/menu">
-      {FOCUS_SUPPORTED ? <Focus /> : <Notice tone="gray">iOS 18 이상 아이폰에서 쓸 수 있어요.</Notice>}
+      {FOCUS_SUPPORTED ? <Focus /> : <Notice tone="gray">iOS·iPadOS 18 이상에서 쓸 수 있어요.</Notice>}
     </Screen>
   );
 }
@@ -80,8 +80,8 @@ function Focus() {
           <Text variant="t4-regular" color="neutralSubtle">
             내가 고른 앱과 사이트를 내가 끝낼 때까지 열 수 없게 해요. 잠글 앱을 바꾸거나 끝내려면 내가 정한 잠금
             비밀번호가 필요해요. 2시간이 지나면 아직 공부 중인지 묻고, 3시간까지 답이 없으면 저절로 풀려요.{'\n\n'}•
-            어떤 앱을 골랐는지, 언제 무엇을 쓰는지는 이 휴대폰 밖으로 나가지 않아요. 선생님도 볼 수 없어요.{'\n'}• 잠금
-            비밀번호를 잊으면 강한선배 로그인 비밀번호로 초기화할 수 있어요.{'\n'}• 아이폰 설정 › 스크린 타임에서 언제든
+            어떤 앱을 골랐는지, 언제 무엇을 쓰는지는 이 기기 밖으로 나가지 않아요. 선생님도 볼 수 없어요.{'\n'}• 잠금
+            비밀번호를 잊으면 강한선배 로그인 비밀번호로 초기화할 수 있어요.{'\n'}• 설정 › 스크린 타임에서 언제든
             권한을 끌 수 있고, 끄면 잠금과 비밀번호가 모두 풀려요.
           </Text>
           {f.denied && <Notice tone="warn">권한이 꺼져 있어요. 아래에서 다시 허용해 주세요.</Notice>}
