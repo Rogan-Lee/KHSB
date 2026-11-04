@@ -16,7 +16,7 @@ export function appReviewNotes(s: {
   const publishedBy = s.developerName
     ? ` The app is published by ${s.developerName} (individual developer account) on behalf of KHSB, the study hall operator.`
     : "";
-  return `Thank you for reviewing 강한선배 (KHSB). The requested information follows.
+  return `Thank you for reviewing 강한선배 (KHSB).
 
 1. SCREEN RECORDING
 Attached (physical iPhone, from launch): invitation sign-up, account deletion, login, terms, student flow (incl. report, block and focus mode) and parent flow (incl. tuition).
@@ -52,12 +52,11 @@ No public feed, profile or comments; messages and questions are private, one-to-
 Try: student > "메시지" > a conversation > long-press a teacher's message.
 
 FOCUS MODE (Screen Time, individual authorization)
-Optional: a student shields apps/sites they pick on their own device until they end it; after 2 h it asks if they're still studying and ends at 3 h if unanswered. Only the student turns it on or off; nothing leaves the device; staff can't see or control it. A student-set lock PIN (kept on the device) is needed to change apps or end it. A forgotten PIN is reset in-app with the account password, or by turning off Screen Time access in iOS Settings.
+Family Controls (Distribution) is assigned to team QUABYXMW2H and enabled on the app and its 3 extensions.
+Optional: a student shields apps/sites they pick on their own device until they end it; after 2 h it asks if they're still studying and ends at 3 h if unanswered. Only the student turns it on or off; nothing leaves the device; staff can't see or control it. A student-set lock PIN (kept on the device) is needed to change apps or end it. A forgotten PIN is reset in-app with the account password, or by turning off Screen Time access in Settings.
 Try: student > "홈" > "집중 모드" > allow > pick apps > set any PIN > "집중 시작".
 
 PAID CONTENT
 No in-app purchases, subscriptions or digital goods. Offline study hall tuition (seat and coaching) is billed by staff: in "전체" > "수강료" a parent views the bill and pays at the front desk or on the payment provider's web page in the browser (3.1.3(e)); the app never collects card details. Online payment isn't enabled yet (demo bill: front desk only). Lunch boxes (physical meals) are paid by bank transfer; merit points are staff-granted and can't be bought.
-
-Support: https://www.kanghanseonbae.com/support.html
 `;
 }
