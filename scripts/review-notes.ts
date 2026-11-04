@@ -19,7 +19,7 @@ export function appReviewNotes(s: {
   return `Thank you for reviewing 강한선배 (KHSB). The requested information follows.
 
 1. SCREEN RECORDING
-Attached (physical iPhone, from launch): invitation sign-up, account deletion, login, terms, student flow (incl. report and block) and parent flow (incl. tuition).
+Attached (physical iPhone, from launch): invitation sign-up, account deletion, login, terms, student flow (incl. report, block and focus mode) and parent flow (incl. tuition).
 
 2. PURPOSE AND AUDIENCE
 KHSB is a managed study hall (a paid study space with seats, attendance tracking and study coaching) in Hwaseong, South Korea; its customers are students and parents, and the app is the companion to that offline service.
