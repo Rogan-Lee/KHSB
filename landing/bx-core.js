@@ -22,7 +22,8 @@
   const fmtDate = d => (d ? new Date(d).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) : '');
   // 외부 링크는 http(s) 만 (javascript: 등 차단)
   const safeUrl = u => (/^https?:\/\//i.test(String(u || '').trim()) ? String(u).trim() : '#');
-  const postHref = p => (p.hasBody || !p.url ? `article.html?id=${encodeURIComponent(p.id)}` : safeUrl(p.url));
+  // 글 상세는 /stories/:id (api/story.js 가 서버에서 채움). 로컬 정적 서버엔 함수가 없어 article.html?id= 로.
+  const postHref = p => (p.hasBody || !p.url ? (IS_LOCAL ? `article.html?id=${encodeURIComponent(p.id)}` : `/stories/${encodeURIComponent(p.id)}`) : safeUrl(p.url));
   const isExternal = p => !(p.hasBody || !p.url);
   async function api(path) {
     const r = await fetch(API + path, { headers: { Accept: 'application/json' } });

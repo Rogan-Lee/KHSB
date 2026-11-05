@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>강한 이야기 | 강한선배</title>
+  <!--head--><title>강한 이야기 | 강한선배</title>
   <meta name="description" content="강한선배가 전하는 후기 · 선배 아티클 · 원장 칼럼.">
   <meta name="theme-color" content="#0b0c0f">
   <link rel="icon" href="favicon.ico" sizes="32x32">
   <link rel="icon" href="brand/icon-192.png" type="image/png" sizes="192x192">
   <link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
   <meta property="og:type" content="article">
-  <meta property="og:title" content="강한 이야기 | 강한선배">
+  <meta property="og:title" content="강한 이야기 | 강한선배"><!--/head-->
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <link rel="stylesheet" href="landing.css?v=seed4">
@@ -54,19 +54,23 @@
 <script src="bx-shell.js?v=bx20"></script>
 
 <main id="main">
-  <div id="arRoot">
-    <div class="ar ar-skel" aria-busy="true"><i style="width:30%"></i><i style="height:44px;width:90%;margin-top:40px"></i><i style="height:44px;width:60%"></i><i style="width:80%;margin-top:30px"></i><i style="width:70%"></i></div>
+  <div id="arRoot"><!--body-->
+    <div class="ar ar-skel" aria-busy="true"><i style="width:30%"></i><i style="height:44px;width:90%;margin-top:40px"></i><i style="height:44px;width:60%"></i><i style="width:80%;margin-top:30px"></i><i style="width:70%"></i></div><!--/body-->
   </div>
 </main>
 <div class="ar-toast" id="arToast" role="status">링크를 복사했어요</div>
 
 <script src="mentors-data.js?v=seed6"></script>
 <script src="bx-core.js?v=bx25"></script>
+<!--story-data-->
 <script>
   // 강한 이야기 상세 — /api/public/content/:id (본문은 서버에서 안전한 HTML로 렌더됨)
+  // 운영에선 /stories/:id 로 열리고 api/story.js 가 글을 미리 채워 window.__STORY 로 넘긴다. 로컬은 article.html?id= 로.
   (() => {
     const root = document.getElementById('arRoot');
-    const id = new URLSearchParams(location.search).get('id');
+    const pre = window.__STORY || {};
+    const id = pre.id || new URLSearchParams(location.search).get('id');
+    const R = pre.data ? '' : ' r'; // 이미 보이는 머리 · 본문은 다시 그릴 때 페이드인하지 않게
     const { esc, safeUrl, fmtDate, TYPE_LABEL } = KHSB;
     const ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 
@@ -84,18 +88,20 @@
     }
     if (!id) { fail('글을 찾을 수 없습니다', '주소가 올바른지 확인해 주세요.'); return; }
 
-    KHSB.api(`/api/public/content/${encodeURIComponent(id)}`).then(({ post: p, related }) => {
+    (pre.data ? Promise.resolve(pre.data) : KHSB.api(`/api/public/content/${encodeURIComponent(id)}`)).then(({ post: p, related }) => {
       const type = TYPE_LABEL[p.type] || '이야기';
       const who = authorInfo(p);
       const initial = (p.authorName || '강').trim().charAt(0);
       const ava = who && who.photo ? `<span class="ar-ava"><img src="${esc(who.photo)}" alt=""></span>` : `<span class="ar-ava">${esc(initial)}</span>`;
-      document.title = `${p.title} | 강한선배`;
-      const setMeta = (sel, attr, val) => { let m = document.querySelector(sel); if (m) m.setAttribute(attr, val); };
-      setMeta('meta[name="description"]', 'content', p.summary || `${type} · 강한선배`);
-      setMeta('meta[property="og:title"]', 'content', `${p.title} | 강한선배`);
+      if (!pre.data) { // 서버가 채웠으면 제목 · 설명은 그대로 둔다
+        document.title = `${p.title} | 강한선배`;
+        const setMeta = (sel, attr, val) => { let m = document.querySelector(sel); if (m) m.setAttribute(attr, val); };
+        setMeta('meta[name="description"]', 'content', p.summary || `${type} · 강한선배`);
+        setMeta('meta[property="og:title"]', 'content', `${p.title} | 강한선배`);
+      }
 
       const body = p.bodyHtml
-        ? `<div class="ar-body prose r">${p.bodyHtml}</div>`
+        ? `<div class="ar-body prose${R}">${p.bodyHtml}</div>`
         : '';
       const ext = p.url
         ? `<div class="ar-body ar-ext"><a class="btn btn-dark" href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener">${p.type === 'podcast' ? '팟캐스트 듣기' : '원문 보기'} ↗</a></div>`
@@ -123,7 +129,7 @@
               <button class="btn btn-soft btn-sm ar-share" type="button" id="arShare">링크 복사</button>
             </div>
           </header>
-          ${p.coverImageUrl ? `<figure class="ar-cover r"><img src="${esc(p.coverImageUrl)}" alt="" onerror="this.parentNode.remove()"></figure>` : ''}
+          ${p.coverImageUrl ? `<figure class="ar-cover${R}"><img src="${esc(p.coverImageUrl)}" alt="" onerror="this.parentNode.remove()"></figure>` : ''}
           ${body}${ext}
           ${author}
         </article>

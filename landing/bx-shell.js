@@ -26,7 +26,7 @@ if (SITE.ga && location.hostname.endsWith('kanghanseonbae.com') && !navigator.us
   const dlinks = SITE_NAV.map(n => `<a class="dl" href="${n.href}"${cur(n.key)}><span>${n.label}${badge(n, 'i')}</span></a>`).join('');
   const arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
   document.currentScript.insertAdjacentHTML('beforebegin', `
-<a class="skip-link" href="#main">본문 바로가기</a>
+<a class="skip-link" href="${location.pathname}${location.search}#main">본문 바로가기</a>
 <header class="gnb${dark ? ' is-dark' : ''}" id="gnb">
   <div class="gnb-inner">
     <a class="gnb-logo" href="landing.html" aria-label="강한선배 홈">
