@@ -8,6 +8,7 @@ import {
   FileText,
   GraduationCap,
   Headset,
+  Lock,
   LogOut,
   Megaphone,
   MessageCircle,
@@ -45,6 +46,7 @@ import {
   useResponsive,
   type Tone,
 } from '@/design';
+import { FOCUS_ROUTE, FOCUS_SUPPORTED } from '@/features/student-focus/focus';
 import { STUDENT_HOME_PATH, type StudentHomeResponse } from '@/lib/api/student-home';
 import { refreshBadges } from '@/lib/badges';
 import { useMobileQuery } from '@/lib/mobile-api';
@@ -199,6 +201,9 @@ function MenuContent({
       tone: 'info',
     },
   ];
+  // 집중 모드는 iOS 18+ 스크린 타임 전용 (안드로이드는 아직 없음)
+  if (FOCUS_SUPPORTED)
+    life.push({ href: FOCUS_ROUTE, label: '집중 모드', description: '공부할 때 딴짓 앱 잠그기', icon: Lock, tone: 'brand' });
   if (seasonal.lunchOpen)
     life.push({ href: LUNCH_ROUTE, label: '점심 도시락', icon: Utensils, tone: 'warn', value: '신청 가능' });
   if (seasonal.examOpenCount > 0)

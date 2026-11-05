@@ -30,7 +30,9 @@ export function TwoPane({
   emptyTitle?: string;
   emptyMessage?: string;
 }) {
-  const { isTablet } = useResponsive();
+  const { isTablet, contentWidth } = useResponsive();
+  // 사이드바를 뺀 폭의 42% 를 넘지 않게 (세로 태블릿에서 상세가 너무 좁아지지 않도록)
+  const listWidth = Math.min(masterWidth, Math.round(contentWidth * 0.42));
   const phoneDetail = !isTablet && detailVisible && detail != null;
 
   useEffect(() => {
@@ -48,7 +50,7 @@ export function TwoPane({
 
   return (
     <View style={styles.split}>
-      <View style={[styles.master, { width: masterWidth }]}>{master}</View>
+      <View style={[styles.master, { width: listWidth }]}>{master}</View>
       <View style={styles.detail}>
         {detailVisible && detail != null ? (
           detail
@@ -65,6 +67,7 @@ export function TwoPane({
 const styles = StyleSheet.create({
   split: { flex: 1, flexDirection: 'row', backgroundColor: color.bg.layerBasement },
   master: { borderRightColor: color.stroke.neutralSubtle, borderRightWidth: 1 },
-  detail: { flex: 1, backgroundColor: color.bg.layerDefault },
+  // 상세 화면 대부분(채팅·질문·리포트·학생 정보)이 회색 바탕이라 빈 상태도 같은 색 — 고를 때 색이 바뀌지 않게
+  detail: { flex: 1, backgroundColor: color.bg.layerBasement },
   empty: { flex: 1, justifyContent: 'center', paddingHorizontal: space.x6 },
 });

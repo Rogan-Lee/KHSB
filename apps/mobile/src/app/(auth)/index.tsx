@@ -9,6 +9,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import {
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -32,8 +33,10 @@ import {
   TextField,
   color,
   radius,
+  shadow,
   space,
   toast,
+  useResponsive,
 } from '@/design';
 import { rememberTermsAgreedAtSignUp } from '@/features/safety/terms-gate';
 import {
@@ -86,6 +89,8 @@ function signInErrorMessage(error: NonNullable<AuthErrorLike>) {
 export default function AuthScreen() {
   const { session, status, signOut } = useSession();
   const insets = useSafeAreaInsets();
+  // 태블릿: 회색 바탕 가운데 카드 + 폼 바로 아래 버튼 (화면 맨 아래 버튼은 폼과 너무 멀다)
+  const { isTablet } = useResponsive();
   const params = useLocalSearchParams<{ invite?: string }>();
   const paramInvite = typeof params.invite === 'string' ? params.invite.trim() : '';
 
@@ -114,6 +119,8 @@ export default function AuthScreen() {
   const [fieldErrors, setFieldErrors] = useState<{ username?: string; email?: string; password?: string }>({});
 
   const scrollRef = useRef<ScrollView>(null);
+  const scrollY = useRef(0);
+  const ctaRef = useRef<View>(null);
   const contentRef = useRef<View>(null);
   const usernameRef = useRef<TextInput>(null);
   const emailRef = useRef<TextInput>(null);
@@ -170,6 +177,19 @@ export default function AuthScreen() {
       toast('이미 로그인돼 있어요. 초대받은 계정으로 가입하려면 먼저 로그아웃해 주세요.');
     }
   }, [status, paramInvite]);
+
+  // 태블릿 로그인은 버튼이 카드 안에 있어 키보드에 가려진다 → 키보드가 뜨면 로그인 버튼이 키보드 바로 위에
+  // 오는 만큼만 올린다(더 올리면 아이디 칸이 위로 사라진다). 가입 폼은 칸 단위 reveal 을 그대로 쓴다.
+  useEffect(() => {
+    if (!isTablet || mode !== 'sign-in') return;
+    const sub = Keyboard.addListener('keyboardDidShow', (e) => {
+      ctaRef.current?.measureInWindow((_x, y, _w, h) => {
+        const overlap = y + h + space.x4 - e.endCoordinates.screenY;
+        if (overlap > 0) scrollRef.current?.scrollTo({ y: scrollY.current + overlap, animated: true });
+      });
+    });
+    return () => sub.remove();
+  }, [isTablet, mode]);
 
   if (status === 'authenticated' && session) {
     return <Redirect href={roleHome(session.role)} />;
@@ -387,19 +407,33 @@ export default function AuthScreen() {
   }
 
   return (
-    <View style={s.root}>
+    <View style={[s.root, isTablet && { backgroundColor: color.bg.layerBasement }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView
           ref={scrollRef}
+          onScroll={(e) => {
+            scrollY.current = e.nativeEvent.contentOffset.y;
+          }}
+          scrollEventThrottle={32}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingTop: insets.top + space.x12,
-            paddingHorizontal: space.x6,
-            paddingBottom: footerH + space.x6,
-          }}>
-          <View ref={contentRef} style={s.content}>
+          contentContainerStyle={
+            isTablet
+              ? {
+                  flexGrow: 1,
+                  justifyContent: 'center',
+                  paddingTop: insets.top + space.x8,
+                  paddingHorizontal: space.x6,
+                  paddingBottom: Math.max(insets.bottom, space.x8),
+                }
+              : {
+                  paddingTop: insets.top + space.x12,
+                  paddingHorizontal: space.x6,
+                  paddingBottom: footerH + space.x6,
+                }
+          }>
+          <View ref={contentRef} style={[s.content, isTablet && s.tabletCard]}>
             <View style={s.brand}>
               <Image
                 source={require('@/assets/images/icon.png')}
@@ -444,6 +478,8 @@ export default function AuthScreen() {
                   spellCheck={false}
                   autoComplete="username"
                   textContentType="username"
+                  // 아이디·이메일은 영문 — 한글 자판이 기본인 기기에서 자모로 들어가지 않게 (iOS)
+                  keyboardType="ascii-capable"
                   returnKeyType="next"
                   submitBehavior="submit"
                   onSubmitEditing={() => passwordRef.current?.focus()}
@@ -520,6 +556,7 @@ export default function AuthScreen() {
                     setFieldErrors((e) => ({ ...e, username: undefined }));
                   }}
                   onFocus={() => reveal(usernameRef.current)}
+                  keyboardType="ascii-capable"
                   onBlur={() => setTouched((t) => ({ ...t, username: true }))}
                   placeholder="예: minjun_kim"
                   autoCapitalize="none"
@@ -624,7 +661,15 @@ export default function AuthScreen() {
               </View>
             )}
 
-            <View style={s.helpLinks}>
+            {isTablet && (
+              <View ref={ctaRef} style={{ marginTop: space.x8 }}>
+                <Button size="xl" block onPress={cta.onPress} loading={cta.loading} disabled={cta.disabled}>
+                  {cta.label}
+                </Button>
+              </View>
+            )}
+
+            <View style={[s.helpLinks, isTablet && { marginTop: space.x5 }]}>
               <HelpLink label="고객센터" onPress={() => void openHelpPage(SUPPORT_URL)} />
               <Text variant="t3-regular" color="neutralSubtle" accessibilityElementsHidden importantForAccessibility="no">
                 ·
@@ -637,16 +682,18 @@ export default function AuthScreen() {
             </View>
           </View>
         </ScrollView>
-        <BottomCTA background={color.bg.layerDefault} onHeight={setFooterH} maxWidth={CONTENT_WIDTH}>
-          <Button
-            size="xl"
-            block
-            onPress={cta.onPress}
-            loading={cta.loading}
-            disabled={cta.disabled}>
-            {cta.label}
-          </Button>
-        </BottomCTA>
+        {!isTablet && (
+          <BottomCTA background={color.bg.layerDefault} onHeight={setFooterH} maxWidth={CONTENT_WIDTH}>
+            <Button
+              size="xl"
+              block
+              onPress={cta.onPress}
+              loading={cta.loading}
+              disabled={cta.disabled}>
+              {cta.label}
+            </Button>
+          </BottomCTA>
+        )}
       </KeyboardAvoidingView>
     </View>
   );
@@ -716,6 +763,13 @@ function InvitationCard({
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.bg.layerDefault },
   content: { width: '100%', maxWidth: CONTENT_WIDTH, alignSelf: 'center' },
+  tabletCard: {
+    maxWidth: CONTENT_WIDTH + space.x10 * 2,
+    padding: space.x10,
+    borderRadius: radius.r6,
+    backgroundColor: color.bg.layerDefault,
+    ...shadow('s1'),
+  },
   brand: { gap: space.x1 },
   logo: {
     width: 64,

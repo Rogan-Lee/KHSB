@@ -17,7 +17,8 @@ import { duration, hm } from './today-format';
 
 type HeroCopy = { icon: LucideIcon; tone: Tone; badge: string; title: string; lines: string[] };
 
-function heroCopy(t: ParentTodayResponse): HeroCopy {
+/** 지금 상태 문구 — 홈 히어로 카드와 태블릿 대시보드 머리말이 같이 쓴다 */
+export function heroCopy(t: ParentTodayResponse): HeroCopy {
   const checkIn = hm(t.checkIn);
   const checkOut = hm(t.checkOut);
 

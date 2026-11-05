@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import {
   Animated,
   Easing,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -13,6 +14,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useResponsive } from '@/lib/responsive';
+
 import { FeedbackHost } from './feedback';
 import { ScreenHeader } from './screen';
 import { Text } from './text';
@@ -21,6 +24,7 @@ import { color, CONTENT_MAX_WIDTH, radius, shadow, space } from './tokens';
 /**
  * SEED BottomSheet — 확인·짧은 작성용. 핸들 · 제목 t7-bold · 설명 · 본문 · 하단 버튼(footer).
  * 웹 src/components/portal/bottom-sheet.tsx 와 같은 API.
+ * 태블릿에서는 화면 가운데 뜨는 카드(iPad 폼 시트처럼)로 그린다.
  */
 export function BottomSheet({
   open,
@@ -42,10 +46,14 @@ export function BottomSheet({
 }) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
+  const { isTablet } = useResponsive();
+  const keyboard = useKeyboardHeight(open);
   const [mounted, setMounted] = useState(open);
   const [t] = useState(() => new Animated.Value(0));
   // 열리면 즉시 마운트(렌더 중 파생 상태), 닫힐 때는 애니메이션이 끝난 뒤 언마운트
   if (open && !mounted) setMounted(true);
+  // 키보드가 아래 안전 영역을 덮으므로 그동안은 그만큼의 아래 여백을 뺀다 (안 빼면 버튼과 키보드 사이가 뜬다)
+  const keyboardUp = Platform.OS === 'ios' && keyboard > 0;
 
   useEffect(() => {
     if (open) {
@@ -76,18 +84,28 @@ export function BottomSheet({
       </Animated.View>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'web' ? undefined : 'padding'}
-        style={s.sheetWrap}
+        style={[s.sheetWrap, isTablet && s.sheetWrapCenter]}
         pointerEvents="box-none">
         <Animated.View
           style={[
             s.sheet,
-            {
-              maxHeight: height * 0.9,
-              paddingBottom: Math.max(insets.bottom, space.x4),
-              transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [height * 0.6, 0] }) }],
-            },
+            isTablet
+              ? {
+                  ...s.sheetCard,
+                  // 가운데 카드는 키보드가 뜨면 남은 높이 안에 들어가야 아래 버튼이 안 가려진다
+                  maxHeight: keyboard > 0 ? height - keyboard - space.x6 * 2 : height * 0.85,
+                  opacity: t,
+                  transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [space.x8, 0] }) }],
+                }
+              : {
+                  maxHeight: height * 0.9,
+                  paddingBottom: keyboardUp ? space.x4 : Math.max(insets.bottom, space.x4),
+                  transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [height * 0.6, 0] }) }],
+                },
           ]}>
-          <View style={s.handle} />
+          {/* iOS 26 키보드는 위쪽이 둥글게 비어 있어 시트 아래로 어두운 배경이 비친다 — 시트 색을 아래로 이어 붙게 보이게 (폰: 아래에 붙은 시트) */}
+          {!isTablet && <View pointerEvents="none" style={s.sheetBelow} />}
+          {!isTablet && <View style={s.handle} />}
           {(title != null || description != null) && (
             <View style={s.head}>
               {title != null && (typeof title === 'string' ? <Text variant="t7-bold">{title}</Text> : title)}
@@ -117,6 +135,24 @@ export function BottomSheet({
       <FeedbackHost bottomOffset={Math.max(insets.bottom, space.x4) + space.x16} />
     </Modal>
   );
+}
+
+/** 떠 있는 소프트웨어 키보드 높이 (enabled 일 때만 구독) */
+function useKeyboardHeight(enabled: boolean) {
+  const [h, setH] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    const ios = Platform.OS === 'ios';
+    const show = Keyboard.addListener(ios ? 'keyboardWillShow' : 'keyboardDidShow', (e) =>
+      setH(e.endCoordinates.height),
+    );
+    const hide = Keyboard.addListener(ios ? 'keyboardWillHide' : 'keyboardDidHide', () => setH(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, [enabled]);
+  return enabled ? h : 0;
 }
 
 /**
@@ -186,6 +222,16 @@ export function FullSheet({
 
 const s = StyleSheet.create({
   sheetWrap: { flex: 1, justifyContent: 'flex-end' },
+  sheetBelow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: -600,
+    height: 600,
+    backgroundColor: color.bg.layerFloating,
+  },
+  sheetWrapCenter: { justifyContent: 'center', padding: space.x6 },
+  sheetCard: { borderRadius: radius.r6, paddingTop: space.x2, paddingBottom: space.x6 },
   sheet: {
     width: '100%',
     maxWidth: 560,

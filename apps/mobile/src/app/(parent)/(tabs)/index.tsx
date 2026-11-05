@@ -17,6 +17,11 @@ import { StyleSheet, View } from 'react-native';
 
 import {
   Button,
+  DashboardHeader,
+  DashboardSkeleton,
+  DashCol,
+  DashGrid,
+  DASHBOARD_MAX_WIDTH,
   EmptyState,
   ErrorState,
   HeaderIconButton,
@@ -30,6 +35,7 @@ import {
   space,
 } from '@/design';
 import { useChildQuery } from '@/features/parent/child-query';
+import { ParentKpis } from '@/features/parent/home-kpis';
 import {
   LatestReportCard,
   MonthPointsCard,
@@ -38,7 +44,7 @@ import {
   WeekStudyCard,
 } from '@/features/parent/today-cards';
 import { kstToday } from '@/features/parent/today-format';
-import { TodayHero } from '@/features/parent/today-hero';
+import { heroCopy, TodayHero } from '@/features/parent/today-hero';
 import { TuitionHomeBanner } from '@/features/tuition/home-banner';
 import {
   parentApi,
@@ -53,10 +59,13 @@ import { useResponsive } from '@/lib/responsive';
 // typed routes 생성 전에도 컴파일되도록 Href 로 고정
 const TUITION_ROUTE = '/(parent)/tuition' as Href;
 
-/** 학부모 홈(오늘) — (수강료 알림) · 지금 상태 · 오늘 타임라인 · 이번 주 공부 시간 · 상벌점 · 리포트 · 공지 */
+/**
+ * 학부모 홈(오늘) — (수강료 알림) · 지금 상태 · 오늘 타임라인 · 이번 주 공부 시간 · 상벌점 · 리포트 · 공지
+ * 태블릿: 큰 머리말(지금 상태) → 숫자 타일(입실·공부 시간·상벌점) → 두 칸(이번 주 그래프 / 오늘 하루·리포트·공지)
+ */
 export default function ParentHomeScreen() {
   const { selected } = useParentChild();
-  const { isTablet } = useResponsive();
+  const { isTablet, isWide } = useResponsive();
   const childId = selected?.id ?? null;
 
   const today = useChildQuery<ParentTodayResponse>(
@@ -104,14 +113,20 @@ export default function ParentHomeScreen() {
 
   let body;
   if (!t) {
-    body = today.error ? <ErrorState message={today.error} onRetry={today.retry} /> : <HomeSkeleton />;
+    body = today.error ? (
+      <ErrorState message={today.error} onRetry={today.retry} />
+    ) : isTablet ? (
+      <DashboardSkeleton columns={2} />
+    ) : (
+      <HomeSkeleton />
+    );
   } else {
     // 바로가기 — 학생·직원 홈과 같은 그리드 (새 리포트·승인 대기 스케줄·결제할 수강료는 점).
-    // 9개라서 폰은 3칸×3줄로 맞춘다 (기본 4칸이면 마지막 줄에 하나만 남는다). 태블릿은 기본 6칸.
+    // 9개라서 3칸×3줄로 맞춘다 (4칸이면 마지막 줄에 하나만 남는다). 태블릿은 세로일 때만 반 칸에 보인다.
     const shortcuts = (
       <Section title="바로가기">
         <ShortcutGrid
-          columns={isTablet ? undefined : 3}
+          columns={3}
           items={[
             { key: 'attendance', label: '출결', icon: CalendarCheck, tone: 'ok', href: '/(parent)/(tabs)/attendance' },
             { key: 'reports', label: '리포트', icon: FileText, tone: 'brand', href: '/(parent)/(tabs)/reports', dot: badges.reports > 0 },
@@ -126,46 +141,58 @@ export default function ParentHomeScreen() {
         />
       </Section>
     );
-    const main = (
-      <>
-        <TodayHero today={t} />
-        {!isTablet && shortcuts}
-        <TodayTimelineCard today={t} />
-      </>
+    const latestReport = (
+      <LatestReportCard
+        latestReportAt={overview.data ? (overviewChild?.latestAnyReportAt ?? overviewChild?.latestReportAt ?? null) : undefined}
+        now={t.now}
+      />
     );
-    const side = (
-      <>
-        {isTablet && shortcuts}
-        <WeekStudyCard stats={week.data} loading={week.isLoading} />
-        <MonthPointsCard month={month} points={overviewChild?.monthPoints ?? null} />
-        <LatestReportCard
-          latestReportAt={overview.data ? (overviewChild?.latestAnyReportAt ?? overviewChild?.latestReportAt ?? null) : undefined}
-          now={t.now}
-        />
-        {t.notice && <NoticeCard notice={t.notice} />}
-      </>
-    );
-    body = isTablet ? (
-      <View style={s.columns}>
-        <Stack style={s.col}>{main}</Stack>
-        <Stack style={s.col}>{side}</Stack>
-      </View>
-    ) : (
-      <Stack>
-        {main}
-        {side}
-      </Stack>
-    );
+    if (isTablet) {
+      // 지금 상태·상벌점은 머리말과 숫자 타일로 올라간다. 바로가기는 사이드바에 있어 가로에서는 뺀다(세로 레일엔 없음)
+      const copy = heroCopy(t);
+      const childInfo = [t.child.name, t.child.grade, t.child.seat ? `${t.child.seat}번` : null].filter(Boolean).join(' · ');
+      body = (
+        <View>
+          <DashboardHeader eyebrow={childInfo} title={copy.title} subtitle={copy.lines.join(' · ') || undefined} />
+          <Stack>
+            <ParentKpis today={t} week={week.data} month={month} points={overviewChild?.monthPoints ?? null} />
+            <DashGrid>
+              <DashCol flex={1.35}>
+                <WeekStudyCard stats={week.data} loading={week.isLoading} />
+                {!isWide && shortcuts}
+              </DashCol>
+              <DashCol>
+                <TodayTimelineCard today={t} />
+                {latestReport}
+                {t.notice && <NoticeCard notice={t.notice} />}
+              </DashCol>
+            </DashGrid>
+          </Stack>
+        </View>
+      );
+    } else {
+      body = (
+        <Stack>
+          <TodayHero today={t} />
+          {shortcuts}
+          <TodayTimelineCard today={t} />
+          <WeekStudyCard stats={week.data} loading={week.isLoading} />
+          <MonthPointsCard month={month} points={overviewChild?.monthPoints ?? null} />
+          {latestReport}
+          {t.notice && <NoticeCard notice={t.notice} />}
+        </Stack>
+      );
+    }
   }
 
   return (
     <Screen
       kind="home"
       right={right}
-      maxWidth={isTablet ? 960 : undefined}
+      maxWidth={isTablet ? DASHBOARD_MAX_WIDTH : undefined}
       refreshing={today.isRefreshing || week.isRefreshing || overview.isRefreshing}
       onRefresh={onRefresh}>
-      {/* 수강료 알림은 폰에서는 오늘 카드 위, 태블릿에서는 두 단 위에 한 줄로 */}
+      {/* 수강료 알림은 폰에서는 오늘 카드 위, 태블릿에서는 대시보드 위에 한 줄로 */}
       <Stack>
         <TuitionHomeBanner banner={overviewChild?.tuition} />
         {body}
@@ -213,8 +240,6 @@ function HomeSkeleton() {
 }
 
 const s = StyleSheet.create({
-  columns: { flexDirection: 'row', alignItems: 'flex-start', gap: space.x3 },
-  col: { flex: 1, minWidth: 0 },
   skelCard: {
     backgroundColor: color.bg.layerDefault,
     borderRadius: radius.r5,

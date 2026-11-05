@@ -25,6 +25,7 @@ const STATIC_ROUTES = new Set([
   '/(student)/feedback',
   '/(student)/survey',
   '/(student)/suggestions',
+  '/(student)/focus',
   '/(staff)/(tabs)',
   '/(staff)/(tabs)/attendance',
   '/(staff)/(tabs)/mentoring',

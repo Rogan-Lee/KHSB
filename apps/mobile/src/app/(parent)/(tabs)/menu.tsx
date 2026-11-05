@@ -22,6 +22,8 @@ import {
   Badge,
   color,
   confirm,
+  DashCol,
+  DashGrid,
   Divider,
   IconTile,
   ListRow,
@@ -29,8 +31,10 @@ import {
   Section,
   space,
   Stack,
+  TABLET_WIDE,
   Text,
   toast,
+  useResponsive,
   type Tone,
 } from '@/design';
 import { useChildQuery } from '@/features/parent/child-query';
@@ -96,6 +100,7 @@ export default function ParentMenuScreen() {
   );
   const sum = summary.data;
   const parentName = session?.displayName?.trim() || '학부모';
+  const { isWide } = useResponsive();
 
   const lunchTrailing = sum ? LUNCH_TRAILING[sum.lunch] : null;
   // 구버전 서버는 tuition 이 없고, 새 서버가 모르는 값을 보내도 배지만 빠진다
@@ -172,10 +177,53 @@ export default function ParentMenuScreen() {
     },
   ];
 
+  const kidsCard = (
+    <Section title="연결된 자녀" flush>
+      {kids.map((kid, i) => {
+        const on = kid.id === childId;
+        return (
+          <Fragment key={kid.id}>
+            {i > 0 && <Divider inset={space.x5} />}
+            <ListRow
+              onPress={kids.length > 1 ? () => select(kid.id) : undefined}
+              leading={<Avatar name={kid.name} size={40} />}
+              title={kid.name}
+              description={childMeta(kid) || undefined}
+              chevron={false}
+              trailing={
+                kids.length > 1 ? (
+                  on ? (
+                    <View style={s.selected}>
+                      <Check size={16} strokeWidth={2.6} color={color.fg.brand} />
+                      <Text variant="t4-bold" color="brand">
+                        보는 중
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text variant="t4-medium" color="neutralSubtle">
+                      보기
+                    </Text>
+                  )
+                ) : undefined
+              }
+            />
+          </Fragment>
+        );
+      })}
+      <ListRow
+        href={ROUTES.linkChild}
+        leading={<IconTile icon={UserPlus} tone="gray" />}
+        title="자녀 추가 연결"
+        description="독서실에서 받은 초대 코드가 필요해요"
+      />
+    </Section>
+  );
+
   return (
     <Screen
       kind="tab"
       title="전체"
+      maxWidth={isWide ? TABLET_WIDE : undefined}
       refreshing={summary.isRefreshing}
       onRefresh={() => {
         refreshBadges();
@@ -197,49 +245,26 @@ export default function ParentMenuScreen() {
           </View>
         </Section>
 
-        <Section title="연결된 자녀" flush>
-          {kids.map((kid, i) => {
-            const on = kid.id === childId;
-            return (
-              <Fragment key={kid.id}>
-                {i > 0 && <Divider inset={space.x5} />}
-                <ListRow
-                  onPress={kids.length > 1 ? () => select(kid.id) : undefined}
-                  leading={<Avatar name={kid.name} size={40} />}
-                  title={kid.name}
-                  description={childMeta(kid) || undefined}
-                  chevron={false}
-                  trailing={
-                    kids.length > 1 ? (
-                      on ? (
-                        <View style={s.selected}>
-                          <Check size={16} strokeWidth={2.6} color={color.fg.brand} />
-                          <Text variant="t4-bold" color="brand">
-                            보는 중
-                          </Text>
-                        </View>
-                      ) : (
-                        <Text variant="t4-medium" color="neutralSubtle">
-                          보기
-                        </Text>
-                      )
-                    ) : undefined
-                  }
-                />
-              </Fragment>
-            );
-          })}
-          <ListRow
-            href={ROUTES.linkChild}
-            leading={<IconTile icon={UserPlus} tone="gray" />}
-            title="자녀 추가 연결"
-            description="독서실에서 받은 초대 코드가 필요해요"
-          />
-        </Section>
-
-        <MenuSection title="신청" items={apply} />
-        <MenuSection title="소통" items={talk} />
-        <AppSection />
+        {isWide ? (
+          // 가로 태블릿: 자녀·신청 / 소통·설정 두 칸
+          <DashGrid>
+            <DashCol>
+              {kidsCard}
+              <MenuSection title="신청" items={apply} />
+            </DashCol>
+            <DashCol>
+              <MenuSection title="소통" items={talk} />
+              <AppSection />
+            </DashCol>
+          </DashGrid>
+        ) : (
+          <>
+            {kidsCard}
+            <MenuSection title="신청" items={apply} />
+            <MenuSection title="소통" items={talk} />
+            <AppSection />
+          </>
+        )}
 
         <Text variant="t2-regular" color="placeholder" align="center" style={s.footNote}>
           학부모님 본인 계정 전용 앱이에요. 다른 사람이 쓰는 기기라면{'\n'}다 쓴 뒤 꼭 로그아웃해 주세요.
