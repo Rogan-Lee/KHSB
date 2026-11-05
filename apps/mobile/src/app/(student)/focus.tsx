@@ -84,14 +84,14 @@ function Focus() {
             비밀번호를 잊으면 강한선배 로그인 비밀번호로 초기화할 수 있어요.{'\n'}• 설정 › 스크린 타임에서 언제든
             권한을 끌 수 있고, 끄면 잠금과 비밀번호가 모두 풀려요.
           </Text>
-          {f.denied && <Notice tone="warn">권한이 꺼져 있어요. 아래에서 다시 허용해 주세요.</Notice>}
+          {f.denied && <Notice tone="warn">스크린 타임 권한이 꺼져 있어 집중 모드를 쓸 수 없어요.</Notice>}
           <Button
             size="xl"
             block
             onPress={() =>
               void DA.requestAuthorization('individual').catch(() => toast('스크린 타임 권한을 받지 못했어요', 'error'))
             }>
-            스크린 타임 접근 허용
+            계속
           </Button>
         </Stack>
       </Section>
