@@ -1,11 +1,19 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "ignoreCommand": "git diff --quiet HEAD^ HEAD -- .",
+  "functions": {
+    "api/story.js": { "includeFiles": "article.html" }
+  },
+  "redirects": [
+    { "source": "/article.html", "has": [{ "type": "query", "key": "id", "value": "(?<id>[\\w-]{1,64})" }], "destination": "/stories/:id", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/", "destination": "/landing.html" },
     { "source": "/index.html", "destination": "/landing.html" },
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/support", "destination": "/support.html" },
-    { "source": "/terms", "destination": "/terms.html" }
+    { "source": "/terms", "destination": "/terms.html" },
+    { "source": "/stories/:id", "destination": "/api/story?id=:id" },
+    { "source": "/sitemap.xml", "destination": "/api/sitemap" }
   ]
 }
