@@ -150,6 +150,8 @@ export const authServer = betterAuth({
   },
   trustedOrigins: [
     baseURL,
+    // 같은 프로젝트의 운영 별칭. 모바일 앱 API 주소라 앱의 "비밀번호 찾기"가 이 주소로 웹을 연다.
+    "https://khsb.vercel.app",
     "studyroom://",
     "studyroom://*",
     // Vercel preview 배포는 baseURL(프로덕션)과 도메인이 달라 origin이 막힘 → preview origin 신뢰
