@@ -1,6 +1,6 @@
 import { Coins, Gift, TrendingDown, TrendingUp, type LucideIcon } from 'lucide-react-native';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import {
   Badge,
@@ -30,6 +30,13 @@ import { SkeletonCard, SkeletonRow } from './ui';
 
 // 웹 학생 포털 /s/[token]/points (points-panel.tsx) 와 같은 카드·문구·배지 규칙.
 
+/**
+ * 기프티콘 교환(상점·신청 현황·원화 환산)은 안드로이드 앱에서 뺀다. Play 콘텐츠 등급 설문에
+ * "기프트 카드 보상이 있다"고 답하면 한국 등급이 청소년이용불가가 돼 재원생이 설치할 수 없다.
+ * 교환은 웹 포털·iOS 앱에서 그대로 한다. 포인트 잔액·내역은 안드로이드에서도 보인다.
+ */
+export const GIFT_EXCHANGE = Platform.OS !== 'android';
+
 const HISTORY_ICON: Record<PointHistoryEntry['kind'], { icon: LucideIcon; tone: Tone }> = {
   MERIT: { icon: TrendingUp, tone: 'brand' },
   DEMERIT: { icon: TrendingDown, tone: 'gray' },
@@ -51,9 +58,11 @@ export function BalanceCard({ balance, krw }: { balance: number; krw: number }) 
           <Text variant="t12-bold" tabular style={{ marginTop: space.x1 }} accessibilityLabel={`내 포인트 ${fmtPoints(balance)}`}>
             {fmtPoints(balance)}
           </Text>
-          <Text variant="t4-regular" color="neutralSubtle" tabular style={{ marginTop: space.x1 }}>
-            {fmtKrw(krw)} 상당
-          </Text>
+          {GIFT_EXCHANGE && (
+            <Text variant="t4-regular" color="neutralSubtle" tabular style={{ marginTop: space.x1 }}>
+              {fmtKrw(krw)} 상당
+            </Text>
+          )}
         </View>
         <IconTile icon={Coins} tone="brand" size={48} round />
       </View>

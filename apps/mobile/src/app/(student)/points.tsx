@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { Columns, ErrorState, Screen, TABLET_WIDE, toast, useResponsive } from '@/design';
 import {
   BalanceCard,
+  GIFT_EXCHANGE,
   MyRedemptions,
   PointHistory,
   PointsSkeleton,
@@ -21,6 +22,7 @@ import { useMobileQuery } from '@/lib/mobile-api';
 // 학생 포인트 — 웹 포털 /s/[token]/points 와 같은 구성:
 // 잔액 → 기프티콘 상점 → 내 신청 현황 → 포인트 내역 (+ 교환 확인 바텀시트).
 // 태블릿: 왼쪽(잔액·상점·신청 현황) | 오른쪽(포인트 내역).
+// 안드로이드는 상점·신청 현황·교환 시트 없이 잔액·내역만 (GIFT_EXCHANGE 참고).
 
 export default function StudentPointsScreen() {
   const { isTablet, width } = useResponsive();
@@ -72,18 +74,22 @@ export default function StudentPointsScreen() {
             left={
               <>
                 <BalanceCard balance={data.balance} krw={toKrw(data.balance)} />
-                <RewardShop
-                  items={data.items}
-                  balance={data.balance}
-                  toKrw={toKrw}
-                  columns={isTablet && width >= 900 ? 3 : 2}
-                  disabled={pending}
-                  onRedeem={(item) => {
-                    setConfirmItem(item);
-                    setSheetOpen(true);
-                  }}
-                />
-                <MyRedemptions redemptions={data.myRedemptions} />
+                {GIFT_EXCHANGE && (
+                  <>
+                    <RewardShop
+                      items={data.items}
+                      balance={data.balance}
+                      toKrw={toKrw}
+                      columns={isTablet && width >= 900 ? 3 : 2}
+                      disabled={pending}
+                      onRedeem={(item) => {
+                        setConfirmItem(item);
+                        setSheetOpen(true);
+                      }}
+                    />
+                    <MyRedemptions redemptions={data.myRedemptions} />
+                  </>
+                )}
               </>
             }
             right={<PointHistory history={data.history} />}
@@ -91,13 +97,15 @@ export default function StudentPointsScreen() {
         )}
       </Screen>
 
-      <RedeemSheet
-        item={confirmItem}
-        open={sheetOpen}
-        pending={pending}
-        onClose={() => setSheetOpen(false)}
-        onSubmit={(item) => void submit(item)}
-      />
+      {GIFT_EXCHANGE && (
+        <RedeemSheet
+          item={confirmItem}
+          open={sheetOpen}
+          pending={pending}
+          onClose={() => setSheetOpen(false)}
+          onSubmit={(item) => void submit(item)}
+        />
+      )}
     </>
   );
 }
