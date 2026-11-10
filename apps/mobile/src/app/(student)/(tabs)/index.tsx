@@ -59,6 +59,7 @@ import {
   TASK_STATUS,
   type StudentHomeResponse,
 } from '@/lib/api/student-home';
+import { GIFT_EXCHANGE } from '@/features/student-life/points-sections';
 import { FocusCard } from '@/features/student-focus/focus-card';
 import { FOCUS_SUPPORTED } from '@/features/student-focus/focus';
 import { refreshBadges } from '@/lib/badges';
@@ -358,13 +359,17 @@ function HomeContent({
           <Text variant="t10-bold" tabular numberOfLines={1}>
             {points.balance.toLocaleString('ko-KR')}점
           </Text>
-          <Text variant="t4-regular" color="neutralSubtle" tabular style={{ marginTop: space.x0_5 }}>
-            약 {points.krw.toLocaleString('ko-KR')}원 상당
-          </Text>
+          {GIFT_EXCHANGE && (
+            <Text variant="t4-regular" color="neutralSubtle" tabular style={{ marginTop: space.x0_5 }}>
+              약 {points.krw.toLocaleString('ko-KR')}원 상당
+            </Text>
+          )}
         </View>
-        <Button variant="gray" size="sm" href={POINTS_ROUTE}>
-          교환하기
-        </Button>
+        {GIFT_EXCHANGE && (
+          <Button variant="gray" size="sm" href={POINTS_ROUTE}>
+            교환하기
+          </Button>
+        )}
       </View>
     </Press>
   );
@@ -424,7 +429,7 @@ function HomeContent({
           label="내 포인트"
           value={points.balance.toLocaleString('ko-KR')}
           unit="점"
-          caption={`약 ${points.krw.toLocaleString('ko-KR')}원 상당`}
+          caption={GIFT_EXCHANGE ? `약 ${points.krw.toLocaleString('ko-KR')}원 상당` : undefined}
           icon={Coins}
           iconTone="warn"
           href={POINTS_ROUTE}
