@@ -30,7 +30,7 @@ if (SITE.ga && location.hostname.endsWith('kanghanseonbae.com') && !navigator.us
 <header class="gnb${dark ? ' is-dark' : ''}" id="gnb">
   <div class="gnb-inner">
     <a class="gnb-logo" href="landing.html" aria-label="강한선배 홈">
-      <img class="lb" src="brand/khsb-logo.png" alt="KHSB"><img class="lw" src="brand/khsb-logo-white.png" alt=""><span>강한선배</span>
+      <img class="lb" src="brand/khsb-logo-sm.png" alt="KHSB"><img class="lw" src="brand/khsb-logo-white.png" alt=""><span>강한선배</span>
     </a>
     <div class="gnb-links" role="navigation" aria-label="주요 메뉴">${links}</div>
     <div class="gnb-right">

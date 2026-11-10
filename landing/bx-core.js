@@ -32,30 +32,12 @@
   }
 
   // ── 푸터 + 플로팅 CTA ──
+  // HTML 에 미리 써 둔 푸터(scripts/landing-static.mjs)가 있으면 최신 데이터로 갈아 끼운다 — 화면은 언제나 bx-data.js 기준
   if (!document.body.hasAttribute('data-no-footer')) {
-    const col = (h, items) => `<div><p class="gft-h">${h}</p>${items.map(([t, u, ext]) => `<a href="${u}"${ext ? ' target="_blank" rel="noopener"' : ''}>${t}</a>`).join('')}</div>`;
+    const prebuilt = $('footer.gft');
+    if (prebuilt) prebuilt.outerHTML = siteFooterHtml();
+    else document.body.insertAdjacentHTML('beforeend', siteFooterHtml());
     document.body.insertAdjacentHTML('beforeend', `
-<footer class="gft">
-  <div class="gft-top">
-    <h2>혼자 두지 않는 독서실,<br>강한선배.</h2>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <a class="btn btn-brand" href="${SITE.apply}" target="_blank" rel="noopener">무료 입회 상담${ARROW}</a>
-      <a class="btn btn-line" href="tel:${SITE.tel}">전화 상담하기</a>
-    </div>
-  </div>
-  <div class="gft-grid">
-    <div class="gft-brand">
-      <img src="brand/khsb-logo-white.png" alt="KHSB 강한선배">
-      <p>최상위권 대학 선배들이 관리하는 동탄 관리형 독서실<br>${SITE.address}</p>
-      <p style="margin-top:12px">강한선배는 매월 수익의 일부를 동물자유연대 · 유니세프 · 월드비전 · 한국소아암재단에 기부합니다.</p>
-    </div>
-    ${col('강한선배', [['강한선배 소개', 'director.html'], ['관리 시스템', 'program.html'], ['합격 결과', 'results.html'], ['선배 멘토진', 'mentors.html'], ['학습 공간', 'space.html']])}
-    ${col('강한 이야기', [['후기', 'stories.html?type=review'], ['선배 아티클', 'stories.html?type=mentor'], ['원장 칼럼', 'stories.html?type=director'], ['전체 보기', 'stories.html']])}
-    ${col('모집 · 문의', [['2027 윈터스쿨', 'recruit.html'], ['무료 입회 상담', SITE.apply, 1], ['전화 상담', 'tel:' + SITE.tel], ['Instagram', '#', 1], ['YouTube', '#', 1]])}
-  </div>
-  <div class="gft-bottom"><span>© 2026 KHSB · 대표 강한지 · 사업자등록번호 678-93-01968</span><span class="gft-legal"><a href="privacy.html">개인정보처리방침</a><a href="terms.html">이용약관</a><a href="support.html">앱 고객지원</a></span></div>
-  <p class="gft-giant" aria-hidden="true">강한선배</p>
-</footer>
 <div class="fab-stack">
   <a href="tel:${SITE.tel}" class="fab fab-tel" aria-label="전화 문의"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg><span class="lbl">전화</span></a>
   <a href="${SITE.apply}" target="_blank" rel="noopener" class="fab fab-main" aria-label="입회 상담 신청"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M17 7H7M17 7V17"/></svg><span class="lbl">입회 상담</span></a>
@@ -150,11 +132,7 @@
     clearTimeout(buildMarquee.t);
     buildMarquee.t = setTimeout(() => { if (Math.abs(innerWidth - mw) > 40) { mw = innerWidth; marquees.forEach(buildMarquee); } }, 200);
   });
-  $$('[data-uwall]').forEach(el => {
-    el.innerHTML = UNIS.map((u, i) => `<div class="utile" style="transition-delay:${i * 40}ms"><img src="logos/${u.file}.png" alt="" loading="lazy"><span>${u.full}</span></div>`).join('') +
-      `<div class="utile special" style="transition-delay:${UNIS.length * 40}ms"><b>의·치·약</b><span>의대·치대·약대<br>합격생 다수</span></div>` +
-      (el.hasAttribute('data-more') ? `<div class="utile special" style="background:var(--brand);border-color:var(--brand);transition-delay:${(UNIS.length + 1) * 40}ms"><b>+ 2027</b><span style="color:rgba(255,255,255,.9)">다음 합격 소식을<br>기다려 주세요</span></div>` : '');
-  });
+  $$('[data-uwall]').forEach(el => { el.innerHTML = uwallHtml(el.hasAttribute('data-more')); });
 
   // ── 후기 줄: 후기 카드 · 등급 향상 카드 · 흐르는 줄 ──
   // 카드 구성은 고객사가 준 레퍼런스의 후기 줄 코드에서 옮겼다: 두 줄 제목 + 대학 로고 → 본문 → 아래 이름 띠 / 이름 · 총 ○등급 향상 → 과목별 전 → 후 칸 → 성적 향상 TIP.
