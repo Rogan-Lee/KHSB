@@ -69,3 +69,16 @@ landing/              # 강한선배 정적 랜딩 (www.kanghanseonbae.com)
 - 환경변수(DATABASE_URL, CRON_SECRET 등)를 클라이언트 코드에 노출
 - **공개 저장소**: 비밀값(DB URL·키·비밀번호·초대 코드), 실명·연락처 등 개인정보, 운영 데이터·리포트를 커밋 (스크립트는 환경변수로 받기)
 - `"use server"` 파일에 인증 없는 export 두기 (모든 export 는 공개 엔드포인트) · (dashboard) page 에서 layout 권한 검사에만 의존하기 (`requireDashboardSession` 사용)
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- When graphify-out/graph.json exists, run `graphify query "<question>"` before your first grep, search or source-file read for a codebase question, and put this rule in every subagent prompt that explores code. Read raw files only for lines the graph or an earlier read already located. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- Node labels are English code identifiers, so query with English keywords (`graphify query "classup webhook"`), not Korean sentences.
+- Setup on a new machine: `uv tool install 'graphifyy[sql]' && graphify extract . --backend claude-cli && graphify hook install`. Images are excluded via `.graphifyignore`.
+- A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.
