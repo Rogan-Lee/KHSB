@@ -50,7 +50,7 @@ export const AUTHOR_PRESETS: readonly AuthorPreset[] = [
   { key: "jiwoo", name: "김지우", role: "국제고 출신 · 영어·언어와매체 담당", group: "선배 멘토" },
   { key: "seunghee", name: "조승희", role: "정시·사회탐구 · 멘탈 관리 담당", group: "선배 멘토" },
   { key: "seonhyeok", name: "김선혁", role: "연세대 치대 재학 · 미적·과학탐구 담당", group: "선배 멘토" },
-  { key: "donggeon", name: "이동건", role: "고려대 재학 · 미적·과학탐구 담당", group: "선배 멘토" },
+  { key: "yujeong", name: "손유정", role: "연세대 전기전자공학부 재학 · 미적분·언매·영어 담당", group: "선배 멘토" },
   { key: "jiyoung", name: "빙지영", role: "생활 관리 조교", group: "관리팀" },
   { key: "jaewook", name: "박재욱", role: "학습 관리 조교", group: "관리팀" },
   { key: "choongsun", name: "이충선", role: "순공 · 태도 관리 조교", group: "관리팀" },
