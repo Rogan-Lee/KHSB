@@ -1,4 +1,4 @@
-// 자습실 교시표 — 랜딩(landing/care-life.html "교시제")과 같은 값.
+// 자습실 교시표 — 랜딩과 같은 값(학기 중 평일 = care-life.html "교시제", 방학·주말 = winter-data.js 고객사 자료).
 // 학기 중 평일은 하교 후 16시부터, 방학·주말은 09시부터 24시까지.
 
 export type ClassPeriod = { no: number; start: string; end: string }; // "HH:MM" KST, 24시는 "24:00"
@@ -20,11 +20,10 @@ const VACATION: ClassPeriod[] = [
   { no: 3, start: "13:20", end: "14:50" },
   { no: 4, start: "15:00", end: "16:30" },
   { no: 5, start: "16:40", end: "18:10" },
-  // ponytail: 랜딩엔 "6–9교시 19:20–24:00" 만 있어 1시간 단위로 나눈 추정값 — 원장님 시간표 받으면 교체
-  { no: 6, start: "19:20", end: "20:20" },
-  { no: 7, start: "20:30", end: "21:30" },
-  { no: 8, start: "21:40", end: "22:40" },
-  { no: 9, start: "22:50", end: "24:00" },
+  { no: 6, start: "19:20", end: "20:40" },
+  { no: 7, start: "20:50", end: "22:00" },
+  { no: 8, start: "22:10", end: "23:00" },
+  { no: 9, start: "23:10", end: "24:00" },
 ];
 
 // 방학표를 쓰는 기간 (양 끝 포함). 주말은 늘 방학표.

@@ -21,5 +21,7 @@ describe("교시표", () => {
     expect(currentPeriodNo("2026-11-13", "23:30")).toBe(8);
     expect(currentPeriodNo("2027-01-04", "12:30")).toBe(2); // 점심
     expect(currentPeriodNo("2027-01-04", "19:20")).toBe(6);
+    expect(currentPeriodNo("2027-01-04", "23:05")).toBe(8); // 8교시 뒤 쉬는 시간
+    expect(currentPeriodNo("2027-01-04", "23:10")).toBe(9);
   });
 });
