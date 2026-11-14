@@ -264,7 +264,7 @@ export async function sendMobilePush(input: {
   return { sent };
 }
 
-async function authUserIdsForAppUsers(appUserIds: (string | null)[]) {
+export async function authUserIdsForAppUsers(appUserIds: (string | null)[]) {
   const ids = [...new Set(appUserIds.filter((id): id is string => !!id))];
   if (ids.length === 0) return [];
   const users = await prisma.authUser.findMany({

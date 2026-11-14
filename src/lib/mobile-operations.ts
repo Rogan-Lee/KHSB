@@ -4,6 +4,7 @@ import type { PatrolStatus } from "@/generated/prisma";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { getKstDayContext } from "@/lib/mobile-data";
 import { calculatePayrollFromEntries } from "@/lib/payroll";
+import { closePatrolRound } from "@/lib/patrol-round";
 import { prisma } from "@/lib/prisma";
 
 const clockSchema = z.object({
@@ -506,11 +507,7 @@ export async function updateMobilePatrolRound(
 ) {
   const data = parseBody(patrolActionSchema, input);
   if (data.action === "END") {
-    const updated = await prisma.patrolRound.updateMany({
-      where: { endedAt: null, id: data.roundId },
-      data: { endedAt: now },
-    });
-    if (updated.count === 0) {
+    if (!(await closePatrolRound(data.roundId, now))) {
       throw new MobileApiError("진행 중인 순찰 회차를 찾을 수 없습니다", 404);
     }
     return { ok: true };

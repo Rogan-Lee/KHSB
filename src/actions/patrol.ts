@@ -8,6 +8,7 @@ import { validateStaffMagicLink } from "@/lib/staff-auth";
 import { hasGatePass } from "@/lib/token-auth";
 import { todayKST } from "@/lib/utils";
 import { compareSeat } from "@/lib/patrol";
+import { closePatrolRound } from "@/lib/patrol-round";
 import type { PatrolStatus } from "@/generated/prisma";
 
 // ───────────────────── 순찰자 인증 (매직링크 토큰 OR 로그인 세션) ─────────────────────
@@ -225,13 +226,11 @@ export async function startPatrolRound(token?: string, label?: string) {
   return { id: round.id, label: round.label, startedAt: round.startedAt.toISOString(), reused: false };
 }
 
-/** 순찰 회차 종료. */
+/** 순찰 회차 종료 — 특이사항 없는 재실 학생은 '양호'로 자동 기록. */
 export async function endPatrolRound(token: string | undefined, roundId: string) {
   await resolvePatroller(token);
-  await prisma.patrolRound.updateMany({
-    where: { id: roundId, endedAt: null },
-    data: { endedAt: new Date() },
-  });
+  await closePatrolRound(roundId);
+  revalidatePath("/patrol");
   return { ok: true };
 }
 
