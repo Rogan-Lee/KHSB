@@ -1740,7 +1740,7 @@ export function AttendanceTable({ students, today, toolbarStart }: Props) {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>{resetTarget ? RESET_LABEL[resetTarget] : ""} 체크를 초기화할까요?</DialogTitle>
-            <DialogDescription>모든 원생의 {resetTarget ? RESET_LABEL[resetTarget] : ""} 체크가 지워져요. 되돌릴 수 없어요.</DialogDescription>
+            <DialogDescription>모든 원생의 {resetTarget ? RESET_LABEL[resetTarget] : ""} 체크가 지워져요. 되돌릴 수 없어요.{resetTarget === "schoolAnalysisDate" && " 정시 표시는 그대로 남아요."}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setResetTarget(null)} disabled={resetPending}>

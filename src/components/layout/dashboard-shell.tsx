@@ -6,6 +6,7 @@ import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { SideNavigation as SeedSideNavigation } from "@seed-design/react";
 import { useSideNavigationContext } from "@seed-design/react/primitive";
 import { LogOut, Monitor, Smartphone } from "lucide-react";
+import { toast } from "sonner";
 import { SideNavigationProvider } from "seed-design/ui/side-navigation";
 import { MenuContent, MenuGroup, MenuItem, MenuRoot, MenuTrigger } from "seed-design/ui/menu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -40,6 +41,11 @@ interface DashboardShellProps {
 const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
 const VIEW_MODE_KEY = "adminViewMode";
 const BADGE_MIN_INTERVAL_MS = 30_000;
+// 배지가 늘면 토스트로도 알릴 메뉴 — 숫자만으론 웹에서 새 글을 놓친다는 요청(2026-11-13)
+const NEW_ITEM_TOASTS = [
+  ["/questions", "학생 질문"],
+  ["/suggestions", "학생 건의사항"],
+] as const;
 type ViewMode = "web" | "mobile";
 
 export function DashboardShell({ user, children, sidebarBadges }: DashboardShellProps) {
@@ -51,6 +57,21 @@ export function DashboardShell({ user, children, sidebarBadges }: DashboardShell
   const collapsed = collapsedRaw === "true";
   const viewMode: ViewMode = viewModeRaw === "mobile" ? "mobile" : "web";
   const [badges, setBadges] = useState(sidebarBadges);
+  const router = useRouter();
+  const prevBadges = useRef(badges);
+  useEffect(() => {
+    const prev = prevBadges.current;
+    prevBadges.current = badges;
+    // ponytail: 미확인 수의 차이라 같은 사이 다른 직원이 읽으면 상쇄 — 놓치면 사이드바 숫자가 남는다
+    for (const [href, label] of NEW_ITEM_TOASTS) {
+      const added = (badges?.[href] ?? 0) - (prev?.[href] ?? 0);
+      if (added > 0) {
+        toast(`${label} ${added}건이 새로 들어왔어요`, {
+          action: { label: "보기", onClick: () => router.push(href) },
+        });
+      }
+    }
+  }, [badges, router]);
 
   // 배지 갱신 — layout은 소프트 네비게이션에서 리렌더되지 않아 서버 스냅샷이 얼어붙는다.
   // 페이지 이동·창 포커스·2분 주기로 폴링하되, DB 전송량(egress)을 줄이려고

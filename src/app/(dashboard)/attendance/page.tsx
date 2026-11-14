@@ -222,7 +222,13 @@ export default async function AttendancePage({
         <StatCard label="비등원일" value={noSchedule} unit="명" className="col-span-2 lg:col-span-1" />
       </StatCards>
 
-      <AttendanceTable students={visibleStudents} today={today.toISOString()} toolbarStart={filterChips} />
+      {/* 표는 처음 받은 students 로 화면 상태(정시·제출일·입실 시각)를 만든다 — 필터·날짜가 바뀌면 새로 만들게 key 로 다시 마운트 */}
+      <AttendanceTable
+        key={`${filter ?? "all"}:${today.toISOString()}`}
+        students={visibleStudents}
+        today={today.toISOString()}
+        toolbarStart={filterChips}
+      />
     </div>
   );
 }

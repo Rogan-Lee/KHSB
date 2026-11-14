@@ -2541,13 +2541,14 @@ model PhoneCheckRecord {
   studentId   String
   student     Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
   date        DateTime         @db.Date
+  period      Int              @default(0) // 0=입실 시, 1~=교시 (src/lib/class-periods.ts)
   status      PhoneCheckStatus
   checkedById String
   note        String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  @@unique([studentId, date])
+  @@unique([studentId, date, period])
   @@index([date])
 }
 

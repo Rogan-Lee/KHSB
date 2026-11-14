@@ -20,10 +20,10 @@ async function requireSessionStaff() {
   return session!.user!;
 }
 
-/** 해당 날짜의 휴대폰 제출 검사 보드: ACTIVE 학생 전체(좌석순) + 입실 여부 + 검사 기록. */
-export async function getPhoneCheckBoard(date: string): Promise<PhoneCheckRow[]> {
+/** 해당 날짜·교시(0=입실 때)의 휴대폰 제출 검사 보드: ACTIVE 학생 전체(좌석순) + 재실 여부 + 검사 기록. */
+export async function getPhoneCheckBoard(date: string, period = 0): Promise<PhoneCheckRow[]> {
   await requireSessionStaff();
-  return loadPhoneCheckBoard(date);
+  return loadPhoneCheckBoard(date, { period });
 }
 
 /** 학생 1명 검사 상태 upsert. */
@@ -32,16 +32,17 @@ export async function setPhoneCheck(
   date: string,
   status: PhoneCheckStatus,
   note?: string,
+  period = 0,
 ): Promise<void> {
   const user = await requireSessionStaff();
-  await upsertPhoneCheck({ studentId, date, status, note, checkedById: user.id });
+  await upsertPhoneCheck({ studentId, date, status, note, checkedById: user.id, period });
   revalidatePath("/phone-check");
 }
 
 /** 다건 제출 처리 (입실자 일괄 제출용). */
-export async function bulkMarkSubmitted(date: string, studentIds: string[]): Promise<number> {
+export async function bulkMarkSubmitted(date: string, studentIds: string[], period = 0): Promise<number> {
   const user = await requireSessionStaff();
-  const count = await bulkUpsertPhoneSubmitted(date, studentIds, user.id);
+  const count = await bulkUpsertPhoneSubmitted(date, studentIds, user.id, period);
   if (studentIds.length > 0) revalidatePath("/phone-check");
   return count;
 }

@@ -11,6 +11,7 @@ import {
   type PhoneCheckRow,
 } from "@/actions/phone-check";
 import type { PhoneCheckStatus } from "@/generated/prisma";
+import type { ClassPeriod } from "@/lib/class-periods";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { inputBaseClass } from "@/components/ui/input";
@@ -63,19 +64,32 @@ const STATUS_META: Record<
 };
 const STATUSES = Object.keys(STATUS_META) as PhoneCheckStatus[];
 
-export function PhoneCheckBoard({ date, initialRows }: { date: string; initialRows: PhoneCheckRow[] }) {
+export function PhoneCheckBoard({
+  date,
+  period,
+  periods,
+  initialRows,
+}: {
+  date: string;
+  period: number; // 0=입실 때, 1~=교시
+  periods: ClassPeriod[];
+  initialRows: PhoneCheckRow[];
+}) {
   const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [query, setQuery] = useStickyState("phone-check:query", "");
   const [onlyUnchecked, setOnlyUnchecked] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [pending, startTransition] = useTransition();
-  // 서버 리패치(날짜 변경) 후 로컬 optimistic 상태 동기화
-  const [syncedKey, setSyncedKey] = useState(date);
-  if (syncedKey !== date) {
-    setSyncedKey(date);
+  // 서버 리패치(날짜·교시 변경) 후 로컬 optimistic 상태 동기화
+  const viewKey = `${date}:${period}`;
+  const [syncedKey, setSyncedKey] = useState(viewKey);
+  if (syncedKey !== viewKey) {
+    setSyncedKey(viewKey);
     setRows(initialRows);
   }
+  // 입실 검사는 오늘 입실한 학생, 교시 검사는 그 교시에 자리에 있던 학생이 대상
+  const who = period === 0 ? "입실자" : "재실자";
 
   // 기록 없는 미입실 학생은 기본 "미입실"로 표시
   const effectiveStatus = (r: PhoneCheckRow): PhoneCheckStatus | null =>
@@ -114,7 +128,7 @@ export function PhoneCheckBoard({ date, initialRows }: { date: string; initialRo
     applyLocal(row.studentId, { status, note: nextNote });
     startTransition(async () => {
       try {
-        await setPhoneCheck(row.studentId, date, status, nextNote ?? undefined);
+        await setPhoneCheck(row.studentId, date, status, nextNote ?? undefined, period);
       } catch (e) {
         applyLocal(row.studentId, prevRecord);
         toast.error(e instanceof Error ? e.message : "저장에 실패했습니다");
@@ -125,7 +139,7 @@ export function PhoneCheckBoard({ date, initialRows }: { date: string; initialRo
   // 일괄 처리 — 대상이 없으면 안내, 있으면 확인 다이얼로그를 연다
   function handleBulk() {
     if (uncheckedInIds.length === 0) {
-      toast.info("일괄 처리할 미검사 입실자가 없습니다");
+      toast.info(`일괄 처리할 미검사 ${who}가 없습니다`);
       return;
     }
     setBulkOpen(true);
@@ -139,7 +153,7 @@ export function PhoneCheckBoard({ date, initialRows }: { date: string; initialRo
     );
     startTransition(async () => {
       try {
-        const n = await bulkMarkSubmitted(date, [...ids]);
+        const n = await bulkMarkSubmitted(date, [...ids], period);
         toast.success(`${n}명 제출 처리 완료`);
       } catch (e) {
         setRows((prev) =>
@@ -161,7 +175,7 @@ export function PhoneCheckBoard({ date, initialRows }: { date: string; initialRo
           value={uncheckedCount}
           unit="명"
           tone={uncheckedCount > 0 ? "warn" : "gray"}
-          sub="입실했지만 기록 없음"
+          sub={period === 0 ? "입실했지만 기록 없음" : "자리에 있는데 기록 없음"}
         />
         <StatCard label="제출" value={counts.SUBMITTED} unit="명" tone={counts.SUBMITTED > 0 ? "ok" : "gray"} />
         <StatCard label="미제출" value={counts.NOT_SUBMITTED} unit="명" tone={counts.NOT_SUBMITTED > 0 ? "bad" : "gray"} />
@@ -170,6 +184,26 @@ export function PhoneCheckBoard({ date, initialRows }: { date: string; initialRo
       </StatCards>
 
       <div>
+        {/* 교시 — 입실 때 1번 + 교시마다 1번씩 따로 기록한다 */}
+        <div
+          className="-mx-x4 mb-x1 flex gap-x1_5 overflow-x-auto px-x4 pb-x1"
+          role="group"
+          aria-label="검사 교시"
+          // 좁은 화면에서 고른 교시가 줄 밖에 있으면 보이게
+          ref={(el) => el?.querySelector('[aria-pressed="true"]')?.scrollIntoView({ inline: "center", block: "nearest" })}
+        >
+          {[{ no: 0, start: "" }, ...periods].map((p) => (
+            <FilterChip
+              key={p.no}
+              selected={period === p.no}
+              onClick={() => router.replace(`/phone-check?date=${date}&period=${p.no}`)}
+            >
+              {p.no === 0 ? "입실" : `${p.no}교시`}
+              {p.start && <span className="tabular-nums opacity-70">{p.start}</span>}
+            </FilterChip>
+          ))}
+        </div>
+
         {/* 도구 줄 — 스크롤해도 앱 헤더 아래에 붙어 있다 */}
         <Toolbar className="sticky top-14 z-10 mb-x3 bg-bg-layer-default py-x3">
           <input
@@ -195,7 +229,7 @@ export function PhoneCheckBoard({ date, initialRows }: { date: string; initialRo
           </FilterChip>
           <Button type="button" onClick={handleBulk} disabled={pending} className="w-full sm:ml-auto sm:w-auto">
             {pending ? <Loader2 className="animate-spin" /> : <Check />}
-            입실자 일괄 제출 처리
+            {who} 일괄 제출 처리
             <span className="tabular-nums">({uncheckedCount})</span>
           </Button>
         </Toolbar>
@@ -207,7 +241,7 @@ export function PhoneCheckBoard({ date, initialRows }: { date: string; initialRo
                 <TableHead className="w-16 text-center">좌석</TableHead>
                 <TableHead>이름</TableHead>
                 <TableHead className="w-20">학년</TableHead>
-                <TableHead className="w-20">입실</TableHead>
+                <TableHead className="w-28">입·퇴실</TableHead>
                 <TableHead>검사 상태</TableHead>
               </TableRow>
             </TableHeader>
@@ -226,7 +260,11 @@ export function PhoneCheckBoard({ date, initialRows }: { date: string; initialRo
                     </TableCell>
                     <TableCell className="t3-regular text-fg-neutral-muted">{r.grade}</TableCell>
                     <TableCell className="tabular-nums">
-                      {r.checkInAt ?? <span className="t3-regular text-fg-neutral-subtle">미입실</span>}
+                      {r.checkInAt ? (
+                        `${r.checkInAt}${r.checkOutAt ? `~${r.checkOutAt}` : ""}`
+                      ) : (
+                        <span className="t3-regular text-fg-neutral-subtle">미입실</span>
+                      )}
                     </TableCell>
                     <TableCell className="py-x2">
                       <div className="flex flex-wrap items-center gap-x1_5" role="group" aria-label={`${r.name} 검사 상태`}>
@@ -279,8 +317,8 @@ export function PhoneCheckBoard({ date, initialRows }: { date: string; initialRo
                       <EmptyState
                         compact
                         icon={Check}
-                        title="미검사 입실자가 없어요"
-                        description="입실한 학생을 모두 확인했어요."
+                        title={`미검사 ${who}가 없어요`}
+                        description={period === 0 ? "입실한 학생을 모두 확인했어요." : "자리에 있던 학생을 모두 확인했어요."}
                         action={
                           <Button variant="outline" size="sm" onClick={() => setOnlyUnchecked(false)}>
                             전체 보기
@@ -307,8 +345,8 @@ export function PhoneCheckBoard({ date, initialRows }: { date: string; initialRo
       <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>미검사 입실자 {uncheckedCount}명을 제출로 기록할까요?</DialogTitle>
-            <DialogDescription>아직 검사 기록이 없는 입실자만 &apos;제출&apos;로 바뀌어요. 이미 기록한 학생은 그대로예요.</DialogDescription>
+            <DialogTitle>미검사 {who} {uncheckedCount}명을 제출로 기록할까요?</DialogTitle>
+            <DialogDescription>아직 검사 기록이 없는 {who}만 &apos;제출&apos;로 바뀌어요. 이미 기록한 학생은 그대로예요.</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkOpen(false)}>
