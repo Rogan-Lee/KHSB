@@ -1,3 +1,4 @@
+import { countFamilyUnread } from "@/lib/family-chat";
 import { countUnreadByChat } from "@/lib/mobile-chat";
 import { countNewParentReports } from "@/lib/mobile-parent-reports";
 import { countOpenTuitionInvoices } from "@/lib/mobile-parent-tuition";
@@ -50,12 +51,14 @@ export type StudentBadges = {
   hasVocab: boolean;
   qna: number;
   suggestions: number;
+  /** 가족 톡방 안 읽은 메시지 (채팅 탭에 더해 보여 준다) */
+  familyChat: number;
   /** 전체 탭 점 배지 — 피드백·영단어·건의 합 */
   menu: number;
 };
 
 export async function getStudentBadges(studentId: string): Promise<StudentBadges> {
-  const [tasks, feedback, chat, vocabTotal, vocab, qna, suggestions] = await Promise.allSettled([
+  const [tasks, feedback, chat, vocabTotal, vocab, qna, suggestions, familyChat] = await Promise.allSettled([
     prisma.performanceTask.count({
       where: { studentId, status: { in: ["OPEN", "IN_PROGRESS", "NEEDS_REVISION"] } },
     }),
@@ -74,6 +77,7 @@ export async function getStudentBadges(studentId: string): Promise<StudentBadges
     }),
     unreadAnswersForStudent(studentId),
     countUnseenStudentSuggestions(studentId),
+    countFamilyUnread([studentId], { kind: "STUDENT", id: studentId }),
   ]);
   const b = {
     tasks: settled(tasks),
@@ -83,6 +87,7 @@ export async function getStudentBadges(studentId: string): Promise<StudentBadges
     hasVocab: settled(vocabTotal) > 0,
     qna: settled(qna),
     suggestions: settled(suggestions),
+    familyChat: settled(familyChat),
   };
   return { ...b, menu: b.feedback + b.vocab + b.suggestions };
 }
@@ -90,11 +95,13 @@ export async function getStudentBadges(studentId: string): Promise<StudentBadges
 // ─── 직원 ──────────────────────────────────────────────────────────────
 
 export type StaffBadges = {
-  /** 소통 탭 — 미확인 질문 + 미확인 채팅방 + 직원 DM */
+  /** 소통 탭 — 미확인 질문 + 미확인 채팅방 + 직원 DM + 가족 톡방 */
   inbox: number;
   questions: number;
   chats: number;
   dm: number;
+  /** 학생·학부모 글을 운영진이 아직 안 본 가족 톡방 수 */
+  familyChats: number;
   /** 승인 대기 — 쪽잠·네트워크·포인트 교환·모의고사 신청 */
   approvals: number;
   lunchRequests: number;
@@ -117,15 +124,17 @@ export async function getStaffBadges(userId: string, role: string): Promise<Staf
   const sb = sidebar.status === "fulfilled" ? sidebar.value : {};
   const questions = sb["/questions"] ?? 0;
   const chats = sb["/online/inbox"] ?? 0;
-  const dm = sb["/messages"] ?? 0;
+  const dm = sb["/staff-messages"] ?? 0;
+  const familyChats = sb["/family-chat"] ?? 0;
   const approvals = settled(naps) + settled(network) + settled(redemptions) + (sb["/exams"] ?? 0);
   const lunchRequests = sb["/lunch"] ?? 0;
   const suggestions = sb["/suggestions"] ?? 0;
   return {
-    inbox: questions + chats + dm,
+    inbox: questions + chats + dm + familyChats,
     questions,
     chats,
     dm,
+    familyChats,
     approvals,
     lunchRequests,
     suggestions,
@@ -138,6 +147,8 @@ export async function getStaffBadges(userId: string, role: string): Promise<Staf
 // ─── 학부모 ────────────────────────────────────────────────────────────
 
 export type ParentBadges = {
+  /** 가족 톡방 안 읽은 메시지 (자녀 합) */
+  familyChat: number;
   /** 최근 7일 안에 새로 나온 리포트 수 (자녀 합) */
   reports: number;
   menu: number;
@@ -145,10 +156,10 @@ export type ParentBadges = {
   tuition: number;
 };
 
-export async function getParentBadges(studentIds: string[]): Promise<ParentBadges> {
+export async function getParentBadges(studentIds: string[], authUserId: string): Promise<ParentBadges> {
   // 리포트함(멘토링·월간·온라인·공부 계획·상담)의 "새 리포트" 와 같은 규칙 — src/lib/mobile-parent-reports.ts
   const now = new Date();
-  const [reports, proposals, tuition] = await Promise.allSettled([
+  const [reports, proposals, tuition, familyChat] = await Promise.allSettled([
     countNewParentReports(studentIds),
     // 전체 탭 점 배지 — 학부모 승인을 기다리는 등원 스케줄 제안 (mobile-parent-schedule.ts 와 같은 조건)
     prisma.scheduleProposal.count({
@@ -160,6 +171,12 @@ export async function getParentBadges(studentIds: string[]): Promise<ParentBadge
       },
     }),
     countOpenTuitionInvoices(studentIds),
+    countFamilyUnread(studentIds, { kind: "PARENT", id: authUserId }),
   ]);
-  return { reports: settled(reports), menu: settled(proposals), tuition: settled(tuition) };
+  return {
+    reports: settled(reports),
+    menu: settled(proposals),
+    tuition: settled(tuition),
+    familyChat: settled(familyChat),
+  };
 }

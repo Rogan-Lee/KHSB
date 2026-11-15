@@ -48,6 +48,7 @@ enum PushNotificationCategory {
   QUESTION
   MENTORING
   SYSTEM
+  FAMILY_CHAT
 }
 
 enum PushNotificationStatus {
@@ -440,6 +441,7 @@ model Student {
   accessRules          AccessRule[]
   accessOverrides      AccessOverride[]
   accessDevices        AccessDevice[]
+  familyChat           FamilyChat?
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 
@@ -476,22 +478,23 @@ model AuthUser {
 }
 
 model DevicePushToken {
-  id               String                    @id @default(cuid())
-  authUserId       String
-  authUser         AuthUser                  @relation(fields: [authUserId], references: [id], onDelete: Cascade)
-  token            String                    @unique
-  projectId        String
-  platform         DevicePlatform
-  deviceName       String?
-  appVersion       String?
-  enabled          Boolean                   @default(true)
-  tasksEnabled     Boolean                   @default(true)
-  questionsEnabled Boolean                   @default(true)
-  mentoringEnabled Boolean                   @default(true)
-  lastSeenAt       DateTime                  @default(now())
-  receipts         PushNotificationReceipt[]
-  createdAt        DateTime                  @default(now())
-  updatedAt        DateTime                  @updatedAt
+  id                String                    @id @default(cuid())
+  authUserId        String
+  authUser          AuthUser                  @relation(fields: [authUserId], references: [id], onDelete: Cascade)
+  token             String                    @unique
+  projectId         String
+  platform          DevicePlatform
+  deviceName        String?
+  appVersion        String?
+  enabled           Boolean                   @default(true)
+  tasksEnabled      Boolean                   @default(true)
+  questionsEnabled  Boolean                   @default(true)
+  mentoringEnabled  Boolean                   @default(true)
+  familyChatEnabled Boolean                   @default(true) // 가족 톡방 새 메시지
+  lastSeenAt        DateTime                  @default(now())
+  receipts          PushNotificationReceipt[]
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
 
   @@index([authUserId, enabled])
   @@index([enabled, lastSeenAt])
@@ -2584,6 +2587,58 @@ model ContentPost {
   createdAt     DateTime @default(now())
 
   @@index([visible, publishedAt])
+}
+
+// ─────────────────── 가족 톡방 ───────────────────
+// 학생 1명당 방 1개 (카톡 가족 단톡방 대체). 멤버 테이블은 없다 — 학생 본인, ParentLink 로 연결된 학부모,
+// 운영진 전체가 들어오고, 누가 멤버인지는 그때그때 계산한다 (src/lib/family-chat.ts).
+// 입퇴실·리포트 발송은 SYSTEM 메시지로 자동 게시. 퇴원 1년 뒤 방째 파기 (/api/cron/family-chat-retention).
+
+enum FamilyChatSender {
+  STUDENT
+  PARENT
+  STAFF
+  SYSTEM
+}
+
+model FamilyChat {
+  id              String              @id @default(cuid())
+  studentId       String              @unique
+  student         Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lastMessageAt   DateTime?
+  familyMessageAt DateTime? // 학생·학부모가 마지막으로 쓴 시각 — 운영진 미확인 판정용 (자동 알림은 제외)
+  staffReadAt     DateTime? // 운영진 공동 읽음 — 직원 누구든 열면 확인한 것으로 본다
+  messages        FamilyChatMessage[]
+  reads           FamilyChatRead[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([lastMessageAt(sort: Desc)])
+}
+
+model FamilyChatMessage {
+  id          String           @id @default(cuid())
+  chatId      String
+  chat        FamilyChat       @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  senderKind  FamilyChatSender
+  senderId    String? // STUDENT=Student.id · PARENT=AuthUser.id · STAFF=User.id · SYSTEM=null
+  senderName  String // 보낼 때 표시 이름 ("어머니", "김OO 멘토")
+  content     String           @default("") @db.Text
+  attachments Json             @default("[]") // [{ url, name, sizeBytes, mimeType }]
+  createdAt   DateTime         @default(now())
+
+  @@index([chatId, createdAt])
+}
+
+// 학생·학부모 개인별 읽음 (운영진은 FamilyChat.staffReadAt 하나를 같이 쓴다)
+model FamilyChatRead {
+  chatId     String
+  chat       FamilyChat       @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  readerKind FamilyChatSender
+  readerId   String
+  lastReadAt DateTime
+
+  @@id([chatId, readerKind, readerId])
 }
 
 // ─────────────────── 직원간 1:1 메시지 (Phase 5) ───────────────────

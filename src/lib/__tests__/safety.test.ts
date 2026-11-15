@@ -9,6 +9,9 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: vi.fn(),
       updateMany: vi.fn(),
     },
+    authUser: { findFirst: vi.fn() },
+    familyChatMessage: { deleteMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
+    parentLink: { findMany: vi.fn() },
     portalChat: { findUnique: vi.fn(), updateMany: vi.fn() },
     portalChatMessage: { deleteMany: vi.fn(), findUnique: vi.fn() },
     questionMessage: { deleteMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
@@ -65,6 +68,8 @@ beforeEach(() => {
   vi.mocked(prisma.contentReport.findFirst).mockResolvedValue(null);
   vi.mocked(prisma.userBlock.findMany).mockResolvedValue([] as never);
   vi.mocked(prisma.userBlock.findUnique).mockResolvedValue(null);
+  vi.mocked(prisma.parentLink.findMany).mockResolvedValue([] as never);
+  vi.mocked(prisma.familyChatMessage.findFirst).mockResolvedValue(null);
 });
 
 describe("createReport", () => {
@@ -172,6 +177,55 @@ describe("createReport", () => {
   });
 });
 
+describe("createReport — family chat", () => {
+  const familyMessage = {
+    id: "fm-1",
+    chatId: "fc-1",
+    senderKind: "STAFF",
+    senderId: "staff-1",
+    senderName: "이멘토 멘토",
+    content: "가족 톡방 글",
+    attachments: [],
+    chat: { studentId: "student-1" },
+  };
+
+  it("lets a linked parent report a staff message", async () => {
+    vi.mocked(prisma.familyChatMessage.findUnique).mockResolvedValue(familyMessage as never);
+    vi.mocked(prisma.parentLink.findMany).mockResolvedValue([{ studentId: "student-1" }] as never);
+
+    await createReport(parent, { targetType: "FAMILY_CHAT_MESSAGE", targetId: "fm-1", reason: "ABUSE" });
+
+    expect(prisma.contentReport.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        reporterType: "PARENT",
+        targetType: "FAMILY_CHAT_MESSAGE",
+        targetId: "fm-1",
+        contextId: "fc-1",
+        targetUserType: "STAFF",
+        targetUserId: "staff-1",
+        snapshot: "가족 톡방 글",
+      }),
+    });
+  });
+
+  it("hides messages from other families and automatic notices", async () => {
+    vi.mocked(prisma.familyChatMessage.findUnique).mockResolvedValue(familyMessage as never);
+    await expect(
+      createReport(parent, { targetType: "FAMILY_CHAT_MESSAGE", targetId: "fm-1", reason: "ABUSE" }),
+    ).rejects.toMatchObject({ status: 404 });
+
+    vi.mocked(prisma.familyChatMessage.findUnique).mockResolvedValue({
+      ...familyMessage,
+      senderKind: "SYSTEM",
+      senderId: null,
+    } as never);
+    await expect(
+      createReport(staff, { targetType: "FAMILY_CHAT_MESSAGE", targetId: "fm-1", reason: "SPAM" }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(prisma.contentReport.create).not.toHaveBeenCalled();
+  });
+});
+
 describe("blockUser", () => {
   it("blocks a staff member the student has a chat with and clears unread", async () => {
     vi.mocked(prisma.portalChat.findUnique).mockResolvedValue({ id: "chat-1" } as never);
@@ -224,13 +278,37 @@ describe("blockUser", () => {
     expect(prisma.user.findFirst).not.toHaveBeenCalled();
   });
 
-  it("rejects blocking yourself and parent accounts", async () => {
+  it("rejects blocking yourself, and parents can't probe staff outside their family chat", async () => {
     await expect(
       blockUser(staff, { userType: "STAFF", userId: "staff-1" }),
     ).rejects.toMatchObject({ status: 400 });
     await expect(
       blockUser(parent, { userType: "STAFF", userId: "staff-1" }),
-    ).rejects.toMatchObject({ status: 403 });
+    ).rejects.toMatchObject({ status: 404 });
+    expect(prisma.user.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("lets a parent block someone who wrote in their child's family chat", async () => {
+    vi.mocked(prisma.parentLink.findMany).mockResolvedValue([{ studentId: "student-1" }] as never);
+    vi.mocked(prisma.familyChatMessage.findFirst).mockResolvedValue({ id: "fm-1" } as never);
+    vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: "staff-1", name: "이멘토", role: "MENTOR" } as never);
+
+    const result = await blockUser(parent, { userType: "STAFF", userId: "staff-1" });
+
+    expect(result.user).toMatchObject({ type: "STAFF", id: "staff-1" });
+    expect(prisma.familyChatMessage.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { senderKind: "STAFF", senderId: "staff-1", chat: { studentId: { in: ["student-1"] } } },
+      }),
+    );
+  });
+
+  it("lets staff block a parent account", async () => {
+    vi.mocked(prisma.authUser.findFirst).mockResolvedValue({ id: "auth-9", name: "김학부모" } as never);
+
+    const result = await blockUser(staff, { userType: "PARENT", userId: "auth-9" });
+
+    expect(result.user).toMatchObject({ type: "PARENT", id: "auth-9", name: "김학부모" });
   });
 
   it("unblocks only my own block", async () => {
