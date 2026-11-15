@@ -5,10 +5,10 @@ import { mutateMobileApi } from '@/lib/mobile-api';
 export const SAFETY_REPORTS_PATH = '/api/mobile/v1/safety/reports';
 export const SAFETY_BLOCKS_PATH = '/api/mobile/v1/safety/blocks';
 
-export type SafetyUserType = 'STUDENT' | 'STAFF';
+export type SafetyUserType = 'STUDENT' | 'STAFF' | 'PARENT';
 export type SafetyUser = { type: SafetyUserType; id: string; name: string };
 
-export type ReportMessageType = 'CHAT_MESSAGE' | 'QUESTION_MESSAGE' | 'STAFF_DM_MESSAGE';
+export type ReportMessageType = 'CHAT_MESSAGE' | 'QUESTION_MESSAGE' | 'STAFF_DM_MESSAGE' | 'FAMILY_CHAT_MESSAGE';
 export type ReportReason = 'ABUSE' | 'SEXUAL' | 'SPAM' | 'PRIVACY' | 'OTHER';
 
 /** 서버 REPORT_REASONS 와 같은 순서·문구 */

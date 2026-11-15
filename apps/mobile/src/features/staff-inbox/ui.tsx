@@ -32,6 +32,7 @@ export function InboxRow({
   headline,
   preview,
   unread = 0,
+  dot = false,
   meta,
   selected = false,
   onPress,
@@ -45,6 +46,8 @@ export function InboxRow({
   headline?: string | null;
   preview?: string | null;
   unread?: number;
+  /** 수 없이 미확인 점만 (가족 톡방처럼 방 단위로 읽음을 셀 때) */
+  dot?: boolean;
   meta?: ReactNode;
   selected?: boolean;
   onPress: () => void;
@@ -80,12 +83,12 @@ export function InboxRow({
             {headline}
           </Text>
         ) : null}
-        {preview != null || unread > 0 ? (
+        {preview != null || unread > 0 || dot ? (
           <View style={s.line}>
             <Text variant="t4-regular" color="neutralSubtle" numberOfLines={1} style={{ flex: 1 }}>
               {preview ?? ''}
             </Text>
-            <CountBadge count={unread} />
+            {dot ? <View style={s.dot} /> : <CountBadge count={unread} />}
           </View>
         ) : null}
         {meta != null ? <View style={s.meta}>{meta}</View> : null}
@@ -251,6 +254,7 @@ const s = StyleSheet.create({
     minHeight: 64,
   },
   rowSelected: { backgroundColor: color.bg.neutralWeak },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: color.bg.brandSolid },
   body: { flex: 1, minWidth: 0, gap: space.x0_5 },
   line: { flexDirection: 'row', alignItems: 'center', gap: space.x1_5 },
   shrink: { flexShrink: 1 },

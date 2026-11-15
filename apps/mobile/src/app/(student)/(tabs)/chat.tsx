@@ -1,5 +1,6 @@
 import type { Href } from 'expo-router';
-import { MessageCircle } from 'lucide-react-native';
+import { MessageCircle, Users } from 'lucide-react-native';
+import { useEffect, useRef } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ChatThread } from '@/components/chat-thread';
@@ -10,6 +11,7 @@ import {
   CountBadge,
   EmptyState,
   ErrorState,
+  IconTile,
   ListRow,
   Screen,
   Section,
@@ -21,21 +23,51 @@ import {
   useMasterDetail,
   useResponsive,
 } from '@/design';
+import { FamilyChatThread } from '@/features/family-chat/thread';
 import { formatAgo } from '@/features/student-comm/format';
 import { useLiveRefresh } from '@/features/student-comm/live-refresh';
+import { FAMILY_PEEK, familyChatPath, type FamilyChatThreadResponse } from '@/lib/api/family-chat';
 import { STUDENT_CHATS_PATH, type StudentChatItem, type StudentChatList } from '@/lib/api/student-comm';
+import { useStudentBadges } from '@/lib/badges';
 import { useMobileQuery } from '@/lib/mobile-api';
 
-const chatHref = (id: string) => `/(student)/chat/${id}` as Href;
+/** 목록에서 가족 톡방을 가리키는 id (채팅방 id 와 겹치지 않는다) */
+const FAMILY_ID = 'family';
+const chatHref = (id: string) => (id === FAMILY_ID ? '/(student)/family-chat' : `/(student)/chat/${id}`) as Href;
+const FAMILY_PEEK_PATH = familyChatPath('student', null, FAMILY_PEEK);
 
-/** 메시지 탭 — 웹 학생 포털 /s/[token]/chat 과 같은 구성 (담당 선생님 / 이전 담당자). 태블릿은 목록 + 오른쪽 대화. */
+/** 메시지 탭 — 맨 위 가족 톡방 + 웹 학생 포털 /s/[token]/chat 과 같은 구성 (담당 선생님 / 이전 담당자). 태블릿은 목록 + 오른쪽 대화. */
 export default function StudentChatTab() {
   const { data, error, isRefreshing, refresh, retry } = useMobileQuery<StudentChatList>(STUDENT_CHATS_PATH);
+  // 가족 톡방 미리보기 — 읽음 처리 없이 최신 글. 15초 주기에는 넣지 않고 화면 복귀·안 읽은 수가 바뀔 때만 (egress)
+  const family = useMobileQuery<FamilyChatThreadResponse>(FAMILY_PEEK_PATH);
+  const familyUnread = useStudentBadges().familyChat ?? 0;
   const md = useMasterDetail(chatHref);
   const { width } = useResponsive();
 
   // 새 메시지·미확인 수 반영 (15초, 앱 복귀 시 즉시)
   useLiveRefresh(retry, 15_000);
+  const reloadFamily = family.retry;
+  const seenUnread = useRef(familyUnread);
+  useEffect(() => {
+    if (seenUnread.current === familyUnread) return;
+    seenUnread.current = familyUnread;
+    void reloadFamily();
+  }, [familyUnread, reloadFamily]);
+
+  const refreshAll = () => {
+    void refresh();
+    void family.refresh();
+  };
+
+  const familyRow = (
+    <FamilyRow
+      last={family.data?.messages.at(-1) ?? null}
+      unread={md.selectedId === FAMILY_ID ? 0 : familyUnread}
+      selected={md.selectedId === FAMILY_ID}
+      onPress={() => md.open(FAMILY_ID)}
+    />
+  );
 
   const body = !data ? (
     error ? (
@@ -44,12 +76,12 @@ export default function StudentChatTab() {
       <ChatListSkeleton />
     )
   ) : (
-    <ChatList chats={data.chats} selectedId={md.selectedId} onOpen={md.open} />
+    <ChatList chats={data.chats} selectedId={md.selectedId} onOpen={md.open} top={familyRow} />
   );
 
   if (!md.isTablet) {
     return (
-      <Screen kind="tab" title="메시지" refreshing={isRefreshing} onRefresh={() => void refresh()}>
+      <Screen kind="tab" title="메시지" refreshing={isRefreshing} onRefresh={refreshAll}>
         {body}
       </Screen>
     );
@@ -67,7 +99,7 @@ export default function StudentChatTab() {
             refreshControl={
               <RefreshControl
                 refreshing={isRefreshing}
-                onRefresh={() => void refresh()}
+                onRefresh={refreshAll}
                 tintColor={color.fg.neutralSubtle}
                 colors={[color.fg.brand]}
               />
@@ -76,7 +108,9 @@ export default function StudentChatTab() {
           </ScrollView>
         }
         detail={
-          md.selectedId ? (
+          md.selectedId === FAMILY_ID ? (
+            <FamilyChatThread audience="student" onActivity={() => void family.retry()} />
+          ) : md.selectedId ? (
             <ChatThread
               basePath={STUDENT_CHATS_PATH}
               chatId={md.selectedId}
@@ -99,20 +133,26 @@ function ChatList({
   chats,
   selectedId,
   onOpen,
+  top,
 }: {
   chats: StudentChatItem[];
   selectedId: string | null;
   onOpen: (id: string) => void;
+  /** 맨 위 고정 행 (가족 톡방) */
+  top: React.ReactNode;
 }) {
   if (chats.length === 0) {
     return (
-      <Section>
-        <EmptyState
-          icon={MessageCircle}
-          title="아직 배정된 담당자가 없어요"
-          description={'컨설턴트·관리 멘토·운영조교가 배정되면\n여기서 바로 대화할 수 있어요.'}
-        />
-      </Section>
+      <Stack>
+        {top}
+        <Section>
+          <EmptyState
+            icon={MessageCircle}
+            title="아직 배정된 담당자가 없어요"
+            description={'컨설턴트·관리 멘토·운영조교가 배정되면\n여기서 바로 대화할 수 있어요.'}
+          />
+        </Section>
+      </Stack>
     );
   }
 
@@ -123,6 +163,7 @@ function ChatList({
 
   return (
     <Stack>
+      {top}
       {current.length > 0 && (
         <Section
           flush
@@ -204,6 +245,62 @@ function ChatRow({ chat: c, selected, onPress }: { chat: StudentChatItem; select
         ) : undefined
       }
     />
+  );
+}
+
+/** 가족 톡방 고정 행 — 학부모·운영진과 함께 보는 방 (마지막 글 · 안 읽은 수) */
+function FamilyRow({
+  last,
+  unread,
+  selected,
+  onPress,
+}: {
+  last: FamilyChatThreadResponse['messages'][number] | null;
+  unread: number;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const body = last ? last.content || (last.attachments.length ? '사진·파일을 보냈어요' : '') : '';
+  const preview = !last
+    ? '학부모님, 운영진과 함께 보는 방이에요'
+    : last.senderKind === 'SYSTEM'
+      ? body
+      : `${last.mine ? '나' : last.senderName}: ${body}`;
+  const time = last ? formatAgo(last.createdAt) : '';
+  return (
+    <Section flush>
+      <ListRow
+        onPress={onPress}
+        chevron={false}
+        style={selected ? { backgroundColor: color.bg.transparentSelected } : undefined}
+        leading={<IconTile icon={Users} tone="brand" size={48} round />}
+        title={
+          <Text variant="t5-medium" numberOfLines={1}>
+            가족 톡방
+          </Text>
+        }
+        description={
+          <Text
+            variant={unread > 0 ? 't4-medium' : 't4-regular'}
+            color={unread > 0 ? 'neutralMuted' : last ? 'neutralSubtle' : 'placeholder'}
+            numberOfLines={1}>
+            {preview}
+          </Text>
+        }
+        trailing={
+          time || unread > 0 ? (
+            <View style={s.trailing}>
+              {time ? (
+                <Text variant="t3-regular" color="placeholder" tabular>
+                  {time}
+                </Text>
+              ) : null}
+              <CountBadge count={unread} />
+            </View>
+          ) : undefined
+        }
+      />
+    </Section>
   );
 }
 

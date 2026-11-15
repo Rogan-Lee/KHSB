@@ -29,6 +29,7 @@ export const REPORT_TARGET_LABEL = {
   CHAT_MESSAGE: "1:1 메시지",
   QUESTION_MESSAGE: "질문·답변",
   STAFF_DM_MESSAGE: "직원 메시지",
+  FAMILY_CHAT_MESSAGE: "가족 톡방",
   USER: "사용자",
 } as const;
 export type ReportTargetType = keyof typeof REPORT_TARGET_LABEL;
@@ -101,11 +102,33 @@ function staffRoleLabel(role: string | null | undefined) {
   return (role && ROLE_DISPLAY[role]) || "직원";
 }
 
+/** 학생·학부모가 들어가 있는 가족 톡방의 학생 id (직원은 전체라 쓰지 않는다) */
+async function familyStudentIds(actor: SafetyUserRef): Promise<string[]> {
+  if (actor.type === "STUDENT") return [actor.id];
+  if (actor.type !== "PARENT") return [];
+  const links = await prisma.parentLink.findMany({
+    where: { authUserId: actor.id },
+    select: { studentId: true },
+  });
+  return links.map((l) => l.studentId);
+}
+
+/** 상대가 내 가족 톡방에 글을 쓴 적이 있는지 (모르는 id 로 이름을 캐지 못하게) */
+async function wroteInMyFamilyChat(actor: SafetyUserRef, target: SafetyUserRef) {
+  const studentIds = await familyStudentIds(actor);
+  if (studentIds.length === 0) return false;
+  const found = await prisma.familyChatMessage.findFirst({
+    where: { senderKind: target.type, senderId: target.id, chat: { studentId: { in: studentIds } } },
+    select: { id: true },
+  });
+  return !!found;
+}
+
 /**
  * 신고·차단할 수 있는 상대인지 확인하고 이름을 붙여 돌려준다.
  *  · 학생 → 직원: 대화방이 있거나 내 질문에 답한 직원만 (모르는 직원 id 로 이름을 캐지 못하게)
- *  · 직원 → 학생·직원: 존재하는 계정이면 가능
- *  · 학부모: 주고받는 대화가 없어 대상이 없다
+ *  · 학생·학부모 → 가족 톡방에 글을 쓴 사람 (직원·학생·학부모)
+ *  · 직원 → 학생·직원·학부모: 존재하는 계정이면 가능
  */
 async function resolveUser(actor: SafetyActor, target: SafetyUserRef) {
   if (actor.type === target.type && actor.id === target.id) {
@@ -113,9 +136,12 @@ async function resolveUser(actor: SafetyActor, target: SafetyUserRef) {
   }
   const notFound = new MobileApiError("상대를 찾을 수 없어요", 404);
 
-  if (actor.type === "STUDENT") {
-    if (target.type !== "STAFF") throw notFound;
-    const [chat, answer] = await Promise.all([
+  if (actor.type === "PARENT") {
+    if (!(await wroteInMyFamilyChat(actor, target))) throw notFound;
+  } else if (actor.type === "STUDENT" && target.type !== "STAFF") {
+    if (!(await wroteInMyFamilyChat(actor, target))) throw notFound;
+  } else if (actor.type === "STUDENT") {
+    const [chat, answer, family] = await Promise.all([
       prisma.portalChat.findUnique({
         where: { studentId_staffId: { studentId: actor.id, staffId: target.id } },
         select: { id: true },
@@ -124,10 +150,9 @@ async function resolveUser(actor: SafetyActor, target: SafetyUserRef) {
         where: { senderUserId: target.id, question: { studentId: actor.id } },
         select: { id: true },
       }),
+      wroteInMyFamilyChat(actor, target),
     ]);
-    if (!chat && !answer) throw notFound;
-  } else if (actor.type !== "STAFF") {
-    throw new MobileApiError("이 계정에서는 쓸 수 없는 기능이에요", 403);
+    if (!chat && !answer && !family) throw notFound;
   }
 
   if (target.type === "STAFF") {
@@ -146,11 +171,19 @@ async function resolveUser(actor: SafetyActor, target: SafetyUserRef) {
     if (!student) throw notFound;
     return { type: "STUDENT" as const, id: student.id, name: student.name, roleLabel: "학생" };
   }
+  if (target.type === "PARENT") {
+    const parent = await prisma.authUser.findFirst({
+      where: { id: target.id, parentLinks: { some: {} } },
+      select: { id: true, name: true },
+    });
+    if (!parent) throw notFound;
+    return { type: "PARENT" as const, id: parent.id, name: parent.name, roleLabel: "학부모" };
+  }
   throw notFound;
 }
 
 const userRefSchema = z.object({
-  userType: z.enum(["STUDENT", "STAFF"], { message: "상대를 확인해 주세요" }),
+  userType: z.enum(["STUDENT", "STAFF", "PARENT"], { message: "상대를 확인해 주세요" }),
   userId: z.string().trim().min(1, "상대를 확인해 주세요").max(64),
 });
 
@@ -263,11 +296,11 @@ async function markReadWith(actor: SafetyUserRef, target: SafetyUserRef) {
 // ─── 신고 ────────────────────────────────────────────────────────────
 
 const reportSchema = z.object({
-  targetType: z.enum(["CHAT_MESSAGE", "QUESTION_MESSAGE", "STAFF_DM_MESSAGE", "USER"], {
+  targetType: z.enum(["CHAT_MESSAGE", "QUESTION_MESSAGE", "STAFF_DM_MESSAGE", "FAMILY_CHAT_MESSAGE", "USER"], {
     message: "신고 대상을 확인해 주세요",
   }),
   targetId: z.string().trim().max(64).nullish(),
-  userType: z.enum(["STUDENT", "STAFF"]).nullish(),
+  userType: z.enum(["STUDENT", "STAFF", "PARENT"]).nullish(),
   userId: z.string().trim().max(64).nullish(),
   reason: z.enum(["ABUSE", "SEXUAL", "SPAM", "PRIVACY", "OTHER"], {
     message: "신고 사유를 골라 주세요",
@@ -391,6 +424,34 @@ async function resolveReportTarget(
       contextId: question.id,
       user: { type: "STAFF", id: message.senderUserId, name: message.senderUser?.name ?? "멘토" },
       snapshot: snapshotOf(`[${question.title}] ${message.content}`, message.attachments),
+    };
+  }
+
+  if (data.targetType === "FAMILY_CHAT_MESSAGE") {
+    const message = await prisma.familyChatMessage.findUnique({
+      where: { id: targetId },
+      select: {
+        id: true,
+        chatId: true,
+        senderKind: true,
+        senderId: true,
+        senderName: true,
+        content: true,
+        attachments: true,
+        chat: { select: { studentId: true } },
+      },
+    });
+    // 자동 알림(SYSTEM)은 신고 대상이 아니다
+    if (!message || message.senderKind === "SYSTEM" || !message.senderId) throw notFound;
+    const member =
+      actor.type === "STAFF" || (await familyStudentIds(actor)).includes(message.chat.studentId);
+    if (!member) throw notFound;
+    if (message.senderKind === actor.type && message.senderId === actor.id) throw own;
+    return {
+      targetId: message.id,
+      contextId: message.chatId,
+      user: { type: message.senderKind, id: message.senderId, name: message.senderName },
+      snapshot: snapshotOf(message.content, message.attachments),
     };
   }
 
@@ -602,6 +663,7 @@ export async function resolveContentReport(
     if (report.targetType === "CHAT_MESSAGE") await prisma.portalChatMessage.deleteMany({ where });
     else if (report.targetType === "QUESTION_MESSAGE") await prisma.questionMessage.deleteMany({ where });
     else if (report.targetType === "STAFF_DM_MESSAGE") await prisma.staffThreadMessage.deleteMany({ where });
+    else if (report.targetType === "FAMILY_CHAT_MESSAGE") await prisma.familyChatMessage.deleteMany({ where });
   }
 
   const resolved = {

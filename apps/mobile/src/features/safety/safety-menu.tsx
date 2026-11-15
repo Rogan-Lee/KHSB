@@ -44,6 +44,8 @@ export type SafetyTarget = {
   copyText?: string;
   /** 내가 이미 차단한 상대 */
   blocked?: boolean;
+  /** 단체방(가족 톡방) — 차단해도 전송은 막지 않고 내 화면에서만 글을 뺀다 */
+  groupChat?: boolean;
 };
 
 export type SafetyChange = 'blocked' | 'unblocked';
@@ -53,11 +55,12 @@ function errorText(error: unknown, fallback: string) {
 }
 
 /** 차단 확인 → 서버 반영. 차단했으면 true */
-export async function confirmBlock(user: SafetyUser) {
+export async function confirmBlock(user: SafetyUser, groupChat = false) {
   const ok = await confirm({
     title: `${user.name}님을 차단할까요?`,
-    message:
-      '이 사람이 보낸 글이 더 보이지 않고, 서로 새 메시지를 보낼 수 없어요. 담당을 조정할 수 있도록 독서실에도 알려요.',
+    message: groupChat
+      ? '이 사람이 쓴 글이 내 화면에서 더 보이지 않아요. 담당을 조정할 수 있도록 독서실에도 알려요.'
+      : '이 사람이 보낸 글이 더 보이지 않고, 서로 새 메시지를 보낼 수 없어요. 담당을 조정할 수 있도록 독서실에도 알려요.',
     confirmText: '차단하기',
     destructive: true,
   });
@@ -144,7 +147,9 @@ export function useSafetyMenu(onChanged?: (change: SafetyChange) => void) {
   const toggleBlock = async () => {
     if (!target || pending) return;
     setPending(true);
-    const done = target.blocked ? await releaseBlock(target.user) : await confirmBlock(target.user);
+    const done = target.blocked
+      ? await releaseBlock(target.user)
+      : await confirmBlock(target.user, target.groupChat);
     setPending(false);
     if (!done) return;
     setOpen(false);
@@ -225,7 +230,13 @@ export function useSafetyMenu(onChanged?: (change: SafetyChange) => void) {
           <ListRow
             leading={<IconTile icon={target?.blocked ? ShieldCheck : Ban} tone={target?.blocked ? 'gray' : 'bad'} size={40} round />}
             title={target?.blocked ? '차단 해제하기' : `${name}님 차단하기`}
-            description={target?.blocked ? undefined : '글이 보이지 않고 서로 메시지를 보낼 수 없어요'}
+            description={
+              target?.blocked
+                ? undefined
+                : target?.groupChat
+                  ? '이 사람 글이 내 화면에서 보이지 않아요'
+                  : '글이 보이지 않고 서로 메시지를 보낼 수 없어요'
+            }
             chevron={false}
             onPress={() => void toggleBlock()}
           />

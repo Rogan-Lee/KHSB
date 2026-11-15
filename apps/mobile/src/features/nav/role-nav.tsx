@@ -1,5 +1,6 @@
 import type { Href } from 'expo-router';
 import {
+  CalendarCheck,
   CalendarClock,
   CalendarDays,
   Coins,
@@ -74,7 +75,7 @@ const STAFF_SHORTCUTS: StaffDest[] = [
 ];
 
 /**
- * 직원 탭 — 홈 · 입퇴실 · 멘토링 · 소통(질문·채팅·DM) · 전체.
+ * 직원 탭 — 홈 · 입퇴실 · 멘토링 · 소통(질문·채팅·DM·가족 톡방) · 전체.
  * 온라인 관리 역할(오프라인 운영 권한 없음)에게는 입퇴실·멘토링 탭을 숨긴다 (서버가 403).
  */
 export function StaffShell({ children }: { children: ReactNode }) {
@@ -121,7 +122,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
     index: { label: '홈', icon: 'home' },
     tasks: { label: '수행평가', icon: 'tasks', badge: badges.tasks },
     qna: { label: '질문', icon: 'qna', badge: badges.qna },
-    chat: { label: '메시지', icon: 'chat', badge: badges.chat },
+    chat: { label: '메시지', icon: 'chat', badge: badges.chat + (badges.familyChat ?? 0) },
     menu: { label: '전체', icon: 'menu', badge: badges.menu > 0 ? 'dot' : 0 },
   };
   const shortcuts: SideNavItem[] = [
@@ -144,20 +145,21 @@ export function StudentShell({ children }: { children: ReactNode }) {
   );
 }
 
-/** 학부모 탭 — 홈(오늘) · 출결 · 리포트 · 성장 · 전체 */
+/** 학부모 탭 — 홈(오늘) · 리포트 · 성장 · 톡방 · 전체. 출결은 홈에서 들어가는 화면(태블릿은 사이드바 바로가기) */
 export function ParentShell({ children }: { children: ReactNode }) {
   const badges = useParentBadges();
   const { session } = useSession();
 
   const tabs: Record<string, TabItem> = {
     index: { label: '홈', icon: 'home' },
-    attendance: { label: '출결', icon: 'calendar' },
     reports: { label: '리포트', icon: 'report', badge: badges.reports },
     growth: { label: '성장', icon: 'growth' },
+    chat: { label: '톡방', icon: 'chat', badge: badges.familyChat ?? 0 },
     // 승인 대기 스케줄 + 결제할 수강료
     menu: { label: '전체', icon: 'menu', badge: badges.menu + (badges.tuition ?? 0) > 0 ? 'dot' : 0 },
   };
   const shortcuts: SideNavItem[] = [
+    { key: 'attendance', label: '출결', icon: CalendarCheck, href: '/(parent)/attendance' as Href },
     { key: 'tuition', label: '수강료', icon: Receipt, href: '/(parent)/tuition' as Href, badge: badges.tuition ?? 0 },
     { key: 'lunch', label: '점심 도시락', icon: Utensils, href: '/(parent)/lunch' as Href },
     { key: 'schedule', label: '등원 스케줄', icon: CalendarClock, href: '/(parent)/schedule' as Href },

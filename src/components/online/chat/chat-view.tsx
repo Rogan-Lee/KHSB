@@ -14,12 +14,12 @@ import { ChatComposer } from "./chat-composer";
 
 const POLL_INTERVAL_MS = 5000;
 
-function dayKey(d: Date): string {
+export function dayKey(d: Date): string {
   const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
   return `${kst.getUTCFullYear()}-${kst.getUTCMonth()}-${kst.getUTCDate()}`;
 }
 
-function dayLabel(d: Date): string {
+export function dayLabel(d: Date): string {
   const now = new Date();
   const kstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   const kstD = new Date(d.getTime() + 9 * 60 * 60 * 1000);
@@ -46,7 +46,7 @@ function noteLatest(ref: { current: string | null }, list: ChatMessageView[]) {
 // 동시에 보낸 메시지의 커밋 순서가 createdAt 순서와 어긋나도 놓치지 않도록 약간 겹쳐서 조회
 // (겹친 메시지는 seenIds 로 걸러진다)
 const POLL_OVERLAP_MS = 10_000;
-function pollSince(latest: string | null): string | undefined {
+export function pollSince(latest: string | null): string | undefined {
   if (!latest) return undefined;
   return new Date(Date.parse(latest) - POLL_OVERLAP_MS).toISOString();
 }

@@ -14,7 +14,7 @@ const ROLE_HINT: Record<string, string> = {
   STAFF: "내 운영 학생",
 };
 
-function timeAgo(iso: string | null): string {
+export function timeAgo(iso: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
   const diff = Date.now() - d.getTime();

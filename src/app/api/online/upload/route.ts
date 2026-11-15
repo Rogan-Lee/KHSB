@@ -50,7 +50,7 @@ function safeName(filename: string): string {
     .slice(0, 200);
 }
 
-type UploadContext = "task" | "chat" | "feedback" | "question";
+type UploadContext = "task" | "chat" | "feedback" | "question" | "family-chat";
 
 export async function POST(request: NextRequest) {
   let formData: FormData;
@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
     contextRaw === "chat" ? "chat" :
     contextRaw === "feedback" ? "feedback" :
     contextRaw === "question" ? "question" :
+    contextRaw === "family-chat" ? "family-chat" :
     "task"; // default = task (BC)
 
   if (!(file instanceof File)) {
@@ -161,6 +162,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
     }
     blobPathPrefix = `online/feedback/${submissionId}`;
+  } else if (context === "family-chat") {
+    // 가족 톡방 — 직원 전체가 모든 재원생 방에 들어간다 (src/lib/family-chat.ts). 경로는 모바일 업로드와 같은 규칙
+    const studentId = formData.get("studentId");
+    if (typeof studentId !== "string" || !studentId) {
+      return NextResponse.json({ error: "studentId 가 필요합니다" }, { status: 400 });
+    }
+    const session = await auth();
+    if (!session?.user || !isAnyStaff(session.user.role)) {
+      return NextResponse.json({ error: "권한이 없습니다" }, { status: 403 });
+    }
+    const student = await prisma.student.findUnique({ where: { id: studentId }, select: { id: true } });
+    if (!student) {
+      return NextResponse.json({ error: "학생을 찾을 수 없습니다" }, { status: 404 });
+    }
+    blobPathPrefix = `family-chat/${studentId}`;
   } else {
     // context === "question" — 학생 질문(문제 사진) 또는 멘토 답변(풀이 사진) 첨부.
     // 작성 직전이라 questionId 가 없을 수 있어 incoming 버킷에 올린다. 학생 토큰 또는 staff 세션 필요.

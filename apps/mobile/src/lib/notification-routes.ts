@@ -26,6 +26,7 @@ const STATIC_ROUTES = new Set([
   '/(student)/survey',
   '/(student)/suggestions',
   '/(student)/focus',
+  '/(student)/family-chat',
   '/(staff)/(tabs)',
   '/(staff)/(tabs)/attendance',
   '/(staff)/(tabs)/mentoring',
@@ -36,10 +37,11 @@ const STATIC_ROUTES = new Set([
   '/(staff)/suggestions',
   '/(staff)/tasks',
   '/(parent)/(tabs)',
-  '/(parent)/(tabs)/attendance',
   '/(parent)/(tabs)/reports',
   '/(parent)/(tabs)/growth',
+  '/(parent)/(tabs)/chat',
   '/(parent)/(tabs)/menu',
+  '/(parent)/attendance',
   '/(parent)/schedule',
   '/(parent)/lunch',
   '/(parent)/exams',
@@ -60,6 +62,7 @@ const DETAIL_ROUTES = [
   /^\/\(staff\)\/tasks\/[A-Za-z0-9_-]{1,64}$/,
   /^\/\(staff\)\/mentoring\/[A-Za-z0-9_-]{1,64}$/,
   /^\/\(staff\)\/dm\/[A-Za-z0-9_-]{1,64}$/,
+  /^\/\(staff\)\/family-chat\/[A-Za-z0-9_-]{1,64}$/,
   /^\/\(parent\)\/reports\/(mentoring|monthly|online|study-plan|consultation)\/[A-Za-z0-9_-]{1,64}$/,
 ];
 
@@ -81,7 +84,8 @@ const ROUTE_ALIASES: Record<string, string> = {
   '/staff-tasks': '/(staff)/tasks',
   '/(staff)/staff-tasks': '/(staff)/tasks',
   '/(parent)/reports': '/(parent)/(tabs)/reports',
-  '/(parent)/attendance': '/(parent)/(tabs)/attendance',
+  // 출결은 탭에서 홈 아래 화면으로 옮겼다
+  '/(parent)/(tabs)/attendance': '/(parent)/attendance',
   '/(student)/vocab/index': '/(student)/vocab',
   '/(student)/survey/index': '/(student)/survey',
 };

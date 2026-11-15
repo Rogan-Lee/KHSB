@@ -68,6 +68,7 @@ export async function createOnlineStudent(params: {
   });
 
   revalidatePath("/online/students");
+  revalidatePath("/students");
   return { id: student.id };
 }
 
@@ -148,6 +149,7 @@ export async function updateOnlineStudent(params: {
 
   await prisma.student.update({ where: { id: params.studentId }, data });
   revalidatePath("/online/students");
+  revalidatePath("/students");
   revalidatePath(`/online/students/${params.studentId}`);
 }
 
@@ -188,6 +190,7 @@ export async function withdrawOnlineStudent(studentId: string) {
   await revokeAllLinksForStudent(studentId);
 
   revalidatePath("/online/students");
+  revalidatePath("/students");
   revalidatePath(`/online/students/${studentId}`);
 }
 
@@ -204,6 +207,7 @@ export async function readmitOnlineStudent(studentId: string) {
   });
 
   revalidatePath("/online/students");
+  revalidatePath("/students");
   revalidatePath(`/online/students/${studentId}`);
 }
 
@@ -249,6 +253,7 @@ export async function reassignOnlineStudent(params: {
   });
 
   revalidatePath("/online/students");
+  revalidatePath("/students");
   revalidatePath(`/online/students/${params.studentId}`);
 }
 

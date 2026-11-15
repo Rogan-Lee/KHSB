@@ -1,0 +1,220 @@
+import type { ReactNode } from "react";
+import { headers } from "next/headers";
+import { prisma } from "@/lib/prisma";
+import { recentSessionsByStudent } from "@/lib/online/recent-sessions";
+import { isFullAccess } from "@/lib/roles";
+import { Users } from "lucide-react";
+import { EmptyState, PageHeader, Section } from "@/components/backoffice/ui";
+import { AddOnlineStudentDialog } from "@/app/online/students/_components/add-online-student-dialog";
+import {
+  OnlineStudentsPanel,
+  type OnlineStudentPanelRow,
+} from "@/components/online/online-students-panel";
+
+/** 온라인 학생 담당자 고르기 목록 — 원장급만 쓴다 (학생 추가·담당 변경) */
+export async function onlineAssigneeOptions() {
+  return Promise.all([
+    prisma.user.findMany({
+      // 관리 멘토 picker — 퇴사자 제외
+      // MANAGER_MENTOR 외에도 멘토/운영조교/총괄멘토(/원장/SA) 도 배정 가능
+      where: { status: "ACTIVE", role: { in: ["MANAGER_MENTOR", "MENTOR", "STAFF", "HEAD_MENTOR", "DIRECTOR", "SUPER_ADMIN"] } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    prisma.user.findMany({
+      // 컨설턴트 picker — 퇴사자 제외. CONSULTANT + SUPER_ADMIN(테스트용)
+      where: { status: "ACTIVE", role: { in: ["CONSULTANT", "SUPER_ADMIN"] } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+    prisma.user.findMany({
+      // 운영조교 picker — 퇴사자 제외. STAFF + SUPER_ADMIN(테스트용)
+      where: { status: "ACTIVE", role: { in: ["STAFF", "SUPER_ADMIN"] } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
+}
+
+/**
+ * 원생 관리 › 온라인 탭 (옛 /online/students 화면).
+ * 호출 측이 온라인 직원(isOnlineStaff)인지 먼저 확인한다.
+ */
+export async function OnlineStudentsView({ role, typeTabs }: { role?: string | null; typeTabs?: ReactNode }) {
+  const canManage = isFullAccess(role);
+
+  const [onlineStudents, offlineStudents, [mentors, consultants, staffs]] = await Promise.all([
+    prisma.student.findMany({
+      // 재원/퇴원 처리 가능하도록 WITHDRAWN 도 함께 조회
+      where: { isOnlineManaged: true, status: { in: ["ACTIVE", "WITHDRAWN"] } },
+      orderBy: [{ status: "asc" }, { grade: "asc" }, { name: "asc" }],
+      // egress: 화면에서 쓰는 컬럼만 (학생 전 컬럼·세션 전체 이력 제외)
+      select: {
+        id: true,
+        name: true,
+        grade: true,
+        school: true,
+        status: true,
+        onlineStartedAt: true,
+        parentPhone: true,
+        parentEmail: true,
+        targetUniversity: true,
+        selectedSubjects: true,
+        admissionType: true,
+        assignedMentorId: true,
+        assignedConsultantId: true,
+        assignedStaffId: true,
+        assignedMentor: { select: { id: true, name: true } },
+        assignedConsultant: { select: { id: true, name: true } },
+        assignedStaff: { select: { id: true, name: true } },
+        magicLinks: {
+          where: { revokedAt: null, expiresAt: { gt: new Date() } },
+          orderBy: { issuedAt: "desc" },
+          select: {
+            id: true,
+            token: true,
+            expiresAt: true,
+            issuedAt: true,
+            lastAccessedAt: true,
+            accessCount: true,
+          },
+        },
+        _count: {
+          select: {
+            performanceTasks: {
+              where: {
+                status: { not: "DONE" },
+                submissions: { some: { feedbacks: { none: {} } } },
+              },
+            },
+          },
+        },
+      },
+    }),
+    canManage
+      ? prisma.student.findMany({
+          where: { isOnlineManaged: false, status: "ACTIVE" },
+          orderBy: [{ grade: "asc" }, { name: "asc" }],
+          select: { id: true, name: true, grade: true },
+        })
+      : Promise.resolve([]),
+    canManage ? onlineAssigneeOptions() : ([[], [], []] as Awaited<ReturnType<typeof onlineAssigneeOptions>>),
+  ]);
+
+  // 학생별 최근 화상 세션 20건 — 중첩 take 대신 DB 에서 학생별로 잘라 가져온다
+  const sessionsByStudent = await recentSessionsByStudent(
+    onlineStudents.map((s) => s.id),
+    20
+  );
+
+  const hdrs = await headers();
+  const host = hdrs.get("host") ?? "localhost:3000";
+  const proto = hdrs.get("x-forwarded-proto") ?? "http";
+  const portalOrigin = `${proto}://${host}`;
+
+  const rows: OnlineStudentPanelRow[] = onlineStudents.map((s) => {
+    const mentoringSessions = sessionsByStudent.get(s.id) ?? [];
+    return {
+      studentId: s.id,
+      studentName: s.name,
+      grade: s.grade,
+      school: s.school,
+      status: s.status,
+      onlineStartedAt: s.onlineStartedAt?.toISOString() ?? null,
+      parentPhone: s.parentPhone,
+      parentEmail: s.parentEmail,
+      targetUniversity: s.targetUniversity,
+      selectedSubjects: s.selectedSubjects,
+      admissionType: s.admissionType,
+      assignedMentorId: s.assignedMentorId,
+      assignedConsultantId: s.assignedConsultantId,
+      assignedStaffId: s.assignedStaffId,
+      assignedMentorName: s.assignedMentor?.name ?? null,
+      assignedConsultantName: s.assignedConsultant?.name ?? null,
+      assignedStaffName: s.assignedStaff?.name ?? null,
+      activeLinks: s.magicLinks.map((l) => ({
+        id: l.id,
+        // 매직링크 토큰 = 학생 포털 로그인 자격증명. 관리(원장) 권한자에게만 직렬화 —
+        // 컨설턴트/관리 멘토는 UI 에서 링크 관리자를 볼 수 없으므로 토큰도 내려보내지 않는다.
+        token: canManage ? l.token : "",
+        expiresAt: l.expiresAt.toISOString(),
+        issuedAt: l.issuedAt.toISOString(),
+        lastAccessedAt: l.lastAccessedAt?.toISOString() ?? null,
+        accessCount: l.accessCount,
+      })),
+      pendingFeedbackCount: s._count.performanceTasks,
+      upcomingSessionCount: mentoringSessions.filter(
+        (ms) =>
+          (ms.status === "SCHEDULED" || ms.status === "IN_PROGRESS") &&
+          ms.scheduledAt.getTime() > Date.now()
+      ).length,
+      mentoringSessions: mentoringSessions.map((ms) => ({
+        id: ms.id,
+        title: ms.title,
+        status: ms.status,
+        scheduledAt: ms.scheduledAt.toISOString(),
+        durationMinutes: ms.durationMinutes,
+        meetUrl: ms.meetUrl,
+        calendarHtmlLink: ms.calendarHtmlLink,
+        notes: ms.notes,
+        summary: ms.summary,
+        hostName: ms.host.name,
+        photos: ms.photos,
+      })),
+    };
+  });
+
+  const activeCount = onlineStudents.filter((s) => s.status === "ACTIVE").length;
+  const withdrawnCount = onlineStudents.length - activeCount;
+
+  const addButton = canManage ? (
+    <AddOnlineStudentDialog
+      offlineStudents={offlineStudents}
+      mentors={mentors}
+      consultants={consultants}
+    />
+  ) : undefined;
+
+  return (
+    <div>
+      {typeTabs}
+      <PageHeader
+        title="원생 관리"
+        description={
+          <>
+            <span className="tabular-nums">
+              총 {onlineStudents.length}명
+              {withdrawnCount > 0 && ` (재원 ${activeCount} · 퇴원 ${withdrawnCount})`}
+            </span>
+            {" · "}학생을 고르면 정보·담당자·매직링크·화상 세션을 한 화면에서 관리해요
+          </>
+        }
+        actions={addButton}
+      />
+
+      {onlineStudents.length === 0 ? (
+        <Section>
+          <EmptyState
+            icon={Users}
+            title="아직 온라인 관리 학생이 없어요"
+            description={
+              canManage
+                ? "학생 추가에서 새로 등록하거나 오프라인 학생을 전환해 보세요"
+                : "원장님이 온라인 학생을 등록하면 여기에 나타나요"
+            }
+            action={addButton}
+          />
+        </Section>
+      ) : (
+        <OnlineStudentsPanel
+          rows={rows}
+          mentors={mentors}
+          consultants={consultants}
+          staffs={staffs}
+          portalOrigin={portalOrigin}
+          canManage={canManage}
+        />
+      )}
+    </div>
+  );
+}

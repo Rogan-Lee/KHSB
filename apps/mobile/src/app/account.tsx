@@ -163,15 +163,13 @@ export default function AccountScreen() {
               title="비밀번호 변경"
               onPress={() => setPasswordOpen(true)}
             />
-            {/* 학부모는 1:1 대화가 없어 차단할 상대가 없다 */}
-            {session.role !== 'parent' && (
-              <ListRow
-                leading={<IconTile icon={Ban} size={40} />}
-                title="차단한 사용자"
-                description="차단을 풀 수 있어요"
-                href={'/blocked-users' as Href}
-              />
-            )}
+            {/* 학부모도 가족 톡방에서 차단할 수 있다 */}
+            <ListRow
+              leading={<IconTile icon={Ban} size={40} />}
+              title="차단한 사용자"
+              description="차단을 풀 수 있어요"
+              href={'/blocked-users' as Href}
+            />
           </Section>
 
           <Section title="도움말" flush>

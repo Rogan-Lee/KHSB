@@ -38,6 +38,7 @@ type TokenRequestBody = {
   taskId?: unknown;
   submissionId?: unknown;
   chatId?: unknown;
+  studentId?: unknown;
 };
 
 function asOptionalString(value: unknown) {
@@ -106,6 +107,7 @@ export async function POST(request: NextRequest) {
     taskId: asOptionalString(body.taskId),
     submissionId: asOptionalString(body.submissionId),
     chatId: asOptionalString(body.chatId),
+    studentId: asOptionalString(body.studentId),
   });
   if (!authz.ok) {
     return Response.json({ error: authz.error }, { status: authz.status });

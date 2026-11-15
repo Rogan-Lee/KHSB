@@ -27,7 +27,7 @@ import {
 } from "seed-design/ui/navigation-menu";
 import { hasFeature, getMinimumPlan, PLAN_LABELS, type PlanTier } from "@/lib/features";
 import { cn } from "@/lib/utils";
-import { matchNavHref, visibleGroups, visiblePrimary, type NavGroup, type NavItem } from "./nav-config";
+import { matchNavHref, navTarget, sidebarNav, type NavGroup, type NavItem } from "./nav-config";
 import { useStoredValue } from "./use-stored-value";
 
 const OPEN_GROUPS_KEY = "sidebarOpenGroups";
@@ -36,6 +36,13 @@ type Badges = Record<string, number> | undefined;
 
 function badgeLabel(n: number) {
   return n > 99 ? "99+" : String(n);
+}
+
+/** 메뉴 배지 — 탭으로 묶은 메뉴는 탭 배지의 합 */
+function itemBadge(item: NavItem, badges: Badges) {
+  return item.tabs
+    ? item.tabs.reduce((sum, t) => sum + (badges?.[t.href] ?? 0), 0)
+    : (badges?.[item.href] ?? 0);
 }
 
 /**
@@ -66,8 +73,7 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const currentHref = matchNavHref(pathname);
-  const groups = visibleGroups(role);
-  const primary = visiblePrimary(role);
+  const { primary, groups } = sidebarNav(role);
   const currentGroupId = groups.find((g) => g.items.some((it) => it.href === currentHref))?.id;
 
   // 그룹 펼침 — 사용자가 열고 닫은 상태는 기억하고(localStorage), 현재 화면이 속한 그룹은 기본으로 연다.
@@ -117,7 +123,7 @@ export function AppSidebar({
               item={item}
               plan={plan}
               current={item.href === currentHref}
-              badge={badges?.[item.href]}
+              badge={itemBadge(item, badges)}
               onNavigate={onNavigate}
               withIcon
             />
@@ -212,7 +218,7 @@ function NavLink({
     </SeedSideNavigation.Item>
   ) : (
     <SeedSideNavigation.Item asChild current={current}>
-      <Link href={item.href} onClick={onNavigate} aria-current={current ? "page" : undefined}>
+      <Link href={navTarget(item)} onClick={onNavigate} aria-current={current ? "page" : undefined}>
         {inner}
       </Link>
     </SeedSideNavigation.Item>
@@ -248,7 +254,7 @@ function NavGroupItem({
   const isFlyout = collapsed && !transitioning;
   const GroupIcon = group.icon;
   const hasCurrent = group.items.some((it) => it.href === currentHref);
-  const unread = group.items.reduce((sum, it) => sum + (badges?.[it.href] ?? 0), 0);
+  const unread = group.items.reduce((sum, it) => sum + itemBadge(it, badges), 0);
 
   if (isFlyout) {
     return (
@@ -267,7 +273,7 @@ function NavGroupItem({
             <NavigationMenuGroupLabel>{group.label}</NavigationMenuGroupLabel>
             {group.items.map((item) => {
               const locked = item.feature ? !hasFeature(plan, item.feature) : false;
-              const count = badges?.[item.href] ?? 0;
+              const count = itemBadge(item, badges);
               return (
                 <SeedNavigationMenu.Item
                   key={item.href}
@@ -278,7 +284,7 @@ function NavGroupItem({
                   {locked ? (
                     <FlyoutItemBody label={item.label} count={0} />
                   ) : (
-                    <Link href={item.href} onClick={onNavigate}>
+                    <Link href={navTarget(item)} onClick={onNavigate}>
                       <FlyoutItemBody label={item.label} count={count} />
                     </Link>
                   )}
@@ -308,7 +314,7 @@ function NavGroupItem({
             item={item}
             plan={plan}
             current={item.href === currentHref}
-            badge={badges?.[item.href]}
+            badge={itemBadge(item, badges)}
             onNavigate={onNavigate}
           />
         ))}

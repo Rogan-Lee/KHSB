@@ -27,7 +27,7 @@ import { StudyBars, StudySummary } from './attendance-study-chart';
 import { dayShort, dayTitle, duration, kstToday, plainText } from './today-format';
 import { DayTimeline, buildTimeline } from './today-timeline';
 
-const ATTENDANCE_TAB = '/(parent)/(tabs)/attendance' as const;
+const ATTENDANCE = '/(parent)/attendance' as const;
 const REPORTS_TAB = '/(parent)/(tabs)/reports' as const;
 
 // ─── 오늘 하루 타임라인 ──────────────────────────────────────────────
@@ -57,7 +57,10 @@ export function TodayTimelineCard({ today }: { today: ParentTodayResponse }) {
     !today.checkIn && today.status !== '결석' && !today.expected.start && today.naps.length === 0;
 
   return (
-    <Section title="오늘 하루" description={`${dayTitle(today.date)} · 예정과 실제 기록`}>
+    <Section
+      title="오늘 하루"
+      description={`${dayTitle(today.date)} · 예정과 실제 기록`}
+      action={<SectionAction href={ATTENDANCE}>출결</SectionAction>}>
       {nothingYet ? (
         <Text variant="t5-regular" color="neutralMuted">
           입실하면 여기에 오늘 기록이 차례로 쌓여요.
@@ -99,7 +102,7 @@ export function WeekStudyCard({
   return (
     <Section
       title="이번 주 공부 시간"
-      action={<SectionAction href={ATTENDANCE_TAB}>자세히</SectionAction>}>
+      action={<SectionAction href={ATTENDANCE}>자세히</SectionAction>}>
       {!stats ? (
         loading ? (
           <View style={{ gap: space.x3 }}>

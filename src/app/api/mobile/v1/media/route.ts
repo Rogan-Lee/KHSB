@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
     taskId: asOptionalString(formData.get("taskId")),
     submissionId: asOptionalString(formData.get("submissionId")),
     chatId: asOptionalString(formData.get("chatId")),
+    studentId: asOptionalString(formData.get("studentId")),
     mentoringId: asOptionalString(formData.get("mentoringId")),
     tag: asOptionalString(formData.get("tag")),
   });

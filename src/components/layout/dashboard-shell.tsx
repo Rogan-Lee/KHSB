@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
-import { SideNavigation as SeedSideNavigation } from "@seed-design/react";
+import { NotificationBadge, SideNavigation as SeedSideNavigation } from "@seed-design/react";
 import { useSideNavigationContext } from "@seed-design/react/primitive";
 import { LogOut, Monitor, Smartphone } from "lucide-react";
 import { toast } from "sonner";
@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import type { Role } from "@/generated/prisma";
 import { AppSidebar } from "./app-sidebar";
 import { AppHeader } from "./app-header";
+import { ACCOUNT_GROUP } from "./nav-config";
 import { useStoredValue } from "./use-stored-value";
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -121,8 +122,14 @@ export function DashboardShell({ user, children, sidebarBadges }: DashboardShell
   }
   const isMobilePreview = viewMode === "mobile";
 
-  const profile = (
-    <ProfileMenu user={user} viewMode={viewMode} onToggleViewMode={toggleViewMode} />
+  const profile = (onNavigate?: () => void) => (
+    <ProfileMenu
+      user={user}
+      badges={badges}
+      viewMode={viewMode}
+      onToggleViewMode={toggleViewMode}
+      onNavigate={onNavigate}
+    />
   );
 
   return (
@@ -132,7 +139,7 @@ export function DashboardShell({ user, children, sidebarBadges }: DashboardShell
       {/* 데스크톱 사이드바 — 고정, 콘텐츠는 창 스크롤 */}
       <SideNavigationProvider collapsed={collapsed} onCollapsedChange={changeCollapsed}>
         <div data-print-hide className="fixed inset-y-0 left-0 z-30 hidden md:block">
-          <AppSidebar role={user.role} plan={plan} badges={badges} footer={profile} />
+          <AppSidebar role={user.role} plan={plan} badges={badges} footer={profile()} />
         </div>
       </SideNavigationProvider>
 
@@ -147,7 +154,7 @@ export function DashboardShell({ user, children, sidebarBadges }: DashboardShell
               role={user.role}
               plan={plan}
               badges={badges}
-              footer={profile}
+              footer={profile(() => setMobileOpen(false))}
               collapsible={false}
               onNavigate={() => setMobileOpen(false)}
             />
@@ -162,7 +169,7 @@ export function DashboardShell({ user, children, sidebarBadges }: DashboardShell
           collapsed ? "md:ml-14" : "md:ml-60",
         )}
       >
-        <AppHeader onMenuClick={() => setMobileOpen(true)} />
+        <AppHeader role={user.role} badges={badges} onMenuClick={() => setMobileOpen(true)} />
         <main
           data-print-content
           className={cn(
@@ -183,18 +190,23 @@ function initials(name: string) {
   return name.replace(/\s+/g, "").slice(-2);
 }
 
-/** 사이드바 하단 — 내 계정 메뉴(SEED Menu) */
+/** 사이드바 하단 — 내 계정 메뉴(SEED Menu). 내 출퇴근·요청사항도 여기서 연다 */
 function ProfileMenu({
   user,
+  badges,
   viewMode,
   onToggleViewMode,
+  onNavigate,
 }: {
   user: DashboardShellProps["user"];
+  badges?: Record<string, number>;
   viewMode: ViewMode;
   onToggleViewMode: () => void;
+  onNavigate?: () => void;
 }) {
   const router = useRouter();
   const { collapsed } = useSideNavigationContext();
+  const unread = ACCOUNT_GROUP.items.reduce((sum, it) => sum + (badges?.[it.href] ?? 0), 0);
 
   async function signOut() {
     await authClient.signOut();
@@ -211,6 +223,13 @@ function ProfileMenu({
             className="absolute left-2 top-1/2 grid size-6 -translate-x-0.5 -translate-y-1/2 place-items-center rounded-full bg-bg-brand-weak t1-bold text-fg-brand"
           >
             {initials(user.name)}
+            {unread > 0 && (
+              <NotificationBadge
+                size="small"
+                aria-label={`미확인 ${unread}건`}
+                className="absolute -right-0.5 -top-0.5"
+              />
+            )}
           </span>
           <SeedSideNavigation.ItemLabel>
             {user.name}
@@ -219,6 +238,32 @@ function ProfileMenu({
         </SeedSideNavigation.Item>
       </MenuTrigger>
       <MenuContent>
+        <MenuGroup>
+          {ACCOUNT_GROUP.items.map((it) => {
+            const Icon = it.icon;
+            const count = badges?.[it.href] ?? 0;
+            return (
+              <MenuItem
+                key={it.href}
+                prefixIcon={<Icon />}
+                label={
+                  <span className="flex items-center gap-x1_5">
+                    {it.label}
+                    {count > 0 && (
+                      <NotificationBadge size="large" aria-label={`미확인 ${count}건`}>
+                        {count > 99 ? "99+" : count}
+                      </NotificationBadge>
+                    )}
+                  </span>
+                }
+                onClick={() => {
+                  onNavigate?.();
+                  router.push(it.href);
+                }}
+              />
+            );
+          })}
+        </MenuGroup>
         <MenuGroup className="hidden md:block">
           <MenuItem
             prefixIcon={viewMode === "mobile" ? <Monitor /> : <Smartphone />}

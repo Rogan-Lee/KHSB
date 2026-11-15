@@ -7,7 +7,7 @@ import { todayKST } from "@/lib/utils";
 import { offlineStudentWhere } from "@/lib/student-filters";
 import { latestIdsPerGroup } from "@/lib/db/latest-per-group";
 import { listStudentPortalLinks } from "@/actions/student-portal-links";
-import { isFullAccess } from "@/lib/roles";
+import { isFullAccess, isStaff } from "@/lib/roles";
 import { PortalLinksSheet } from "@/components/attendance/portal-links-sheet";
 import { Button } from "@/components/ui/button";
 import { PageHeader, StatCard, StatCards } from "@/components/backoffice/ui";
@@ -20,7 +20,7 @@ export default async function AttendancePage({
 }: {
   searchParams: Promise<{ filter?: string }>;
 }) {
-  const session = await requireDashboardSession();
+  const session = await requireDashboardSession(isStaff);
   const { filter } = await searchParams;
   const isAbsentFilter = filter === "absent";
   const isSelfStudyFilter = filter === "self-study";

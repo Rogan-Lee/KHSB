@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { TabsContent } from "@/components/ui/tabs";
@@ -34,6 +34,7 @@ import {
   type Tone,
 } from "@/components/backoffice/ui";
 import { CalendarCheck, MessagesSquare, Phone, Scale } from "lucide-react";
+import { isOnlineStaff } from "@/lib/roles";
 import { requireDashboardSession } from "../../_lib/page-guard";
 
 const ATTENDANCE_TYPE_MAP: Record<string, { label: string; tone: Tone }> = {
@@ -58,7 +59,7 @@ export default async function StudentDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ tab?: string }>;
 }) {
-  await requireDashboardSession();
+  const session = await requireDashboardSession();
   const { id: rawId } = await params;
   await searchParams; // 탭(?tab=)은 StudentDetailTabs 가 URL 에서 직접 읽는다
   const id = decodeURIComponent(rawId);
@@ -128,6 +129,11 @@ export default async function StudentDetailPage({
   }
 
   if (!student) notFound();
+  // 온라인 관리 학생은 온라인 학생 화면에서 본다. 그 화면은 온라인 직원만 열 수 있어서
+  // 자습실 직원은 여기 그대로 둔다 (보내면 홈으로 튕긴다)
+  if (student.isOnlineManaged && isOnlineStaff(session.user.role)) {
+    redirect(`/online/students/${encodeURIComponent(student.id)}`);
+  }
 
   const [mentors, schoolRows, seatRows] = await Promise.all([
     prisma.user.findMany({
