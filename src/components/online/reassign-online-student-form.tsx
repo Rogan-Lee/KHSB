@@ -66,7 +66,7 @@ export function ReassignOnlineStudentForm({
       try {
         await disableOnlineManagement(studentId);
         toast.success("온라인 관리가 해제되었습니다");
-        router.push("/online/students");
+        router.push("/students?type=online");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "해제 실패");
       }

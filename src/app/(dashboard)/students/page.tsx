@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus } from "lucide-react";
-import { CountBadge, PageHeader, Section } from "@/components/backoffice/ui";
+import { CountBadge, LinkTabs, PageHeader, Section } from "@/components/backoffice/ui";
 import { StudentsScheduleTable } from "@/components/students/students-schedule-table";
 import { StudentsListView } from "@/components/students/students-list-view";
 import { CsvImport } from "@/components/students/csv-import";
@@ -15,12 +15,13 @@ import { getGoogleSheetsConfig } from "@/actions/google-sheets";
 import { isGoogleCalendarConfigured, getGoogleAuthUrl, isOAuthAppConfigured } from "@/lib/google-calendar";
 import { offlineStudentWhere } from "@/lib/student-filters";
 import { listStudentPortalLinks } from "@/actions/student-portal-links";
-import { isFullAccess, isStaff } from "@/lib/roles";
+import { isFullAccess, isOnlineStaff, isStaff } from "@/lib/roles";
 import { PortalLinksPanel } from "@/components/students/portal-links-panel";
 import { PreRegistrationPanel } from "@/components/students/pre-registration-panel";
 import { listPreRegistrations } from "@/actions/pre-registrations";
 import { GradePromotionDialog } from "@/components/students/grade-promotion-dialog";
 import { requireDashboardSession } from "../_lib/page-guard";
+import { OnlineStudentsView } from "./_components/online-students-view";
 
 const VALID_TABS = ["list", "schedule", "pre-registration", "import", "scores-import", "sheets", "portal-links"] as const;
 type TabValue = (typeof VALID_TABS)[number];
@@ -28,10 +29,29 @@ type TabValue = (typeof VALID_TABS)[number];
 export default async function StudentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; type?: string }>;
 }) {
   const session = await requireDashboardSession();
-  const { tab } = await searchParams;
+  const { tab, type } = await searchParams;
+  const role = session.user.role;
+
+  // 학생 유형 — 자습실(isOnlineManaged=false)은 자습실 직원만, 온라인은 온라인 직원만.
+  // (dashboard) 는 둘 중 하나는 통과한 역할만 들어오므로 둘 다 막히는 경우는 없다.
+  const canOffline = isStaff(role);
+  const canOnline = isOnlineStaff(role);
+  const view = canOnline && (type === "online" || !canOffline) ? "online" : "offline";
+  const typeTabs =
+    canOffline && canOnline ? (
+      <LinkTabs
+        current={view}
+        items={[
+          { value: "offline", href: "/students?type=offline", label: "자습실" },
+          { value: "online", href: "/students?type=online", label: "온라인" },
+        ]}
+      />
+    ) : null;
+  if (view === "online") return <OnlineStudentsView role={role} typeTabs={typeTabs} />;
+
   const defaultTab: TabValue = (VALID_TABS as readonly string[]).includes(tab ?? "")
     ? (tab as TabValue)
     : "list";
@@ -66,8 +86,8 @@ export default async function StudentsPage({
   ]);
   const preRegistrations = await listPreRegistrations();
   // 포털 링크 발급/재발급은 운영자 전원 허용, 사전등록 정식 전환은 원장 유지
-  const canManagePortalLinks = isStaff(session.user.role);
-  const canFormalize = isFullAccess(session.user.role);
+  const canManagePortalLinks = canOffline;
+  const canFormalize = isFullAccess(role);
 
   const googleAuthUrl = isOAuthAppConfigured() ? getGoogleAuthUrl() : "";
 
@@ -101,6 +121,7 @@ export default async function StudentsPage({
 
   return (
     <div>
+      {typeTabs}
       <PageHeader
         title="원생 관리"
         description={

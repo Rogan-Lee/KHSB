@@ -54,7 +54,7 @@ export function StudentDetailHeader({
   return (
     <>
       <PageHeader
-        back={{ href: "/online/students", label: "온라인 학생" }}
+        back={{ href: "/students?type=online", label: "원생 관리" }}
         title={student.name}
         meta={status && <StatusBadge tone={status.tone}>{status.label}</StatusBadge>}
         description={description}
