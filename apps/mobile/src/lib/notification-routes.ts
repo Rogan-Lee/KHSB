@@ -33,6 +33,7 @@ const STATIC_ROUTES = new Set([
   '/(staff)/(tabs)/inbox',
   '/(staff)/(tabs)/menu',
   '/(staff)/approvals',
+  '/(staff)/patrol',
   '/(staff)/suggestions',
   '/(staff)/tasks',
   '/(parent)/(tabs)',

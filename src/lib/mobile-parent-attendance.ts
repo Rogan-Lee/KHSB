@@ -362,8 +362,9 @@ export async function getParentToday(child: ParentChildInfo, now = new Date()) {
       orderBy: { startTime: "asc" },
       select: { id: true, startTime: true, durationMin: true },
     }),
+    // 학부모에겐 입실 때 검사(0교시)만
     prisma.phoneCheckRecord.findUnique({
-      where: { studentId_date: { studentId: child.id, date } },
+      where: { studentId_date_period: { studentId: child.id, date, period: 0 } },
       select: { status: true, updatedAt: true },
     }),
     // 학부모 월간 리포트의 "운영 공지"와 같은 공지
