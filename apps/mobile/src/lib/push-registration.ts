@@ -93,6 +93,7 @@ export async function syncRemotePushRegistration(
           answers: preferences.answers,
           mentoring: preferences.mentoring,
           tasks: preferences.tasks,
+          familyChat: preferences.familyChat,
         },
         projectId,
       }),

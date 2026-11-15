@@ -28,6 +28,8 @@ const deviceSchema = z.object({
     answers: z.boolean(),
     mentoring: z.boolean(),
     tasks: z.boolean(),
+    // 가족 톡방 — 구버전 앱은 보내지 않으므로 선택 (없으면 기존 값 유지)
+    familyChat: z.boolean().optional(),
   }),
   projectId: z.string().uuid("EAS 프로젝트 ID를 확인하세요"),
 });
@@ -79,6 +81,7 @@ function categoryFilter(category: PushNotificationCategory) {
   if (category === "TASK") return { tasksEnabled: true };
   if (category === "QUESTION") return { questionsEnabled: true };
   if (category === "MENTORING") return { mentoringEnabled: true };
+  if (category === "FAMILY_CHAT") return { familyChatEnabled: true };
   return {};
 }
 
@@ -140,6 +143,7 @@ export async function registerMobilePushToken(
       projectId: data.projectId,
       questionsEnabled: data.preferences.answers,
       tasksEnabled: data.preferences.tasks,
+      familyChatEnabled: data.preferences.familyChat ?? true,
       token: data.expoPushToken,
     },
     update: {
@@ -153,6 +157,7 @@ export async function registerMobilePushToken(
       projectId: data.projectId,
       questionsEnabled: data.preferences.answers,
       tasksEnabled: data.preferences.tasks,
+      familyChatEnabled: data.preferences.familyChat,
     },
   });
   return { ok: true };
@@ -264,7 +269,7 @@ export async function sendMobilePush(input: {
   return { sent };
 }
 
-async function authUserIdsForAppUsers(appUserIds: (string | null)[]) {
+export async function authUserIdsForAppUsers(appUserIds: (string | null)[]) {
   const ids = [...new Set(appUserIds.filter((id): id is string => !!id))];
   if (ids.length === 0) return [];
   const users = await prisma.authUser.findMany({
@@ -490,6 +495,15 @@ function runAfterResponse(task: () => Promise<unknown>) {
   }
 }
 
+/**
+ * 같은 사건을 가족 톡방에도 자동 알림으로 남긴다 (앱 알림은 위 학부모 푸시 하나만).
+ * family-chat.ts 가 이 파일의 sendMobilePush 를 쓰므로 순환 import 를 피해 실행할 때 불러온다.
+ */
+async function postToFamilyChat(studentId: string, content: string) {
+  const { postFamilySystemMessage } = await import("@/lib/family-chat");
+  await postFamilySystemMessage(studentId, content);
+}
+
 async function studentName(studentId: string) {
   const student = await prisma.student.findUnique({
     where: { id: studentId },
@@ -530,11 +544,13 @@ export function queueParentAttendancePush(
     const name = await studentName(studentId);
     if (!name) return;
     const copy = ATTENDANCE_COPY[event];
+    const body = `${name} 학생이 ${kstHhmm(at)}에 ${copy.verb}.`;
     await notifyParentsOfStudent(studentId, {
       title: copy.title,
-      body: `${name} 학생이 ${kstHhmm(at)}에 ${copy.verb}.`,
+      body,
       data: { url: PARENT_PUSH_ROUTES.home, kind: "attendance", event },
     });
+    await postToFamilyChat(studentId, body);
   });
 }
 
@@ -599,6 +615,7 @@ async function sendParentReportPush(studentId: string, kind: ParentReportKind) {
     body: `${name} 학생의 ${REPORT_LABEL[kind]}가 도착했어요. 지금 확인해 보세요.`,
     data: { url: PARENT_PUSH_ROUTES.reports, kind: "report", reportKind: kind },
   });
+  await postToFamilyChat(studentId, `${REPORT_LABEL[kind]}가 도착했어요. 학부모 앱 리포트 탭에서 볼 수 있어요.`);
 }
 
 /** 새 리포트 발송 알림 (월간 리포트 발송·온라인 리포트 발송 등, 학생 ID 기준) */

@@ -80,6 +80,26 @@ function PatrolRecordRow({ rec, onSaved }: { rec: PatrolRecordItem; onSaved: () 
   );
 }
 
+/** '양호' 기록 — 회차 종료 때 재실 학생 전원이 자동으로 채워져 수십 줄이라 접어 둔다. 펼치면 수정 가능. */
+function OkRecords({ records, onSaved }: { records: PatrolRecordItem[]; onSaved: () => void }) {
+  if (records.length === 0) return null;
+  return (
+    <li>
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center gap-x2 px-x5 py-x3 t4-medium text-fg-neutral-muted hover:bg-bg-layer-default-pressed">
+          <ChevronRight className="size-4 transition-transform group-open:rotate-90" aria-hidden />
+          이상 없음 <span className="tabular-nums">{records.length}명</span>
+        </summary>
+        <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
+          {records.map((rec) => (
+            <PatrolRecordRow key={rec.id} rec={rec} onSaved={onSaved} />
+          ))}
+        </ul>
+      </details>
+    </li>
+  );
+}
+
 // 점검 상태 → SEED 역할색: 양호 positive · 특이사항 warning · 자리비움 neutral
 const STATUS_META: Record<PatrolStatus, { label: string; tone: Tone }> = {
   OK: { label: "양호", tone: "ok" },
@@ -268,9 +288,10 @@ export function PatrolReview({ initialDate, initialRounds }: { initialDate: stri
                       <EmptyState compact title="점검 기록이 없어요" className="border-t border-stroke-neutral-muted" />
                     ) : (
                       <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
-                        {r.records.map((rec) => (
+                        {r.records.filter((rec) => rec.status !== "OK").map((rec) => (
                           <PatrolRecordRow key={rec.id} rec={rec} onSaved={refetch} />
                         ))}
+                        <OkRecords records={r.records.filter((rec) => rec.status === "OK")} onSaved={refetch} />
                       </ul>
                     )}
                   </Section>

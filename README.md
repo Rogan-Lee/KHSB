@@ -1,6 +1,8 @@
 # 독서실 관리 시스템 (Study Room Manager)
 
-관리형 독서실 원생 종합 관리 웹앱. Next.js 16 App Router 기반.
+관리형 독서실 운영진이 쓰는 내부 관리 소프트웨어(원생 관리 웹앱). Next.js 16 App Router 기반.
+
+> 강한선배 관리형 독서실(동탄) 시설 안내 · 입회 상담은 공식 사이트 https://www.kanghanseonbae.com 에서 확인하세요.
 
 ## 주요 기능
 

@@ -4,10 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { SeatMapBoard } from "@/components/seat-map/seat-map-board";
 import { offlineStudentWhere } from "@/lib/student-filters";
 import { PageHeader } from "@/components/backoffice/ui";
+import { isStaff } from "@/lib/roles";
 import { requireDashboardSession } from "../_lib/page-guard";
 
 export default async function SeatMapPage() {
-  await requireDashboardSession();
+  await requireDashboardSession(isStaff);
 
   const students = await prisma.student.findMany({
     where: offlineStudentWhere({ status: "ACTIVE" }),

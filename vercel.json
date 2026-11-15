@@ -32,6 +32,10 @@
     {
       "path": "/api/cron/tuition-daily",
       "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/family-chat-retention",
+      "schedule": "0 19 * * 0"
     }
   ]
 }

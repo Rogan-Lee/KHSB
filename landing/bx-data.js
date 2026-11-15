@@ -100,4 +100,43 @@ const SITE = {
   address: '경기 화성시 동탄반석로 130 (드림프라자) 10F',
   email: 'kanghanseonbae@naver.com',
   ga: 'G-7W83ME2QP6', // GA4 측정 ID — 비우면 통계 스크립트를 싣지 않는다
+  // 외부 채널 — 푸터 링크 · 홈 JSON-LD sameAs 와 같게
+  kakao: 'https://pf.kakao.com/_zxhIJG',
+  blog: 'https://blog.naver.com/kanghanseonbae',
+  youtube: 'https://www.youtube.com/@kanghanseonbae',
 };
+
+// 합격 대학 로고 월 ([data-uwall]) — bx-core.js · scripts/landing-static.mjs 공용
+function uwallHtml(more) {
+  return UNIS.map((u, i) => `<div class="utile" style="transition-delay:${i * 40}ms"><img src="logos/${u.file}.png" alt="" loading="lazy"><span>${u.full}</span></div>`).join('') +
+    `<div class="utile special" style="transition-delay:${UNIS.length * 40}ms"><b>의·치·약</b><span>의대·치대·약대<br>합격생 다수</span></div>` +
+    (more ? `<div class="utile special" style="background:var(--brand);border-color:var(--brand);transition-delay:${(UNIS.length + 1) * 40}ms"><b>+ 2027</b><span style="color:rgba(255,255,255,.9)">다음 합격 소식을<br>기다려 주세요</span></div>` : '');
+}
+
+// 공통 푸터 — bx-core.js 가 화면에 그리고, scripts/landing-static.mjs 가 같은 마크업을 각 HTML 에 미리 써 둔다
+// (JS 를 안 돌리는 검색엔진 · AI 크롤러도 메뉴 · 주소 · 사업자 정보를 읽게). 푸터 · STATS · 멘토를 바꾸면 그 스크립트를 다시 돌린다.
+function siteFooterHtml() {
+  const arrow = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+  const col = (h, items) => `<div><p class="gft-h">${h}</p>${items.map(([t, u, ext]) => `<a href="${u}"${ext ? ' target="_blank" rel="noopener"' : ''}>${t}</a>`).join('')}</div>`;
+  return `<footer class="gft">
+  <div class="gft-top">
+    <h2>혼자 두지 않는 독서실,<br>강한선배.</h2>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <a class="btn btn-brand" href="${SITE.apply}" target="_blank" rel="noopener">무료 입회 상담${arrow}</a>
+      <a class="btn btn-line" href="tel:${SITE.tel}">전화 상담하기</a>
+    </div>
+  </div>
+  <div class="gft-grid">
+    <div class="gft-brand">
+      <img src="brand/khsb-logo-white.png" alt="KHSB 강한선배">
+      <p>최상위권 대학 선배들이 관리하는 동탄 관리형 독서실<br>${SITE.address}</p>
+      <p style="margin-top:12px">강한선배는 매월 수익의 일부를 동물자유연대 · 유니세프 · 월드비전 · 한국소아암재단에 기부합니다.</p>
+    </div>
+    ${col('강한선배', [['강한선배 소개', 'director.html'], ['관리 시스템', 'program.html'], ['합격 결과', 'results.html'], ['선배 멘토진', 'mentors.html'], ['학습 공간', 'space.html']])}
+    ${col('강한 이야기', [['후기', 'stories.html?type=review'], ['선배 아티클', 'stories.html?type=mentor'], ['원장 칼럼', 'stories.html?type=director'], ['전체 보기', 'stories.html']])}
+    ${col('모집 · 문의', [['2027 윈터스쿨', 'recruit.html'], ['무료 입회 상담', SITE.apply, 1], ['전화 상담', 'tel:' + SITE.tel], ['카카오톡 채널', SITE.kakao, 1], ['네이버 블로그', SITE.blog, 1], ['YouTube', SITE.youtube, 1]])}
+  </div>
+  <div class="gft-bottom"><span>© 2026 KHSB · 대표 강한지 · 사업자등록번호 678-93-01968</span><span class="gft-legal"><a href="privacy.html">개인정보처리방침</a><a href="terms.html">이용약관</a><a href="support.html">앱 고객지원</a></span></div>
+  <p class="gft-giant" aria-hidden="true">강한선배</p>
+</footer>`;
+}

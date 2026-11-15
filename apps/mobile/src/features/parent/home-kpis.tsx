@@ -6,7 +6,7 @@ import type { ParentStudyStatsResponse, ParentTodayResponse } from '@/lib/api/pa
 
 import { duration, hm } from './today-format';
 
-const ATTENDANCE_TAB = '/(parent)/(tabs)/attendance' as Href;
+const ATTENDANCE = '/(parent)/attendance' as Href;
 const GROWTH_TAB = '/(parent)/(tabs)/growth' as Href;
 
 /** 큰 숫자 타일용 — 3시간 20분 → { value: '3', unit: '시간 20분' } */
@@ -50,7 +50,7 @@ export function ParentKpis({
               ? `예정 ${today.expected.start}`
               : '정해진 등원 시간 없음'
         }
-        href={ATTENDANCE_TAB}
+        href={ATTENDANCE}
       />
       <KpiTile
         label="오늘 공부"
@@ -59,7 +59,7 @@ export function ParentKpis({
         icon={BookOpen}
         iconTone="info"
         caption={today.status === '입실' ? '지금도 공부 중이에요' : '오늘 공부한 시간'}
-        href={ATTENDANCE_TAB}
+        href={ATTENDANCE}
       />
       <KpiTile
         label="이번 주 공부"
@@ -68,7 +68,7 @@ export function ParentKpis({
         icon={CalendarRange}
         iconTone="violet"
         caption={week && week.dailyAverageMinutes > 0 ? `하루 평균 ${duration(week.dailyAverageMinutes)}` : '이번 주 합계'}
-        href={ATTENDANCE_TAB}
+        href={ATTENDANCE}
       />
       <KpiTile
         label={`${month}월 상벌점`}

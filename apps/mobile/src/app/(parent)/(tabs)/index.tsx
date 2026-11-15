@@ -128,7 +128,7 @@ export default function ParentHomeScreen() {
         <ShortcutGrid
           columns={3}
           items={[
-            { key: 'attendance', label: '출결', icon: CalendarCheck, tone: 'ok', href: '/(parent)/(tabs)/attendance' },
+            { key: 'attendance', label: '출결', icon: CalendarCheck, tone: 'ok', href: '/(parent)/attendance' },
             { key: 'reports', label: '리포트', icon: FileText, tone: 'brand', href: '/(parent)/(tabs)/reports', dot: badges.reports > 0 },
             { key: 'growth', label: '성적·생활', icon: TrendingUp, tone: 'info', href: '/(parent)/(tabs)/growth' },
             { key: 'lunch', label: '도시락', icon: UtensilsCrossed, tone: 'warn', href: '/(parent)/lunch' },

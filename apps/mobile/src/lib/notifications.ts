@@ -22,8 +22,8 @@ type NotificationPermissionsStatus =
 let notificationsPromise: Promise<ExpoNotifications> | null = null;
 
 /**
- * 기기 알림 설정. tasks·answers·mentoring 은 서버 DevicePushToken 의 채널 플래그
- * (tasksEnabled·questionsEnabled·mentoringEnabled) 로 그대로 올라간다 — push-registration.ts.
+ * 기기 알림 설정. tasks·answers·mentoring·familyChat 은 서버 DevicePushToken 의 채널 플래그
+ * (tasksEnabled·questionsEnabled·mentoringEnabled·familyChatEnabled) 로 그대로 올라간다 — push-registration.ts.
  * 역할마다 같은 채널을 다른 이름으로 보여 준다 (NOTIFICATION_CATEGORIES).
  */
 export type NotificationPreferences = {
@@ -34,13 +34,15 @@ export type NotificationPreferences = {
   answers: boolean;
   /** 서버 MENTORING 채널 */
   mentoring: boolean;
+  /** 서버 FAMILY_CHAT 채널 (가족 톡방) */
+  familyChat: boolean;
   /** 학생: 마감 전날 저녁 알림 (기기 로컬 예약) */
   reminderDayBefore: boolean;
   /** 학생: 마감 당일 아침 알림 (기기 로컬 예약) */
   reminderSameDay: boolean;
 };
 
-export type NotificationChannel = 'tasks' | 'answers' | 'mentoring';
+export type NotificationChannel = 'tasks' | 'answers' | 'mentoring' | 'familyChat';
 
 export type NotificationCategory = {
   channel: NotificationChannel;
@@ -58,21 +60,25 @@ export type NotificationRole = 'student' | 'staff' | 'parent';
  *  학생   TASK=수행평가 피드백 · QUESTION=질문 답변 · MENTORING=메시지(담당 선생님 채팅)
  *  직원   QUESTION=학생 질문 · MENTORING=멘토링 · TASK=승인 요청(수행평가 제출·학생 신청)
  *  학부모 TASK=입퇴실 · MENTORING=리포트 (QUESTION 은 학부모에게 보내지 않음)
+ *  공통   FAMILY_CHAT=가족 톡방 새 글 (직원은 담당 학생 방만 알림)
  */
 export const NOTIFICATION_CATEGORIES: Record<NotificationRole, NotificationCategory[]> = {
   student: [
     { channel: 'tasks', title: '수행평가', description: '피드백이나 수정 요청이 오면 알려 드려요' },
     { channel: 'answers', title: '질문 답변', description: '선생님이 질문에 답하면 알려 드려요' },
     { channel: 'mentoring', title: '메시지', description: '담당 선생님이 메시지를 보내면 알려 드려요' },
+    { channel: 'familyChat', title: '가족 톡방', description: '가족 톡방에 새 글이 올라오면 알려 드려요' },
   ],
   staff: [
     { channel: 'answers', title: '학생 질문', description: '담당 학생이 질문을 올리면 알려 드려요' },
     { channel: 'mentoring', title: '멘토링', description: '멘토링 일정과 기록 관련 알림이에요' },
     { channel: 'tasks', title: '승인 요청', description: '수행평가 제출이나 학생 신청이 들어오면 알려 드려요' },
+    { channel: 'familyChat', title: '가족 톡방', description: '담당 학생 가족이 글을 쓰면 알려 드려요' },
   ],
   parent: [
     { channel: 'tasks', title: '입퇴실', description: '자녀가 독서실에 들어오고 나갈 때 알려 드려요' },
     { channel: 'mentoring', title: '리포트', description: '새 멘토링 리포트가 올라오면 알려 드려요' },
+    { channel: 'familyChat', title: '가족 톡방', description: '가족 톡방에 새 글이 올라오면 알려 드려요' },
   ],
 };
 
@@ -92,6 +98,7 @@ export type NotificationPermissionState =
 const DEFAULT_PREFERENCES: NotificationPreferences = {
   answers: true,
   enabled: false,
+  familyChat: true,
   mentoring: true,
   reminderDayBefore: true,
   reminderSameDay: true,

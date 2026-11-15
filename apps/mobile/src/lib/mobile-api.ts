@@ -847,6 +847,14 @@ export async function uploadMobileChatFile(
   return uploadMobileFile(fileLike, { context: 'chat', chatId });
 }
 
+/** 가족 톡방 첨부 — 방은 학생 1명당 하나라 학생 id 로 권한을 확인한다 */
+export async function uploadMobileFamilyChatFile(
+  fileLike: UploadFileLike,
+  studentId: string,
+): Promise<MobileAttachment> {
+  return uploadMobileFile(fileLike, { context: 'family-chat', studentId });
+}
+
 /** 질문(Q&A) 문서 첨부 업로드 — PDF/HWP/DOC/PPT/XLSX 등. 이미지는 AttachmentPicker 사용. */
 export async function uploadMobileQuestionFile(
   fileLike: UploadFileLike,

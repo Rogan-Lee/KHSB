@@ -118,7 +118,8 @@ export type MobileMediaContext =
   | "mentoring"
   | "task"
   | "feedback"
-  | "chat";
+  | "chat"
+  | "family-chat";
 
 export function isMobileMediaContext(
   value: unknown,
@@ -128,7 +129,8 @@ export function isMobileMediaContext(
     value === "mentoring" ||
     value === "task" ||
     value === "feedback" ||
-    value === "chat"
+    value === "chat" ||
+    value === "family-chat"
   );
 }
 
@@ -140,6 +142,8 @@ export type MediaUploadRefs = {
   taskId?: string;
   submissionId?: string;
   chatId?: string;
+  /** family-chat — 방은 학생 1명당 하나라 학생 id 로 찾는다 */
+  studentId?: string;
   mentoringId?: string;
   tag?: string;
 };
@@ -258,6 +262,30 @@ export async function authorizeMediaUpload(
     return {
       ok: true,
       prefix: `portal-chat/${chat.id}`,
+      mentoring: null,
+      mentoringTag: "FREE",
+    };
+  }
+
+  if (context === "family-chat") {
+    // 가족 톡방 멤버: 학생 본인 · 연결된 학부모 · 직원 전체 (src/lib/family-chat.ts)
+    const studentId = refs.studentId;
+    if (!studentId) {
+      return { ok: false, status: 400, error: "학생을 확인하세요" };
+    }
+    const member =
+      (appUser?.status === "ACTIVE" && isAnyStaff(appUser.role)) ||
+      (student?.status === "ACTIVE" && student.id === studentId) ||
+      !!(await prisma.parentLink.findUnique({
+        where: { authUserId_studentId: { authUserId: identity.id, studentId } },
+        select: { id: true },
+      }));
+    if (!member) {
+      return { ok: false, status: 403, error: "이 톡방에 파일을 보낼 수 없습니다" };
+    }
+    return {
+      ok: true,
+      prefix: `family-chat/${studentId}`,
       mentoring: null,
       mentoringTag: "FREE",
     };

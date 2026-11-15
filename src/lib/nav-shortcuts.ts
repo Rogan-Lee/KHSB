@@ -1,58 +1,31 @@
 import { useSyncExternalStore } from "react";
-import {
-  LayoutDashboard,
-  ClipboardList,
-  ArrowLeftRight,
-  ListTodo,
-  Users,
-  Star,
-  MessageSquare,
-  ScanLine,
-  FileText,
-  CalendarClock,
-  GraduationCap,
-  BookOpen,
-  CalendarDays,
-  type LucideIcon,
-} from "lucide-react";
 
 /**
- * 명령 팔레트(Ctrl/⌘+K)와 상단 빠른이동 바가 공유하는 큐레이션 내비 목록.
- * digit 가 있는 항목은 숫자키(1~9) 전역 단축키 + 빠른이동 바에 노출된다.
- * 전 직원 접근 가능한 자주 쓰는 페이지 위주(사이드바 전체 목록은 app-sidebar.tsx).
+ * 숫자키(1~9) 전역 단축키. 명령 팔레트(Ctrl/⌘+K)가 키를 받고, 팔레트 목록에 숫자를 함께 보여 준다.
+ * 메뉴 목록 자체는 layout/nav-config.ts 가 단일 출처. 여기 href 는 그 메뉴들의 대표 화면과 같아야 한다.
  */
 export type NavShortcut = {
   label: string;
   href: string;
-  icon: LucideIcon;
-  /** 숫자키 단축키 (1~9). 없으면 팔레트 검색으로만 접근. */
-  digit?: string;
+  digit: string;
 };
 
 export const NAV_SHORTCUTS: NavShortcut[] = [
-  { label: "대시보드", href: "/", icon: LayoutDashboard, digit: "1" },
-  { label: "입퇴실 관리", href: "/attendance", icon: ClipboardList, digit: "2" },
-  { label: "인수인계", href: "/handover", icon: ArrowLeftRight, digit: "3" },
-  { label: "투두리스트", href: "/todos", icon: ListTodo, digit: "4" },
-  { label: "원생 관리", href: "/students", icon: Users, digit: "5" },
-  { label: "상벌점", href: "/merit-demerit", icon: Star, digit: "6" },
-  { label: "멘토링", href: "/mentoring", icon: MessageSquare, digit: "7" },
-  { label: "순찰 관리", href: "/patrol", icon: ScanLine, digit: "8" },
-  { label: "면담 관리", href: "/consultations", icon: FileText, digit: "9" },
-  // 숫자키 없음 — 팔레트 검색용 추가 페이지
-  { label: "주간 멘토링 계획", href: "/mentoring-plan", icon: CalendarClock },
-  { label: "시험 관리", href: "/exams", icon: GraduationCap },
-  { label: "영단어 시험", href: "/vocab-test", icon: BookOpen },
-  { label: "캘린더", href: "/calendar", icon: CalendarDays },
+  { label: "홈", href: "/", digit: "1" },
+  { label: "입퇴실 관리", href: "/attendance", digit: "2" },
+  { label: "인수인계", href: "/handover", digit: "3" },
+  { label: "투두리스트", href: "/todos", digit: "4" },
+  { label: "원생 관리", href: "/students", digit: "5" },
+  { label: "상벌점", href: "/merit-demerit", digit: "6" },
+  { label: "멘토링", href: "/mentoring", digit: "7" },
+  { label: "순찰 관리", href: "/patrol", digit: "8" },
+  { label: "면담 관리", href: "/consultations", digit: "9" },
 ];
 
 /** 숫자키 → href 맵 (전역 단축키용) */
 export const DIGIT_NAV: Record<string, string> = Object.fromEntries(
-  NAV_SHORTCUTS.filter((n) => n.digit).map((n) => [n.digit as string, n.href]),
+  NAV_SHORTCUTS.map((n) => [n.digit, n.href]),
 );
-
-/** 상단 빠른이동 바에 노출할 항목 (숫자키 보유분) */
-export const QUICK_BAR_ITEMS: NavShortcut[] = NAV_SHORTCUTS.filter((n) => n.digit);
 
 /** 현재 플랫폼이 macOS 계열인지 (수정키 표기 분기용) */
 export function isMacPlatform(): boolean {

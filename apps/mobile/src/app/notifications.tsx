@@ -13,6 +13,7 @@ import {
   Send,
   Settings,
   Sunrise,
+  Users,
   Sunset,
   type LucideIcon,
 } from 'lucide-react-native';
@@ -71,15 +72,18 @@ const CATEGORY_ICON: Record<NotificationRole, Partial<Record<NotificationChannel
     tasks: { icon: ClipboardCheck, tone: 'brand' },
     answers: { icon: MessageCircleQuestion, tone: 'info' },
     mentoring: { icon: MessageCircle, tone: 'ok' },
+    familyChat: { icon: Users, tone: 'violet' },
   },
   staff: {
     answers: { icon: MessageCircleQuestion, tone: 'info' },
     mentoring: { icon: CalendarCheck, tone: 'violet' },
     tasks: { icon: Inbox, tone: 'brand' },
+    familyChat: { icon: Users, tone: 'ok' },
   },
   parent: {
     tasks: { icon: DoorOpen, tone: 'ok' },
     mentoring: { icon: FileText, tone: 'brand' },
+    familyChat: { icon: Users, tone: 'violet' },
   },
 };
 

@@ -25,6 +25,7 @@ export function ChatComposer({
   onSend,
   disabled,
   variant = "default",
+  uploadFields,
 }: {
   chatId: string;
   studentToken?: string; // 학생 측이면 토큰, 직원 측이면 undefined
@@ -35,6 +36,8 @@ export function ChatComposer({
   disabled?: boolean;
   /** "portal" = 학생 포털 SEED Design 스타일. 기본값은 직원 화면 그대로. */
   variant?: "default" | "portal";
+  /** /api/online/upload 에 보낼 폼 필드를 바꿀 때 (가족 톡방: context=family-chat + studentId). 없으면 1:1 채팅 */
+  uploadFields?: Record<string, string>;
 }) {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
@@ -60,9 +63,13 @@ export function ChatComposer({
     try {
       const fd = new FormData();
       fd.append("file", file);
-      fd.append("context", "chat");
-      fd.append("chatId", chatId);
-      if (studentToken) fd.append("studentToken", studentToken);
+      if (uploadFields) {
+        for (const [k, v] of Object.entries(uploadFields)) fd.append(k, v);
+      } else {
+        fd.append("context", "chat");
+        fd.append("chatId", chatId);
+        if (studentToken) fd.append("studentToken", studentToken);
+      }
       const res = await fetch("/api/online/upload", {
         method: "POST",
         body: fd,

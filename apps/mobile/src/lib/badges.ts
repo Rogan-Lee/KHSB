@@ -14,6 +14,8 @@ export type StudentBadges = {
   hasVocab: boolean;
   qna: number;
   suggestions: number;
+  /** 가족 톡방 안 읽은 메시지 — 메시지 탭에 더해 보여 준다 (구버전 서버는 필드가 없다) */
+  familyChat?: number;
   menu: number;
 };
 
@@ -22,6 +24,8 @@ export type StaffBadges = {
   questions: number;
   chats: number;
   dm: number;
+  /** 학생·학부모 글을 운영진이 아직 안 본 가족 톡방 수 (inbox 에 이미 더해짐, 구버전 서버는 필드가 없다) */
+  familyChats?: number;
   approvals: number;
   lunchRequests: number;
   suggestions: number;
@@ -30,8 +34,8 @@ export type StaffBadges = {
   menu: number;
 };
 
-/** tuition — 결제할 수강료 청구서 수 (구버전 서버는 필드가 없다) */
-export type ParentBadges = { reports: number; menu: number; tuition?: number };
+/** tuition — 결제할 수강료 청구서 수 · familyChat — 가족 톡방 안 읽은 메시지 (구버전 서버는 필드가 없다) */
+export type ParentBadges = { reports: number; menu: number; tuition?: number; familyChat?: number };
 
 const listeners = new Set<() => void>();
 

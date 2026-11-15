@@ -146,6 +146,8 @@
   scene('pill', el => {
     const pill = $('#pillShape'), a = $('.pl-a', el), b = $('.pl-b', el), dark = $('.proof-dark', el);
     const cnts = $$('.bx-cnt', el);
+    // HTML 에는 크롤러용 최종값이 들어 있다 — 화면에서는 0 에서 세어 올라간다
+    if (!RM) cnts.forEach(c => { c.textContent = '0'; });
     let S = 20, counted = false;
     // 스타디움(양끝 둥근) 도형이 화면 모서리까지 덮으려면 cover 배율의 약 2배가 필요
     const measure = () => { S = 2.1 * Math.max(vw / pill.offsetWidth, vh / pill.offsetHeight); };

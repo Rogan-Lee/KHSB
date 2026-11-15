@@ -23,7 +23,7 @@ import { refreshBadges } from '@/lib/badges';
 import { useMobileQuery } from '@/lib/mobile-api';
 import { useSession } from '@/lib/session';
 
-const TYPE_LABEL = { STUDENT: '학생', STAFF: '선생님' } as const;
+const TYPE_LABEL = { STUDENT: '학생', STAFF: '선생님', PARENT: '학부모' } as const;
 
 /** ISO → "10월 11일 차단" (KST) */
 function blockedOn(iso: string) {

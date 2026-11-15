@@ -77,6 +77,7 @@ export async function uploadLargeFileDirect(
         taskId: params.taskId,
         submissionId: params.submissionId,
         chatId: params.chatId,
+        studentId: params.studentId,
       }),
     },
   );

@@ -168,6 +168,139 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 /**
+ * 작성창 첨부 — 앨범·카메라·파일을 고르면 바로 올리고, 보낼 첨부를 들고 있는다.
+ * 1:1 채팅과 가족 톡방이 같이 쓴다 (올리는 곳만 다르다).
+ */
+export function useComposerAttachments(upload: (file: UploadFileLike) => Promise<MobileAttachment>) {
+  const [pending, setPending] = useState<MobileAttachment[]>([]);
+  const [uploading, setUploading] = useState(0);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+
+  const room = MAX_ATTACHMENTS - pending.length - uploading;
+
+  const uploadFiles = async (files: UploadFileLike[]) => {
+    if (files.length === 0) return;
+    if (room <= 0) {
+      toast(`첨부는 ${MAX_ATTACHMENTS}개까지 보낼 수 있어요`, 'error');
+      return;
+    }
+    const picked = files.slice(0, room);
+    if (picked.length < files.length) {
+      toast(`첨부는 ${MAX_ATTACHMENTS}개까지라 ${picked.length}개만 넣었어요`);
+    }
+    setUploading((n) => n + picked.length);
+    await Promise.all(
+      picked.map(async (file) => {
+        try {
+          const up = await upload(file);
+          if (!alive.current) return;
+          setPending((prev) => [
+            ...prev,
+            { mimeType: up.mimeType, name: up.name, sizeBytes: up.sizeBytes, url: up.url },
+          ]);
+        } catch (error) {
+          toast(errorMessage(error, `${file.name}을(를) 올리지 못했어요`), 'error');
+        } finally {
+          if (alive.current) setUploading((n) => n - 1);
+        }
+      })
+    );
+  };
+
+  const pickImages = async () => {
+    try {
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: true,
+        selectionLimit: Math.max(1, room),
+        quality: 0.6, // HEIC → JPEG 재인코딩·압축으로 업로드 시간 단축
+      });
+      if (res.canceled) return;
+      await uploadFiles(
+        res.assets.map((a, i) => ({
+          uri: a.uri,
+          name: a.fileName ?? `photo-${Date.now()}-${i + 1}.jpg`,
+          mimeType: a.mimeType ?? 'image/jpeg',
+          width: a.width,
+          file: a.file,
+        }))
+      );
+    } catch {
+      toast('사진을 불러오지 못했어요', 'error');
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        toast('카메라 권한을 허용하면 바로 찍어서 보낼 수 있어요', 'error');
+        return;
+      }
+      const res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.6 });
+      if (res.canceled || !res.assets[0]) return;
+      const a = res.assets[0];
+      await uploadFiles([
+        {
+          uri: a.uri,
+          name: a.fileName ?? `photo-${Date.now()}.jpg`,
+          mimeType: a.mimeType ?? 'image/jpeg',
+          width: a.width,
+          file: a.file,
+        },
+      ]);
+    } catch {
+      toast('카메라를 열지 못했어요', 'error');
+    }
+  };
+
+  const pickDocuments = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        multiple: true,
+        copyToCacheDirectory: true,
+        type: '*/*',
+      });
+      if (res.canceled) return;
+      await uploadFiles(
+        res.assets.map((a) => ({
+          uri: a.uri,
+          name: a.name,
+          mimeType: a.mimeType ?? undefined,
+          file: a.file,
+        }))
+      );
+    } catch {
+      toast('파일을 불러오지 못했어요', 'error');
+    }
+  };
+
+  const actions: ComposerAction[] = [
+    { key: 'album', label: '앨범', icon: Images, onPress: () => void pickImages() },
+    { key: 'camera', label: '카메라', icon: Camera, onPress: () => void takePhoto() },
+    { key: 'file', label: '파일', icon: FileText, onPress: () => void pickDocuments() },
+  ];
+
+  return {
+    pending,
+    uploading: uploading > 0,
+    actions,
+    attachments: pending.map((a, i) => ({ key: `${a.url}-${i}`, name: a.name, mimeType: a.mimeType, uri: a.url })),
+    remove: (key: string) => setPending((prev) => prev.filter((a, i) => `${a.url}-${i}` !== key)),
+    clear: () => setPending([]),
+    /** 전송 실패 — 보내려던 첨부를 되돌린다 (그 사이 새로 넣은 것은 뒤에) */
+    restore: (attachments: MobileAttachment[]) =>
+      setPending((cur) => [...attachments, ...cur].slice(0, MAX_ATTACHMENTS)),
+  };
+}
+
+/**
  * 학생·직원 공용 1:1 채팅 — 웹 학생 포털 대화 화면(ChatView portal)과 같은 SEED 말풍선.
  *  · 내 말풍선: 브랜드색 오른쪽 / 상대: 흰색 왼쪽 + 아바타, 1분 안 연속 메시지는 묶어서 시각은 마지막에만
  *  · 날짜 구분선, 사진(크게 보기)·영상·파일 첨부, 위로 스크롤하면 이전 대화 불러오기
@@ -203,8 +336,6 @@ function ChatThreadInner({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [draft, setDraft] = useState('');
-  const [pending, setPending] = useState<MobileAttachment[]>([]);
-  const [uploading, setUploading] = useState(0);
   const [sending, setSending] = useState(false);
   const [outbox, setOutbox] = useState<ChatMessageView | null>(null);
   const [appActive, setAppActive] = useState(AppState.currentState !== 'background');
@@ -318,119 +449,16 @@ function ChatThreadInner({
   }, [path, commit]);
 
   // ─── 첨부 ───
-  const room = MAX_ATTACHMENTS - pending.length - uploading;
-
-  const uploadFiles = async (files: UploadFileLike[]) => {
-    if (files.length === 0) return;
-    if (room <= 0) {
-      toast(`첨부는 ${MAX_ATTACHMENTS}개까지 보낼 수 있어요`, 'error');
-      return;
-    }
-    const picked = files.slice(0, room);
-    if (picked.length < files.length) {
-      toast(`첨부는 ${MAX_ATTACHMENTS}개까지라 ${picked.length}개만 넣었어요`);
-    }
-    setUploading((n) => n + picked.length);
-    await Promise.all(
-      picked.map(async (file) => {
-        try {
-          const up = await uploadMobileChatFile(file, chatId);
-          if (!alive.current) return;
-          setPending((prev) => [
-            ...prev,
-            { mimeType: up.mimeType, name: up.name, sizeBytes: up.sizeBytes, url: up.url },
-          ]);
-        } catch (error) {
-          toast(errorMessage(error, `${file.name}을(를) 올리지 못했어요`), 'error');
-        } finally {
-          if (alive.current) setUploading((n) => n - 1);
-        }
-      })
-    );
-  };
-
-  const pickImages = async () => {
-    try {
-      const res = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsMultipleSelection: true,
-        selectionLimit: Math.max(1, room),
-        quality: 0.6, // HEIC → JPEG 재인코딩·압축으로 업로드 시간 단축
-      });
-      if (res.canceled) return;
-      await uploadFiles(
-        res.assets.map((a, i) => ({
-          uri: a.uri,
-          name: a.fileName ?? `photo-${Date.now()}-${i + 1}.jpg`,
-          mimeType: a.mimeType ?? 'image/jpeg',
-          width: a.width,
-          file: a.file,
-        }))
-      );
-    } catch {
-      toast('사진을 불러오지 못했어요', 'error');
-    }
-  };
-
-  const takePhoto = async () => {
-    try {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) {
-        toast('카메라 권한을 허용하면 바로 찍어서 보낼 수 있어요', 'error');
-        return;
-      }
-      const res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.6 });
-      if (res.canceled || !res.assets[0]) return;
-      const a = res.assets[0];
-      await uploadFiles([
-        {
-          uri: a.uri,
-          name: a.fileName ?? `photo-${Date.now()}.jpg`,
-          mimeType: a.mimeType ?? 'image/jpeg',
-          width: a.width,
-          file: a.file,
-        },
-      ]);
-    } catch {
-      toast('카메라를 열지 못했어요', 'error');
-    }
-  };
-
-  const pickDocuments = async () => {
-    try {
-      const res = await DocumentPicker.getDocumentAsync({
-        multiple: true,
-        copyToCacheDirectory: true,
-        type: '*/*',
-      });
-      if (res.canceled) return;
-      await uploadFiles(
-        res.assets.map((a) => ({
-          uri: a.uri,
-          name: a.name,
-          mimeType: a.mimeType ?? undefined,
-          file: a.file,
-        }))
-      );
-    } catch {
-      toast('파일을 불러오지 못했어요', 'error');
-    }
-  };
-
-  const actions: ComposerAction[] = [
-    { key: 'album', label: '앨범', icon: Images, onPress: () => void pickImages() },
-    { key: 'camera', label: '카메라', icon: Camera, onPress: () => void takePhoto() },
-    { key: 'file', label: '파일', icon: FileText, onPress: () => void pickDocuments() },
-  ];
+  const files = useComposerAttachments((file) => uploadMobileChatFile(file, chatId));
 
   // ─── 전송 ───
   const send = async () => {
     const content = draft.trim();
-    if ((!content && pending.length === 0) || sending || uploading > 0) return;
-    const attachments = pending;
+    if ((!content && files.pending.length === 0) || sending || files.uploading) return;
+    const attachments = files.pending;
     setSending(true);
     setDraft('');
-    setPending([]);
+    files.clear();
     setOutbox({
       id: `local-${Date.now()}`,
       mine: true,
@@ -456,7 +484,7 @@ function ChatThreadInner({
       if (!alive.current) return;
       // 실패 — 쓰던 글·첨부를 되돌린다 (그 사이 새로 쓴 글이 있으면 뒤에 붙임)
       setDraft((cur) => (cur ? `${content}\n${cur}` : content));
-      setPending((cur) => [...attachments, ...cur].slice(0, MAX_ATTACHMENTS));
+      files.restore(attachments);
       toast(errorMessage(error, '메시지를 보내지 못했어요'), 'error');
     } finally {
       if (alive.current) {
@@ -638,16 +666,11 @@ function ChatThreadInner({
           onChangeText={setDraft}
           onSend={() => void send()}
           sending={sending}
-          uploading={uploading > 0}
+          uploading={files.uploading}
           disabled={!thread}
-          attachments={pending.map((a, i) => ({
-            key: `${a.url}-${i}`,
-            name: a.name,
-            mimeType: a.mimeType,
-            uri: a.url,
-          }))}
-          onRemoveAttachment={(key) => setPending((prev) => prev.filter((a, i) => `${a.url}-${i}` !== key))}
-          actions={actions}
+          attachments={files.attachments}
+          onRemoveAttachment={files.remove}
+          actions={files.actions}
           bottomInset={bottomPad}
         />
       )}

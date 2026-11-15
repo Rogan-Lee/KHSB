@@ -296,7 +296,7 @@ export default async function OnlineHomePage() {
                 <Link href="/online/reports">이번 주 보고서 보기</Link>
               </Button>
               <Button asChild>
-                <Link href="/online/students">
+                <Link href="/students?type=online">
                   <Plus />
                   학생 추가
                 </Link>
@@ -322,7 +322,7 @@ export default async function OnlineHomePage() {
                 ? `활성 매직링크 ${activeMagicLinkCount.toLocaleString()}건`
                 : `전체 온라인 ${totalOnlineStudents.toLocaleString()}명`
             }
-            href="/online/students"
+            href="/students?type=online"
           />
           <StatCard
             label="진행 중 수행평가"
@@ -404,7 +404,7 @@ export default async function OnlineHomePage() {
             <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
               <li>
                 <ListItem
-                  href="/online/students"
+                  href="/students?type=online"
                   leading={<IconTile icon={Users} size={32} />}
                   title={isFA ? "학생 등록" : "담당 학생"}
                   description={isFA ? "온라인 학생 등록 · 매직링크 관리" : "담당 학생 목록"}
