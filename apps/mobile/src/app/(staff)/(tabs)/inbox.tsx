@@ -6,6 +6,8 @@ import { StyleSheet, View } from 'react-native';
 import { ChatThread } from '@/components/chat-thread';
 import { TwoPane } from '@/components/two-pane';
 import { CONTENT_MAX_WIDTH, Screen, SegmentTabs, color, space, useMasterDetail } from '@/design';
+import { FamilyRoomsPanel } from '@/features/family-chat/rooms-panel';
+import { FamilyChatThread } from '@/features/family-chat/thread';
 import { ChatsPanel } from '@/features/staff-inbox/chats-panel';
 import { DmPanel } from '@/features/staff-inbox/dm-panel';
 import { DmThread } from '@/features/staff-inbox/dm-thread';
@@ -16,19 +18,20 @@ import { isStaffCapabilities } from '@/lib/capabilities';
 import { useResponsive } from '@/lib/responsive';
 import { useSession } from '@/lib/session';
 
-type Segment = 'questions' | 'chats' | 'dm';
+type Segment = 'questions' | 'chats' | 'family' | 'dm';
 
-const SEGMENTS: Segment[] = ['questions', 'chats', 'dm'];
+const SEGMENTS: Segment[] = ['questions', 'chats', 'family', 'dm'];
 const CHAT_BASE = '/api/mobile/v1/staff/chats';
 
 const questionHref = (id: string) => `/(staff)/qna/${id}` as Href;
 const chatHref = (id: string) => `/(staff)/chat/${id}` as Href;
 const dmHref = (id: string) => `/(staff)/dm/${id}` as Href;
+const familyHref = (studentId: string) => `/(staff)/family-chat/${studentId}` as Href;
 
 /**
- * 직원 소통 탭 — 질문 · 채팅 · 직원 DM.
+ * 직원 소통 탭 — 질문 · 채팅 · 가족(가족 톡방) · 직원 DM.
  * 폰: 목록 → 상세 화면 push. 태블릿: 왼쪽 목록 + 오른쪽 상세(TwoPane).
- * 다른 화면에서 특정 탭으로 열기: router.push('/(staff)/(tabs)/inbox?tab=chats')
+ * 다른 화면에서 특정 탭으로 열기: router.push('/(staff)/(tabs)/inbox?tab=chats') (questions|chats|family|dm)
  */
 export default function StaffInboxScreen() {
   const { session } = useSession();
@@ -44,7 +47,7 @@ export default function StaffInboxScreen() {
     [canQuestions],
   );
 
-  // ?tab=questions|chats|dm 으로 들어오면 해당 탭 (파라미터가 바뀔 때마다)
+  // ?tab=questions|chats|family|dm 으로 들어오면 해당 탭 (파라미터가 바뀔 때마다)
   const paramTab = SEGMENTS.find((seg) => seg === params.tab) ?? null;
   const [chosen, setChosen] = useState<Segment | null>(paramTab);
   const [seenParam, setSeenParam] = useState(paramTab);
@@ -63,7 +66,12 @@ export default function StaffInboxScreen() {
   };
   const isVisited = (seg: Segment) => seg === segment || visited.has(seg);
 
-  const [refreshKeys, setRefreshKeys] = useState<Record<Segment, number>>({ questions: 0, chats: 0, dm: 0 });
+  const [refreshKeys, setRefreshKeys] = useState<Record<Segment, number>>({
+    questions: 0,
+    chats: 0,
+    family: 0,
+    dm: 0,
+  });
 
   const bump = useCallback(
     (seg: Segment) => setRefreshKeys((k) => ({ ...k, [seg]: k[seg] + 1 })),
@@ -73,14 +81,17 @@ export default function StaffInboxScreen() {
   const questionMd = useMasterDetail(questionHref);
   const chatMd = useMasterDetail(chatHref);
   const dmMd = useMasterDetail(dmHref);
+  const familyMd = useMasterDetail(familyHref);
 
   // 태블릿: 상세를 열었다 닫거나 다른 항목으로 옮기면 방금 본 항목이 읽음 처리됐으니 목록 갱신
   useSelectionRefresh(questionMd.selectedId, () => bump('questions'));
   useSelectionRefresh(chatMd.selectedId, () => bump('chats'));
+  useSelectionRefresh(familyMd.selectedId, () => bump('family'));
 
   const tabs = [
     ...(canQuestions ? [{ value: 'questions' as const, label: '질문', count: badges.questions }] : []),
     { value: 'chats' as const, label: '채팅', count: badges.chats },
+    { value: 'family' as const, label: '가족', count: badges.familyChats ?? 0 },
     { value: 'dm' as const, label: '직원 DM', count: badges.dm },
   ];
 
@@ -106,6 +117,10 @@ export default function StaffInboxScreen() {
           />,
         )}
       {pane('chats', <ChatsPanel selectedId={chatMd.selectedId} onOpen={chatMd.open} refreshKey={refreshKeys.chats} />)}
+      {pane(
+        'family',
+        <FamilyRoomsPanel selectedId={familyMd.selectedId} onOpen={familyMd.open} refreshKey={refreshKeys.family} />,
+      )}
       {pane('dm', <DmPanel selectedId={dmMd.selectedId} onOpen={dmMd.open} refreshKey={refreshKeys.dm} />)}
     </View>
   );
@@ -118,7 +133,7 @@ export default function StaffInboxScreen() {
     );
   }
 
-  const active = segment === 'questions' ? questionMd : segment === 'chats' ? chatMd : dmMd;
+  const active = { questions: questionMd, chats: chatMd, family: familyMd, dm: dmMd }[segment];
   const detail =
     segment === 'questions' && questionMd.selectedId ? (
       <QuestionDetail
@@ -136,6 +151,14 @@ export default function StaffInboxScreen() {
           chatId={chatMd.selectedId}
           avoidKeyboard={false}
           onActivity={() => bump('chats')}
+        />
+      </View>
+    ) : segment === 'family' && familyMd.selectedId ? (
+      <View key={familyMd.selectedId} style={s.fill}>
+        <FamilyChatThread
+          audience="staff"
+          studentId={familyMd.selectedId}
+          onActivity={() => bump('family')}
         />
       </View>
     ) : segment === 'dm' && dmMd.selectedId ? (
@@ -157,7 +180,11 @@ export default function StaffInboxScreen() {
         onCloseDetail={active.close}
         masterWidth={400}
         emptyTitle={
-          segment === 'questions' ? '질문을 선택하세요' : segment === 'chats' ? '대화를 선택하세요' : '메시지를 선택하세요'
+          segment === 'questions'
+            ? '질문을 선택하세요'
+            : segment === 'chats' || segment === 'family'
+              ? '대화를 선택하세요'
+              : '메시지를 선택하세요'
         }
         emptyMessage="왼쪽 목록에서 고르면 여기에 열려요."
       />

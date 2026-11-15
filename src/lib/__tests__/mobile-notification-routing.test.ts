@@ -12,6 +12,24 @@ describe("resolveNotificationHref", () => {
     expect(resolveNotificationHref({ url: "/(parent)/(tabs)/index" })).toBe("/(parent)/(tabs)");
   });
 
+  it("opens the family chat for each audience", () => {
+    const base = { kind: "family-chat", studentId: "s_1" };
+    expect(resolveNotificationHref({ ...base, url: "/(parent)/(tabs)/chat", audience: "parent" })).toBe(
+      "/(parent)/(tabs)/chat",
+    );
+    expect(resolveNotificationHref({ ...base, url: "/(student)/family-chat", audience: "student" })).toBe(
+      "/(student)/family-chat",
+    );
+    expect(resolveNotificationHref({ ...base, url: "/(staff)/family-chat/s_1", audience: "staff" })).toBe(
+      "/(staff)/family-chat/s_1",
+    );
+    expect(resolveNotificationHref({ url: "/(staff)/family-chat/../../x" })).not.toBe("/(staff)/family-chat/../../x");
+  });
+
+  it("sends the old parent attendance tab to the attendance screen", () => {
+    expect(resolveNotificationHref({ url: "/(parent)/(tabs)/attendance" })).toBe("/(parent)/attendance");
+  });
+
   it("opens the parent tuition screen from a tuition push", () => {
     expect(resolveNotificationHref({ url: "/(parent)/tuition", kind: "tuition", invoiceId: "inv_1" })).toBe(
       "/(parent)/tuition",

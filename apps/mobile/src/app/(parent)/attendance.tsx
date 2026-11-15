@@ -44,7 +44,7 @@ function mondayOf(key: string) {
   return addDays(key, -((w + 6) % 7));
 }
 
-/** 학부모 출결 — 월 달력(날짜 상세 시트) + 공부 시간 차트(주간·월간) */
+/** 학부모 출결 — 월 달력(날짜 상세 시트) + 공부 시간 차트(주간·월간). 홈(오늘 하루·바로가기)에서 들어온다 */
 export default function ParentAttendanceScreen() {
   const { selected } = useParentChild();
   const { isTablet } = useResponsive();
@@ -122,7 +122,7 @@ export default function ParentAttendanceScreen() {
 
   if (!selected) {
     return (
-      <Screen kind="tab" title="출결">
+      <Screen kind="push" title="출결" backFallback="/(parent)/(tabs)">
         <EmptyState icon={CalendarDays} title="연결된 자녀가 없어요" description="자녀를 연결하면 출결을 볼 수 있어요." />
       </Screen>
     );
@@ -179,8 +179,9 @@ export default function ParentAttendanceScreen() {
 
   return (
     <Screen
-      kind="tab"
+      kind="push"
       title="출결"
+      backFallback="/(parent)/(tabs)"
       right={<ChildSwitcher />}
       maxWidth={isTablet ? 960 : undefined}
       refreshing={attendance.isRefreshing || stats.isRefreshing}
