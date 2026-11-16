@@ -17,7 +17,8 @@ import { cn } from "@/lib/utils";
 import type { Role } from "@/generated/prisma";
 import { AppSidebar } from "./app-sidebar";
 import { AppHeader } from "./app-header";
-import { ACCOUNT_GROUP } from "./nav-config";
+import { ACCOUNT_GROUP, locateNav, navTabs } from "./nav-config";
+import { PageTabs } from "./page-tabs";
 import { useStoredValue } from "./use-stored-value";
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -52,6 +53,13 @@ type ViewMode = "web" | "mobile";
 export function DashboardShell({ user, children, sidebarBadges }: DashboardShellProps) {
   const plan = getCurrentPlan();
   const pathname = usePathname();
+  // 여러 화면을 묶은 메뉴의 목록 화면이면 본문 맨 위에 메뉴 제목 + 탭 (상세 화면엔 안 띄운다)
+  const loc = locateNav(pathname);
+  const tabs = navTabs(loc, user.role);
+  const pageTabs =
+    tabs && loc.item && loc.tab?.href === pathname
+      ? { title: loc.item.label, tabs, current: loc.tab.href }
+      : null;
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsedRaw, setCollapsedRaw] = useStoredValue(SIDEBAR_COLLAPSED_KEY, "false");
   const [viewModeRaw, setViewModeRaw] = useStoredValue(VIEW_MODE_KEY, "web");
@@ -169,16 +177,27 @@ export function DashboardShell({ user, children, sidebarBadges }: DashboardShell
           collapsed ? "md:ml-14" : "md:ml-60",
         )}
       >
-        <AppHeader role={user.role} badges={badges} onMenuClick={() => setMobileOpen(true)} />
+        <AppHeader onMenuClick={() => setMobileOpen(true)} />
         <main
           data-print-content
+          data-page-tabs={pageTabs ? "" : undefined}
           className={cn(
             "mx-auto w-full flex-1 px-x4 pb-x16 pt-x5 md:px-x8 md:pt-x8",
+            // PageTabs 가 재기 전(첫 그리기) 어림값 — 제목 + 탭 + 아래 여백
+            pageTabs && "[--page-tabs-h:6.75rem] md:[--page-tabs-h:7.75rem]",
             isMobilePreview
               ? "max-w-[430px] md:px-x4 outline outline-2 outline-offset-4 outline-stroke-informative-weak"
               : "max-w-[1280px]",
           )}
         >
+          {pageTabs && (
+            <PageTabs
+              title={pageTabs.title}
+              tabs={pageTabs.tabs}
+              current={pageTabs.current}
+              badges={badges}
+            />
+          )}
           {children}
         </main>
       </div>

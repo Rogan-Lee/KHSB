@@ -503,7 +503,7 @@ export function OnlineReportsPanel({
                 <PickerCount shown={filtered.length} total={rows.length} />
               </span>
             </div>
-            <div className="max-h-80 divide-y divide-stroke-neutral-muted overflow-y-auto overscroll-contain lg:max-h-[calc(100dvh-10rem)]">
+            <div className="max-h-80 divide-y divide-stroke-neutral-muted overflow-y-auto overscroll-contain lg:max-h-[calc(100dvh_-_10rem_-_var(--page-tabs-h,0px))]">
               {filtered.length === 0 ? (
                 <EmptyState
                   compact

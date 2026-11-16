@@ -429,7 +429,7 @@ export function DayView({ studentId, entries: initialEntries, initialDate, schoo
         </div>
 
         {/* Timeline */}
-        <div ref={scrollRef} className="overflow-y-auto" style={{ maxHeight: "calc(100vh - 320px)" }}>
+        <div ref={scrollRef} className="overflow-y-auto" style={{ maxHeight: "calc(100vh - 320px - var(--page-tabs-h, 0px))" }}>
           <div
             ref={bodyRef}
             className="grid"
@@ -585,7 +585,7 @@ export function DayView({ studentId, entries: initialEntries, initialDate, schoo
 
       {/* ── Right panel ── */}
       {!hidePlan && (
-        <div className="flex w-full shrink-0 flex-col gap-x3 lg:max-h-[calc(100vh-180px)] lg:w-80 lg:overflow-y-auto">
+        <div className="flex w-full shrink-0 flex-col gap-x3 lg:max-h-[calc(100vh_-_180px_-_var(--page-tabs-h,0px))] lg:w-80 lg:overflow-y-auto">
           {/* Entry form */}
           {entryPanel && (
             <section className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">

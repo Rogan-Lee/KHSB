@@ -239,7 +239,7 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
       </div>
 
       {/* 2-col 마스터-디테일 — viewport 기준 고정 높이 + grid row 명시(minmax(0,1fr))로 내부 스크롤 강제 */}
-      <div className="grid h-[calc(100vh-260px)] min-h-[500px] grid-cols-1 gap-x3 [grid-template-rows:minmax(0,1fr)] lg:grid-cols-[340px_1fr]">
+      <div className="grid h-[calc(100vh_-_260px_-_var(--page-tabs-h,0px))] min-h-[500px] grid-cols-1 gap-x3 [grid-template-rows:minmax(0,1fr)] lg:grid-cols-[340px_1fr]">
         {/* 좌측: 학생 리스트 */}
         <div className="flex min-h-0 flex-col overflow-hidden rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
           <div className="flex flex-col gap-x2 border-b border-stroke-neutral-muted p-x3">

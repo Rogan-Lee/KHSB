@@ -112,7 +112,7 @@ export function AssignmentsOverview({ students }: Props) {
             description={filter === "pending" ? "모든 과제가 완료됐어요." : undefined}
           />
         ) : (
-          <ul className="divide-y divide-stroke-neutral-muted lg:max-h-[calc(100vh-18rem)] lg:overflow-y-auto">
+          <ul className="divide-y divide-stroke-neutral-muted lg:max-h-[calc(100vh_-_18rem_-_var(--page-tabs-h,0px))] lg:overflow-y-auto">
             {filtered.map((s) => {
               const pending = s.assignments.filter((a) => !a.isCompleted).length;
               const isActive = s.id === selectedId;

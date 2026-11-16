@@ -388,7 +388,7 @@ export function TimetableGrid({
           <div
             ref={scrollRef}
             className="overflow-y-auto"
-            style={{ maxHeight: compact ? "440px" : "calc(100vh - 200px)" }}
+            style={{ maxHeight: compact ? "440px" : "calc(100vh - 200px - var(--page-tabs-h, 0px))" }}
           >
             {/* Sticky header + all-day row */}
             <div className="sticky top-0 z-40 bg-bg-layer-default">

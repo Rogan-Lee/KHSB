@@ -227,7 +227,7 @@ export function PerformancePanel({
                 description="필터를 바꾸거나 검색어를 지워 보세요."
               />
             ) : (
-              <ul className="max-h-80 divide-y divide-stroke-neutral-muted overflow-y-auto overscroll-contain lg:max-h-[calc(100dvh-10rem)]">
+              <ul className="max-h-80 divide-y divide-stroke-neutral-muted overflow-y-auto overscroll-contain lg:max-h-[calc(100dvh_-_10rem_-_var(--page-tabs-h,0px))]">
                 {filteredRows.map((r) => {
                   const counts = countTasksByStatus(r.tasks);
                   const pendingFB = pendingFeedbackCount(r.tasks);

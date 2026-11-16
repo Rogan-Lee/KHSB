@@ -121,7 +121,8 @@ export function PageHeader({
       <div className="flex flex-col gap-x4 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x2">
-            <h1 className="t8-bold text-fg-neutral md:t10-bold">{title}</h1>
+            {/* 탭으로 묶인 화면에선 셸의 메뉴 제목·탭(PageTabs)이 위에 있어 이 제목을 숨긴다 */}
+            <h1 className="t8-bold text-fg-neutral md:t10-bold [[data-page-tabs]_&]:hidden">{title}</h1>
             {meta}
           </div>
           {description != null && (
@@ -359,15 +360,20 @@ export function FilterChip({
   );
 }
 
-/** URL 기반 탭 (서버 컴포넌트용) — SEED Tabs(line) 모양 */
+/**
+ * URL 기반 탭 (서버 컴포넌트용) — SEED Tabs(line) 모양.
+ * size="lg" 는 메뉴 단위 탭(셸 PageTabs) — 화면 안의 탭(기본 크기)과 한 단계 위로 구분한다.
+ */
 export function LinkTabs({
   items,
   current,
   className,
+  size = "md",
 }: {
   items: { href: string; label: ReactNode; value: string; count?: number }[];
   current: string;
   className?: string;
+  size?: "md" | "lg";
 }) {
   return (
     <nav
@@ -384,8 +390,11 @@ export function LinkTabs({
             href={it.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "relative inline-flex min-h-11 shrink-0 items-center gap-x1_5 px-x2_5 t5-bold transition-colors",
-              "after:absolute after:inset-x-2.5 after:bottom-0 after:h-0.5 after:rounded-full",
+              "relative inline-flex shrink-0 items-center gap-x1_5 transition-colors",
+              "after:absolute after:bottom-0 after:rounded-full",
+              size === "lg"
+                ? "min-h-12 px-x3 t6-bold md:t7-bold after:inset-x-3 after:h-[3px]"
+                : "min-h-11 px-x2_5 t5-bold after:inset-x-2.5 after:h-0.5",
               active
                 ? "text-fg-neutral after:bg-fg-neutral"
                 : "text-fg-neutral-subtle hover:text-fg-neutral-muted after:bg-transparent",
