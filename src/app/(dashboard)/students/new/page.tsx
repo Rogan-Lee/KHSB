@@ -19,6 +19,7 @@ export default async function NewStudentPage({
 
   const typeTabs = canOnline ? (
     <LinkTabs
+      size="lg"
       current={online ? "online" : "offline"}
       items={[
         { value: "offline", href: "/students/new?type=offline", label: "자습실" },
@@ -34,9 +35,9 @@ export default async function NewStudentPage({
         <PageHeader
           back={{ href: "/students?type=online", label: "원생 관리" }}
           title="원생 등록"
+          tabs={typeTabs}
           description="온라인 관리 학생을 새로 등록해요. 재원 중인 자습실 학생은 원생 관리 › 온라인의 학생 추가에서 전환할 수 있어요."
         />
-        {typeTabs}
         <Section>
           <NewOnlineStudentForm mentors={mentors} consultants={consultants} />
         </Section>
@@ -65,9 +66,9 @@ export default async function NewStudentPage({
       <PageHeader
         back={{ href: "/students", label: "원생 관리" }}
         title="원생 등록"
+        tabs={typeTabs}
         description="이름·학년·학부모 연락처·등원일만 채우면 바로 등록돼요. 나머지는 나중에 고쳐도 돼요."
       />
-      {typeTabs}
       <Section>
         <StudentForm mentors={mentors} schools={schools} occupiedSeats={occupiedSeats} />
       </Section>

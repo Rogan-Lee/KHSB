@@ -43,6 +43,7 @@ export default async function StudentsPage({
   const typeTabs =
     canOffline && canOnline ? (
       <LinkTabs
+        size="lg"
         current={view}
         items={[
           { value: "offline", href: "/students?type=offline", label: "자습실" },
@@ -121,9 +122,9 @@ export default async function StudentsPage({
 
   return (
     <div>
-      {typeTabs}
       <PageHeader
         title="원생 관리"
+        tabs={typeTabs}
         description={
           <span className="tabular-nums">
             재원 {active}명 · 휴원 {inactive}명 · 졸업 {graduated}명 · 퇴원 {withdrawn}명

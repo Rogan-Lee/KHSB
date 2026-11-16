@@ -7,5 +7,5 @@ const TABS = [
 
 /** 면담 담당자 전환 — URL(?owner=) 기반 SEED 라인 탭 */
 export function ConsultationOwnerTabs({ current }: { current: string }) {
-  return <LinkTabs items={TABS} current={current} />;
+  return <LinkTabs size="lg" items={TABS} current={current} />;
 }

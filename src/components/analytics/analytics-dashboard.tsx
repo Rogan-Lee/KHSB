@@ -134,7 +134,7 @@ export function AnalyticsDashboard({
         </StatCards>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-          <TabsList>
+          <TabsList size="lg">
             <TabsTrigger value="overview">전체 현황</TabsTrigger>
             <TabsTrigger value="individual">개인별 추이</TabsTrigger>
           </TabsList>

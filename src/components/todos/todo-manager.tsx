@@ -582,7 +582,7 @@ export function TodoManager({ initialTodos, initialHiddenCompleted = [], staffLi
       />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as "todos" | "routine")}>
-        <TabsList aria-label="투두 / 루틴">
+        <TabsList size="lg" aria-label="투두 / 루틴">
           <TabsTrigger value="todos">
             투두리스트
             {pending.length > 0 && <span className="t4-bold tabular-nums text-fg-brand">{pending.length}</span>}

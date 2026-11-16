@@ -61,6 +61,7 @@ export default async function ConsultationsPage({
     <>
       <PageHeader
         title="면담 관리"
+        tabs={<ConsultationOwnerTabs current={owner} />}
         description={
           isHeadTeacher
             ? "책임 선생님의 면담 일정을 관리하고 결과를 기록해요."
@@ -75,9 +76,6 @@ export default async function ConsultationsPage({
           </Button>
         }
       />
-
-      {/* Owner tabs */}
-      <ConsultationOwnerTabs current={owner} />
 
       <StatCards cols={3} className="mb-x6">
         <StatCard label="예정" value={scheduled} unit="건" />

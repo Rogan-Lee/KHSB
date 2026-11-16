@@ -95,6 +95,7 @@ export function PageHeader({
   meta,
   actions,
   back,
+  tabs,
   className,
 }: {
   title: ReactNode;
@@ -105,8 +106,27 @@ export function PageHeader({
   actions?: ReactNode;
   /** 상세 화면의 상위 목록 링크 */
   back?: { href: string; label: string };
+  /**
+   * 화면을 나누는 큰 탭(LinkTabs size="lg") — 제목 바로 아래, 설명·버튼 위에 둔다(제목 → 탭 → 설명).
+   * 설명이 탭마다 다를 때 쓴다. 설명이 화면 전체에 해당하면 PageHeader 다음에 탭을 두면 된다.
+   */
+  tabs?: ReactNode;
   className?: string;
 }) {
+  const heading = (
+    <div className="flex flex-wrap items-center gap-x2">
+      {/* 탭으로 묶인 화면에선 셸의 메뉴 제목·탭(PageTabs)이 위에 있어 이 제목을 숨긴다 */}
+      <h1 className="t8-bold text-fg-neutral md:t10-bold [[data-page-tabs]_&]:hidden">{title}</h1>
+      {meta}
+    </div>
+  );
+  const desc = description != null && (
+    <p className={cn("max-w-3xl t4-regular text-fg-neutral-subtle md:t5-regular", tabs == null && "mt-x1_5")}>
+      {description}
+    </p>
+  );
+  const acts = actions != null && <div className="flex shrink-0 flex-wrap items-center gap-x2">{actions}</div>;
+
   return (
     <header className={cn("mb-x6 md:mb-x8", className)}>
       {back && (
@@ -118,19 +138,27 @@ export function PageHeader({
           {back.label}
         </Link>
       )}
-      <div className="flex flex-col gap-x4 md:flex-row md:items-end md:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x2">
-            {/* 탭으로 묶인 화면에선 셸의 메뉴 제목·탭(PageTabs)이 위에 있어 이 제목을 숨긴다 */}
-            <h1 className="t8-bold text-fg-neutral md:t10-bold [[data-page-tabs]_&]:hidden">{title}</h1>
-            {meta}
-          </div>
-          {description != null && (
-            <p className="mt-x1_5 max-w-3xl t4-regular text-fg-neutral-subtle md:t5-regular">{description}</p>
+      {tabs != null ? (
+        // 제목 → 탭 → 설명·버튼 (셸의 메뉴 탭과 같은 계층)
+        <>
+          {heading}
+          <div className="mt-x3 md:mt-x4">{tabs}</div>
+          {(desc || acts) && (
+            <div className="mt-x4 flex flex-col gap-x4 md:mt-x5 md:flex-row md:items-end md:justify-between">
+              <div className="min-w-0">{desc}</div>
+              {acts}
+            </div>
           )}
+        </>
+      ) : (
+        <div className="flex flex-col gap-x4 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0">
+            {heading}
+            {desc}
+          </div>
+          {acts}
         </div>
-        {actions != null && <div className="flex shrink-0 flex-wrap items-center gap-x2">{actions}</div>}
-      </div>
+      )}
     </header>
   );
 }

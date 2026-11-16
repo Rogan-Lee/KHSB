@@ -72,7 +72,7 @@ export default async function MeritDemeritPage() {
       />
 
       <Tabs defaultValue="merits">
-        <TabsList>
+        <TabsList size="lg">
           <TabsTrigger value="merits">상벌점</TabsTrigger>
           <TabsTrigger value="shop">
             포인트 상점

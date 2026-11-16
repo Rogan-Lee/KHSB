@@ -177,9 +177,9 @@ export async function OnlineStudentsView({ role, typeTabs }: { role?: string | n
 
   return (
     <div>
-      {typeTabs}
       <PageHeader
         title="원생 관리"
+        tabs={typeTabs}
         description={
           <>
             <span className="tabular-nums">
