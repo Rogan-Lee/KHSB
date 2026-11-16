@@ -76,7 +76,7 @@ export default async function HandoverPage({
         }
       />
       <Tabs defaultValue="daily">
-        <TabsList>
+        <TabsList size="lg">
           <TabsTrigger value="daily">일일 인수인계</TabsTrigger>
           <TabsTrigger value="monthly">
             월간 노트

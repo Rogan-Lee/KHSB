@@ -25,7 +25,7 @@ export function StudentDetailTabs({
 
   return (
     <Tabs value={currentTab} onValueChange={handleTabChange}>
-      <TabsList aria-label="원생 상세 메뉴">
+      <TabsList size="lg" aria-label="원생 상세 메뉴">
         {tabItems.map((item) => (
           <TabsTrigger key={item.value} value={item.value}>
             {item.label}

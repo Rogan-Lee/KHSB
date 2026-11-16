@@ -585,7 +585,7 @@ export function SeatMapBoard({ students }: { students: StudentInfo[] }) {
 
       {/* 탭 — 인쇄 시 숨김 */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "K" | "H")} className="mb-x5 print:hidden">
-        <TabsList>
+        <TabsList size="lg">
           {(["K", "H"] as const).map((tab) => (
             <TabsTrigger key={tab} value={tab}>
               {tab}룸

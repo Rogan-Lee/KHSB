@@ -44,7 +44,7 @@ export default async function MessagesPage() {
       />
       {canBroadcast ? (
         <Tabs defaultValue="kakao">
-          <TabsList>
+          <TabsList size="lg">
             <TabsTrigger value="kakao">카카오 메시지</TabsTrigger>
             <TabsTrigger value="broadcast">단체 알림</TabsTrigger>
           </TabsList>

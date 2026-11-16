@@ -228,7 +228,7 @@ export function LunchAdmin({
       </StatCards>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-        <TabsList>
+        <TabsList size="lg">
           {tabs.map((t) => (
             <TabsTrigger key={t.key} value={t.key}>
               {t.label}

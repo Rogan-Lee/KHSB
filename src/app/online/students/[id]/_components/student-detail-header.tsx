@@ -63,6 +63,7 @@ export function StudentDetailHeader({
       />
       {showTabs && (
         <LinkTabs
+          size="lg"
           className="mb-x6"
           current={current}
           items={TABS.map((t) => ({

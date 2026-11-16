@@ -6,16 +6,18 @@ import { cn } from "@/lib/utils"
 
 // SEED Tabs(line) 규격 — 목록 아래 1px 선, 선택 탭은 fg-neutral + 2px 밑줄, 나머지 fg-neutral-subtle.
 // variant="segment" 는 카드 안 등 좁은 곳에서 쓰는 SEED SegmentedControl 모양.
+// size="lg" 는 화면 전체를 바꾸는 첫 탭(line 전용) — 화면 안의 탭·필터(기본 크기)보다 한 단계 위. LinkTabs size="lg" 와 같은 모양.
 type TabsVariant = "line" | "segment"
-const TabsVariantContext = React.createContext<TabsVariant>("line")
+type TabsSize = "md" | "lg"
+const TabsVariantContext = React.createContext<{ variant: TabsVariant; size: TabsSize }>({ variant: "line", size: "md" })
 
 const Tabs = TabsPrimitive.Root
 
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> & { variant?: TabsVariant }
->(({ className, variant = "line", ...props }, ref) => (
-  <TabsVariantContext.Provider value={variant}>
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> & { variant?: TabsVariant; size?: TabsSize }
+>(({ className, variant = "line", size = "md", ...props }, ref) => (
+  <TabsVariantContext.Provider value={{ variant, size }}>
     <TabsPrimitive.List
       ref={ref}
       className={cn(
@@ -34,14 +36,19 @@ const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
 >(({ className, ...props }, ref) => {
-  const variant = React.useContext(TabsVariantContext)
+  const { variant, size } = React.useContext(TabsVariantContext)
   return (
     <TabsPrimitive.Trigger
       ref={ref}
       className={cn(
         "inline-flex shrink-0 items-center justify-center gap-x1_5 whitespace-nowrap outline-none transition-colors disabled:pointer-events-none disabled:text-fg-disabled focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-stroke-focus-ring [&_svg]:size-4 [&_svg]:shrink-0",
         variant === "line"
-          ? "relative min-h-11 px-x2_5 t5-bold text-fg-neutral-subtle hover:text-fg-neutral-muted data-[state=active]:text-fg-neutral after:absolute after:inset-x-2.5 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent data-[state=active]:after:bg-fg-neutral"
+          ? cn(
+              "relative text-fg-neutral-subtle hover:text-fg-neutral-muted data-[state=active]:text-fg-neutral after:absolute after:bottom-0 after:rounded-full after:bg-transparent data-[state=active]:after:bg-fg-neutral",
+              size === "lg"
+                ? "min-h-12 px-x3 t6-bold md:t7-bold after:inset-x-3 after:h-[3px]"
+                : "min-h-11 px-x2_5 t5-bold after:inset-x-2.5 after:h-0.5"
+            )
           : "h-8 rounded-full px-x3 t4-bold text-fg-neutral-muted data-[state=active]:bg-bg-layer-default data-[state=active]:text-fg-neutral data-[state=active]:shadow-[0_1px_3px_rgba(0,0,0,0.08)]",
         className
       )}

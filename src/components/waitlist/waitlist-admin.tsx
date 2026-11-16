@@ -211,7 +211,7 @@ export function WaitlistAdmin({
       <ShareApply />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as "entries" | "branches")}>
-        <TabsList>
+        <TabsList size="lg">
           <TabsTrigger value="entries">
             대기자
             <span className={cn("t4-bold tabular-nums", tab === "entries" ? "text-fg-brand" : "text-fg-placeholder")}>

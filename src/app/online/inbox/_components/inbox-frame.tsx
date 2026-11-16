@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 /**
  * 학생 메시지 2단 화면 틀 — 창 높이에 맞춘 카드 안에서 목록·대화가 각자 스크롤한다(페이지 스크롤 없음).
  *
- * 셸 기준값: 상단 바 56px(h-14) · <main> 패딩 모바일 pt 20px / pb 64px, 데스크톱(md) pt 32px / pb 64px.
+ * 셸 기준값(탭 화면이면 메뉴 제목·탭 높이 --page-tabs-h 를 더 뺀다): 상단 바 56px(h-14) · <main> 패딩 모바일 pt 20px / pb 64px, 데스크톱(md) pt 32px / pb 64px.
  *  - list: 페이지 머리 + 카드. 높이 = 100dvh − 56 − pt − 아래 여백(모바일 16 · 데스크톱 32),
  *          남는 main pb 는 음수 margin 으로 상쇄해 창 높이를 넘지 않게 한다.
  *  - chat: 모바일은 셸 패딩을 모두 상쇄해 대화만 화면 가득(앱 대화방처럼), 데스크톱은 list 와 같은 틀.
@@ -26,8 +26,8 @@ export function InboxFrame({
     <div
       className={cn(
         "flex flex-col",
-        chat ? "-mx-4 -mt-5 -mb-16 h-[calc(100dvh-3.5rem)]" : "-mb-12 h-[calc(100dvh-5.75rem)]",
-        "md:mx-0 md:mt-0 md:-mb-8 md:h-[calc(100dvh-7.5rem)]",
+        chat ? "-mx-4 -mt-5 -mb-16 h-[calc(100dvh-3.5rem)]" : "-mb-12 h-[calc(100dvh_-_5.75rem_-_var(--page-tabs-h,0px))]",
+        "md:mx-0 md:mt-0 md:-mb-8 md:h-[calc(100dvh_-_7.5rem_-_var(--page-tabs-h,0px))]",
       )}
     >
       <PageHeader

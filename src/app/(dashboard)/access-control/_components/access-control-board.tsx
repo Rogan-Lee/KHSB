@@ -58,6 +58,7 @@ export function AccessControlBoard({ tab, overview }: { tab: AccessTab; overview
       <StatusNotices overview={overview} />
 
       <LinkTabs
+        size="lg"
         current={tab}
         items={[
           { value: "status", label: "현황", href: ACCESS_PATH },

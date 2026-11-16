@@ -699,7 +699,7 @@ export function MeetingMinutesBoard({
 
       {/* 팀 탭 */}
       <Tabs value={activeTeam} onValueChange={(v) => setActiveTeam(v as MeetingTeam)}>
-        <TabsList aria-label="팀">
+        <TabsList size="lg" aria-label="팀">
           {TEAMS.map((team) => {
             const count = minutesList.filter((m) => m.team === team).length;
             const unread = minutesList.filter(

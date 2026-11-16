@@ -108,7 +108,7 @@ export function VocabResultsBoard({ exams, students, canDelete = false }: { exam
 
   return (
     <>
-      <div className="grid min-h-[600px] grid-cols-1 gap-x3 lg:h-[calc(100dvh-15rem)] lg:grid-cols-[260px_300px_minmax(0,1fr)]">
+      <div className="grid min-h-[600px] grid-cols-1 gap-x3 lg:h-[calc(100dvh_-_15rem_-_var(--page-tabs-h,0px))] lg:grid-cols-[260px_300px_minmax(0,1fr)]">
         {/* ── 1) 시험 ── */}
         <aside className={PANE} aria-label="시험 목록">
           <div className={PANE_HEAD}>
