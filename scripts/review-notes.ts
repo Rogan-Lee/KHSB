@@ -53,7 +53,7 @@ Try: student > "메시지" > a conversation > long-press a teacher's message.
 
 FOCUS MODE (Screen Time, individual authorization)
 Family Controls (Distribution) is assigned to team QUABYXMW2H and enabled on the app and its 3 extensions.
-Optional: a student shields apps/sites they pick on their own device until they end it; after 2 h it asks if they're still studying and ends at 3 h if unanswered. Only the student turns it on or off; nothing leaves the device; staff can't see or control it. A student-set lock PIN (kept on the device) is needed to change apps or end it. A forgotten PIN is reset in-app with the account password, or by turning off Screen Time access in Settings.
+Optional: a student shields apps/sites they pick on their own device until they end it; it checks in at 2 h and ends at 3 h if unanswered. Only the student turns it on or off; Screen Time data never leaves the device (the study timer logs only start/stop); staff can't see or control it. A student-set PIN (on the device) is needed to change apps or end it. A forgotten PIN is reset in-app with the account password or by turning off Screen Time access.
 Try: student > "홈" > "집중 모드" > "계속" > allow > pick apps > set any PIN > "집중 시작".
 
 PAID CONTENT
