@@ -10,7 +10,7 @@ import { z } from "zod";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_DISPLAY } from "@/lib/roles";
-import { notifySlack } from "@/lib/slack";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 
 export type SafetyActorType = "STUDENT" | "STAFF" | "PARENT";
 export type SafetyUserRef = { type: SafetyActorType; id: string };
@@ -241,9 +241,12 @@ export async function blockUser(actor: SafetyActor, input: unknown) {
       },
     });
     await markReadWith(actor, target);
-    void notifySlack(
-      `🚫 [차단] ${actorLabel(actor)} → ${actorLabel(target)} · 담당 배정을 확인해 주세요 (어드민 > 신고 관리)`,
-    );
+    queueStaffAlert({
+      studentId: null,
+      title: "새 차단",
+      body: `${actorLabel(actor)} → ${actorLabel(target)} · 담당 배정을 확인해 주세요 (어드민 > 신고 관리)`,
+      url: STAFF_PUSH_ROUTES.home,
+    });
     revalidatePath(MODERATION_PATH);
   }
 
@@ -528,15 +531,13 @@ export async function createReport(actor: SafetyActor, input: unknown) {
     },
   });
 
-  void notifySlack(
-    [
-      `🚨 [신고] ${actorLabel(actor)} → ${actorLabel(target.user)} · ${REPORT_TARGET_LABEL[data.targetType]} · ${REPORT_REASONS[data.reason]}`,
-      target.snapshot ? `"${target.snapshot.slice(0, 200)}"` : null,
-      "어드민 > 신고 관리에서 24시간 안에 확인해 주세요",
-    ]
-      .filter(Boolean)
-      .join("\n"),
-  );
+  // 신고 내용(스냅샷)은 잠금 화면에 뜨지 않게 푸시에 넣지 않는다
+  queueStaffAlert({
+    studentId: null,
+    title: "새 신고 · 24시간 안에 확인",
+    body: `${actorLabel(actor)} → ${actorLabel(target.user)} · ${REPORT_TARGET_LABEL[data.targetType]} · ${REPORT_REASONS[data.reason]}`,
+    url: STAFF_PUSH_ROUTES.home,
+  });
   revalidatePath(MODERATION_PATH);
 
   return { ok: true, duplicate: false };

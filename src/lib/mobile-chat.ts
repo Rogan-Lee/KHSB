@@ -14,7 +14,7 @@ import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_DISPLAY } from "@/lib/roles";
 import { assertCanMessage, getBlockState, getBlockedKeys } from "@/lib/safety";
-import { notifySlack } from "@/lib/slack";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 
 const MAX_CONTENT_LEN = 4000;
 const MAX_ATTACHMENTS = 5;
@@ -434,12 +434,16 @@ export async function sendChat(params: {
     }),
   ]);
 
+  // 학생 메시지만 — 채팅방 담당 직원에게 앱 푸시
   if (viewer.type === "STUDENT") {
-    void notifySlack(
-      `📱 [학생 포털 채팅] ${chat.student.name} → ${chat.staff.name}: ${
-        trimmed.slice(0, 200) || `첨부 ${data.attachments.length}개`
-      }`,
-    );
+    queueStaffAlert({
+      studentId: chat.studentId,
+      staffUserIds: [chat.staffId],
+      title: `${chat.student.name} 학생 메시지`,
+      body: trimmed || `첨부 ${data.attachments.length}개를 보냈어요`,
+      url: STAFF_PUSH_ROUTES.inbox,
+      data: { chatId },
+    });
   }
 
   // 웹 직원 인박스·학생 상세 캐시 무효화 (웹 sendChatMessage 와 동일)

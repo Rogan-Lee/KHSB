@@ -19,7 +19,6 @@ import { sanitizePortalAttachments, type PortalAttachment } from "@/lib/portal-a
 import { prisma } from "@/lib/prisma";
 import { ROLE_DISPLAY } from "@/lib/roles";
 import { getBlockedKeys } from "@/lib/safety";
-import { notifySlack } from "@/lib/slack";
 
 const MAX_CONTENT_LEN = 4000;
 const MAX_ATTACHMENTS = 5;
@@ -355,7 +354,6 @@ async function notifyFamilyMessage(studentId: string, viewer: FamilyViewer, send
         data: { ...base, audience: "staff", url: FAMILY_CHAT_PUSH_ROUTES.staff(studentId) },
       }),
     );
-    void notifySlack(`💬 [가족 톡방] ${student.name} · ${senderName}: ${preview}`);
   }
   await Promise.allSettled(sends);
 }

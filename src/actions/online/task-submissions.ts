@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAnyStaff } from "@/lib/roles";
 import { assertCanManageStudent } from "@/lib/student-access";
 import { validateMagicLink } from "@/lib/student-auth";
-import { notifySlack } from "@/lib/slack";
+import { notifyAssignedStaffOfTaskSubmission, runAfterResponse } from "@/lib/mobile-push";
 import { sanitizePortalAttachments } from "@/lib/portal-attachments";
 import type { TaskFeedbackStatus } from "@/generated/prisma";
 
@@ -110,10 +110,7 @@ export async function createOrUpdateSubmission(params: {
   }
 
   const nextVersion = isNewVersion ? (latest?.version ?? 0) + 1 : latest?.version ?? 1;
-  notifySlack(
-    `[수행평가] ${task.student.name} 학생이 "${task.subject} - ${task.title}" 을 제출했습니다 (v${nextVersion}).\n` +
-      `_/online/students/${task.studentId}/tasks 에서 확인_`
-  );
+  runAfterResponse(() => notifyAssignedStaffOfTaskSubmission({ taskId: task.id, version: nextVersion }));
 
   revalidatePath(`/s/${params.studentToken}/tasks/${params.taskId}`);
   revalidatePath(`/s/${params.studentToken}/tasks`);

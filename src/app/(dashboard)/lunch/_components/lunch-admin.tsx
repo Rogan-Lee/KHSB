@@ -64,6 +64,7 @@ import {
   bulkConfirmPayment,
   deleteLunchOrder,
   revertPayment,
+  dismissDepositClaim,
   setItemReceived,
   updateLunchSetting,
   issueLunchParentLinks,
@@ -652,6 +653,17 @@ function OrdersTab({ orders, menus }: { orders: Order[]; menus: Menu[] }) {
       }
     });
   }
+  function dismissClaim(id: string) {
+    startTransition(async () => {
+      try {
+        await dismissDepositClaim(id);
+        toast.success("입금 안 됨으로 처리하고 학부모에게 알렸어요");
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "처리 실패");
+      }
+    });
+  }
   function revert(id: string) {
     startTransition(async () => {
       try {
@@ -759,6 +771,7 @@ function OrdersTab({ orders, menus }: { orders: Order[]; menus: Menu[] }) {
                     busy={pending}
                     onToggle={() => toggle(o.id)}
                     onRevert={() => revert(o.id)}
+                    onDismissClaim={() => dismissClaim(o.id)}
                     onEditToggle={() => (editing ? setEditingId(null) : startEdit(o))}
                     onDelete={() => setDeleteTarget(o)}
                     editPanel={
@@ -842,6 +855,7 @@ function OrderRows({
   busy,
   onToggle,
   onRevert,
+  onDismissClaim,
   onEditToggle,
   onDelete,
   editPanel,
@@ -854,6 +868,7 @@ function OrderRows({
   busy: boolean;
   onToggle: () => void;
   onRevert: () => void;
+  onDismissClaim: () => void;
   onEditToggle: () => void;
   onDelete: () => void;
   editPanel: ReactNode;
@@ -894,6 +909,17 @@ function OrderRows({
             {paid && (
               <Button variant="ghost" size="xs" onClick={onRevert} disabled={busy}>
                 확인 취소
+              </Button>
+            )}
+            {!paid && o.depositClaimed && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={onDismissClaim}
+                disabled={busy}
+                title="입금이 안 들어왔으면 알림을 지우고 학부모에게 다시 확인을 부탁해요"
+              >
+                입금 안 됨
               </Button>
             )}
             <Button

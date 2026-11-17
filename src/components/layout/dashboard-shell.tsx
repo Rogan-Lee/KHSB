@@ -55,6 +55,13 @@ const NEW_ITEM_TOASTS = [
   ["/exams", "모의고사 신청"],
   ["/lunch", "도시락 변경 요청·입금 알림"],
   ["/tuition", "현장 결제 신청"],
+  ["/online/inbox", "학생 메시지"],
+  ["/family-chat", "가족 톡방 새 글"],
+  ["/online/schedules", "등원 스케줄 제출·수정 요청"],
+  ["/online/performance", "수행평가 제출"],
+  ["/students", "초기 설문 제출"],
+  ["/online/reports", "리포트 학부모 피드백"],
+  ["/moderation", "신고·차단"],
 ] as const;
 type ViewMode = "web" | "mobile";
 

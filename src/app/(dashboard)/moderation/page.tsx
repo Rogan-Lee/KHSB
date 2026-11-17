@@ -4,6 +4,7 @@ import { EmptyState, Notice, PageHeader, Section, StatCard, StatCards, StatusBad
 import { REPORT_SLA_MS, ReportList } from "@/components/moderation/report-list";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { isFullAccess } from "@/lib/roles";
+import { markSeen } from "@/lib/sidebar-badges";
 import {
   countOpenReports,
   listContentReports,
@@ -42,9 +43,11 @@ function BlockParty({ user }: { user: UserBlockView["blocker"] }) {
 // 앱(학생·학부모·직원)에서 들어온 신고·차단을 원장이 확인하고 처리하는 화면.
 export default async function ModerationPage() {
   // 신고 처리 액션(requireFullAccess)과 같은 기준 — 원장·시스템 관리자만
-  await requireDashboardSession(isFullAccess);
+  const session = await requireDashboardSession(isFullAccess);
 
-  const [openCount, newestOpen, resolved, blocks] = await Promise.all([
+  const [, openCount, newestOpen, resolved, blocks] = await Promise.all([
+    // 사이드바 숫자에서 새 차단을 이 직원 기준으로 비운다 (신고는 처리해야 줄어든다)
+    markSeen("moderation", session.user.id),
     countOpenReports(),
     listContentReports({ status: "OPEN", take: OPEN_TAKE }),
     listContentReports({ status: "RESOLVED", take: RESOLVED_TAKE }),

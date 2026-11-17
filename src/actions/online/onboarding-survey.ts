@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireFullAccess, requireOnlineStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
-import { notifySlack } from "@/lib/slack";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 import {
   emptySurveySections,
   SURVEY_SECTIONS,
@@ -134,9 +134,12 @@ export async function submitSurvey(params: { studentToken: string }) {
     data: { submittedAt: new Date() },
   });
 
-  notifySlack(
-    `[온라인 설문] ${student.name} 학생이 초기 설문을 제출했습니다. /online/students/${studentId}/survey 에서 확인하세요.`
-  );
+  queueStaffAlert({
+    studentId,
+    title: "초기 설문 제출",
+    body: `${student.name} 학생이 초기 설문을 냈어요`,
+    url: STAFF_PUSH_ROUTES.home,
+  });
 
   revalidatePath(`/online/students/${studentId}`);
   revalidatePath(`/online/students/${studentId}/survey`);

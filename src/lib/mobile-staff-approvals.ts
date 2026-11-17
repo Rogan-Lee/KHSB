@@ -40,7 +40,8 @@ async function pendingCounts() {
   const today = todayKST();
   const [nap, network, redemption, examApplication, fulfill] = await Promise.all([
     prisma.napRequest.count({ where: { status: "PENDING", date: { gte: today } } }),
-    prisma.networkRequest.count({ where: { status: "PENDING" } }),
+    // 사용 시간이 지난 신청은 처리할 이유가 없어 뺀다 (웹 사이드바와 같은 기준)
+    prisma.networkRequest.count({ where: { status: "PENDING", endAt: { gt: new Date() } } }),
     prisma.rewardRedemption.count({ where: { status: "PENDING" } }),
     prisma.examApplication.count({
       where: {

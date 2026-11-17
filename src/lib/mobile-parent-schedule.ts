@@ -8,7 +8,6 @@ import {
 } from "@/lib/online/schedule-parent-decision";
 import { parseMobileBody, type ParentChildRef } from "@/lib/mobile-parent-services";
 import { prisma } from "@/lib/prisma";
-import { notifySlack } from "@/lib/slack";
 
 // 학부모 앱 — 등원 스케줄 확인·승인. 웹 /r/schedule/[token] 과 같은 규칙(schedule-parent-decision 공용).
 // 웹은 토큰 게이트(본인 확인 쿠키), 앱은 ParentLink 로 본인 확인을 대신한다.
@@ -139,15 +138,14 @@ async function loadOwnedProposal(children: ParentChildRef[], proposalId: string)
 }
 
 export async function approveParentSchedule(children: ParentChildRef[], proposalId: string) {
-  const { proposal, child } = await loadOwnedProposal(children, proposalId);
+  const { proposal } = await loadOwnedProposal(children, proposalId);
   if (proposal.status !== "PROPOSED") {
     throw new MobileApiError("이미 처리된 스케줄이에요", 409);
   }
   if (proposal.expiresAt && proposal.expiresAt <= new Date()) {
     throw new MobileApiError("확인 기한이 지났어요. 운영진에게 문의해 주세요", 409);
   }
-  await approveScheduleProposalCore(proposal.id);
-  notifySlack(`✅ [등원 스케줄 승인] ${child.name} 학부모가 앱에서 등원 스케줄을 승인했습니다.`);
+  await approveScheduleProposalCore(proposal.id); // 운영진 알림은 core 가 보낸다 (웹 링크 승인과 같이)
   return { ok: true };
 }
 
@@ -157,14 +155,10 @@ export async function rejectParentSchedule(
   input: unknown,
 ) {
   const body = parseMobileBody(rejectSchema, input);
-  const { proposal, child } = await loadOwnedProposal(children, proposalId);
+  const { proposal } = await loadOwnedProposal(children, proposalId);
   // 웹과 같이: 승인 전이면 반려, 반영 뒤면 의견만 남긴다
   if (!["PROPOSED", "APPROVED", "COMMITTED"].includes(proposal.status)) {
     throw new MobileApiError("이미 처리된 스케줄이에요", 409);
   }
-  const result = await rejectScheduleProposalCore(proposal.id, body.content);
-  notifySlack(
-    `✏️ [등원 스케줄 수정요청] ${child.name} 학부모 (앱): ${body.content.slice(0, 300)}\n_/online/schedules/${proposal.id} 에서 확인_`,
-  );
-  return result;
+  return rejectScheduleProposalCore(proposal.id, body.content);
 }
