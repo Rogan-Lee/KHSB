@@ -43,11 +43,18 @@ interface DashboardShellProps {
 const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
 const VIEW_MODE_KEY = "adminViewMode";
 const BADGE_MIN_INTERVAL_MS = 30_000;
-// 배지가 늘면 토스트로도 알릴 메뉴 — 숫자만으론 웹에서 새 글을 놓친다는 요청(2026-11-13)
+// 배지가 늘면 토스트로도 알릴 메뉴 — 학생·학부모·방문자가 넣는 요청·신청 전부 (2026-11-13, 11-17 요청).
+// 운영진 앱 푸시는 서버 queueStaffAlert 가 같은 건마다 보낸다.
 const NEW_ITEM_TOASTS = [
+  ["/waitlist", "입회 대기 신청·문의"],
+  ["/instructions", "학부모 요청"],
   ["/questions", "학생 질문"],
   ["/suggestions", "학생 건의사항"],
-  ["/instructions", "학부모 요청"],
+  ["/approvals", "쪽잠·네트워크 신청"],
+  ["/merit-demerit", "상점 교환 신청"],
+  ["/exams", "모의고사 신청"],
+  ["/lunch", "도시락 변경 요청·입금 알림"],
+  ["/tuition", "현장 결제 신청"],
 ] as const;
 type ViewMode = "web" | "mobile";
 
@@ -77,6 +84,9 @@ export function DashboardShell({ user, children, sidebarBadges }: DashboardShell
       const added = (badges?.[href] ?? 0) - (prev?.[href] ?? 0);
       if (added > 0) {
         toast(`${label} ${added}건이 새로 들어왔어요`, {
+          // 자리를 비운 사이에 사라지지 않게 — 닫거나 [보기]를 누를 때까지 둔다
+          duration: Infinity,
+          closeButton: true,
           action: { label: "보기", onClick: () => router.push(href) },
         });
       }

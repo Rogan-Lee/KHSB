@@ -4,7 +4,7 @@ import type { NapStatus, NetworkRequestKind } from "@/generated/prisma/enums";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { NETWORK_KIND_LABELS } from "@/lib/network-requests";
 import { prisma } from "@/lib/prisma";
-import { notifySlack } from "@/lib/slack";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 
 // 네트워크(와이파이·사이트·앱) 사용 신청(학생 측) 핵심 로직 — 학생 ID 기준.
 // 인증은 호출 측 책임: 웹 서버 액션(src/actions/network-requests.ts, 매직링크 토큰)과
@@ -126,9 +126,12 @@ export async function requestNetworkForStudent(student: StudentRef, params: Netw
     },
   });
 
-  notifySlack(
-    `📶 [네트워크 신청] ${student.name}(${student.grade}) — ${NETWORK_KIND_LABELS[params.kind]}${target ? ` · ${target}` : ""} (${params.startAt.slice(11)}~${params.endAt.slice(11)})`
-  );
+  queueStaffAlert({
+    studentId: student.id,
+    title: "새 네트워크 사용 신청",
+    body: `${student.name}(${student.grade}) — ${NETWORK_KIND_LABELS[params.kind]}${target ? ` · ${target}` : ""} (${params.startAt.slice(11)}~${params.endAt.slice(11)})`,
+    url: STAFF_PUSH_ROUTES.approvals,
+  });
   revalidatePath("/approvals");
   return { ok: true };
 }

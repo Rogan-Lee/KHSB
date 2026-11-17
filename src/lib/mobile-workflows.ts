@@ -9,7 +9,6 @@ import {
 import { prisma } from "@/lib/prisma";
 import { queueParentAttendancePush } from "@/lib/mobile-push";
 import { assertCanMessage, getBlockedKeys } from "@/lib/safety";
-import { notifySlack } from "@/lib/slack";
 
 const attachmentSchema = z.object({
   mimeType: z.string().trim().min(1).max(120),
@@ -111,10 +110,6 @@ export async function createMobileStudentQuestion(
     },
     select: { id: true },
   });
-
-  void notifySlack(
-    `📱 [학생 질문] ${student.name}(${student.grade}) · ${data.subject || "과목 미지정"} — "${data.title}"`,
-  );
 
   return question;
 }

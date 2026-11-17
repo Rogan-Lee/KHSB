@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireStaff, requireFullAccess } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifySlack } from "@/lib/slack";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 import { CATEGORY_LABELS } from "@/lib/suggestions";
 import { replyToStudentSuggestion, updateSuggestionStatus } from "@/lib/suggestion-handling";
 import type { SuggestionCategory, SuggestionStatus } from "@/generated/prisma/enums";
@@ -75,9 +76,12 @@ export async function createStudentSuggestion(params: {
     select: { id: true },
   });
 
-  notifySlack(
-    `📮 [학생 건의] ${session.student.name}(${session.student.grade}) · ${CATEGORY_LABELS[category]} — "${title}"`
-  );
+  queueStaffAlert({
+    studentId: session.student.id,
+    title: "새 학생 건의사항",
+    body: `${session.student.name} 학생 · ${CATEGORY_LABELS[category]} — "${title}"`,
+    url: STAFF_PUSH_ROUTES.suggestions,
+  });
 
   revalidatePath("/suggestions");
   revalidatePath("/");

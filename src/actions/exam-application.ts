@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
-import { notifySlack } from "@/lib/slack";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 import { todayKST } from "@/lib/utils";
 import { normalizeMobile, phonesMatch } from "@/lib/phone";
 import { hasGatePass } from "@/lib/token-auth";
@@ -126,7 +126,12 @@ export async function submitExamApplicationPublic(
     create: { sessionId, studentId, memo: trimmed },
   });
 
-  notifySlack(`📝 [모의고사 신청] ${student.name} 학생이 "${exam.title}" 신청했습니다. (공개 링크)`);
+  queueStaffAlert({
+    studentId,
+    title: "새 모의고사 신청",
+    body: `${student.name} 학생이 "${exam.title}"을 신청했어요`,
+    url: STAFF_PUSH_ROUTES.home,
+  });
   revalidatePath(`/exams/${sessionId}`);
   return { ok: true, data: { studentName: student.name } };
 }

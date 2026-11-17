@@ -2,6 +2,7 @@
 // 학부모 경로는 호출 측이 ParentLink 로 자녀를 검증한 뒤 studentId 를 넘긴다 — 여기서는 청구서가 그 자녀 것인지 다시 본다.
 
 import { getAppUrl } from "@/lib/app-url";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 import { prisma } from "@/lib/prisma";
 import { dispatchTuitionEffects, type TuitionEffect } from "@/lib/tuition/effects";
 import { recordTuitionEvent } from "@/lib/tuition/events";
@@ -455,7 +456,7 @@ export async function requestOnsitePayment(input: {
       if (existing.method !== input.method) {
         await tx.tuitionPayment.update({ where: { id: existing.id }, data: { method: input.method } });
       }
-      return { paymentId: existing.id, effects: [] as TuitionEffect[] };
+      return { paymentId: existing.id, effects: [] as TuitionEffect[], alert: null };
     }
 
     // 현장에서 내기로 했으니 열려 있던 결제 링크는 닫는다 (둘 다 결제되는 일을 줄인다)
@@ -480,14 +481,14 @@ export async function requestOnsitePayment(input: {
       paymentId: created.id,
       detail: `${label} 현장 결제 신청`,
     });
-    effects.push({
-      kind: "slack",
-      text: `[수강료] ${invoice.student.name} 학부모가 ${label} 현장 결제를 신청했습니다 — ${invoice.title} ${won(invoice.amount)}`,
-    });
-    return { paymentId: created.id, effects };
+    const alert = `${invoice.student.name} 학부모 · ${label} — ${invoice.title} ${won(invoice.amount)}`;
+    return { paymentId: created.id, effects, alert };
   }, TUITION_TX);
 
   dispatchTuitionEffects(result.effects);
+  if (result.alert) {
+    queueStaffAlert({ studentId, title: "새 현장 결제 신청", body: result.alert, url: STAFF_PUSH_ROUTES.home });
+  }
   return { paymentId: result.paymentId };
 }
 

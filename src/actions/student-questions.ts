@@ -7,7 +7,7 @@ import { latestIdsPerGroup } from "@/lib/db/latest-per-group";
 import { requireStaff } from "@/lib/roles";
 import { assertCanMessage } from "@/lib/safety";
 import { validateMagicLink } from "@/lib/student-auth";
-import { notifySlack } from "@/lib/slack";
+import { notifyAssignedStaffOfQuestion, runAfterResponse } from "@/lib/mobile-push";
 import { sanitizePortalAttachments } from "@/lib/portal-attachments";
 import {
   claimStudentQuestionFor,
@@ -82,9 +82,7 @@ export async function createStudentQuestion(params: {
     select: { id: true },
   });
 
-  notifySlack(
-    `📷 [학생 질문] ${session.student.name}(${session.student.grade}) · ${subject ?? "과목 미지정"} — "${title}"`
-  );
+  runAfterResponse(() => notifyAssignedStaffOfQuestion({ questionId: question.id }));
 
   revalidatePath("/questions");
   return { id: question.id };
@@ -262,9 +260,7 @@ export async function addStudentQuestionMessage(params: {
     }),
   ]);
 
-  notifySlack(
-    `💬 [학생 질문 추가] ${session.student.name} — "${question.title}"`
-  );
+  runAfterResponse(() => notifyAssignedStaffOfQuestion({ questionId: question.id }));
 
   revalidatePath("/questions");
   revalidatePath(`/questions/${question.id}`);
