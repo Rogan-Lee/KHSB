@@ -3,6 +3,7 @@ import {
   Bell,
   CalendarDays,
   CircleHelp,
+  ClipboardList,
   ClipboardCheck,
   Coins,
   FileText,
@@ -47,6 +48,7 @@ import {
   type Tone,
 } from '@/design';
 import { FOCUS_ROUTE, FOCUS_SUPPORTED } from '@/features/student-focus/focus';
+import { INSTRUCTIONS_ROUTE } from '@/features/student-instructions/home-section';
 import { STUDENT_HOME_PATH, type StudentHomeResponse } from '@/lib/api/student-home';
 import { refreshBadges } from '@/lib/badges';
 import { useMobileQuery } from '@/lib/mobile-api';
@@ -173,6 +175,14 @@ function MenuContent({
       icon: MessageSquare,
       tone: 'info',
       badge: badges.chat,
+    },
+    {
+      href: INSTRUCTIONS_ROUTE,
+      label: '선생님 지시',
+      description: '선생님이 보낸 지시를 확인해요',
+      icon: ClipboardList,
+      tone: 'violet',
+      badge: badges.instructions ?? 0,
     },
     {
       href: '/(student)/suggestions',

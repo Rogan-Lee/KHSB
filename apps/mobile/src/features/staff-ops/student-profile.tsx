@@ -43,6 +43,7 @@ import {
   Text,
   toast,
 } from '@/design';
+import { StudentInstructions } from '@/features/staff-instructions/student-instructions';
 import { formatRelativeTime } from '@/lib/format';
 import { useMobileQuery } from '@/lib/mobile-api';
 import type { MobileOuting } from '@/lib/mobile-api';
@@ -295,7 +296,7 @@ export function StudentProfileBody({
             { value: 'merits', label: '상벌점' },
             { value: 'tasks', label: '과제', count: openTasks },
             { value: 'scores', label: '성적' },
-            { value: 'requests', label: '요청', count: data.communications.unchecked },
+            { value: 'requests', label: '요청·지시', count: data.communications.unchecked },
           ]}
           value={tab}
           onChange={setTab}
@@ -784,7 +785,7 @@ function ScoresTab({ items }: { items: OpsStudentProfile['scores'] }) {
   );
 }
 
-// ─── 탭: 요청 (학부모 요청 · 운영진 전달) ─────────────────────────────
+// ─── 탭: 요청·지시 (학부모 요청 · 운영진 전달 · 학생 지시) ───────────────
 
 function RequestsTab({
   studentId,
@@ -845,6 +846,10 @@ function RequestsTab({
             </CommunicationRow>
           ))
         )}
+      </Section>
+
+      <Section title="학생 지시" description="학생에게 할 일을 바로 보내요">
+        <StudentInstructions studentId={studentId} compose />
       </Section>
 
       {checked.length > 0 && (

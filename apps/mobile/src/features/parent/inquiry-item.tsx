@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { Badge, Press, radius, space, Text } from '@/design';
+import { Badge, color, Press, radius, space, Text } from '@/design';
 import type { ParentInquiry } from '@/lib/api/parent-services';
 
 import { kstDateTimeLabel, kstRelativeLabel } from './notice-format';
 
-/** 보낸 문의 한 건 — 종류 · 확인 상태 · 내용(길면 눌러서 펼치기) · 보낸 시각 */
+/** 보낸 문의 한 건 — 종류 · 확인 상태 · 내용(길면 눌러서 펼치기) · 보낸 시각 · 학생에게 전달한 지시 */
 export function InquiryItem({ item }: { item: ParentInquiry }) {
   const [open, setOpen] = useState(false);
   const long = item.content.length > 90 || item.content.split('\n').length > 3;
+  const sent = item.instructions ?? [];
+  const status = sent.length > 0 ? '전달 완료' : item.checked ? '확인됨' : '확인 대기';
 
   return (
     <Press
@@ -18,12 +20,12 @@ export function InquiryItem({ item }: { item: ParentInquiry }) {
       scale={0}
       pressedBg={long}
       accessibilityRole={long ? 'button' : 'text'}
-      accessibilityLabel={`${item.kindLabel} 문의, ${item.checked ? '확인됨' : '확인 대기'}, ${item.content}`}
+      accessibilityLabel={`${item.kindLabel} 문의, ${status}, ${item.content}`}
       accessibilityHint={long ? (open ? '눌러서 접기' : '눌러서 전체 보기') : undefined}
       style={s.item}>
       <View style={s.meta}>
         <Badge tone="gray">{item.kindLabel}</Badge>
-        {item.checked ? <Badge tone="ok">확인됨</Badge> : <Badge tone="warn">확인 대기</Badge>}
+        <Badge tone={sent.length > 0 || item.checked ? 'ok' : 'warn'}>{status}</Badge>
         <Text variant="t3-regular" color="neutralSubtle" tabular style={{ marginLeft: 'auto' }}>
           {kstRelativeLabel(item.createdAt)}
         </Text>
@@ -41,6 +43,22 @@ export function InquiryItem({ item }: { item: ParentInquiry }) {
           {kstDateTimeLabel(item.checkedAt)}에 확인했어요
         </Text>
       )}
+      {sent.length > 0 && (
+        <View style={s.sent}>
+          <Text variant="t3-bold" color="neutralMuted">
+            학생에게 전달했어요
+          </Text>
+          {sent.map((it, i) => (
+            <View key={i} style={{ gap: space.x0_5 }}>
+              <Text variant="t4-regular">{it.content}</Text>
+              <Text variant="t3-regular" color={it.ackedAt ? 'neutralSubtle' : 'warning'} tabular>
+                {kstRelativeLabel(it.sentAt)} 전달 ·{' '}
+                {it.ackedAt ? `학생 확인 ${kstDateTimeLabel(it.ackedAt)}` : '학생 확인 전'}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
     </Press>
   );
 }
@@ -54,4 +72,12 @@ const s = StyleSheet.create({
     gap: space.x2,
   },
   meta: { flexDirection: 'row', alignItems: 'center', gap: space.x1_5, flexWrap: 'wrap' },
+  sent: {
+    marginTop: space.x1,
+    borderRadius: radius.r3_5,
+    backgroundColor: color.bg.layerFill,
+    paddingHorizontal: space.x4,
+    paddingVertical: space.x3_5,
+    gap: space.x2_5,
+  },
 });

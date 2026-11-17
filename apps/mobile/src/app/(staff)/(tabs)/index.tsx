@@ -3,6 +3,7 @@ import {
   CircleCheck,
   CircleQuestionMark,
   ClipboardList,
+  ClipboardPen,
   Clock,
   DoorOpen,
   BookOpenCheck,
@@ -87,7 +88,18 @@ type Priority = {
 };
 
 function buildPriorities(p: StaffTodayResponse['priorities'], caps: StaffCapabilities): Priority[] {
+  const instructions = p.instructions ?? 0;
   const rows: (Priority | false)[] = [
+    !!instructions &&
+      canOpen(caps, 'instructions') && {
+        key: 'instructions',
+        icon: ClipboardPen,
+        tone: 'violet',
+        title: '학부모 요청',
+        description: 'AI 초안을 확인하고 학생에게 지시해 주세요',
+        count: instructions,
+        href: STAFF_DEST.instructions.href,
+      },
     !!p.approvals &&
       canOpen(caps, 'approvals') && {
         key: 'approvals',
@@ -188,6 +200,8 @@ const SHORTCUT_ORDER: StaffDest[] = [
   'tasks',
   'inbox',
   'work',
+  // 8칸 제한이라 오프라인 운영진에게는 잘린다 — 그쪽은 우선순위 카드·전체 탭으로 들어간다
+  'instructions',
 ];
 
 export default function StaffHomeScreen() {
@@ -267,7 +281,9 @@ export default function StaffHomeScreen() {
               : 0
             : k === 'inbox'
               ? (data.priorities.unreadMessages ?? 0)
-              : 0,
+              : k === 'instructions'
+                ? (data.priorities.instructions ?? 0)
+                : 0,
     }));
 
   // ── 카드들 ──
