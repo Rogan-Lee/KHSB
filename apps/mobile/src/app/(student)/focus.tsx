@@ -1,6 +1,6 @@
 import { Lock } from 'lucide-react-native';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import * as DA from 'react-native-device-activity';
 
 import {
@@ -17,7 +17,9 @@ import {
   TextField,
   toast,
 } from '@/design';
+import { AndroidAppPicker, AndroidPermissionSteps } from '@/features/student-focus/android';
 import {
+  ANDROID_GUARD,
   clock,
   FOCUS_SUPPORTED,
   keepFocus,
@@ -30,7 +32,7 @@ import {
 } from '@/features/student-focus/focus';
 import { SubmitBlock } from '@/features/student-life/ui';
 
-// 집중 모드 설정 — 권한 허용 → 잠글 앱·사이트 → 잠금 비밀번호 → 시작. 끝낼 때까지 잠기고,
+// 집중 모드 설정 — 권한 허용(iOS 스크린 타임 / 안드로이드 사용 정보 접근·다른 앱 위에 표시) → 잠글 앱 → 잠금 비밀번호 → 시작. 끝낼 때까지 잠기고,
 // 2시간이 지나면 계속할지 묻고 3시간까지 답이 없으면 풀린다. 동작·약관 메모는 features/student-focus/focus.ts.
 // 잠글 앱 바꾸기·비밀번호 바꾸기·끝내기에는 비밀번호가 필요하다(시작에는 불필요 — 홈 카드에서 바로 켠다).
 // 비밀번호를 잊으면 강한선배 로그인 비밀번호로 초기화한다.
@@ -38,7 +40,13 @@ import { SubmitBlock } from '@/features/student-life/ui';
 export default function StudentFocusScreen() {
   return (
     <Screen kind="push" title="집중 모드" backFallback="/(student)/(tabs)/menu">
-      {FOCUS_SUPPORTED ? <Focus /> : <Notice tone="gray">iOS·iPadOS 18 이상에서 쓸 수 있어요.</Notice>}
+      {FOCUS_SUPPORTED ? (
+        <Focus />
+      ) : (
+        <Notice tone="gray">
+          {Platform.OS === 'android' ? '앱을 최신 버전으로 업데이트하면 쓸 수 있어요.' : 'iOS·iPadOS 18 이상에서 쓸 수 있어요.'}
+        </Notice>
+      )}
     </Screen>
   );
 }
@@ -72,6 +80,10 @@ function Focus() {
       }}
     />
   );
+
+  if (!f.approved && ANDROID_GUARD) {
+    return <AndroidPermissionSteps usageAccess={f.usageAccess} overlay={f.overlay} />;
+  }
 
   if (!f.approved) {
     return (
@@ -161,7 +173,7 @@ function Focus() {
       <Section flush>
         <ListRow
           onPress={() => withPin('잠글 앱을 바꾸려면 잠금 비밀번호를 입력해 주세요', () => setPickerOpen(true))}
-          title="잠글 앱·사이트"
+          title={ANDROID_GUARD ? '잠글 앱' : '잠글 앱·사이트'}
           description={f.picked > 0 ? `${f.picked}개 골랐어요` : '아직 고르지 않았어요'}
         />
         <ListRow
@@ -183,7 +195,10 @@ function Focus() {
         disabled={!f.ready}
         onPress={() => void run(startFocus)}
       />
-      {pickerOpen && (
+      {pickerOpen && ANDROID_GUARD && (
+        <AndroidAppPicker onClose={() => setPickerOpen(false)} onSaved={f.refresh} />
+      )}
+      {pickerOpen && !ANDROID_GUARD && (
         <DA.DeviceActivitySelectionSheetViewPersisted
           familyActivitySelectionId={SELECTION_ID}
           // 이 값이 있어야 라이브러리가 저장된 선택을 피커에 불러온다. 없으면 빈 선택으로 열리고

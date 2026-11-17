@@ -18,8 +18,7 @@
     "android": {
       "package": "com.khsb.mobile",
       "blockedPermissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.SYSTEM_ALERT_WINDOW"
+        "android.permission.RECORD_AUDIO"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
