@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
-import { notifySlack } from "@/lib/slack";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 import { CATEGORY_LABELS, STATUS_LABELS } from "@/lib/suggestions";
 import type { SuggestionCategory } from "@/generated/prisma/enums";
 
@@ -108,9 +108,12 @@ export async function createMobileStudentSuggestion(
     select: { id: true },
   });
 
-  void notifySlack(
-    `📮 [학생 건의·앱] ${student.name}(${student.grade}) · ${CATEGORY_LABELS[category]} — "${title}"`,
-  );
+  queueStaffAlert({
+    studentId: student.id,
+    title: "새 학생 건의사항",
+    body: `${student.name} 학생 · ${CATEGORY_LABELS[category]} — "${title}"`,
+    url: STAFF_PUSH_ROUTES.suggestions,
+  });
 
   // 웹 액션(createStudentSuggestion)과 같은 경로 갱신 — 직원 건의 목록·대시보드
   revalidatePath("/suggestions");

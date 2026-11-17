@@ -45,8 +45,10 @@ import {
   notifyParentsOfStudent,
   processPendingPushReceipts,
   queueParentAttendancePush,
+  queueStaffAlert,
   registerMobilePushToken,
   sendMobilePush,
+  STAFF_PUSH_ROUTES,
 } from "@/lib/mobile-push";
 
 const token = "ExponentPushToken[test_token-1]";
@@ -208,6 +210,43 @@ describe("notifyAssignedStaffOfQuestion", () => {
         }),
       }),
     );
+  });
+});
+
+describe("queueStaffAlert", () => {
+  it("sends a student's request to the assigned staff", async () => {
+    vi.mocked(prisma.student.findUnique).mockResolvedValue({
+      assignedConsultantId: null,
+      assignedMentorId: "mentor-1",
+      assignedStaffId: null,
+      mentorId: null,
+    } as never);
+    vi.mocked(prisma.authUser.findMany).mockResolvedValue([{ id: "auth-mentor-1" }] as never);
+    vi.mocked(prisma.devicePushToken.findMany).mockResolvedValue([]);
+
+    queueStaffAlert({ studentId: "student-1", title: "새 쪽잠 신청", body: "김학생", url: STAFF_PUSH_ROUTES.approvals });
+
+    await vi.waitFor(() =>
+      expect(prisma.devicePushToken.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { authUserId: { in: ["auth-mentor-1"] }, enabled: true } }),
+      ),
+    );
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it("sends a waitlist entry (no student) to supervisors", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: "director-1" }] as never);
+    vi.mocked(prisma.authUser.findMany).mockResolvedValue([{ id: "auth-director-1" }] as never);
+    vi.mocked(prisma.devicePushToken.findMany).mockResolvedValue([]);
+
+    queueStaffAlert({ studentId: null, title: "새 입회 문의", body: "홍길동", url: STAFF_PUSH_ROUTES.home });
+
+    await vi.waitFor(() =>
+      expect(prisma.devicePushToken.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { authUserId: { in: ["auth-director-1"] }, enabled: true } }),
+      ),
+    );
+    expect(prisma.student.findUnique).not.toHaveBeenCalled();
   });
 });
 

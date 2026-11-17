@@ -12,7 +12,6 @@ import { latestIdsPerGroup } from "@/lib/db/latest-per-group";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
 import { getBlockedKeys } from "@/lib/safety";
-import { notifySlack } from "@/lib/slack";
 
 const MAX_TITLE_LEN = 120;
 const MAX_SUBJECT_LEN = 40;
@@ -277,10 +276,7 @@ export async function submitMobileStudentQuestion(
     select: { id: true },
   });
 
-  void notifySlack(
-    `📱 [학생 질문] ${student.name}(${student.grade}) · ${subject ?? "과목 미지정"} — "${data.title}"`,
-  );
-
+  // 운영진 앱 푸시는 라우트가 응답 뒤에 보낸다 (notifyAssignedStaffOfQuestion)
   return { id: question.id };
 }
 
@@ -319,8 +315,6 @@ export async function addMobileStudentQuestionReply(
       data: { lastMessageAt: now, studentReadAt: now, staffReadAt: null },
     }),
   ]);
-
-  void notifySlack(`📱 [학생 질문 추가] ${student.name} — "${question.title}"`);
 
   return { ok: true };
 }

@@ -8,6 +8,7 @@ import { randomInt, randomUUID } from "node:crypto";
 import { checkMessageExists, createSmsQrCode, OCTOMO_RECEIVER } from "@/lib/octomo";
 import { grantGatePass, hasGatePass } from "@/lib/token-auth";
 import { createOpaqueToken } from "@/lib/auth-tokens";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 import {
   normalizePhone,
   splitContactPhones,
@@ -303,6 +304,14 @@ export async function submitWaitlist(
       consentMarketing: Boolean(input.consentMarketing),
       phoneVerifiedAt: verified?.verifiedAt ?? null,
     },
+  });
+
+  const who = [entry.name, [entry.school, entry.grade].filter(Boolean).join(" ")].filter(Boolean).join(" · ");
+  queueStaffAlert({
+    studentId: null,
+    title: kind === "WAITLIST" ? "새 입회 대기 신청" : "새 입회 문의",
+    body: entry.note ? `${who} — ${entry.note}` : who,
+    url: STAFF_PUSH_ROUTES.home,
   });
 
   return { ok: true, data: { token: entry.token } };

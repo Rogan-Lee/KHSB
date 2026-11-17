@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
-import { notifySlack } from "@/lib/slack";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 import { todayKST } from "@/lib/utils";
 
 // 모의고사 신청/취소(학생·학부모 측) 핵심 로직 — 학생 ID 기준.
@@ -12,7 +12,7 @@ import { todayKST } from "@/lib/utils";
 /**
  * 모의고사 신청(또는 재신청). 세션이 신청 접수중(applicationOpen)이고 시험일이 지나지 않아야 함.
  * 이미 신청 이력이 있으면(취소/반려 포함) PENDING 으로 되돌려 재접수.
- * via: Slack 문구 끝에 붙는 경로 표시 (예: " (학부모 앱)"). 웹은 생략 → 기존 문구 그대로.
+ * via: 운영진 알림 문구 끝에 붙는 경로 표시 (예: " (학부모 앱)"). 웹은 생략.
  */
 export async function submitExamApplicationForStudent(
   student: { id: string; name: string },
@@ -33,7 +33,12 @@ export async function submitExamApplicationForStudent(
     create: { sessionId, studentId: student.id, memo: trimmed },
   });
 
-  notifySlack(`📝 [모의고사 신청] ${student.name} 학생이 "${exam.title}" 신청했습니다.${via}`);
+  queueStaffAlert({
+    studentId: student.id,
+    title: "새 모의고사 신청",
+    body: `${student.name} 학생이 "${exam.title}"을 신청했어요${via}`,
+    url: STAFF_PUSH_ROUTES.home,
+  });
   revalidatePath(`/exams/${sessionId}`);
   return { ok: true };
 }

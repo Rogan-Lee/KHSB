@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { isLunchLocked } from "@/lib/lunch-lock";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
-import { notifySlack } from "@/lib/slack";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 import { todayKST } from "@/lib/utils";
 
 // 도시락 신청(학부모/학생 측) 핵심 로직 — 학생 ID 기준.
@@ -88,7 +88,7 @@ export async function submitLunchOrderForStudent(
 
 /**
  * "입금했어요" 알림 — 미결제 주문에 표식. 관리자는 이후 실제 확인.
- * via: Slack 문구 끝에 붙는 경로 표시 (예: " (학부모 앱)"). 웹은 생략 → 기존 문구 그대로.
+ * via: 운영진 알림 문구 끝에 붙는 경로 표시 (예: " (학부모 앱)"). 웹은 생략.
  */
 export async function claimLunchDepositForStudent(student: LunchStudent, via = "") {
   const order = await prisma.lunchOrder.findFirst({
@@ -100,14 +100,17 @@ export async function claimLunchDepositForStudent(student: LunchStudent, via = "
     where: { id: order.id },
     data: { depositClaimedAt: new Date() },
   });
-  notifySlack(
-    `💰 [도시락 입금알림] ${student.name} 학부모가 입금 완료를 알렸습니다. 확인 후 처리해 주세요.${via}`,
-  );
+  queueStaffAlert({
+    studentId: student.id,
+    title: "도시락 입금 확인 요청",
+    body: `${student.name} 학부모가 입금했다고 알렸어요. 확인 후 처리해 주세요${via}`,
+    url: STAFF_PUSH_ROUTES.home,
+  });
   revalidatePath("/lunch");
   return { ok: true };
 }
 
-/** 변경 요청 — 학생별 스레드에 누적. Slack 알림. */
+/** 변경 요청 — 학생별 스레드에 누적. 운영진 앱 푸시. */
 export async function requestLunchChangeForStudent(
   student: LunchStudent,
   message: string,
@@ -118,7 +121,12 @@ export async function requestLunchChangeForStudent(
   await prisma.lunchChangeRequest.create({
     data: { studentId: student.id, message: msg.slice(0, 1000) },
   });
-  notifySlack(`✏️ [도시락 변경요청] ${student.name}: ${msg.slice(0, 300)}${via}`);
+  queueStaffAlert({
+    studentId: student.id,
+    title: "새 도시락 변경 요청",
+    body: `${student.name}${via}: ${msg}`,
+    url: STAFF_PUSH_ROUTES.home,
+  });
   revalidatePath("/lunch");
   return { ok: true };
 }

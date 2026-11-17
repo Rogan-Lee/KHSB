@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import type { NapStatus } from "@/generated/prisma/enums";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
-import { notifySlack } from "@/lib/slack";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 import { todayKST } from "@/lib/utils";
 
 // 쪽잠 신청(학생 측) 핵심 로직 — 학생 ID 기준.
@@ -98,9 +98,12 @@ export async function requestNapForStudent(
     },
   });
 
-  notifySlack(
-    `😴 [쪽잠 신청] ${student.name}(${student.grade}) — ${params.startTime} · ${params.durationMin}분`
-  );
+  queueStaffAlert({
+    studentId: student.id,
+    title: "새 쪽잠 신청",
+    body: `${student.name}(${student.grade}) — ${params.startTime}부터 ${params.durationMin}분`,
+    url: STAFF_PUSH_ROUTES.approvals,
+  });
   revalidatePath("/approvals");
   return { ok: true };
 }

@@ -4,7 +4,7 @@ import type { RedemptionStatus } from "@/generated/prisma/enums";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { calcPointBalance } from "@/lib/points";
 import { prisma } from "@/lib/prisma";
-import { notifySlack } from "@/lib/slack";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 
 // 학생 포인트·기프티콘 교환(학생 측) 핵심 로직 — 학생 ID 기준.
 // 인증은 호출 측 책임: 웹 서버 액션(src/actions/rewards.ts, 매직링크 토큰)과
@@ -156,9 +156,12 @@ export async function requestRedemptionForStudent(
     select: { id: true },
   });
 
-  notifySlack(
-    `🎁 [포인트 상점] ${student.name}(${student.grade}) — "${item.name}" ${item.points}점 교환 신청`
-  );
+  queueStaffAlert({
+    studentId,
+    title: "새 상점 교환 신청",
+    body: `${student.name}(${student.grade}) — "${item.name}" ${item.points}점`,
+    url: STAFF_PUSH_ROUTES.approvals,
+  });
 
   revalidatePath("/merit-demerit");
   return { id: redemption.id };

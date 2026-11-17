@@ -306,7 +306,11 @@ async function assignedStaffAuthUserIds(studentId: string) {
   ];
   const assignedAuthUserIds = await authUserIdsForAppUsers(assignedIds);
   if (assignedAuthUserIds.length > 0) return assignedAuthUserIds;
+  return supervisorAuthUserIds();
+}
 
+/** 원장급(시스템 관리자·원장·총괄 멘토) */
+async function supervisorAuthUserIds() {
   const supervisors = await prisma.user.findMany({
     where: {
       role: { in: ["SUPER_ADMIN", "DIRECTOR", "HEAD_MENTOR"] },
@@ -315,6 +319,37 @@ async function assignedStaffAuthUserIds(studentId: string) {
     select: { id: true },
   });
   return authUserIdsForAppUsers(supervisors.map((user) => user.id));
+}
+
+/** 운영진 앱 알림 탭 시 이동 경로 — 앱 notification-routes.ts 허용 목록에 있는 것만 쓴다 */
+export const STAFF_PUSH_ROUTES = {
+  home: "/(staff)/(tabs)",
+  approvals: "/(staff)/approvals",
+  suggestions: "/(staff)/suggestions",
+} as const;
+
+/**
+ * 학생·학부모·방문자가 넣은 새 요청·신청 → 운영진 앱 푸시. 응답 뒤에 보내고 절대 throw 하지 않는다.
+ * 학생 건은 담당 운영진(없으면 원장급), 학생이 없는 건(입회 대기 신청·문의)은 원장급.
+ * 웹은 사이드바 숫자(sidebar-badges.ts)와 새 건 알림창(dashboard-shell.tsx)이 따로 맡는다.
+ */
+export function queueStaffAlert(input: {
+  studentId: string | null;
+  title: string;
+  body: string;
+  url: (typeof STAFF_PUSH_ROUTES)[keyof typeof STAFF_PUSH_ROUTES];
+}) {
+  runAfterResponse(async () =>
+    sendMobilePush({
+      authUserIds: input.studentId
+        ? await assignedStaffAuthUserIds(input.studentId)
+        : await supervisorAuthUserIds(),
+      body: input.body.slice(0, 150),
+      category: "SYSTEM",
+      data: { url: input.url },
+      title: input.title,
+    }),
+  );
 }
 
 async function safelySend(input: Parameters<typeof sendMobilePush>[0]) {
@@ -496,12 +531,12 @@ export async function notifyParentsOfStudent(
 }
 
 /** 응답을 보낸 뒤 실행 (Vercel waitUntil). 요청 스코프 밖(스크립트·테스트)이면 그냥 비동기로. */
-function runAfterResponse(task: () => Promise<unknown>) {
+export function runAfterResponse(task: () => Promise<unknown>) {
   const run = async () => {
     try {
       await task();
     } catch (error) {
-      console.error("[mobile-push:parent]", error);
+      console.error("[mobile-push]", error);
     }
   };
   try {

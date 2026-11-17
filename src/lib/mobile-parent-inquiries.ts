@@ -8,7 +8,6 @@ import {
   validateParentFeedbackContent,
 } from "@/lib/online/parent-feedback";
 import { prisma } from "@/lib/prisma";
-import { notifySlack } from "@/lib/slack";
 
 // 학부모 앱 — 원장님께 문의. 운영진이 쓰는 학생별 소통 기록(Communication, PARENT_REQUEST)에
 // 그대로 쌓여 입퇴실·학생 상세 화면에서 확인(isChecked)된다. 운영진이 학생 지시로 바꿔 보내면
@@ -132,9 +131,7 @@ export async function createParentInquiry(
     select: { id: true },
   });
 
-  notifySlack(
-    `📨 [학부모 문의 · ${kindLabel}] ${child.name} 학부모 (앱): ${body.content.slice(0, 300)}`,
-  );
+  // 운영진 앱 푸시는 라우트가 응답 뒤에 보낸다 (afterParentRequestCreated)
   revalidatePath(`/students/${child.id}`);
   revalidatePath("/attendance");
   return { id: created.id };

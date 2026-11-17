@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { isStaff } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
+import { markWaitlistSeen } from "@/lib/sidebar-badges";
 import { normalizeDigits } from "@/lib/token-auth";
 import { WaitlistAdmin } from "@/components/waitlist/waitlist-admin";
 import { PageHeader } from "@/components/backoffice/ui";
@@ -13,7 +14,9 @@ export default async function WaitlistAdminPage() {
   if (!session?.user) redirect("/sign-in");
   if (!isStaff(session.user.role)) redirect("/");
 
-  const [branches, entries, grouped, students] = await Promise.all([
+  const [, branches, entries, grouped, students] = await Promise.all([
+    // 사이드바 "새 신청" 숫자를 이 직원 기준으로 비운다 — 목록 조회와 같이 돌려도 된다
+    markWaitlistSeen(session.user.id),
     prisma.branch.findMany({
       orderBy: { sortOrder: "asc" },
       include: { programs: { orderBy: { sortOrder: "asc" } } },
