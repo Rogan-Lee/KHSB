@@ -11,6 +11,7 @@ import { MobileApiError } from "@/lib/mobile-auth";
 import { compareSeat } from "@/lib/patrol";
 import { prisma } from "@/lib/prisma";
 import { offlineStudentWhere } from "@/lib/student-filters";
+import { dayStudyMinutes } from "@/lib/study-time";
 
 const ABSENT_TYPES = new Set<AttendanceType>([
   "ABSENT",
@@ -452,6 +453,8 @@ async function loadAttendanceItems(
       school: student.school,
       seat: student.seat,
       status,
+      // 오늘 공부 시간(분) — 입실~퇴실(진행 중이면 지금까지)에서 외출 뺀 값, 학부모 앱과 같은 계산
+      studyMinutes: dayStudyMinutes(attendance, student.dailyOutings, { now, live: true }),
       time: eventTime,
       unreadRequests: student._count.communications,
     };

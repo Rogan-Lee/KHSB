@@ -16,8 +16,10 @@ import { submitScheduleProposalForStudent } from "@/lib/online/schedule-student-
 import { prisma } from "@/lib/prisma";
 import {
   getDailyPlansForStudent,
+  getDailyPlansRange,
   getWeekScheduleForStudent,
   saveDailyPlanForStudent,
+  saveDailyPlansForStudent,
 } from "@/lib/student-schedule-core";
 import { todayKST } from "@/lib/utils";
 
@@ -118,6 +120,7 @@ const planItemSchema = z.object({
   done: z.boolean(),
   colorCode: z.string().max(50).optional(),
   duration: z.number().nullable().optional(),
+  subject: z.string().max(50).nullable().optional(),
 });
 
 const planSchema = z.object({
@@ -125,16 +128,56 @@ const planSchema = z.object({
   items: z.array(planItemSchema).max(50, "계획은 50개까지 추가할 수 있어요"),
 });
 
+type PlanItemInput = z.infer<typeof planItemSchema>;
+
+const toPlanItems = (items: PlanItemInput[]) =>
+  items.map(({ duration, subject, ...it }) => ({
+    ...it,
+    colorCode: it.colorCode ?? "blue",
+    ...(typeof duration === "number" ? { duration } : {}),
+    ...(subject ? { subject } : {}),
+  }));
+
+/** 예전 앱(오늘/내일 화면) — PUT /student/schedule/plans */
 export async function saveMobileStudentPlan(studentId: string, input: unknown) {
   const body = parseBody(planSchema, input);
-  return saveDailyPlanForStudent(
+  return saveDailyPlanForStudent(studentId, body.date, toPlanItems(body.items));
+}
+
+// ── 공부 플래너 (기간 조회 · 여러 날 저장) ──────────────────────────────────
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+const plansSchema = z.object({
+  // 내일로 미루기 = 2일, 지난주 계획 가져오기 = 7일
+  days: z.array(planSchema).min(1).max(7, "한 번에 7일까지 저장할 수 있어요"),
+});
+
+/** 기간 계획 — from/to 없으면 이번 주(월~일) */
+export async function getStudentPlansRange(studentId: string, from: string | null, to: string | null) {
+  const today = todayKST();
+  const todayStr = today.toISOString().slice(0, 10);
+  let fromStr = from;
+  let toStr = to;
+  if (!fromStr || !toStr) {
+    const dow = today.getUTCDay();
+    const monday = new Date(today.getTime() + (dow === 0 ? -6 : 1 - dow) * 86_400_000);
+    fromStr = monday.toISOString().slice(0, 10);
+    toStr = new Date(monday.getTime() + 6 * 86_400_000).toISOString().slice(0, 10);
+  }
+  if (!DATE.test(fromStr) || !DATE.test(toStr)) throw new MobileApiError("날짜를 확인해 주세요", 400);
+  return { today: todayStr, from: fromStr, to: toStr, days: await getDailyPlansRange(studentId, fromStr, toStr) };
+}
+
+/** PUT /student/plans { days: [{ date, items }] } — 날짜마다 항목 전체 교체 */
+export async function saveMobileStudentPlans(studentId: string, input: unknown) {
+  const body = parseBody(plansSchema, input);
+  if (new Set(body.days.map((d) => d.date)).size !== body.days.length) {
+    throw new MobileApiError("같은 날짜가 두 번 들어갔어요", 400);
+  }
+  return saveDailyPlansForStudent(
     studentId,
-    body.date,
-    body.items.map(({ duration, ...it }) => ({
-      ...it,
-      colorCode: it.colorCode ?? "blue",
-      ...(typeof duration === "number" ? { duration } : {}),
-    })),
+    body.days.map((d) => ({ date: d.date, items: toPlanItems(d.items) })),
   );
 }
 

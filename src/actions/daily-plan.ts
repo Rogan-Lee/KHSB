@@ -4,14 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { requireAnyStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
+import { sanitizePlanItems as sanitizeShared, type StudentPlanItem } from "@/lib/student-schedule-core";
 
-export type PlanItem = {
-  id: string;
-  text: string;
-  done: boolean;
-  colorCode: string;
-  duration?: number; // minutes
-};
+export type PlanItem = StudentPlanItem;
 
 export async function getDailyPlan(studentId: string, date: Date) {
   const session = await auth();
@@ -33,20 +28,8 @@ export async function getDailyPlan(studentId: string, date: Date) {
   };
 }
 
-// JSON 컬럼에 클라이언트 객체를 그대로 저장하지 않고 알려진 필드만 길이 제한해 남긴다
-// (lib/student-schedule-core.ts sanitizeItems 와 같은 규칙, 스태프 화면이라 상한만 조금 넉넉히).
-function sanitizePlanItems(items: PlanItem[]): PlanItem[] {
-  if (!Array.isArray(items)) return [];
-  return items.slice(0, 100).map((it) => ({
-    id: String(it?.id ?? "").slice(0, 40),
-    text: String(it?.text ?? "").slice(0, 500),
-    done: Boolean(it?.done),
-    colorCode: String(it?.colorCode ?? "blue").slice(0, 20),
-    ...(typeof it?.duration === "number" && Number.isFinite(it.duration)
-      ? { duration: Math.max(0, Math.min(1440, Math.round(it.duration))) }
-      : {}),
-  }));
-}
+// 학생 앱·포털과 같은 정리 규칙(lib/student-schedule-core) — 스태프 화면이라 상한만 조금 넉넉히
+const sanitizePlanItems = (items: PlanItem[]) => sanitizeShared(items, { maxItems: 100, textMax: 500 });
 
 export async function upsertDailyPlan(
   studentId: string,

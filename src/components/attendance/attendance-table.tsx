@@ -9,6 +9,7 @@ import { createMeritDemerit } from "@/actions/merit-demerit";
 import { createStudyPlanReport } from "@/actions/study-plan-reports";
 import { toast } from "sonner";
 import { cn, MERIT_CATEGORIES } from "@/lib/utils";
+import { dayStudyMinutes } from "@/lib/study-time";
 import type { AttendanceRecord, AttendanceSchedule, AttendanceType, DailyOuting, OutingSchedule, Student } from "@/generated/prisma";
 import { ArrowRightLeft, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, ImagePlus, LogIn, LogOut, MessageSquare, PanelRightOpen, Pin, Plus, Save, Search, SearchX, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -1216,6 +1217,25 @@ export function AttendanceTable({ students, today, toolbarStart }: Props) {
                           </span>
                         )}
                       </div>
+                      {/* 오늘 공부 시간 — 저장된 기록 기준(학부모 앱·월간 리포트와 같은 계산), 화면은 30초마다 새로 받음 */}
+                      {(() => {
+                        const att = student.attendances[0];
+                        const min = att
+                          ? dayStudyMinutes(
+                              { ...att, outStart: null, outEnd: null },
+                              localOutings.get(student.id) ?? student.dailyOutings,
+                              { live: true },
+                            )
+                          : 0;
+                        return min > 0 ? (
+                          <div className="flex items-center gap-x1_5">
+                            <span className="w-6 shrink-0 t2-medium text-fg-neutral-subtle">공부</span>
+                            <span className="t3-bold tabular-nums text-fg-positive">
+                              {Math.floor(min / 60)}시간 {min % 60}분
+                            </span>
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                   </td>
 
