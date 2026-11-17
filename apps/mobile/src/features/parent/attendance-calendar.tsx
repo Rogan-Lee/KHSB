@@ -38,7 +38,16 @@ export function PeriodStepper({
         style={s.stepBtn}>
         <ChevronLeft color={canPrev ? color.fg.neutral : color.fg.disabled} size={24} strokeWidth={2.2} />
       </Press>
-      <Text variant="t7-bold" tabular align="center" style={{ flex: 1 }} accessibilityRole="header">
+      {/* "이번 주 · 11월 16일 – 22일" 이 좁은 폰에서 "22 / 일"로 잘리지 않게 한 줄로 줄여 맞춘다 */}
+      <Text
+        variant="t7-bold"
+        tabular
+        align="center"
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.75}
+        style={{ flex: 1 }}
+        accessibilityRole="header">
         {label}
       </Text>
       <Press

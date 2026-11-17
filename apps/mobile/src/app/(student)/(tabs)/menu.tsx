@@ -9,6 +9,7 @@ import {
   GraduationCap,
   Headset,
   Lock,
+  ListChecks,
   LogOut,
   Megaphone,
   MessageCircle,
@@ -63,6 +64,7 @@ const POINTS_ROUTE = '/(student)/points' as Href;
 const NAP_ROUTE = '/(student)/nap' as Href;
 const NETWORK_ROUTE = '/(student)/network' as Href;
 const SCHEDULE_ROUTE = '/(student)/schedule' as Href;
+const PLANNER_ROUTE = '/(student)/planner' as Href;
 const EXAMS_ROUTE = '/(student)/exams' as Href;
 const LUNCH_ROUTE = '/(student)/lunch' as Href;
 const CONTENTS_ROUTE = '/(student)/contents' as Href;
@@ -143,6 +145,7 @@ function MenuContent({
   const profileSub = [student.school, student.grade].filter(Boolean).join(' · ');
 
   const study: Item[] = [
+    { href: PLANNER_ROUTE, label: '공부 플래너', description: '하루·일주일 계획과 공부 시간', icon: ListChecks, tone: 'brand' },
     { href: '/(student)/(tabs)/tasks', label: '수행평가', icon: ClipboardCheck, tone: 'info', badge: badges.tasks },
     { href: '/(student)/feedback', label: '받은 피드백', icon: MessageCircle, tone: 'brand', badge: badges.feedback },
   ];

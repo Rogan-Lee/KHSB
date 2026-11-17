@@ -25,7 +25,10 @@ export function StudyTimeCard({
   loading,
   stale,
   error,
+  selfLabel = '우리 아이 하루 평균',
 }: {
+  /** 범례 첫 줄 — 학생 본인 화면은 "내 하루 평균" */
+  selfLabel?: string;
   range: StudyRange;
   onRange: (r: StudyRange) => void;
   stepper: Stepper;
@@ -52,7 +55,7 @@ export function StudyTimeCard({
         />
         {stats && stats.range === range ? (
           <View style={{ opacity: stale ? 0.5 : 1 }}>
-            <StudyBody key={`${stats.range}-${stats.start}`} stats={stats} />
+            <StudyBody key={`${stats.range}-${stats.start}`} stats={stats} selfLabel={selfLabel} />
           </View>
         ) : loading ? (
           <View style={{ gap: space.x3 }}>
@@ -70,7 +73,7 @@ export function StudyTimeCard({
   );
 }
 
-function StudyBody({ stats }: { stats: ParentStudyStatsResponse }) {
+function StudyBody({ stats, selfLabel }: { stats: ParentStudyStatsResponse; selfLabel: string }) {
   const past = stats.days.filter((d) => !d.future);
   const initial =
     stats.days.find((d) => d.today)?.date ??
@@ -116,7 +119,7 @@ function StudyBody({ stats }: { stats: ParentStudyStatsResponse }) {
         <View style={s.legendRow}>
           <View style={s.swatch} />
           <Text variant="t4-regular" color="neutralMuted" style={{ flex: 1 }}>
-            우리 아이 하루 평균
+            {selfLabel}
           </Text>
           <Text variant="t4-bold" tabular>
             {stats.dailyAverageMinutes > 0 ? duration(stats.dailyAverageMinutes) : '—'}

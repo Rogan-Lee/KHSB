@@ -36,6 +36,7 @@ import {
 } from '@/design';
 import { useChildQuery } from '@/features/parent/child-query';
 import { ParentKpis } from '@/features/parent/home-kpis';
+import { ChildPlanCard } from '@/features/parent/plan-card';
 import {
   LatestReportCard,
   MonthPointsCard,
@@ -159,6 +160,7 @@ export default function ParentHomeScreen() {
             <DashGrid>
               <DashCol flex={1.35}>
                 <WeekStudyCard stats={week.data} loading={week.isLoading} />
+                <ChildPlanCard studentId={t.child.id} />
                 {!isWide && shortcuts}
               </DashCol>
               <DashCol>
@@ -177,6 +179,7 @@ export default function ParentHomeScreen() {
           {shortcuts}
           <TodayTimelineCard today={t} />
           <WeekStudyCard stats={week.data} loading={week.isLoading} />
+          <ChildPlanCard studentId={t.child.id} />
           <MonthPointsCard month={month} points={overviewChild?.monthPoints ?? null} />
           {latestReport}
           {t.notice && <NoticeCard notice={t.notice} />}

@@ -128,6 +128,9 @@ export const parentApi = {
     `/api/mobile/v1/parent/today?studentId=${encodeURIComponent(studentId)}`,
   attendance: (studentId: string, month: string) =>
     `/api/mobile/v1/parent/attendance?studentId=${encodeURIComponent(studentId)}&month=${month}`,
+  /** 자녀 공부 계획(읽기 전용) — 응답은 학생 플래너와 같은 PlansRangeResponse */
+  plans: (studentId: string, from: string, to: string) =>
+    `/api/mobile/v1/parent/plans?studentId=${encodeURIComponent(studentId)}&from=${from}&to=${to}`,
   studyStats: (studentId: string, range: StudyRange, date?: string) =>
     `/api/mobile/v1/parent/study-stats?studentId=${encodeURIComponent(studentId)}&range=${range}${
       date ? `&date=${date}` : ''

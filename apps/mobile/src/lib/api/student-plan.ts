@@ -39,7 +39,10 @@ export type PlanItem = {
   text: string;
   done: boolean;
   colorCode: string;
+  /** 목표 시간(분) */
   duration?: number;
+  /** 과목 (플래너 과목 칩) — 예전 항목엔 없음 */
+  subject?: string;
 };
 
 export type DailyPlan = { date: string; items: PlanItem[] };
@@ -95,6 +98,25 @@ export const SCHEDULE_PROPOSAL_STATUS: Record<ScheduleProposalStatus, { label: s
   CANCELLED: { label: '취소됨', tone: 'gray' },
 };
 
+// ── 공부 플래너 ─────────────────────────────────────────────────────────
+//  GET /api/mobile/v1/student/plans?from&to   기간 계획(최대 42일, 없으면 이번 주)
+//  PUT /api/mobile/v1/student/plans { days }  여러 날 저장(지난 7일 ~ 4주 뒤, 최대 7일)
+//  GET /api/mobile/v1/student/study-stats      내 공부 시간(학부모 앱과 같은 응답)
+
+export const STUDENT_PLANS_PATH = '/api/mobile/v1/student/plans';
+
+export type PlansRangeResponse = { today: string; from: string; to: string; days: DailyPlan[] };
+
+export const plansPath = (from: string, to: string) => `${STUDENT_PLANS_PATH}?from=${from}&to=${to}`;
+
+export function saveStudentPlans(days: DailyPlan[]) {
+  return mutateMobileApi<{ ok: boolean }>(STUDENT_PLANS_PATH, 'PUT', { days });
+}
+
+export const studentStudyStatsPath = (range: 'week' | 'month', date?: string) =>
+  `/api/mobile/v1/student/study-stats?range=${range}${date ? `&date=${date}` : ''}`;
+
+/** 오늘/내일 화면(내 일정) — 하루 저장 */
 export function saveStudentPlan(date: string, items: PlanItem[]) {
   return mutateMobileApi<{ ok: boolean }>(`${STUDENT_SCHEDULE_PATH}/plans`, 'PUT', { date, items });
 }
