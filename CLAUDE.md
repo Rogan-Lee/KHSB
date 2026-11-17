@@ -81,4 +81,3 @@ Rules:
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
 - Node labels are English code identifiers, so query with English keywords (`graphify query "classup webhook"`), not Korean sentences.
 - Setup on a new machine: `uv tool install 'graphifyy[sql]' && graphify extract . --backend claude-cli && graphify hook install`. Images are excluded via `.graphifyignore`.
-- A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.
