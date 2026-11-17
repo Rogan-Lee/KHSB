@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+import { after, type NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 
 import {
@@ -10,6 +10,7 @@ import {
   createStudentCommunication,
   listStudentCommunications,
 } from "@/lib/mobile-staff-ops";
+import { afterParentRequestCreated } from "@/lib/student-instructions";
 
 type Params = { params: Promise<{ studentId: string }> };
 
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest, context: Params) {
     const result = await createStudentCommunication(studentId, body, user);
     revalidatePath(`/students/${studentId}`);
     revalidatePath("/attendance");
+    if (result.item.type === "PARENT_REQUEST") after(() => afterParentRequestCreated(result.item.id));
     return mobileJson(result);
   } catch (error) {
     return mobileApiErrorResponse(error);

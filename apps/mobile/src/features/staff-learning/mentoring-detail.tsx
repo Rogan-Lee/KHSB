@@ -12,6 +12,7 @@ import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AttachmentPicker } from '@/components/attachment-picker';
+import { StudentInstructions } from '@/features/staff-instructions/student-instructions';
 import {
   Avatar,
   Badge,
@@ -290,6 +291,12 @@ function MentoringDetailBody({
             {data.previous.nextGoals}
           </Notice>
         ) : null}
+
+        {/* 학부모가 뭘 요청했고 무엇을 지시했는지 — 읽기 전용, 최근 3건 */}
+        <View style={{ gap: space.x3 }}>
+          <Text variant="t5-medium">학부모 요청 · 지시</Text>
+          <StudentInstructions studentId={data.student.id} limit={3} />
+        </View>
 
         {editable ? (
           <>

@@ -412,6 +412,7 @@ model Student {
   monthlyReports       MonthlyReport[]
   monthlyAwards        MonthlyAward[]
   communications       Communication[]
+  instructions         StudentInstruction[]
   examScores           ExamScore[]
   calendarEvents       CalendarEvent[]
   assignments          Assignment[]
@@ -1228,6 +1229,30 @@ model Communication {
   createdByName String
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
+
+  instructions StudentInstruction[]
+}
+
+// 학생 지시 — 운영진이 학생에게 내리는 지시. 학부모 요청(Communication PARENT_REQUEST)에서 나왔으면 communicationId.
+// 학생에게는 학부모 요청이라는 사실을 보이지 않는다 — 지시 문장과 보낸 직원 이름만 노출.
+// sentAt 이 없으면 AI 초안(운영진 승인 대기), 있으면 학생에게 전달됨, ackedAt 은 학생이 확인한 시각.
+model StudentInstruction {
+  id              String         @id @default(cuid())
+  studentId       String
+  student         Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  communicationId String?
+  communication   Communication? @relation(fields: [communicationId], references: [id], onDelete: SetNull)
+  content         String         @db.Text
+  sentById        String? // User.id
+  sentByName      String?
+  sentAt          DateTime?
+  ackedAt         DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([studentId, createdAt])
+  @@index([communicationId])
+  @@index([sentAt])
 }
 
 model ExamScore {

@@ -126,6 +126,8 @@ export const NAV_GROUPS: NavGroup[] = [
           { href: "/online/inbox", label: "학생 메시지" },
           { href: "/questions", label: "학생 질문", show: isStaff },
           { href: "/suggestions", label: "건의사항", show: isStaff },
+          // 학부모 요청 → 학생 지시 (온라인 직원 포함 전체, 가족 톡방과 같은 기준)
+          { href: "/instructions", label: "학생 지시" },
           // 쪽잠·네트워크 사용 신청 승인함
           { href: "/approvals", label: "신청함", show: isStaff },
           { href: "/staff-messages", label: "직원 메시지" },

@@ -11,7 +11,8 @@ import { prisma } from "@/lib/prisma";
 import { notifySlack } from "@/lib/slack";
 
 // 학부모 앱 — 원장님께 문의. 운영진이 쓰는 학생별 소통 기록(Communication, PARENT_REQUEST)에
-// 그대로 쌓여 입퇴실·학생 상세 화면에서 확인(isChecked)된다. 목록은 이 학부모가 쓴 것만 보여 준다
+// 그대로 쌓여 입퇴실·학생 상세 화면에서 확인(isChecked)된다. 운영진이 학생 지시로 바꿔 보내면
+// (src/lib/student-instructions.ts) 확인 처리되고, 그 지시 문장이 여기 목록에 함께 나온다. 목록은 이 학부모가 쓴 것만 보여 준다
 // (운영진이 전화 등으로 대신 적은 요청·전달사항은 내부 기록이라 노출하지 않는다).
 
 export const INQUIRY_KINDS = {
@@ -64,7 +65,19 @@ export async function listParentInquiries(authUserId: string, child: ParentChild
     where: { studentId: child.id, type: "PARENT_REQUEST", createdById: authUserId },
     orderBy: { createdAt: "desc" },
     take: 50,
-    select: { id: true, content: true, createdAt: true, isChecked: true, checkedAt: true },
+    select: {
+      id: true,
+      content: true,
+      createdAt: true,
+      isChecked: true,
+      checkedAt: true,
+      // 이 요청으로 학생에게 보낸 지시 — 학부모는 문장을 그대로 본다 (원장 결정 2026-11-16)
+      instructions: {
+        where: { sentAt: { not: null } },
+        orderBy: { sentAt: "asc" },
+        select: { content: true, sentAt: true, ackedAt: true },
+      },
+    },
   });
   return {
     studentName: child.name,
@@ -78,6 +91,11 @@ export async function listParentInquiries(authUserId: string, child: ParentChild
         createdAt: r.createdAt.toISOString(),
         checked: r.isChecked,
         checkedAt: r.checkedAt?.toISOString() ?? null,
+        instructions: r.instructions.map((i) => ({
+          content: i.content,
+          sentAt: i.sentAt!.toISOString(),
+          ackedAt: i.ackedAt?.toISOString() ?? null,
+        })),
       };
     }),
   };

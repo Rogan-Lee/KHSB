@@ -16,6 +16,8 @@ export type StudentBadges = {
   suggestions: number;
   /** 가족 톡방 안 읽은 메시지 — 메시지 탭에 더해 보여 준다 (구버전 서버는 필드가 없다) */
   familyChat?: number;
+  /** 아직 [확인했어요]를 안 누른 운영진 지시 (구버전 서버는 필드가 없다) */
+  instructions?: number;
   menu: number;
 };
 
@@ -29,6 +31,8 @@ export type StaffBadges = {
   approvals: number;
   lunchRequests: number;
   suggestions: number;
+  /** 처리 안 한 학부모 요청 — 학생 지시 받은함 (home 에 이미 더해짐, 구버전 서버는 필드가 없다) */
+  instructions?: number;
   home: number;
   mentoring: number;
   menu: number;
