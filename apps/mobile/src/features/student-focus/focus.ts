@@ -56,7 +56,10 @@ const hms = (d: Date) => ({
 function read() {
   let base: { active: boolean; endsAt: number | null; pin: string | null; picked: number };
   if (ANDROID_GUARD) {
-    const s = ANDROID_GUARD.getState();
+    let s = ANDROID_GUARD.getState();
+    // 배터리 관리 등으로 서비스만 멈췄으면(끝 시각은 남음) 앱을 열 때 다시 켠다
+    const stale = !s.active && s.endsAt != null && s.endsAt > Date.now() && s.usageAccess && s.overlay;
+    if (stale && ANDROID_GUARD.start(s.endsAt!)) s = { ...s, active: true };
     base = { active: s.active, endsAt: s.active ? s.endsAt : null, pin: s.pin, picked: s.picked };
   } else if (FOCUS_SUPPORTED) {
     const m = DA.activitySelectionMetadata({ activitySelectionId: SELECTION_ID });
@@ -167,18 +170,32 @@ type Permission = {
   usageAccess: boolean;
   /** 안드로이드 — 설정 › 다른 앱 위에 표시 */
   overlay: boolean;
+  /** 안드로이드 — 앱 › 배터리 '제한 없음' (꺼져도 잠금은 그대로라 denied 와는 무관, 시작만 막는다) */
+  battery: boolean;
 };
 
 function useIosPermission(): Permission {
   const status = DA.useAuthorizationStatus();
   const approved = status === DA.AuthorizationStatus.approved;
-  return { approved, denied: status === DA.AuthorizationStatus.denied, usageAccess: approved, overlay: approved };
+  return {
+    approved,
+    denied: status === DA.AuthorizationStatus.denied,
+    usageAccess: approved,
+    overlay: approved,
+    battery: true,
+  };
 }
 
 function readAndroidPermission(): Permission {
   const s = ANDROID_GUARD?.getState();
-  const approved = !!s?.usageAccess && !!s?.overlay;
-  return { approved, denied: !approved, usageAccess: !!s?.usageAccess, overlay: !!s?.overlay };
+  const granted = !!s?.usageAccess && !!s?.overlay;
+  return {
+    approved: granted && !!s?.battery,
+    denied: !granted,
+    usageAccess: !!s?.usageAccess,
+    overlay: !!s?.overlay,
+    battery: !!s?.battery,
+  };
 }
 
 /** 안드로이드는 권한을 설정 앱에서 켜고 돌아온다 — 앱이 다시 앞으로 올 때마다 다시 읽는다 */

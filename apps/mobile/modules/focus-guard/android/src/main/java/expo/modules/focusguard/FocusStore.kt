@@ -3,6 +3,7 @@ package expo.modules.focusguard
 import android.app.AppOpsManager
 import android.content.Context
 import android.os.Build
+import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
 
@@ -44,5 +45,12 @@ class FocusStore(context: Context) {
     }
 
     fun canDrawOverlays(context: Context): Boolean = Settings.canDrawOverlays(context)
+
+    /**
+     * 설정 › 앱 › 배터리 '제한 없음' — 삼성 등이 배터리를 아끼려고 서비스를 멈추지 않게.
+     * 이게 켜져 있으면 시스템이 서비스를 다시 띄울 때(백그라운드) 포그라운드로 올라가는 것도 허용된다.
+     */
+    fun ignoresBatteryOptimizations(context: Context): Boolean =
+      (context.getSystemService(Context.POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(context.packageName)
   }
 }

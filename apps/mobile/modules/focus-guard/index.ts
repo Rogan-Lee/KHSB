@@ -13,6 +13,8 @@ export type FocusGuardState = {
   usageAccess: boolean;
   /** 설정 › 다른 앱 위에 표시 */
   overlay: boolean;
+  /** 설정 › 앱 › 배터리 '제한 없음' */
+  battery: boolean;
 };
 
 export type FocusGuardApp = { packageName: string; label: string; icon: string | null };
@@ -22,12 +24,13 @@ type FocusGuardNative = {
   getApps(): Promise<FocusGuardApp[]>;
   getBlocked(): string[];
   setBlocked(packages: string[]): void;
-  /** 시작 또는 끝 시각 바꾸기(ms) */
-  start(endsAt: number): void;
+  /** 시작 또는 끝 시각 바꾸기(ms). 백그라운드라 막히면 false */
+  start(endsAt: number): boolean;
   stop(): void;
   setPin(pin: string | null): void;
   openUsageAccessSettings(): void;
   openOverlaySettings(): void;
+  openBatterySettings(): void;
 };
 
 export const FocusGuard = requireOptionalNativeModule<FocusGuardNative>('FocusGuard');

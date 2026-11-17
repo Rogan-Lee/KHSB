@@ -81,8 +81,9 @@ function Focus() {
     />
   );
 
-  if (!f.approved && ANDROID_GUARD) {
-    return <AndroidPermissionSteps usageAccess={f.usageAccess} overlay={f.overlay} />;
+  // 켜져 있는 동안 배터리 설정만 바뀐 경우엔 끝내기 화면을 그대로 보여 준다
+  if (!f.approved && ANDROID_GUARD && !f.active) {
+    return <AndroidPermissionSteps usageAccess={f.usageAccess} overlay={f.overlay} battery={f.battery} />;
   }
 
   if (!f.approved) {

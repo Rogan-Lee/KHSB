@@ -140,12 +140,13 @@ npx tsx --env-file=.env.local scripts/seed-review-demo.ts --delete --prod      #
 
 - **방식**: 로컬 Expo 모듈 `apps/mobile/modules/focus-guard`(Kotlin). 사용 정보 접근(`PACKAGE_USAGE_STATS`)으로 지금 앱을 보고, 학생이 고른 앱이면 다른 앱 위에 표시(`SYSTEM_ALERT_WINDOW`)로 "집중 모드 중이에요" 화면을 덮는다. 이 확인은 집중 모드 동안만 도는 포그라운드 서비스(`specialUse`, 알림이 늘 보임)가 한다. 앱을 닫거나 조작하지 않는다 — "홈으로"·"강한선배 열기"는 학생이 누를 때만.
 - **쓰지 않는 것**: 접근성 API(구글이 더 좁은 API 우선·자동 동작 금지, 2026-01-28 정책), `QUERY_ALL_PACKAGES`(대신 런처·전화 앱만 보이게 `<queries>`). 강한선배·설정·전화 앱은 잠글 수 없다(끝내기·권한 끄기·긴급 전화).
+- **배터리**: 삼성 등은 배터리 관리로 서비스를 멈출 수 있어 권한 3단계에 "배터리 '제한 없음'"을 넣었다(앱 정보 화면만 열어 줌 — Play 가 심사하는 `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` 는 안 씀). 켜져 있어야 시작할 수 있다. 그래도 서비스가 멈추면 시스템이 다시 띄우고(START_STICKY, 배터리 예외라 백그라운드 재시작 허용), 그것도 안 되면 앱을 열 때 남은 시간만큼 다시 켠다.
 - **출시 시점**: 비공개 테스트(11/29쯤 끝) → 프로덕션 승인 → 그다음 빌드에 넣는다. 포그라운드 서비스 신고는 심사를 받아서, 테스트 중 업데이트에 넣으면 거절·지연 때 비공개 테스트 업데이트까지 막힐 수 있다.
 
 플레이 콘솔에서 계정 주인이 할 일:
 
 1. [ ] **포그라운드 서비스 신고** — 앱 콘텐츠 › 포그라운드 서비스 권한 › 유형 "특수 용도(Special use)". 설명(영문):
    > Optional study focus mode that the student starts themselves. While a session runs, a foreground service with a visible notification checks which app is in the foreground (Usage Access) and, if it is one of the apps the student picked, covers it with a reminder screen (Display over other apps) with buttons to go Home or open our app. It never closes or controls other apps. The session ends when the student ends it with their own PIN, or automatically after 3 hours. If the service is stopped, the chosen apps are simply not covered. No usage data leaves the device.
-2. [ ] **시연 영상**(유튜브 일부 공개 링크) — 학생 로그인 → 집중 모드 → 권한 두 개 허용 → 잠글 앱 고르기 → 비밀번호 → 집중 시작 → 고른 앱을 열면 안내 화면 → "홈으로" → 강한선배에서 비밀번호로 끝내기.
+2. [ ] **시연 영상**(유튜브 일부 공개 링크) — 학생 로그인 → 집중 모드 → 권한 두 개 허용 → 배터리 '제한 없음' → 잠글 앱 고르기 → 비밀번호 → 집중 시작 → 고른 앱을 열면 안내 화면 → "홈으로" → 강한선배에서 비밀번호로 끝내기.
 3. [ ] **데이터 보안** — 집중 모드는 바꿀 것 없음(기기 밖으로 나가는 것 없음). 공부 계획·공부 타이머 기록(과목, 시작·정지 시각)은 서버에 저장되니 기존 답의 "사용자 생성 콘텐츠/앱 활동" 항목에 포함되는지 한 번 확인(iOS 앱 개인정보 13번도 같이).
-4. [ ] **기기 확인** — 실제 안드로이드 기기(갤럭시 탭 등)에서 위 영상 흐름 + 3시간 자동 종료 + 설정에서 권한 끄면 풀림.
+4. [ ] **기기 확인** — 실제 안드로이드 기기(갤럭시 탭 등)에서 위 영상 흐름 + 3시간 자동 종료 + 설정에서 권한 끄면 풀림 + 배터리 점검(집중 모드 켠 채 화면 끄고 30분 이상 둔 뒤, 최근 앱에서 강한선배를 밀어 없앤 뒤, 기기 관리 › 배터리 '최적화' 누른 뒤에도 고른 앱이 덮이는지).

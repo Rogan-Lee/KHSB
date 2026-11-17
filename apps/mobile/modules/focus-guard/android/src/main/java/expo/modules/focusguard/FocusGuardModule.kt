@@ -31,7 +31,8 @@ class FocusGuardModule : Module() {
         "pin" to store.pin,
         "picked" to store.blocked.size,
         "usageAccess" to FocusStore.hasUsageAccess(context),
-        "overlay" to FocusStore.canDrawOverlays(context)
+        "overlay" to FocusStore.canDrawOverlays(context),
+        "battery" to FocusStore.ignoresBatteryOptimizations(context)
       )
     }
 
@@ -64,7 +65,7 @@ class FocusGuardModule : Module() {
       FocusStore(context).blocked = packages.toSet()
     }
 
-    /** 시작(또는 끝 시각만 바꾸기) — 서비스가 돌고 있으면 알림 문구만 새로 */
+    /** 시작(또는 끝 시각만 바꾸기) — 서비스가 돌고 있으면 알림 문구만 새로. 시작이 막히면 false */
     Function("start") { endsAt: Double ->
       FocusStore(context).endsAt = endsAt.toLong()
       FocusGuardService.start(context)
@@ -82,6 +83,14 @@ class FocusGuardModule : Module() {
     Function("openUsageAccessSettings") {
       context.startActivity(
         Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      )
+    }
+
+    /** 앱 정보 화면 — 학생이 '배터리'를 눌러 '제한 없음'을 고른다 (배터리 예외를 직접 요청하는 권한은 안 씀) */
+    Function("openBatterySettings") {
+      context.startActivity(
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
+          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       )
     }
 

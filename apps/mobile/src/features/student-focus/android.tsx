@@ -24,7 +24,15 @@ import { ANDROID_GUARD } from './focus';
 // 안드로이드 집중 모드 화면 조각 — 권한 두 개 받기 · 잠글 앱 고르기. 공용 흐름은 app/(student)/focus.tsx.
 
 /** 권한 안내 — 설정 화면 두 곳에서 학생이 직접 켠다 (돌아오면 useFocusMode 가 다시 읽음) */
-export function AndroidPermissionSteps({ usageAccess, overlay }: { usageAccess: boolean; overlay: boolean }) {
+export function AndroidPermissionSteps({
+  usageAccess,
+  overlay,
+  battery,
+}: {
+  usageAccess: boolean;
+  overlay: boolean;
+  battery: boolean;
+}) {
   return (
     <Section title="공부하는 동안 딴짓 앱을 잠가요">
       <Stack>
@@ -32,8 +40,8 @@ export function AndroidPermissionSteps({ usageAccess, overlay }: { usageAccess: 
           내가 고른 앱을 열면 내가 끝낼 때까지 ‘집중 모드 중이에요’ 화면이 덮어요. 잠글 앱을 바꾸거나 끝내려면 내가 정한
           잠금 비밀번호가 필요해요. 2시간이 지나면 아직 공부 중인지 묻고, 3시간까지 답이 없으면 저절로 풀려요.{'\n\n'}•
           어떤 앱을 골랐는지, 언제 무엇을 쓰는지는 이 기기 밖으로 나가지 않아요. 선생님도 볼 수 없어요.{'\n'}• 잠금
-          비밀번호를 잊으면 강한선배 로그인 비밀번호로 초기화할 수 있어요.{'\n'}• 설정에서 아래 권한을 언제든 끌 수 있고,
-          끄면 잠금과 비밀번호가 모두 풀려요.
+          비밀번호를 잊으면 강한선배 로그인 비밀번호로 초기화할 수 있어요.{'\n'}• 설정에서 아래 1·2번 권한을 언제든 끌 수
+          있고, 끄면 잠금과 비밀번호가 모두 풀려요.
         </Text>
         <Step
           n={1}
@@ -48,6 +56,13 @@ export function AndroidPermissionSteps({ usageAccess, overlay }: { usageAccess: 
           description="잠근 앱 위에 안내 화면을 띄우는 데 필요해요."
           done={overlay}
           onPress={() => ANDROID_GUARD?.openOverlaySettings()}
+        />
+        <Step
+          n={3}
+          title="배터리 사용 ‘제한 없음’"
+          description="삼성 등 일부 기기는 배터리를 아끼려고 집중 모드를 멈춰요. 앱 정보에서 ‘배터리’를 누르고 ‘제한 없음’을 골라 주세요."
+          done={battery}
+          onPress={() => ANDROID_GUARD?.openBatterySettings()}
         />
       </Stack>
     </Section>

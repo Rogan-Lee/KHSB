@@ -51,13 +51,13 @@ class FocusGuardService : Service() {
   override fun onCreate() {
     super.onCreate()
     store = FocusStore(this)
-    running = true
-    // 시작 5초 안에 포그라운드로 올라가야 한다 (시스템이 다시 띄운 경우 포함)
-    showNotification()
+    // 시작 5초 안에 포그라운드로 올라가야 한다 (시스템이 다시 띄운 경우 포함).
+    // 배터리 '제한 없음'이 아닌 기기에서 시스템이 백그라운드로 다시 띄우면 막힐 수 있다 → 멈추고, 앱을 열 때 다시 켠다
+    running = showNotification()
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    if (!store.timeLeft()) {
+    if (!running || !store.timeLeft()) {
       finish()
       return START_NOT_STICKY
     }
@@ -112,7 +112,8 @@ class FocusGuardService : Service() {
 
   // ── 알림 ─────────────────────────────────────────────────────────────
 
-  private fun showNotification() {
+  /** 포그라운드 알림을 띄운다. 막히면 false */
+  private fun showNotification(): Boolean {
     val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       nm.createNotificationChannel(
@@ -130,7 +131,12 @@ class FocusGuardService : Service() {
       .setContentIntent(openAppIntent())
       .build()
     val type = if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
-    ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
+    return try {
+      ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
+      true
+    } catch (e: Exception) {
+      false // 안드로이드 12+ 백그라운드 포그라운드 시작 제한
+    }
   }
 
   private fun openAppIntent(): PendingIntent? {
@@ -243,8 +249,12 @@ class FocusGuardService : Service() {
     var running = false
       private set
 
-    fun start(context: Context) {
+    /** 앱이 앞에 있을 때 부른다. 백그라운드라 막히면 false */
+    fun start(context: Context): Boolean = try {
       androidx.core.content.ContextCompat.startForegroundService(context, Intent(context, FocusGuardService::class.java))
+      true
+    } catch (e: Exception) {
+      false
     }
 
     fun stop(context: Context) {
