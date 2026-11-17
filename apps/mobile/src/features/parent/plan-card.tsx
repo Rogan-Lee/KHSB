@@ -1,12 +1,14 @@
 import { Check } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Section, Skeleton, Text, color, radius, space } from '@/design';
 import { useChildQuery } from '@/features/parent/child-query';
-import { addDays, kstToday } from '@/features/parent/today-format';
+import { addDays, duration, kstToday } from '@/features/parent/today-format';
+import { SUBJECTS } from '@/features/student-planner/planner';
 import { DAY_LABELS, dotColor, dowOf } from '@/features/student-plan/format';
 import { parentApi } from '@/lib/api/parent-today';
-import type { DailyPlan, PlansRangeResponse } from '@/lib/api/student-plan';
+import type { DailyPlan, PlansRangeResponse, TimerState } from '@/lib/api/student-plan';
 
 const MAX_ITEMS = 6;
 
@@ -25,6 +27,7 @@ export function ChildPlanCard({ studentId }: { studentId: string }) {
   // 빈 text 는 대시보드 시간표가 만든 빈 줄 — 세지 않는다
   const items = (todayPlan?.items ?? []).filter((it) => it.text.trim());
   const done = items.filter((it) => it.done).length;
+  const timer = useChildQuery<TimerState>(parentApi.timer(studentId), studentId).data;
 
   return (
     <Section
@@ -46,6 +49,7 @@ export function ChildPlanCard({ studentId }: { studentId: string }) {
         )
       ) : (
         <View style={{ gap: space.x4 }}>
+          {timer && <TimerLines timer={timer} />}
           {items.length > 0 && (
             <View style={{ gap: space.x2 }}>
               {items.slice(0, MAX_ITEMS).map((it, i) => (
@@ -83,6 +87,61 @@ export function ChildPlanCard({ studentId }: { studentId: string }) {
         </View>
       )}
     </Section>
+  );
+}
+
+/** 지금 시각 — 1분마다 (student-life/network-sections 와 같은 방식) */
+function useNow(intervalMs = 60_000) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+
+/** 공부 타이머 — 지금 공부 중인지 + 오늘 과목별 합계. 아무것도 없으면 그리지 않는다 */
+function TimerLines({ timer }: { timer: TimerState }) {
+  const tick = useNow();
+  // 기기 시계 대신 서버 시각 기준 — 응답이 올 때의 서버·기기 차이를 기억해 둔다(렌더 중 파생 상태)
+  const [base, setBase] = useState({ key: timer.now, offset: Date.parse(timer.now) - tick });
+  if (base.key !== timer.now) setBase({ key: timer.now, offset: Date.parse(timer.now) - tick });
+  // ponytail: 1분 단위 갱신이라 경과 시간이 최대 1분 어긋날 수 있다 — 분 단위 표시라 둔다
+  const active = timer.active;
+  const elapsed = active ? Math.max(0, Math.floor((tick + base.offset - Date.parse(active.startedAt)) / 60_000)) : 0;
+  if (!active && timer.totalMinutes === 0) return null;
+
+  return (
+    <View style={{ gap: space.x2 }}>
+      {active && (
+        <View style={s.liveRow}>
+          <View style={[s.dot, { backgroundColor: color.bg.brandSolid }]} />
+          <Text variant="t4-bold" color="brand" style={{ flex: 1, minWidth: 0 }} numberOfLines={1}>
+            {`지금 ${active.subject ?? '과목 없음'} 공부 중 · ${elapsed > 0 ? `${duration(elapsed)}째` : '방금 시작'}`}
+          </Text>
+        </View>
+      )}
+      {timer.totalMinutes > 0 && (
+        <View style={{ gap: space.x1_5 }}>
+          <Text variant="t4-medium" color="neutralMuted">
+            {`오늘 타이머 ${duration(timer.totalMinutes)}`}
+          </Text>
+          <View style={s.subjects}>
+            {timer.bySubject.map((b) => {
+              const sub = SUBJECTS.find((x) => x.name === b.subject);
+              return (
+                <View key={b.subject ?? '-'} style={s.subject}>
+                  <View style={[s.dot, { backgroundColor: sub ? dotColor(sub.color) : color.fg.placeholder }]} />
+                  <Text variant="t3-medium" color="neutralSubtle">
+                    {`${b.subject ?? '과목 없음'} ${duration(b.minutes)}`}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -134,6 +193,9 @@ const s = StyleSheet.create({
   },
   boxOn: { backgroundColor: color.bg.brandSolid, borderColor: color.bg.brandSolid },
   dot: { width: space.x2, height: space.x2, borderRadius: radius.full },
+  liveRow: { flexDirection: 'row', alignItems: 'center', gap: space.x2 },
+  subjects: { flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 },
+  subject: { flexDirection: 'row', alignItems: 'center', gap: space.x1_5 },
   strike: { textDecorationLine: 'line-through', textDecorationColor: color.fg.placeholder },
   strip: {
     flexDirection: 'row',

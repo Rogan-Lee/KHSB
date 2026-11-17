@@ -277,7 +277,9 @@ const SeatCell = memo(function SeatCell({
       scale={0.94}
       accessibilityLabel={
         item
-          ? `${num}번 ${item.name} ${item.status}${item.studyMinutes ? ` 오늘 ${hm(item.studyMinutes)}` : ''}`
+          ? `${num}번 ${item.name} ${item.status}${item.studyMinutes ? ` 오늘 ${hm(item.studyMinutes)}` : ''}${
+              item.timer ? ` 타이머 ${item.timer.subject ?? '과목 없음'} 중` : ''
+            }`
           : `${num}번 빈 좌석`
       }
       style={[
@@ -304,6 +306,7 @@ const SeatCell = memo(function SeatCell({
         {label}
       </Text>
       {item?.isLate && <View style={s.dot} />}
+      {item?.timer && <View style={[s.dot, s.timerDot]} />}
     </Press>
   );
 });
@@ -346,6 +349,12 @@ function Legend() {
         <View style={[s.dot, { position: 'relative', top: 0, right: 0 }]} />
         <Text variant="t3-regular" color="neutralMuted">
           지각
+        </Text>
+      </View>
+      <View style={s.legendItem}>
+        <View style={[s.dot, s.timerDot, { position: 'relative', top: 0, left: 0 }]} />
+        <Text variant="t3-regular" color="neutralMuted">
+          타이머 중
         </Text>
       </View>
     </View>
@@ -392,6 +401,8 @@ const s = StyleSheet.create({
     borderWidth: 2,
     borderColor: color.bg.layerDefault,
   },
+  // 공부 타이머 진행 중 — 지각 점(오른쪽 위)과 겹치지 않게 왼쪽 위
+  timerDot: { right: undefined, left: -3, backgroundColor: color.bg.brandSolid },
   overlay: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', gap: COL_GAP },
   bottom: { flexDirection: 'row', alignItems: 'center', gap: COL_GAP },
   facility: {

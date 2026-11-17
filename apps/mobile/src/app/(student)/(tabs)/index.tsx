@@ -61,6 +61,7 @@ import {
   type StudentHomeResponse,
 } from '@/lib/api/student-home';
 import { FocusCard } from '@/features/student-focus/focus-card';
+import { TimerHomeCard } from '@/features/student-planner/timer';
 import { PLANNER_ROUTE, TodayPlanCard } from '@/features/student-planner/today-card';
 import { FOCUS_SUPPORTED } from '@/features/student-focus/focus';
 import { refreshBadges } from '@/lib/badges';
@@ -438,6 +439,7 @@ function HomeContent({
     // 집중 모드 바로 시작은 넓은 칸 맨 위 (iOS 18+ 에서만 그려진다)
     let left = [
       FOCUS_SUPPORTED ? <FocusCard key="focus" /> : null,
+      <TimerHomeCard key="timer" />,
       <TodayPlanCard key="plan" />,
       tasksCard,
       surveyCard,
@@ -469,6 +471,7 @@ function HomeContent({
     <Stack>
       {greetingBlock}
       <FocusCard />
+      <TimerHomeCard />
       <TodayPlanCard />
       {mentoringCard}
       {qnaCard}

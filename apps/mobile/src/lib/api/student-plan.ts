@@ -116,6 +116,24 @@ export function saveStudentPlans(days: DailyPlan[]) {
 export const studentStudyStatsPath = (range: 'week' | 'month', date?: string) =>
   `/api/mobile/v1/student/study-stats?range=${range}${date ? `&date=${date}` : ''}`;
 
+// ── 공부 타이머 ─────────────────────────────────────────────────────────
+//  GET  /api/mobile/v1/student/timer                          진행 중 + 오늘 합계
+//  POST /api/mobile/v1/student/timer { action, subject? }      start · stop · keep(지금부터 3시간 다시)
+
+export const STUDENT_TIMER_PATH = '/api/mobile/v1/student/timer';
+
+export type TimerState = {
+  /** 서버 시각 — 기기 시계가 틀려도 경과 시간을 맞게 센다 */
+  now: string;
+  active: { subject: string | null; startedAt: string } | null;
+  totalMinutes: number;
+  bySubject: { subject: string | null; minutes: number }[];
+};
+
+export function sendTimer(action: 'start' | 'stop' | 'keep', subject?: string | null) {
+  return mutateMobileApi<TimerState>(STUDENT_TIMER_PATH, 'POST', { action, subject: subject ?? null });
+}
+
 /** 오늘/내일 화면(내 일정) — 하루 저장 */
 export function saveStudentPlan(date: string, items: PlanItem[]) {
   return mutateMobileApi<{ ok: boolean }>(`${STUDENT_SCHEDULE_PATH}/plans`, 'PUT', { date, items });

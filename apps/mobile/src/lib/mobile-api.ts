@@ -490,6 +490,10 @@ export type StaffAttendanceItem = {
   status: '입실' | '외출' | '퇴실' | '미입실' | '결석';
   /** 오늘 공부 시간(분) — 입실~퇴실 − 외출. 예전 서버엔 없음 */
   studyMinutes?: number;
+  /** 공부 타이머 — 지금 재고 있으면 과목·시작 시각. 예전 서버엔 없음 */
+  timer?: { subject: string | null; startedAt: string } | null;
+  /** 오늘 타이머 합계(분) */
+  timerMinutes?: number;
   time: string | null;
 };
 

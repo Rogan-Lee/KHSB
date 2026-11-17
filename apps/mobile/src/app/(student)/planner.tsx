@@ -17,8 +17,9 @@ import {
 import { kstToday, mondayOf, usePlanner } from '@/features/student-planner/planner';
 import { DayPanel, WeekPanel, WeekStrip } from '@/features/student-planner/planner-ui';
 import { StudyRecord } from '@/features/student-planner/study-record';
+import { TimerCard } from '@/features/student-planner/timer';
 
-// 공부 플래너 — 하루(할 일) · 일주일(요일별 계획) · 기록(입퇴실 기준 공부 시간).
+// 공부 플래너 — 하루(공부 타이머 + 할 일) · 일주일(요일별 계획) · 기록(입퇴실 기준 공부 시간).
 // 태블릿은 하루 | 일주일을 나란히 두고 탭은 플래너 · 기록 둘.
 // 이동: router.push('/(student)/planner')
 
@@ -62,6 +63,7 @@ export default function StudentPlannerScreen() {
       <Columns
         left={
           <>
+            <TimerCard />
             {strip}
             <DayPanel p={p} date={date} />
           </>
@@ -70,6 +72,7 @@ export default function StudentPlannerScreen() {
       />
     ) : (
       <View style={{ gap: space.x3 }}>
+        {activeTab === 'day' && <TimerCard />}
         {strip}
         {activeTab === 'day' ? <DayPanel p={p} date={date} /> : <WeekPanel p={p} weekStart={weekStart} onOpenDay={openDay} />}
       </View>

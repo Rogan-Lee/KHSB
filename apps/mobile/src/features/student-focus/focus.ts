@@ -3,12 +3,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import * as DA from 'react-native-device-activity';
 
+import { sendTimer } from '@/lib/api/student-plan';
 import { mutateMobileApi } from '@/lib/mobile-api';
 import { cancelFocusCheck, scheduleFocusCheck } from '@/lib/notifications';
 
 // 집중 모드 공용 — 고른 앱·사이트를 학생이 끝낼 때까지 잠근다(iOS 스크린 타임, 개인 권한 individual).
 // 애플 Family Controls 약관상 시설이 학생 기기를 통제하거나 사용 정보를 기기 밖으로 보내면 안 된다 →
-// 상태는 전부 앱 그룹 UserDefaults(기기 안)에만 두고 서버는 부르지 않는다.
+// 상태는 전부 앱 그룹 UserDefaults(기기 안)에만 두고 잠금 정보로 서버를 부르지 않는다
+// (공부 타이머 "계속"만 같이 보낸다 — 언제 공부를 이어 갔는지일 뿐 잠근 앱·사용 기록은 아님).
 // 시설 안 강제 차단은 와이파이 차단(access-control)이 맡는다.
 // 잠금 비밀번호는 학생이 스스로 정하는 "엄격 모드" 장치다. 잊으면 강한선배 로그인 비밀번호로 앱 안에서 초기화하고,
 // 스크린 타임 권한을 끄면 iOS 가 잠금을 풀고 여기서도 비밀번호를 지운다 — 심사에서 "사용자를 가두지 않는다"를 보이는 근거.
@@ -92,8 +94,19 @@ export async function startFocus() {
   DA.blockSelection({ activitySelectionId: SELECTION_ID });
 }
 
-/** "아직 공부 중이에요" — 잠금은 그대로, 묻는 시각·자동 종료 시각만 지금부터 다시 */
-export const keepFocus = arm;
+/**
+ * "아직 공부 중이에요" — 잠금은 그대로, 묻는 시각·자동 종료 시각만 지금부터 다시.
+ * 공부 타이머가 돌고 있으면 타이머도 지금부터 3시간 다시 (타이머 기록만 서버로 — 잠금 정보는 안 보냄).
+ */
+export async function keepFocus() {
+  await arm();
+  await sendTimer('keep').catch(() => undefined); // 타이머가 없으면 400 — 무시
+}
+
+/** 타이머 쪽 "계속"에서 — 집중 모드가 켜져 있을 때만 다시 건다 */
+export async function keepFocusIfActive() {
+  if (FOCUS_SUPPORTED && DA.isShieldActive()) await arm();
+}
 
 export function stopFocus() {
   DA.stopMonitoring([ACTIVITY]);
