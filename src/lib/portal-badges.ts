@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
+import { countUnackedInstructions } from "@/lib/student-instructions";
 import { countUnseenSuggestionUpdates } from "@/lib/suggestion-handling";
 
 /** 학생 측 미확인 채팅 메시지 합계 (모든 담당자 채팅방 합산). */
@@ -52,6 +53,8 @@ export type PortalBadgeCounts = {
   hasVocab: boolean;
   qna: number;
   suggestions: number;
+  /** 아직 [확인했어요] 를 누르지 않은 선생님 지시 */
+  instructions: number;
 };
 
 /**
@@ -60,7 +63,7 @@ export type PortalBadgeCounts = {
  */
 export const getPortalBadgeCounts = cache(
   async (studentId: string): Promise<PortalBadgeCounts> => {
-    const [tasks, feedback, chat, vocabTotal, vocab, qna, suggestions] = await Promise.all([
+    const [tasks, feedback, chat, vocabTotal, vocab, qna, suggestions, instructions] = await Promise.all([
       prisma.performanceTask.count({
         where: { studentId, status: { in: ["OPEN", "IN_PROGRESS", "NEEDS_REVISION"] } },
       }),
@@ -74,7 +77,8 @@ export const getPortalBadgeCounts = cache(
       }),
       countUnreadQuestionAnswersForStudent(studentId),
       countUnseenSuggestionUpdates(studentId),
+      countUnackedInstructions(studentId),
     ]);
-    return { tasks, feedback, chat, vocab, hasVocab: vocabTotal > 0, qna, suggestions };
+    return { tasks, feedback, chat, vocab, hasVocab: vocabTotal > 0, qna, suggestions, instructions };
   }
 );
