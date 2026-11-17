@@ -11,6 +11,7 @@ import {
   FileText,
   GraduationCap,
   LayoutGrid,
+  ListChecks,
   Megaphone,
   MessageCircle,
   Moon,
@@ -26,6 +27,7 @@ import {
 import { todayKST, cn } from "@/lib/utils";
 import { calcPointBalance, pointsToKrw } from "@/lib/points";
 import { getPortalBadgeCounts } from "@/lib/portal-badges";
+import { listInstructionsForStudent } from "@/lib/student-instructions";
 import { loadStudentPointTotals } from "@/lib/student-rewards-core";
 import {
   Badge,
@@ -42,6 +44,7 @@ import {
   type Tone,
 } from "@/components/portal/ui";
 import { TASK_STATUS } from "@/components/portal/status";
+import { InstructionItem } from "./_components/instruction-item";
 import { PwaInstallPrompt } from "./_components/pwa-install-prompt";
 
 function greeting(): string {
@@ -170,6 +173,12 @@ export default async function StudentPortalHomePage({
 
   const { balance } = calcPointBalance(pointTotals);
 
+  // 선생님 지시 카드는 미확인이 있을 때만 보이므로 그때만 목록을 가져온다
+  const newInstructions =
+    badges.instructions > 0
+      ? (await listInstructionsForStudent(student.id)).items.filter((i) => !i.ackedAt).slice(0, 2)
+      : [];
+
   const daysLeft = daysUntil(session.link.expiresAt);
 
   const nextSession = upcomingSessions[0];
@@ -193,6 +202,7 @@ export default async function StudentPortalHomePage({
     { href: `${root}/network`, label: "네트워크", icon: Wifi, tone: "info" },
     { href: `${root}/schedule`, label: "내 일정", icon: CalendarDays, tone: "ok" },
     { href: `${root}/suggestions`, label: "건의하기", icon: Megaphone, tone: "warn", badge: badges.suggestions },
+    { href: `${root}/instructions`, label: "선생님 지시", icon: ListChecks, tone: "brand", badge: badges.instructions },
   ];
   if (badges.hasVocab)
     shortcuts.push({ href: `${root}/vocab`, label: "영단어", icon: SpellCheck, tone: "info", badge: badges.vocab });
@@ -222,6 +232,20 @@ export default async function StudentPortalHomePage({
         >
           원장님께 새 링크를 요청해 주세요.
         </Notice>
+      )}
+
+      {/* 선생님 지시 — 미확인 최신 2건 */}
+      {newInstructions.length > 0 && (
+        <Section
+          title="선생님 지시"
+          action={<SectionAction href={`${root}/instructions`}>전체 보기</SectionAction>}
+        >
+          <div className="divide-y divide-stroke-neutral-subtle">
+            {newInstructions.map((i) => (
+              <InstructionItem key={i.id} token={token} item={i} className="py-x4 first:pt-0 last:pb-0" />
+            ))}
+          </div>
+        </Section>
       )}
 
       {/* 멘토링 */}

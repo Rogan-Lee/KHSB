@@ -1,6 +1,7 @@
 import { countStaffUnreadFamilyChats } from "@/lib/family-chat";
 import { prisma } from "@/lib/prisma";
 import { isFullAccess, isStaff } from "@/lib/roles";
+import { countPendingParentRequests } from "@/lib/student-instructions";
 import { todayKST } from "@/lib/utils";
 
 /**
@@ -12,7 +13,7 @@ export async function getSidebarBadges(
   userId: string,
   role?: string | null,
 ): Promise<Record<string, number>> {
-  const [requests, suggestions, questions, chats, proposals, examApps, lunchRequests, parentFeedback, staffDm, reports, tuitionOnsite, familyChats] =
+  const [requests, suggestions, questions, chats, proposals, examApps, lunchRequests, parentFeedback, staffDm, reports, tuitionOnsite, familyChats, parentRequests] =
     await Promise.allSettled([
       // /requests — 내가 아직 안 본 열린 기능 요청
       prisma.featureRequest.count({
@@ -73,6 +74,8 @@ export async function getSidebarBadges(
         : Promise.resolve(0),
       // /family-chat — 학생·학부모 글을 운영진 아무도 아직 안 본 방 (직원 전체 공동 읽음)
       countStaffUnreadFamilyChats(),
+      // /instructions — 아직 처리 안 한 학부모 요청 (직원 전체 공동)
+      countPendingParentRequests(),
     ]);
 
   const badges: Record<string, number> = {};
@@ -106,6 +109,7 @@ export async function getSidebarBadges(
   set("/moderation", reports);
   set("/tuition", tuitionOnsite);
   set("/family-chat", familyChats);
+  set("/instructions", parentRequests);
 
   return badges;
 }

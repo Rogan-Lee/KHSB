@@ -9,6 +9,7 @@ const hrefs = (role: string) => {
 describe("nav-config", () => {
   it("탭 화면도 그 메뉴로 잡는다", () => {
     expect(matchNavHref("/questions")).toBe("/online/inbox");
+    expect(matchNavHref("/instructions")).toBe("/online/inbox");
     expect(matchNavHref("/mentoring/time")).toBe("/mentoring");
     expect(locateNav("/mentoring/time").tab?.label).toBe("시간 관리");
     expect(matchNavHref("/online/students/abc/plans")).toBe("/students");
@@ -19,9 +20,11 @@ describe("nav-config", () => {
 
   it("탭 줄은 역할에 보이는 탭이 둘 이상일 때만", () => {
     expect(navTabs(locateNav("/questions"), "DIRECTOR")?.map((t) => t.href)).toEqual([
-      "/online/inbox", "/questions", "/suggestions", "/approvals", "/staff-messages",
+      "/online/inbox", "/questions", "/suggestions", "/instructions", "/approvals", "/staff-messages",
     ]);
-    expect(navTabs(locateNav("/online/inbox"), "CONSULTANT")?.length).toBe(2);
+    expect(navTabs(locateNav("/online/inbox"), "CONSULTANT")?.map((t) => t.href)).toEqual([
+      "/online/inbox", "/instructions", "/staff-messages",
+    ]);
     expect(navTabs(locateNav("/"), "DIRECTOR")).toBeNull();
     expect(navTabs(locateNav("/online/daily-log"), "MANAGER_MENTOR")).toBeNull();
   });

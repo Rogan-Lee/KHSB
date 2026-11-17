@@ -5,6 +5,7 @@ import {
   BookOpenCheck,
   CalendarDays,
   ClipboardList,
+  ClipboardPen,
   FileText,
   Inbox,
   Megaphone,
@@ -38,6 +39,7 @@ export type StaffDest =
   | 'patrol'
   | 'handover'
   | 'approvals'
+  | 'instructions'
   | 'suggestions'
   | 'lunch'
   | 'tasks'
@@ -79,6 +81,8 @@ export const STAFF_DEST: Record<StaffDest, DestDef> = {
   patrol: { label: '순찰', icon: ScanLine, tone: 'brand', href: route('/(staff)/patrol'), can: offline },
   handover: { label: '인수인계', icon: ClipboardList, tone: 'warn', href: route('/(staff)/handover'), can: offline },
   approvals: { label: '승인함', icon: Stamp, tone: 'brand', href: route('/(staff)/approvals'), can: offline },
+  // 학부모 요청 → 학생 지시 — 서버 /staff/instructions 가 전 직원(requireMobileAnyStaff)
+  instructions: { label: '학생 지시', icon: ClipboardPen, tone: 'violet', href: route('/(staff)/instructions'), can: always },
   suggestions: { label: '건의사항', icon: MessageSquareText, tone: 'warn', href: route('/(staff)/suggestions'), can: offline },
   lunch: { label: '점심 도시락', short: '점심', icon: Utensils, tone: 'warn', href: route('/(staff)/lunch'), can: offline },
   // 수행평가 — 서버 /staff/tasks 가 전 직원(requireMobileAnyStaff, 담당 학생 범위)

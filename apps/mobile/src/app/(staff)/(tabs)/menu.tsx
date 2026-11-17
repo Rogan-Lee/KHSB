@@ -88,6 +88,7 @@ export default function StaffMenuScreen() {
     {
       title: '요청·승인',
       rows: [
+        { dest: 'instructions', description: '학부모 요청 검토와 학생에게 보낼 지시', badge: badges.instructions },
         { dest: 'approvals', description: '쪽잠·네트워크·포인트·모의고사 신청', badge: badges.approvals },
         { dest: 'suggestions', description: '학생 건의 검토와 답변', badge: badges.suggestions },
         { dest: 'lunch', description: '오늘 수령 체크와 학부모 변경 요청', badge: badges.lunchRequests },

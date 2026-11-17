@@ -6,6 +6,7 @@ import {
   Coins,
   FileText,
   GraduationCap,
+  ListChecks,
   Megaphone,
   MessageCircle,
   MessageSquare,
@@ -123,6 +124,7 @@ export default async function StudentPortalMenuPage({
   const talk: Item[] = [
     { href: `${root}/qna`, label: "질문하기", description: "모르는 문제를 사진으로 물어봐요", icon: CircleHelp, tone: "brand", badge: badges.qna },
     { href: `${root}/chat`, label: "메시지", description: "담당 선생님과 1:1 대화", icon: MessageSquare, tone: "info", badge: badges.chat },
+    { href: `${root}/instructions`, label: "선생님 지시", description: "선생님이 보낸 할 일을 확인해요", icon: ListChecks, tone: "brand", badge: badges.instructions },
     { href: `${root}/suggestions`, label: "건의사항", description: "불편한 점, 바라는 점을 알려 주세요", icon: Megaphone, tone: "warn", badge: badges.suggestions },
   ];
 
