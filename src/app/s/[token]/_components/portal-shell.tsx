@@ -29,6 +29,7 @@ const PUSH_TITLES: Record<string, string> = {
   vocab: "영단어 시험",
   points: "포인트",
   suggestions: "건의사항",
+  instructions: "선생님 지시",
   nap: "쪽잠 신청",
   network: "네트워크 사용",
   schedule: "내 일정",
@@ -91,7 +92,7 @@ export type PortalBadges = {
   tasks: number;
   qna: number;
   chat: number;
-  /** 전체 탭 안에 숨은 항목(피드백·영단어·건의)의 합 */
+  /** 전체 탭 안에 숨은 항목(피드백·영단어·건의·선생님 지시)의 합 */
   menu: number;
 };
 

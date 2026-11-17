@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { MentoringRecordForm, type PreviousMentoring } from "@/components/mentoring/mentoring-record-form";
 import { CommunicationPanel } from "@/components/communications/communication-panel";
+import { InstructionPanel } from "@/components/instructions/instruction-panel";
+import { getStudentInstructionsForStaff } from "@/lib/student-instructions";
 import nextDynamic from "next/dynamic";
 const ExamScoreChart = nextDynamic(() => import("@/components/students/exam-score-chart").then(m => m.ExamScoreChart));
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
@@ -71,7 +73,7 @@ export default async function MentoringDetailPage({
   // 이달 상벌점 집계 기간 (멘토링 예정월 기준)
   const monthStart = new Date(analysisYear, analysisMonth - 1, 1);
   const monthEnd = new Date(analysisYear, analysisMonth, 1);
-  const [timetableEntries, mentoringSchoolEvents, studyAnalysis, monthMerits, patrolNotes] = await Promise.all([
+  const [timetableEntries, mentoringSchoolEvents, studyAnalysis, monthMerits, patrolNotes, instructions] = await Promise.all([
     getTimetableEntries(mentoring.studentId),
     getStudentSchoolEvents(mentoring.studentId, evtFrom, evtTo),
     getStudentStudyAnalysis(mentoring.studentId, analysisYear, analysisMonth),
@@ -86,6 +88,8 @@ export default async function MentoringDetailPage({
       take: 8,
       select: { id: true, status: true, note: true, checkedAt: true, round: { select: { label: true, startedAt: true } } },
     }),
+    // 학부모 요청에서 나온 지시·바로 지시 — 멘토도 무엇을 시켰는지 본다
+    getStudentInstructionsForStaff(mentoring.studentId),
   ]);
   const meritPositive = monthMerits.filter((m) => m.type === "MERIT").reduce((sum, m) => sum + m.points, 0);
   const meritNegative = monthMerits.filter((m) => m.type === "DEMERIT").reduce((sum, m) => sum + m.points, 0);
@@ -293,10 +297,15 @@ export default async function MentoringDetailPage({
           </TabsContent>
 
           <TabsContent value="communications">
-            <CommunicationPanel
-              studentId={s.id}
-              initialItems={s.communications}
-            />
+            <div className="flex flex-col gap-x6">
+              <CommunicationPanel
+                studentId={s.id}
+                initialItems={s.communications}
+              />
+              <Section>
+                <InstructionPanel studentId={s.id} studentName={s.name} items={instructions} />
+              </Section>
+            </div>
           </TabsContent>
 
           <TabsContent value="scores">

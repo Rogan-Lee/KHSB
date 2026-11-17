@@ -47,6 +47,7 @@ const BADGE_MIN_INTERVAL_MS = 30_000;
 const NEW_ITEM_TOASTS = [
   ["/questions", "학생 질문"],
   ["/suggestions", "학생 건의사항"],
+  ["/instructions", "학부모 요청"],
 ] as const;
 type ViewMode = "web" | "mobile";
 

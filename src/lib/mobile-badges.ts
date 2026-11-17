@@ -4,6 +4,7 @@ import { countNewParentReports } from "@/lib/mobile-parent-reports";
 import { countOpenTuitionInvoices } from "@/lib/mobile-parent-tuition";
 import { countUnreadByQuestion } from "@/lib/mobile-student-questions";
 import { countUnseenStudentSuggestions } from "@/lib/mobile-suggestions";
+import { countUnackedInstructions } from "@/lib/student-instructions";
 import { prisma } from "@/lib/prisma";
 import { getSidebarBadges } from "@/lib/sidebar-badges";
 import { todayKST } from "@/lib/utils";
@@ -53,12 +54,14 @@ export type StudentBadges = {
   suggestions: number;
   /** 가족 톡방 안 읽은 메시지 (채팅 탭에 더해 보여 준다) */
   familyChat: number;
+  /** 아직 [확인했어요]를 안 누른 운영진 지시 (홈 카드) */
+  instructions: number;
   /** 전체 탭 점 배지 — 피드백·영단어·건의 합 */
   menu: number;
 };
 
 export async function getStudentBadges(studentId: string): Promise<StudentBadges> {
-  const [tasks, feedback, chat, vocabTotal, vocab, qna, suggestions, familyChat] = await Promise.allSettled([
+  const [tasks, feedback, chat, vocabTotal, vocab, qna, suggestions, familyChat, instructions] = await Promise.allSettled([
     prisma.performanceTask.count({
       where: { studentId, status: { in: ["OPEN", "IN_PROGRESS", "NEEDS_REVISION"] } },
     }),
@@ -78,6 +81,7 @@ export async function getStudentBadges(studentId: string): Promise<StudentBadges
     unreadAnswersForStudent(studentId),
     countUnseenStudentSuggestions(studentId),
     countFamilyUnread([studentId], { kind: "STUDENT", id: studentId }),
+    countUnackedInstructions(studentId),
   ]);
   const b = {
     tasks: settled(tasks),
@@ -88,6 +92,7 @@ export async function getStudentBadges(studentId: string): Promise<StudentBadges
     qna: settled(qna),
     suggestions: settled(suggestions),
     familyChat: settled(familyChat),
+    instructions: settled(instructions),
   };
   return { ...b, menu: b.feedback + b.vocab + b.suggestions };
 }
@@ -106,6 +111,8 @@ export type StaffBadges = {
   approvals: number;
   lunchRequests: number;
   suggestions: number;
+  /** 처리 안 한 학부모 요청 — 학생 지시 받은함 */
+  instructions: number;
   /** 홈 탭 점 배지 */
   home: number;
   mentoring: number;
@@ -129,6 +136,7 @@ export async function getStaffBadges(userId: string, role: string): Promise<Staf
   const approvals = settled(naps) + settled(network) + settled(redemptions) + (sb["/exams"] ?? 0);
   const lunchRequests = sb["/lunch"] ?? 0;
   const suggestions = sb["/suggestions"] ?? 0;
+  const instructions = sb["/instructions"] ?? 0;
   return {
     inbox: questions + chats + dm + familyChats,
     questions,
@@ -138,7 +146,8 @@ export async function getStaffBadges(userId: string, role: string): Promise<Staf
     approvals,
     lunchRequests,
     suggestions,
-    home: approvals + lunchRequests,
+    instructions,
+    home: approvals + lunchRequests + instructions,
     mentoring: 0,
     menu: suggestions + (sb["/online/schedules"] ?? 0) + (sb["/online/reports"] ?? 0),
   };

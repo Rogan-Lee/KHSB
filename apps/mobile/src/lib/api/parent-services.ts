@@ -173,6 +173,8 @@ export type ParentInquiry = {
   createdAt: string;
   checked: boolean;
   checkedAt: string | null;
+  /** 이 문의로 학생에게 전달한 지시 (구버전 서버는 필드가 없다) */
+  instructions?: { content: string; sentAt: string; ackedAt: string | null }[];
 };
 
 export type ParentInquiriesResponse = { studentName: string; items: ParentInquiry[] };

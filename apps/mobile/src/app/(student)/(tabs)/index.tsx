@@ -20,6 +20,7 @@ import {
   Video,
   Wifi,
 } from 'lucide-react-native';
+import type { ReactNode } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 
 import {
@@ -61,6 +62,8 @@ import {
 } from '@/lib/api/student-home';
 import { FocusCard } from '@/features/student-focus/focus-card';
 import { FOCUS_SUPPORTED } from '@/features/student-focus/focus';
+import { InstructionsHomeSection } from '@/features/student-instructions/home-section';
+import { STUDENT_INSTRUCTIONS_PATH, type StudentInstructionsResponse } from '@/lib/api/instructions';
 import { refreshBadges } from '@/lib/badges';
 import { useMobileQuery } from '@/lib/mobile-api';
 import { useSession } from '@/lib/session';
@@ -90,6 +93,8 @@ export default function StudentHomeScreen() {
   const { isTablet } = useResponsive();
   const { data, error, isRefreshing, refresh, retry } =
     useMobileQuery<StudentHomeResponse>(STUDENT_HOME_PATH);
+  // 선생님 지시는 따로 불러온다 — 실패해도 홈은 그대로, 섹션만 숨긴다
+  const instructions = useMobileQuery<StudentInstructionsResponse>(STUDENT_INSTRUCTIONS_PATH);
 
   return (
     <Screen
@@ -103,12 +108,26 @@ export default function StudentHomeScreen() {
       onRefresh={() => {
         refreshBadges();
         void refresh();
+        void instructions.refresh();
       }}>
       {data ? (
         <HomeContent
           data={data}
           name={data.student.name || session?.displayName || '학생'}
           isTablet={isTablet}
+          instructionsCard={
+            // 태블릿 두 칸 나누기가 빈 칸을 세지 않도록 확인할 지시가 없으면 아예 null
+            instructions.data?.unacked ? (
+              <InstructionsHomeSection
+                key="instructions"
+                data={instructions.data}
+                onAcked={() => {
+                  void instructions.refresh();
+                  refreshBadges();
+                }}
+              />
+            ) : null
+          }
         />
       ) : error ? (
         <ErrorState message={error} onRetry={() => void retry()} />
@@ -123,10 +142,13 @@ function HomeContent({
   data,
   name,
   isTablet,
+  instructionsCard,
 }: {
   data: StudentHomeResponse;
   name: string;
   isTablet: boolean;
+  /** 선생님 지시 — 확인 안 한 지시가 없으면 null */
+  instructionsCard: ReactNode;
 }) {
   const { isWide } = useResponsive();
   const { badges, mentoring, tasks, survey, points, seasonal } = data;
@@ -432,8 +454,10 @@ function HomeContent({
       </KpiRow>
     );
     // 포인트는 숫자 타일로 올라가고, 바로가기는 사이드바에 있어 가로에서는 뺀다(세로 레일엔 바로가기가 없음)
-    // 집중 모드 바로 시작은 넓은 칸 맨 위 (iOS 18+ 에서만 그려진다)
-    let left = [FOCUS_SUPPORTED ? <FocusCard key="focus" /> : null, tasksCard, surveyCard].filter(Boolean);
+    // 넓은 칸 맨 위는 선생님 지시 → 집중 모드 바로 시작 (집중 모드는 iOS 18+ 에서만 그려진다)
+    let left = [instructionsCard, FOCUS_SUPPORTED ? <FocusCard key="focus" /> : null, tasksCard, surveyCard].filter(
+      Boolean,
+    );
     let right = [mentoringCard, qnaCard, seasonalCard, isWide ? null : shortcutCard].filter(Boolean);
     if (left.length === 0) [left, right] = [right.slice(0, 1), right.slice(1)];
     const studentInfo = [data.student.school, data.student.grade].filter(Boolean).join(' · ');
@@ -460,6 +484,7 @@ function HomeContent({
   return (
     <Stack>
       {greetingBlock}
+      {instructionsCard}
       <FocusCard />
       {mentoringCard}
       {qnaCard}

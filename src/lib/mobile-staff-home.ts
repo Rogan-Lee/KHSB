@@ -321,6 +321,8 @@ export async function getMobileStaffToday(user: StaffUser, now = new Date()) {
       suggestions: off && badges ? badges.suggestions : null,
       tasksNeedFeedback: tasks ?? null,
       unreadMessages: badges ? badges.chats + badges.dm : null,
+      // 처리 안 한 학부모 요청 — 학생 지시 받은함 (직원 전체)
+      instructions: badges ? badges.instructions : null,
     },
     attendance: attendance
       ? {
