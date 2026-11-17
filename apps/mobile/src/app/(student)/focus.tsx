@@ -86,7 +86,7 @@ function Focus() {
     return <AndroidPermissionSteps usageAccess={f.usageAccess} overlay={f.overlay} battery={f.battery} />;
   }
 
-  if (!f.approved) {
+  if (!f.approved && !ANDROID_GUARD) {
     return (
       <Section title="공부하는 동안 딴짓 앱을 잠가요">
         <Stack>
@@ -145,6 +145,15 @@ function Focus() {
             </Text>
           </View>
           <Stack>
+            {/* 켠 뒤에 배터리를 '최적화'·'제한'으로 바꾸면 시스템이 서비스를 멈춘다 (에뮬레이터 '제한': 1분 30초쯤) */}
+            {ANDROID_GUARD && !f.battery && (
+              <>
+                <Notice tone="warn">배터리가 ‘제한 없음’이 아니라서 집중 모드가 중간에 풀릴 수 있어요.</Notice>
+                <Button variant="weak" block onPress={() => ANDROID_GUARD?.openBatterySettings()}>
+                  배터리 설정 열기
+                </Button>
+              </>
+            )}
             {f.asking && (
               <Button block loading={pending} onPress={() => void run(keepFocus, '2시간 뒤에 다시 물어볼게요')}>
                 계속 공부하기
