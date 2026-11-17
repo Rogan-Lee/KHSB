@@ -135,7 +135,7 @@ export function AndroidAppPicker({ onClose, onSaved }: { onClose: () => void; on
       footer={
         <Button
           size="xl"
-          block
+          style={{ flex: 1 }}
           onPress={() => {
             ANDROID_GUARD?.setBlocked([...picked]);
             onSaved();

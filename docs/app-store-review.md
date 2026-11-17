@@ -134,12 +134,18 @@ npx tsx --env-file=.env.local scripts/seed-review-demo.ts --delete --prod      #
 13. [x] **앱 개인정보(App Privacy) 답변** — 바꿀 것 없다. 기기 밖으로 나가는 정보가 없다.
 14. [ ] **앱스토어 설명·랜딩 문구.** 집중 모드를 소개할 때 "학생이 스스로 켜는 집중 도구"로만 쓴다. "독서실이 학생 폰을 잠근다", "선생님이 확인한다"처럼 시설이 통제하는 것으로 읽히는 문구는 약관 위반으로 보일 수 있다.
 
-### 라. 안드로이드 — 아직 없음
+### 라. 안드로이드 — 만들었음, 출시는 Play 프로덕션 승인 뒤
 
-안드로이드 앱에는 집중 모드가 없다(메뉴에도 안 보인다). 안드로이드는 스크린 타임 같은 공식 기능이 없어 "사용 기록 접근 + 다른 앱 위에 표시 + 계속 도는 서비스"로 직접 만들어야 하고, 구글 플레이 출시 준비가 먼저다. 만들게 되면 필요한 일:
+2026-11-17 브랜치 `feat/android-focus`. iOS 와 같은 흐름·규칙(학생이 직접 켬, 잠금 비밀번호, 2시간 물음·3시간 자동 종료, 권한을 끄면 비밀번호까지 풀림, 잠금 정보는 기기 밖으로 안 나감)이고, 화면도 같은 `focus.tsx` 를 쓴다.
 
-- 빌드 방법 결정: 맥에 안드로이드 빌드 도구(SDK 36, JDK 17)를 설치할지, EAS 클라우드 빌드로 할지.
-- 플레이 콘솔 포그라운드 서비스 신고: 기능 설명, 서비스가 멈추면 생기는 영향, 시연 영상 링크(집중 모드 켜기 → 막힌 앱을 열면 차단 화면).
-- 사용 기록 접근·다른 앱 위에 표시를 켜는 설정 화면으로 보내기 전에 앱이 직접 목적을 설명하고 동의를 받는다(구글 사용자 데이터 정책).
-- 데이터 보안(Data safety) 양식은 iOS 와 같은 기준(기기 밖으로 나가는 것 없음). 대상 연령은 13세 이상.
-- 접근성 API 와 `QUERY_ALL_PACKAGES` 는 쓰지 않는다. 쓰게 되면 별도 신고가 필요하다.
+- **방식**: 로컬 Expo 모듈 `apps/mobile/modules/focus-guard`(Kotlin). 사용 정보 접근(`PACKAGE_USAGE_STATS`)으로 지금 앱을 보고, 학생이 고른 앱이면 다른 앱 위에 표시(`SYSTEM_ALERT_WINDOW`)로 "집중 모드 중이에요" 화면을 덮는다. 이 확인은 집중 모드 동안만 도는 포그라운드 서비스(`specialUse`, 알림이 늘 보임)가 한다. 앱을 닫거나 조작하지 않는다 — "홈으로"·"강한선배 열기"는 학생이 누를 때만.
+- **쓰지 않는 것**: 접근성 API(구글이 더 좁은 API 우선·자동 동작 금지, 2026-01-28 정책), `QUERY_ALL_PACKAGES`(대신 런처·전화 앱만 보이게 `<queries>`). 강한선배·설정·전화 앱은 잠글 수 없다(끝내기·권한 끄기·긴급 전화).
+- **출시 시점**: 비공개 테스트(11/29쯤 끝) → 프로덕션 승인 → 그다음 빌드에 넣는다. 포그라운드 서비스 신고는 심사를 받아서, 테스트 중 업데이트에 넣으면 거절·지연 때 비공개 테스트 업데이트까지 막힐 수 있다.
+
+플레이 콘솔에서 계정 주인이 할 일:
+
+1. [ ] **포그라운드 서비스 신고** — 앱 콘텐츠 › 포그라운드 서비스 권한 › 유형 "특수 용도(Special use)". 설명(영문):
+   > Optional study focus mode that the student starts themselves. While a session runs, a foreground service with a visible notification checks which app is in the foreground (Usage Access) and, if it is one of the apps the student picked, covers it with a reminder screen (Display over other apps) with buttons to go Home or open our app. It never closes or controls other apps. The session ends when the student ends it with their own PIN, or automatically after 3 hours. If the service is stopped, the chosen apps are simply not covered. No usage data leaves the device.
+2. [ ] **시연 영상**(유튜브 일부 공개 링크) — 학생 로그인 → 집중 모드 → 권한 두 개 허용 → 잠글 앱 고르기 → 비밀번호 → 집중 시작 → 고른 앱을 열면 안내 화면 → "홈으로" → 강한선배에서 비밀번호로 끝내기.
+3. [ ] **데이터 보안** — 집중 모드는 바꿀 것 없음(기기 밖으로 나가는 것 없음). 공부 계획·공부 타이머 기록(과목, 시작·정지 시각)은 서버에 저장되니 기존 답의 "사용자 생성 콘텐츠/앱 활동" 항목에 포함되는지 한 번 확인(iOS 앱 개인정보 13번도 같이).
+4. [ ] **기기 확인** — 실제 안드로이드 기기(갤럭시 탭 등)에서 위 영상 흐름 + 3시간 자동 종료 + 설정에서 권한 끄면 풀림.
