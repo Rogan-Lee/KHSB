@@ -488,6 +488,8 @@ export type StaffAttendanceItem = {
   scheduleEnd: string | null;
   seat: string | null;
   status: '입실' | '외출' | '퇴실' | '미입실' | '결석';
+  /** 오늘 공부 시간(분) — 입실~퇴실 − 외출. 예전 서버엔 없음 */
+  studyMinutes?: number;
   time: string | null;
 };
 

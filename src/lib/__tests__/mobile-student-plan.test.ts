@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    $transaction: vi.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
     scheduleProposal: { findFirst: vi.fn(), create: vi.fn(), findMany: vi.fn() },
     dailyPlan: { upsert: vi.fn(), findMany: vi.fn() },
     examSession: { findMany: vi.fn(), findUnique: vi.fn() },
@@ -17,7 +18,9 @@ import { MobileApiError } from "@/lib/mobile-auth";
 import {
   cancelMobileStudentExam,
   getMobileStudentExams,
+  getStudentPlansRange,
   saveMobileStudentPlan,
+  saveMobileStudentPlans,
   submitMobileStudentScheduleProposal,
 } from "@/lib/mobile-student-plan";
 import { prisma } from "@/lib/prisma";
@@ -102,11 +105,11 @@ describe("submitMobileStudentScheduleProposal", () => {
 describe("saveMobileStudentPlan", () => {
   const item = { id: "a", text: "수학 문제집 30p", done: false };
 
-  it("오늘·내일이 아닌 날짜는 거절한다", async () => {
+  it("지난 7일~4주 뒤 밖의 날짜는 거절한다", async () => {
     await expectApiError(
       saveMobileStudentPlan(STUDENT, { date: "2000-01-01", items: [item] }),
       400,
-      "오늘 또는 내일 계획만 수정할 수 있습니다",
+      "지난 7일부터 4주 뒤까지의 계획만 고칠 수 있어요",
     );
     expect(prisma.dailyPlan.upsert).not.toHaveBeenCalled();
   });
@@ -205,5 +208,57 @@ describe("모의고사", () => {
       myMemo: "탐구 생명",
       seatNumber: null,
     });
+  });
+});
+
+const dayStr = (offset: number) => new Date(todayKST().getTime() + offset * 86_400_000).toISOString().slice(0, 10);
+
+describe("공부 플래너", () => {
+  const item = { id: "a", text: "수학 문제집 30p", done: false, colorCode: "red", subject: "수학", duration: 60 };
+
+  it("내일로 미루기 — 두 날짜를 한 트랜잭션으로 저장하고 과목·목표 시간은 그대로 남긴다", async () => {
+    await saveMobileStudentPlans(STUDENT, {
+      days: [
+        { date: dayStr(0), items: [] },
+        { date: dayStr(1), items: [item] },
+      ],
+    });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.dailyPlan.upsert).toHaveBeenCalledTimes(2);
+    expect(prisma.dailyPlan.upsert).toHaveBeenLastCalledWith(
+      expect.objectContaining({ update: { items: [item] } }),
+    );
+  });
+
+  it("한 날짜라도 범위를 벗어나면 아무것도 저장하지 않는다", async () => {
+    await expectApiError(
+      saveMobileStudentPlans(STUDENT, {
+        days: [
+          { date: dayStr(0), items: [item] },
+          { date: dayStr(-8), items: [item] },
+        ],
+      }),
+      400,
+      "지난 7일부터 4주 뒤까지의 계획만 고칠 수 있어요",
+    );
+    expect(prisma.dailyPlan.upsert).not.toHaveBeenCalled();
+    await expectApiError(
+      saveMobileStudentPlans(STUDENT, { days: [{ date: dayStr(0), items: [] }, { date: dayStr(0), items: [] }] }),
+      400,
+      "같은 날짜가 두 번 들어갔어요",
+    );
+  });
+
+  it("기간 조회는 계획 없는 날을 빈 목록으로 채우고 42일을 넘으면 거절한다", async () => {
+    vi.mocked(prisma.dailyPlan.findMany).mockResolvedValue([
+      { date: new Date("2026-11-17"), items: [item] },
+    ] as never);
+    const res = await getStudentPlansRange(STUDENT, "2026-11-16", "2026-11-22");
+    expect(res.days).toHaveLength(7);
+    expect(res.days[1]).toEqual({ date: "2026-11-17", items: [item] });
+    expect(res.days[0]).toEqual({ date: "2026-11-16", items: [] });
+
+    await expectApiError(getStudentPlansRange(STUDENT, "2026-01-01", "2026-03-01"), 400, "조회 기간을 확인해 주세요");
+    await expectApiError(getStudentPlansRange(STUDENT, "2026-11-22", "2026-11-16"), 400, "조회 기간을 확인해 주세요");
   });
 });

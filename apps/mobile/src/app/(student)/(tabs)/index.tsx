@@ -10,6 +10,7 @@ import {
   FileText,
   GraduationCap,
   LayoutGrid,
+  ListChecks,
   Megaphone,
   MessageCircle,
   Moon,
@@ -61,6 +62,7 @@ import {
   type StudentHomeResponse,
 } from '@/lib/api/student-home';
 import { FocusCard } from '@/features/student-focus/focus-card';
+import { PLANNER_ROUTE, TodayPlanCard } from '@/features/student-planner/today-card';
 import { FOCUS_SUPPORTED } from '@/features/student-focus/focus';
 import { InstructionsHomeSection } from '@/features/student-instructions/home-section';
 import { STUDENT_INSTRUCTIONS_PATH, type StudentInstructionsResponse } from '@/lib/api/instructions';
@@ -167,6 +169,7 @@ function HomeContent({
     { key: 'nap', href: NAP_ROUTE, label: '쪽잠 신청', icon: Moon, tone: 'violet' },
     { key: 'network', href: NETWORK_ROUTE, label: '네트워크', icon: Wifi, tone: 'info' },
     { key: 'schedule', href: SCHEDULE_ROUTE, label: '내 일정', icon: CalendarDays, tone: 'ok' },
+    { key: 'planner', href: PLANNER_ROUTE, label: '공부 플래너', icon: ListChecks, tone: 'brand' },
     {
       key: 'suggestions',
       href: '/(student)/suggestions',
@@ -455,9 +458,13 @@ function HomeContent({
     );
     // 포인트는 숫자 타일로 올라가고, 바로가기는 사이드바에 있어 가로에서는 뺀다(세로 레일엔 바로가기가 없음)
     // 넓은 칸 맨 위는 선생님 지시 → 집중 모드 바로 시작 (집중 모드는 iOS 18+ 에서만 그려진다)
-    let left = [instructionsCard, FOCUS_SUPPORTED ? <FocusCard key="focus" /> : null, tasksCard, surveyCard].filter(
-      Boolean,
-    );
+    let left = [
+      instructionsCard,
+      FOCUS_SUPPORTED ? <FocusCard key="focus" /> : null,
+      <TodayPlanCard key="plan" />,
+      tasksCard,
+      surveyCard,
+    ].filter(Boolean);
     let right = [mentoringCard, qnaCard, seasonalCard, isWide ? null : shortcutCard].filter(Boolean);
     if (left.length === 0) [left, right] = [right.slice(0, 1), right.slice(1)];
     const studentInfo = [data.student.school, data.student.grade].filter(Boolean).join(' · ');
@@ -486,6 +493,7 @@ function HomeContent({
       {greetingBlock}
       {instructionsCard}
       <FocusCard />
+      <TodayPlanCard />
       {mentoringCard}
       {qnaCard}
       {seasonalCard}

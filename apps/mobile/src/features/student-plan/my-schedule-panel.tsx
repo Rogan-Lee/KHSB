@@ -1,3 +1,4 @@
+import type { Href } from 'expo-router';
 import { Check, Plus, X } from 'lucide-react-native';
 import { useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -11,6 +12,7 @@ import {
   Press,
   radius,
   Section,
+  SectionAction,
   Segmented,
   space,
   Text,
@@ -164,7 +166,9 @@ function DayPanel({
             <Text variant="t3-regular" color="neutralSubtle">
               저장 중…
             </Text>
-          ) : undefined
+          ) : (
+            <SectionAction href={'/(student)/planner' as Href}>플래너</SectionAction>
+          )
         }>
         {items.length === 0 ? (
           <Text variant="t4-regular" color="neutralSubtle" style={{ paddingBottom: space.x3 }}>

@@ -27,6 +27,15 @@ import { useMobileQuery } from '@/lib/mobile-api';
 import { useResponsive } from '@/lib/responsive';
 
 const SEAT_H = 44;
+
+type CellMode = 'name' | 'time';
+const CELL_MODES: { value: CellMode; label: string }[] = [
+  { value: 'name', label: '이름' },
+  { value: 'time', label: '오늘 공부 시간' },
+];
+
+/** 분 → "3:05" (좌석 칸이 좁아 시:분) */
+const hm = (min: number) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`;
 const COL_GAP = 4;
 const AISLE = 12;
 
@@ -43,6 +52,7 @@ function SeatMapBoard() {
     '/api/mobile/v1/staff/seat-map'
   );
   const [roomKey, setRoomKey] = useState<'K' | 'H'>('K');
+  const [mode, setMode] = useState<CellMode>('name');
   const [sheet, setSheet] = useState<{ id: string; open: boolean } | null>(null);
 
   useFocusEffect(
@@ -130,7 +140,10 @@ function SeatMapBoard() {
           </Section>
 
           <Section>
-            <RoomMap room={room} bySeat={bySeat} onSeat={onSeat} />
+            <View style={{ marginBottom: space.x4 }}>
+              <Segmented options={CELL_MODES} value={mode} onChange={setMode} />
+            </View>
+            <RoomMap room={room} bySeat={bySeat} onSeat={onSeat} mode={mode} />
             <Legend />
           </Section>
 
@@ -163,10 +176,12 @@ function RoomMap({
   room,
   bySeat,
   onSeat,
+  mode,
 }: {
   room: SeatLayoutRoom;
   bySeat: Map<string, OpsAttendanceItem>;
   onSeat: (n: number) => void;
+  mode: CellMode;
 }) {
   const children: Child[] = [];
   let index = 0;
@@ -189,7 +204,7 @@ function RoomMap({
                 n === null ? (
                   <View key={`sp${ri}`} style={{ height: SEAT_H }} />
                 ) : (
-                  <SeatCell key={n} num={n} item={bySeat.get(String(n))} onSeat={onSeat} />
+                  <SeatCell key={n} num={n} item={bySeat.get(String(n))} onSeat={onSeat} mode={mode} />
                 )
               )}
             </View>
@@ -230,7 +245,7 @@ function RoomMap({
                 </View>
               ) : (
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <SeatCell num={b.seat} item={bySeat.get(String(b.seat))} onSeat={onSeat} />
+                  <SeatCell num={b.seat} item={bySeat.get(String(b.seat))} onSeat={onSeat} mode={mode} />
                 </View>
               )}
             </Fragment>
@@ -245,17 +260,26 @@ const SeatCell = memo(function SeatCell({
   num,
   item,
   onSeat,
+  mode,
 }: {
   num: number;
   item: OpsAttendanceItem | undefined;
   onSeat: (n: number) => void;
+  mode: CellMode;
 }) {
   const fill = item ? SEAT_FILL[item.status] : null;
+  // 예전 서버(studyMinutes 없음)면 이름으로
+  const minutes = mode === 'time' ? item?.studyMinutes : undefined;
+  const label = !item ? '–' : minutes === undefined ? item.name : minutes > 0 ? hm(minutes) : '–';
   return (
     <Press
       onPress={() => onSeat(num)}
       scale={0.94}
-      accessibilityLabel={item ? `${num}번 ${item.name} ${item.status}` : `${num}번 빈 좌석`}
+      accessibilityLabel={
+        item
+          ? `${num}번 ${item.name} ${item.status}${item.studyMinutes ? ` 오늘 ${hm(item.studyMinutes)}` : ''}`
+          : `${num}번 빈 좌석`
+      }
       style={[
         s.seat,
         fill
@@ -275,8 +299,9 @@ const SeatCell = memo(function SeatCell({
               : 'neutral'
         }
         numberOfLines={1}
+        tabular={minutes !== undefined}
         style={{ maxWidth: '100%', paddingHorizontal: 2 }}>
-        {item?.name ?? '–'}
+        {label}
       </Text>
       {item?.isLate && <View style={s.dot} />}
     </Press>

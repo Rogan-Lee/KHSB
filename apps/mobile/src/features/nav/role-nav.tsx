@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Coins,
   GraduationCap,
+  ListChecks,
   Megaphone,
   MessageCircle,
   MessageSquareText,
@@ -131,6 +132,7 @@ export function StudentShell({ children }: { children: ReactNode }) {
     ...(badges.hasVocab
       ? [{ key: 'vocab', label: '영단어 시험', icon: SpellCheck, href: '/(student)/vocab' as Href, badge: badges.vocab }]
       : []),
+    { key: 'planner', label: '공부 플래너', icon: ListChecks, href: '/(student)/planner' as Href },
     { key: 'schedule', label: '내 일정', icon: CalendarDays, href: '/(student)/schedule' as Href },
     { key: 'lunch', label: '점심 도시락', icon: Utensils, href: '/(student)/lunch' as Href },
     { key: 'points', label: '상벌점', icon: Coins, href: '/(student)/points' as Href },
