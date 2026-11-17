@@ -56,7 +56,7 @@ export default async function StudentPortalLayout({
           tasks: b.tasks,
           qna: b.qna,
           chat: b.chat,
-          menu: b.feedback + b.vocab + b.suggestions,
+          menu: b.feedback + b.vocab + b.suggestions + b.instructions,
         }}
       >
         {children}

@@ -8,6 +8,8 @@ import { calcPointBalance } from "@/lib/points";
 import { StudentForm } from "@/components/students/student-form";
 import { StudentScheduleEditor } from "@/components/students/student-schedule-editor";
 import { CommunicationPanel } from "@/components/communications/communication-panel";
+import { InstructionPanel } from "@/components/instructions/instruction-panel";
+import { getStudentInstructionsForStaff } from "@/lib/student-instructions";
 import dynamic from "next/dynamic";
 const ExamScoreChart = dynamic(() => import("@/components/students/exam-score-chart").then(m => m.ExamScoreChart));
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
@@ -135,7 +137,7 @@ export default async function StudentDetailPage({
     redirect(`/online/students/${encodeURIComponent(student.id)}`);
   }
 
-  const [mentors, schoolRows, seatRows] = await Promise.all([
+  const [mentors, schoolRows, seatRows, instructions] = await Promise.all([
     prisma.user.findMany({
       // 학생 상세 페이지 멘토 재배정 picker — 퇴사자 제외
       where: { status: "ACTIVE", role: { in: ["SUPER_ADMIN", "DIRECTOR", "HEAD_MENTOR", "MENTOR"] } },
@@ -146,6 +148,7 @@ export default async function StudentDetailPage({
       where: { status: "ACTIVE", seat: { not: null }, id: { not: student.id } },
       select: { seat: true },
     }),
+    getStudentInstructionsForStaff(student.id),
   ]);
 
   const schools = [...new Set(schoolRows.map((s) => parseSchool(s.school ?? "")).filter(Boolean))].sort();
@@ -385,12 +388,17 @@ export default async function StudentDetailPage({
         </TabsContent>
 
         <TabsContent value="communications">
-          <Section>
-            <CommunicationPanel
-              studentId={student.id}
-              initialItems={student.communications}
-            />
-          </Section>
+          <div className="grid grid-cols-1 gap-x4 lg:grid-cols-2 lg:items-start">
+            <Section>
+              <CommunicationPanel
+                studentId={student.id}
+                initialItems={student.communications}
+              />
+            </Section>
+            <Section>
+              <InstructionPanel studentId={student.id} studentName={student.name} items={instructions} />
+            </Section>
+          </div>
         </TabsContent>
 
         <TabsContent value="scores">

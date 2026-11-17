@@ -103,6 +103,8 @@ export type StaffTodayResponse = {
     suggestions: number | null;
     tasksNeedFeedback: number | null;
     unreadMessages: number | null;
+    /** 처리 안 한 학부모 요청 (구버전 서버는 필드가 없다) */
+    instructions?: number | null;
   };
   attendance: {
     present: number;

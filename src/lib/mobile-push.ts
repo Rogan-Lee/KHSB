@@ -355,6 +355,22 @@ export async function notifyAssignedStaffOfQuestion(input: {
   });
 }
 
+/** 새 학부모 요청 → 담당 운영진(담임 멘토·운영조교, 없으면 원장급). 학생 지시 받은함으로 연결 */
+export async function notifyAssignedStaffOfParentRequest(input: {
+  studentId: string;
+  studentName: string;
+  content: string;
+  hasDraft: boolean;
+}) {
+  return safelySend({
+    authUserIds: await assignedStaffAuthUserIds(input.studentId),
+    body: `${input.studentName} 학부모: ${input.content.slice(0, 100)}`,
+    category: "SYSTEM",
+    data: { url: "/(staff)/instructions" },
+    title: input.hasDraft ? "새 학부모 요청 · 지시 초안 준비됨" : "새 학부모 요청",
+  });
+}
+
 export async function notifyStudentOfAnswer(input: {
   questionId: string;
 }) {

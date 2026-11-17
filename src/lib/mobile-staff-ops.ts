@@ -172,11 +172,15 @@ export async function checkStudentCommunication(
   if (!existing || existing.studentId !== studentId) {
     throw new MobileApiError("요청을 찾을 수 없습니다", 404);
   }
-  const updated = await prisma.communication.update({
-    where: { id: communicationId },
-    data: { isChecked: true, checkedAt: new Date() },
-    select: communicationSelect,
-  });
+  const [updated] = await prisma.$transaction([
+    prisma.communication.update({
+      where: { id: communicationId },
+      data: { isChecked: true, checkedAt: new Date() },
+      select: communicationSelect,
+    }),
+    // 지시 없이 확인만 한 학부모 요청 — 보내지 않은 AI 초안은 버린다
+    prisma.studentInstruction.deleteMany({ where: { communicationId, sentAt: null } }),
+  ]);
   return { item: serializeCommunication(updated) };
 }
 

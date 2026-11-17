@@ -71,6 +71,7 @@ const STAFF_SHORTCUTS: StaffDest[] = [
   'patrol',
   'handover',
   'approvals',
+  'instructions',
   'tasks',
   'calendar',
 ];
@@ -101,7 +102,7 @@ export function StaffShell({ children }: { children: ReactNode }) {
     label: STAFF_DEST[k].label,
     icon: STAFF_DEST[k].icon,
     href: STAFF_DEST[k].href,
-    badge: k === 'approvals' ? badges.approvals : 0,
+    badge: k === 'approvals' ? badges.approvals : k === 'instructions' ? (badges.instructions ?? 0) : 0,
   }));
   const profile = session
     ? { name: session.displayName, caption: ROLE_LABEL[session.staffRole ?? ''] ?? '직원' }
