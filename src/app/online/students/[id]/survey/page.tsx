@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { ClipboardList } from "lucide-react";
 import { getSurveyForReview } from "@/actions/online/onboarding-survey";
 import { prisma } from "@/lib/prisma";
+import { markSurveySeen } from "@/lib/sidebar-badges";
 import { formatDateTime } from "@/lib/utils";
 import {
   SURVEY_SECTIONS,
@@ -36,6 +37,8 @@ export default async function StudentSurveyReviewPage({
   }
 
   const { student, survey } = data;
+  // 제출된 설문을 열면 사이드바 "초기 설문" 숫자에서 뺀다
+  if (survey?.submittedAt) await markSurveySeen(student.id);
   const sections = (survey?.sections as Record<string, unknown> | null) ?? {};
 
   // admissionType 학기 노출 판단용 학년 (+ 머리 상태 배지용 재원 상태)

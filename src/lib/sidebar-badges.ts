@@ -4,26 +4,51 @@ import { isFullAccess, isStaff } from "@/lib/roles";
 import { countPendingParentRequests } from "@/lib/student-instructions";
 import { todayKST } from "@/lib/utils";
 
-// 입회 대기 신청·문의는 "봤음" 칸이 없어 직원마다 대기자 화면을 마지막으로 연 시각을 AppSetting 에 둔다
-const waitlistSeenKey = (userId: string) => `waitlist.seenAt:${userId}`;
-// 이 배지를 켠 날 — 대기자 화면을 한 번도 안 연 직원에게 지난 신청 전부를 새 건으로 띄우지 않는다
-const WAITLIST_BADGE_SINCE = new Date("2026-11-17T00:00:00+09:00");
+// "봤음" 칸이 없는 건은 스키마를 바꾸지 않고 AppSetting 에 본 시각을 둔다.
+// 이 배지들을 켠 날 — 화면을 한 번도 안 연 직원에게 지난 건 전부를 새 건으로 띄우지 않는다
+const BADGE_SINCE = new Date("2026-11-17T00:00:00+09:00");
 
-/** 대기자 관리 화면을 열면 호출 — 그때까지 들어온 신청·문의는 이 직원에게 더 이상 새 건이 아니다 */
-export async function markWaitlistSeen(userId: string) {
-  const key = waitlistSeenKey(userId);
+// 입회 대기 신청·문의, 차단 — 직원마다 그 화면을 마지막으로 연 시각
+type SeenArea = "waitlist" | "moderation";
+const seenKey = (area: SeenArea, userId: string) => `${area}.seenAt:${userId}`;
+
+/** 대기자 관리·신고 관리 화면을 열면 호출 — 그때까지 들어온 건은 이 직원에게 더 이상 새 건이 아니다 */
+export async function markSeen(area: SeenArea, userId: string) {
+  const key = seenKey(area, userId);
   const value = new Date().toISOString();
   await prisma.appSetting.upsert({ where: { key }, create: { key, value }, update: { value } });
 }
 
+async function seenSince(area: SeenArea, userId: string) {
+  const seen = await prisma.appSetting.findUnique({ where: { key: seenKey(area, userId) }, select: { value: true } });
+  return seen ? new Date(seen.value) : BADGE_SINCE;
+}
+
 async function countNewWaitlist(userId: string) {
-  const seen = await prisma.appSetting.findUnique({
-    where: { key: waitlistSeenKey(userId) },
-    select: { value: true },
-  });
-  const since = seen ? new Date(seen.value) : WAITLIST_BADGE_SINCE;
+  const since = await seenSince("waitlist", userId);
   // 공개 폼으로 들어온 건만 WAITING 으로 시작한다 (직원 일괄 등록은 ENROLLED)
   return prisma.waitlist.count({ where: { status: "WAITING", createdAt: { gt: since } } });
+}
+
+// 초기 설문 — 학생마다 한 번만 내므로 누구든 그 학생 설문 화면을 열면 본 것으로 (직원 전체 공동)
+const SURVEY_SEEN_PREFIX = "survey.seenAt:";
+
+export async function markSurveySeen(studentId: string) {
+  const key = SURVEY_SEEN_PREFIX + studentId;
+  const value = new Date().toISOString();
+  await prisma.appSetting.upsert({ where: { key }, create: { key, value }, update: { value } });
+}
+
+async function countUnseenSurveys() {
+  const [surveys, seen] = await Promise.all([
+    prisma.onboardingSurvey.findMany({
+      where: { submittedAt: { gt: BADGE_SINCE }, student: { status: "ACTIVE" } },
+      select: { studentId: true },
+    }),
+    prisma.appSetting.findMany({ where: { key: { startsWith: SURVEY_SEEN_PREFIX } }, select: { key: true } }),
+  ]);
+  const seenIds = new Set(seen.map((s) => s.key.slice(SURVEY_SEEN_PREFIX.length)));
+  return surveys.filter((s) => !seenIds.has(s.studentId)).length;
 }
 
 /**
@@ -36,7 +61,7 @@ export async function getSidebarBadges(
   role?: string | null,
 ): Promise<Record<string, number>> {
   const staff = isStaff(role);
-  const [requests, suggestions, questions, chats, proposals, examApps, lunchRequests, parentFeedback, staffDm, reports, tuitionOnsite, familyChats, parentRequests, approvals, redemptions, waitlist] =
+  const [requests, suggestions, questions, chats, proposals, examApps, lunchRequests, parentFeedback, staffDm, reports, tuitionOnsite, familyChats, parentRequests, approvals, redemptions, waitlist, taskSubmissions, surveys] =
     await Promise.allSettled([
       // /requests — 내가 아직 안 본 열린 기능 요청
       prisma.featureRequest.count({
@@ -58,7 +83,7 @@ export async function getSidebarBadges(
         where: { staffId: userId, lastMessageAt: { not: null }, student: { status: "ACTIVE" } },
         select: { lastMessageAt: true, staffReadAt: true },
       }),
-      // /online/schedules — 운영진 검토 대기(SUBMITTED). 학생별 최신 버전 기준
+      // /online/schedules — 운영진이 할 일: 학생 제출(SUBMITTED)·학부모 수정 요청(REJECTED). 학생별 최신 버전 기준
       prisma.scheduleProposal.findMany({
         where: { status: { in: ["SUBMITTED", "PROPOSED", "APPROVED", "REJECTED"] } },
         select: { studentId: true, version: true, status: true },
@@ -92,9 +117,14 @@ export async function getSidebarBadges(
           thread: { OR: [{ aUserId: userId }, { bUserId: userId }] },
         },
       }),
-      // /moderation — 처리 대기 신고 (원장만)
+      // /moderation — 처리 대기 신고 + 이 직원이 신고 관리를 마지막으로 연 뒤 생긴 차단 (원장만)
       isFullAccess(role)
-        ? prisma.contentReport.count({ where: { status: "OPEN" } })
+        ? Promise.all([
+            prisma.contentReport.count({ where: { status: "OPEN" } }),
+            seenSince("moderation", userId).then((since) =>
+              prisma.userBlock.count({ where: { createdAt: { gt: since } } }),
+            ),
+          ]).then(([open, blocks]) => open + blocks)
         : Promise.resolve(0),
       // /tuition — 직원 확인을 기다리는 현장 결제 신청 (자습실 직원 전체)
       isStaff(role)
@@ -108,13 +138,18 @@ export async function getSidebarBadges(
       staff
         ? Promise.all([
             prisma.napRequest.count({ where: { status: "PENDING", date: { gte: todayKST() } } }),
-            prisma.networkRequest.count({ where: { status: "PENDING" } }),
+            // 사용 시간이 지난 신청은 처리할 이유가 없어 뺀다
+            prisma.networkRequest.count({ where: { status: "PENDING", endAt: { gt: new Date() } } }),
           ]).then(([naps, networks]) => naps + networks)
         : Promise.resolve(0),
       // /merit-demerit — 승인 대기 포인트 상점 교환 신청
       staff ? prisma.rewardRedemption.count({ where: { status: "PENDING" } }) : Promise.resolve(0),
       // /waitlist — 이 직원이 대기자 화면을 마지막으로 연 뒤 들어온 입회 대기 신청·문의
       staff ? countNewWaitlist(userId) : Promise.resolve(0),
+      // /online/performance — 학생이 내고 아직 검토(승인·수정 요청) 전인 수행평가
+      prisma.performanceTask.count({ where: { status: "SUBMITTED", student: { status: "ACTIVE" } } }),
+      // /students — 제출됐는데 아직 아무도 설문 화면을 안 연 초기 설문
+      countUnseenSurveys(),
     ]);
 
   const badges: Record<string, number> = {};
@@ -138,8 +173,8 @@ export async function getSidebarBadges(
       const cur = latest.get(p.studentId);
       if (!cur || p.version > cur.version) latest.set(p.studentId, p);
     }
-    const submitted = [...latest.values()].filter((p) => p.status === "SUBMITTED").length;
-    if (submitted > 0) badges["/online/schedules"] = submitted;
+    const todo = [...latest.values()].filter((p) => p.status === "SUBMITTED" || p.status === "REJECTED").length;
+    if (todo > 0) badges["/online/schedules"] = todo;
   }
   set("/exams", examApps);
   set("/lunch", lunchRequests);
@@ -152,6 +187,8 @@ export async function getSidebarBadges(
   set("/approvals", approvals);
   set("/merit-demerit", redemptions);
   set("/waitlist", waitlist);
+  set("/online/performance", taskSubmissions);
+  set("/students", surveys);
 
   return badges;
 }

@@ -26,7 +26,7 @@ vi.mock("@/lib/prisma", () => ({
     },
   },
 }));
-vi.mock("@/lib/slack", () => ({ notifySlack: vi.fn() }));
+vi.mock("@/lib/mobile-push", () => ({ queueStaffAlert: vi.fn(), STAFF_PUSH_ROUTES: { home: "/(staff)/(tabs)" } }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getAuthIdentity: vi.fn() }));
 
@@ -39,7 +39,7 @@ import {
   resolveContentReport,
   unblockUser,
 } from "@/lib/safety";
-import { notifySlack } from "@/lib/slack";
+import { queueStaffAlert } from "@/lib/mobile-push";
 
 const student = { type: "STUDENT", id: "student-1", name: "김학생" } as const;
 const staff = { type: "STAFF", id: "staff-1", name: "이멘토" } as const;
@@ -100,7 +100,7 @@ describe("createReport", () => {
         snapshot: "신고할 글\n첨부: https://blob.example/a.jpg",
       }),
     });
-    expect(notifySlack).toHaveBeenCalledTimes(1);
+    expect(queueStaffAlert).toHaveBeenCalledTimes(1);
   });
 
   it("does not let someone outside the chat report (or probe) a message", async () => {
@@ -253,7 +253,7 @@ describe("blockUser", () => {
     expect(prisma.portalChat.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { studentId: "student-1", staffId: "staff-1" } }),
     );
-    expect(notifySlack).toHaveBeenCalledTimes(1);
+    expect(queueStaffAlert).toHaveBeenCalledTimes(1);
   });
 
   it("does not notify again when already blocked", async () => {
@@ -265,7 +265,7 @@ describe("blockUser", () => {
     await blockUser(student, { userType: "STAFF", userId: "staff-1" });
 
     expect(prisma.userBlock.upsert).not.toHaveBeenCalled();
-    expect(notifySlack).not.toHaveBeenCalled();
+    expect(queueStaffAlert).not.toHaveBeenCalled();
   });
 
   it("hides staff the student never talked to", async () => {

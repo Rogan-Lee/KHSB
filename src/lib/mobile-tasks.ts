@@ -6,7 +6,6 @@ import { MobileApiError } from "@/lib/mobile-auth";
 import { staffCapabilities } from "@/lib/mobile-capabilities";
 import { prisma } from "@/lib/prisma";
 import { isFullAccess } from "@/lib/roles";
-import { notifySlack } from "@/lib/slack";
 import { isResponsibleFor } from "@/lib/student-access";
 import { assignedToMeWhere } from "@/lib/student-filters";
 
@@ -290,9 +289,7 @@ export async function submitMobileStudentTask(
     });
   }
 
-  void notifySlack(
-    `📱 [수행평가] ${student.name} 학생이 "${task.subject} - ${task.title}"을 제출했습니다 (v${version}).`,
-  );
+  // 운영진 앱 푸시는 라우트가 응답 뒤에 보낸다 (notifyAssignedStaffOfTaskSubmission)
   return { ok: true, version };
 }
 

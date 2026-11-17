@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
-import { notifySlack } from "@/lib/slack";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 
 // 온라인 학습 리포트 — 학부모 피드백 저장 핵심 로직 (리포트 ID 기준).
 // 접근 검증은 호출 측 책임: 웹 공개 페이지(src/actions/online/parent-reports.ts, 토큰)와
@@ -15,7 +15,7 @@ export function validateParentFeedbackContent(content: string) {
   if (content.length > 2000) throw new MobileApiError("2000자 이내로 작성해 주세요", 400);
 }
 
-/** 발송된 리포트에 피드백 저장 + 원장 Slack 알림 */
+/** 발송된 리포트에 피드백 저장 + 원장급 앱 푸시 */
 export async function createOnlineParentFeedback(
   report: { id: string; studentName: string },
   params: { name?: string | null; content: string },
@@ -30,10 +30,13 @@ export async function createOnlineParentFeedback(
     },
   });
 
-  const label = name ? `"${name}" 님` : "학부모님";
-  await notifySlack(
-    `💬 *${report.studentName} 학부모 피드백 도착*\n${label}: ${params.content.slice(0, 200)}${params.content.length > 200 ? "..." : ""}\n_/online/reports/${report.id} 에서 확인_`,
-  );
+  // 사이드바 숫자(온라인 보고서)가 원장만이라 앱 푸시도 원장급에게
+  queueStaffAlert({
+    studentId: null,
+    title: "리포트 학부모 피드백",
+    body: `${report.studentName} ${name ? `${name} 님` : "학부모"}: ${params.content.trim()}`,
+    url: STAFF_PUSH_ROUTES.home,
+  });
 
   revalidatePath(`/online/reports/${report.id}`);
   return { ok: true };

@@ -324,29 +324,35 @@ async function supervisorAuthUserIds() {
 /** 운영진 앱 알림 탭 시 이동 경로 — 앱 notification-routes.ts 허용 목록에 있는 것만 쓴다 */
 export const STAFF_PUSH_ROUTES = {
   home: "/(staff)/(tabs)",
+  inbox: "/(staff)/(tabs)/inbox",
   approvals: "/(staff)/approvals",
   suggestions: "/(staff)/suggestions",
 } as const;
 
 /**
  * 학생·학부모·방문자가 넣은 새 요청·신청 → 운영진 앱 푸시. 응답 뒤에 보내고 절대 throw 하지 않는다.
- * 학생 건은 담당 운영진(없으면 원장급), 학생이 없는 건(입회 대기 신청·문의)은 원장급.
+ * 받는 사람: staffUserIds 가 있으면 그 직원(예: 채팅방 담당), 아니면 학생의 담당 운영진(없으면 원장급),
+ * 학생이 없거나 원장이 볼 건(입회 대기·신고·리포트 피드백)은 studentId: null → 원장급.
  * 웹은 사이드바 숫자(sidebar-badges.ts)와 새 건 알림창(dashboard-shell.tsx)이 따로 맡는다.
  */
 export function queueStaffAlert(input: {
   studentId: string | null;
+  staffUserIds?: (string | null)[];
   title: string;
   body: string;
   url: (typeof STAFF_PUSH_ROUTES)[keyof typeof STAFF_PUSH_ROUTES];
+  data?: PushData;
 }) {
   runAfterResponse(async () =>
     sendMobilePush({
-      authUserIds: input.studentId
-        ? await assignedStaffAuthUserIds(input.studentId)
-        : await supervisorAuthUserIds(),
+      authUserIds: input.staffUserIds
+        ? await authUserIdsForAppUsers(input.staffUserIds)
+        : input.studentId
+          ? await assignedStaffAuthUserIds(input.studentId)
+          : await supervisorAuthUserIds(),
       body: input.body.slice(0, 150),
       category: "SYSTEM",
-      data: { url: input.url },
+      data: { ...input.data, url: input.url },
       title: input.title,
     }),
   );

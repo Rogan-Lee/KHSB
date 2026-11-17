@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { isAnyStaff } from "@/lib/roles";
 import { assertCanMessage } from "@/lib/safety";
 import { validateMagicLink } from "@/lib/student-auth";
-import { notifySlack } from "@/lib/slack";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 import { sanitizePortalAttachments } from "@/lib/portal-attachments";
 import { ensureStudentPortalChats, lastMessagesByChat } from "@/lib/portal-chat-core";
 import type { PortalChatSenderType } from "@/generated/prisma/enums";
@@ -392,11 +392,16 @@ export async function sendChatMessage(params: {
     }),
   ]);
 
-  // Slack notify (학생 메시지만; fire-and-forget)
+  // 학생 메시지만 — 채팅방 담당 직원에게 앱 푸시
   if (senderType === "STUDENT") {
-    notifySlack(
-      `[학생 포털 채팅] ${chat.student.name} → ${chat.staff.name}: ${trimmed.slice(0, 200)}`
-    );
+    queueStaffAlert({
+      studentId: chat.studentId,
+      staffUserIds: [chat.staffId],
+      title: `${chat.student.name} 학생 메시지`,
+      body: trimmed || "첨부 파일을 보냈어요",
+      url: STAFF_PUSH_ROUTES.inbox,
+      data: { chatId },
+    });
   }
 
   // 캐시 무효화 — 학생 포털 + 직원 인박스

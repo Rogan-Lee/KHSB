@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 
 import { MobileApiError } from "@/lib/mobile-auth";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 import { applyProposalCommit } from "@/lib/online/schedule-commit";
 import { prisma } from "@/lib/prisma";
 import { todayKST } from "@/lib/utils";
@@ -14,7 +15,7 @@ import { todayKST } from "@/lib/utils";
 export async function approveScheduleProposalCore(proposalId: string) {
   const proposal = await prisma.scheduleProposal.findUnique({
     where: { id: proposalId },
-    select: { id: true, status: true, scheduledFor: true },
+    select: { id: true, status: true, scheduledFor: true, studentId: true, student: { select: { name: true } } },
   });
   if (!proposal) throw new MobileApiError("스케줄을 찾을 수 없습니다", 404);
   if (proposal.status !== "PROPOSED") throw new MobileApiError("승인할 수 없는 상태입니다", 409);
@@ -22,6 +23,13 @@ export async function approveScheduleProposalCore(proposalId: string) {
   await prisma.scheduleProposal.update({
     where: { id: proposal.id },
     data: { status: "APPROVED", approvedAt: new Date() },
+  });
+  // 할 일은 없어(예정일에 자동 반영) 사이드바 숫자 없이 앱 푸시로만 알린다
+  queueStaffAlert({
+    studentId: proposal.studentId,
+    title: "등원 스케줄 승인",
+    body: `${proposal.student.name} 학부모가 등원 스케줄을 승인했어요`,
+    url: STAFF_PUSH_ROUTES.home,
   });
 
   // 실행 예정일이 오늘 이하면(검토 지연 등) cron 을 기다리지 않고 즉시 반영. 미래면 예정일 cron 이 처리.
@@ -40,7 +48,7 @@ export async function approveScheduleProposalCore(proposalId: string) {
 export async function rejectScheduleProposalCore(proposalId: string, content: string) {
   const proposal = await prisma.scheduleProposal.findUnique({
     where: { id: proposalId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, studentId: true, student: { select: { name: true } } },
   });
   if (!proposal) throw new MobileApiError("스케줄을 찾을 수 없습니다", 404);
 
@@ -53,6 +61,12 @@ export async function rejectScheduleProposalCore(proposalId: string, content: st
       : []),
     prisma.scheduleProposalFeedback.create({ data: { proposalId: proposal.id, content: text } }),
   ]);
+  queueStaffAlert({
+    studentId: proposal.studentId,
+    title: proposal.status === "PROPOSED" ? "등원 스케줄 수정 요청" : "등원 스케줄 학부모 의견",
+    body: `${proposal.student.name} 학부모: ${text}`,
+    url: STAFF_PUSH_ROUTES.home,
+  });
   revalidatePath("/online/schedules");
   return { ok: true, status: proposal.status === "PROPOSED" ? "REJECTED" : proposal.status };
 }

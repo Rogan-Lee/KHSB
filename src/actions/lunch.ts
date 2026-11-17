@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
+import { notifyParentsOfStudent, runAfterResponse } from "@/lib/mobile-push";
 import { prisma } from "@/lib/prisma";
 import { requireStaff, requireFullAccess } from "@/lib/roles";
 import { validateMagicLink, issueMagicLink } from "@/lib/student-auth";
@@ -129,6 +130,28 @@ export async function deleteLunchOrder(orderId: string) {
   const s = await auth();
   requireStaff(s?.user?.role);
   await prisma.lunchOrder.delete({ where: { id: orderId } });
+  revalidatePath("/lunch");
+}
+
+/** 학부모 "입금했어요" 알림을 입금 안 됨으로 되돌림 — 학부모는 다시 알릴 수 있다 */
+export async function dismissDepositClaim(orderId: string) {
+  const s = await auth();
+  requireStaff(s?.user?.role);
+  const { count } = await prisma.lunchOrder.updateMany({
+    where: { id: orderId, paidStatus: "PENDING", depositClaimedAt: { not: null } },
+    data: { depositClaimedAt: null },
+  });
+  if (count === 0) throw new Error("입금 알림이 있는 미입금 신청이 아닙니다");
+  const order = await prisma.lunchOrder.findUnique({ where: { id: orderId }, select: { studentId: true } });
+  if (order) {
+    runAfterResponse(() =>
+      notifyParentsOfStudent(order.studentId, {
+        title: "도시락 입금이 아직 확인되지 않았어요",
+        body: "입금 금액·입금자명을 확인해 주시고, 입금 후 다시 알려 주세요.",
+        data: { url: "/(parent)/lunch" },
+      }),
+    );
+  }
   revalidatePath("/lunch");
 }
 

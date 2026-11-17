@@ -1,6 +1,6 @@
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
-import { notifySlack } from "@/lib/slack";
+import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
 import {
   SURVEY_SECTIONS,
   emptySurveySections,
@@ -121,9 +121,12 @@ export async function submitMobileSurvey(student: StudentCtx & { name: string })
     data: { submittedAt: new Date() },
   });
 
-  void notifySlack(
-    `[온라인 설문·앱] ${student.name} 학생이 초기 설문을 제출했습니다. /online/students/${student.id}/survey 에서 확인하세요.`,
-  );
+  queueStaffAlert({
+    studentId: student.id,
+    title: "초기 설문 제출",
+    body: `${student.name} 학생이 초기 설문을 냈어요`,
+    url: STAFF_PUSH_ROUTES.home,
+  });
 
   return { ok: true };
 }

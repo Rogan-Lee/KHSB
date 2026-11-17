@@ -234,6 +234,30 @@ describe("queueStaffAlert", () => {
     expect(prisma.user.findMany).not.toHaveBeenCalled();
   });
 
+  it("sends a student chat message only to that chat's staff", async () => {
+    vi.mocked(prisma.authUser.findMany).mockResolvedValue([{ id: "auth-staff-7" }] as never);
+    vi.mocked(prisma.devicePushToken.findMany).mockResolvedValue([]);
+
+    queueStaffAlert({
+      studentId: "student-1",
+      staffUserIds: ["staff-7"],
+      title: "김학생 학생 메시지",
+      body: "안녕하세요",
+      url: STAFF_PUSH_ROUTES.inbox,
+      data: { chatId: "chat-1" },
+    });
+
+    await vi.waitFor(() =>
+      expect(prisma.devicePushToken.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { authUserId: { in: ["auth-staff-7"] }, enabled: true } }),
+      ),
+    );
+    expect(prisma.authUser.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { appUserId: { in: ["staff-7"] } } }),
+    );
+    expect(prisma.student.findUnique).not.toHaveBeenCalled();
+  });
+
   it("sends a waitlist entry (no student) to supervisors", async () => {
     vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: "director-1" }] as never);
     vi.mocked(prisma.authUser.findMany).mockResolvedValue([{ id: "auth-director-1" }] as never);
