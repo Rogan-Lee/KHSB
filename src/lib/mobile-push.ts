@@ -7,6 +7,7 @@ import type {
 } from "@/generated/prisma";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { prisma } from "@/lib/prisma";
+import { onDutyStaffIds } from "@/lib/staff-on-duty";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts";
@@ -273,7 +274,8 @@ export async function authUserIdsForAppUsers(appUserIds: (string | null)[]) {
   const ids = [...new Set(appUserIds.filter((id): id is string => !!id))];
   if (ids.length === 0) return [];
   const users = await prisma.authUser.findMany({
-    where: { appUserId: { in: ids } },
+    // 퇴사·정지된 직원에게는 보내지 않는다 (담당자로 남아 있어도)
+    where: { appUserId: { in: ids }, appUser: { status: "ACTIVE" } },
     select: { id: true },
   });
   return users.map((user) => user.id);
@@ -333,29 +335,33 @@ export const STAFF_PUSH_ROUTES = {
  * 학생·학부모·방문자가 넣은 새 요청·신청 → 운영진 앱 푸시. 응답 뒤에 보내고 절대 throw 하지 않는다.
  * 받는 사람: staffUserIds 가 있으면 그 직원(예: 채팅방 담당), 아니면 학생의 담당 운영진(없으면 원장급),
  * 학생이 없거나 원장이 볼 건(입회 대기·신고·리포트 피드백)은 studentId: null → 원장급.
+ * onDuty: 바로 처리해야 하는 현장 신청(쪽잠·네트워크·현장 결제)은 지금 근무 중인 직원에게도.
+ * 받은 기기가 하나도 없으면 원장급에게 대신 보낸다 (sendToStaff).
  * 웹은 사이드바 숫자(sidebar-badges.ts)와 새 건 알림창(dashboard-shell.tsx)이 따로 맡는다.
  */
 export function queueStaffAlert(input: {
   studentId: string | null;
   staffUserIds?: (string | null)[];
+  onDuty?: boolean;
   title: string;
   body: string;
   url: (typeof STAFF_PUSH_ROUTES)[keyof typeof STAFF_PUSH_ROUTES];
   data?: PushData;
 }) {
-  runAfterResponse(async () =>
-    sendMobilePush({
-      authUserIds: input.staffUserIds
-        ? await authUserIdsForAppUsers(input.staffUserIds)
-        : input.studentId
-          ? await assignedStaffAuthUserIds(input.studentId)
-          : await supervisorAuthUserIds(),
+  runAfterResponse(async () => {
+    const primary = input.staffUserIds
+      ? await authUserIdsForAppUsers(input.staffUserIds)
+      : input.studentId
+        ? await assignedStaffAuthUserIds(input.studentId)
+        : await supervisorAuthUserIds();
+    const onDuty = input.onDuty ? await authUserIdsForAppUsers(await onDutyStaffIds()) : [];
+    return sendToStaff([...new Set([...primary, ...onDuty])], {
       body: input.body.slice(0, 150),
       category: "SYSTEM",
       data: { ...input.data, url: input.url },
       title: input.title,
-    }),
-  );
+    });
+  });
 }
 
 async function safelySend(input: Parameters<typeof sendMobilePush>[0]) {
@@ -365,6 +371,21 @@ async function safelySend(input: Parameters<typeof sendMobilePush>[0]) {
     console.error("[mobile-push]", error);
     return { sent: 0 };
   }
+}
+
+/**
+ * 운영진에게 보내고, 받은 기기가 하나도 없으면(담당자가 앱 알림을 안 켰거나 퇴사) 원장급에게 대신 보낸다 —
+ * 학생·학부모가 넣은 건이 아무에게도 안 가는 일이 없게. 원장급도 기기가 없으면 웹 사이드바 숫자만 남는다.
+ */
+export async function sendToStaff(
+  authUserIds: string[],
+  message: Omit<Parameters<typeof sendMobilePush>[0], "authUserIds">,
+) {
+  const first = await safelySend({ ...message, authUserIds });
+  if (first.sent > 0) return first;
+  const tried = new Set(authUserIds);
+  const fallback = (await supervisorAuthUserIds()).filter((id) => !tried.has(id));
+  return fallback.length > 0 ? safelySend({ ...message, authUserIds: fallback }) : first;
 }
 
 export async function notifyAssignedStaffOfQuestion(input: {
@@ -384,8 +405,7 @@ export async function notifyAssignedStaffOfQuestion(input: {
     ...(await authUserIdsForAppUsers([question.claimedById])),
   ];
 
-  return safelySend({
-    authUserIds,
+  return sendToStaff([...new Set(authUserIds)], {
     body: `${question.student.name} 학생이 "${question.title}" 질문을 남겼습니다.`,
     category: "QUESTION",
     data: {
@@ -403,8 +423,7 @@ export async function notifyAssignedStaffOfParentRequest(input: {
   content: string;
   hasDraft: boolean;
 }) {
-  return safelySend({
-    authUserIds: await assignedStaffAuthUserIds(input.studentId),
+  return sendToStaff(await assignedStaffAuthUserIds(input.studentId), {
     body: `${input.studentName} 학부모: ${input.content.slice(0, 100)}`,
     category: "SYSTEM",
     data: { url: "/(staff)/instructions" },
@@ -452,8 +471,7 @@ export async function notifyAssignedStaffOfTaskSubmission(input: {
     ...(await authUserIdsForAppUsers([task.createdById])),
   ];
 
-  return safelySend({
-    authUserIds,
+  return sendToStaff([...new Set(authUserIds)], {
     body: `${task.student.name} 학생이 "${task.title}"을 제출했습니다. (v${input.version})`,
     category: "TASK",
     data: { taskId: input.taskId, url: "/staff-tasks" },

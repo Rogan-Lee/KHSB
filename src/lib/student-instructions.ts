@@ -172,11 +172,14 @@ export async function countUnackedInstructions(studentId: string) {
   });
 }
 
-/** 받은함 배지 — 처리 안 한 학부모 요청 수 (getInstructionInbox 의 pending 과 같은 기준) */
-export function countPendingParentRequests() {
-  return prisma.communication.count({
+/** 받은함 배지 — 처리 안 한 학부모 요청 수와 가장 최근 요청 시각 (getInstructionInbox 의 pending 과 같은 기준) */
+export async function pendingParentRequestStats() {
+  const agg = await prisma.communication.aggregate({
     where: { type: "PARENT_REQUEST", isChecked: false, student: { status: "ACTIVE" } },
+    _count: { _all: true },
+    _max: { createdAt: true },
   });
+  return { count: agg._count._all, newest: agg._max.createdAt };
 }
 
 // ─── 보내기 · 확인 ────────────────────────────────────────────────────

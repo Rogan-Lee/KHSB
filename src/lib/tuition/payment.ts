@@ -487,7 +487,8 @@ export async function requestOnsitePayment(input: {
 
   dispatchTuitionEffects(result.effects);
   if (result.alert) {
-    queueStaffAlert({ studentId, title: "새 현장 결제 신청", body: result.alert, url: STAFF_PUSH_ROUTES.home });
+    // 현장에서 받는 결제 — 지금 근무 중인 직원에게도
+    queueStaffAlert({ studentId, onDuty: true, title: "새 현장 결제 신청", body: result.alert, url: STAFF_PUSH_ROUTES.home });
   }
   return { paymentId: result.paymentId };
 }

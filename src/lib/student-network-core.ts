@@ -128,6 +128,7 @@ export async function requestNetworkForStudent(student: StudentRef, params: Netw
 
   queueStaffAlert({
     studentId: student.id,
+    onDuty: true, // 바로 승인해야 하는 신청 — 지금 근무 중인 직원에게도
     title: "새 네트워크 사용 신청",
     body: `${student.name}(${student.grade}) — ${NETWORK_KIND_LABELS[params.kind]}${target ? ` · ${target}` : ""} (${params.startAt.slice(11)}~${params.endAt.slice(11)})`,
     url: STAFF_PUSH_ROUTES.approvals,
