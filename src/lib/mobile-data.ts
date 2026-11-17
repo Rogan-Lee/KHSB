@@ -12,6 +12,7 @@ import { compareSeat } from "@/lib/patrol";
 import { prisma } from "@/lib/prisma";
 import { offlineStudentWhere } from "@/lib/student-filters";
 import { dayStudyMinutes } from "@/lib/study-time";
+import { loadTimerSummaries } from "@/lib/study-sessions";
 
 const ABSENT_TYPES = new Set<AttendanceType>([
   "ABSENT",
@@ -369,8 +370,13 @@ async function loadAttendanceItems(
     where,
     select: attendanceStudentSelect(context),
   });
+  const timers = await loadTimerSummaries(
+    students.map((st) => st.id),
+    now,
+  );
 
   return students.sort(compareSeat).map((student) => {
+    const timer = timers.get(student.id);
     const attendance = student.attendances[0];
     const schedule = student.schedules[0] ?? null;
     const scheduleStart = schedule?.startTime ?? null;
@@ -455,6 +461,9 @@ async function loadAttendanceItems(
       status,
       // 오늘 공부 시간(분) — 입실~퇴실(진행 중이면 지금까지)에서 외출 뺀 값, 학부모 앱과 같은 계산
       studyMinutes: dayStudyMinutes(attendance, student.dailyOutings, { now, live: true }),
+      // 공부 타이머 — 지금 재고 있으면 과목·시작 시각, 오늘 합계(분)
+      timer: timer?.active ?? null,
+      timerMinutes: timer?.totalMinutes ?? 0,
       time: eventTime,
       unreadRequests: student._count.communications,
     };

@@ -10,6 +10,8 @@ import { createStudyPlanReport } from "@/actions/study-plan-reports";
 import { toast } from "sonner";
 import { cn, MERIT_CATEGORIES } from "@/lib/utils";
 import { dayStudyMinutes } from "@/lib/study-time";
+
+import type { TimerSummary } from "@/lib/study-sessions";
 import type { AttendanceRecord, AttendanceSchedule, AttendanceType, DailyOuting, OutingSchedule, Student } from "@/generated/prisma";
 import { ArrowRightLeft, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardList, ImagePlus, LogIn, LogOut, MessageSquare, PanelRightOpen, Pin, Plus, Save, Search, SearchX, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,6 +29,10 @@ import { useColumnWidths } from "@/hooks/use-column-widths";
 import { ColResizeHandle } from "@/components/ui/col-resize-handle";
 import { Avatar, CountBadge, EmptyState, FilterChip, FormField, Segmented, StatusBadge, TONE_SOFT } from "@/components/backoffice/ui";
 import { ACTIVITY_TONE, AttendanceStateBadge, attendanceStateMeta } from "@/components/attendance/attendance-status";
+
+/** 분 → "2시간 5분" · 한 시간 안 되면 "53분" */
+const hoursMinutes = (min: number) =>
+  min >= 60 ? `${Math.floor(min / 60)}시간 ${min % 60}분` : `${min}분`;
 
 // 입퇴실 표 열 너비 기본값(px). 고정(좌측 sticky) 열은 sticky 오프셋과 맞물려 있어 조절 대상에서 제외.
 const ATTENDANCE_COL_DEFAULTS: Record<string, number> = {
@@ -50,6 +56,8 @@ type StudentWithAttendance = Pick<
   communications: CommunicationItem[];
   assignments: AssignmentItem[];
   vocabEnrollment?: { isActive: boolean } | null;
+  /** 공부 타이머 오늘 요약 (페이지가 loadTimerSummaries 로 붙임) */
+  timer?: TimerSummary;
 };
 
 type ScheduledOuting = Pick<OutingSchedule, "outStart" | "outEnd">;
@@ -1227,14 +1235,33 @@ export function AttendanceTable({ students, today, toolbarStart }: Props) {
                               { live: true },
                             )
                           : 0;
-                        return min > 0 ? (
-                          <div className="flex items-center gap-x1_5">
-                            <span className="w-6 shrink-0 t2-medium text-fg-neutral-subtle">공부</span>
-                            <span className="t3-bold tabular-nums text-fg-positive">
-                              {Math.floor(min / 60)}시간 {min % 60}분
-                            </span>
-                          </div>
-                        ) : null;
+                        const timer = student.timer;
+                        return (
+                          <>
+                            {min > 0 && (
+                              <div className="flex items-center gap-x1_5">
+                                <span className="w-6 shrink-0 t2-medium text-fg-neutral-subtle">공부</span>
+                                <span className="t3-bold tabular-nums text-fg-positive">
+                                  {hoursMinutes(min)}
+                                </span>
+                              </div>
+                            )}
+                            {/* 공부 타이머 — 학생 앱 플래너에서 직접 잰 시간 */}
+                            {timer && (timer.totalMinutes > 0 || timer.active) && (
+                              <div className="flex flex-wrap items-center gap-x1_5">
+                                <span className="shrink-0 t2-medium text-fg-neutral-subtle">타이머</span>
+                                {timer.totalMinutes > 0 && (
+                                  <span className="t3-bold tabular-nums text-fg-neutral">
+                                    {hoursMinutes(timer.totalMinutes)}
+                                  </span>
+                                )}
+                                {timer.active && (
+                                  <StatusBadge tone="brand">타이머 중 · {timer.active.subject ?? "과목 없음"}</StatusBadge>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        );
                       })()}
                     </div>
                   </td>
