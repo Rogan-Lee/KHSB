@@ -4,6 +4,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     student: { findMany: vi.fn() },
     mentoring: { findMany: vi.fn() },
+    studySession: { findMany: vi.fn(async () => []) },
   },
 }));
 vi.mock("@/lib/attention", () => ({ getAttentionStudents: vi.fn(async () => []) }));

@@ -131,6 +131,8 @@ export const parentApi = {
   /** 자녀 공부 계획(읽기 전용) — 응답은 학생 플래너와 같은 PlansRangeResponse */
   plans: (studentId: string, from: string, to: string) =>
     `/api/mobile/v1/parent/plans?studentId=${encodeURIComponent(studentId)}&from=${from}&to=${to}`,
+  /** 자녀 공부 타이머 — 응답은 학생 TimerState 와 같음 */
+  timer: (studentId: string) => `/api/mobile/v1/parent/timer?studentId=${encodeURIComponent(studentId)}`,
   studyStats: (studentId: string, range: StudyRange, date?: string) =>
     `/api/mobile/v1/parent/study-stats?studentId=${encodeURIComponent(studentId)}&range=${range}${
       date ? `&date=${date}` : ''

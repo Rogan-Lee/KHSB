@@ -62,6 +62,7 @@ import {
   type StudentHomeResponse,
 } from '@/lib/api/student-home';
 import { FocusCard } from '@/features/student-focus/focus-card';
+import { TimerHomeCard } from '@/features/student-planner/timer';
 import { PLANNER_ROUTE, TodayPlanCard } from '@/features/student-planner/today-card';
 import { FOCUS_SUPPORTED } from '@/features/student-focus/focus';
 import { InstructionsHomeSection } from '@/features/student-instructions/home-section';
@@ -461,6 +462,7 @@ function HomeContent({
     let left = [
       instructionsCard,
       FOCUS_SUPPORTED ? <FocusCard key="focus" /> : null,
+      <TimerHomeCard key="timer" />,
       <TodayPlanCard key="plan" />,
       tasksCard,
       surveyCard,
@@ -493,6 +495,7 @@ function HomeContent({
       {greetingBlock}
       {instructionsCard}
       <FocusCard />
+      <TimerHomeCard />
       <TodayPlanCard />
       {mentoringCard}
       {qnaCard}

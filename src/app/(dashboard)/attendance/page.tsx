@@ -12,6 +12,7 @@ import { PortalLinksSheet } from "@/components/attendance/portal-links-sheet";
 import { Button } from "@/components/ui/button";
 import { PageHeader, StatCard, StatCards } from "@/components/backoffice/ui";
 import { requireDashboardSession } from "../_lib/page-guard";
+import { loadTimerSummaries } from "@/lib/study-sessions";
 
 export const revalidate = 30; // 30초 캐싱 (force-dynamic 대비 성능 향상)
 
@@ -81,7 +82,7 @@ export default async function AttendancePage({
   // 요청/전달(최근 30)·과제(최근 20) — 목록의 중첩 take 는 DB 에서 안 잘려 학생 전원의 이력을 다 가져오므로
   // 학생별 최신 id 만 DB 에서 고른 뒤 필요한 컬럼만 조회한다.
   const studentIds = baseStudents.map((s) => s.id);
-  const [commIds, assignIds] = await Promise.all([
+  const [commIds, assignIds, timers] = await Promise.all([
     latestIdsPerGroup({
       table: "Communication",
       groupBy: "studentId",
@@ -96,6 +97,8 @@ export default async function AttendancePage({
       orderBy: [{ column: "createdAt", dir: "desc" }],
       take: 20,
     }),
+    // 공부 타이머 오늘 합계·진행 중 (학생 앱 플래너)
+    loadTimerSummaries(studentIds),
   ]);
   const [commRows, assignRows] = await Promise.all([
     commIds.length
@@ -125,6 +128,7 @@ export default async function AttendancePage({
     ...s,
     communications: commsByStudent.get(s.id) ?? [],
     assignments: assignsByStudent.get(s.id) ?? [],
+    timer: timers.get(s.id),
   }));
 
   const withSchedule = students.filter((s) => s.schedules.length > 0);

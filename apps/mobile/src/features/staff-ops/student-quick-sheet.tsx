@@ -8,12 +8,14 @@ import {
   Info,
   MessageSquareText,
   Phone,
+  Timer,
   UserRound,
 } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Badge, BottomSheet, Button, IconTile, ListRow, Notice, space, StatGrid, Text } from '@/design';
+import { duration } from '@/features/parent/today-format';
 import type { MobileOuting } from '@/lib/mobile-api';
 import type { OpsAttendanceItem } from '@/lib/api/staff-ops';
 
@@ -82,6 +84,16 @@ export function StudentQuickSheet({
   };
 
   const hasActions = !!item && ['미입실', '결석', '입실', '외출'].includes(item.status);
+  // 오늘 공부 — 입퇴실 기준 시간 + 공부 타이머 (예전 서버엔 필드가 없어 있는 것만)
+  const studyLine = item
+    ? [
+        item.studyMinutes ? `공부 ${duration(item.studyMinutes)}` : null,
+        item.timer ? `${item.timer.subject ?? '과목 없음'} 타이머 진행 중` : null,
+        item.timerMinutes ? `오늘 타이머 ${duration(item.timerMinutes)}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : '';
   const realOutings = item?.outings ?? [];
 
   return (
@@ -145,6 +157,11 @@ export function StudentQuickSheet({
               ]}
             />
 
+            {studyLine ? (
+              <Notice tone={item.timer ? 'brand' : 'gray'} icon={Timer}>
+                {studyLine}
+              </Notice>
+            ) : null}
             {item.isLate && (
               <Notice tone="bad" icon={Clock} title="지각">
                 {`예정 입실 ${item.scheduleStart ?? ''}에서 30분 넘게 지났어요`}

@@ -418,6 +418,7 @@ model Student {
   assignments          Assignment[]
   timetableEntries     TimetableEntry[]
   dailyPlans           DailyPlan[]
+  studySessions        StudySession[]
   studyPlanReports     StudyPlanReport[]
   monthlyNotes         MonthlyNote[]
   vocabEnrollment      VocabTestEnrollment?
@@ -1514,6 +1515,21 @@ model DailyPlan {
   updatedAt DateTime @updatedAt
 
   @@unique([studentId, date])
+}
+
+// 공부 타이머 (학생 앱 플래너). 열린 기록(endedAt null)은 학생당 하나 — 서버가 새로 열기 전에 닫는다.
+// 한 기록은 최대 3시간(집중 모드 자동 종료와 같음): 끝내지 않고 둔 기록은 startedAt + 3시간으로 닫는다.
+// "계속 공부"는 지금 기록을 닫고 같은 과목으로 새로 연다.
+model StudySession {
+  id        String    @id @default(cuid())
+  studentId String
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject   String? // 플래너 과목 칩 이름 (없으면 과목 없음)
+  startedAt DateTime
+  endedAt   DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([studentId, startedAt])
 }
 
 model MessageTemplate {
