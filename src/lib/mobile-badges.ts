@@ -125,7 +125,8 @@ export async function getStaffBadges(userId: string, role: string): Promise<Staf
   const [sidebar, naps, network, redemptions] = await Promise.allSettled([
     getSidebarBadges(userId, role),
     prisma.napRequest.count({ where: { status: "PENDING", date: { gte: today } } }),
-    prisma.networkRequest.count({ where: { status: "PENDING" } }),
+    // 사용 시간이 지난 신청은 처리할 이유가 없어 뺀다 (웹 사이드바와 같은 기준)
+    prisma.networkRequest.count({ where: { status: "PENDING", endAt: { gt: new Date() } } }),
     prisma.rewardRedemption.count({ where: { status: "PENDING" } }),
   ]);
   const sb = sidebar.status === "fulfilled" ? sidebar.value : {};

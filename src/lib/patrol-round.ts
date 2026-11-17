@@ -4,6 +4,7 @@
 import { staffDayStart } from "@/lib/class-periods";
 import { authUserIdsForAppUsers, sendMobilePush } from "@/lib/mobile-push";
 import { prisma } from "@/lib/prisma";
+import { onDutyStaffIds } from "@/lib/staff-on-duty";
 
 // 회차를 열어 둔 채 잊은 경우 — 이보다 길면 지금 재실 명단이 회차 때와 달라 자동 기록을 건너뛴다
 const AUTO_OK_MAX_ROUND_MS = 60 * 60 * 1000;
@@ -13,10 +14,6 @@ const LAST_ALERT_KEY = "patrol.lastOverdueAlertAt";
 
 function kstDateKey(now: Date): string {
   return new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-}
-
-function kstHHMM(now: Date): string {
-  return new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(11, 16);
 }
 
 /** 지금 자리에 있어야 할 재원생 — 오늘 입실, 아직 퇴실 전, 외출 중 아님. */
@@ -65,17 +62,6 @@ export async function closePatrolRound(roundId: string, now = new Date()): Promi
   return true;
 }
 
-/** 지금 근무 일정(MentorSchedule)에 있는 재직 직원 id. 끝 "00:00" 은 24시. */
-async function scheduledStaffIds(now: Date): Promise<string[]> {
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  const hhmm = kstHHMM(now);
-  const rows = await prisma.mentorSchedule.findMany({
-    where: { dayOfWeek: kst.getUTCDay(), timeStart: { lte: hhmm }, mentor: { status: "ACTIVE" } },
-    select: { mentorId: true, timeEnd: true },
-  });
-  return rows.filter((r) => r.timeEnd === "00:00" || r.timeEnd > hhmm).map((r) => r.mentorId);
-}
-
 export type PatrolWatchResult =
   | { alerted: false; reason: string }
   | { alerted: true; minutes: number; recipients: number; sent: number };
@@ -106,7 +92,7 @@ export async function checkPatrolOverdue(now = new Date()): Promise<PatrolWatchR
   if ((await presentStudentIds(now)).length === 0) return { alerted: false, reason: "재실 학생 없음" };
 
   const todayPatroller = last && last.startedAt.getTime() >= dayStart ? last.patrollerId : null;
-  let staffIds = [...new Set([todayPatroller, ...(await scheduledStaffIds(now))].filter((id): id is string => !!id))];
+  let staffIds = [...new Set([todayPatroller, ...(await onDutyStaffIds(now))].filter((id): id is string => !!id))];
   if (staffIds.length === 0) {
     const directors = await prisma.user.findMany({
       where: { role: "DIRECTOR", status: "ACTIVE" },

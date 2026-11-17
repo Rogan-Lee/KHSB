@@ -100,6 +100,7 @@ export async function requestNapForStudent(
 
   queueStaffAlert({
     studentId: student.id,
+    onDuty: true, // 바로 승인해야 하는 신청 — 지금 근무 중인 직원에게도
     title: "새 쪽잠 신청",
     body: `${student.name}(${student.grade}) — ${params.startTime}부터 ${params.durationMin}분`,
     url: STAFF_PUSH_ROUTES.approvals,

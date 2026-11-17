@@ -14,7 +14,7 @@ import { z } from "zod";
 import type { FamilyChatSender } from "@/generated/prisma/enums";
 import { latestIdsPerGroup } from "@/lib/db/latest-per-group";
 import { MobileApiError } from "@/lib/mobile-auth";
-import { sendMobilePush } from "@/lib/mobile-push";
+import { authUserIdsForAppUsers, sendMobilePush, sendToStaff } from "@/lib/mobile-push";
 import { sanitizePortalAttachments, type PortalAttachment } from "@/lib/portal-attachments";
 import { prisma } from "@/lib/prisma";
 import { ROLE_DISPLAY } from "@/lib/roles";
@@ -330,24 +330,15 @@ async function notifyFamilyMessage(studentId: string, viewer: FamilyViewer, send
     );
   }
   if (viewer.kind !== "STAFF") {
-    // 직원 전체가 들어오는 방이지만 알림은 담당자에게만 (없으면 원장급) — 나머지는 배지로 본다
-    const assigned = [student.mentorId, student.assignedMentorId, student.assignedConsultantId, student.assignedStaffId]
-      .filter((id): id is string => !!id);
-    const staffIds = assigned.length
-      ? assigned
-      : (
-          await prisma.user.findMany({
-            where: { role: { in: ["SUPER_ADMIN", "DIRECTOR"] }, status: "ACTIVE" },
-            select: { id: true },
-          })
-        ).map((u) => u.id);
-    const authUsers = await prisma.authUser.findMany({
-      where: { appUserId: { in: staffIds } },
-      select: { id: true },
-    });
+    // 직원 전체가 들어오는 방이지만 알림은 담당자에게만 (재직 담당자가 없거나 아무 기기도 못 받으면 원장급) — 나머지는 배지로 본다
+    const assigned = await authUserIdsForAppUsers([
+      student.mentorId,
+      student.assignedMentorId,
+      student.assignedConsultantId,
+      student.assignedStaffId,
+    ]);
     sends.push(
-      sendMobilePush({
-        authUserIds: authUsers.map((u) => u.id),
+      sendToStaff(assigned, {
         title,
         body,
         category: "FAMILY_CHAT",
@@ -446,12 +437,14 @@ export async function listFamilyChatsForStaff(staffId: string) {
 }
 
 /** 운영진 미확인 방 수 (사이드바·직원 앱 배지) */
-export async function countStaffUnreadFamilyChats() {
+export async function staffUnreadFamilyChatStats() {
   const rows = await prisma.familyChat.findMany({
     where: { familyMessageAt: { not: null }, student: { status: "ACTIVE" } },
     select: { familyMessageAt: true, staffReadAt: true },
   });
-  return rows.filter((r) => !r.staffReadAt || r.staffReadAt < r.familyMessageAt!).length;
+  const unread = rows.filter((r) => !r.staffReadAt || r.staffReadAt < r.familyMessageAt!);
+  const newest = unread.reduce<Date | null>((max, r) => (!max || r.familyMessageAt! > max ? r.familyMessageAt : max), null);
+  return { count: unread.length, newest };
 }
 
 /** 학생·학부모 미확인 메시지 수 (자녀 여럿이면 합) — 내가 쓴 글은 빼고 */

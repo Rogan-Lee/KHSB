@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { NotificationBadge, SideNavigation as SeedSideNavigation } from "@seed-design/react";
@@ -17,7 +17,8 @@ import { cn } from "@/lib/utils";
 import type { Role } from "@/generated/prisma";
 import { AppSidebar } from "./app-sidebar";
 import { AppHeader } from "./app-header";
-import { ACCOUNT_GROUP, locateNav, navTabs } from "./nav-config";
+import { ACCOUNT_GROUP, locateNav, navTabs, visibleGroups, visiblePrimary } from "./nav-config";
+import { findNewItems } from "./new-item-toasts";
 import { PageTabs } from "./page-tabs";
 import { useStoredValue } from "./use-stored-value";
 
@@ -43,26 +44,6 @@ interface DashboardShellProps {
 const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
 const VIEW_MODE_KEY = "adminViewMode";
 const BADGE_MIN_INTERVAL_MS = 30_000;
-// 배지가 늘면 토스트로도 알릴 메뉴 — 학생·학부모·방문자가 넣는 요청·신청 전부 (2026-11-13, 11-17 요청).
-// 운영진 앱 푸시는 서버 queueStaffAlert 가 같은 건마다 보낸다.
-const NEW_ITEM_TOASTS = [
-  ["/waitlist", "입회 대기 신청·문의"],
-  ["/instructions", "학부모 요청"],
-  ["/questions", "학생 질문"],
-  ["/suggestions", "학생 건의사항"],
-  ["/approvals", "쪽잠·네트워크 신청"],
-  ["/merit-demerit", "상점 교환 신청"],
-  ["/exams", "모의고사 신청"],
-  ["/lunch", "도시락 변경 요청·입금 알림"],
-  ["/tuition", "현장 결제 신청"],
-  ["/online/inbox", "학생 메시지"],
-  ["/family-chat", "가족 톡방 새 글"],
-  ["/online/schedules", "등원 스케줄 제출·수정 요청"],
-  ["/online/performance", "수행평가 제출"],
-  ["/students", "초기 설문 제출"],
-  ["/online/reports", "리포트 학부모 피드백"],
-  ["/moderation", "신고·차단"],
-] as const;
 type ViewMode = "web" | "mobile";
 
 export function DashboardShell({ user, children, sidebarBadges }: DashboardShellProps) {
@@ -83,22 +64,23 @@ export function DashboardShell({ user, children, sidebarBadges }: DashboardShell
   const [badges, setBadges] = useState(sidebarBadges);
   const router = useRouter();
   const prevBadges = useRef(badges);
+  // 이 직원이 열 수 있는 메뉴만 알린다 (못 여는 메뉴의 알림창은 헛걸음)
+  const visibleHrefs = useMemo(
+    () => new Set([...visiblePrimary(user.role), ...visibleGroups(user.role).flatMap((g) => g.items)].map((i) => i.href)),
+    [user.role],
+  );
   useEffect(() => {
     const prev = prevBadges.current;
     prevBadges.current = badges;
-    // ponytail: 미확인 수의 차이라 같은 사이 다른 직원이 읽으면 상쇄 — 놓치면 사이드바 숫자가 남는다
-    for (const [href, label] of NEW_ITEM_TOASTS) {
-      const added = (badges?.[href] ?? 0) - (prev?.[href] ?? 0);
-      if (added > 0) {
-        toast(`${label} ${added}건이 새로 들어왔어요`, {
-          // 자리를 비운 사이에 사라지지 않게 — 닫거나 [보기]를 누를 때까지 둔다
-          duration: Infinity,
-          closeButton: true,
-          action: { label: "보기", onClick: () => router.push(href) },
-        });
-      }
+    for (const { href, label, added } of findNewItems(prev, badges, visibleHrefs)) {
+      toast(`${label} ${added}건이 새로 들어왔어요`, {
+        // 자리를 비운 사이에 사라지지 않게 — 닫거나 [보기]를 누를 때까지 둔다
+        duration: Infinity,
+        closeButton: true,
+        action: { label: "보기", onClick: () => router.push(href) },
+      });
     }
-  }, [badges, router]);
+  }, [badges, router, visibleHrefs]);
 
   // 배지 갱신 — layout은 소프트 네비게이션에서 리렌더되지 않아 서버 스냅샷이 얼어붙는다.
   // 페이지 이동·창 포커스·2분 주기로 폴링하되, DB 전송량(egress)을 줄이려고
