@@ -37,7 +37,7 @@ Sign-up: Login screen > "초대받았어요" tab > paste a one-time invitation c
 Account deletion: "전체" (last tab) > "계정·보안" > "계정 삭제" > confirm > enter password. The account is deleted immediately.
 
 4. EXTERNAL SERVICES
-Vercel (API hosting, attachments), Supabase (PostgreSQL, Seoul), Expo push via APNs, Resend (password reset email), Slack (staff alerts), Groq LLM API (drafts mentoring report wording for staff; no AI for students or parents). Own sign-in (ID or email + password). No payment, advertising or analytics SDK.
+Vercel (API hosting, attachments), Supabase (PostgreSQL, Seoul), Expo push via APNs, Resend (password reset email), Slack (staff alerts), Groq LLM API (drafts report and instruction wording for staff; no AI for students or parents). Own sign-in (ID or email + password). No payment, advertising or analytics SDK.
 
 5. REGIONS
 The app works the same in every region.
