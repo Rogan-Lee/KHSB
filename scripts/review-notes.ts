@@ -22,11 +22,11 @@ export function appReviewNotes(s: {
 Attached (physical iPhone, from launch): invitation sign-up, account deletion, login, terms, student flow (incl. report, block and focus mode) and parent flow (incl. tuition).
 
 2. PURPOSE AND AUDIENCE
-KHSB is a managed study hall (a paid study space with seats, attendance tracking and study coaching) in Hwaseong, South Korea; its customers are students and parents, and the app is the companion to that offline service.
-- Students: schedule, assignments and feedback, study questions, messages to their teacher, vocabulary tests, lunch orders.
-- Parents: their child's attendance, mentoring reports, mock exam results, merit points, tuition bills, inquiries to the director.
+KHSB is a managed study hall (a paid study space with seats, attendance tracking and study coaching) in Hwaseong, South Korea; the app is the companion to that offline service.
+- Students: schedule, assignments and feedback, study questions, messages to their teacher, family chat, vocabulary tests, lunch orders.
+- Parents: their child's attendance, mentoring reports, mock exam results, merit points, tuition bills, family chat, inquiries to the director.
 - Staff: answer questions and messages, give assignment feedback.
-It is not an internal or enterprise app: anyone can enroll, and students and parents are the main users.
+Not an internal or enterprise app: anyone can enroll; students and parents are the main users.
 
 3. ACCESS
 Accounts are created by invitation because each is linked to an enrolled student. The UI is in Korean. Demo accounts (Login screen > "로그인" tab), all tied to a fictional student with sample data:
@@ -46,9 +46,9 @@ The app works the same in every region.
 Not applicable (no financial, medical, legal or gambling services; no licensed third-party media).${publishedBy}
 
 USER-GENERATED CONTENT
-No public feed, profile or comments; messages and questions are private, one-to-one with study hall staff.
+No public feed, profile or comments. Messages are private: one-to-one with staff, or a per-student family chat (student, linked parents, staff).
 - Terms with no tolerance for objectionable content or abusive users are accepted at sign-up or first login: https://www.kanghanseonbae.com/terms.html
-- Report / block: long-press a received message (or ⋯ at the top right of a conversation) > "신고하기" / "차단하기". The director reviews reports within 24 h and can remove content and restrict the account. Blocking hides the user's messages at once and stops new ones; unblock in "전체" > "계정·보안" > "차단한 사용자".
+- Report / block: long-press a received message (or ⋯ at the top right of a conversation) > "신고하기" / "차단하기". The director reviews reports within 24 h and can remove content and restrict the account. Blocking hides their messages at once and stops new one-to-one ones; unblock in "전체" > "계정·보안" > "차단한 사용자".
 Try: student > "메시지" > a conversation > long-press a teacher's message.
 
 FOCUS MODE (Screen Time, individual authorization)
