@@ -10,7 +10,7 @@ export function appReviewNotes(s: {
   parent: { username: string; password: string };
   staff: { username: string; password: string };
   invites: string[];
-  /** 개발자 계정 명의가 독서실이 아닐 때만 — 6번 항목에 "누가 독서실을 대신해 올렸는지" 한 줄이 붙는다 (저장소가 공개라 값은 코드에 두지 않는다) */
+  /** 개발자 계정 명의가 독서실이 아닐 때만 — 5번 항목에 "누가 독서실을 대신해 올렸는지" 한 줄이 붙는다 (저장소가 공개라 값은 코드에 두지 않는다) */
   developerName?: string;
 }) {
   const publishedBy = s.developerName
@@ -18,17 +18,14 @@ export function appReviewNotes(s: {
     : "";
   return `Thank you for reviewing 강한선배 (KHSB).
 
-1. SCREEN RECORDING
-Attached (physical iPhone, from launch): invitation sign-up, account deletion, login, terms, student flow (incl. report, block and focus mode) and parent flow (incl. tuition).
-
-2. PURPOSE AND AUDIENCE
+1. PURPOSE AND AUDIENCE
 KHSB is a managed study hall (a paid study space with seats, attendance tracking and study coaching) in Hwaseong, South Korea; the app is the companion to that offline service.
-- Students: schedule, assignments and feedback, study questions, messages to their teacher, family chat, vocabulary tests, lunch orders.
-- Parents: their child's attendance, mentoring reports, mock exam results, merit points, tuition bills, family chat, inquiries to the director.
+- Students: schedule, study planner and timer, assignments and feedback, study questions, messages to their teacher, family chat, vocabulary tests, lunch orders.
+- Parents: their child's attendance, study plan and time, mentoring reports, mock exam results, merit points, tuition bills, family chat, inquiries to the director.
 - Staff: answer questions and messages, give assignment feedback.
 Not an internal or enterprise app: anyone can enroll; students and parents are the main users.
 
-3. ACCESS
+2. ACCESS
 Accounts are created by invitation because each is linked to an enrolled student. The UI is in Korean. Demo accounts (Login screen > "로그인" tab), all tied to a fictional student with sample data:
 - Student: ${s.student.username} / ${s.student.password}
 - Parent: ${s.parent.username} / ${s.parent.password}
@@ -36,13 +33,13 @@ Accounts are created by invitation because each is linked to an enrolled student
 Sign-up: Login screen > "초대받았어요" tab > paste a one-time invitation code > create a parent account. Codes: ${s.invites.join(" or ")}
 Account deletion: "전체" (last tab) > "계정·보안" > "계정 삭제" > confirm > enter password. The account is deleted immediately.
 
-4. EXTERNAL SERVICES
+3. EXTERNAL SERVICES
 Vercel (API hosting, attachments), Supabase (PostgreSQL, Seoul), Expo push via APNs, Resend (password reset email), Slack (staff alerts), Groq LLM API (drafts report and instruction wording for staff; no AI for students or parents). Own sign-in (ID or email + password). No payment, advertising or analytics SDK.
 
-5. REGIONS
+4. REGIONS
 The app works the same in every region.
 
-6. REGULATED INDUSTRY / THIRD-PARTY MATERIAL
+5. REGULATED INDUSTRY / THIRD-PARTY MATERIAL
 Not applicable (no financial, medical, legal or gambling services; no licensed third-party media).${publishedBy}
 
 USER-GENERATED CONTENT
