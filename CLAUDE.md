@@ -47,6 +47,7 @@ landing/              # 강한선배 정적 랜딩 (www.kanghanseonbae.com)
 - **Cron API:** `/api/cron/*` routes는 `Authorization: Bearer ${CRON_SECRET}` 필수
 - **사용 통제(앱·사이트 차단):** 정책 계산·AdGuard 규칙 변환은 `src/lib/access-control/`(순수 함수). 시설 장비는 `/api/access-agent/*` 로 정책을 받아 가며 `Authorization: Bearer <장비 토큰>` 으로 인증. 정책에 영향을 주는 변경 뒤에는 `bumpAccessRev()` 호출
 - **revalidatePath:** mutation 후 반드시 호출
+- **UI 검증:** UI 수정 후엔 `ui-check` 스킬 실행. `.claude/state/ui-check.json` 기록이 없으면 완료 아님 (SEED 컴포넌트·토큰이 최우선, 규칙은 `.claude/rules/mobile-ui.md`)
 
 ## Language
 
