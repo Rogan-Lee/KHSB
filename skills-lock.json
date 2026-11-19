@@ -1,16 +1,31 @@
 {
-  "version": 1,
+  "version": 2,
   "skills": {
+    "mobile-ux-optimizer": {
+      "source": "curiositech/some_claude_skills",
+      "commit": "d47e2e5ded912f448b36da6c391be724d3e50496",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/mobile-ux-optimizer/SKILL.md",
+      "computedHash": "fbaf69b173e07521a71e4098ecd647efb6844af4e977cec703de27ec93867b39"
+    },
     "neon-postgres": {
       "source": "neondatabase/agent-skills",
       "sourceType": "github",
-      "computedHash": "391693eee67001639ab65474df185da3ea5cf9ee4b99badecfd64561113edbb4"
+      "computedHash": "5c15c641482a6a10cac84622e34894e95aec31070890142536d7996d92e341b7"
     },
     "seed-design": {
       "source": "daangn/seed-design",
+      "commit": "6c1fa1fcb120c36b5f0b39e24c8d92a7d8e5753f",
       "sourceType": "github",
       "skillPath": "skills/seed-design/SKILL.md",
-      "computedHash": "3c498b4c6e3d0591d9d446812b0599cf17bc5efd7e768b93b8583c5a2b1beab3"
+      "computedHash": "2ea95947cc782b5190d02364ebbd9202272c356b20a64f13891f9e50795c9c8c"
+    },
+    "web-design-guidelines": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "1a2c79d4e6c4a2283dc2c614b6538cbe1ed5ca62",
+      "sourceType": "github",
+      "skillPath": "skills/web-design-guidelines/SKILL.md",
+      "computedHash": "4f68ae07187fb0d1fb78c88b503d089da4cf5a9d9625d1f2e425b1590bf96d92"
     }
   }
 }
