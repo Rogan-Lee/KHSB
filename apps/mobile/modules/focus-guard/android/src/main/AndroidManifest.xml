@@ -1,0 +1,33 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:tools="http://schemas.android.com/tools">
+
+  <!-- 집중 모드(학생이 직접 켜는 앱 잠금) — 접근성 서비스는 쓰지 않는다(Play 정책: 더 좁은 API 우선) -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+  <!-- 지금 화면에 뜬 앱 확인 (설정 › 사용 정보 접근, 사용자가 직접 허용) -->
+  <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+  <!-- 잠근 앱 위에 안내 화면 (설정 › 다른 앱 위에 표시, 사용자가 직접 허용) -->
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+  <!-- QUERY_ALL_PACKAGES 대신 홈 화면 아이콘이 있는 앱·전화 앱만 본다 -->
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.LAUNCHER" />
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.DIAL" />
+    </intent>
+  </queries>
+
+  <application>
+    <service
+      android:name="expo.modules.focusguard.FocusGuardService"
+      android:exported="false"
+      android:foregroundServiceType="specialUse">
+      <property
+        android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+        android:value="Study focus session started by the user: apps the user chose are covered with a reminder screen until the user ends the session or it ends automatically after 3 hours." />
+    </service>
+  </application>
+</manifest>
