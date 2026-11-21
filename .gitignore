@@ -56,3 +56,6 @@ claude-talk-to-figma-mcp/
 # CI 가 생성하는 운영 리포트(기능요청 트리아지·주간 건강 지표) — 공개 저장소에 커밋 금지.
 # GitHub Actions 아티팩트로만 보관한다 (.github/workflows/feature-triage.yml, health-report.yml).
 /reports/
+
+# graphify knowledge graph (local, rebuilt by `graphify update .`)
+graphify-out/
