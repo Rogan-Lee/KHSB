@@ -45,8 +45,13 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(applyRedirect);
   }
 
+  // 서버 컴포넌트·서버 액션은 자기 주소를 모른다 — 접속 기록(access-log)이 쓰도록 실어 보낸다.
+  // 공개 경로도 덮어쓴다: 서버 액션은 아무 주소로나 보낼 수 있어, 비워 두면 기록을 피할 수 있다.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
+
   if (isPublicPath(request.nextUrl.pathname)) {
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   const sessionCookie = getSessionCookie(request, {
@@ -56,7 +61,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/sign-in", request.url));
   }
 
-  return NextResponse.next();
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {

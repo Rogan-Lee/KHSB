@@ -97,6 +97,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
   const [referrerName, setReferrerName] = useState("");
   const [note, setNote] = useState("");
   const [consent, setConsent] = useState(false);
+  const [privacyConsent, setPrivacyConsent] = useState(false);
 
   // "현황 조회" 모드 — 전화 인증 후 내 신청 목록 조회
   const [lookupMode, setLookupMode] = useState(false);
@@ -223,6 +224,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
       winterGrade: needsWinterGrade ? winterGrade : null,
       referrerName: isInquiry ? null : referrerName,
       note,
+      consentPrivacy: privacyConsent,
       consentMarketing: consent,
     });
     if (!res.ok) {
@@ -247,6 +249,7 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
     if (!name.trim()) return setError("이름을 입력해주세요");
     if (isInquiry && !note.trim()) return setError("문의 내용을 입력해주세요");
     if (!phone.trim()) return setError(`${applicantLabel} 휴대폰 번호를 입력해주세요`);
+    if (!privacyConsent) return setError("개인정보 수집·이용에 동의해주세요");
     if (otherRequired && !otherPhone.trim()) return setError(`${otherLabel} 휴대폰 번호를 입력해주세요`);
     // 대기 신청만 본인인증 필수 — 단순 문의는 인증 없이 접수 가능
     if (!isInquiry && !verified) return setError("휴대폰 본인인증을 먼저 완료해주세요");
@@ -714,15 +717,56 @@ export function ApplyForm({ branches }: { branches: Branch[] }) {
       {error && <p className="text-center text-sm text-red-500">{error}</p>}
 
       <div className="space-y-3">
-        <label className="flex items-center gap-2 text-xs text-gray-500">
-          <input
-            type="checkbox"
-            checked={consent}
-            onChange={(e) => setConsent(e.target.checked)}
-            className="h-4 w-4"
-          />
-          마케팅 수신에 동의하시면, 등원 가능한 시점에 즉시 안내를 받으실 수 있습니다.
-        </label>
+        {/* 개인정보 보호법 제15조 제2항(알릴 것)·시행령 제17조 제3항(보유 기간·홍보 연락은 눈에 띄게) */}
+        <div className="rounded-lg border border-gray-200 px-4 py-3">
+          <p className="text-sm font-bold text-gray-800">개인정보 수집·이용 동의 (필수)</p>
+          <dl className="mt-2 grid grid-cols-[4.5rem_1fr] gap-x-2 gap-y-1 text-sm leading-relaxed text-gray-600">
+            <dt className="text-gray-500">목적</dt>
+            <dd>{isInquiry ? "문의 응대와 상담 연락" : "대기 접수, 본인 확인, 대기 순번·등원 안내, 상담 연락"}</dd>
+            <dt className="text-gray-500">항목</dt>
+            <dd>
+              이름, 휴대폰 번호
+              {isInquiry ? "" : ", 학교·학년·성별, 희망 지점·프로그램·시기, 추천인 이름(적은 경우)"}, 문의·요청 내용
+            </dd>
+            <dt className="text-gray-500">보유 기간</dt>
+            <dd className="font-bold text-gray-800 underline underline-offset-2">대기를 취소하거나 상담이 끝난 날부터 1년</dd>
+            <dt className="text-gray-500">거부</dt>
+            <dd>동의하지 않을 수 있어요. 다만 {isInquiry ? "문의를 접수할" : "대기 신청을 할"} 수 없어요.</dd>
+          </dl>
+          <label className="mt-2 flex min-h-11 items-center gap-2 text-sm font-medium text-gray-800">
+            <input
+              type="checkbox"
+              checked={privacyConsent}
+              onChange={(e) => setPrivacyConsent(e.target.checked)}
+              className="h-5 w-5 shrink-0"
+            />
+            위 내용에 동의합니다
+          </label>
+        </div>
+        <div className="rounded-lg border border-gray-200 px-4 py-3">
+          <p className="text-sm font-bold text-gray-800">광고성 정보 수신 동의 (선택)</p>
+          <p className="mt-2 text-sm leading-relaxed text-gray-600">
+            <span className="font-bold text-gray-800 underline underline-offset-2">특강·이벤트 홍보를 문자·카카오톡으로 보내 드려요.</span>{" "}
+            이름과 휴대폰 번호를 <span className="font-bold text-gray-800 underline underline-offset-2">동의를 거둘 때까지(최대 1년)</span> 이용해요.
+            동의하지 않아도 신청할 수 있고, 대기 순번과 등원 안내는 동의와 관계없이 연락드려요.
+          </p>
+          <label className="mt-2 flex min-h-11 items-center gap-2 text-sm font-medium text-gray-800">
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              className="h-5 w-5 shrink-0"
+            />
+            광고성 정보를 받겠습니다
+          </label>
+        </div>
+        <p className="text-sm text-gray-500">
+          자세한 내용은{" "}
+          <a href="https://www.kanghanseonbae.com/privacy.html" target="_blank" rel="noopener" className="underline">
+            개인정보처리방침
+          </a>
+          에서 볼 수 있어요.
+        </p>
         <button
           type="button"
           onClick={handleSubmit}

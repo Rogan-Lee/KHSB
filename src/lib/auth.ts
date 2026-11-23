@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { cache } from "react";
 
 import { authServer } from "@/lib/auth-server";
+import { clientIp, isPrefetch, queueAccessLog } from "@/lib/privacy/access-log";
 import { prisma } from "@/lib/prisma";
 
 export async function getAuthIdentity(requestHeaders?: Headers) {
@@ -50,6 +51,14 @@ export async function getStudent() {
   return student;
 }
 
+// 직원 화면·서버 액션·API 는 모두 auth() 를 거친다 — 접속 기록을 여기 한 곳에서 남긴다 (요청당 1번)
+const logAccessOnce = cache(async (id: string, name: string) => {
+  const h = await headers();
+  const path = h.get("x-pathname");
+  if (!path || isPrefetch(h)) return;
+  queueAccessLog({ actor: { id, name }, action: h.get("next-action") ? "ACTION" : "VIEW", path, ip: clientIp(h) });
+});
+
 // 기존 Server Action들과의 호환성 레이어.
 // session.user.id / role / name 사용 코드를 그대로 유지한다.
 export async function auth(): Promise<{
@@ -62,6 +71,7 @@ export async function auth(): Promise<{
 } | null> {
   const user = await getUser();
   if (!user) return null;
+  await logAccessOnce(user.id, user.name);
   return {
     user: {
       email: user.email,

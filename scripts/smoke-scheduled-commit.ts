@@ -1,7 +1,18 @@
 // 일회성 스모크: 실행 예정일 예약 → cron 반영 검증 (합성 학생, 종료 시 삭제)
+import { createHash } from "node:crypto";
 import * as dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".env.development.local" });
 process.env.DATABASE_URL = process.env.DIRECT_URL || process.env.DATABASE_URL;
+// 운영 Supabase project-ref 의 SHA-256 (scripts/db-push.mjs 와 같은 값)
+const PROD_PROJECT_REF_SHA256 = "37276d3cbb4b3ab00f9978c8eb33b48f41a1a852506ebb19a9b890cae6db5247";
+if (
+  (process.env.DATABASE_URL ?? "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .some((part) => createHash("sha256").update(part).digest("hex") === PROD_PROJECT_REF_SHA256)
+) {
+  throw new Error("운영 DB 에서는 실행할 수 없습니다 — 개발·시험에 실데이터를 쓰지 않습니다");
+}
 
 const assert = (c: boolean, m: string) => { if (!c) throw new Error("FAIL: " + m); };
 

@@ -1,8 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { clientIp } from "@/lib/privacy/access-log";
+import { CONSENT_DOC_VERSION, todayConsentDate } from "@/lib/privacy/consent";
 import { requireStaff } from "@/lib/roles";
 import { randomInt, randomUUID } from "node:crypto";
 import { checkMessageExists, createSmsQrCode, OCTOMO_RECEIVER } from "@/lib/octomo";
@@ -180,6 +183,7 @@ export type WaitlistSubmitInput = {
   winterGrade?: string | null; // 윈터 시즌 예비 학년 — "pre_high1" | "pre_high2" | "pre_high3"
   referrerName?: string | null; // 추천인(지인 이름) — 선택
   note?: string;
+  consentPrivacy?: boolean; // 필수 수집·이용 동의 — 화면이 받고 서버가 한 번 더 확인
   consentMarketing?: boolean;
 };
 
@@ -194,6 +198,7 @@ export async function submitWaitlist(
   if (!input || typeof input !== "object") return { ok: false, error: "잘못된 요청입니다" };
   const kind = input.kind ?? "WAITLIST";
   if (!WAITLIST_KINDS.includes(kind)) return { ok: false, error: "잘못된 요청입니다" };
+  if (input.consentPrivacy !== true) return { ok: false, error: "개인정보 수집·이용에 동의해주세요" };
   if (typeof input.phone !== "string" || typeof input.name !== "string") {
     return { ok: false, error: "잘못된 요청입니다" };
   }
@@ -282,6 +287,12 @@ export async function submitWaitlist(
     if (!program) return { ok: false, error: "선택한 프로그램을 찾을 수 없습니다" };
   }
 
+  const consentBase = {
+    docVersion: CONSENT_DOC_VERSION,
+    channel: "WEB_APPLY" as const,
+    agreedOn: todayConsentDate(),
+    ip: clientIp(await headers()),
+  };
   const entry = await prisma.waitlist.create({
     data: {
       // 상태 페이지 공개 토큰 — 스키마 기본값(cuid) 대신 CSPRNG 로 발급
@@ -302,6 +313,12 @@ export async function submitWaitlist(
       referrerName: kind === "WAITLIST" ? input.referrerName?.trim() || null : null,
       note: input.note?.trim() || null,
       consentMarketing: Boolean(input.consentMarketing),
+      consents: {
+        create: [
+          { kind: "PRIVACY_REQUIRED", agreed: true, ...consentBase },
+          { kind: "MARKETING", agreed: Boolean(input.consentMarketing), ...consentBase },
+        ],
+      },
       phoneVerifiedAt: verified?.verifiedAt ?? null,
     },
   });

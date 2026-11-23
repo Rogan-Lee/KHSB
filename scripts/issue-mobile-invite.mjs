@@ -1,15 +1,23 @@
 // 로컬 테스트용: 모바일 앱 "초대 가입"에 쓸 초대 토큰을 dev DB에 발급하고 평문 토큰을 출력.
 // 사용: node scripts/issue-mobile-invite.mjs [staffEmail]
-// env: .env.local 의 DATABASE_URL (dev) 사용
+// env: .env.development.local 의 DATABASE_URL (로컬 개발 DB) 사용 — 운영 DB 면 멈춘다
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import pg from "pg";
 
 function loadEnv() {
-  const txt = readFileSync(new URL("../.env.local", import.meta.url), "utf8");
+  const txt = readFileSync(new URL("../.env.development.local", import.meta.url), "utf8");
   const m = txt.match(/^DATABASE_URL=(.*)$/m);
-  if (!m) throw new Error(".env.local 에 DATABASE_URL 없음");
-  return m[1].trim().replace(/^"|"$/g, "");
+  if (!m) throw new Error(".env.development.local 에 DATABASE_URL 없음");
+  const url = m[1].trim().replace(/^"|"$/g, "");
+  // 운영 Supabase project-ref 의 SHA-256 (scripts/db-push.mjs 와 같은 값)
+  const PROD_PROJECT_REF_SHA256 = "37276d3cbb4b3ab00f9978c8eb33b48f41a1a852506ebb19a9b890cae6db5247";
+  const isProd = url
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .some((part) => createHash("sha256").update(part).digest("hex") === PROD_PROJECT_REF_SHA256);
+  if (isProd) throw new Error("운영 DB 에서는 실행할 수 없습니다");
+  return url;
 }
 
 function sanitize(raw) {

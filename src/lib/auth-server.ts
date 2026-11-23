@@ -7,6 +7,8 @@ import { username } from "better-auth/plugins";
 import { after } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { queueAccessLog } from "@/lib/privacy/access-log";
+import { CONSENT_DOC_VERSION, todayConsentDate } from "@/lib/privacy/consent";
 import { hashAuthToken } from "@/lib/auth-tokens";
 import { sendAuthEmail } from "@/lib/auth-email";
 import { getAppUrl } from "@/lib/app-url";
@@ -275,6 +277,24 @@ export const authServer = betterAuth({
     }),
   },
   databaseHooks: {
+    session: {
+      create: {
+        // 직원 로그인 기록 (정보주체인 학생·학부모 로그인은 기록 대상이 아니다)
+        after: async (session) => {
+          try {
+            const appUser = await prisma.user.findFirst({
+              where: { authIdentity: { id: session.userId } },
+              select: { id: true, name: true },
+            });
+            if (!appUser) return;
+            queueAccessLog({ actor: appUser, action: "LOGIN", path: "/sign-in", ip: session.ipAddress ?? null });
+          } catch (error) {
+            // 기록 때문에 로그인이 막히면 안 된다
+            console.error("[access-log] login", error);
+          }
+        },
+      },
+    },
     user: {
       create: {
         before: async (user, ctx) => {
@@ -311,6 +331,23 @@ export const authServer = betterAuth({
               type: true,
             },
           });
+
+          // 가입 화면에서 이용약관에 동의하고 가입한다 — 그 사실을 서버에 남긴다
+          try {
+            await prisma.consentRecord.create({
+              data: {
+                kind: "TERMS",
+                agreed: true,
+                docVersion: CONSENT_DOC_VERSION,
+                channel: "SIGN_UP",
+                authUserId: user.id,
+                studentId: invitation?.type === "STUDENT" ? invitation.targetStudentId : null,
+                agreedOn: todayConsentDate(),
+              },
+            });
+          } catch (error) {
+            console.error("[consent] sign-up", error);
+          }
 
           // 조건부 update 로 초대를 "선점" — 같은 초대로 동시에 가입해도 한 요청만 count=1 을 받는다.
           const claimed = await prisma.authInvitation.updateMany({

@@ -3,10 +3,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireAnyStaff } from "@/lib/roles";
-import Groq from "groq-sdk";
-import { GROQ_MODEL } from "@/lib/groq";
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+import { groqChat } from "@/lib/groq";
 
 const ACADEMY_CONTEXT = `
 [강한선배 관리형 독서실 운영 프로그램 정보]
@@ -121,18 +118,20 @@ ${ACADEMY_CONTEXT}
 
 ${categoryInstruction}`;
 
-  const result = await groq.chat.completions.create({
-    model: GROQ_MODEL,
+  const message = await groqChat({
+    feature: "상담 팔로업 메시지",
+    targets: [{ name }],
+    studentId: consultation.studentId,
+    actorId: session.user.id,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: `다음 상담 내용을 바탕으로 ${recipient}에게 보낼 카카오톡 팔로업 메시지를 작성해주세요.\n\n${context}` },
     ],
-    temperature: 0.7,
-    max_tokens: 1500,
+    options: { temperature: 0.7, max_tokens: 1500 },
   });
 
   return {
-    message: result.choices[0]?.message?.content?.trim() ?? "",
+    message,
     recipientName: recipient,
     consultationId,
   };

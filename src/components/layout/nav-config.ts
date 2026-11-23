@@ -21,6 +21,7 @@ import {
   Receipt,
   ScanLine,
   ShieldAlert,
+  ShieldCheck,
   ShieldBan,
   Smartphone,
   Star,
@@ -237,6 +238,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/payroll", label: "급여 정산", icon: Wallet, feature: "payroll" },
       // 앱 신고·차단 — 접수 후 24시간 안에 원장이 확인·처리
       { href: "/moderation", label: "신고 관리", icon: ShieldAlert },
+      // 동의 현황·직원 접속·외부 AI 전송·보유 기간
+      { href: "/privacy", label: "개인정보 기록", icon: ShieldCheck },
       { href: "/admin/school-stats", label: "학교별 통계", icon: Building2, feature: "school-stats" },
     ],
   },

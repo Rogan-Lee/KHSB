@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { getAuthIdentity } from "@/lib/auth";
+import { clientIp, queueAccessLog } from "@/lib/privacy/access-log";
 import { prisma } from "@/lib/prisma";
 import { isOnlineStaff, isStaff } from "@/lib/roles";
 
@@ -10,6 +11,21 @@ export class MobileApiError extends Error {
     public readonly status: number,
   ) {
     super(message);
+  }
+}
+
+/** 앱에서 직원이 부른 API 도 접속 기록에 남긴다 (조회는 VIEW, 그 밖은 ACTION) */
+function logMobileAccess(request: NextRequest, user: { id: string; name: string }) {
+  try {
+    queueAccessLog({
+      actor: user,
+      action: request.method === "GET" ? "VIEW" : "ACTION",
+      path: new URL(request.url).pathname,
+      ip: clientIp(request.headers),
+    });
+  } catch (error) {
+    // 기록 때문에 요청이 실패하면 안 된다
+    console.error("[access-log] mobile", error);
   }
 }
 
@@ -94,6 +110,7 @@ export async function requireMobileStaff(request: NextRequest) {
     throw new MobileApiError("운영진 계정으로 이용할 수 없습니다", 403);
   }
 
+  logMobileAccess(request, user);
   return user;
 }
 
@@ -107,6 +124,7 @@ export async function requireMobileAnyStaff(request: NextRequest) {
     throw new MobileApiError("운영진 계정으로 이용할 수 없습니다", 403);
   }
 
+  logMobileAccess(request, user);
   return user;
 }
 
@@ -119,6 +137,7 @@ export async function requireMobileOnlineStaff(request: NextRequest) {
     throw new MobileApiError("온라인 관리 권한이 필요합니다", 403);
   }
 
+  logMobileAccess(request, user);
   return user;
 }
 

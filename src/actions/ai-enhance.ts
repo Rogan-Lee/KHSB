@@ -3,8 +3,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireAnyStaff, requireStaff } from "@/lib/roles";
-import Groq from "groq-sdk";
-import { GROQ_MODEL } from "@/lib/groq";
+import { groqChat, type GroqChatParams } from "@/lib/groq";
 import {
   buildMentoringEnhancePrompt,
   buildMonthlyMentoringSummaryPrompt,
@@ -20,18 +19,14 @@ export type EnhancedMentoringContent =
 
 // Groq 는 일시적으로 5xx/네트워크 오류를 낸다. 429(rate limit)는 재시도하지 않고
 // 그대로 던져 상위에서 사용자 안내 메시지로 변환한다.
-async function callGroqWithRetry(
-  groq: Groq,
-  body: Parameters<Groq["chat"]["completions"]["create"]>[0],
-) {
-  const run = () => groq.chat.completions.create({ ...body, stream: false });
+async function callGroqWithRetry(params: GroqChatParams) {
   try {
-    return await run();
+    return await groqChat(params);
   } catch (err) {
     const status = (err as { status?: number })?.status;
     if (status === 429 || (status !== undefined && status < 500)) throw err;
     // ponytail: 단일 재시도. 반복 장애면 지수 백오프로 승격.
-    return await run();
+    return await groqChat(params);
   }
 }
 
@@ -66,6 +61,7 @@ export async function enhanceMentoringWithAI(mentoringId: string): Promise<Enhan
       weaknesses: true,
       nextGoals: true,
       notes: true,
+      studentId: true,
       student: { select: { name: true, grade: true } },
     },
   });
@@ -78,15 +74,18 @@ export async function enhanceMentoringWithAI(mentoringId: string): Promise<Enhan
   );
   if (!prompt) throw new Error("멘토링 내용을 먼저 작성해주세요");
 
-  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
-  let completion;
+  let raw: string;
   try {
-    completion = await callGroqWithRetry(groq, {
-      model: GROQ_MODEL,
-      temperature: 0.4,
-      max_tokens: 4000,
-      response_format: { type: "json_object" }, // Groq JSON 모드: 파싱 실패 방지
+    raw = await callGroqWithRetry({
+      feature: "멘토링 정리",
+      targets: [{ name: mentoring.student.name }],
+      studentId: mentoring.studentId,
+      actorId: session.user.id,
+      options: {
+        temperature: 0.4,
+        max_tokens: 4000,
+        response_format: { type: "json_object" }, // Groq JSON 모드: 파싱 실패 방지
+      },
       messages: [
         { role: "system", content: prompt.systemPrompt },
         { role: "user", content: prompt.userPrompt },
@@ -114,10 +113,9 @@ export async function enhanceMentoringWithAI(mentoringId: string): Promise<Enhan
     throw new Error("AI 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
   }
 
-  const raw = completion.choices[0]?.message?.content ?? "{}";
   let enhanced: Partial<EnhancedMentoringContent>;
   try {
-    enhanced = parseEnhancedJson(raw);
+    enhanced = parseEnhancedJson(raw || "{}");
   } catch {
     throw new Error("AI 응답 파싱에 실패했습니다");
   }
@@ -179,19 +177,18 @@ export async function generateMonthlyMentoringSummary(
     return `${year}년 ${month}월 진행된 멘토링이 없습니다.`;
   }
 
-  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
   try {
-    const completion = await callGroqWithRetry(groq, {
+    return await callGroqWithRetry({
+      feature: "월간 종합의견",
+      targets: [{ name: student.name }],
+      studentId,
+      actorId: session.user.id,
       messages: [
         { role: "system", content: prompt.systemPrompt },
         { role: "user", content: prompt.userPrompt },
       ],
-      model: GROQ_MODEL,
-      temperature: 0.5,
+      options: { temperature: 0.5 },
     });
-
-    return completion.choices[0]?.message?.content?.trim() ?? "";
   } catch (error) {
     const err = error as { status?: number; message?: string };
     if (err.status === 429) {

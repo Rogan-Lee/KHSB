@@ -1815,7 +1815,7 @@ export function AttendanceTable({ students, today, toolbarStart }: Props) {
           <Textarea
             value={notifiedAbsentReason}
             onChange={(e) => setNotifiedAbsentReason(e.target.value)}
-            placeholder="미입실 사유를 입력하세요 (예: 학교 시험, 병원 등)"
+            placeholder="미입실 사유를 입력하세요 (예: 학교 시험, 가족 행사 등)"
             rows={3}
             aria-label="미입실 사유"
           />

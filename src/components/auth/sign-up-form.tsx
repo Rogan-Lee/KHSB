@@ -183,6 +183,17 @@ export function SignUpForm({
             <Notice tone="bad">{error}</Notice>
           </div>
         )}
+        <p className="t3-regular text-fg-neutral-subtle">
+          가입하면 강한선배{" "}
+          <a href="https://www.kanghanseonbae.com/terms.html" target="_blank" rel="noopener" className="underline">
+            이용약관·운영정책
+          </a>
+          에 동의하게 되고,{" "}
+          <a href="https://www.kanghanseonbae.com/privacy.html" target="_blank" rel="noopener" className="underline">
+            개인정보처리방침
+          </a>
+          에 따라 입력한 정보가 처리돼요.
+        </p>
         <Button className="mt-x1 w-full" size="lg" type="submit" disabled={pending}>
           {pending ? "계정 만드는 중…" : "가입 완료"}
         </Button>
