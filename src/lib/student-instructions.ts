@@ -6,10 +6,9 @@
 //
 // 웹 서버 액션(src/actions/student-instructions.ts)·모바일 API·학생 웹 포털이 같은 함수를 쓴다.
 
-import Groq from "groq-sdk";
 import { z } from "zod";
 
-import { GROQ_MODEL } from "@/lib/groq";
+import { groqChat } from "@/lib/groq";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { notifyAssignedStaffOfParentRequest, sendMobilePush } from "@/lib/mobile-push";
 import { parseMobileBody } from "@/lib/mobile-parent-services";
@@ -353,21 +352,22 @@ JSON 하나만: {"instruction": "지시 문장"} 또는 {"instruction": null}`;
 // ponytail: 날짜가 지나면 이 상수와 검사를 지워도 된다
 const AI_DRAFT_FROM = Date.parse("2026-11-24T00:00:00+09:00");
 
-async function askAiForInstruction(requestText: string, grade: string) {
+async function askAiForInstruction(requestText: string, grade: string, studentId: string, studentName: string) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
   try {
-    // 학생 이름은 보내지 않는다 — 문장에 필요 없음
-    const result = await new Groq({ apiKey }).chat.completions.create({
-      model: GROQ_MODEL,
-      temperature: 0.4,
-      response_format: { type: "json_object" },
+    // 학생 이름은 보내지 않는다 — 요청 글에 적혀 있으면 가명으로 바뀐다
+    const result = await groqChat({
+      feature: "학생 지시 초안",
+      targets: [{ name: studentName }],
+      studentId,
       messages: [
         { role: "system", content: DRAFT_PROMPT },
         { role: "user", content: `학년: ${grade || "모름"}\n학부모 요청: ${requestText}` },
       ],
+      options: { temperature: 0.4, response_format: { type: "json_object" } },
     });
-    return parseAiInstruction(result.choices[0]?.message?.content);
+    return parseAiInstruction(result);
   } catch (error) {
     console.error("[instruction draft]", error);
     return null;
@@ -385,7 +385,7 @@ export async function draftInstructionFromRequest(requestId: string, opts: { for
       id: true,
       content: true,
       studentId: true,
-      student: { select: { grade: true } },
+      student: { select: { grade: true, name: true } },
       instructions: { select: { sentAt: true } },
     },
   });
@@ -397,7 +397,7 @@ export async function draftInstructionFromRequest(requestId: string, opts: { for
   const hasSent = request.instructions.some((i) => i.sentAt);
   if (hasSent || (!opts.force && request.instructions.length > 0)) return null;
 
-  const content = await askAiForInstruction(request.content, request.student.grade);
+  const content = await askAiForInstruction(request.content, request.student.grade, request.studentId, request.student.name);
   if (!content) return null;
   const [, draft] = await prisma.$transaction([
     prisma.studentInstruction.deleteMany({ where: { communicationId: request.id, sentAt: null } }),

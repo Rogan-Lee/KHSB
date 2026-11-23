@@ -3,7 +3,9 @@
 // "use server" 가 아니므로 인증 없는 서버액션으로 노출되지 않는다 —
 // 외부 접근은 반드시 cron 라우트의 CRON_SECRET 게이트를 통한다.
 import { revalidatePath } from "next/cache";
+import { groqChat } from "@/lib/groq";
 import { prisma } from "@/lib/prisma";
+import { QUEUE_TIME_BUDGET_MS } from "@/lib/report-ai-queue";
 
 type ReportTypeStr = "WEEKLY" | "MONTHLY" | "ADHOC";
 
@@ -16,55 +18,49 @@ type QueuedContent = {
   queuedById?: string;
 };
 
-export type QueuedPrompt = {
-  reportId: string;
-  studentName: string;
-  type: ReportTypeStr;
-  periodStart: string; // YYYY-MM-DD
-  periodEnd: string;
-  systemPrompt: string;
-  userPrompt: string;
-};
-
-/**
- * 야간 루틴이 가져갈 큐 항목(봉인 프롬프트 포함). 오래 대기한 것부터.
- * limit 은 1~100 으로 클램프.
- */
-export async function listQueuedPrompts(limit = 30): Promise<QueuedPrompt[]> {
-  const take = Math.min(Math.max(Math.trunc(limit) || 30, 1), 100);
-  const rows = await prisma.onlineParentReport.findMany({
-    where: { status: "QUEUED" },
-    orderBy: { updatedAt: "asc" },
-    take,
-    select: {
-      id: true,
-      type: true,
-      periodStart: true,
-      periodEnd: true,
-      content: true,
-      student: { select: { name: true } },
-    },
-  });
-
-  const out: QueuedPrompt[] = [];
-  for (const r of rows) {
-    const c = r.content as unknown as QueuedContent | null;
-    if (!c || !c.systemPrompt || !c.userPrompt) continue; // 봉인 프롬프트 없는 비정상 항목 스킵
-    out.push({
-      reportId: r.id,
-      studentName: r.student.name,
-      type: r.type as ReportTypeStr,
-      periodStart: r.periodStart.toISOString().slice(0, 10),
-      periodEnd: r.periodEnd.toISOString().slice(0, 10),
-      systemPrompt: c.systemPrompt,
-      userPrompt: c.userPrompt,
+/** 오래 기다린 것부터 Groq 로 만들어 초안(DRAFT)으로 옮긴다. 429 면 멈추고 다음 회차에 이어 간다. */
+export async function processQueuedReports(budgetMs = QUEUE_TIME_BUDGET_MS) {
+  const deadline = Date.now() + budgetMs;
+  let made = 0;
+  let failed = 0;
+  while (Date.now() < deadline) {
+    const row = await prisma.onlineParentReport.findFirst({
+      where: { status: "QUEUED" },
+      orderBy: { updatedAt: "asc" },
+      select: { id: true, type: true, studentId: true, content: true, student: { select: { name: true } } },
     });
+    if (!row) break;
+    const sealed = row.content as unknown as QueuedContent | null;
+    try {
+      if (!sealed?.systemPrompt || !sealed.userPrompt) throw new Error("예약 내용이 비어 있습니다");
+      const markdown = await groqChat({
+        feature: (row.type as ReportTypeStr) === "MONTHLY" ? "온라인 월간 보고서" : "온라인 주간 보고서",
+        targets: [{ name: row.student.name }],
+        studentId: row.studentId,
+        messages: [
+          { role: "system", content: sealed.systemPrompt },
+          { role: "user", content: sealed.userPrompt },
+        ],
+        options: { temperature: 0.5 },
+      });
+      const res = await applyGeneratedReport({ reportId: row.id, markdown });
+      if (!res.ok) throw new Error(res.reason);
+      made++;
+    } catch (error) {
+      if ((error as { status?: number })?.status === 429) break;
+      failed++;
+      await prisma.onlineParentReport.update({
+        where: { id: row.id },
+        select: { id: true },
+        data: { status: "DRAFT_FAILED", errorMessage: error instanceof Error ? error.message.slice(0, 500) : "생성 실패" },
+      });
+    }
   }
-  return out;
+  return { made, failed };
 }
 
 /**
- * 루틴이 생성한 markdown 을 반영 → DRAFT 전환.
+ * 생성한 markdown 을 반영 → DRAFT 전환.
  * QUEUED 상태일 때만 적용(중복 처리/경합 방지, 멱등).
  */
 export async function applyGeneratedReport(params: {

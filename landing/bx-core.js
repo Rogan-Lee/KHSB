@@ -298,7 +298,7 @@
   // 기본 후기(예시)가 화면에 나갈 때는 줄 아래에 예시라는 안내를 붙인다 (이미 안내가 있으면 그대로 둔다)
   function sampleNote(el) {
     const box = el.closest('.vfl');
-    if (box && !(box.nextElementSibling && box.nextElementSibling.matches('.vfl-note'))) box.insertAdjacentHTML('afterend', '<p class="vfl-note">개인정보 보호를 위해 이름은 가렸으며, 화면의 후기는 예시입니다.</p>');
+    if (box && !(box.nextElementSibling && box.nextElementSibling.matches('.vfl-note'))) box.insertAdjacentHTML('afterend', '<p class="vfl-note">화면의 후기는 이해를 돕기 위한 예시이며, 실제 후기가 아닙니다.</p>');
   }
   async function renderStories(el) {
     const types = el.dataset.stories || '';

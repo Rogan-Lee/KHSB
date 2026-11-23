@@ -227,11 +227,11 @@
     const blocks = [
       // masked: 실제 자료일 때 줄 아래에 붙는 안내 / sample: 예시일 때 붙는 안내 (예시라는 말은 실제 자료로 바꾸기 전에는 빼지 않는다)
       { data: WINTER.gradeImprovements, tone: 'night', kicker: '성적 상승', title: '등급으로 확인한<br>변화입니다.', card: gradeCard, label: '등급 향상 사례',
-        masked: '개인정보 보호를 위해 이름은 가렸습니다.', sample: '개인정보 보호를 위해 이름은 가렸으며, 화면의 성적 사례는 예시입니다.' },
+        masked: '개인정보 보호를 위해 이름은 가렸습니다.', sample: '화면의 성적 사례는 이해를 돕기 위한 예시이며, 실제 학생의 기록이 아닙니다.' },
       { data: WINTER.habitSurveys, tone: 'paper', kicker: '습관 형성', title: '재원생이 직접 답한<br>설문입니다.', card: surveyCard, label: '재원생 설문',
         masked: '', sample: '화면의 설문 응답은 예시입니다.' },
       { data: WINTER.parentReviews, tone: 'brand', kicker: '학부모 후기', title: '학부모님이 보내 주신<br>후기입니다.', card: parentCard, label: '학부모 후기', cta: true,
-        masked: '개인정보 보호를 위해 이름은 가렸습니다.', sample: '개인정보 보호를 위해 이름은 가렸으며, 화면의 후기는 예시입니다.' },
+        masked: '개인정보 보호를 위해 이름은 가렸습니다.', sample: '화면의 후기는 이해를 돕기 위한 예시이며, 실제 후기가 아닙니다.' },
     ].filter(b => ready(b.data) && b.data.items.length);
     if (blocks.length) {
       // 줄 아래 안내: 예시면 예시 안내, 실제 자료면 이름 가림 안내 + 자료에 딸린 각주(비교 기준 시험 등)

@@ -11,6 +11,7 @@ import {
 } from "@/lib/report-ai-prompts";
 import { createParentReportsForStudents } from "@/actions/parent-reports";
 import { generateMonthlyReportsBulk } from "@/actions/reports";
+import { applyReviewedAiJob, discardReviewedAiJob } from "@/lib/report-ai-queue";
 
 export type EnqueueResult = {
   total: number;
@@ -224,4 +225,20 @@ export async function enqueueMentoringAiComments(params: {
   revalidatePath("/mentoring");
   revalidatePath("/reports/ai-queue");
   return { total: studentIds.length, queued, skipped, failed };
+}
+
+/** 확인한 AI 결과를 리포트에 반영 */
+export async function approveAiJob(jobId: string) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+  if (typeof jobId !== "string") return { ok: false, reason: "잘못된 요청입니다" };
+  return applyReviewedAiJob(jobId);
+}
+
+/** AI 결과 버리기 */
+export async function rejectAiJob(jobId: string) {
+  const session = await auth();
+  requireFullAccess(session?.user?.role);
+  if (typeof jobId !== "string") return { ok: false, reason: "잘못된 요청입니다" };
+  return discardReviewedAiJob(jobId);
 }

@@ -1,9 +1,8 @@
 "use server";
 
-import Groq from "groq-sdk";
 import dns from "node:dns/promises";
 import net from "node:net";
-import { GROQ_MODEL } from "@/lib/groq";
+import { groqChat } from "@/lib/groq";
 import { auth } from "@/lib/auth";
 
 export type CardNewsTemplate = "announcement" | "study-tip" | "top-student";
@@ -58,12 +57,6 @@ export interface ExtractedStyle {
 }
 
 type Inputs = AnnouncementInputs | StudyTipInputs | TopStudentInputs;
-
-function getGroq() {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("GROQ_API_KEY가 설정되지 않았습니다.");
-  return new Groq({ apiKey });
-}
 
 function parseJSON<T>(text: string): T {
   const cleaned = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
@@ -241,8 +234,6 @@ export async function analyzeReferenceImage(
   }
 
   try {
-    const groq = getGroq();
-
     let imageData: string;
     let mimeType: string;
 
@@ -280,8 +271,10 @@ export async function analyzeReferenceImage(
 
 이미지에서 실제로 보이는 색상을 정확하게 추출하세요.`;
 
-    const response = await groq.chat.completions.create({
-      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+    const text = await groqChat({
+      feature: "카드뉴스 참고 이미지 분석",
+      actorId: session.user.id,
+      options: { model: "meta-llama/llama-4-scout-17b-16e-instruct" },
       messages: [
         {
           role: "user",
@@ -293,7 +286,6 @@ export async function analyzeReferenceImage(
       ],
     });
 
-    const text = response.choices[0]?.message?.content ?? "";
     const style = parseJSON<ExtractedStyle>(text);
     return { success: true, style };
   } catch (e) {
@@ -316,15 +308,13 @@ export async function generateCardNewsSlides(
     if (template !== "announcement" && template !== "study-tip" && template !== "top-student") {
       return { success: false, error: "잘못된 템플릿입니다." };
     }
-    const groq = getGroq();
     const prompt = buildPrompt(template, clampInputs(template, inputs));
 
-    const response = await groq.chat.completions.create({
-      model: GROQ_MODEL,
+    const text = await groqChat({
+      feature: "카드뉴스 문구",
+      actorId: session.user.id,
       messages: [{ role: "user", content: prompt }],
     });
-
-    const text = response.choices[0]?.message?.content ?? "";
     const data = parseJSON<GeneratedSlides>(text);
     return { success: true, data };
   } catch (e) {

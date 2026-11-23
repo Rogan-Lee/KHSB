@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { NextRequest } from "next/server";
-import Groq from "groq-sdk";
-import { GROQ_MODEL } from "@/lib/groq";
+import { groqChat, type GroqChatParams } from "@/lib/groq";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isFullAccess, requireFullAccess } from "@/lib/roles";
@@ -78,21 +77,20 @@ function weekRangeFromMonday(weekStartIso: string): {
 
 async function callGroqWithRetry(
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  meta: Pick<GroqChatParams, "feature" | "targets" | "studentId" | "actorId">
 ): Promise<string> {
-  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
   let lastErr: unknown;
   for (let attempt = 0; attempt < GROQ_RETRIES; attempt++) {
     try {
-      const completion = await groq.chat.completions.create({
+      const content = await groqChat({
+        ...meta,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        model: GROQ_MODEL,
-        temperature: 0.5,
+        options: { temperature: 0.5 },
       });
-      const content = completion.choices[0]?.message?.content?.trim();
       if (!content) throw new Error("빈 응답");
       return content;
     } catch (err) {
@@ -213,7 +211,11 @@ async function generateWeeklyReportDraftCore(params: {
   try {
     const inputs = await collectInputs(params.studentId, params.weekStart);
     const { systemPrompt, userPrompt } = buildWeeklyReportPrompt(inputs);
-    const markdown = await callGroqWithRetry(systemPrompt, userPrompt);
+    const markdown = await callGroqWithRetry(systemPrompt, userPrompt, {
+      feature: "온라인 주간 보고서",
+      targets: [{ name: inputs.studentName }],
+      studentId: params.studentId,
+    });
 
     const content: ReportContent = {
       markdown,
@@ -669,7 +671,11 @@ async function generateMonthlyReportDraftCore(params: {
   try {
     const inputs = await collectMonthlyInputs(params.studentId, params.yearMonth, examSessionId);
     const { systemPrompt, userPrompt } = buildMonthlyReportPrompt(inputs);
-    const markdown = await callGroqWithRetry(systemPrompt, userPrompt);
+    const markdown = await callGroqWithRetry(systemPrompt, userPrompt, {
+      feature: "온라인 월간 보고서",
+      targets: [{ name: inputs.studentName }],
+      studentId: params.studentId,
+    });
 
     const content: ReportContent = {
       markdown,
@@ -800,8 +806,8 @@ export async function batchGenerateMonthlyReports(params: {
 
 /**
  * 전체(또는 지정) 온라인 학생 보고서를 QUEUED 로 적재.
- * Groq 호출 없이 프롬프트만 봉인하므로 즉시 끝나며, 야간 루틴
- * (/api/cron/online-report-queue)이 순차로 꺼내 생성 → DRAFT 전환한다.
+ * Groq 호출 없이 프롬프트만 봉인하므로 즉시 끝나며, 밤에 크론
+ * (/api/cron/online-report-queue)이 순차로 꺼내 Groq 로 생성 → DRAFT 전환한다.
  * 이미 APPROVED·SENT 된 보고서는 보호를 위해 건너뛴다(skipped).
  * WEEKLY/MONTHLY 지원.
  */

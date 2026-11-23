@@ -1,8 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import Groq from "groq-sdk";
-import { GROQ_MODEL } from "@/lib/groq";
+import { groqChat } from "@/lib/groq";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireManagerMentor } from "@/lib/roles";
@@ -111,7 +110,6 @@ export async function summarizeKakaoRaw(params: {
     throw new Error("원문은 1 ~ 20000자 사이여야 합니다");
   }
 
-  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
   const allowedTags = KAKAO_LOG_TAGS.join(", ");
 
   const systemPrompt =
@@ -126,17 +124,16 @@ export async function summarizeKakaoRaw(params: {
     `카카오톡 대화 원문:\n${params.rawContent}`;
 
   try {
-    const completion = await groq.chat.completions.create({
+    const content = await groqChat({
+      feature: "카카오톡 대화 요약",
+      targets: [{ name: params.studentName }],
+      actorId: session?.user?.id,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      model: GROQ_MODEL,
-      temperature: 0.3,
-      response_format: { type: "json_object" },
+      options: { temperature: 0.3, response_format: { type: "json_object" } },
     });
-
-    const content = completion.choices[0]?.message?.content?.trim();
     if (!content) throw new Error("빈 응답");
 
     let parsed: { summary?: unknown; tags?: unknown };

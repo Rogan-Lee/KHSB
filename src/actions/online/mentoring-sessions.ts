@@ -1,8 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import Groq from "groq-sdk";
-import { GROQ_MODEL } from "@/lib/groq";
+import { groqChat } from "@/lib/groq";
 import { del } from "@vercel/blob";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -197,7 +196,6 @@ export async function completeMentoringSession(sessionId: string) {
   }
 
   // AI 요약
-  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
   const { systemPrompt, userPrompt } = buildMentoringSessionPrompt({
     studentName: target.student.name,
     studentGrade: target.student.grade,
@@ -207,15 +205,17 @@ export async function completeMentoringSession(sessionId: string) {
     notes: target.notes,
   });
 
-  const completion = await groq.chat.completions.create({
+  const summary = await groqChat({
+    feature: "화상 멘토링 요약",
+    targets: [{ name: target.student.name }, { name: target.host.name, label: "멘토" }],
+    studentId: target.student.id,
+    actorId: session?.user?.id,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    model: GROQ_MODEL,
-    temperature: 0.4,
+    options: { temperature: 0.4 },
   });
-  const summary = completion.choices[0]?.message?.content?.trim();
   if (!summary) throw new Error("AI 요약 생성 실패");
 
   // 일일 보고에 적재 (해당 날짜 KST). 기존 보고가 있으면 화상 세션 블록을 prepend.

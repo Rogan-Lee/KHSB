@@ -36,6 +36,8 @@ import {
   type Tone,
 } from "@/components/backoffice/ui";
 import { CalendarCheck, MessagesSquare, Phone, Scale } from "lucide-react";
+import { ConsentPanel } from "@/components/privacy/consent-panel";
+import { fullAge, todayConsentDate } from "@/lib/privacy/consent";
 import { isOnlineStaff } from "@/lib/roles";
 import { requireDashboardSession } from "../../_lib/page-guard";
 
@@ -47,6 +49,8 @@ const ATTENDANCE_TYPE_MAP: Record<string, { label: string; tone: Tone }> = {
   APPROVED_ABSENT: { label: "공결", tone: "info" },
   NOTIFIED_ABSENT: { label: "미입실", tone: "gray" },
 };
+
+const dateKey = (d: Date) => d.toISOString().slice(0, 10);
 
 const CONSULTATION_STATUS: Record<string, { label: string; tone: Tone }> = {
   SCHEDULED: { label: "예정", tone: "info" },
@@ -115,6 +119,11 @@ export default async function StudentDetailPage({
           },
         },
         examScores: { orderBy: { examDate: "desc" } },
+        consents: {
+          orderBy: { createdAt: "desc" },
+          take: 30,
+          select: { id: true, kind: true, agreed: true, channel: true, docVersion: true, agreedOn: true, under14: true, guardianName: true },
+        },
         assignments: {
           orderBy: { createdAt: "desc" },
           take: 20,
@@ -247,6 +256,18 @@ export default async function StudentDetailPage({
         <TabsContent value="info">
           <Section title="기본 정보 수정" description="원생 정보를 고친 뒤 아래 수정 버튼을 눌러 저장하세요.">
             <StudentForm student={student} mentors={mentors} schools={schools} occupiedSeats={occupiedSeats} />
+          </Section>
+          <Section
+            title="개인정보 동의"
+            description="입회할 때 받은 동의서를 등록해 두는 곳이에요. 동의를 거둬들이면 체크를 풀고 다시 남겨 주세요."
+            className="mt-x6"
+          >
+            <ConsentPanel
+              studentId={student.id}
+              rows={student.consents.map((c) => ({ ...c, agreedOn: dateKey(c.agreedOn) }))}
+              today={dateKey(todayConsentDate())}
+              under14Known={student.birthDate ? fullAge(student.birthDate, todayConsentDate()) < 14 : null}
+            />
           </Section>
         </TabsContent>
 
