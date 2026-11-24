@@ -10,6 +10,8 @@ import { StudentScheduleEditor } from "@/components/students/student-schedule-ed
 import { CommunicationPanel } from "@/components/communications/communication-panel";
 import { InstructionPanel } from "@/components/instructions/instruction-panel";
 import { getStudentInstructionsForStaff } from "@/lib/student-instructions";
+import { loadEntryOnboarding } from "@/lib/mobile-student-onboarding";
+import { EntryOnboardingCard } from "@/components/students/entry-onboarding-card";
 import dynamic from "next/dynamic";
 const ExamScoreChart = dynamic(() => import("@/components/students/exam-score-chart").then(m => m.ExamScoreChart));
 import { AssignmentPanel } from "@/components/assignments/assignment-panel";
@@ -146,7 +148,7 @@ export default async function StudentDetailPage({
     redirect(`/online/students/${encodeURIComponent(student.id)}`);
   }
 
-  const [mentors, schoolRows, seatRows, instructions] = await Promise.all([
+  const [mentors, schoolRows, seatRows, instructions, entryOnboarding] = await Promise.all([
     prisma.user.findMany({
       // 학생 상세 페이지 멘토 재배정 picker — 퇴사자 제외
       where: { status: "ACTIVE", role: { in: ["SUPER_ADMIN", "DIRECTOR", "HEAD_MENTOR", "MENTOR"] } },
@@ -158,6 +160,7 @@ export default async function StudentDetailPage({
       select: { seat: true },
     }),
     getStudentInstructionsForStaff(student.id),
+    loadEntryOnboarding(student.id),
   ]);
 
   const schools = [...new Set(schoolRows.map((s) => parseSchool(s.school ?? "")).filter(Boolean))].sort();
@@ -254,6 +257,7 @@ export default async function StudentDetailPage({
       >
 
         <TabsContent value="info">
+          <EntryOnboardingCard {...entryOnboarding} />
           <Section title="기본 정보 수정" description="원생 정보를 고친 뒤 아래 수정 버튼을 눌러 저장하세요.">
             <StudentForm student={student} mentors={mentors} schools={schools} occupiedSeats={occupiedSeats} />
           </Section>

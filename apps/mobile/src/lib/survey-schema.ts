@@ -12,7 +12,7 @@ export type SurveyKind =
   | 'admissionType'
   | 'strengthsWeaknesses';
 
-export type Option<T extends string = string> = { value: T; label: string };
+export type Option<T extends string = string> = { value: T; label: string; description?: string };
 
 const asOptions = <T extends string>(values: readonly T[]): Option<T>[] =>
   values.map((v) => ({ value: v, label: v }));

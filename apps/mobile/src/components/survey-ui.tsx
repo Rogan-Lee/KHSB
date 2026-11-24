@@ -324,10 +324,59 @@ export function SelectBoxGroup<T extends string>({
             accessibilityState={{ checked: on, disabled }}
             pressedBg={color.bg.layerDefaultPressed}
             style={[s.selectBox, on && s.selectBoxOn, disabled && s.selectBoxDisabled]}>
-            <Text variant={on ? 't5-bold' : 't5-medium'} color={disabled && !on ? 'neutralSubtle' : 'neutral'} style={{ flex: 1 }}>
-              {o.label}
-            </Text>
+            <BoxLabel option={o} on={on} disabled={disabled} />
             <View style={[s.radio, on && s.radioOn]}>{on && <View style={s.radioDot} />}</View>
+          </Press>
+        );
+      })}
+    </View>
+  );
+}
+
+function BoxLabel({ option, on, disabled }: { option: S.Option<string>; on: boolean; disabled?: boolean }) {
+  return (
+    <View style={{ flex: 1, gap: space.x0_5 }}>
+      <Text variant={on ? 't5-bold' : 't5-medium'} color={disabled && !on ? 'neutralSubtle' : 'neutral'}>
+        {option.label}
+      </Text>
+      {option.description ? (
+        <Text variant="t3-regular" color="neutralMuted">
+          {option.description}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/** 여러 개 고르는 세로 선택 상자 + 체크 표시 — 선택지 설명이 길 때 칩 대신 */
+export function CheckBoxGroup<T extends string>({
+  options,
+  values,
+  onToggle,
+  disabled,
+}: {
+  options: readonly OptionLike<T>[];
+  values: readonly string[];
+  onToggle: (v: T) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <View style={{ gap: space.x2 }}>
+      {options.map(toOption).map((o) => {
+        const on = values.includes(o.value);
+        return (
+          <Press
+            key={o.value}
+            onPress={() => onToggle(o.value)}
+            disabled={disabled}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: on, disabled }}
+            pressedBg={color.bg.layerDefaultPressed}
+            style={[s.selectBox, on && s.selectBoxOn, disabled && s.selectBoxDisabled]}>
+            <BoxLabel option={o} on={on} disabled={disabled} />
+            <View style={[s.checkBox, on && s.checkBoxOn]}>
+              {on && <Check color={color.palette.staticWhite} size={14} strokeWidth={3} />}
+            </View>
           </Press>
         );
       })}
