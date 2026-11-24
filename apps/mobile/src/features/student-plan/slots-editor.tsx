@@ -116,7 +116,7 @@ export function ScheduleSlotsEditor({
       <View>
         <GroupHeader
           title="학원·외출 일정"
-          description="학원처럼 정기적으로 자리를 비우는 시간이 있으면 알려 주세요"
+          description="다니는 학원·과외가 있으면 요일·시간과 이름을 적어 주세요. 등원하지 않는 날도 적어 주세요."
         />
 
         {outings.length > 0 && (
@@ -127,7 +127,7 @@ export function ScheduleSlotsEditor({
                 <View key={i} style={s.fill}>
                   <View style={s.cardHead}>
                     <Text variant="t5-bold" tabular>
-                      외출 {i + 1}
+                      학원·외출 {i + 1}
                     </Text>
                     <Press
                       onPress={() => onOutingsChange(outings.filter((_, j) => j !== i))}
@@ -183,8 +183,8 @@ export function ScheduleSlotsEditor({
                     <TextField
                       value={o.reason ?? ''}
                       onChangeText={(v) => setOuting(i, { reason: v })}
-                      placeholder="사유 (예: 수학학원)"
-                      accessibilityLabel="외출 사유"
+                      placeholder="학원·과외 이름 (예: 국어학원, 수학 과외)"
+                      accessibilityLabel="학원·외출 이름"
                       maxLength={100}
                       editable={!disabled}
                     />
@@ -203,7 +203,7 @@ export function ScheduleSlotsEditor({
           disabled={disabled}
           onPress={() => onOutingsChange([...outings, { ...DEFAULT_OUTING }])}
           style={{ marginTop: space.x4 }}>
-          외출 추가
+          학원·외출 추가
         </Button>
       </View>
     </View>

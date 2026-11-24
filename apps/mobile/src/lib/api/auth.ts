@@ -20,6 +20,8 @@ export type MobileInvitation = {
   /** 학부모 초대: 연결될 자녀 이름들 */
   children?: string[];
   relation?: string | null;
+  /** 학생 초대: 만 14세 미만으로 보이면 true (보호자 동의 확인 항목을 보여 준다). 옛 서버는 없음 → false */
+  under14?: boolean;
 };
 
 export const INVITE_TYPE_LABEL: Record<InviteType, string> = {

@@ -38,6 +38,14 @@ import {
   toast,
   useResponsive,
 } from '@/design';
+import {
+  SIGNUP_CONSENT_HEADER,
+  formatSignupConsentHeader,
+  missingSignupConsent,
+  signupConsentItems,
+  type SignupConsentKey,
+} from '@/features/safety/signup-consent';
+import { SignupConsentBlock } from '@/features/safety/signup-consent-block';
 import { rememberTermsAgreedAtSignUp } from '@/features/safety/terms-gate';
 import {
   INVITE_TYPE_LABEL,
@@ -117,6 +125,7 @@ export default function AuthScreen() {
   const [again, setAgain] = useState('');
   const [touched, setTouched] = useState({ username: false, email: false, password: false, again: false });
   const [fieldErrors, setFieldErrors] = useState<{ username?: string; email?: string; password?: string }>({});
+  const [consent, setConsent] = useState<Set<SignupConsentKey>>(() => new Set());
 
   const scrollRef = useRef<ScrollView>(null);
   const scrollY = useRef(0);
@@ -147,6 +156,7 @@ export default function AuthScreen() {
         if (cancelled) return;
         setCheck({ token, state: 'ok', invitation });
         setEmail(invitation.email ?? '');
+        setConsent(new Set()); // 초대마다 항목이 다르다 (학생 만 14세 미만·학부모·직원)
       })
       .catch((caught: unknown) => {
         if (cancelled) return;
@@ -259,6 +269,7 @@ export default function AuthScreen() {
     setAgain('');
     setTouched({ username: false, email: false, password: false, again: false });
     setFieldErrors({});
+    setConsent(new Set());
   };
 
   const onInviteChange = (value: string) => {
@@ -306,16 +317,26 @@ export default function AuthScreen() {
       : null);
   const againError =
     touched.again && again.length > 0 && again !== newPassword ? '비밀번호가 서로 달라요' : null;
-  const canSignUp =
+  const fieldsOk =
     !!invitation &&
     USERNAME_PATTERN.test(username.trim()) &&
     (isStaffInvite || EMAIL_PATTERN.test(email.trim())) &&
     newPassword.length >= PASSWORD_MIN_LENGTH &&
     again === newPassword;
+  const consentItems = invitation
+    ? signupConsentItems(invitation.type, { under14: invitation.under14 ?? false })
+    : [];
+  const consentMissing = missingSignupConsent(consent, consentItems);
+  const canSignUp = fieldsOk && consentMissing == null;
 
   async function signUp() {
     setTouched({ username: true, email: true, password: true, again: true });
-    if (!invitation || !check || !canSignUp || busy.current) return;
+    if (!invitation || !check || busy.current) return;
+    if (!canSignUp) {
+      // 키보드 "완료"로 제출했는데 입력은 다 됐고 동의만 빠졌으면 알려 준다
+      if (fieldsOk) setError(consentMissing);
+      return;
+    }
     busy.current = true;
     authStarted.current = true;
     setSubmitting(true);
@@ -331,7 +352,12 @@ export default function AuthScreen() {
           username: id,
           displayUsername: id,
         },
-        { headers: { 'x-studyroom-invite': check.token } },
+        {
+          headers: {
+            'x-studyroom-invite': check.token,
+            [SIGNUP_CONSENT_HEADER]: formatSignupConsentHeader(consent),
+          },
+        },
       );
       const authError = result.error as AuthErrorLike;
       if (authError) {
@@ -356,7 +382,7 @@ export default function AuthScreen() {
         }
         return;
       }
-      // 가입 화면 문구로 이용약관에 동의하고 가입했다 — 첫 로그인 동의 시트를 건너뛴다
+      // 가입 화면에서 이용약관에 체크하고 가입했다 — 첫 로그인 동의 시트를 건너뛴다
       await rememberTermsAgreedAtSignUp();
       await confirmLinkedAccount();
     } catch {
@@ -641,18 +667,16 @@ export default function AuthScreen() {
                   errorMessage={againError}
                   editable={!busyNow}
                 />
-                <Text variant="t3-regular" color="neutralSubtle">
-                  가입하면 강한선배{' '}
-                  <Text
-                    variant="t3-medium"
-                    color="neutralMuted"
-                    accessibilityRole="link"
-                    onPress={() => void openHelpPage(TERMS_URL)}
-                    style={{ textDecorationLine: 'underline' }}>
-                    이용약관·운영정책
-                  </Text>
-                  에 동의하게 되고, 개인정보처리방침에 따라 입력한 정보가 처리돼요.
-                </Text>
+                <SignupConsentBlock
+                  audience={invitation.type}
+                  under14={invitation.under14 ?? false}
+                  checked={consent}
+                  onChange={(next) => {
+                    setConsent(next);
+                    setError(null);
+                  }}
+                  disabled={busyNow}
+                />
                 {error != null && (
                   <Notice tone="bad" icon={CircleAlert}>
                     {error}

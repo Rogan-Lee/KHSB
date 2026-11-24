@@ -11,12 +11,21 @@ import { FormField, Notice, StatusBadge } from "@/components/backoffice/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
+import {
+  SIGNUP_CONSENT_HEADER,
+  formatSignupConsentHeader,
+  missingSignupConsent,
+  signupConsentItems,
+  type SignupConsentKey,
+} from "@/lib/privacy/signup-consent";
+import { Checkbox } from "seed-design/ui/checkbox";
 
 type PublicInvitation = {
   email: string | null;
   expiresAt: string;
   name: string;
   type: "STAFF" | "STUDENT" | "PARENT";
+  under14: boolean;
 };
 
 const INVITE_LABEL: Record<PublicInvitation["type"], string> = {
@@ -38,6 +47,7 @@ export function SignUpForm({
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pending, setPending] = useState(false);
+  const [agreed, setAgreed] = useState<Set<SignupConsentKey>>(() => new Set());
   // 화면 안 오류 표시 (토스트와 같은 문구)
   const [error, setError] = useState<string | null>(null);
 
@@ -56,6 +66,17 @@ export function SignUpForm({
   }
   const activeInvitation = invitation;
   const mismatch = confirmPassword.length > 0 && password !== confirmPassword;
+  const consentItems = signupConsentItems(invitation.type, { under14: invitation.under14 });
+  const allAgreed = consentItems.every((item) => agreed.has(item.key));
+
+  function toggleConsent(key: SignupConsentKey, checked: boolean) {
+    setAgreed((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -63,6 +84,12 @@ export function SignUpForm({
     if (password !== confirmPassword) {
       toast.error("비밀번호가 일치하지 않습니다");
       setError("비밀번호가 일치하지 않습니다");
+      return;
+    }
+    const missingConsent = missingSignupConsent(agreed, consentItems);
+    if (missingConsent) {
+      toast.error(missingConsent);
+      setError(missingConsent);
       return;
     }
 
@@ -79,6 +106,7 @@ export function SignUpForm({
         {
           headers: {
             "x-studyroom-invite": token,
+            [SIGNUP_CONSENT_HEADER]: formatSignupConsentHeader(agreed),
           },
         },
       );
@@ -121,7 +149,8 @@ export function SignUpForm({
             id="username"
             autoCapitalize="none"
             autoComplete="username"
-            pattern="[a-zA-Z0-9._-]{4,30}"
+            // 하이픈은 이스케이프 — 최신 브라우저는 pattern 을 v 플래그로 컴파일해 맨 끝 "-" 도 오류로 보고 무시한다
+            pattern="[a-zA-Z0-9._\-]{4,30}"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             className={authInputClass}
@@ -178,22 +207,63 @@ export function SignUpForm({
             required
           />
         </FormField>
+        <fieldset className="flex flex-col">
+          <legend className="sr-only">약관 동의</legend>
+          <Checkbox
+            label="전체 동의"
+            size="large"
+            weight="bold"
+            checked={allAgreed}
+            onCheckedChange={(checked) => setAgreed(new Set(checked ? consentItems.map((item) => item.key) : []))}
+            className="min-h-11 w-full items-center"
+          />
+          <ul className="mt-x1 flex flex-col border-t border-stroke-neutral-muted pt-x1">
+            {consentItems.map((item) => (
+              <li key={item.key} className="relative">
+                <Checkbox
+                  label={`[${item.required ? "필수" : "선택"}] ${item.label}`}
+                  checked={agreed.has(item.key)}
+                  onCheckedChange={(checked) => toggleConsent(item.key, checked)}
+                  className="min-h-11 w-full items-center pr-x12"
+                />
+                {/* 요약 펼치기 — summary 는 체크 줄 오른쪽에 띄우고 내용은 그 아래로 펼친다 */}
+                <details className="group">
+                  <summary className="absolute right-0 top-0 flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-end t3-regular text-fg-neutral-subtle underline [&::-webkit-details-marker]:hidden">
+                    <span className="sr-only">{item.label} </span>
+                    <span className="group-open:hidden">보기</span>
+                    <span className="hidden group-open:inline">접기</span>
+                  </summary>
+                  <div className="mb-x2 flex flex-col gap-x2 rounded-r3 bg-bg-layer-fill p-x4">
+                    <dl className="flex flex-col gap-x2">
+                      {item.rows.map((row) => (
+                        <div key={row.label}>
+                          <dt className="t3-medium text-fg-neutral-subtle">{row.label}</dt>
+                          <dd className={row.strong ? "t3-bold text-fg-neutral underline" : "t3-regular text-fg-neutral"}>
+                            {row.text}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                    {item.doc && (
+                      <a
+                        href={item.doc.url}
+                        target="_blank"
+                        rel="noopener"
+                        className="inline-flex min-h-11 items-center self-start t3-medium text-fg-neutral underline">
+                        {item.doc.label}
+                      </a>
+                    )}
+                  </div>
+                </details>
+              </li>
+            ))}
+          </ul>
+        </fieldset>
         {error && (
           <div role="alert">
             <Notice tone="bad">{error}</Notice>
           </div>
         )}
-        <p className="t3-regular text-fg-neutral-subtle">
-          가입하면 강한선배{" "}
-          <a href="https://www.kanghanseonbae.com/terms.html" target="_blank" rel="noopener" className="underline">
-            이용약관·운영정책
-          </a>
-          에 동의하게 되고,{" "}
-          <a href="https://www.kanghanseonbae.com/privacy.html" target="_blank" rel="noopener" className="underline">
-            개인정보처리방침
-          </a>
-          에 따라 입력한 정보가 처리돼요.
-        </p>
         <Button className="mt-x1 w-full" size="lg" type="submit" disabled={pending}>
           {pending ? "계정 만드는 중…" : "가입 완료"}
         </Button>

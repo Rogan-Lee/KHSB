@@ -9,6 +9,13 @@ import { after } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { queueAccessLog } from "@/lib/privacy/access-log";
 import { CONSENT_DOC_VERSION, todayConsentDate } from "@/lib/privacy/consent";
+import {
+  SIGNUP_CONSENT_HEADER,
+  missingSignupConsent,
+  parseSignupConsentHeader,
+  signupConsentItems,
+} from "@/lib/privacy/signup-consent";
+import { signupConsentRows, signupUnder14 } from "@/lib/privacy/signup-consent-server";
 import { hashAuthToken } from "@/lib/auth-tokens";
 import { sendAuthEmail } from "@/lib/auth-email";
 import { getAppUrl } from "@/lib/app-url";
@@ -33,17 +40,17 @@ function getSecret() {
   throw new Error("BETTER_AUTH_SECRET 또는 AUTH_SECRET 환경변수가 필요합니다");
 }
 
-function readInviteToken(
-  ctx?: {
-    headers?: Headers | null;
-    request?: Request | null;
-  } | null,
-) {
-  return (
-    ctx?.headers?.get(INVITE_HEADER) ??
-    ctx?.request?.headers.get(INVITE_HEADER) ??
-    ""
-  ).trim();
+type HeaderContext = {
+  headers?: Headers | null;
+  request?: Request | null;
+} | null | undefined;
+
+function readHeader(ctx: HeaderContext, name: string) {
+  return ctx?.headers?.get(name) ?? ctx?.request?.headers.get(name) ?? null;
+}
+
+function readInviteToken(ctx?: HeaderContext) {
+  return (readHeader(ctx, INVITE_HEADER) ?? "").trim();
 }
 
 async function getValidInvitation(token: string) {
@@ -59,6 +66,8 @@ async function getValidInvitation(token: string) {
     include: {
       targetStudent: {
         select: {
+          birthDate: true,
+          grade: true,
           id: true,
           name: true,
           status: true,
@@ -224,6 +233,14 @@ export const authServer = betterAuth({
         });
       }
 
+      // 동의 헤더가 있으면 필수 항목을 다 체크했는지 본다. 없으면 동의 화면이 없는 옛 앱 → 통과
+      const consent = parseSignupConsentHeader(readHeader(ctx, SIGNUP_CONSENT_HEADER));
+      if (consent) {
+        const under14 = signupUnder14(invitation.type, invitation.targetStudent);
+        const missing = missingSignupConsent(consent, signupConsentItems(invitation.type, { under14 }));
+        if (missing) throw new APIError("BAD_REQUEST", { message: missing });
+      }
+
       if (invitation.type === "STAFF") {
         if (!invitation.targetUser || invitation.targetUser.status !== "ACTIVE") {
           throw new APIError("FORBIDDEN", {
@@ -329,21 +346,28 @@ export const authServer = betterAuth({
               targetStudentIds: true,
               parentRelation: true,
               type: true,
+              targetStudent: { select: { birthDate: true, grade: true } },
             },
           });
 
-          // 가입 화면에서 이용약관에 동의하고 가입한다 — 그 사실을 서버에 남긴다
+          // 가입 화면에서 체크한 동의를 항목별로 남긴다 (헤더 없는 옛 앱은 이용약관 한 줄)
           try {
-            await prisma.consentRecord.create({
-              data: {
-                kind: "TERMS",
-                agreed: true,
+            // 초대는 before 훅에서 확인했다 — 없으면 학생 정보 없이 남긴다
+            const audience = invitation?.type ?? "STAFF";
+            const under14 = signupUnder14(audience, invitation?.targetStudent);
+            const consent = parseSignupConsentHeader(readHeader(ctx, SIGNUP_CONSENT_HEADER));
+            const ip = clientIpFrom(ctx?.request?.headers ?? ctx?.headers);
+            const agreedOn = todayConsentDate();
+            await prisma.consentRecord.createMany({
+              data: signupConsentRows(consent, audience, under14).map((row) => ({
+                ...row,
                 docVersion: CONSENT_DOC_VERSION,
-                channel: "SIGN_UP",
+                channel: "SIGN_UP" as const,
                 authUserId: user.id,
                 studentId: invitation?.type === "STUDENT" ? invitation.targetStudentId : null,
-                agreedOn: todayConsentDate(),
-              },
+                agreedOn,
+                ip,
+              })),
             });
           } catch (error) {
             console.error("[consent] sign-up", error);
