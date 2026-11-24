@@ -16,9 +16,6 @@ on:
         options:
           - production
           - preview
-  # ponytail: main 에 머지되기 전 첫 실행용. 확인되면 이 push 트리거는 지운다.
-  push:
-    branches: [ci/android-local-build]
 
 permissions:
   contents: read
