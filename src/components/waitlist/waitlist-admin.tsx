@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useStickyState } from "@/hooks/use-sticky-state";
+import { useSortableTable } from "@/hooks/use-sortable-table";
 import { useRouter } from "next/navigation";
 import type {
   BranchWaitStatus,
@@ -28,7 +29,7 @@ import {
 import { createConsultation } from "@/actions/consultations";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { DateTimePickerInput } from "@/components/ui/time-picker";
-import { formatDateTime, cn } from "@/lib/utils";
+import { formatDateTime, matchesSearch, timeAgo, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input, inputBaseClass } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,6 +37,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SortableHeader } from "@/components/ui/sortable-header";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   Dialog,
   DialogContent,
@@ -52,11 +55,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  DescriptionList,
   EmptyState,
   FilterChip,
-  FormActions,
   FormField,
-  Notice,
   SearchField,
   Section,
   Segmented,
@@ -76,8 +78,10 @@ import {
   Copy,
   FileText,
   Link2,
+  MessageSquareText,
   MoreHorizontal,
   Pencil,
+  Phone,
   Plus,
   Undo2,
   UserPlus,
@@ -107,9 +111,12 @@ type Branch = {
   waiting: number;
   programs: Program[];
 };
+type Kind = "WAITLIST" | "INQUIRY";
 type Entry = {
   id: string;
   name: string;
+  school: string | null;
+  grade: string | null;
   phone: string; // 작성자가 인증한 번호
   parentPhone: string | null;
   studentPhone: string | null;
@@ -119,7 +126,7 @@ type Entry = {
   programName: string | null;
   gender: WaitGender | null;
   gradeType: WaitGradeType | null;
-  kind: "WAITLIST" | "INQUIRY";
+  kind: Kind;
   entryPreference: string | null; // "winter" | "immediate" | null
   winterGrade: string | null; // 윈터 시즌 예비 학년 — "pre_high1" | "pre_high2" | "pre_high3"
   referrerName: string | null; // 추천인(지인 이름)
@@ -132,6 +139,11 @@ type Entry = {
   guideToken: string | null;
   guideContent: string | null;
   createdAt: string;
+  invitedAt: string | null;
+  enrolledAt: string | null;
+  cancelledAt: string | null;
+  // 같은 전화번호로 잡힌 신규 상담 면담 (at = 실제 일시, 없으면 예정 일시)
+  consultations: { id: string; at: string | null; status: string }[];
 };
 
 const WAIT_STATUS_LABEL: Record<BranchWaitStatus, string> = {
@@ -140,11 +152,10 @@ const WAIT_STATUS_LABEL: Record<BranchWaitStatus, string> = {
   IMMEDIATE: "바로 등원",
   CLOSED: "마감",
 };
-const STATUS_LABEL: Record<WaitlistStatus, string> = {
-  WAITING: "대기",
-  INVITED: "초대됨",
-  ENROLLED: "등원",
-  CANCELLED: "취소",
+// 문의는 줄을 서지 않으니 같은 상태라도 말을 달리한다 — 취소(CANCELLED)는 "응대 끝"
+const STATUS_LABEL: Record<Kind, Record<WaitlistStatus, string>> = {
+  WAITLIST: { WAITING: "대기", INVITED: "안내함", ENROLLED: "등원", CANCELLED: "취소" },
+  INQUIRY: { WAITING: "응대 중", INVITED: "안내함", ENROLLED: "등원", CANCELLED: "응대 끝" },
 };
 const STATUS_TONE: Record<WaitlistStatus, Tone> = {
   WAITING: "info",
@@ -152,29 +163,44 @@ const STATUS_TONE: Record<WaitlistStatus, Tone> = {
   ENROLLED: "ok",
   CANCELLED: "gray",
 };
+const CONSULT_LABEL: Record<string, string> = { SCHEDULED: "면담 예정", COMPLETED: "면담 완료", CANCELLED: "면담 취소" };
+
+const gradeTypeLabel = (e: Entry) => (e.gradeType ? (e.gradeType === "REPEAT" ? "N수생" : "재학생") : null);
+const genderLabel = (e: Entry) => (e.gender ? (e.gender === "MALE" ? "남" : "여") : null);
+// 숫자만 저장된 번호를 010-1234-5678 로
+const dashed = (phone: string) => phone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3");
+const schoolLine = (e: Entry) => [e.school, e.grade].filter(Boolean).join(" ");
 
 // 네이티브 select 를 SEED TextInput 규격으로
 const nativeSelect = cn("h-10 border-0 pr-x2", inputBaseClass);
 
+type View = "INQUIRY" | "WAITLIST" | "branches";
+type Run = (a: () => Promise<{ ok: boolean; error?: string }>) => void;
+
 export function WaitlistAdmin({
+  seenSince,
+  now,
   branches,
   entries,
   students,
 }: {
+  seenSince: string; // 이 직원이 직전에 화면을 연 시각 — 그 뒤에 들어온 건이 "새"
+  now: string; // 서버 시각 — "3일 전" 표시를 서버·브라우저가 같게
   branches: Branch[];
   entries: Entry[];
   students: StudentLite[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [tab, setTab] = useStickyState<"entries" | "branches">("waitlist:tab", "entries");
-  const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useStickyState<View>("waitlist:view", "INQUIRY");
+  // 처리 뒤 새로고침(router.refresh)되면 seenSince 가 방금 시각으로 바뀌므로, 처음 연 때 값을 붙잡아 둔다
+  const [since] = useState(seenSince);
+  const isNew = (e: Entry) => e.createdAt > since;
 
   function run(action: () => Promise<{ ok: boolean; error?: string }>) {
-    setError(null);
     startTransition(async () => {
       const res = await action();
-      if (!res.ok) setError(res.error ?? "처리에 실패했습니다");
+      if (!res.ok) toast.error(res.error ?? "처리에 실패했습니다");
       router.refresh();
     });
   }
@@ -194,42 +220,51 @@ export function WaitlistAdmin({
     return group.findIndex((e) => e.id === entry.id) + 1;
   };
 
-  const waitlistWaiting = entries.filter((e) => e.status === "WAITING" && e.kind === "WAITLIST").length;
-  const invited = entries.filter((e) => e.status === "INVITED").length;
+  const inquiries = entries.filter((e) => e.kind === "INQUIRY");
+  const waitlist = entries.filter((e) => e.kind === "WAITLIST");
+  const openInquiries = inquiries.filter((e) => e.status === "WAITING").length;
+  const waiting = waitlist.filter((e) => e.status === "WAITING").length;
   const enrolled = entries.filter((e) => e.status === "ENROLLED").length;
-  const inquiries = entries.filter((e) => e.kind === "INQUIRY").length;
+  const newInquiries = inquiries.filter(isNew).length;
+  const newWaitlist = waitlist.filter(isNew).length;
+
+  const tabCount = (n: number, active: boolean, hasNew: boolean) => (
+    <span className={cn("inline-flex items-center gap-x1 t4-bold tabular-nums", active ? "text-fg-brand" : "text-fg-placeholder")}>
+      {n}
+      {hasNew && <span className="size-1.5 rounded-full bg-bg-brand-solid" aria-label="새 건 있음" />}
+    </span>
+  );
 
   return (
     <div className="flex flex-col gap-x6">
       <StatCards cols={4}>
-        <StatCard label="대기 중" value={waitlistWaiting} unit="명" sub="단순 문의 제외" />
-        <StatCard label="안내 발송(초대됨)" value={invited} unit="명" />
+        <StatCard label="새로 들어옴" value={newInquiries + newWaitlist} unit="건" sub="지난번에 본 뒤로" />
+        <StatCard label="응대 중인 문의" value={openInquiries} unit="건" />
+        <StatCard label="대기 중" value={waiting} unit="명" />
         <StatCard label="등원 확정" value={enrolled} unit="명" />
-        <StatCard label="단순 문의" value={inquiries} unit="건" />
       </StatCards>
 
-      <ShareApply />
-
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "entries" | "branches")}>
+      <Tabs value={view} onValueChange={(v) => setView(v as View)}>
         <TabsList size="lg">
-          <TabsTrigger value="entries">
-            대기자
-            <span className={cn("t4-bold tabular-nums", tab === "entries" ? "text-fg-brand" : "text-fg-placeholder")}>
-              {entries.length}
-            </span>
+          <TabsTrigger value="INQUIRY">
+            문의
+            {tabCount(openInquiries, view === "INQUIRY", newInquiries > 0)}
+          </TabsTrigger>
+          <TabsTrigger value="WAITLIST">
+            대기 신청
+            {tabCount(waiting, view === "WAITLIST", newWaitlist > 0)}
           </TabsTrigger>
           <TabsTrigger value="branches">
             지점·프로그램
-            <span className={cn("t4-bold tabular-nums", tab === "branches" ? "text-fg-brand" : "text-fg-placeholder")}>
-              {branches.length}
-            </span>
+            {tabCount(branches.length, view === "branches", false)}
           </TabsTrigger>
         </TabsList>
 
-        {error && <Notice tone="bad" className="mt-x4">{error}</Notice>}
-
-        <TabsContent value="entries">
-          <EntriesTab entries={entries} branches={branches} positionOf={positionOf} run={run} pending={pending} />
+        <TabsContent value="INQUIRY">
+          <EntriesTab kind="INQUIRY" entries={inquiries} branches={branches} positionOf={positionOf} isNew={isNew} now={now} run={run} pending={pending} />
+        </TabsContent>
+        <TabsContent value="WAITLIST">
+          <EntriesTab kind="WAITLIST" entries={waitlist} branches={branches} positionOf={positionOf} isNew={isNew} now={now} run={run} pending={pending} />
         </TabsContent>
         <TabsContent value="branches">
           <BranchesTab branches={branches} entries={entries} students={students} run={run} pending={pending} />
@@ -239,8 +274,9 @@ export function WaitlistAdmin({
   );
 }
 
-/** 대기 신청 유도 메시지 + /apply 링크 공유 (저장 없음, 작성→복사). */
-function ShareApply() {
+/** 머리글 버튼 — 대기 신청 유도 메시지 + /apply 링크 공유 (저장 없음, 작성→복사). */
+export function ShareApplyButton() {
+  const [open, setOpen] = useState(false);
   const [origin, setOrigin] = useState("");
   // SSR 과 첫 렌더를 맞추려고 마운트 뒤에 origin 을 읽는다 (기존 동작 유지)
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -260,59 +296,82 @@ function ShareApply() {
   }
 
   return (
-    <Section
-      title="대기 신청 링크 공유"
-      description="안내 메시지와 함께 카톡·문자로 보내세요. (예비 신청자에게 발송)"
-    >
-      <div className="grid grid-cols-1 gap-x4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-        <FormField label="신청 링크" htmlFor="waitlist-apply-link">
-          <div className="flex gap-x2">
-            <Input id="waitlist-apply-link" readOnly value={link} className="min-w-0 flex-1" />
-            <Button variant="secondary" onClick={() => copy(link, "신청 링크가 복사되었습니다")}>
-              <Link2 />
-              링크만 복사
-            </Button>
+    <>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        <Link2 />
+        신청 링크 공유
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>대기 신청 링크 공유</DialogTitle>
+            <DialogDescription>안내 메시지와 함께 카톡·문자로 보내세요.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-x4">
+            <FormField label="신청 링크" htmlFor="waitlist-apply-link">
+              <div className="flex gap-x2">
+                <Input id="waitlist-apply-link" readOnly value={link} className="min-w-0 flex-1" />
+                <Button variant="secondary" onClick={() => copy(link, "신청 링크가 복사되었습니다")}>
+                  링크만 복사
+                </Button>
+              </div>
+            </FormField>
+            <FormField label="안내 메시지" htmlFor="waitlist-apply-msg" hint="복사하면 메시지 아래에 링크가 붙어요.">
+              <Textarea
+                id="waitlist-apply-msg"
+                value={msg}
+                onChange={(e) => setMsg(e.target.value)}
+                rows={4}
+                className="resize-none"
+                placeholder="유도 안내 메시지"
+              />
+            </FormField>
           </div>
-        </FormField>
-        <FormField label="안내 메시지" htmlFor="waitlist-apply-msg" hint="복사하면 메시지 아래에 링크가 붙어요.">
-          <Textarea
-            id="waitlist-apply-msg"
-            value={msg}
-            onChange={(e) => setMsg(e.target.value)}
-            rows={3}
-            className="resize-none"
-            placeholder="유도 안내 메시지"
-          />
-        </FormField>
-      </div>
-      <FormActions className="mt-x2">
-        <Button onClick={() => copy(`${msg}\n${link}`, "안내 메시지 + 링크가 복사되었습니다")} className="w-full sm:w-auto">
-          <Copy />
-          메시지 + 링크 복사
-        </Button>
-      </FormActions>
-    </Section>
+          <DialogFooter>
+            <Button onClick={() => copy(`${msg}\n${link}`, "안내 메시지 + 링크가 복사되었습니다")}>
+              <Copy />
+              메시지 + 링크 복사
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
-type EntryFilter = WaitlistStatus | "ALL" | "INQUIRY" | "WINTER" | "IMMEDIATE";
-const ENTRY_FILTERS: { key: EntryFilter; label: string }[] = [
-  { key: "WAITING", label: "대기" },
-  { key: "INVITED", label: "초대됨" },
-  { key: "ENROLLED", label: "등원" },
-  { key: "CANCELLED", label: "취소" },
-  { key: "INQUIRY", label: "문의" },
-  { key: "WINTER", label: "윈터 희망" },
-  { key: "IMMEDIATE", label: "즉시 희망" },
-  { key: "ALL", label: "전체" },
-];
+type EntryFilter = WaitlistStatus | "OPEN" | "ALL" | "WINTER" | "IMMEDIATE";
+const FILTERS: Record<Kind, { key: EntryFilter; label: string }[]> = {
+  WAITLIST: [
+    { key: "WAITING", label: "대기" },
+    { key: "INVITED", label: "안내함" },
+    { key: "ENROLLED", label: "등원" },
+    { key: "CANCELLED", label: "취소" },
+    { key: "WINTER", label: "윈터 희망" },
+    { key: "IMMEDIATE", label: "즉시 희망" },
+    { key: "ALL", label: "전체" },
+  ],
+  INQUIRY: [
+    { key: "OPEN", label: "응대 중" },
+    { key: "ENROLLED", label: "등원" },
+    { key: "CANCELLED", label: "응대 끝" },
+    { key: "ALL", label: "전체" },
+  ],
+};
 
 function matchesFilter(e: Entry, f: EntryFilter): boolean {
   if (f === "ALL") return true;
-  if (f === "INQUIRY") return e.kind === "INQUIRY";
+  if (f === "OPEN") return e.status === "WAITING" || e.status === "INVITED";
   if (f === "WINTER") return e.entryPreference === "winter";
   if (f === "IMMEDIATE") return e.entryPreference === "immediate";
   return e.status === f;
+}
+
+function matchesEntry(e: Entry, q: string): boolean {
+  return (
+    matchesSearch(q, e.name, e.school, e.grade, e.referrerName, e.note, e.cancelReason, e.programName, e.matchedStudent?.name) ||
+    // 전화번호는 숫자만 저장 — 010-1234 처럼 쳐도 찾게 하이픈을 뺀다
+    matchesSearch(q.replace(/-/g, ""), e.phone, e.parentPhone, e.studentPhone)
+  );
 }
 
 /** 입실 희망 뱃지 — winter/immediate 외 값(과거 데이터)은 미표시. 윈터는 예비 학년을 함께 표시 */
@@ -328,39 +387,83 @@ function EntryPreferenceBadge({ value, winterGrade }: { value: string | null; wi
   );
 }
 
+/** 신청 시각 — "3일 전" + 날짜. 응대 중인 문의가 하루 넘게 묵으면 주황 */
+function Received({ e, now, className }: { e: Entry; now: string; className?: string }) {
+  const stale = e.kind === "INQUIRY" && e.status === "WAITING" && Date.parse(now) - Date.parse(e.createdAt) > 86_400_000;
+  return (
+    <span className={cn("whitespace-nowrap", className)} title={formatDateTime(e.createdAt)}>
+      <span className={cn("t4-medium", stale ? "text-fg-warning" : "text-fg-neutral")}>{timeAgo(e.createdAt, now)}</span>
+    </span>
+  );
+}
+
 function EntriesTab({
+  kind,
   entries,
   branches,
   positionOf,
+  isNew,
+  now,
   run,
   pending,
 }: {
+  kind: Kind;
   entries: Entry[];
   branches: Branch[];
   positionOf: (e: Entry) => number;
-  run: (a: () => Promise<{ ok: boolean; error?: string }>) => void;
+  isNew: (e: Entry) => boolean;
+  now: string;
+  run: Run;
   pending: boolean;
 }) {
-  const [filter, setFilter] = useStickyState<EntryFilter>("waitlist:entryFilter", "WAITING");
+  const isInquiry = kind === "INQUIRY";
+  const filters = FILTERS[kind];
+  const [filter, setFilter] = useStickyState<EntryFilter>(`waitlist:filter:${kind}`, filters[0].key);
+  const [query, setQuery] = useStickyState(`waitlist:q:${kind}`, "");
+  const [openId, setOpenId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Entry | null>(null);
   const [guiding, setGuiding] = useState<Entry | null>(null);
   const [consulting, setConsulting] = useState<Entry | null>(null);
   const { prompt, dialog } = useConfirmDialog();
 
-  const shown = entries.filter((e) => matchesFilter(e, filter));
-  const countOf = (k: EntryFilter) => entries.filter((e) => matchesFilter(e, k)).length;
+  // 검색은 칩 숫자에도 반영 — 찾는 사람이 어느 칩에 있는지 바로 보이게
+  const searched = entries.filter((e) => matchesEntry(e, query));
+  const countOf = (k: EntryFilter) => searched.filter((e) => matchesFilter(e, k)).length;
+  // 기본은 최신순(서버가 내려 준 순서), 머리글을 누르면 그 열로 정렬
+  const { rows: shown, sort, toggle } = useSortableTable(
+    searched.filter((e) => matchesFilter(e, filter)),
+    {
+      position: (e) => positionOf(e) || null,
+      name: (e) => e.name,
+      createdAt: (e) => e.createdAt,
+    }
+  );
+  const open = entries.find((e) => e.id === openId) ?? null;
+  const showBranch = branches.length > 1;
+  const showProgram = !isInquiry && entries.some((e) => e.programName);
 
-  async function handleCancel(e: Entry) {
-    // 취소 사유는 확인 다이얼로그에서 한 줄로 받는다 (비워도 됨).
-    const reason = await prompt({
-      title: `${e.name} 님의 대기를 취소할까요?`,
-      description: "취소해도 목록의 ‘취소’ 필터에서 다시 대기로 되돌릴 수 있어요.",
-      label: "취소 사유",
-      placeholder: "예: 타 독서실 등록",
-      confirmLabel: "대기 취소",
-      cancelLabel: "닫기",
-      destructive: true,
-    });
+  async function handleClose(e: Entry) {
+    // 사유(결과)는 확인 다이얼로그에서 한 줄로 받는다 (비워도 됨).
+    const reason = await prompt(
+      isInquiry
+        ? {
+            title: `${e.name} 님 문의를 응대 끝으로 둘까요?`,
+            description: "‘응대 끝’ 칩에서 다시 열 수 있어요.",
+            label: "결과",
+            placeholder: "예: 비용 안내함, 다음 달 다시 연락",
+            confirmLabel: "응대 끝",
+            cancelLabel: "닫기",
+          }
+        : {
+            title: `${e.name} 님의 대기를 취소할까요?`,
+            description: "취소해도 목록의 ‘취소’ 칩에서 다시 대기로 되돌릴 수 있어요.",
+            label: "취소 사유",
+            placeholder: "예: 타 독서실 등록",
+            confirmLabel: "대기 취소",
+            cancelLabel: "닫기",
+            destructive: true,
+          }
+    );
     if (reason === null) return; // 취소 안 함
     run(() => cancelWaitlist(e.id, reason));
   }
@@ -376,16 +479,38 @@ function EntriesTab({
     }
   }
 
-  const activeLabel = ENTRY_FILTERS.find((f) => f.key === filter)?.label ?? "";
+  const actions: EntryActions = {
+    enroll: (e) => run(() => setWaitlistStatus(e.id, "ENROLLED")),
+    reopen: (e) => run(() => setWaitlistStatus(e.id, "WAITING")),
+    close: handleClose,
+    edit: setEditing,
+    guide: setGuiding,
+    copyGuide: copyGuideLink,
+    consult: setConsulting,
+  };
+
+  const activeLabel = filters.find((f) => f.key === filter)?.label ?? "";
+  const noun = isInquiry ? "문의" : "대기 신청";
 
   return (
     <div>
       <Toolbar>
-        {ENTRY_FILTERS.map((f) => (
-          <FilterChip key={f.key} selected={filter === f.key} count={countOf(f.key)} onClick={() => setFilter(f.key)}>
-            {f.label}
-          </FilterChip>
-        ))}
+        <SearchField
+          value={query}
+          onChange={(ev) => setQuery(ev.target.value)}
+          onClear={() => setQuery("")}
+          placeholder="이름·전화번호·학교·내용 검색"
+          aria-label={`${noun} 검색`}
+          enterKeyHint="search"
+          autoComplete="off"
+        />
+        <div className="flex flex-wrap gap-x2">
+          {filters.map((f) => (
+            <FilterChip key={f.key} selected={filter === f.key} count={countOf(f.key)} onClick={() => setFilter(f.key)}>
+              {f.label}
+            </FilterChip>
+          ))}
+        </div>
       </Toolbar>
 
       <TableCard>
@@ -393,133 +518,146 @@ function EntriesTab({
           <EmptyState
             compact
             icon={ClipboardList}
-            title={filter === "ALL" ? "아직 대기자가 없어요" : `‘${activeLabel}’ 상태의 대기자가 없어요`}
-            description={filter === "ALL" ? "위의 신청 링크를 공유하면 신청이 여기에 쌓여요." : "다른 필터를 눌러 확인해 보세요."}
+            title={
+              query
+                ? `‘${query}’에 맞는 ${noun}이 없어요`
+                : filter === "ALL"
+                  ? `아직 ${noun}이 없어요`
+                  : `‘${activeLabel}’ ${noun}이 없어요`
+            }
+            description={query ? "검색어를 바꾸거나 다른 칩을 눌러 보세요." : "다른 칩을 눌러 확인해 보세요."}
           />
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-16 text-right">순번</TableHead>
-                <TableHead>이름</TableHead>
-                <TableHead>연락처</TableHead>
-                <TableHead>지점</TableHead>
-                <TableHead>학년·성별</TableHead>
-                <TableHead>입실 희망</TableHead>
-                <TableHead>프로그램</TableHead>
-                <TableHead>등록일시</TableHead>
-                <TableHead>상태</TableHead>
-                <TableHead className="text-right">처리</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <>
+            {/* 휴대폰: 카드 목록 — 누르면 상세 */}
+            <ul className="divide-y divide-stroke-neutral-muted md:hidden">
               {shown.map((e) => (
-                <TableRow key={e.id}>
-                  <TableCell className="text-right t4-bold text-fg-brand">
-                    {e.status === "WAITING" && e.kind === "WAITLIST" ? positionOf(e) : <span className="t4-regular text-fg-placeholder">—</span>}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap items-center gap-x1">
-                      <span className="whitespace-nowrap t4-medium">{e.name}</span>
-                      {e.kind === "INQUIRY" && <StatusBadge tone="violet">문의</StatusBadge>}
-                      {e.matchedStudent && (
-                        <span title={`기존 원생: ${e.matchedStudent.name} (${e.matchedStudent.grade})`}>
-                          <StatusBadge tone="ok">기존 원생</StatusBadge>
-                        </span>
-                      )}
+                <li key={e.id}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(e.id)}
+                    className="flex min-h-11 w-full flex-col gap-x1 px-x4 py-x3 text-left transition-colors hover:bg-bg-layer-default-pressed"
+                  >
+                    <div className="flex items-center gap-x1_5">
+                      <EntryName e={e} isNew={isNew(e)} />
+                      <span className="ml-auto shrink-0">
+                        <StatusBadge tone={STATUS_TONE[e.status]}>{STATUS_LABEL[kind][e.status]}</StatusBadge>
+                      </span>
                     </div>
-                    {e.referrerName && (
-                      <p className="mt-x0_5 t3-regular text-fg-neutral-subtle">추천인 {e.referrerName}</p>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-x0_5">
-                      {contactPhonesForDisplay(e).map((c) => (
-                        <div key={c.label} className="flex flex-wrap items-center gap-x1">
-                          <span className="whitespace-nowrap t3-regular text-fg-neutral-subtle">{c.label}</span>
-                          <span className="whitespace-nowrap tabular-nums text-fg-neutral-muted">{c.phone}</span>
-                          {c.isApplicant && !e.phoneVerifiedAt && <StatusBadge tone="warn">미인증</StatusBadge>}
-                        </div>
-                      ))}
-                      {!e.phone && !e.parentPhone && !e.studentPhone && <span className="text-fg-placeholder">—</span>}
+                    <div className="flex flex-wrap items-center gap-x1_5 t3-regular text-fg-neutral-subtle">
+                      <Received e={e} now={now} className="t3-regular" />
+                      {!isInquiry && positionOf(e) > 0 && <span>· 순번 {positionOf(e)}</span>}
+                      {schoolLine(e) && <span>· {schoolLine(e)}</span>}
+                      {!isInquiry && gradeTypeLabel(e) && <span>· {gradeTypeLabel(e)}</span>}
                     </div>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">{e.branchName}</TableCell>
-                  <TableCell className="whitespace-nowrap text-fg-neutral-muted">
-                    {e.gradeType ? (e.gradeType === "REPEAT" ? "N수생" : "재학생") : "-"} ·{" "}
-                    {e.gender ? (e.gender === "MALE" ? "남" : "여") : "-"}
-                  </TableCell>
-                  <TableCell>
-                    <EntryPreferenceBadge value={e.entryPreference} winterGrade={e.winterGrade} />
-                  </TableCell>
-                  <TableCell className="text-fg-neutral-muted">{e.programName ?? "—"}</TableCell>
-                  <TableCell className="whitespace-nowrap t3-regular text-fg-neutral-subtle">{formatDateTime(e.createdAt)}</TableCell>
-                  <TableCell>
-                    <StatusBadge tone={STATUS_TONE[e.status]}>{STATUS_LABEL[e.status]}</StatusBadge>
-                    {e.status === "CANCELLED" && e.cancelReason && (
-                      <p className="mt-x1 max-w-40 t2-regular text-fg-neutral-subtle">사유: {e.cancelReason}</p>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-x1">
-                      {e.status !== "ENROLLED" && (
-                        <Button
-                          variant="secondary"
-                          size="xs"
-                          disabled={pending}
-                          onClick={() => run(() => setWaitlistStatus(e.id, "ENROLLED"))}
-                        >
-                          <Check />
-                          등원확정
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="xs" disabled={pending} onClick={() => setGuiding(e)}>
-                        <FileText />
-                        {e.guideToken ? "안내 수정" : "안내 작성"}
-                      </Button>
-                      <DropdownMenu modal={false}>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="size-8" aria-label={`${e.name} 더보기`} disabled={pending}>
-                            <MoreHorizontal />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-44">
-                          <DropdownMenuItem onSelect={() => setEditing(e)}>
-                            <Pencil />
-                            정보 수정
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => setConsulting(e)}>
-                            <CalendarPlus />
-                            면담 등록
-                          </DropdownMenuItem>
-                          {e.guideToken && (
-                            <DropdownMenuItem onSelect={() => copyGuideLink(e)}>
-                              <Link2 />
-                              안내 링크 복사
-                            </DropdownMenuItem>
-                          )}
-                          <DropdownMenuSeparator />
-                          {e.status === "CANCELLED" ? (
-                            <DropdownMenuItem onSelect={() => run(() => setWaitlistStatus(e.id, "WAITING"))}>
-                              <Undo2 />
-                              대기복귀
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem className="text-fg-critical" onSelect={() => handleCancel(e)}>
-                              <XCircle />
-                              대기 취소
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                    {e.note && <p className="line-clamp-2 t3-regular text-fg-neutral-muted">{e.note}</p>}
+                  </button>
+                </li>
               ))}
-            </TableBody>
-          </Table>
+            </ul>
+
+            {/* 데스크톱: 표 — 줄을 누르면 상세 */}
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {!isInquiry && (
+                      <SortableHeader sortKey="position" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle} align="right" className="w-16">
+                        순번
+                      </SortableHeader>
+                    )}
+                    <SortableHeader sortKey="name" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle}>
+                      이름
+                    </SortableHeader>
+                    <TableHead>연락처</TableHead>
+                    {isInquiry && <TableHead>문의 내용</TableHead>}
+                    {showBranch && <TableHead>지점</TableHead>}
+                    {!isInquiry && <TableHead>학년·성별</TableHead>}
+                    {!isInquiry && <TableHead>입실 희망</TableHead>}
+                    {showProgram && <TableHead>프로그램</TableHead>}
+                    <SortableHeader sortKey="createdAt" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle}>
+                      신청
+                    </SortableHeader>
+                    <TableHead>상태</TableHead>
+                    <TableHead className="text-right">처리</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {shown.map((e) => (
+                    <TableRow key={e.id} onClick={() => setOpenId(e.id)} className="cursor-pointer">
+                      {!isInquiry && (
+                        <TableCell className="text-right t4-bold text-fg-brand">
+                          {positionOf(e) || <span className="t4-regular text-fg-placeholder">—</span>}
+                        </TableCell>
+                      )}
+                      <TableCell className="max-w-72">
+                        <EntryName e={e} isNew={isNew(e)} />
+                        {(schoolLine(e) || e.referrerName) && (
+                          <p className="mt-x0_5 t3-regular text-fg-neutral-subtle">
+                            {[schoolLine(e), e.referrerName && `추천인 ${e.referrerName}`].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                        {!isInquiry && e.note && (
+                          <p className="mt-x0_5 truncate t3-regular text-fg-neutral-muted" title={e.note}>
+                            {e.note}
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <ContactPhones e={e} />
+                      </TableCell>
+                      {isInquiry && (
+                        <TableCell className="min-w-56 max-w-96">
+                          <p className="line-clamp-2 t4-regular text-fg-neutral-muted">{e.note ?? "—"}</p>
+                        </TableCell>
+                      )}
+                      {showBranch && <TableCell className="whitespace-nowrap">{e.branchName}</TableCell>}
+                      {!isInquiry && (
+                        <TableCell className="whitespace-nowrap text-fg-neutral-muted">
+                          {gradeTypeLabel(e) ?? "-"} · {genderLabel(e) ?? "-"}
+                        </TableCell>
+                      )}
+                      {!isInquiry && (
+                        <TableCell>
+                          <EntryPreferenceBadge value={e.entryPreference} winterGrade={e.winterGrade} />
+                        </TableCell>
+                      )}
+                      {showProgram && <TableCell className="text-fg-neutral-muted">{e.programName ?? "—"}</TableCell>}
+                      <TableCell>
+                        <Received e={e} now={now} />
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge tone={STATUS_TONE[e.status]}>{STATUS_LABEL[kind][e.status]}</StatusBadge>
+                        {e.status === "CANCELLED" && e.cancelReason && (
+                          <p className="mt-x1 max-w-40 truncate t2-regular text-fg-neutral-subtle" title={e.cancelReason}>
+                            {e.cancelReason}
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell onClick={(ev) => ev.stopPropagation()}>
+                        <RowActions e={e} kind={kind} actions={actions} pending={pending} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
       </TableCard>
+
+      {open && (
+        <EntrySheet
+          e={open}
+          kind={kind}
+          position={positionOf(open)}
+          isNew={isNew(open)}
+          now={now}
+          actions={actions}
+          pending={pending}
+          onClose={() => setOpenId(null)}
+        />
+      )}
 
       {editing && (
         <EditEntryModal
@@ -537,6 +675,250 @@ function EntriesTab({
       {consulting && <ConsultationModal entry={consulting} onClose={() => setConsulting(null)} />}
       {dialog}
     </div>
+  );
+}
+
+type EntryActions = {
+  enroll: (e: Entry) => void;
+  reopen: (e: Entry) => void;
+  close: (e: Entry) => void;
+  edit: (e: Entry) => void;
+  guide: (e: Entry) => void;
+  copyGuide: (e: Entry) => void;
+  consult: (e: Entry) => void;
+};
+
+function EntryName({ e, isNew }: { e: Entry; isNew: boolean }) {
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-x1">
+      <span className="whitespace-nowrap t4-medium text-fg-neutral">{e.name}</span>
+      {isNew && (
+        <StatusBadge tone="brand" solid>
+          새
+        </StatusBadge>
+      )}
+      {e.matchedStudent && (
+        <span title={`기존 원생: ${e.matchedStudent.name} (${e.matchedStudent.grade})`}>
+          <StatusBadge tone="ok">기존 원생</StatusBadge>
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ContactPhones({ e, call = false }: { e: Entry; call?: boolean }) {
+  const rows = contactPhonesForDisplay(e);
+  if (rows.length === 0) return <span className="text-fg-placeholder">—</span>;
+  return (
+    <div className={cn("flex flex-col", call ? "gap-x2" : "gap-x0_5")}>
+      {rows.map((c) => (
+        <div key={c.label} className="flex flex-wrap items-center gap-x1_5">
+          <span className="whitespace-nowrap t3-regular text-fg-neutral-subtle">{c.label}</span>
+          {call ? (
+            // 휴대폰에서 누르면 바로 전화
+            <a href={`tel:${c.phone}`} className="inline-flex min-h-11 items-center gap-x1 t4-medium tabular-nums text-fg-brand">
+              <Phone className="size-4" aria-hidden />
+              {dashed(c.phone)}
+            </a>
+          ) : (
+            <span className="whitespace-nowrap tabular-nums text-fg-neutral-muted">{dashed(c.phone)}</span>
+          )}
+          {c.isApplicant && !e.phoneVerifiedAt && <StatusBadge tone="warn">미인증</StatusBadge>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RowActions({ e, kind, actions, pending }: { e: Entry; kind: Kind; actions: EntryActions; pending: boolean }) {
+  return (
+    <div className="flex items-center justify-end gap-x1">
+      {e.status !== "ENROLLED" && (
+        <Button variant="secondary" size="xs" disabled={pending} onClick={() => actions.enroll(e)}>
+          <Check />
+          등원확정
+        </Button>
+      )}
+      {kind === "WAITLIST" && (
+        <Button variant="ghost" size="xs" disabled={pending} onClick={() => actions.guide(e)}>
+          <FileText />
+          {e.guideToken ? "안내 수정" : "안내 작성"}
+        </Button>
+      )}
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="size-8" aria-label={`${e.name} 더보기`} disabled={pending}>
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-44">
+          <DropdownMenuItem onSelect={() => actions.edit(e)}>
+            <Pencil />
+            정보 수정
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => actions.consult(e)}>
+            <CalendarPlus />
+            면담 등록
+          </DropdownMenuItem>
+          {e.guideToken && (
+            <DropdownMenuItem onSelect={() => actions.copyGuide(e)}>
+              <Link2 />
+              안내 링크 복사
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          {e.status === "CANCELLED" ? (
+            <DropdownMenuItem onSelect={() => actions.reopen(e)}>
+              <Undo2 />
+              {kind === "INQUIRY" ? "다시 열기" : "대기복귀"}
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem className={kind === "WAITLIST" ? "text-fg-critical" : undefined} onSelect={() => actions.close(e)}>
+              <XCircle />
+              {kind === "INQUIRY" ? "응대 끝" : "대기 취소"}
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+/** 상세 — 신청 원문·연락처(누르면 전화)·진행 기록·처리 버튼. 휴대폰에선 이 화면에서 모든 처리를 한다 */
+function EntrySheet({
+  e,
+  kind,
+  position,
+  isNew,
+  now,
+  actions,
+  pending,
+  onClose,
+}: {
+  e: Entry;
+  kind: Kind;
+  position: number;
+  isNew: boolean;
+  now: string;
+  actions: EntryActions;
+  pending: boolean;
+  onClose: () => void;
+}) {
+  const isInquiry = kind === "INQUIRY";
+  // 상태 시각은 마지막 값만 남는다 — 지금 상태와 맞는 것만 보여 준다(되돌린 뒤의 옛 시각은 숨김)
+  const timeline = [
+    { at: e.createdAt, label: isInquiry ? "문의 접수" : "대기 신청", detail: null as string | null },
+    ...e.consultations.map((c) => ({ at: c.at, label: CONSULT_LABEL[c.status] ?? "면담", detail: null })),
+    ...(e.invitedAt ? [{ at: e.invitedAt, label: "등록 안내 보냄", detail: null }] : []),
+    ...(e.status === "ENROLLED" && e.enrolledAt ? [{ at: e.enrolledAt, label: "등원 확정", detail: null }] : []),
+    ...(e.status === "CANCELLED" && e.cancelledAt
+      ? [{ at: e.cancelledAt, label: isInquiry ? "응대 끝" : "대기 취소", detail: e.cancelReason }]
+      : []),
+  ].sort((a, b) => (a.at ?? "").localeCompare(b.at ?? ""));
+
+  const info: ({ label: string; value: ReactNode } | null)[] = [
+    !isInquiry && position > 0 ? { label: "대기 순번", value: `${position}번` } : null,
+    !isInquiry ? { label: "학년·성별", value: [gradeTypeLabel(e), genderLabel(e)].filter(Boolean).join(" · ") || null } : null,
+    !isInquiry ? { label: "입실 희망", value: <EntryPreferenceBadge value={e.entryPreference} winterGrade={e.winterGrade} /> } : null,
+    e.programName ? { label: "프로그램", value: e.programName } : null,
+    { label: "지점", value: e.branchName },
+    e.referrerName ? { label: "추천인", value: e.referrerName } : null,
+    e.matchedStudent ? { label: "기존 원생", value: `${e.matchedStudent.name} (${e.matchedStudent.grade})` } : null,
+  ];
+
+  return (
+    <Sheet open onOpenChange={(o) => !o && onClose()}>
+      <SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
+        <SheetHeader className="shrink-0 border-b border-stroke-neutral-muted px-x6 pb-x5 pt-x6 pr-x14">
+          <div className="flex flex-wrap items-center gap-x1">
+            <StatusBadge tone={STATUS_TONE[e.status]}>{STATUS_LABEL[kind][e.status]}</StatusBadge>
+            {isNew && (
+              <StatusBadge tone="brand" solid>
+                새
+              </StatusBadge>
+            )}
+          </div>
+          <SheetTitle className="mt-x2">
+            {e.name}
+            {schoolLine(e) && <span className="ml-x2 t5-regular text-fg-neutral-subtle">{schoolLine(e)}</span>}
+          </SheetTitle>
+          <SheetDescription className="tabular-nums">
+            {timeAgo(e.createdAt, now)} {isInquiry ? "문의" : "신청"} · {formatDateTime(e.createdAt)}
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex flex-1 flex-col gap-x6 overflow-y-auto px-x6 py-x5">
+          <section className="flex flex-col gap-x2">
+            <h3 className="t4-bold text-fg-neutral">{isInquiry ? "문의 내용" : "요청 사항"}</h3>
+            {e.note ? (
+              <p className="whitespace-pre-wrap break-words rounded-r3 bg-bg-neutral-weak p-x4 t4-regular text-fg-neutral">{e.note}</p>
+            ) : (
+              <p className="t4-regular text-fg-placeholder">남긴 내용이 없어요</p>
+            )}
+          </section>
+
+          <section className="flex flex-col gap-x2">
+            <h3 className="t4-bold text-fg-neutral">연락처</h3>
+            <ContactPhones e={e} call />
+          </section>
+
+          <DescriptionList items={info.filter((x) => x != null)} />
+
+          <section className="flex flex-col gap-x2">
+            <h3 className="t4-bold text-fg-neutral">진행</h3>
+            <ol className="flex flex-col gap-x3 border-l-2 border-stroke-neutral-muted pl-x4">
+              {timeline.map((t, i) => (
+                <li key={i} className="flex flex-col gap-x0_5">
+                  <span className="t4-medium text-fg-neutral">{t.label}</span>
+                  <span className="t3-regular tabular-nums text-fg-neutral-subtle">
+                    {t.at ? formatDateTime(t.at) : "일시 미정"}
+                  </span>
+                  {t.detail && <span className="t3-regular text-fg-neutral-muted">{t.detail}</span>}
+                </li>
+              ))}
+            </ol>
+          </section>
+        </div>
+
+        <div
+          className="flex shrink-0 flex-wrap items-center gap-x2 border-t border-stroke-neutral-muted px-x6 pt-x4"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)" }}
+        >
+          <Button variant="ghost" size="sm" disabled={pending} onClick={() => actions.edit(e)}>
+            <Pencil />
+            정보 수정
+          </Button>
+          <Button variant="ghost" size="sm" disabled={pending} onClick={() => actions.consult(e)}>
+            <CalendarPlus />
+            면담 등록
+          </Button>
+          {!isInquiry && (
+            <Button variant="ghost" size="sm" disabled={pending} onClick={() => actions.guide(e)}>
+              <MessageSquareText />
+              {e.guideToken ? "안내 수정" : "안내 작성"}
+            </Button>
+          )}
+          <div className="ml-auto flex items-center gap-x2">
+            {e.status === "CANCELLED" ? (
+              <Button variant="secondary" disabled={pending} onClick={() => actions.reopen(e)}>
+                <Undo2 />
+                {isInquiry ? "다시 열기" : "대기복귀"}
+              </Button>
+            ) : (
+              <Button variant="secondary" disabled={pending} onClick={() => actions.close(e)}>
+                {isInquiry ? "응대 끝" : "대기 취소"}
+              </Button>
+            )}
+            {e.status !== "ENROLLED" && (
+              <Button disabled={pending} onClick={() => actions.enroll(e)}>
+                <Check />
+                등원 확정
+              </Button>
+            )}
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 

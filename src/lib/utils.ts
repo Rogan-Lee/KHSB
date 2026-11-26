@@ -61,6 +61,17 @@ export function formatDateTime(date: Date | string) {
   });
 }
 
+/** "방금" · "5분 전" · "3시간 전" · "2일 전", 30일이 넘으면 날짜. now 를 넘기면 서버·브라우저 표시가 같다 */
+export function timeAgo(date: Date | string, now: Date | string | number = Date.now()) {
+  const min = Math.floor((new Date(now).getTime() - new Date(date).getTime()) / 60000);
+  if (min < 1) return "방금";
+  if (min < 60) return `${min}분 전`;
+  const hours = Math.floor(min / 60);
+  if (hours < 24) return `${hours}시간 전`;
+  const days = Math.floor(hours / 24);
+  return days <= 30 ? `${days}일 전` : formatDate(date);
+}
+
 export function formatTime(date: Date | string) {
   return new Date(date).toLocaleTimeString("ko-KR", {
     hour: "2-digit",
