@@ -7,12 +7,12 @@ import {
 } from "@/lib/mobile-auth";
 import { getStaffPhoneCheckBoard } from "@/lib/mobile-staff-ops-phone";
 
-// ?date=YYYY-MM-DD (기본 오늘, KST)
+// ?date=YYYY-MM-DD (기본 오늘, KST) &period=0|교시 번호|current (기본 0 = 입실 검사, 옛 앱 호환)
 export async function GET(request: NextRequest) {
   try {
     await requireMobileStaff(request);
-    const date = request.nextUrl.searchParams.get("date");
-    return mobileJson(await getStaffPhoneCheckBoard(date));
+    const params = request.nextUrl.searchParams;
+    return mobileJson(await getStaffPhoneCheckBoard(params.get("date"), params.get("period")));
   } catch (error) {
     return mobileApiErrorResponse(error);
   }
