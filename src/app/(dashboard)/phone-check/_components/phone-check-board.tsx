@@ -16,6 +16,7 @@ import { completionTargets, isMismatch, PHONE_LOCKER_ROWS, slotKind, type SlotKi
 import { useStickyState } from "@/hooks/use-sticky-state";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
 import { inputBaseClass } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/backoffice/confirm-dialog";
 import { FilterChip, Segmented, StatusBadge, type Tone } from "@/components/backoffice/ui";
@@ -452,13 +453,13 @@ export function PhoneCheckBoard({
       {/* 날짜 · 보기 전환 */}
       {/* 좁은 휴대폰(360)에선 두 줄로 나뉘어 각각 꽉 차고, 넓으면 한 줄 */}
       <div className="flex flex-wrap items-center gap-x2">
-        <input
-          type="date"
+        {/* 공용 달력(#462) — 브라우저 기본 date 칸은 크롬에서 작은 아이콘만 눌러야 열린다 */}
+        <DatePicker
           value={date}
           max={kstDate(serverNow)}
           aria-label="검사 날짜"
-          onChange={(e) => e.target.value && router.replace(`/phone-check?date=${e.target.value}`)}
-          className={cn(inputBaseClass, "h-10 w-auto grow t5-regular tabular-nums sm:grow-0 md:t4-regular")}
+          onChange={(d) => d && router.replace(`/phone-check?date=${d}`)}
+          className="grow sm:grow-0"
         />
         <Segmented<View>
           aria-label="보기 전환"
