@@ -44,9 +44,9 @@ async function seenSince(area: SeenArea, userId: string) {
 
 async function newWaitlistStats(userId: string): Promise<Stat> {
   const since = await seenSince("waitlist", userId);
-  // 공개 폼으로 들어온 건만 WAITING 으로 시작한다 (직원 일괄 등록은 ENROLLED)
+  // 공개 폼으로 들어온 건만 센다 — 직원이 직접 등록한 전화·카톡 문의는 이미 아는 건이다
   const agg = await prisma.waitlist.aggregate({
-    where: { status: "WAITING", createdAt: { gt: since } },
+    where: { status: "WAITING", source: "WEB", createdAt: { gt: since } },
     _count: { _all: true },
     _max: { createdAt: true },
   });

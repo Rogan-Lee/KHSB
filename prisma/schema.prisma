@@ -2379,11 +2379,30 @@ model Waitlist {
   cancelReason     String? // 취소 사유 (관리자 입력)
   guideContent     String? // 등록 안내 마크다운 (관리자 작성, 공개 링크로 전달)
   guideToken       String?          @unique // 등록 안내 공개 링크 토큰 (작성 시 발급)
+  source           String           @default("WEB") // 들어온 경로 — "WEB"(공개 폼) · "PHONE" · "KAKAO" · "VISIT" · "OTHER"(직원 직접 등록)
+  events           WaitlistEvent[]
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
   @@index([branchId, status, createdAt])
   @@index([studentId])
+}
+
+// 대기 신청·문의 진행 기록 (추가 전용) — 연락·메모·상태 변경·등록 안내. 대기자 상세의 "진행"에 쌓인다.
+// 종류·값은 src/lib/waitlist-events.ts. 대기자를 지우면 같이 지워진다(보유 기간 파기).
+model WaitlistEvent {
+  id         String   @id @default(cuid())
+  waitlistId String
+  waitlist   Waitlist @relation(fields: [waitlistId], references: [id], onDelete: Cascade)
+  type       String // "CONTACT" · "MEMO" · "STATUS" · "GUIDE"
+  method     String? // CONTACT — "CALL" · "NO_ANSWER" · "KAKAO" · "SMS" · "VISIT"
+  status     String? // STATUS — 바뀐 상태(WaitlistStatus)
+  detail     String? // 직원이 남긴 말 (메모·사유·결과)
+  actorId    String?
+  actorName  String?
+  createdAt  DateTime @default(now())
+
+  @@index([waitlistId, createdAt])
 }
 
 // 휴대폰 인증번호 (공개 신청 흐름).
