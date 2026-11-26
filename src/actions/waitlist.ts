@@ -19,6 +19,7 @@ import {
   type WaitApplicant,
 } from "@/lib/waitlist-contact";
 import { REFERRER_NAME_MAX, resolveWinterGrade } from "@/lib/waitlist-winter";
+import { EVENT_DETAIL_MAX, isContactMethod, isStaffSource, type StaffSource } from "@/lib/waitlist-events";
 import type {
   BranchWaitStatus,
   WaitGender,
@@ -440,21 +441,34 @@ const STATUS_TIMESTAMP: Record<WaitlistStatus, string | null> = {
   CANCELLED: "cancelledAt",
 };
 
+/** 진행 기록 한 줄 — 누가 했는지 함께 남긴다 */
+function eventData(
+  waitlistId: string,
+  user: { id: string; name?: string | null },
+  data: { type: string; method?: string | null; status?: string | null; detail?: string | null }
+) {
+  return { waitlistId, actorId: user.id, actorName: user.name ?? null, ...data };
+}
+
 /** 상태 변경 (초대/등원확정/대기복귀). 취소는 cancelWaitlist 사용. */
 export async function setWaitlistStatus(id: string, status: WaitlistStatus): Promise<Result> {
   const session = await auth();
   requireStaff(session?.user?.role);
+  const user = session!.user;
 
   const stampField = STATUS_TIMESTAMP[status];
-  await prisma.waitlist.update({
-    where: { id },
-    data: {
-      status,
-      ...(stampField ? { [stampField]: new Date() } : {}),
-      // 취소가 아닌 상태로 바뀌면 취소사유 제거
-      ...(status === "CANCELLED" ? {} : { cancelReason: null }),
-    },
-  });
+  await prisma.$transaction([
+    prisma.waitlist.update({
+      where: { id },
+      data: {
+        status,
+        ...(stampField ? { [stampField]: new Date() } : {}),
+        // 취소가 아닌 상태로 바뀌면 취소사유 제거
+        ...(status === "CANCELLED" ? {} : { cancelReason: null }),
+      },
+    }),
+    prisma.waitlistEvent.create({ data: eventData(id, user, { type: "STATUS", status }) }),
+  ]);
   revalidatePath("/waitlist");
   return { ok: true };
 }
@@ -464,9 +478,121 @@ export async function cancelWaitlist(id: string, reason: string): Promise<Result
   const session = await auth();
   requireStaff(session?.user?.role);
 
-  await prisma.waitlist.update({
-    where: { id },
-    data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: reason.trim() || null },
+  const detail = reason.trim().slice(0, EVENT_DETAIL_MAX) || null;
+  await prisma.$transaction([
+    prisma.waitlist.update({
+      where: { id },
+      data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: detail },
+    }),
+    prisma.waitlistEvent.create({ data: eventData(id, session!.user, { type: "STATUS", status: "CANCELLED", detail }) }),
+  ]);
+  revalidatePath("/waitlist");
+  return { ok: true };
+}
+
+/** 연락·메모 기록 — 연락(CONTACT)은 수단 필수, 메모(MEMO)는 내용 필수. */
+export async function addWaitlistEvent(
+  id: string,
+  input: { type: "CONTACT" | "MEMO"; method?: string | null; detail?: string | null }
+): Promise<Result> {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  if (input?.type !== "CONTACT" && input?.type !== "MEMO") return { ok: false, error: "잘못된 요청입니다" };
+  const detail = typeof input.detail === "string" ? input.detail.trim() : "";
+  if (detail.length > EVENT_DETAIL_MAX) return { ok: false, error: `${EVENT_DETAIL_MAX}자까지 남길 수 있어요` };
+  if (input.type === "CONTACT" && !isContactMethod(input.method)) return { ok: false, error: "연락 방법을 골라주세요" };
+  if (input.type === "MEMO" && !detail) return { ok: false, error: "메모를 입력해주세요" };
+
+  const entry = await prisma.waitlist.findUnique({ where: { id }, select: { id: true } });
+  if (!entry) return { ok: false, error: "대기자를 찾을 수 없습니다" };
+
+  await prisma.waitlistEvent.create({
+    data: eventData(id, session!.user, {
+      type: input.type,
+      method: input.type === "CONTACT" ? input.method : null,
+      detail: detail || null,
+    }),
+  });
+  revalidatePath("/waitlist");
+  return { ok: true };
+}
+
+/**
+ * 전화·카톡·방문으로 온 문의/대기를 직원이 직접 등록. 본인인증·동의 절차가 없으므로
+ * 인증 시각(phoneVerifiedAt)은 비워 두고, 입회 알림(앱 푸시)도 보내지 않는다(등록한 직원이 이미 안다).
+ */
+export async function createStaffWaitlistEntry(input: {
+  kind: "WAITLIST" | "INQUIRY";
+  source: StaffSource;
+  branchId: string;
+  name: string;
+  school?: string;
+  grade?: string;
+  parentPhone?: string;
+  studentPhone?: string;
+  gender?: WaitGender | null;
+  gradeType?: WaitGradeType | null;
+  entryPreference?: string | null;
+  winterGrade?: string | null;
+  note?: string;
+}): Promise<Result> {
+  const session = await auth();
+  requireStaff(session?.user?.role);
+
+  if (!input || !WAITLIST_KINDS.includes(input.kind)) return { ok: false, error: "잘못된 요청입니다" };
+  if (!isStaffSource(input.source)) return { ok: false, error: "들어온 경로를 골라주세요" };
+  const name = input.name?.trim();
+  if (!name) return { ok: false, error: "이름을 입력해주세요" };
+  if (name.length > NAME_MAX || (input.school?.length ?? 0) > SCHOOL_MAX || (input.grade?.length ?? 0) > GRADE_MAX || (input.note?.length ?? 0) > NOTE_MAX) {
+    return { ok: false, error: "입력 길이를 확인해주세요" };
+  }
+
+  const phones: { parentPhone: string | null; studentPhone: string | null } = { parentPhone: null, studentPhone: null };
+  for (const [key, label] of [["parentPhone", "학부모"], ["studentPhone", "학생"]] as const) {
+    const raw = input[key]?.trim();
+    if (!raw) continue;
+    const normalized = normalizePhone(raw);
+    if (!normalized) return { ok: false, error: `${label} 휴대폰 번호를 확인해주세요` };
+    phones[key] = normalized;
+  }
+  const phone = phones.parentPhone ?? phones.studentPhone;
+  if (!phone) return { ok: false, error: "학부모나 학생 휴대폰 번호 중 하나는 입력해주세요" };
+
+  const isWaitlist = input.kind === "WAITLIST";
+  if (isWaitlist && (!input.gender || !WAIT_GENDERS.includes(input.gender) || !input.gradeType || !WAIT_GRADE_TYPES.includes(input.gradeType))) {
+    return { ok: false, error: "성별과 학년을 선택해주세요" };
+  }
+  const entryPreference =
+    isWaitlist && (input.entryPreference === "winter" || input.entryPreference === "immediate") ? input.entryPreference : null;
+  const winter = resolveWinterGrade({
+    kind: input.kind,
+    entryPreference,
+    gradeType: input.gradeType,
+    winterGrade: input.winterGrade,
+  });
+  if (!winter.ok) return winter;
+
+  const branch = await prisma.branch.findFirst({ where: { id: input.branchId, isActive: true }, select: { id: true } });
+  if (!branch) return { ok: false, error: "선택한 지점을 찾을 수 없습니다" };
+
+  await prisma.waitlist.create({
+    data: {
+      token: createOpaqueToken(24),
+      branchId: branch.id,
+      kind: input.kind,
+      source: input.source,
+      name,
+      school: input.school?.trim() || null,
+      grade: input.grade?.trim() || null,
+      phone,
+      ...phones,
+      gender: isWaitlist ? input.gender : null,
+      gradeType: isWaitlist ? input.gradeType : null,
+      entryPreference,
+      winterGrade: winter.winterGrade,
+      note: input.note?.trim() || null,
+    },
   });
   revalidatePath("/waitlist");
   return { ok: true };
@@ -503,6 +629,12 @@ export async function updateWaitlistEntry(
   }
   if (data.name !== undefined && !data.name.trim()) {
     return { ok: false, error: "이름을 입력해주세요" };
+  }
+  // 공개 폼으로 받은 신청 내용은 신청자가 쓴 원문이라 고치지 않는다 — 직원 메모는 진행 기록(MEMO)으로
+  if (data.note !== undefined) {
+    const entry = await prisma.waitlist.findUnique({ where: { id }, select: { source: true } });
+    if (!entry) return { ok: false, error: "대기자를 찾을 수 없습니다" };
+    if (entry.source === "WEB") delete data.note;
   }
 
   await prisma.waitlist.update({
@@ -592,15 +724,18 @@ export async function saveWaitlistGuide(
   if (!entry) return { ok: false, error: "대기자를 찾을 수 없습니다" };
 
   const token = entry.guideToken ?? randomUUID();
-  await prisma.waitlist.update({
-    where: { id },
-    data: {
-      guideContent: markdown,
-      guideToken: token,
-      // 아직 대기 상태면 '초대됨'으로 전환 (이미 등원/취소면 상태 유지)
-      ...(entry.status === "WAITING" ? { status: "INVITED", invitedAt: new Date() } : {}),
-    },
-  });
+  await prisma.$transaction([
+    prisma.waitlist.update({
+      where: { id },
+      data: {
+        guideContent: markdown,
+        guideToken: token,
+        // 아직 대기 상태면 '초대됨'으로 전환 (이미 등원/취소면 상태 유지)
+        ...(entry.status === "WAITING" ? { status: "INVITED", invitedAt: new Date() } : {}),
+      },
+    }),
+    prisma.waitlistEvent.create({ data: eventData(id, session!.user, { type: "GUIDE" }) }),
+  ]);
   revalidatePath("/waitlist");
   return { ok: true, data: { token } };
 }
@@ -697,6 +832,7 @@ export async function bulkEnrollStudents(
         phone: (s.phone || s.parentPhone || "").replace(/\D/g, ""),
         parentPhone: s.parentPhone.replace(/\D/g, "") || null,
         studentPhone: s.phone?.replace(/\D/g, "") || null,
+        source: "OTHER", // 기존 원생 일괄 등록 — 공개 폼 신청이 아니다
         status: "ENROLLED" as WaitlistStatus,
         enrolledAt: new Date(),
         kind: "WAITLIST" as WaitlistKind,

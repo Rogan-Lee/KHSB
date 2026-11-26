@@ -13,10 +13,24 @@ import type {
 import { toast } from "sonner";
 import { applyLinkOrigin } from "@/lib/apply-domain";
 import { contactPhonesForDisplay } from "@/lib/waitlist-contact";
-import { winterGradeLabel } from "@/lib/waitlist-winter";
+import { WINTER_GRADES, WINTER_GRADE_LABEL, winterGradeLabel } from "@/lib/waitlist-winter";
+import {
+  buildTimeline,
+  CONTACT_LABEL,
+  CONTACT_METHODS,
+  lastContact,
+  needsContact,
+  SOURCE_LABEL,
+  STAFF_SOURCES,
+  type ContactMethod,
+  type StaffSource,
+  type WaitlistEventLite,
+} from "@/lib/waitlist-events";
 import {
   setWaitlistStatus,
   cancelWaitlist,
+  addWaitlistEvent,
+  createStaffWaitlistEntry,
   updateWaitlistEntry,
   saveWaitlistGuide,
   bulkEnrollStudents,
@@ -144,6 +158,8 @@ type Entry = {
   cancelledAt: string | null;
   // 같은 전화번호로 잡힌 신규 상담 면담 (at = 실제 일시, 없으면 예정 일시)
   consultations: { id: string; at: string | null; status: string }[];
+  source: string; // "WEB"(공개 폼) · "PHONE" · "KAKAO" · "VISIT" · "OTHER"
+  events: WaitlistEventLite[]; // 진행 기록, 시간순
 };
 
 const WAIT_STATUS_LABEL: Record<BranchWaitStatus, string> = {
@@ -163,7 +179,6 @@ const STATUS_TONE: Record<WaitlistStatus, Tone> = {
   ENROLLED: "ok",
   CANCELLED: "gray",
 };
-const CONSULT_LABEL: Record<string, string> = { SCHEDULED: "면담 예정", COMPLETED: "면담 완료", CANCELLED: "면담 취소" };
 
 const gradeTypeLabel = (e: Entry) => (e.gradeType ? (e.gradeType === "REPEAT" ? "N수생" : "재학생") : null);
 const genderLabel = (e: Entry) => (e.gender ? (e.gender === "MALE" ? "남" : "여") : null);
@@ -195,7 +210,8 @@ export function WaitlistAdmin({
   const [view, setView] = useStickyState<View>("waitlist:view", "INQUIRY");
   // 처리 뒤 새로고침(router.refresh)되면 seenSince 가 방금 시각으로 바뀌므로, 처음 연 때 값을 붙잡아 둔다
   const [since] = useState(seenSince);
-  const isNew = (e: Entry) => e.createdAt > since;
+  // 직원이 직접 등록한 건은 이미 아는 건이라 "새"가 아니다
+  const isNew = (e: Entry) => e.source === "WEB" && e.createdAt > since;
 
   function run(action: () => Promise<{ ok: boolean; error?: string }>) {
     startTransition(async () => {
@@ -223,6 +239,7 @@ export function WaitlistAdmin({
   const inquiries = entries.filter((e) => e.kind === "INQUIRY");
   const waitlist = entries.filter((e) => e.kind === "WAITLIST");
   const openInquiries = inquiries.filter((e) => e.status === "WAITING").length;
+  const toContact = entries.filter(needsContact).length;
   const waiting = waitlist.filter((e) => e.status === "WAITING").length;
   const enrolled = entries.filter((e) => e.status === "ENROLLED").length;
   const newInquiries = inquiries.filter(isNew).length;
@@ -239,7 +256,7 @@ export function WaitlistAdmin({
     <div className="flex flex-col gap-x6">
       <StatCards cols={4}>
         <StatCard label="새로 들어옴" value={newInquiries + newWaitlist} unit="건" sub="지난번에 본 뒤로" />
-        <StatCard label="응대 중인 문의" value={openInquiries} unit="건" />
+        <StatCard label="연락 전" value={toContact} unit="건" sub="연락 기록이 없는 문의·대기" />
         <StatCard label="대기 중" value={waiting} unit="명" />
         <StatCard label="등원 확정" value={enrolled} unit="명" />
       </StatCards>
@@ -339,10 +356,11 @@ export function ShareApplyButton() {
   );
 }
 
-type EntryFilter = WaitlistStatus | "OPEN" | "ALL" | "WINTER" | "IMMEDIATE";
+type EntryFilter = WaitlistStatus | "OPEN" | "TODO" | "ALL" | "WINTER" | "IMMEDIATE";
 const FILTERS: Record<Kind, { key: EntryFilter; label: string }[]> = {
   WAITLIST: [
     { key: "WAITING", label: "대기" },
+    { key: "TODO", label: "연락 전" },
     { key: "INVITED", label: "안내함" },
     { key: "ENROLLED", label: "등원" },
     { key: "CANCELLED", label: "취소" },
@@ -352,6 +370,7 @@ const FILTERS: Record<Kind, { key: EntryFilter; label: string }[]> = {
   ],
   INQUIRY: [
     { key: "OPEN", label: "응대 중" },
+    { key: "TODO", label: "연락 전" },
     { key: "ENROLLED", label: "등원" },
     { key: "CANCELLED", label: "응대 끝" },
     { key: "ALL", label: "전체" },
@@ -361,6 +380,7 @@ const FILTERS: Record<Kind, { key: EntryFilter; label: string }[]> = {
 function matchesFilter(e: Entry, f: EntryFilter): boolean {
   if (f === "ALL") return true;
   if (f === "OPEN") return e.status === "WAITING" || e.status === "INVITED";
+  if (f === "TODO") return needsContact(e);
   if (f === "WINTER") return e.entryPreference === "winter";
   if (f === "IMMEDIATE") return e.entryPreference === "immediate";
   return e.status === f;
@@ -387,14 +407,27 @@ function EntryPreferenceBadge({ value, winterGrade }: { value: string | null; wi
   );
 }
 
-/** 신청 시각 — "3일 전" + 날짜. 응대 중인 문의가 하루 넘게 묵으면 주황 */
+/** 신청 시각 — "3일 전" + 날짜. 연락 전인 채로 하루가 넘으면 주황 */
 function Received({ e, now, className }: { e: Entry; now: string; className?: string }) {
-  const stale = e.kind === "INQUIRY" && e.status === "WAITING" && Date.parse(now) - Date.parse(e.createdAt) > 86_400_000;
+  const stale = needsContact(e) && Date.parse(now) - Date.parse(e.createdAt) > 86_400_000;
   return (
     <span className={cn("whitespace-nowrap", className)} title={formatDateTime(e.createdAt)}>
       <span className={cn("t4-medium", stale ? "text-fg-warning" : "text-fg-neutral")}>{timeAgo(e.createdAt, now)}</span>
     </span>
   );
+}
+
+/** 마지막 연락 — "통화함 · 2일 전", 연락 전이면 배지 */
+function LastContact({ e, now }: { e: Entry; now: string }) {
+  const last = lastContact(e.events);
+  if (last) {
+    return (
+      <span className="whitespace-nowrap t3-regular text-fg-neutral-muted" title={formatDateTime(last.createdAt)}>
+        {CONTACT_LABEL[last.method as ContactMethod] ?? "연락"} · {timeAgo(last.createdAt, now)}
+      </span>
+    );
+  }
+  return needsContact(e) ? <StatusBadge tone="warn">연락 전</StatusBadge> : <span className="text-fg-placeholder">—</span>;
 }
 
 function EntriesTab({
@@ -424,6 +457,7 @@ function EntriesTab({
   const [editing, setEditing] = useState<Entry | null>(null);
   const [guiding, setGuiding] = useState<Entry | null>(null);
   const [consulting, setConsulting] = useState<Entry | null>(null);
+  const [adding, setAdding] = useState(false);
   const { prompt, dialog } = useConfirmDialog();
 
   // 검색은 칩 숫자에도 반영 — 찾는 사람이 어느 칩에 있는지 바로 보이게
@@ -436,6 +470,7 @@ function EntriesTab({
       position: (e) => positionOf(e) || null,
       name: (e) => e.name,
       createdAt: (e) => e.createdAt,
+      contact: (e) => lastContact(e.events)?.createdAt ?? null,
     }
   );
   const open = entries.find((e) => e.id === openId) ?? null;
@@ -511,6 +546,10 @@ function EntriesTab({
             </FilterChip>
           ))}
         </div>
+        <Button variant="secondary" className="ml-auto" onClick={() => setAdding(true)}>
+          <Plus />
+          {isInquiry ? "문의 직접 등록" : "대기 직접 등록"}
+        </Button>
       </Toolbar>
 
       <TableCard>
@@ -551,6 +590,11 @@ function EntriesTab({
                       {!isInquiry && gradeTypeLabel(e) && <span>· {gradeTypeLabel(e)}</span>}
                     </div>
                     {e.note && <p className="line-clamp-2 t3-regular text-fg-neutral-muted">{e.note}</p>}
+                    {e.status !== "CANCELLED" && e.status !== "ENROLLED" && (
+                      <div>
+                        <LastContact e={e} now={now} />
+                      </div>
+                    )}
                   </button>
                 </li>
               ))}
@@ -577,6 +621,9 @@ function EntriesTab({
                     {showProgram && <TableHead>프로그램</TableHead>}
                     <SortableHeader sortKey="createdAt" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle}>
                       신청
+                    </SortableHeader>
+                    <SortableHeader sortKey="contact" activeKey={sort?.key} dir={sort?.dir} onToggle={toggle}>
+                      마지막 연락
                     </SortableHeader>
                     <TableHead>상태</TableHead>
                     <TableHead className="text-right">처리</TableHead>
@@ -627,6 +674,9 @@ function EntriesTab({
                         <Received e={e} now={now} />
                       </TableCell>
                       <TableCell>
+                        <LastContact e={e} now={now} />
+                      </TableCell>
+                      <TableCell>
                         <StatusBadge tone={STATUS_TONE[e.status]}>{STATUS_LABEL[kind][e.status]}</StatusBadge>
                         {e.status === "CANCELLED" && e.cancelReason && (
                           <p className="mt-x1 max-w-40 truncate t2-regular text-fg-neutral-subtle" title={e.cancelReason}>
@@ -654,10 +704,13 @@ function EntriesTab({
           isNew={isNew(open)}
           now={now}
           actions={actions}
+          run={run}
           pending={pending}
           onClose={() => setOpenId(null)}
         />
       )}
+
+      {adding && <StaffEntryModal kind={kind} branches={branches} onClose={() => setAdding(false)} />}
 
       {editing && (
         <EditEntryModal
@@ -723,7 +776,7 @@ function ContactPhones({ e, call = false }: { e: Entry; call?: boolean }) {
           ) : (
             <span className="whitespace-nowrap tabular-nums text-fg-neutral-muted">{dashed(c.phone)}</span>
           )}
-          {c.isApplicant && !e.phoneVerifiedAt && <StatusBadge tone="warn">미인증</StatusBadge>}
+          {c.isApplicant && e.source === "WEB" && !e.phoneVerifiedAt && <StatusBadge tone="warn">미인증</StatusBadge>}
         </div>
       ))}
     </div>
@@ -792,6 +845,7 @@ function EntrySheet({
   isNew,
   now,
   actions,
+  run,
   pending,
   onClose,
 }: {
@@ -801,21 +855,12 @@ function EntrySheet({
   isNew: boolean;
   now: string;
   actions: EntryActions;
+  run: Run;
   pending: boolean;
   onClose: () => void;
 }) {
   const isInquiry = kind === "INQUIRY";
-  // 상태 시각은 마지막 값만 남는다 — 지금 상태와 맞는 것만 보여 준다(되돌린 뒤의 옛 시각은 숨김)
-  const timeline = [
-    { at: e.createdAt, label: isInquiry ? "문의 접수" : "대기 신청", detail: null as string | null },
-    ...e.consultations.map((c) => ({ at: c.at, label: CONSULT_LABEL[c.status] ?? "면담", detail: null })),
-    ...(e.invitedAt ? [{ at: e.invitedAt, label: "등록 안내 보냄", detail: null }] : []),
-    ...(e.status === "ENROLLED" && e.enrolledAt ? [{ at: e.enrolledAt, label: "등원 확정", detail: null }] : []),
-    ...(e.status === "CANCELLED" && e.cancelledAt
-      ? [{ at: e.cancelledAt, label: isInquiry ? "응대 끝" : "대기 취소", detail: e.cancelReason }]
-      : []),
-  ].sort((a, b) => (a.at ?? "").localeCompare(b.at ?? ""));
-
+  const timeline = buildTimeline(e);
   const info: ({ label: string; value: ReactNode } | null)[] = [
     !isInquiry && position > 0 ? { label: "대기 순번", value: `${position}번` } : null,
     !isInquiry ? { label: "학년·성별", value: [gradeTypeLabel(e), genderLabel(e)].filter(Boolean).join(" · ") || null } : null,
@@ -837,6 +882,8 @@ function EntrySheet({
                 새
               </StatusBadge>
             )}
+            {e.source !== "WEB" && <StatusBadge tone="gray">{SOURCE_LABEL[e.source] ?? "기타"} 등록</StatusBadge>}
+            {needsContact(e) && <StatusBadge tone="warn">연락 전</StatusBadge>}
           </div>
           <SheetTitle className="mt-x2">
             {e.name}
@@ -862,18 +909,21 @@ function EntrySheet({
             <ContactPhones e={e} call />
           </section>
 
+          <LogForm key={e.id} e={e} run={run} pending={pending} />
+
           <DescriptionList items={info.filter((x) => x != null)} />
 
           <section className="flex flex-col gap-x2">
             <h3 className="t4-bold text-fg-neutral">진행</h3>
             <ol className="flex flex-col gap-x3 border-l-2 border-stroke-neutral-muted pl-x4">
-              {timeline.map((t, i) => (
-                <li key={i} className="flex flex-col gap-x0_5">
+              {timeline.map((t) => (
+                <li key={t.key} className="flex flex-col gap-x0_5">
                   <span className="t4-medium text-fg-neutral">{t.label}</span>
                   <span className="t3-regular tabular-nums text-fg-neutral-subtle">
                     {t.at ? formatDateTime(t.at) : "일시 미정"}
+                    {t.actor && ` · ${t.actor}`}
                   </span>
-                  {t.detail && <span className="t3-regular text-fg-neutral-muted">{t.detail}</span>}
+                  {t.detail && <span className="whitespace-pre-wrap break-words t4-regular text-fg-neutral-muted">{t.detail}</span>}
                 </li>
               ))}
             </ol>
@@ -919,6 +969,255 @@ function EntrySheet({
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+/** 기록 남기기 — 연락 방법을 고르고 한 줄(선택). "메모만"은 연락 없이 메모만 남긴다 */
+function LogForm({ e, run, pending }: { e: Entry; run: Run; pending: boolean }) {
+  const [method, setMethod] = useState<ContactMethod | "MEMO">("CALL");
+  const [detail, setDetail] = useState("");
+  const isMemo = method === "MEMO";
+
+  function save() {
+    run(async () => {
+      const res = await addWaitlistEvent(e.id, isMemo ? { type: "MEMO", detail } : { type: "CONTACT", method, detail });
+      if (res.ok) {
+        setDetail("");
+        toast.success("기록했어요");
+      }
+      return res;
+    });
+  }
+
+  return (
+    <section className="flex flex-col gap-x2">
+      <h3 className="t4-bold text-fg-neutral">기록 남기기</h3>
+      <div className="flex flex-wrap gap-x2" role="group" aria-label="연락 방법">
+        {[...CONTACT_METHODS, "MEMO" as const].map((m) => (
+          <FilterChip key={m} selected={method === m} onClick={() => setMethod(m)}>
+            {m === "MEMO" ? "메모만" : CONTACT_LABEL[m]}
+          </FilterChip>
+        ))}
+      </div>
+      <Textarea
+        aria-label="기록 내용"
+        value={detail}
+        onChange={(ev) => setDetail(ev.target.value)}
+        onFocus={(ev) => ev.currentTarget.scrollIntoView({ block: "nearest" })}
+        rows={2}
+        maxLength={500}
+        className="resize-none"
+        placeholder={isMemo ? "메모를 입력하세요" : "통화 내용이나 다음에 할 일 (선택)"}
+      />
+      <Button className="self-end" disabled={pending || (isMemo && !detail.trim())} onClick={save}>
+        {pending ? "저장 중…" : "기록"}
+      </Button>
+    </section>
+  );
+}
+
+/** 전화·카톡·방문으로 온 문의/대기를 직접 등록 */
+function StaffEntryModal({ kind, branches, onClose }: { kind: Kind; branches: Branch[]; onClose: () => void }) {
+  const router = useRouter();
+  const isWaitlist = kind === "WAITLIST";
+  const activeBranches = branches.filter((b) => b.isActive);
+  const [source, setSource] = useState<StaffSource>("PHONE");
+  const [branchId, setBranchId] = useState(activeBranches[0]?.id ?? "");
+  const [name, setName] = useState("");
+  const [school, setSchool] = useState("");
+  const [grade, setGrade] = useState("");
+  const [parentPhone, setParentPhone] = useState("");
+  const [studentPhone, setStudentPhone] = useState("");
+  const [gradeType, setGradeType] = useState<WaitGradeType>("ENROLLED");
+  const [gender, setGender] = useState<WaitGender>("MALE");
+  const [entryPreference, setEntryPreference] = useState<"" | "winter" | "immediate">("");
+  const [winterGrade, setWinterGrade] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const needsWinterGrade = isWaitlist && entryPreference === "winter" && gradeType !== "REPEAT";
+
+  async function save() {
+    setSaving(true);
+    const res = await createStaffWaitlistEntry({
+      kind,
+      source,
+      branchId,
+      name,
+      school,
+      grade,
+      parentPhone,
+      studentPhone,
+      gender: isWaitlist ? gender : null,
+      gradeType: isWaitlist ? gradeType : null,
+      entryPreference: entryPreference || null,
+      winterGrade: needsWinterGrade ? winterGrade : null,
+      note,
+    });
+    setSaving(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success(isWaitlist ? "대기 신청을 등록했어요" : "문의를 등록했어요");
+    router.refresh();
+    onClose();
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{isWaitlist ? "대기 신청 직접 등록" : "문의 직접 등록"}</DialogTitle>
+          <DialogDescription>전화·카톡·방문으로 받은 건을 남겨요. 신청자에게 알림은 가지 않아요.</DialogDescription>
+        </DialogHeader>
+        <form
+          className="flex flex-col gap-x4"
+          // 휴대폰 키보드가 입력칸을 가리지 않게
+          onFocus={(ev) => (ev.target as HTMLElement).scrollIntoView?.({ block: "nearest" })}
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            if (!saving) save();
+          }}
+        >
+          <FormField label="들어온 경로">
+            <Segmented
+              aria-label="들어온 경로"
+              value={source}
+              onChange={setSource}
+              options={STAFF_SOURCES.map((v) => ({ value: v, label: SOURCE_LABEL[v] }))}
+            />
+          </FormField>
+          {activeBranches.length > 1 && (
+            <FormField label="지점" htmlFor="waitlist-add-branch">
+              <select id="waitlist-add-branch" className={nativeSelect} value={branchId} onChange={(ev) => setBranchId(ev.target.value)}>
+                {activeBranches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          )}
+          <FormField label={isWaitlist ? "학생 이름" : "이름"} htmlFor="waitlist-add-name">
+            <Input
+              id="waitlist-add-name"
+              value={name}
+              onChange={(ev) => setName(ev.target.value)}
+              autoComplete="off"
+              enterKeyHint="next"
+              maxLength={50}
+              required
+            />
+          </FormField>
+          <div className="grid grid-cols-2 gap-x3">
+            <FormField label="학교" htmlFor="waitlist-add-school">
+              <Input id="waitlist-add-school" value={school} onChange={(ev) => setSchool(ev.target.value)} autoComplete="off" enterKeyHint="next" maxLength={50} placeholder="선택" />
+            </FormField>
+            <FormField label="학년" htmlFor="waitlist-add-grade">
+              <Input id="waitlist-add-grade" value={grade} onChange={(ev) => setGrade(ev.target.value)} autoComplete="off" enterKeyHint="next" maxLength={20} placeholder="예: 고2" />
+            </FormField>
+          </div>
+          <div className="grid grid-cols-2 gap-x3">
+            <FormField label="학부모 휴대폰" htmlFor="waitlist-add-parent">
+              <Input
+                id="waitlist-add-parent"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="off"
+                enterKeyHint="next"
+                value={parentPhone}
+                onChange={(ev) => setParentPhone(ev.target.value)}
+                className="tabular-nums"
+              />
+            </FormField>
+            <FormField label="학생 휴대폰" htmlFor="waitlist-add-student">
+              <Input
+                id="waitlist-add-student"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="off"
+                enterKeyHint="next"
+                value={studentPhone}
+                onChange={(ev) => setStudentPhone(ev.target.value)}
+                className="tabular-nums"
+              />
+            </FormField>
+          </div>
+          <p className="-mt-x2 t3-regular text-fg-neutral-subtle">둘 중 하나는 꼭 적어 주세요.</p>
+          {isWaitlist && (
+            <>
+              <div className="grid grid-cols-2 gap-x3">
+                <FormField label="학년 구분">
+                  <Segmented
+                    aria-label="학년 구분"
+                    value={gradeType}
+                    onChange={setGradeType}
+                    options={[
+                      { value: "REPEAT", label: "N수생" },
+                      { value: "ENROLLED", label: "재학생" },
+                    ]}
+                  />
+                </FormField>
+                <FormField label="성별">
+                  <Segmented
+                    aria-label="성별"
+                    value={gender}
+                    onChange={setGender}
+                    options={[
+                      { value: "MALE", label: "남" },
+                      { value: "FEMALE", label: "여" },
+                    ]}
+                  />
+                </FormField>
+              </div>
+              <FormField label="입실 희망">
+                <Segmented
+                  aria-label="입실 희망"
+                  value={entryPreference}
+                  onChange={setEntryPreference}
+                  options={[
+                    { value: "", label: "선택 안 함" },
+                    { value: "winter", label: "윈터" },
+                    { value: "immediate", label: "즉시" },
+                  ]}
+                />
+              </FormField>
+              {needsWinterGrade && (
+                <FormField label="예비 학년" htmlFor="waitlist-add-winter">
+                  <select id="waitlist-add-winter" className={nativeSelect} value={winterGrade} onChange={(ev) => setWinterGrade(ev.target.value)}>
+                    <option value="">선택</option>
+                    {WINTER_GRADES.map((g) => (
+                      <option key={g} value={g}>
+                        {WINTER_GRADE_LABEL[g]}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+              )}
+            </>
+          )}
+          <FormField label={isWaitlist ? "요청 사항" : "문의 내용"} htmlFor="waitlist-add-note">
+            <Textarea
+              id="waitlist-add-note"
+              value={note}
+              onChange={(ev) => setNote(ev.target.value)}
+              rows={3}
+              maxLength={2000}
+              className="resize-none"
+              placeholder={isWaitlist ? "선택" : "예: 윈터 비용, 상담 가능한 날"}
+            />
+          </FormField>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={onClose}>
+              닫기
+            </Button>
+            <Button type="submit" disabled={saving || !name.trim() || (!parentPhone.trim() && !studentPhone.trim())}>
+              {saving ? "등록 중…" : "등록"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1060,12 +1359,15 @@ function EditEntryModal({
     name: string;
     parentPhone: string;
     studentPhone: string;
-    programId: string | null;
-    gender: WaitGender;
-    gradeType: WaitGradeType;
-    note: string | null;
+    programId?: string | null;
+    gender?: WaitGender;
+    gradeType?: WaitGradeType;
+    note?: string | null;
   }) => void;
 }) {
+  const isWaitlist = entry.kind === "WAITLIST";
+  // 공개 폼 신청 내용은 신청자 원문이라 고치지 않는다 (서버도 막음)
+  const noteEditable = entry.source !== "WEB";
   const [name, setName] = useState(entry.name);
   const [parentPhone, setParentPhone] = useState(entry.parentPhone ?? "");
   const [studentPhone, setStudentPhone] = useState(entry.studentPhone ?? "");
@@ -1112,6 +1414,8 @@ function EditEntryModal({
               접수 번호 <span className="tabular-nums">{legacyPhone}</span> — 학부모/학생 구분 없이 받은 신청이에요.
             </p>
           )}
+          {isWaitlist && (
+            <>
           <FormField label="프로그램" htmlFor="waitlist-edit-program">
             <select
               id="waitlist-edit-program"
@@ -1151,21 +1455,40 @@ function EditEntryModal({
               />
             </FormField>
           </div>
-          <FormField label="메모·요청" htmlFor="waitlist-edit-note">
-            <Textarea
-              id="waitlist-edit-note"
-              className="resize-none"
-              rows={2}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
-          </FormField>
+            </>
+          )}
+          {noteEditable ? (
+            <FormField label={isWaitlist ? "요청 사항" : "문의 내용"} htmlFor="waitlist-edit-note">
+              <Textarea
+                id="waitlist-edit-note"
+                className="resize-none"
+                rows={3}
+                maxLength={2000}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </FormField>
+          ) : (
+            <p className="t3-regular text-fg-neutral-subtle">
+              신청자가 쓴 내용은 그대로 두고, 직원 메모는 상세 화면의 ‘기록 남기기’에 남겨요.
+            </p>
+          )}
         </div>
         <DialogFooter>
           <Button variant="secondary" onClick={onClose}>
             닫기
           </Button>
-          <Button onClick={() => onSave({ name, parentPhone, studentPhone, programId: programId || null, gender, gradeType, note: note || null })}>
+          <Button
+            onClick={() =>
+              onSave({
+                name,
+                parentPhone,
+                studentPhone,
+                ...(isWaitlist ? { programId: programId || null, gender, gradeType } : {}),
+                ...(noteEditable ? { note: note || null } : {}),
+              })
+            }
+          >
             저장
           </Button>
         </DialogFooter>

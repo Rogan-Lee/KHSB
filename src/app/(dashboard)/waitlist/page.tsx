@@ -23,7 +23,14 @@ export default async function WaitlistAdminPage() {
     }),
     prisma.waitlist.findMany({
       orderBy: { createdAt: "desc" },
-      include: { branch: { select: { name: true } }, program: { select: { name: true } } },
+      include: {
+        branch: { select: { name: true } },
+        program: { select: { name: true } },
+        events: {
+          orderBy: { createdAt: "asc" },
+          select: { id: true, type: true, method: true, status: true, detail: true, actorName: true, createdAt: true },
+        },
+      },
     }),
     prisma.waitlist.groupBy({
       by: ["branchId", "programId", "status", "kind"],
@@ -148,6 +155,8 @@ export default async function WaitlistAdminPage() {
           consultations: [
             ...new Set([e.parentPhone, e.studentPhone, e.phone].map((p) => normalizeDigits(p ?? "")).filter(Boolean)),
           ].flatMap((p) => consultationsByPhone.get(p) ?? []),
+          source: e.source,
+          events: e.events.map((ev) => ({ ...ev, createdAt: ev.createdAt.toISOString() })),
         }))}
       />
     </>
