@@ -110,7 +110,7 @@ describe("suggestRefund", () => {
     months: 1,
   };
 
-  it("일할 — 남은 일수 비율, 10원 미만 절사", () => {
+  it("일할 — 남은 일수 비율, 1원 미만 올림", () => {
     const s = suggestRefund({ ...base, policy: "DAILY", lastUsedDate: d("2026-11-10") });
     expect(s.usedDays).toBe(10);
     expect(s.remainingDays).toBe(20);
@@ -119,6 +119,10 @@ describe("suggestRefund", () => {
     const odd = suggestRefund({ ...base, policy: "DAILY", lastUsedDate: d("2026-11-07") });
     // 690000 × 23/30 = 529000
     expect(odd.amount).toBe(529_000);
+
+    // 31일 중 9일 이용 → 550000 × 22/31 = 390322.58… → 390323 (버리면 법정액보다 적다)
+    const dec = suggestRefund({ ...base, paidAmount: 550_000, refundable: 550_000, periodStart: d("2026-12-01"), periodEnd: d("2026-12-31"), policy: "DAILY", lastUsedDate: d("2026-12-09") });
+    expect(dec.amount).toBe(390_323);
   });
 
   it("이용 전이면 전액, 종료일 이후면 0", () => {
@@ -156,7 +160,7 @@ describe("suggestRefund", () => {
     expect(suggestRefund({ ...three, lastUsedDate: d("2026-12-03") }).amount).toBe(1_150_000);
   });
 
-  it("강한선배 환불 규정 예시 그대로 (교습기간 30일 · 정규반 550,000원, 천 원 미만 절사)", () => {
+  it("학원법 구간식 — 교습기간 30일 · 정규반 550,000원, 1원 미만 올림", () => {
     const regular = {
       policy: "ACADEMY_LAW" as const,
       paidAmount: 550_000,
@@ -166,13 +170,13 @@ describe("suggestRefund", () => {
       months: 1,
     };
     expect(suggestRefund({ ...regular, lastUsedDate: null }).amount).toBe(550_000);
-    // 9일 수강 → 1/3 경과 전 2/3: 366,666 → 366,000
+    // 9일 수강 → 1/3 경과 전 2/3: 366,666.67 → 366,667 (천 원 미만을 버리면 법정액보다 적다)
     const nine = suggestRefund({ ...regular, lastUsedDate: d("2026-11-09") });
-    expect(nine.amount).toBe(366_000);
+    expect(nine.amount).toBe(366_667);
     expect(nine.lines).toEqual([
-      expect.objectContaining({ label: null, totalDays: 30, usedDays: 9, rule: "TWO_THIRDS", amount: 366_000 }),
+      expect.objectContaining({ label: null, totalDays: 30, usedDays: 9, rule: "TWO_THIRDS", amount: 366_667 }),
     ]);
-    expect(nine.basis).toBe("학원법 구간식 — 30일 중 9일 이용(1/3 경과 전 2/3) 366,000원 (천 원 미만 절사)");
+    expect(nine.basis).toBe("학원법 구간식 — 30일 중 9일 이용(1/3 경과 전 2/3) 366,667원");
     // 딱 1/3(10일)이 지나면 1/2 구간
     expect(suggestRefund({ ...regular, lastUsedDate: d("2026-11-10") }).lines[0].rule).toBe("HALF");
     expect(suggestRefund({ ...regular, lastUsedDate: d("2026-11-14") }).amount).toBe(275_000);

@@ -1,8 +1,8 @@
 import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/prisma";
 
-// 처리방침 제3조 보유 기간이 지난 정보. 기본은 미리보기(건수만 세어 기록)이고,
-// RETENTION_PURGE=1 일 때만 '지울 수 있는 것'을 지운다.
+// 처리방침 제3조 보유 기간이 지난 정보를 매일 세고 '지울 수 있는 것'을 지운다.
+// 급히 멈춰야 하면 RETENTION_PURGE=0 (건수만 센다).
 
 export const RETENTION = {
   /** 대기 신청·상담 문의: 취소하거나 상담이 끝난 날부터 */
@@ -76,7 +76,7 @@ export async function runRetention(now = new Date()): Promise<RetentionPreview> 
   ]);
 
   let purged: RetentionPreview["purged"] = null;
-  if (process.env.RETENTION_PURGE === "1") {
+  if (process.env.RETENTION_PURGE !== "0") {
     // ponytail: 학생 파기는 하지 않는다 — 첨부 파일(Blob)이 여러 표에 흩어져 있어 함께 지우는 절차가 먼저 필요하다.
     // 첫 대상이 2029년이라 그 전에 만든다.
     const [w, p, a, t] = await prisma.$transaction([

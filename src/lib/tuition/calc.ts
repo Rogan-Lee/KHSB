@@ -265,24 +265,13 @@ export type RefundSuggestion = {
   basis: string;
   /** 어떻게 계산했는지 — 환불 화면에 그대로 보여 준다 */
   lines: RefundLine[];
-  /** 절사 단위(원) */
-  roundUnit: number;
   /** 계산 합계가 환불 가능 금액보다 커서 깎였으면 깎기 전 합계 */
   cappedFrom: number | null;
 };
 
-/** 일할 금액은 10원 미만 절사 */
-const DAILY_ROUND_UNIT = 10;
-/** 학원법 구간식은 천 원 미만 절사 — 강한선배 환불 규정 예시(550,000원의 2/3 → 366,000원)와 같게 */
-const ACADEMY_ROUND_UNIT = 1_000;
-
-function floorTo(n: number, unit: number): number {
-  return Math.floor(n / unit) * unit;
-}
-
-/** 10원 미만 절사 */
-function floorTo10(n: number): number {
-  return floorTo(n, DAILY_ROUND_UNIT);
+/** 1원 미만은 올린다 — 끝자리를 버리면 법정 반환액보다 적게 제안할 수 있다 (학원법 시행령 제18조·별표 4) */
+function ceilWon(n: number): number {
+  return Math.ceil(n - 1e-6);
 }
 
 const wonText = (n: number) => `${n.toLocaleString("ko-KR")}원`;
@@ -318,7 +307,7 @@ export function suggestRefund(input: {
       : Math.min(totalDays, Math.max(0, daysInclusive(periodStart, input.lastUsedDate)));
   const remainingDays = totalDays - usedDays;
 
-  const finish = (lines: RefundLine[], roundUnit: number, basis: string): RefundSuggestion => {
+  const finish = (lines: RefundLine[], basis: string): RefundSuggestion => {
     const total = lines.reduce((sum, line) => sum + line.amount, 0);
     return {
       amount: Math.min(total, refundable),
@@ -327,7 +316,6 @@ export function suggestRefund(input: {
       remainingDays,
       basis,
       lines,
-      roundUnit,
       cappedFrom: total > refundable ? total : null,
     };
   };
@@ -343,14 +331,13 @@ export function suggestRefund(input: {
     amount,
   });
 
-  if (policy === "MANUAL") return finish([], 1, "직접 입력 (자동 계산 없음)");
-  if (usedDays === 0) return finish([whole("FULL", paidAmount, paidAmount)], 1, "이용 시작 전 — 전액");
+  if (policy === "MANUAL") return finish([], "직접 입력 (자동 계산 없음)");
+  if (usedDays === 0) return finish([whole("FULL", paidAmount, paidAmount)], "이용 시작 전 — 전액");
 
   if (policy === "DAILY") {
     const raw = (paidAmount * remainingDays) / totalDays;
     return finish(
-      [whole("DAILY", raw, floorTo10(raw))],
-      DAILY_ROUND_UNIT,
+      [whole("DAILY", raw, ceilWon(raw))],
       `일할 계산 — 전체 ${totalDays}일 중 ${usedDays}일 이용, 남은 ${remainingDays}일분`,
     );
   }
@@ -388,7 +375,7 @@ export function suggestRefund(input: {
     if (used === 0) return { ...base, rule: "FULL", raw: segShare, amount: segShare };
     const rule = used >= segDays ? "NONE" : academyRule(used, segDays);
     const raw = rule === "TWO_THIRDS" ? (segShare * 2) / 3 : rule === "HALF" ? segShare / 2 : 0;
-    return { ...base, rule, raw, amount: floorTo(raw, ACADEMY_ROUND_UNIT) };
+    return { ...base, rule, raw, amount: ceilWon(raw) };
   });
 
   const RULE_TEXT = { TWO_THIRDS: "1/3 경과 전 2/3", HALF: "1/2 경과 전 1/2", NONE: "1/2 경과 환불 없음" } as const;
@@ -402,7 +389,7 @@ export function suggestRefund(input: {
       ? `시작 전 ${untouched.length}개월 전액 ${wonText(untouched.reduce((sum, line) => sum + line.amount, 0))}`
       : "",
   ].filter(Boolean);
-  return finish(lines, ACADEMY_ROUND_UNIT, `학원법 구간식 — ${parts.join(" · ") || "환불 대상 기간 없음"} (천 원 미만 절사)`);
+  return finish(lines, `학원법 구간식 — ${parts.join(" · ") || "환불 대상 기간 없음"}`);
 }
 
 /** 일할 첫 달이 있는 청구서인지 — 달 중간에 시작해 달력 말일에 끝난다 (예전 방식의 "시작일부터 한 달" 청구서와 구별) */

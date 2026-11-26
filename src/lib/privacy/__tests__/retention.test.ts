@@ -42,7 +42,8 @@ describe("보유 기간", () => {
 });
 
 describe("runRetention", () => {
-  it("기본은 건수만 세고 아무것도 지우지 않는다", async () => {
+  it("RETENTION_PURGE=0 이면 건수만 세고 아무것도 지우지 않는다", async () => {
+    process.env.RETENTION_PURGE = "0";
     const r = await runRetention(now);
     expect(r.purged).toBeNull();
     expect(db.$transaction).not.toHaveBeenCalled();
@@ -50,8 +51,7 @@ describe("runRetention", () => {
     expect(db.appSetting.upsert).toHaveBeenCalledOnce();
   });
 
-  it("켜도 학생은 지우지 않는다", async () => {
-    process.env.RETENTION_PURGE = "1";
+  it("기본은 지우되 학생은 지우지 않는다", async () => {
     const r = await runRetention(now);
     expect(r.purged).toEqual({ waitlist: 2, phoneVerification: 2, logs: 4 });
     expect(db.student.deleteMany).not.toHaveBeenCalled();

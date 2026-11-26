@@ -1,13 +1,14 @@
 /**
- * Slack Incoming Webhook 알림 유틸리티
+ * 운영 알림 유틸리티 (예전 Slack 알림)
+ *
+ * 2026-11 부터 Slack(국외 이전)으로 보내지 않고 원장급 운영진 앱 푸시로 보낸다.
+ * ponytail: 이름은 호출부 17곳을 그대로 두려고 notifySlack 을 유지한다.
  *
  * 사용법:
  *   import { notifySlack } from "@/lib/slack";
  *   await notifySlack("새 상담 신청이 접수되었습니다!");
- *   await notifySlack({ blocks: [...] }); // Block Kit 형식
+ *   await notifySlack({ blocks: [...], text: "요약" });
  */
-
-const WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 
 interface SlackBlock {
   type: string;
@@ -37,20 +38,22 @@ export function escapeSlack(text: unknown): string {
 export async function notifySlack(
   message: string | { blocks: SlackBlock[]; text?: string },
 ) {
-  if (!WEBHOOK_URL) return;
-
-  const body =
-    typeof message === "string" ? { text: escapeSlack(message) } : message;
+  const text =
+    typeof message === "string"
+      ? message
+      : message.text ||
+        message.blocks
+          .map((block) => block.text?.text)
+          .filter(Boolean)
+          .join(" ");
+  if (!text) return;
 
   try {
-    await fetch(WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const { notifySupervisors } = await import("@/lib/mobile-push");
+    await notifySupervisors("운영 알림", text.replace(/[*_]/g, ""));
   } catch {
-    // Slack 알림 실패가 비즈니스 로직을 막으면 안 됨
-    console.error("[Slack] 알림 전송 실패");
+    // 알림 실패가 비즈니스 로직을 막으면 안 됨
+    console.error("[운영 알림] 전송 실패");
   }
 }
 

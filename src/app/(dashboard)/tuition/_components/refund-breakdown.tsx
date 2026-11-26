@@ -62,13 +62,11 @@ function BracketBar({ line }: { line: RefundLine }) {
   );
 }
 
-function LineDetail({ line, roundUnit }: { line: RefundLine; roundUnit: number }) {
-  const rounded = Math.floor(line.raw) !== line.amount;
-  const roundText = roundUnit >= 1000 ? "천 원 미만 절사" : `${roundUnit}원 미만 절사`;
+function LineDetail({ line }: { line: RefundLine }) {
   const formula = (expr: string) => (
     <p className="mt-x1 t3-regular tabular-nums text-fg-neutral-muted">
-      {expr} = {won(Math.floor(line.raw))}
-      {rounded && ` → ${roundText} ${won(line.amount)}`}
+      {expr} = {won(line.amount)}
+      {line.raw !== line.amount && " (1원 미만 올림)"}
     </p>
   );
 
@@ -134,7 +132,7 @@ export function RefundBreakdown({
               </p>
               <span className="whitespace-nowrap t4-bold tabular-nums text-fg-neutral">{won(line.amount)}</span>
             </div>
-            <LineDetail line={line} roundUnit={suggestion.roundUnit} />
+            <LineDetail line={line} />
           </li>
         ))}
       </ol>

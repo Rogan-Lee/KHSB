@@ -38,9 +38,9 @@ const REFUND_POLICIES: TuitionRefundPolicyValue[] = ["DAILY", "ACADEMY_LAW", "MA
 const TAX_TYPES: TuitionTaxTypeValue[] = ["EXEMPT", "TAXABLE"];
 
 const REFUND_POLICY_HINT: Record<TuitionRefundPolicyValue, string> = {
-  DAILY: "남은 일수만큼 일할 계산한 금액을 제안해요.",
+  DAILY: "남은 일수만큼 일할 계산한 금액을 제안해요. 1원 미만은 올려요.",
   ACADEMY_LAW:
-    "강한선배 환불 규정(학원법)이에요. 이용 중인 달은 1/3 경과 전 2/3, 1/2 경과 전 1/2, 이후 없음, 시작 전인 달은 전액으로 제안해요. 천 원 미만은 절사해요.",
+    "강한선배 환불 규정(학원법)이에요. 이용 중인 달은 1/3 경과 전 2/3, 1/2 경과 전 1/2, 이후 없음, 시작 전인 달은 전액으로 제안해요. 법정 반환액보다 적어지지 않게 1원 미만은 올려요.",
   MANUAL: "제안 없이 환불할 때마다 금액을 직접 입력해요.",
 };
 

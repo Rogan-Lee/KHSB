@@ -110,7 +110,7 @@ export default async function PrivacyRecordsPage({
           )}
         </Section>
 
-        <Section title="보유 기간이 지난 정보" description="매일 새벽 건수를 세어 보여 줘요. 자동 삭제는 꺼져 있어요.">
+        <Section title="보유 기간이 지난 정보" description="매일 새벽 보유 기간이 지난 신청·본인 확인·기록을 지우고 건수를 보여 줘요. 학생 기록은 아직 자동으로 지우지 않아요.">
           {retention ? (
             <div className="flex flex-col gap-x3">
               <StatCards cols={4}>

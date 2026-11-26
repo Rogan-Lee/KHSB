@@ -311,6 +311,11 @@ async function assignedStaffAuthUserIds(studentId: string) {
   return supervisorAuthUserIds();
 }
 
+/** 운영 알림(예전 Slack 알림) → 원장급 앱 푸시 */
+export async function notifySupervisors(title: string, body: string) {
+  return sendToStaff(await supervisorAuthUserIds(), { title, body: body.slice(0, 150), category: "SYSTEM", data: {} });
+}
+
 /** 원장급(시스템 관리자·원장·총괄 멘토) */
 async function supervisorAuthUserIds() {
   const supervisors = await prisma.user.findMany({
