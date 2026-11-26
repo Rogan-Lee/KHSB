@@ -564,10 +564,17 @@ export type ContentReportView = {
 };
 
 export async function listContentReports(
-  opts: { status?: "OPEN" | "RESOLVED"; take?: number } = {},
+  opts: { status?: "OPEN" | "RESOLVED"; take?: number; q?: string } = {},
 ): Promise<ContentReportView[]> {
+  const q = opts.q?.trim().slice(0, 50);
+  const like = { contains: q, mode: "insensitive" as const };
+  // 사유는 코드로 저장되므로 한글 라벨에 검색어가 들어간 코드로 바꿔 거른다
+  const reasons = q ? (Object.keys(REPORT_REASONS) as ReportReason[]).filter((k) => REPORT_REASONS[k].includes(q)) : [];
+  const search = q
+    ? { OR: [{ reporterName: like }, { targetUserName: like }, { detail: like }, { reason: { in: reasons } }] }
+    : undefined;
   const rows = await prisma.contentReport.findMany({
-    where: opts.status ? { status: opts.status } : undefined,
+    where: { status: opts.status, ...search },
     // 처리 완료 목록은 최근 처리순
     orderBy: opts.status === "RESOLVED" ? { resolvedAt: "desc" } : { createdAt: "desc" },
     take: Math.min(Math.max(opts.take ?? 100, 1), 300),

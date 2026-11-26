@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { shiftMonth, formatYearMonth } from "@/lib/online/month";
 import { useStickyState } from "@/hooks/use-sticky-state";
-import { cn } from "@/lib/utils";
+import { cn, matchesSearch } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -588,6 +588,7 @@ function OrdersTab({ orders, menus }: { orders: Order[]; menus: Menu[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [onlyUnpaid, setOnlyUnpaid] = useStickyState("lunch-orders:onlyUnpaid", false);
+  const [query, setQuery] = useStickyState("lunch-orders:query", "");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editSel, setEditSel] = useState<Set<string>>(new Set());
@@ -623,7 +624,9 @@ function OrdersTab({ orders, menus }: { orders: Order[]; menus: Menu[] }) {
     });
   }
 
-  const rows = onlyUnpaid ? orders.filter((o) => o.paidStatus === "PENDING") : orders;
+  const rows = orders.filter(
+    (o) => (!onlyUnpaid || o.paidStatus === "PENDING") && matchesSearch(query, o.studentName)
+  );
   const selectablePending = rows.filter((o) => o.paidStatus === "PENDING");
   const allSelected =
     selectablePending.length > 0 && selectablePending.every((o) => selected.has(o.id));
@@ -710,6 +713,14 @@ function OrdersTab({ orders, menus }: { orders: Order[]; menus: Menu[] }) {
         <FilterChip selected={onlyUnpaid} onClick={() => setOnlyUnpaid(true)} count={pendingTotal}>
           미입금
         </FilterChip>
+        <SearchField
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onClear={() => setQuery("")}
+          placeholder="학생 이름 검색"
+          aria-label="학생 이름 검색"
+          className="sm:w-56"
+        />
         {claimedCount > 0 && (
           <span className="t3-medium tabular-nums text-fg-positive">
             입금 알림 {claimedCount}건
@@ -730,11 +741,19 @@ function OrdersTab({ orders, menus }: { orders: Order[]; menus: Menu[] }) {
         {rows.length === 0 ? (
           <EmptyState
             icon={ClipboardList}
-            title={orders.length === 0 ? "아직 들어온 신청이 없어요" : "미입금 신청이 없어요"}
+            title={
+              orders.length === 0
+                ? "아직 들어온 신청이 없어요"
+                : query.trim()
+                  ? "검색 결과가 없어요"
+                  : "미입금 신청이 없어요"
+            }
             description={
               orders.length === 0
                 ? "학부모 링크를 보내면 신청이 여기에 모여요."
-                : "모든 신청의 입금이 확인됐어요."
+                : query.trim()
+                  ? "학생 이름을 다시 확인해 주세요."
+                  : "모든 신청의 입금이 확인됐어요."
             }
           />
         ) : (

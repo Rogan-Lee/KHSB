@@ -9,8 +9,9 @@ import { X, Pencil, Plus, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { inputBaseClass } from "@/components/ui/input";
-import { EmptyState, TableCard } from "@/components/backoffice/ui";
-import { cn } from "@/lib/utils";
+import { EmptyState, SearchField, TableCard, Toolbar } from "@/components/backoffice/ui";
+import { useStickyState } from "@/hooks/use-sticky-state";
+import { cn, matchesSearch } from "@/lib/utils";
 
 const DAYS = [
   { value: 1, label: "월" },
@@ -66,6 +67,8 @@ export function StudentsScheduleTable({ students }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editMap, setEditMap] = useState<ScheduleMap>({});
   const [isPending, startTransition] = useTransition();
+  const [query, setQuery] = useStickyState("students-schedule:query", "");
+  const rows = sorted.filter((s) => matchesSearch(query, s.name, s.seat, s.school));
 
   function startEdit(student: StudentWithSchedule) {
     setEditMap(buildScheduleMap(student.schedules, student.outings));
@@ -153,6 +156,16 @@ export function StudentsScheduleTable({ students }: Props) {
   const flexLabel = "t2-medium text-palette-purple-700";
 
   return (
+    <>
+    <Toolbar>
+      <SearchField
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onClear={() => setQuery("")}
+        placeholder="이름 · 좌석 · 학교 검색"
+        aria-label="원생 검색"
+      />
+    </Toolbar>
     <TableCard
       footer={
         <span className="t3-regular text-fg-neutral-subtle">
@@ -160,6 +173,9 @@ export function StudentsScheduleTable({ students }: Props) {
         </span>
       }
     >
+      {rows.length === 0 ? (
+        <EmptyState icon={CalendarClock} title="검색 결과가 없어요" />
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full border-collapse t4-regular text-fg-neutral tabular-nums">
           <thead className="bg-bg-layer-fill">
@@ -176,7 +192,7 @@ export function StudentsScheduleTable({ students }: Props) {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((student) => {
+            {rows.map((student) => {
               const isEditing = editingId === student.id;
               const schMap = buildScheduleMap(student.schedules, student.outings);
 
@@ -333,6 +349,8 @@ export function StudentsScheduleTable({ students }: Props) {
           </tbody>
         </table>
       </div>
+      )}
     </TableCard>
+    </>
   );
 }

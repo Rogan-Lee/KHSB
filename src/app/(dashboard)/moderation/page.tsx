@@ -1,6 +1,17 @@
 import Link from "next/link";
 import { Ban, ChevronDown, ShieldCheck } from "lucide-react";
-import { EmptyState, Notice, PageHeader, Section, StatCard, StatCards, StatusBadge } from "@/components/backoffice/ui";
+import {
+  EmptyState,
+  Notice,
+  PageHeader,
+  SearchField,
+  Section,
+  StatCard,
+  StatCards,
+  StatusBadge,
+  Toolbar,
+} from "@/components/backoffice/ui";
+import { Button } from "@/components/ui/button";
 import { REPORT_SLA_MS, ReportList } from "@/components/moderation/report-list";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { isFullAccess } from "@/lib/roles";
@@ -41,16 +52,21 @@ function BlockParty({ user }: { user: UserBlockView["blocker"] }) {
 }
 
 // 앱(학생·학부모·직원)에서 들어온 신고·차단을 원장이 확인하고 처리하는 화면.
-export default async function ModerationPage() {
+export default async function ModerationPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   // 신고 처리 액션(requireFullAccess)과 같은 기준 — 원장·시스템 관리자만
   const session = await requireDashboardSession(isFullAccess);
+  const q = (await searchParams).q?.trim().slice(0, 50) ?? "";
 
   const [, openCount, newestOpen, resolved, blocks] = await Promise.all([
     // 사이드바 숫자에서 새 차단을 이 직원 기준으로 비운다 (신고는 처리해야 줄어든다)
     markSeen("moderation", session.user.id),
     countOpenReports(),
-    listContentReports({ status: "OPEN", take: OPEN_TAKE }),
-    listContentReports({ status: "RESOLVED", take: RESOLVED_TAKE }),
+    listContentReports({ status: "OPEN", take: OPEN_TAKE, q }),
+    listContentReports({ status: "RESOLVED", take: RESOLVED_TAKE, q }),
     listUserBlocks(BLOCK_TAKE),
   ]);
 
@@ -86,7 +102,24 @@ export default async function ModerationPage() {
           <StatCard label="차단" value={blocks.length} unit="건" />
         </StatCards>
 
-        {openCount > open.length && (
+        <Toolbar className="mb-0">
+          <form method="get" role="search" className="contents">
+            <SearchField
+              name="q"
+              defaultValue={q}
+              placeholder="신고자·대상·사유 검색"
+              aria-label="신고 검색"
+              enterKeyHint="search"
+            />
+          </form>
+          {q && (
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/moderation">초기화</Link>
+            </Button>
+          )}
+        </Toolbar>
+
+        {!q && openCount > open.length && (
           <Notice tone="warn">
             처리 대기가 많아 최근 {open.length}건만 보여요. 처리하면 나머지가 이어서 나타나요.
           </Notice>
@@ -101,12 +134,16 @@ export default async function ModerationPage() {
         >
           {open.length === 0 ? (
             <div className="border-t border-stroke-neutral-muted">
-              <EmptyState
-                compact
-                icon={ShieldCheck}
-                title="처리할 신고가 없어요"
-                description="앱에서 신고가 들어오면 여기에 먼저 보여요."
-              />
+              {q ? (
+                <EmptyState compact title="검색 결과가 없어요" />
+              ) : (
+                <EmptyState
+                  compact
+                  icon={ShieldCheck}
+                  title="처리할 신고가 없어요"
+                  description="앱에서 신고가 들어오면 여기에 먼저 보여요."
+                />
+              )}
             </div>
           ) : (
             <ReportList reports={open} now={now} />
@@ -132,7 +169,7 @@ export default async function ModerationPage() {
           </summary>
           {resolved.length === 0 ? (
             <div className="border-t border-stroke-neutral-muted">
-              <EmptyState compact icon={ShieldCheck} title="처리한 신고가 아직 없어요" />
+              <EmptyState compact icon={ShieldCheck} title={q ? "검색 결과가 없어요" : "처리한 신고가 아직 없어요"} />
             </div>
           ) : (
             <ReportList reports={resolved} now={now} />

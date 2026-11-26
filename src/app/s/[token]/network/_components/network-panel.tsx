@@ -10,6 +10,7 @@ import { TextField, TextFieldInput, TextFieldTextarea } from "seed-design/ui/tex
 import { requestNetwork, type NetworkRequestView } from "@/actions/network-requests";
 import { NETWORK_KIND_LABELS, NETWORK_KIND_ORDER } from "@/lib/network-requests";
 import { PortalTimeField } from "@/components/portal/time-field";
+import { openNativePicker } from "@/components/ui/input";
 import {
   Badge,
   BottomCTA,
@@ -141,6 +142,7 @@ export function NetworkPanel({
           >
             <TextFieldInput
               type="date"
+              onClick={openNativePicker}
               className="min-w-0 appearance-none [&::-webkit-date-and-time-value]:text-left"
             />
           </TextField>

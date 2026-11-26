@@ -13,6 +13,7 @@ import {
 import type { PerformanceTaskStatus } from "@/generated/prisma";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Table,
   TableBody,
@@ -299,12 +300,11 @@ function CreateTaskForm({
           />
         </FormField>
         <FormField label="마감일" required htmlFor={`${idp}-due`}>
-          <Input
+          <DatePicker
             id={`${idp}-due`}
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            className="tabular-nums"
+            value={dueDate || null}
+            onChange={(d) => setDueDate(d ?? "")}
+            className="w-full"
           />
         </FormField>
         <FormField label="형식" htmlFor={`${idp}-format`}>

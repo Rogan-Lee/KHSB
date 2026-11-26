@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { EmptyState, SearchField, Skeleton, StatusBadge, type Tone } from "@/components/backoffice/ui";
-import { cn } from "@/lib/utils";
+import { EmptyState, SearchField, Skeleton, StatusBadge, Toolbar, type Tone } from "@/components/backoffice/ui";
+import { cn, matchesSearch } from "@/lib/utils";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { toast } from "sonner";
 import { ClipboardList, Copy, FileQuestion, MousePointerClick, Pencil, RefreshCw, RotateCcw, Trash2, UserPlus, Users, XCircle } from "lucide-react";
 import { useConfirmDialog } from "@/components/suggestions/use-confirm-dialog";
@@ -65,6 +66,7 @@ export function VocabResultsBoard({ exams, students, canDelete = false }: { exam
   const [examId, setExamId] = useState<string | null>(exams[0]?.id ?? null);
   const [attemptId, setAttemptId] = useState<string | null>(() => firstAttemptId(exams[0]));
   const [assignFor, setAssignFor] = useState<ExamSummary | null>(null);
+  const [query, setQuery] = useStickyState("vocab-results:query", "");
   const [isPending, startTransition] = useTransition();
   const { confirm, dialog } = useConfirmDialog();
   const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -100,6 +102,7 @@ export function VocabResultsBoard({ exams, students, canDelete = false }: { exam
     );
   }
 
+  const shownExams = exams.filter((ex) => matchesSearch(query, ex.title, ex.bookName));
   const submittedOf = (ex: ExamSummary) => ex.attempts.filter((a) => a.status === "SUBMITTED");
   const avgOf = (ex: ExamSummary) => {
     const s = submittedOf(ex);
@@ -113,10 +116,21 @@ export function VocabResultsBoard({ exams, students, canDelete = false }: { exam
         <aside className={PANE} aria-label="시험 목록">
           <div className={PANE_HEAD}>
             <span>시험</span>
-            <span className="tabular-nums">총 {exams.length}건</span>
+            <span className="tabular-nums">총 {shownExams.length}건</span>
           </div>
+          <Toolbar className="mb-0 border-b border-stroke-neutral-muted px-x3 py-x2">
+            <SearchField
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onClear={() => setQuery("")}
+              placeholder="시험 이름 · 단어장 검색"
+              aria-label="검색"
+              className="sm:w-full"
+            />
+          </Toolbar>
           <div className="min-h-0 flex-1 divide-y divide-stroke-neutral-muted overflow-y-auto">
-            {exams.map((ex) => {
+            {shownExams.length === 0 && <EmptyState compact icon={ClipboardList} title="검색 결과가 없어요" />}
+            {shownExams.map((ex) => {
               const active = ex.id === exam?.id;
               const avg = avgOf(ex);
               return (

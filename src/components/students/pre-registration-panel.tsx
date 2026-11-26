@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Dialog,
@@ -14,7 +15,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { EmptyState, FormActions, FormField, Section } from "@/components/backoffice/ui";
+import { EmptyState, FormActions, FormField, SearchField, Section, Toolbar } from "@/components/backoffice/ui";
+import { useStickyState } from "@/hooks/use-sticky-state";
+import { matchesSearch } from "@/lib/utils";
 import { Plus, Trash2, UserCheck, Loader2, UserPlus } from "lucide-react";
 import {
   createPreRegistration,
@@ -39,6 +42,8 @@ export function PreRegistrationPanel({ initial, canFormalize }: { initial: PreRe
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [showForm, setShowForm] = useState(false);
+  const [query, setQuery] = useStickyState("pre-registration:query", "");
+  const rows = initial.filter((p) => matchesSearch(query, p.name, p.phone, p.parentPhone, p.school, p.tentativeSeat));
 
   function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -105,7 +110,7 @@ export function PreRegistrationPanel({ initial, canFormalize }: { initial: PreRe
     <>
       <Section
         title="예비등록"
-        count={initial.length || undefined}
+        count={rows.length || undefined}
         description="예비 학생을 입력하고 좌석을 가배정해 두세요. 정식 등록하면 재원생(ACTIVE)으로 전환돼요."
         actions={addButton}
         flush
@@ -120,7 +125,7 @@ export function PreRegistrationPanel({ initial, canFormalize }: { initial: PreRe
               <FormField label="학부모 연락처" htmlFor="pr-parent"><Input id="pr-parent" name="parentPhone" placeholder="010-..." /></FormField>
               <FormField label="학생 연락처" htmlFor="pr-phone"><Input id="pr-phone" name="phone" /></FormField>
               <FormField label="학교" htmlFor="pr-school"><Input id="pr-school" name="school" /></FormField>
-              <FormField label="등원 예정일" htmlFor="pr-start"><Input id="pr-start" name="startDate" type="date" /></FormField>
+              <FormField label="등원 예정일" htmlFor="pr-start"><DatePicker id="pr-start" name="startDate" placeholder="등원 예정일 선택" className="w-full" /></FormField>
               <FormField label="메모" htmlFor="pr-memo" className="sm:col-span-2"><Input id="pr-memo" name="memo" placeholder="선택과목·특이사항 등" /></FormField>
             </div>
             <FormActions className="mt-x4">
@@ -141,6 +146,19 @@ export function PreRegistrationPanel({ initial, canFormalize }: { initial: PreRe
             />
           )
         ) : (
+          <>
+          <Toolbar className="px-x5">
+            <SearchField
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onClear={() => setQuery("")}
+              placeholder="이름 · 연락처 · 학교 · 좌석 검색"
+              aria-label="예비등록 검색"
+            />
+          </Toolbar>
+          {rows.length === 0 ? (
+            <EmptyState compact icon={UserPlus} title="검색 결과가 없어요" className="pb-x10" />
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -154,7 +172,7 @@ export function PreRegistrationPanel({ initial, canFormalize }: { initial: PreRe
               </TableRow>
             </TableHeader>
             <TableBody>
-              {initial.map((p) => (
+              {rows.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell className="t4-medium whitespace-nowrap">{p.name}</TableCell>
                   <TableCell className="whitespace-nowrap text-fg-neutral-muted">{p.grade ?? "—"}</TableCell>
@@ -186,6 +204,8 @@ export function PreRegistrationPanel({ initial, canFormalize }: { initial: PreRe
               ))}
             </TableBody>
           </Table>
+          )}
+          </>
         )}
       </Section>
 

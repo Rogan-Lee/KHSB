@@ -9,12 +9,15 @@ import { Button } from "@/components/ui/button";
 import {
   EmptyState,
   PageHeader,
+  SearchField,
   StatCard,
   StatCards,
   StatusBadge,
   TableCard,
+  Toolbar,
   type Tone,
 } from "@/components/backoffice/ui";
+import { matchesSearch } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -40,11 +43,18 @@ const TYPE_TONE: Record<string, Tone> = {
   ADHOC: "gray",
 };
 
-export default async function ReportQueuePage() {
+export default async function ReportQueuePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const user = await getUser();
   if (!isFullAccess(user?.role)) redirect("/online");
+  const q = (await searchParams).q?.trim().slice(0, 50) ?? "";
 
   const rows = await getQueueOverview();
+  // ponytail: take 제한 없는 목록이라 메모리에서 거름 — 위 지표는 전체 대기열 기준 유지
+  const shown = q ? rows.filter((r) => matchesSearch(q, r.studentName)) : rows;
   const weekly = rows.filter((r) => r.type === "WEEKLY").length;
   const monthly = rows.filter((r) => r.type === "MONTHLY").length;
 
@@ -63,6 +73,23 @@ export default async function ReportQueuePage() {
           <StatCard label="월간" value={monthly} unit="건" />
         </StatCards>
 
+        <Toolbar className="mb-0">
+          <form method="get" role="search" className="contents">
+            <SearchField
+              name="q"
+              defaultValue={q}
+              placeholder="이름 검색"
+              aria-label="학생 검색"
+              enterKeyHint="search"
+            />
+          </form>
+          {q && (
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/online/reports/queue">초기화</Link>
+            </Button>
+          )}
+        </Toolbar>
+
         <TableCard>
           {rows.length === 0 ? (
             <EmptyState
@@ -75,6 +102,8 @@ export default async function ReportQueuePage() {
                 </Button>
               }
             />
+          ) : shown.length === 0 ? (
+            <EmptyState title="검색 결과가 없어요" description="다른 이름으로 찾아보세요." />
           ) : (
             <Table>
               <TableHeader>
@@ -87,7 +116,7 @@ export default async function ReportQueuePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((r) => (
+                {shown.map((r) => (
                   <TableRow key={r.reportId}>
                     <TableCell className="whitespace-nowrap t4-medium">{r.studentName}</TableCell>
                     <TableCell className="whitespace-nowrap text-fg-neutral-muted">

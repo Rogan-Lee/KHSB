@@ -14,7 +14,9 @@ import {
   EmptyState,
   LinkTabs,
   PageHeader,
+  SearchField,
   StatusBadge,
+  Toolbar,
   type Tone,
 } from "@/components/backoffice/ui";
 import { cn } from "@/lib/utils";
@@ -59,7 +61,7 @@ function fmt(iso: string): string {
 export default async function StaffQuestionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ filter?: string; q?: string }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/sign-in");
@@ -68,8 +70,18 @@ export default async function StaffQuestionsPage({
   const sp = await searchParams;
   const filter: Filter =
     sp.filter === "mine" ? "mine" : sp.filter === "all" ? "all" : "open";
-  const questions = await listStaffQuestionInbox({ filter });
-  const empty = EMPTY_TEXT[filter];
+  const q = sp.q?.trim().slice(0, 50) ?? "";
+  const questions = await listStaffQuestionInbox({ filter, q });
+  const empty = q
+    ? { title: "검색 결과가 없어요", description: "다른 이름이나 제목으로 찾아보세요." }
+    : EMPTY_TEXT[filter];
+  const qs = (f: Filter) => {
+    const p = new URLSearchParams();
+    if (f !== "open") p.set("filter", f);
+    if (q) p.set("q", q);
+    const s = p.toString();
+    return `/questions${s ? `?${s}` : ""}`;
+  };
 
   return (
     <>
@@ -91,10 +103,28 @@ export default async function StaffQuestionsPage({
         items={FILTERS.map((f) => ({
           value: f.key,
           label: f.label,
-          href: `/questions${f.key === "open" ? "" : `?filter=${f.key}`}`,
+          href: qs(f.key),
           count: f.key === filter ? questions.length : undefined,
         }))}
       />
+
+      <Toolbar>
+        <form method="get" role="search" className="contents">
+          {filter !== "open" && <input type="hidden" name="filter" value={filter} />}
+          <SearchField
+            name="q"
+            defaultValue={q}
+            placeholder="이름·학교·제목·과목 검색"
+            aria-label="질문 검색"
+            enterKeyHint="search"
+          />
+        </form>
+        {q && (
+          <Button asChild variant="ghost" size="sm">
+            <Link href={`/questions${filter === "open" ? "" : `?filter=${filter}`}`}>초기화</Link>
+          </Button>
+        )}
+      </Toolbar>
 
       {questions.length === 0 ? (
         <div className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">

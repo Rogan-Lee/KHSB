@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import {
   Dialog,
@@ -104,12 +105,11 @@ export function LandingPopupButton({ initial }: { initial: LandingPopup | null }
             </FormField>
             <div className="grid gap-x4 sm:grid-cols-3">
               <FormField label="표시 마지막 날 (선택)" htmlFor="popup-until" hint="이 날까지 보이고 다음 날 자동으로 내려가요">
-                <Input
+                <DatePicker
                   id="popup-until"
-                  type="date"
-                  value={form.until ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, until: e.target.value }))}
-                  className="tabular-nums"
+                  value={form.until || null}
+                  onChange={(d) => setForm((f) => ({ ...f, until: d ?? "" }))}
+                  className="w-full"
                 />
               </FormField>
               <FormField label="버튼 문구 (선택)" htmlFor="popup-cta-label">

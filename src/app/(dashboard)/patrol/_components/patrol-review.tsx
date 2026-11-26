@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { AlertTriangle, ChevronLeft, ChevronRight, Clock, Loader2, Pencil, Save, ShieldCheck, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -176,13 +177,7 @@ export function PatrolReview({ initialDate, initialRounds }: { initialDate: stri
   return (
     <div className="flex flex-col gap-x4">
       <Toolbar className="mb-0">
-        <Input
-          type="date"
-          value={date}
-          onChange={(e) => changeDate(e.target.value)}
-          aria-label="날짜"
-          className="w-auto tabular-nums"
-        />
+        <DatePicker value={date} onChange={(d) => d && changeDate(d)} aria-label="날짜" />
         {pending && (
           <span className="inline-flex items-center gap-x1 t3-regular text-fg-neutral-subtle">
             <Loader2 className="size-3.5 animate-spin" aria-hidden />

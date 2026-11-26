@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
@@ -46,11 +47,13 @@ import {
   X,
 } from "lucide-react";
 import { Switch } from "seed-design/ui/switch";
-import { cn } from "@/lib/utils";
+import { cn, matchesSearch } from "@/lib/utils";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import {
   EmptyState,
   FormField,
   PageHeader,
+  SearchField,
   StatusBadge,
   TableCard,
   Toolbar,
@@ -147,6 +150,7 @@ export function ContentPostsAdmin({
   const router = useRouter();
   const [busy, startTransition] = useTransition();
   const [filter, setFilter] = useState<Filter>("all");
+  const [query, setQuery] = useStickyState("contents:query", "");
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ContentPostInput>(EMPTY);
@@ -159,7 +163,8 @@ export function ContentPostsAdmin({
     (acc, t) => ({ ...acc, [t]: posts.filter((p) => p.type === t).length }),
     {} as Record<ContentPostType, number>
   );
-  const visiblePosts = filter === "all" ? posts : posts.filter((p) => p.type === filter);
+  const typePosts = filter === "all" ? posts : posts.filter((p) => p.type === filter);
+  const visiblePosts = typePosts.filter((p) => matchesSearch(query, p.title, p.summary, p.authorName));
   const internal = isInternalType(form.type);
 
   function applyAuthorMode(mode: AuthorMode) {
@@ -299,6 +304,13 @@ export function ContentPostsAdmin({
 
       <div className="mt-x5">
         <Toolbar>
+          <SearchField
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onClear={() => setQuery("")}
+            placeholder="제목 · 요약 · 작성자 검색"
+            aria-label="검색"
+          />
           <p className="t4-regular tabular-nums text-fg-neutral-subtle">
             <span className="t4-bold text-fg-neutral">{visiblePosts.length}</span>건 · 공개{" "}
             <span className="t4-bold text-fg-neutral">{visiblePosts.filter((p) => p.visible).length}</span>건
@@ -306,7 +318,9 @@ export function ContentPostsAdmin({
         </Toolbar>
 
         <TableCard>
-          {visiblePosts.length === 0 ? (
+          {visiblePosts.length === 0 && typePosts.length > 0 ? (
+            <EmptyState icon={Newspaper} title="검색 결과가 없어요" />
+          ) : visiblePosts.length === 0 ? (
             <EmptyState
               icon={Newspaper}
               title={posts.length === 0 ? "아직 등록된 콘텐츠가 없어요" : "이 유형의 콘텐츠가 없어요"}
@@ -637,12 +651,11 @@ export function ContentPostsAdmin({
 
             <div className="grid gap-x4 sm:grid-cols-2 sm:items-end">
               <FormField label="발행일" htmlFor="content-published-at">
-                <Input
+                <DatePicker
                   id="content-published-at"
-                  type="date"
-                  value={form.publishedAt}
-                  onChange={(e) => setForm((f) => ({ ...f, publishedAt: e.target.value }))}
-                  className="tabular-nums"
+                  value={form.publishedAt || null}
+                  onChange={(d) => setForm((f) => ({ ...f, publishedAt: d ?? "" }))}
+                  className="w-full"
                 />
               </FormField>
               <label className="flex h-10 cursor-pointer items-center gap-x2 t4-regular text-fg-neutral">

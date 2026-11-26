@@ -8,10 +8,12 @@ import { Moon, Wifi, Check, X, type LucideIcon } from "lucide-react";
 import { decideNap, type StaffNapView } from "@/actions/nap";
 import { decideNetworkRequest, type StaffNetworkRequestView } from "@/actions/network-requests";
 import { NETWORK_KIND_LABELS } from "@/lib/network-requests";
+import { useStickyState } from "@/hooks/use-sticky-state";
+import { matchesSearch } from "@/lib/utils";
 import type { NapStatus } from "@/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { EmptyState, LinkTabs, Section, StatusBadge, type Tone } from "@/components/backoffice/ui";
+import { EmptyState, LinkTabs, SearchField, Section, StatusBadge, Toolbar, type Tone } from "@/components/backoffice/ui";
 import { useConfirmDialog } from "@/components/suggestions/use-confirm-dialog";
 
 const STATUS_LABEL: Record<NapStatus, string> = {
@@ -120,6 +122,11 @@ export function ApprovalsBoard({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const { confirm, dialog } = useConfirmDialog();
+  // 쪽잠·네트워크 탭이 같은 검색어를 쓴다
+  const [query, setQuery] = useStickyState("approvals:query", "");
+  const searching = query.trim() !== "";
+  const shownNaps = naps.filter((n) => matchesSearch(query, n.student.name, n.student.grade));
+  const shownNetwork = networkRequests.filter((r) => matchesSearch(query, r.student.name, r.student.grade));
 
   const napPending = naps.filter((n) => n.status === "PENDING").length;
   const netPending = networkRequests.filter((r) => r.status === "PENDING").length;
@@ -170,12 +177,26 @@ export function ApprovalsBoard({
         ]}
       />
 
+      <Toolbar>
+        <SearchField
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onClear={() => setQuery("")}
+          placeholder="이름·학년 검색"
+          aria-label="학생 검색"
+        />
+      </Toolbar>
+
       {tab === "nap" ? (
         <Groups
-          rows={naps}
+          rows={shownNaps}
           icon={Moon}
-          emptyTitle="오늘 쪽잠 신청이 없어요"
-          emptyDescription="학생이 포털에서 쪽잠을 신청하면 여기에 모여요."
+          emptyTitle={searching && naps.length > 0 ? "검색 결과가 없어요" : "오늘 쪽잠 신청이 없어요"}
+          emptyDescription={
+            searching && naps.length > 0
+              ? "이름이나 학년을 다시 확인해 주세요."
+              : "학생이 포털에서 쪽잠을 신청하면 여기에 모여요."
+          }
           render={(n) => (
             <li key={n.id} className="flex flex-col gap-x3 px-x5 py-x4">
               <div className="flex flex-wrap items-center gap-x2">
@@ -214,10 +235,14 @@ export function ApprovalsBoard({
         />
       ) : (
         <Groups
-          rows={networkRequests}
+          rows={shownNetwork}
           icon={Wifi}
-          emptyTitle="네트워크 사용 신청이 없어요"
-          emptyDescription="학생이 포털에서 사이트·앱 사용을 신청하면 여기에 모여요."
+          emptyTitle={searching && networkRequests.length > 0 ? "검색 결과가 없어요" : "네트워크 사용 신청이 없어요"}
+          emptyDescription={
+            searching && networkRequests.length > 0
+              ? "이름이나 학년을 다시 확인해 주세요."
+              : "학생이 포털에서 사이트·앱 사용을 신청하면 여기에 모여요."
+          }
           render={(r) => (
             <li key={r.id} className="flex flex-col gap-x3 px-x5 py-x4 sm:flex-row sm:items-start">
               <div className="min-w-0 flex-1">

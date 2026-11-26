@@ -5,13 +5,14 @@
 // 조회한 달의 수납 + 달과 상관없이 처리가 남은 건(이전 달)이 내려온다.
 
 import { useState } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { useRouter } from "next/navigation";
 import { FileText } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { EmptyState, FilterChip, TableCard, Toolbar } from "@/components/backoffice/ui";
+import { EmptyState, FilterChip, SearchField, TableCard, Toolbar } from "@/components/backoffice/ui";
 import type { AdminCashReceiptRow } from "@/lib/tuition/admin-data";
 import { CASH_RECEIPT_PURPOSE_LABEL, PAYMENT_METHOD_LABEL, won } from "@/lib/tuition/format";
-import { cn } from "@/lib/utils";
+import { cn, matchesSearch } from "@/lib/utils";
 import { CashReceiptActions, CashReceiptStaleNotice } from "./cash-receipt-dialog";
 import { CashReceiptStatusBadge, DENSE_CELL, shortDate, StudentCell } from "./shared";
 
@@ -34,7 +35,8 @@ export function CashReceiptsTab({
   // 처리할 것이 있으면 그것부터 보여 준다. 사용자가 직접 고른 뒤에는 그 선택을 따른다
   const [picked, setPicked] = useState<Filter | null>(null);
   const filter: Filter = picked ?? (todoCount > 0 ? "TODO" : "ALL");
-  const shown = filter === "TODO" ? rows.filter((row) => row.todo) : rows;
+  const [query, setQuery] = useStickyState("tuition-cash-receipts:query", "");
+  const shown = rows.filter((row) => (filter === "ALL" || row.todo) && matchesSearch(query, row.student.name));
   const stale = shown.filter((row) => row.receipt?.stale);
 
   return (
@@ -53,15 +55,31 @@ export function CashReceiptsTab({
         <FilterChip selected={filter === "ALL"} count={rows.length} onClick={() => setPicked("ALL")}>
           전체
         </FilterChip>
+        <SearchField
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onClear={() => setQuery("")}
+          placeholder="학생 이름 검색"
+          aria-label="학생 이름 검색"
+          className="sm:w-56"
+        />
       </Toolbar>
 
       <TableCard>
         {shown.length === 0 ? (
           <EmptyState
             icon={FileText}
-            title={filter === "TODO" ? "처리할 현금영수증이 없어요" : "이 달에 현금·계좌이체로 받은 수납이 없어요"}
+            title={
+              query.trim()
+                ? "검색 결과가 없어요"
+                : filter === "TODO"
+                  ? "처리할 현금영수증이 없어요"
+                  : "이 달에 현금·계좌이체로 받은 수납이 없어요"
+            }
             description={
-              filter === "TODO"
+              query.trim()
+                ? "학생 이름을 다시 확인해 주세요."
+                : filter === "TODO"
                 ? "현금·계좌이체 수납은 현금영수증을 등록하면 이곳에서 발급 상태를 이어서 볼 수 있어요."
                 : "현금이나 계좌이체로 납부를 확인하면 여기에 나타나요."
             }

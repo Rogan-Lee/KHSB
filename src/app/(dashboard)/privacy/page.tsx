@@ -1,6 +1,17 @@
 import Link from "next/link";
 import { Bot, FileSignature, ScrollText } from "lucide-react";
-import { EmptyState, Notice, PageHeader, Section, StatCard, StatCards, StatusBadge } from "@/components/backoffice/ui";
+import {
+  EmptyState,
+  Notice,
+  PageHeader,
+  SearchField,
+  Section,
+  StatCard,
+  StatCards,
+  StatusBadge,
+  Toolbar,
+} from "@/components/backoffice/ui";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { prisma } from "@/lib/prisma";
 import { getRetentionPreview, RETENTION } from "@/lib/privacy/retention";
@@ -15,9 +26,28 @@ const monthAgo = () => new Date(Date.now() - 30 * 86_400_000);
 const ACTION_LABEL: Record<string, string> = { LOGIN: "로그인", VIEW: "조회", ACTION: "처리" };
 
 // 개인정보 보호 기록 — 동의 현황 · 직원 접속 기록 · 외부 AI 전송 이력 · 보유 기간이 지난 정보 (원장급)
-export default async function PrivacyRecordsPage() {
+export default async function PrivacyRecordsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   await requireDashboardSession(isFullAccess);
   const since = monthAgo();
+  const q = (await searchParams).q?.trim().slice(0, 50) ?? "";
+
+  // 기록엔 학생 FK 가 없고(studentId 스냅샷), AI 기록은 직원 이름도 없어서 이름 → id 를 먼저 찾는다
+  const nameMatch = { contains: q, mode: "insensitive" as const };
+  const [qStudents, qStaff] = q
+    ? await Promise.all([
+        prisma.student.findMany({ where: { name: nameMatch }, select: { id: true }, take: 200 }),
+        prisma.user.findMany({ where: { name: nameMatch }, select: { id: true }, take: 200 }),
+      ])
+    : [[], []];
+  const studentIds = { in: qStudents.map((s) => s.id) };
+  const accessWhere = q ? { OR: [{ actorName: nameMatch }, { studentId: studentIds }] } : undefined;
+  const aiWhere = q
+    ? { OR: [{ actorId: { in: qStaff.map((u) => u.id) } }, { studentId: studentIds }] }
+    : undefined;
 
   const [missing, activeCount, accessCount, access, aiCount, aiDropped, ai, retention] = await Promise.all([
     prisma.student.findMany({
@@ -27,10 +57,10 @@ export default async function PrivacyRecordsPage() {
     }),
     prisma.student.count({ where: { status: "ACTIVE" } }),
     prisma.personalDataAccessLog.count({ where: { createdAt: { gte: since } } }),
-    prisma.personalDataAccessLog.findMany({ orderBy: { createdAt: "desc" }, take: TAKE }),
+    prisma.personalDataAccessLog.findMany({ where: accessWhere, orderBy: { createdAt: "desc" }, take: TAKE }),
     prisma.aiTransferLog.count({ where: { createdAt: { gte: since } } }),
     prisma.aiTransferLog.aggregate({ where: { createdAt: { gte: since } }, _sum: { maskedNames: true, droppedSensitive: true } }),
-    prisma.aiTransferLog.findMany({ orderBy: { createdAt: "desc" }, take: TAKE }),
+    prisma.aiTransferLog.findMany({ where: aiWhere, orderBy: { createdAt: "desc" }, take: TAKE }),
     getRetentionPreview(),
   ]);
 
@@ -106,9 +136,26 @@ export default async function PrivacyRecordsPage() {
           )}
         </Section>
 
+        <Toolbar className="mb-0">
+          <form method="get" role="search" className="contents">
+            <SearchField
+              name="q"
+              defaultValue={q}
+              placeholder="직원·학생 이름 검색"
+              aria-label="접속·전송 기록 검색"
+              enterKeyHint="search"
+            />
+          </form>
+          {q && (
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/privacy">초기화</Link>
+            </Button>
+          )}
+        </Toolbar>
+
         <Section title="직원 접속 기록" description={`최근 ${TAKE}건 · 같은 화면은 10분에 한 번만 남아요 · ${RETENTION.logYears}년 보관`} flush className="overflow-hidden">
           {access.length === 0 ? (
-            <EmptyState icon={ScrollText} title="아직 남은 기록이 없어요" />
+            <EmptyState icon={ScrollText} title={q ? "검색 결과가 없어요" : "아직 남은 기록이 없어요"} />
           ) : (
             <Table>
               <TableHeader>
@@ -139,7 +186,7 @@ export default async function PrivacyRecordsPage() {
 
         <Section title="외부 AI 전송 이력" description={`최근 ${TAKE}건 · 보낸 글은 남기지 않고 얼마나 가려 보냈는지만 남겨요`} flush className="overflow-hidden">
           {ai.length === 0 ? (
-            <EmptyState icon={Bot} title="아직 보낸 기록이 없어요" />
+            <EmptyState icon={Bot} title={q ? "검색 결과가 없어요" : "아직 보낸 기록이 없어요"} />
           ) : (
             <Table>
               <TableHeader>

@@ -4,8 +4,10 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { approveAiJob, rejectAiJob } from "@/actions/report-ai-queue";
 import { ConfirmDialog } from "@/components/backoffice/confirm-dialog";
-import { StatusBadge } from "@/components/backoffice/ui";
+import { EmptyState, SearchField, StatusBadge, Toolbar } from "@/components/backoffice/ui";
 import { Button } from "@/components/ui/button";
+import { useStickyState } from "@/hooks/use-sticky-state";
+import { matchesSearch } from "@/lib/utils";
 import type { AiReviewRow } from "@/lib/report-ai-queue";
 
 /** AI 가 만든 글 확인 — 반영해야 학부모 리포트에 들어간다 */
@@ -13,6 +15,8 @@ export function AiReviewList({ rows }: { rows: AiReviewRow[] }) {
   const [pending, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [discard, setDiscard] = useState<AiReviewRow | null>(null);
+  const [query, setQuery] = useStickyState("ai-review:query", "");
+  const shown = rows.filter((row) => matchesSearch(query, row.studentName));
 
   const run = (row: AiReviewRow, action: typeof approveAiJob, done: string) => {
     setBusyId(row.jobId);
@@ -32,8 +36,18 @@ export function AiReviewList({ rows }: { rows: AiReviewRow[] }) {
 
   return (
     <>
+      <Toolbar className="mb-0 border-b border-stroke-neutral-muted px-x4 py-x3">
+        <SearchField
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onClear={() => setQuery("")}
+          placeholder="학생 이름 검색"
+          aria-label="검색"
+        />
+      </Toolbar>
+      {shown.length === 0 && <EmptyState compact title="검색 결과가 없어요" />}
       <ul className="flex flex-col divide-y divide-stroke-neutral-muted">
-        {rows.map((row) => (
+        {shown.map((row) => (
           <li key={row.jobId} className="flex flex-col gap-x3 px-x4 py-x4">
             <div className="flex flex-wrap items-center gap-x2">
               <span className="t5-bold text-fg-neutral">{row.studentName}</span>

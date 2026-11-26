@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Inbox, Loader2, RefreshCw, Send, SendHorizontal } from "lucide-react";
+import { Inbox, Loader2, RefreshCw, Search, Send, SendHorizontal } from "lucide-react";
 import {
   discardInstructionDraftAction,
   regenerateInstructionDraftAction,
@@ -12,8 +12,10 @@ import {
 } from "@/actions/student-instructions";
 import { checkCommunication } from "@/actions/communications";
 import type { InstructionInbox } from "@/lib/student-instructions";
+import { useStickyState } from "@/hooks/use-sticky-state";
+import { matchesSearch } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { EmptyState, Section, StatusBadge } from "@/components/backoffice/ui";
+import { EmptyState, SearchField, Section, StatusBadge, Toolbar } from "@/components/backoffice/ui";
 import {
   DirectInstructionForm,
   fmt,
@@ -33,12 +35,27 @@ export function InstructionBoard({
   inbox: InstructionInbox;
   students: InstructionStudentOption[];
 }) {
+  const [query, setQuery] = useStickyState("instructions:query", "");
+  const pendingMatch = (item: PendingRequest) => matchesSearch(query, item.student.name, item.content);
+  const shownPendingCount = inbox.pending.filter(pendingMatch).length;
+  const shownSent = inbox.sent.filter((item) => matchesSearch(query, item.student.name, item.content));
+
   return (
     <div className="flex flex-col gap-x8">
+      <Toolbar className="mb-0">
+        <SearchField
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onClear={() => setQuery("")}
+          placeholder="이름·내용 검색"
+          aria-label="학생 검색"
+        />
+      </Toolbar>
+
       <Section
         variant="plain"
         title="처리할 학부모 요청"
-        count={inbox.pending.length}
+        count={shownPendingCount}
         description="AI 초안을 고쳐 학생에게 보내요. 학생에게 시킬 일이 없으면 확인만 눌러요."
       >
         {inbox.pending.length === 0 ? (
@@ -51,11 +68,19 @@ export function InstructionBoard({
             />
           </div>
         ) : (
-          <ul className="flex flex-col gap-x3">
-            {inbox.pending.map((item) => (
-              <PendingCard key={item.id} item={item} />
-            ))}
-          </ul>
+          <>
+            {shownPendingCount === 0 && (
+              <div className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
+                <EmptyState compact icon={Search} title="검색 결과가 없어요" description="이름이나 내용을 다시 확인해 주세요." />
+              </div>
+            )}
+            {/* 고치던 지시 문장이 검색으로 지워지지 않게 안 맞는 카드는 숨기기만 한다 */}
+            <ul className="flex flex-col gap-x3">
+              {inbox.pending.map((item) => (
+                <PendingCard key={item.id} item={item} hidden={!pendingMatch(item)} />
+              ))}
+            </ul>
+          </>
         )}
       </Section>
 
@@ -63,12 +88,14 @@ export function InstructionBoard({
         <DirectInstructionForm students={students} />
       </Section>
 
-      <Section title="보낸 지시" count={inbox.sent.length} description="최근 100건이에요. 학생이 확인하면 시각이 남아요.">
+      <Section title="보낸 지시" count={shownSent.length} description="최근 100건이에요. 학생이 확인하면 시각이 남아요.">
         {inbox.sent.length === 0 ? (
           <EmptyState compact icon={SendHorizontal} title="아직 보낸 지시가 없어요" />
+        ) : shownSent.length === 0 ? (
+          <EmptyState compact icon={Search} title="검색 결과가 없어요" />
         ) : (
           <ul className="divide-y divide-stroke-neutral-muted">
-            {inbox.sent.map((item) => (
+            {shownSent.map((item) => (
               <SentInstruction key={item.id} item={item} showStudent />
             ))}
           </ul>
@@ -78,7 +105,7 @@ export function InstructionBoard({
   );
 }
 
-function PendingCard({ item }: { item: PendingRequest }) {
+function PendingCard({ item, hidden }: { item: PendingRequest; hidden?: boolean }) {
   const router = useRouter();
   const [content, setContent] = useState(item.draft?.content ?? "");
   // 다시 만들기·버리기 뒤 새로고침 전에 보내도 지운 초안 id 가 넘어가지 않게 따로 든다
@@ -130,7 +157,7 @@ function PendingCard({ item }: { item: PendingRequest }) {
   }
 
   return (
-    <li className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
+    <li hidden={hidden} className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
       <div className="px-x5 pt-x5">
         <div className="flex flex-wrap items-center gap-x1_5">
           <Link

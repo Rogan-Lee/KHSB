@@ -1,5 +1,6 @@
 "use client";
 
+import { DatePicker } from "@/components/ui/date-picker";
 import { useMemo, useState, useTransition } from "react";
 import { useStickyState } from "@/hooks/use-sticky-state";
 import { useRouter } from "next/navigation";
@@ -206,12 +207,10 @@ export function PhoneCheckBoard({
 
         {/* 도구 줄 — 스크롤해도 앱 헤더 아래에 붙어 있다 */}
         <Toolbar className="sticky top-14 z-10 mb-x3 bg-bg-layer-default py-x3">
-          <input
-            type="date"
+          <DatePicker
             value={date}
             aria-label="검사 날짜"
-            onChange={(e) => e.target.value && router.replace(`/phone-check?date=${e.target.value}`)}
-            className={cn(inputBaseClass, "h-10 w-auto tabular-nums")}
+            onChange={(d) => d && router.replace(`/phone-check?date=${d}`)}
           />
           <SearchField
             value={query}

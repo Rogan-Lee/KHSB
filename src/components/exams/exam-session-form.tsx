@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -129,12 +130,13 @@ export function ExamSessionForm({
           />
         </FormField>
         <FormField label="시험일" htmlFor="exam-date" required>
-          <Input
+          <DatePicker
             id="exam-date"
-            type="date"
-            value={examDate}
-            onChange={(e) => setExamDate(e.target.value)}
+            name="examDate"
+            value={examDate || null}
+            onChange={(d) => setExamDate(d ?? "")}
             required
+            className="w-full"
           />
         </FormField>
         <FormField label="시험 종류" htmlFor="exam-type">

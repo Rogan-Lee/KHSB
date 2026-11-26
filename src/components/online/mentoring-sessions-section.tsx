@@ -1,5 +1,6 @@
 "use client";
 
+import { DatePicker } from "@/components/ui/date-picker";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -20,7 +21,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input, inputBaseClass } from "@/components/ui/input";
+import { inputBaseClass } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -523,13 +524,12 @@ function NewSessionForm({
       </div>
       <div className="grid grid-cols-1 gap-x3 sm:grid-cols-3">
         <FormField label="날짜" htmlFor={`new-session-date-${studentId}`}>
-          <Input
+          <DatePicker
             id={`new-session-date-${studentId}`}
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
+            value={date || null}
+            onChange={(d) => setDate(d ?? "")}
             disabled={isPending}
-            className="tabular-nums"
+            className="w-full"
           />
         </FormField>
         <FormField label="시간 (KST)">

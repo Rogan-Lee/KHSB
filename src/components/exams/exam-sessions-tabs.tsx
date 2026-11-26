@@ -7,7 +7,9 @@ import { ClipboardList, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { EmptyState, TableCard } from "@/components/backoffice/ui";
+import { EmptyState, SearchField, TableCard, Toolbar } from "@/components/backoffice/ui";
+import { useStickyState } from "@/hooks/use-sticky-state";
+import { matchesSearch } from "@/lib/utils";
 import { ExamSessionRowActions } from "@/components/exams/exam-session-row-actions";
 import { ExamApplicationManager } from "@/components/exams/exam-application-manager";
 import type { ExamType } from "@/generated/prisma";
@@ -54,6 +56,7 @@ function TabCount({ children }: { children: React.ReactNode }) {
 export function ExamSessionsTabs({ sessions }: Props) {
   const router = useRouter();
   const [active, setActive] = useState<string>("OFFICIAL_MOCK");
+  const [query, setQuery] = useStickyState("exams:query", "");
 
   const grouped = useMemo(() => {
     const m: Record<ExamType, SessionRow[]> = {
@@ -62,9 +65,10 @@ export function ExamSessionsTabs({ sessions }: Props) {
       DUFF: [],
       SCHOOL_EXAM: [],
     };
-    for (const s of sessions) m[s.examType].push(s);
+    // 탭 옆 개수도 검색 결과 기준 — 다른 탭에 결과가 있는지 바로 보인다
+    for (const s of sessions) if (matchesSearch(query, s.title, s.room, `${s.room}룸`)) m[s.examType].push(s);
     return m;
-  }, [sessions]);
+  }, [sessions, query]);
 
   // 신청 관리 대상 = 학생 신청형(모의고사·학력평가). 내신은 학교 응시라 제외.
   const applicationSessions = useMemo(
@@ -98,8 +102,19 @@ export function ExamSessionsTabs({ sessions }: Props) {
         const hidePercentile = t.value === "SCHOOL_EXAM";
         return (
           <TabsContent key={t.value} value={t.value}>
+            <Toolbar>
+              <SearchField
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onClear={() => setQuery("")}
+                placeholder="시험명 · 룸 검색"
+                aria-label="시험 세션 검색"
+              />
+            </Toolbar>
             <TableCard>
-              {rows.length === 0 ? (
+              {rows.length === 0 && query ? (
+                <EmptyState icon={ClipboardList} title="검색 결과가 없어요" />
+              ) : rows.length === 0 ? (
                 <EmptyState
                   icon={ClipboardList}
                   title={`아직 ${t.label} 세션이 없어요`}

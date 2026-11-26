@@ -4,7 +4,7 @@ import { useState, useTransition, useEffect, useId } from "react";
 import { useStickyState } from "@/hooks/use-sticky-state";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, matchesSearch } from "@/lib/utils";
 import { useDraft } from "@/hooks/use-draft";
 import {
   Plus, Pencil, Trash2, AlertTriangle, ChevronDown, ChevronUp, History, CheckCircle2, ListTodo,
@@ -27,6 +27,7 @@ import {
   FormActions,
   FormField,
   PageHeader,
+  SearchField,
   Section,
   Segmented,
   Skeleton,
@@ -432,6 +433,7 @@ export function TodoManager({ initialTodos, initialHiddenCompleted = [], staffLi
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useStickyState("todos:showCompleted", true);
+  const [query, setQuery] = useStickyState("todos:query", "");
   const [historyTodo, setHistoryTodo] = useState<Todo | null>(null);
   // 대상 역할 필터 (전체 / 운영 / 멘토). localStorage 영속.
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("ALL");
@@ -455,7 +457,9 @@ export function TodoManager({ initialTodos, initialHiddenCompleted = [], staffLi
     if (!tr || tr === "ALL") return true; // legacy/ALL 행은 항상 표시
     return tr === roleFilter;
   }
-  const visibleTodos = todos.filter(matchesRole);
+  const visibleTodos = todos.filter((t) =>
+    matchesRole(t) && matchesSearch(query, t.title, t.content, t.assigneeName, t.authorName),
+  );
 
   const pending = visibleTodos.filter((t) => !t.isCompleted);
   const completed = visibleTodos.filter((t) => t.isCompleted);
@@ -602,6 +606,13 @@ export function TodoManager({ initialTodos, initialHiddenCompleted = [], staffLi
           <div className="flex flex-col gap-x4">
             {/* 대상 역할 필터 */}
             <Toolbar className="mb-0">
+              <SearchField
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onClear={() => setQuery("")}
+                placeholder="제목 · 내용 · 담당자 · 작성자 검색"
+                aria-label="검색"
+              />
               <span className="mr-x1 t3-medium text-fg-neutral-subtle">대상</span>
               {ROLE_FILTERS.map((r) => (
                 <FilterChip key={r.value} selected={roleFilter === r.value} onClick={() => changeRoleFilter(r.value)}>
@@ -612,7 +623,9 @@ export function TodoManager({ initialTodos, initialHiddenCompleted = [], staffLi
 
             {/* 진행 중 (미완료) 목록 */}
             <Section title="진행 중" count={pending.length} flush>
-              {pending.length === 0 ? (
+              {pending.length === 0 && query.trim() ? (
+                <EmptyState icon={ListTodo} title="검색 결과가 없어요" className="border-t border-stroke-neutral-muted" />
+              ) : pending.length === 0 ? (
                 <EmptyState
                   icon={todos.length === 0 && hiddenCompletedTotal === 0 ? ListTodo : CheckCircle2}
                   title={todos.length === 0 && hiddenCompletedTotal === 0 ? "아직 등록된 할 일이 없어요" : "모든 할 일을 끝냈어요"}

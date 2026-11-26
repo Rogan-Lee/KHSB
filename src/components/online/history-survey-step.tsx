@@ -27,6 +27,7 @@ import { Badge, Button, Chip, Notice, Segmented } from "@/components/portal/ui";
 import { Chip as SeedChip } from "seed-design/ui/chip";
 import { ProgressCircle } from "seed-design/ui/progress-circle";
 import { TextField, TextFieldInput } from "seed-design/ui/text-field";
+import { openNativePicker } from "@/components/ui/input";
 
 const AUTOSAVE_DELAY_MS = 800;
 
@@ -205,7 +206,7 @@ export function HistorySurveyStep({
                         disabled={isSubmitted}
                         className={ON_FILL}
                       >
-                        <TextFieldInput type="month" className={MONTH_INPUT} />
+                        <TextFieldInput type="month" onClick={openNativePicker} className={MONTH_INPUT} />
                       </TextField>
                     </div>
                     <div className="min-w-0">
@@ -216,7 +217,7 @@ export function HistorySurveyStep({
                         disabled={isSubmitted}
                         className={ON_FILL}
                       >
-                        <TextFieldInput type="month" className={MONTH_INPUT} />
+                        <TextFieldInput type="month" onClick={openNativePicker} className={MONTH_INPUT} />
                       </TextField>
                     </div>
                   </div>
