@@ -4,7 +4,7 @@ import { isStaff } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { markSeen } from "@/lib/sidebar-badges";
 import { normalizeDigits } from "@/lib/token-auth";
-import { WaitlistAdmin } from "@/components/waitlist/waitlist-admin";
+import { ShareApplyButton, WaitlistAdmin } from "@/components/waitlist/waitlist-admin";
 import { PageHeader } from "@/components/backoffice/ui";
 
 export const dynamic = "force-dynamic";
@@ -14,15 +14,15 @@ export default async function WaitlistAdminPage() {
   if (!session?.user) redirect("/sign-in");
   if (!isStaff(session.user.role)) redirect("/");
 
-  const [, branches, entries, grouped, students] = await Promise.all([
-    // 사이드바 "새 신청" 숫자를 이 직원 기준으로 비운다 — 목록 조회와 같이 돌려도 된다
+  const [seenSince, branches, entries, grouped, students, prospectConsultations] = await Promise.all([
+    // 사이드바 "새 신청" 숫자를 이 직원 기준으로 비운다. 직전에 본 시각은 목록의 "새" 표시 기준
     markSeen("waitlist", session.user.id),
     prisma.branch.findMany({
       orderBy: { sortOrder: "asc" },
       include: { programs: { orderBy: { sortOrder: "asc" } } },
     }),
     prisma.waitlist.findMany({
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
       include: { branch: { select: { name: true } }, program: { select: { name: true } } },
     }),
     prisma.waitlist.groupBy({
@@ -34,7 +34,22 @@ export default async function WaitlistAdminPage() {
       select: { id: true, name: true, grade: true, phone: true, parentPhone: true },
       orderBy: { name: "asc" },
     }),
+    // 신규 상담(예비 원생) 면담 — 대기자와 이어진 칸이 없어 전화번호로 맞춘다
+    prisma.directorConsultation.findMany({
+      where: { studentId: null, prospectPhone: { not: null } },
+      select: { id: true, prospectPhone: true, scheduledAt: true, actualDate: true, status: true },
+      orderBy: { createdAt: "asc" },
+    }),
   ]);
+
+  const consultationsByPhone = new Map<string, { id: string; at: string | null; status: string }[]>();
+  for (const c of prospectConsultations) {
+    const d = normalizeDigits(c.prospectPhone ?? "");
+    if (!d) continue;
+    const list = consultationsByPhone.get(d) ?? [];
+    list.push({ id: c.id, at: (c.actualDate ?? c.scheduledAt)?.toISOString() ?? null, status: c.status });
+    consultationsByPhone.set(d, list);
+  }
 
   // 전화번호(학생 본인+학부모) → 학생 매칭 맵
   const phoneToStudent = new Map<string, { id: string; name: string; grade: string }>();
@@ -67,10 +82,13 @@ export default async function WaitlistAdminPage() {
     <>
       <PageHeader
         title="대기자 관리"
-        description="공개 신청 링크(/apply)로 들어온 대기자를 관리하고, 지점·프로그램·정원을 설정해요."
+        description="공개 신청 링크(/apply)로 들어온 문의·대기 신청을 관리하고, 지점·프로그램·정원을 설정해요."
+        actions={<ShareApplyButton />}
       />
 
       <WaitlistAdmin
+        seenSince={seenSince.toISOString()}
+        now={new Date().toISOString()}
         branches={branches.map((b) => ({
           id: b.id,
           name: b.name,
@@ -94,6 +112,8 @@ export default async function WaitlistAdminPage() {
         entries={entries.map((e) => ({
           id: e.id,
           name: e.name,
+          school: e.school,
+          grade: e.grade,
           phone: e.phone,
           parentPhone: e.parentPhone,
           studentPhone: e.studentPhone,
@@ -122,6 +142,12 @@ export default async function WaitlistAdminPage() {
           guideToken: e.guideToken,
           guideContent: e.guideContent,
           createdAt: e.createdAt.toISOString(),
+          invitedAt: e.invitedAt?.toISOString() ?? null,
+          enrolledAt: e.enrolledAt?.toISOString() ?? null,
+          cancelledAt: e.cancelledAt?.toISOString() ?? null,
+          consultations: [
+            ...new Set([e.parentPhone, e.studentPhone, e.phone].map((p) => normalizeDigits(p ?? "")).filter(Boolean)),
+          ].flatMap((p) => consultationsByPhone.get(p) ?? []),
         }))}
       />
     </>

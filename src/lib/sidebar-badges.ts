@@ -25,11 +25,16 @@ const BADGE_SINCE = new Date("2026-11-17T00:00:00+09:00");
 type SeenArea = "waitlist" | "moderation";
 const seenKey = (area: SeenArea, userId: string) => `${area}.seenAt:${userId}`;
 
-/** 대기자 관리·신고 관리 화면을 열면 호출 — 그때까지 들어온 건은 이 직원에게 더 이상 새 건이 아니다 */
-export async function markSeen(area: SeenArea, userId: string) {
+/**
+ * 대기자 관리·신고 관리 화면을 열면 호출 — 그때까지 들어온 건은 이 직원에게 더 이상 새 건이 아니다.
+ * 직전에 본 시각을 돌려준다(화면이 이번 방문의 "새" 표시 기준으로 쓴다).
+ */
+export async function markSeen(area: SeenArea, userId: string): Promise<Date> {
+  const previous = await seenSince(area, userId);
   const key = seenKey(area, userId);
   const value = new Date().toISOString();
   await prisma.appSetting.upsert({ where: { key }, create: { key, value }, update: { value } });
+  return previous;
 }
 
 async function seenSince(area: SeenArea, userId: string) {
