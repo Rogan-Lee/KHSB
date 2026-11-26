@@ -8,7 +8,7 @@ import {
 } from "@/lib/mobile-auth";
 import { bulkStaffPhoneSubmitted } from "@/lib/mobile-staff-ops-phone";
 
-// body { date, studentIds } — 모두 '제출'로 기록
+// body { date, period?, studentIds, exemptIds? } — 기록 없는 학생만 '제출'(exemptIds 는 '면제')로
 export async function POST(request: NextRequest) {
   try {
     const [user, body] = await Promise.all([
