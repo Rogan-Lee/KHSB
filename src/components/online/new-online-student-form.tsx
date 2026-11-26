@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Loader2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { createOnlineStudent } from "@/actions/online/students";
 import { Combobox } from "@/components/ui/combobox";
 import { FormActions, FormField } from "@/components/backoffice/ui";
@@ -119,12 +120,11 @@ export function NewOnlineStudentForm({
             />
           </FormField>
           <FormField label="온라인 관리 시작일" required htmlFor="nos-start">
-            <Input
+            <DatePicker
               id="nos-start"
-              type="date"
-              className="tabular-nums"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full"
+              value={startDate || null}
+              onChange={(d) => setStartDate(d ?? "")}
             />
           </FormField>
         </div>

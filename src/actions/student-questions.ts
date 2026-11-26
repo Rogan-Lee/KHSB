@@ -295,18 +295,35 @@ export async function markStudentQuestionRead(params: {
 type StaffInboxFilter = "open" | "mine" | "all";
 
 /** 공용 받은함 — 모든 운영진이 본다. */
-export async function listStaffQuestionInbox(params?: { filter?: StaffInboxFilter }) {
+export async function listStaffQuestionInbox(params?: { filter?: StaffInboxFilter; q?: string }) {
   const session = await auth();
   requireStaff(session?.user?.role);
   const me = session!.user.id;
   const filter: StaffInboxFilter = params?.filter ?? "open";
+  const q = params?.q?.trim().slice(0, 50);
 
-  const where =
+  const base =
     filter === "open"
       ? { status: "OPEN" as StudentQuestionStatus }
       : filter === "mine"
         ? { claimedById: me }
         : { status: { not: "ARCHIVED" as StudentQuestionStatus } };
+  const contains = { contains: q, mode: "insensitive" as const };
+  const where = q
+    ? {
+        AND: [
+          base,
+          {
+            OR: [
+              { title: contains },
+              { subject: contains },
+              { student: { name: contains } },
+              { student: { school: contains } },
+            ],
+          },
+        ],
+      }
+    : base;
 
   const questions = await prisma.studentQuestion.findMany({
     where,

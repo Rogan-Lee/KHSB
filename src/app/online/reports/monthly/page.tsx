@@ -16,10 +16,13 @@ import { ReportStatusBadge } from "@/components/online/report-status";
 import {
   EmptyState,
   PageHeader,
+  SearchField,
   StatCard,
   StatCards,
   TableCard,
 } from "@/components/backoffice/ui";
+import { Button } from "@/components/ui/button";
+import { matchesSearch } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -32,12 +35,14 @@ import {
 export default async function MonthlyReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; q?: string }>;
 }) {
   const user = await getUser();
   if (!isFullAccess(user?.role)) redirect("/online");
 
-  const { month } = await searchParams;
+  const { month, q: rawQ } = await searchParams;
+  const q = rawQ?.trim().slice(0, 50) ?? "";
+  const qParam = q ? `&q=${encodeURIComponent(q)}` : "";
   const yearMonth = month ?? shiftMonth(currentYearMonthKST(), -1); // 기본: 지난 달
 
   const [y, m] = yearMonth.split("-").map(Number);
@@ -67,6 +72,11 @@ export default async function MonthlyReportsPage({
       },
     }),
   ]);
+
+  // ponytail: 학생 수가 적고 take 제한이 없어 메모리에서 거름 — "대상 학생" 지표는 전체 기준 유지
+  const rows = q
+    ? students.filter((s) => matchesSearch(q, s.name, s.assignedMentor?.name))
+    : students;
 
   const reportByStudent = new Map(existingReports.map((r) => [r.studentId, r]));
   const createdCount = existingReports.length;
@@ -99,7 +109,7 @@ export default async function MonthlyReportsPage({
         <div className="flex flex-wrap items-center gap-x3">
           <div className="inline-flex items-center gap-x0_5 rounded-full bg-bg-neutral-weak p-x0_5">
             <Link
-              href={`/online/reports/monthly?month=${shiftMonth(yearMonth, -1)}`}
+              href={`/online/reports/monthly?month=${shiftMonth(yearMonth, -1)}${qParam}`}
               aria-label="이전 달"
               title="이전 달"
               className="grid size-x8 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-layer-default hover:text-fg-neutral"
@@ -110,7 +120,7 @@ export default async function MonthlyReportsPage({
               {formatYearMonth(yearMonth)}
             </span>
             <Link
-              href={`/online/reports/monthly?month=${shiftMonth(yearMonth, 1)}`}
+              href={`/online/reports/monthly?month=${shiftMonth(yearMonth, 1)}${qParam}`}
               aria-label="다음 달"
               title="다음 달"
               className="grid size-x8 place-items-center rounded-full text-fg-neutral-muted transition-colors hover:bg-bg-layer-default hover:text-fg-neutral"
@@ -118,6 +128,21 @@ export default async function MonthlyReportsPage({
               <ChevronRight className="size-4" />
             </Link>
           </div>
+          <form method="get" role="search" className="contents">
+            {month && <input type="hidden" name="month" value={month} />}
+            <SearchField
+              name="q"
+              defaultValue={q}
+              placeholder="학생·멘토 이름 검색"
+              aria-label="학생 검색"
+              enterKeyHint="search"
+            />
+          </form>
+          {q && (
+            <Button asChild variant="ghost" size="sm">
+              <Link href={`/online/reports/monthly${month ? `?month=${month}` : ""}`}>초기화</Link>
+            </Button>
+          )}
         </div>
 
         <StatCards cols={4}>
@@ -149,6 +174,8 @@ export default async function MonthlyReportsPage({
               title="온라인 관리 학생이 없어요"
               description="학생을 온라인 관리로 등록하면 월간 보고서 대상이 돼요."
             />
+          ) : rows.length === 0 ? (
+            <EmptyState title="검색 결과가 없어요" description="다른 이름으로 찾아보세요." />
           ) : (
             <Table>
               <TableHeader>
@@ -164,7 +191,7 @@ export default async function MonthlyReportsPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {students.map((s) => {
+                {rows.map((s) => {
                   const report = reportByStudent.get(s.id);
                   const unread = report?._count?.feedbacks ?? 0;
                   return (

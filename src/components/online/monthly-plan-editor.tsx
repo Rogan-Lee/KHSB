@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Eye, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { FormActions, FormField, Notice, Section } from "@/components/backoffice/ui";
 import {
@@ -163,12 +164,11 @@ export function MonthlyPlanEditor({
 
           {canEdit && (
             <div className="flex flex-col gap-x2 sm:flex-row sm:items-center">
-              <Input
-                type="date"
+              <DatePicker
                 aria-label="마일스톤 날짜"
-                value={newMilestoneDate}
-                onChange={(e) => setNewMilestoneDate(e.target.value)}
-                className="tabular-nums sm:w-44"
+                value={newMilestoneDate || null}
+                onChange={(d) => setNewMilestoneDate(d ?? "")}
+                className="w-full sm:w-44"
                 min={`${initialYearMonth}-01`}
                 max={`${initialYearMonth}-31`}
               />

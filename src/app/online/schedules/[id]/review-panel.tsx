@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
@@ -278,13 +278,12 @@ export function ScheduleReviewPanel(props: {
                   htmlFor="schedule-eff-date"
                   hint="학부모 전송에는 꼭 필요해요. 우선 반영은 비워 두면 바로 반영돼요."
                 >
-                  <Input
+                  <DatePicker
                     id="schedule-eff-date"
-                    type="date"
                     min={todayKSTStr()}
-                    value={effDate}
-                    onChange={(e) => setEffDate(e.target.value)}
-                    className="tabular-nums"
+                    value={effDate || null}
+                    onChange={(d) => setEffDate(d ?? "")}
+                    className="w-full"
                   />
                 </FormField>
                 <div className="flex flex-col gap-x2">

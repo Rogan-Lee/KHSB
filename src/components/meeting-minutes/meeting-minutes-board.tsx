@@ -2,7 +2,8 @@
 
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { formatDate } from "@/lib/utils";
+import { formatDate, matchesSearch } from "@/lib/utils";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { useDraft } from "@/hooks/use-draft";
 import { type MeetingTeam, createMeetingMinutes, updateMeetingMinutes, deleteMeetingMinutes, markMeetingMinutesRead } from "@/actions/meeting-minutes";
 import { Plus, Pencil, Trash2, CheckCheck, ChevronDown, X, Lock, NotebookPen } from "lucide-react";
@@ -27,9 +28,11 @@ import {
   FormActions,
   FormField,
   PageHeader,
+  SearchField,
   Section,
   Segmented,
   StatusBadge,
+  Toolbar,
 } from "@/components/backoffice/ui";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -473,7 +476,9 @@ function TeamPanel({
   isPending: boolean;
 }) {
   const uid = useId();
-  const grouped = groupByMonth(list);
+  const [query, setQuery] = useStickyState(`meeting-minutes:${team}:query`, "");
+  const shown = list.filter((m) => matchesSearch(query, m.title, m.content, ...m.attendees));
+  const grouped = groupByMonth(shown);
   const monthKeys = Array.from(grouped.keys()).sort((a, b) => b.localeCompare(a));
   // 가장 최근 달만 기본 열림 — 사용자가 접거나 편 달만 기억한다
   const [toggled, setToggled] = useState<Map<string, boolean>>(() => new Map());
@@ -509,6 +514,16 @@ function TeamPanel({
 
   return (
     <div className="flex flex-col gap-x3">
+      <Toolbar className="mb-0">
+        <SearchField
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onClear={() => setQuery("")}
+          placeholder="제목 · 내용 · 참석자 검색"
+          aria-label="검색"
+        />
+      </Toolbar>
+
       {/* 미확인 안내 */}
       {unreadTotal > 0 && (
         <p className="flex items-center gap-x2 t4-medium text-fg-neutral-muted">
@@ -517,6 +532,12 @@ function TeamPanel({
             확인하지 않은 회의록이 <span className="t4-bold text-fg-brand tabular-nums">{unreadTotal}건</span> 있어요
           </span>
         </p>
+      )}
+
+      {shown.length === 0 && (
+        <Section>
+          <EmptyState icon={NotebookPen} title="검색 결과가 없어요" />
+        </Section>
       )}
 
       {monthKeys.map((key) => {

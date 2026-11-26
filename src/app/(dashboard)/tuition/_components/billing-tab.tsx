@@ -8,14 +8,15 @@
 //  · 앞으로 한 달: 그 뒤 발행 일정 (읽기 전용).
 
 import { useState, useTransition } from "react";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { BellRing, CalendarCheck, CalendarClock, ChevronDown, FilePlus2 } from "lucide-react";
+import { BellRing, CalendarCheck, CalendarClock, ChevronDown, FilePlus2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { EmptyState, Notice, Section, StatusBadge, TableCard, Toolbar, type Tone } from "@/components/backoffice/ui";
+import { EmptyState, Notice, SearchField, Section, StatusBadge, TableCard, Toolbar, type Tone } from "@/components/backoffice/ui";
 import { ConfirmDialog } from "@/components/backoffice/confirm-dialog";
 import {
   issueTuitionInvoices,
@@ -27,7 +28,7 @@ import type { AdminBillingTarget, AdminInvoiceRow, BillingTargetReason } from "@
 import { addMonthsClamped, dateKey, DUNNING_INTERVAL_DAYS, parseDateKey } from "@/lib/tuition/calc";
 import { dotDate, won } from "@/lib/tuition/format";
 import { SCHEDULE_BLOCKER_LABEL, type ScheduleBlocker } from "@/lib/tuition/schedule";
-import { cn } from "@/lib/utils";
+import { cn, matchesSearch } from "@/lib/utils";
 import {
   defaultIssueDraft,
   evaluateExtraRows,
@@ -136,11 +137,13 @@ export function BillingTab({
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [extraRows, setExtraRows] = useState<ExtraRowDraft[]>([]);
   const [parentMessage, setParentMessage] = useState("");
+  const [query, setQuery] = useStickyState("tuition-billing:query", "");
 
   const extras = evaluateExtraRows(extraRows);
   const extraItems = extras.ok ? extras.items : [];
 
-  const rows = targets.map((target) => {
+  // 검색에 걸린 줄만 고르기·합계·발행 대상이 된다 — 안 보이는 학생은 발행하지 않는다
+  const rows = targets.filter((target) => matchesSearch(query, target.student.name, target.student.seat)).map((target) => {
     const draft =
       drafts[target.student.id] ??
       defaultIssueDraft({
@@ -275,7 +278,7 @@ export function BillingTab({
       <Section
         variant="plain"
         title="지금 처리할 청구"
-        count={targets.length}
+        count={rows.length}
         description={`발행일이 다가왔거나(이용 시작 ${leadDays}일 전부터) 청구 시작일을 정해야 하는 학생이에요.`}
       >
       {automation}
@@ -290,6 +293,14 @@ export function BillingTab({
       ) : (
       <div>
       <Toolbar className="gap-x3">
+        <SearchField
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onClear={() => setQuery("")}
+          placeholder="학생 이름·좌석 검색"
+          aria-label="학생 이름·좌석 검색"
+          className="sm:w-56"
+        />
         <label className="flex cursor-pointer items-center gap-x2 t4-medium text-fg-neutral">
           <Checkbox checked={notify} onCheckedChange={(checked) => setNotify(checked === true)} disabled={pending} />
           발행하면서 학부모 앱으로 청구 안내 보내기
@@ -379,6 +390,9 @@ export function BillingTab({
       )}
 
       <TableCard>
+        {rows.length === 0 ? (
+          <EmptyState icon={Search} title="검색 결과가 없어요" description="학생 이름이나 좌석을 다시 확인해 주세요." />
+        ) : (
         <Table>
           <TableHeader>
             <TableRow>
@@ -534,6 +548,7 @@ export function BillingTab({
             })}
           </TableBody>
         </Table>
+        )}
       </TableCard>
       <p className="mt-x2 t3-regular text-fg-neutral-subtle">
         등록 기준은 매월 1일~말일이에요. 달 중간에 입실하면 그달 말일까지 일할로, 15일 이후 입실이면 다음 달까지 한

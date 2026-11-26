@@ -8,6 +8,7 @@ import { EmptyState, StatusBadge } from "@/components/backoffice/ui";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -93,13 +94,12 @@ export function ConsentPanel({
       <div className="grid grid-cols-1 gap-x4 sm:grid-cols-2">
         <div className="flex flex-col gap-x2">
           <Label htmlFor="consent-date">서명한 날</Label>
-          <Input
+          <DatePicker
             id="consent-date"
-            type="date"
             max={today}
-            value={agreedOn}
-            onChange={(e) => setAgreedOn(e.target.value)}
-            className="h-11 t5-regular"
+            value={agreedOn || null}
+            onChange={(d) => setAgreedOn(d ?? "")}
+            className="h-11 w-full t5-regular"
           />
         </div>
         <div className="flex flex-col gap-x2">

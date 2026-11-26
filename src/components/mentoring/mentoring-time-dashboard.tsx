@@ -20,8 +20,9 @@ import {
 } from "@/components/ui/table";
 import { SortableHeader } from "@/components/ui/sortable-header";
 import { useSortableTable } from "@/hooks/use-sortable-table";
-import { EmptyState, StatCard, StatCards, StatusBadge, TableCard, Toolbar } from "@/components/backoffice/ui";
-import { cn } from "@/lib/utils";
+import { EmptyState, SearchField, StatCard, StatCards, StatusBadge, TableCard, Toolbar } from "@/components/backoffice/ui";
+import { useStickyState } from "@/hooks/use-sticky-state";
+import { cn, matchesSearch } from "@/lib/utils";
 import { TH_CLASS } from "./mentoring-status";
 
 // ponytail: 15분 하드코딩. 시설별 설정이 필요해지면 상수를 서버 설정으로 옮김.
@@ -59,6 +60,7 @@ export function durationMinutes(start: string | null, end: string | null): numbe
 export function MentoringTimeDashboard({ rows, filters }: { rows: MentoringTimeRow[]; filters?: ReactNode }) {
   const router = useRouter();
   const [mentorId, setMentorId] = useState("all");
+  const [query, setQuery] = useStickyState("mentoring-time:query", "");
 
   const mentors = useMemo(() => {
     const map = new Map<string, string>();
@@ -67,8 +69,8 @@ export function MentoringTimeDashboard({ rows, filters }: { rows: MentoringTimeR
   }, [rows]);
 
   const filtered = useMemo(
-    () => (mentorId === "all" ? rows : rows.filter((r) => r.mentorId === mentorId)),
-    [rows, mentorId]
+    () => rows.filter((r) => (mentorId === "all" || r.mentorId === mentorId) && matchesSearch(query, r.studentName)),
+    [rows, mentorId, query]
   );
 
   // 진행 시간 계산 결과를 붙여둠
@@ -113,6 +115,13 @@ export function MentoringTimeDashboard({ rows, filters }: { rows: MentoringTimeR
           </SelectContent>
         </Select>
         {filters}
+        <SearchField
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onClear={() => setQuery("")}
+          placeholder="학생 이름 검색"
+          aria-label="학생 검색"
+        />
       </Toolbar>
 
       {/* 요약 스탯 */}
@@ -157,11 +166,15 @@ export function MentoringTimeDashboard({ rows, filters }: { rows: MentoringTimeR
             {sorted.length === 0 && (
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={showMentorCol ? 6 : 5} className="p-0">
-                  <EmptyState
-                    icon={Timer}
-                    title="기록된 멘토링이 없어요"
-                    description="기간이나 멘토를 바꿔 보세요"
-                  />
+                  {query ? (
+                    <EmptyState icon={Timer} title="검색 결과가 없어요" />
+                  ) : (
+                    <EmptyState
+                      icon={Timer}
+                      title="기록된 멘토링이 없어요"
+                      description="기간이나 멘토를 바꿔 보세요"
+                    />
+                  )}
                 </TableCell>
               </TableRow>
             )}

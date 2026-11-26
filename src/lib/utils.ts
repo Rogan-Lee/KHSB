@@ -34,6 +34,13 @@ export function cn(...inputs: ClassValue[]) {
 
 const KST = { timeZone: "Asia/Seoul" } as const;
 
+/** 목록 검색 — 띄어쓰기·대소문자 무시하고 필드 중 하나라도 검색어를 포함하면 true. 빈 검색어는 전부 통과 */
+export function matchesSearch(query: string, ...fields: (string | number | null | undefined)[]): boolean {
+  const q = query.replace(/\s+/g, "").toLowerCase();
+  if (!q) return true;
+  return fields.some((f) => f != null && String(f).replace(/\s+/g, "").toLowerCase().includes(q));
+}
+
 export function formatDate(date: Date | string) {
   return new Date(date).toLocaleDateString("ko-KR", {
     year: "numeric",

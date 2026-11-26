@@ -25,12 +25,13 @@ import {
   EmptyState,
   FilterChip,
   FormActions,
+  SearchField,
   Segmented,
   StatusBadge,
   Toolbar,
   type Tone,
 } from "@/components/backoffice/ui";
-import { cn } from "@/lib/utils";
+import { cn, matchesSearch } from "@/lib/utils";
 import { useConfirmDialog } from "./use-confirm-dialog";
 
 // 상태 배지 — SEED 역할색 (lib/suggestions 의 STATUS_BADGE 는 학생 포털 등 다른 화면용으로 남겨 둔다)
@@ -61,6 +62,7 @@ export function StudentSuggestionBoard({
 }) {
   const [statusFilter, setStatusFilter] = useStickyState<SuggestionStatus | "ALL">("suggestions:status", "ALL");
   const [categoryFilter, setCategoryFilter] = useStickyState<SuggestionCategory | "ALL">("suggestions:category", "ALL");
+  const [query, setQuery] = useStickyState("suggestions:query", "");
   const { confirm, dialog } = useConfirmDialog();
 
   const filtered = useMemo(
@@ -68,9 +70,10 @@ export function StudentSuggestionBoard({
       initial.filter(
         (s) =>
           (statusFilter === "ALL" || s.status === statusFilter) &&
-          (categoryFilter === "ALL" || s.category === categoryFilter)
+          (categoryFilter === "ALL" || s.category === categoryFilter) &&
+          matchesSearch(query, s.studentName, s.title, s.content)
       ),
-    [initial, statusFilter, categoryFilter]
+    [initial, statusFilter, categoryFilter, query]
   );
 
   // 필터 칩 옆 개수 — 다른 축 필터를 반영한 건수
@@ -105,14 +108,33 @@ export function StudentSuggestionBoard({
             </FilterChip>
           ))}
         </div>
+        <SearchField
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onClear={() => setQuery("")}
+          placeholder="이름·제목·내용 검색"
+          aria-label="건의사항 검색"
+        />
       </Toolbar>
 
       {filtered.length === 0 ? (
         <div className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
           <EmptyState
             icon={MessageSquarePlus}
-            title={initial.length === 0 ? "아직 들어온 건의사항이 없어요" : "조건에 맞는 건의사항이 없어요"}
-            description={initial.length === 0 ? "학생이 포털에서 건의를 올리면 여기에 모여요." : "위의 상태·분류 필터를 바꿔 보세요."}
+            title={
+              initial.length === 0
+                ? "아직 들어온 건의사항이 없어요"
+                : query.trim()
+                  ? "검색 결과가 없어요"
+                  : "조건에 맞는 건의사항이 없어요"
+            }
+            description={
+              initial.length === 0
+                ? "학생이 포털에서 건의를 올리면 여기에 모여요."
+                : query.trim()
+                  ? "검색어나 위의 상태·분류 필터를 바꿔 보세요."
+                  : "위의 상태·분류 필터를 바꿔 보세요."
+            }
           />
         </div>
       ) : (

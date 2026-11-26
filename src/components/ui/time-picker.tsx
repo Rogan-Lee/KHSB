@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { inputBaseClass } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { cn } from "@/lib/utils";
 import { parseTimeText, clampToMinHour } from "@/lib/time-input";
 
@@ -261,13 +262,7 @@ export function DateTimePickerInput({ name, defaultValue, value, onChange, class
   return (
     <div className={cn("flex gap-x2", className)}>
       {name && <input type="hidden" name={name} value={combined} />}
-      <input
-        type="date"
-        value={date}
-        onChange={(e) => update(e.target.value, time)}
-        aria-label="날짜"
-        className={cn(inputBaseClass, "h-10 min-w-0 flex-1 border-0 tabular-nums")}
-      />
+      <DatePicker value={date || null} onChange={(d) => update(d ?? "", time)} aria-label="날짜" className="min-w-0 flex-1" />
       <TimePickerInput value={time} onChange={(t) => update(date, t)} />
     </div>
   );

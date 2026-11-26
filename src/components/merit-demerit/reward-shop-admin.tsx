@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { EmptyState, FormField, Section, StatusBadge, type Tone } from "@/components/backoffice/ui";
+import { EmptyState, FormField, SearchField, Section, StatusBadge, type Tone } from "@/components/backoffice/ui";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { Check, X, Package, Plus, Pencil, Trash2, Gift, Inbox } from "lucide-react";
 import {
   decideRedemption,
@@ -15,7 +16,7 @@ import {
   deleteRewardItem,
 } from "@/actions/rewards";
 import { pointsToKrw } from "@/lib/points";
-import { cn } from "@/lib/utils";
+import { cn, matchesSearch } from "@/lib/utils";
 import type { RedemptionStatus } from "@/generated/prisma/enums";
 import { useConfirmDialog } from "@/components/suggestions/use-confirm-dialog";
 
@@ -75,6 +76,8 @@ export function RewardShopAdmin({
   const router = useRouter();
   const [busy, startTransition] = useTransition();
   const { confirm, prompt, dialog } = useConfirmDialog();
+  const [query, setQuery] = useStickyState("reward-shop:query", "");
+  const shown = redemptions.filter((r) => matchesSearch(query, r.studentName, r.itemName));
 
   function run(fn: () => Promise<unknown>, ok: string) {
     startTransition(async () => {
@@ -102,7 +105,7 @@ export function RewardShopAdmin({
     run(() => decideRedemption(r.id, "reject", reason || undefined), "거절했습니다");
   }
 
-  const countOf = (s: RedemptionStatus) => redemptions.filter((r) => r.status === s).length;
+  const countOf = (s: RedemptionStatus) => shown.filter((r) => r.status === s).length;
 
   function renderRow(r: AdminRedemptionRow) {
     const meta = STATUS_META[r.status];
@@ -163,7 +166,7 @@ export function RewardShopAdmin({
         flush
       >
         <Tabs defaultValue="PENDING">
-          <div className="px-x5 pb-x3">
+          <div className="flex flex-wrap items-center gap-x2 px-x5 pb-x3">
             <TabsList variant="segment">
               {STATUS_TABS.map((s) => (
                 <TabsTrigger key={s} value={s}>
@@ -172,13 +175,20 @@ export function RewardShopAdmin({
                 </TabsTrigger>
               ))}
             </TabsList>
+            <SearchField
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onClear={() => setQuery("")}
+              placeholder="학생 · 상품 검색"
+              aria-label="교환 신청 검색"
+            />
           </div>
           {STATUS_TABS.map((s) => {
-            const rows = redemptions.filter((r) => r.status === s);
+            const rows = shown.filter((r) => r.status === s);
             return (
               <TabsContent key={s} value={s} className="mt-0 border-t border-stroke-neutral-muted">
                 {rows.length === 0 ? (
-                  <EmptyState compact icon={Inbox} title={EMPTY_TEXT[s]} />
+                  <EmptyState compact icon={Inbox} title={query ? "검색 결과가 없어요" : EMPTY_TEXT[s]} />
                 ) : (
                   <ul className="divide-y divide-stroke-neutral-muted">{rows.map(renderRow)}</ul>
                 )}

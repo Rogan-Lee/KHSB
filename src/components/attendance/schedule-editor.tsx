@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { inputBaseClass } from "@/components/ui/input";
 import { TimePickerInput } from "@/components/ui/time-picker";
-import { EmptyState, FormActions, Section, StatusBadge } from "@/components/backoffice/ui";
+import { EmptyState, FormActions, SearchField, Section, StatusBadge, Toolbar } from "@/components/backoffice/ui";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { saveAttendanceSchedule, saveOutingSchedules } from "@/actions/attendance";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, matchesSearch } from "@/lib/utils";
 import type { AttendanceSchedule, OutingSchedule, Student } from "@/generated/prisma";
 import { CalendarClock, ChevronDown, Plus, Trash2 } from "lucide-react";
 
@@ -78,6 +79,8 @@ export function ScheduleEditor({ students }: Props) {
     Object.fromEntries(students.map((s) => [s.id, initRows(s.schedules, s.outings)]))
   );
   const [isPending, startTransition] = useTransition();
+  const [query, setQuery] = useStickyState("attendance-schedule:query", "");
+  const filtered = students.filter((s) => matchesSearch(query, s.name, s.grade));
 
   function updateDay(studentId: string, day: number, field: "enabled" | "startTime" | "endTime", value: string | boolean) {
     setRowMap((prev) => ({
@@ -159,14 +162,27 @@ export function ScheduleEditor({ students }: Props) {
     <Section
       flush
       title="원생별 일정"
-      count={students.length}
+      count={filtered.length}
       description="이름을 누르면 요일별 등원·외출 일정을 고칠 수 있어요."
     >
       {students.length === 0 ? (
         <EmptyState compact icon={CalendarClock} title="재원 중인 원생이 없어요" description="원생을 등록하면 여기서 등원 일정을 정할 수 있어요." />
       ) : (
+      <>
+      <Toolbar className="px-x5">
+        <SearchField
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onClear={() => setQuery("")}
+          placeholder="이름 · 학년 검색"
+          aria-label="원생 검색"
+        />
+      </Toolbar>
+      {filtered.length === 0 ? (
+        <EmptyState compact icon={CalendarClock} title="검색 결과가 없어요" />
+      ) : (
       <ul className="divide-y divide-stroke-neutral-muted border-t border-stroke-neutral-muted">
-      {students.map((student) => {
+      {filtered.map((student) => {
         const isExpanded = expandedId === student.id;
         const rows = rowMap[student.id];
         const enabledDays = DAYS.filter((d) => rows[d.value].enabled);
@@ -349,6 +365,8 @@ export function ScheduleEditor({ students }: Props) {
         );
       })}
       </ul>
+      )}
+      </>
       )}
     </Section>
   );

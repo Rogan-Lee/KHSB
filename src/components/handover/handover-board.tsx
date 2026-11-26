@@ -9,7 +9,8 @@ import {
   Pin, PinOff, CheckCircle2, Trash2, Eye, ListChecks, Users, CheckSquare,
   ChevronLeft, ChevronRight, Inbox, CalendarCheck,
 } from "lucide-react";
-import { cn, DAY_NAMES, todayKST } from "@/lib/utils";
+import { cn, DAY_NAMES, matchesSearch, todayKST } from "@/lib/utils";
+import { useStickyState } from "@/hooks/use-sticky-state";
 import { deleteHandover, markHandoverRead, togglePin, toggleHandoverTask, recordHandoverView } from "@/actions/handover";
 import { toggleRoutineCompletion } from "@/actions/checklist-templates";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,6 +21,7 @@ import {
   Avatar,
   EmptyState,
   ListItem,
+  SearchField,
   Section,
   StatCard,
   StatCards,
@@ -282,6 +284,7 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
   }
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [query, setQuery] = useStickyState("handover:query", "");
 
   // 정렬: 고정 먼저 → 날짜(최신) → 작성시각(최신)
   const sorted = [...handovers].sort((a, b) => {
@@ -290,7 +293,9 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
   });
   const pinned = sorted.filter((h) => h.isPinned);
   const byDate = sorted.filter((h) => !h.isPinned);
-  const ordered = [...pinned, ...byDate];
+  const ordered = [...pinned, ...byDate].filter((h) =>
+    matchesSearch(query, h.content, h.authorName, h.recipientName, ...h.tasks.map((t) => t.title)),
+  );
   const unreadCount = handovers.filter((h) => h.authorId !== currentUserId && !h.reads.some((r) => r.userId === currentUserId && r.confirmedAt != null)).length;
 
   // 좌우로 넘겨보는 포커스 뷰어 인덱스
@@ -305,6 +310,7 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
   const [listPage, setListPage] = useState(0);
   const pageCount = Math.max(1, Math.ceil(ordered.length / PAGE_SIZE));
   useEffect(() => { setListPage((p) => Math.min(p, pageCount - 1)); }, [pageCount]);
+  function search(q: string) { setQuery(q); setListPage(0); setFocusedIndex(0); }
 
   // 뷰어에 뜬 인수인계는 "열람(봤음)" 로그 자동 기록 (confirmedAt 은 건드리지 않음)
   const viewedRef = useRef<Set<string>>(new Set());
@@ -397,6 +403,13 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
           basePath="/handover"
           className="flex-wrap"
         />
+        <SearchField
+          value={query}
+          onChange={(e) => search(e.target.value)}
+          onClear={() => search("")}
+          placeholder="내용 · 작성자 · 받는 사람 · 할 일 검색"
+          aria-label="검색"
+        />
       </Toolbar>
 
       {/* 요약 */}
@@ -420,11 +433,15 @@ export function HandoverBoard({ initialHandovers, staffList, currentUserId, curr
         <div className="flex min-w-0 flex-col gap-x4">
           {!hasAny ? (
             <Section>
-              <EmptyState
-                icon={Inbox}
-                title="이 기간에 남긴 인수인계가 없어요"
-                description={"오늘 근무 내용을 남기면 다음 근무자가 바로 확인할 수 있어요.\n조회 기간을 바꿔 볼 수도 있어요."}
-              />
+              {handovers.length > 0 ? (
+                <EmptyState icon={Inbox} title="검색 결과가 없어요" />
+              ) : (
+                <EmptyState
+                  icon={Inbox}
+                  title="이 기간에 남긴 인수인계가 없어요"
+                  description={"오늘 근무 내용을 남기면 다음 근무자가 바로 확인할 수 있어요.\n조회 기간을 바꿔 볼 수도 있어요."}
+                />
+              )}
             </Section>
           ) : (
             <>

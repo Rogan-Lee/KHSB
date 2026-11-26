@@ -959,8 +959,8 @@ export function ExamScoreChart({ studentId, initialScores }: Props) {
               {sortedForTable.map((s) => editingId === s.id ? (
                   <TableRow key={s.id} className="bg-bg-layer-fill hover:bg-bg-layer-fill">
                     <TableCell className="px-x2 py-x2">
-                      <input type="date" value={editForm.examDate} aria-label="날짜" onChange={(e) => setEditForm((f) => ({ ...f, examDate: e.target.value }))}
-                        className={cn(cellInput, "w-full")} />
+                      <DatePicker size="sm" value={editForm.examDate || null} aria-label="날짜" onChange={(d) => setEditForm((f) => ({ ...f, examDate: d ?? "" }))}
+                        className="w-full" />
                     </TableCell>
                     <TableCell className="px-x2 py-x2">
                       <input type="text" value={editForm.examName} aria-label="시험명" onChange={(e) => setEditForm((f) => ({ ...f, examName: e.target.value }))}

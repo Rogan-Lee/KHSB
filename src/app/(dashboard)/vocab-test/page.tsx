@@ -1,5 +1,6 @@
 export const revalidate = 30;
 
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -7,15 +8,23 @@ import { isStaff } from "@/lib/roles";
 import { PartyPopper } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { EmptyState, PageHeader, Section, StatusBadge } from "@/components/backoffice/ui";
+import { Button } from "@/components/ui/button";
+import { EmptyState, PageHeader, SearchField, Section, StatusBadge } from "@/components/backoffice/ui";
 import { VocabTestBoard } from "@/components/vocab-test/vocab-test-board";
 import { VocabOnlinePanel } from "@/components/vocab-test/vocab-online-panel";
 import { offlineStudentWhere } from "@/lib/student-filters";
+import { matchesSearch } from "@/lib/utils";
 
-export default async function VocabTestPage() {
+export default async function VocabTestPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; q?: string }>;
+}) {
   const session = await auth();
   if (!session?.user) redirect("/sign-in");
   if (!isStaff(session.user.role)) redirect("/");
+  const sp = await searchParams;
+  const q = sp.q?.trim().slice(0, 50) ?? "";
 
   const [studentsRaw, enrollments, scores, books, unitRows, exams, rosterStudents] =
     await Promise.all([
@@ -124,6 +133,8 @@ export default async function VocabTestPage() {
       const nb = b.seat && /^\d+$/.test(b.seat) ? parseInt(b.seat, 10) : Number.MAX_SAFE_INTEGER;
       return na !== nb ? na - nb : a.name.localeCompare(b.name, "ko");
     });
+  // ponytail: noShows 는 계산값이라 메모리에서 거름 (enrollments 는 오프라인 탭과 공유)
+  const noShowRows = q ? noShows.filter((s) => matchesSearch(q, s.name, s.grade)) : noShows;
 
   const booksForClient = books.map((b) => ({
     id: b.id,
@@ -161,7 +172,7 @@ export default async function VocabTestPage() {
         title="영단어 시험"
         description="온라인 시험 출제·응시 결과와 오프라인 종이시험 성적을 함께 관리해요."
       />
-      <Tabs defaultValue="online">
+      <Tabs defaultValue={sp.tab === "noshow" || q ? "noshow" : "online"}>
         <TabsList>
           <TabsTrigger value="online">온라인 시험</TabsTrigger>
           <TabsTrigger value="offline">오프라인 성적</TabsTrigger>
@@ -190,8 +201,31 @@ export default async function VocabTestPage() {
             count={noShows.length}
             flush
             className="overflow-hidden"
+            actions={
+              <>
+                <form method="get" role="search" className="contents">
+                  <input type="hidden" name="tab" value="noshow" />
+                  <SearchField
+                    name="q"
+                    defaultValue={q}
+                    placeholder="이름·학년 검색"
+                    aria-label="학생 검색"
+                    enterKeyHint="search"
+                  />
+                </form>
+                {q && (
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href="/vocab-test?tab=noshow">초기화</Link>
+                  </Button>
+                )}
+              </>
+            }
           >
-            {noShows.length === 0 ? (
+            {q && noShows.length > 0 && noShowRows.length === 0 ? (
+              <div className="border-t border-stroke-neutral-muted">
+                <EmptyState compact title="검색 결과가 없어요" description="다른 이름이나 학년으로 찾아보세요." />
+              </div>
+            ) : noShows.length === 0 ? (
               <div className="border-t border-stroke-neutral-muted">
                 <EmptyState
                   compact
@@ -212,7 +246,7 @@ export default async function VocabTestPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {noShows.map((s) => (
+                  {noShowRows.map((s) => (
                     <TableRow key={s.id}>
                       <TableCell className="tabular-nums text-fg-neutral-subtle">{s.seat ?? "—"}</TableCell>
                       <TableCell className="t4-medium">{s.name}</TableCell>

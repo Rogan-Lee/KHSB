@@ -5,7 +5,7 @@ import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, FileText, TrendingUp, AlertCircle, Target, MessageSquare, NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { inputBaseClass } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { EmptyState, FilterChip, Section, StatCard, StatCards, StatusBadge, type Tone } from "@/components/backoffice/ui";
 import Link from "next/link";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
@@ -52,8 +52,6 @@ export function StudentMentoringHistory({ studentId, mentorings }: { studentId: 
   const completedCount = mentorings.filter((m) => m.status === "COMPLETED").length;
   const totalCount = mentorings.length;
 
-  const dateInput = cn(inputBaseClass, "h-8 w-auto px-x2 t3-regular");
-
   return (
     <div className="flex flex-col gap-x4">
       {/* 요약 통계 */}
@@ -71,21 +69,9 @@ export function StudentMentoringHistory({ studentId, mentorings }: { studentId: 
         {/* 필터 바 */}
         <div className="flex flex-wrap items-center gap-x2 px-x5 pb-x4">
           <div className="flex items-center gap-x1_5">
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              aria-label="시작일"
-              className={dateInput}
-            />
+            <DatePicker size="sm" value={dateFrom || null} onChange={(d) => setDateFrom(d ?? "")} placeholder="시작일" aria-label="시작일" max={dateTo || undefined} />
             <span className="t3-regular text-fg-neutral-subtle">~</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              aria-label="종료일"
-              className={dateInput}
-            />
+            <DatePicker size="sm" value={dateTo || null} onChange={(d) => setDateTo(d ?? "")} placeholder="종료일" aria-label="종료일" min={dateFrom || undefined} />
             {(dateFrom || dateTo) && (
               <Button variant="ghost" size="xs" onClick={() => { setDateFrom(""); setDateTo(""); }}>
                 초기화

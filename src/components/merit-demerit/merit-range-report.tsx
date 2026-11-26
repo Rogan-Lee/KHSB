@@ -8,6 +8,7 @@ import { SortableHeader } from "@/components/ui/sortable-header";
 import {
   EmptyState,
   FilterChip,
+  SearchField,
   Skeleton,
   StatCard,
   StatCards,
@@ -16,7 +17,7 @@ import {
   Toolbar,
 } from "@/components/backoffice/ui";
 import { getMeritsByRange } from "@/actions/merit-demerit";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDate, matchesSearch } from "@/lib/utils";
 import { Search, ChevronDown, CalendarSearch } from "lucide-react";
 import { DatePicker } from "@/components/ui/date-picker";
 
@@ -176,6 +177,7 @@ export function MeritRangeReport() {
   const [isPending, startTransition] = useTransition();
   const [sortKey, setSortKey] = useStickyState<SortKey>("merit-range:sortKey", "net");
   const [sortDir, setSortDir] = useStickyState<SortDir>("merit-range:sortDir", "desc");
+  const [query, setQuery] = useStickyState("merit-range:query", "");
 
   // 진입 시 기본 기간(최근 1주일)으로 자동 1회 조회 — 빈 화면 대신 바로 결과 표시.
   useEffect(() => {
@@ -228,7 +230,9 @@ export function MeritRangeReport() {
           acc[r.student.id].records.push(r);
           return acc;
         }, {})
-      ).sort((a, b) => {
+      )
+        .filter((g) => matchesSearch(query, g.name))
+        .sort((a, b) => {
         let cmp = 0;
         if (sortKey === "name") cmp = a.name.localeCompare(b.name, "ko");
         else if (sortKey === "merits") cmp = a.merits - b.merits;
@@ -281,6 +285,13 @@ export function MeritRangeReport() {
             </FilterChip>
           ))}
         </div>
+        <SearchField
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onClear={() => setQuery("")}
+          placeholder="원생 이름 검색"
+          aria-label="원생 검색"
+        />
       </Toolbar>
 
       {/* 결과 */}
@@ -308,14 +319,16 @@ export function MeritRangeReport() {
         <div className={cn("flex flex-col gap-x4", isPending && "opacity-60")}>
           {/* 요약 */}
           <StatCards cols={4}>
-            <StatCard label="전체 건수" value={results.length} unit="건" />
+            <StatCard label="전체 건수" value={groups.reduce((s, g) => s + g.records.length, 0)} unit="건" />
             <StatCard label="상점 합계" value={`+${totalMerits}`} unit="점" tone="ok" />
             <StatCard label="벌점 합계" value={`-${totalDemerits}`} unit="점" tone="bad" />
             <StatCard label="대상 원생" value={groups.length} unit="명" />
           </StatCards>
 
           <TableCard>
-            {groups.length === 0 ? (
+            {groups.length === 0 && results.length > 0 ? (
+              <EmptyState compact icon={CalendarSearch} title="검색 결과가 없어요" />
+            ) : groups.length === 0 ? (
               <EmptyState
                 compact
                 icon={CalendarSearch}

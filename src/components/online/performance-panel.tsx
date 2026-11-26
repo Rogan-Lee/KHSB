@@ -37,6 +37,7 @@ import {
 import type { PerformanceTaskStatus } from "@/generated/prisma";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   EmptyState,
   FilterChip,
@@ -704,13 +705,12 @@ function CreateTaskInline({
           />
         </FormField>
         <FormField label="마감일" required htmlFor={`${idp}-due`}>
-          <Input
+          <DatePicker
             id={`${idp}-due`}
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
+            value={dueDate || null}
+            onChange={(d) => setDueDate(d ?? "")}
             disabled={isPending}
-            className="tabular-nums"
+            className="w-full"
           />
         </FormField>
         <FormField label="형식" htmlFor={`${idp}-format`}>

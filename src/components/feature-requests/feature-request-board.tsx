@@ -17,13 +17,13 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  EmptyState, FilterChip, Section, StatusBadge, Toolbar, type Tone,
+  EmptyState, FilterChip, SearchField, Section, StatusBadge, Toolbar, type Tone,
 } from "@/components/backoffice/ui";
 import { updateRequestStatus } from "@/actions/feature-requests";
 import {
   CATEGORY_OPTIONS, RELATED_PAGE_OPTIONS,
 } from "@/lib/feature-request-constants";
-import { cn } from "@/lib/utils";
+import { cn, matchesSearch } from "@/lib/utils";
 import type { FeatureRequest, RequestStatus } from "@/generated/prisma";
 
 type FeatureRequestWithCount = Pick<
@@ -181,11 +181,12 @@ export function FeatureRequestBoard({ requests }: { requests: FeatureRequestWith
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useStickyState<string>("requests:status", "ALL");
   const [categoryFilter, setCategoryFilter] = useStickyState<string>("requests:category", "ALL");
+  const [query, setQuery] = useStickyState("requests:query", "");
 
   const filtered = requests.filter((r) => {
     if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
     if (categoryFilter !== "ALL" && r.category !== categoryFilter) return false;
-    return true;
+    return matchesSearch(query, r.title, r.description, r.authorName);
   });
 
   const counts: Record<string, number> = {
@@ -204,6 +205,7 @@ export function FeatureRequestBoard({ requests }: { requests: FeatureRequestWith
   function resetFilters() {
     setStatusFilter("ALL");
     setCategoryFilter("ALL");
+    setQuery("");
   }
 
   if (requests.length === 0) {
@@ -230,6 +232,13 @@ export function FeatureRequestBoard({ requests }: { requests: FeatureRequestWith
     <div>
       {/* Toolbar */}
       <Toolbar>
+        <SearchField
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onClear={() => setQuery("")}
+          placeholder="제목 · 내용 · 작성자 검색"
+          aria-label="검색"
+        />
         <div className="flex flex-wrap items-center gap-x1_5" role="group" aria-label="상태 필터">
           {statusChips.map((c) => (
             <FilterChip
@@ -265,8 +274,8 @@ export function FeatureRequestBoard({ requests }: { requests: FeatureRequestWith
           <EmptyState
             compact
             icon={SearchX}
-            title="조건에 맞는 요청이 없어요"
-            description="다른 상태나 분류를 골라 보세요."
+            title={query.trim() ? "검색 결과가 없어요" : "조건에 맞는 요청이 없어요"}
+            description={query.trim() ? undefined : "다른 상태나 분류를 골라 보세요."}
             action={
               <Button variant="ghost" size="sm" onClick={resetFilters}>
                 필터 초기화
