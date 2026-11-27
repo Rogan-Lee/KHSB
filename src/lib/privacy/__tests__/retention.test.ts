@@ -6,6 +6,7 @@ const db = vi.hoisted(() => {
     phoneVerification: { count: vi.fn(), deleteMany: vi.fn() },
     personalDataAccessLog: { count: vi.fn(), deleteMany: vi.fn() },
     aiTransferLog: { count: vi.fn(), deleteMany: vi.fn() },
+    messageLog: { count: vi.fn(), deleteMany: vi.fn() },
     student: { count: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
     accessDevice: { count: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
     tuitionInvoice: { count: vi.fn(), updateMany: vi.fn() },
@@ -73,7 +74,7 @@ function expiredStudent(over: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  for (const t of [db.waitlist, db.phoneVerification, db.personalDataAccessLog, db.aiTransferLog]) {
+  for (const t of [db.waitlist, db.phoneVerification, db.personalDataAccessLog, db.aiTransferLog, db.messageLog]) {
     t.count.mockResolvedValue(2);
     t.deleteMany.mockResolvedValue({ count: 2 });
   }
@@ -161,7 +162,9 @@ describe("runRetention", () => {
   it("기본은 지우되 학생은 RETENTION_PURGE_STUDENTS 없이는 건드리지 않는다", async () => {
     db.student.count.mockResolvedValue(3);
     const r = await runRetention(now);
-    expect(r.purged).toMatchObject({ waitlist: 2, phoneVerification: 2, logs: 4, students: 0 });
+    expect(r.purged).toMatchObject({ waitlist: 2, phoneVerification: 2, logs: 4, messages: 2, students: 0 });
+    // 발송 기록은 1년 — 보낸 시각(sentAt) 기준
+    expect(db.messageLog.deleteMany).toHaveBeenCalledWith({ where: { sentAt: { lt: new Date("2025-11-22T00:00:00.000Z") } } });
     expect(r.students).toBe(3);
     expect(r.studentPurgeEnabled).toBe(false);
     expect(db.student.findMany).not.toHaveBeenCalled();

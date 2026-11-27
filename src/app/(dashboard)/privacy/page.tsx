@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
 
 const TAKE = 100;
 const monthAgo = () => new Date(Date.now() - 30 * 86_400_000);
-const ACTION_LABEL: Record<string, string> = { LOGIN: "로그인", VIEW: "조회", ACTION: "처리" };
+const ACTION_LABEL: Record<string, string> = { LOGIN: "로그인", VIEW: "조회", ACTION: "처리", DOWNLOAD: "내려받기" };
 
 // 개인정보 보호 기록 — 동의 현황 · 직원 접속 기록 · 외부 AI 전송 이력 · 보유 기간이 지난 정보 (원장급)
 export default async function PrivacyRecordsPage({
@@ -129,7 +129,12 @@ export default async function PrivacyRecordsPage({
                   unit="명"
                   sub={`${RETENTION.studentYears}년 지남 · 자동 파기 ${retention.studentPurgeEnabled ? "켜짐" : "꺼짐"}`}
                 />
-                <StatCard label="접속·전송 기록" value={retention.logs} unit="건" sub={`${RETENTION.logYears}년 지남`} />
+                <StatCard
+                  label="접속·전송·발송 기록"
+                  value={retention.logs + (retention.messages ?? 0)}
+                  unit="건"
+                  sub={`접속·AI ${RETENTION.logYears}년 · 발송 ${RETENTION.messageLogYears}년 지남`}
+                />
                 <StatCard
                   label="와이파이 기기"
                   value={retention.devicesToUnassign + retention.devicesStale}
@@ -192,7 +197,7 @@ export default async function PrivacyRecordsPage({
                     <TableCell className="whitespace-nowrap">{formatDateTime(a.createdAt)}</TableCell>
                     <TableCell>{a.actorName}</TableCell>
                     <TableCell>
-                      <StatusBadge tone={a.action === "LOGIN" ? "info" : "gray"}>{ACTION_LABEL[a.action] ?? a.action}</StatusBadge>
+                      <StatusBadge tone={a.action === "DOWNLOAD" ? "warn" : a.action === "LOGIN" ? "info" : "gray"}>{ACTION_LABEL[a.action] ?? a.action}</StatusBadge>
                     </TableCell>
                     <TableCell className="max-w-72 truncate text-fg-neutral-muted">{a.path}</TableCell>
                     <TableCell className="text-fg-neutral-subtle">{a.ip ?? "—"}</TableCell>
