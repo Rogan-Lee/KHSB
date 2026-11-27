@@ -448,10 +448,22 @@ button.fc.dark:hover, a.fc.dark:hover { background: #1f232b; }
 .gft-legal a { color: rgba(255, 255, 255, .72); transition: color .15s; }
 .gft-legal a:first-child { font-weight: 700; color: rgba(255, 255, 255, .88); } /* 개인정보처리방침은 눈에 띄게 */
 .gft-legal a:hover { color: #fff; }
+.gft-legal button { padding: 0; border: 0; background: none; font: inherit; color: rgba(255, 255, 255, .72); cursor: pointer; transition: color .15s; } /* 방문 통계 설정 (bx-shell.js) */
+@media (hover: hover) { .gft-legal button:hover { color: #fff; } }
 .gft-giant { font-size: clamp(84px, 21vw, 330px); font-weight: 900; letter-spacing: -.07em; line-height: .78; text-align: center; margin-top: 40px; white-space: nowrap; user-select: none;
   color: transparent; background: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 85%); -webkit-background-clip: text; background-clip: text; }
 /* 플로팅 CTA (landing.css .fab 재사용) */
 .bx .fab-stack { z-index: 180; }
+
+/* ══ 방문 통계 동의 창 (bx-shell.js) — 왼쪽 아래. 오른쪽 플로팅 버튼(모바일 45px · PC 라벨 포함 ~140px) 자리는 비운다 ══ */
+.gac { position: fixed; left: 16px; right: 78px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 186; max-width: 400px;
+  padding: 16px; border-radius: 20px; background: #fff; border: 1px solid var(--hair); box-shadow: 0 10px 28px rgba(11, 12, 15, .14);
+  font-size: 13px; line-height: 1.6; letter-spacing: -.01em; color: var(--ink-2); view-transition-name: gac; }
+.gac a { color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.gac-now { margin-top: 6px; font-weight: 700; color: var(--dim); }
+.gac-btns { display: flex; gap: 8px; margin-top: 12px; }
+.gac-btns .btn { flex: 1; height: 44px; padding: 0 12px; font-size: 14.5px; }
+@media (min-width: 601px) { .gac { left: 24px; right: auto; bottom: calc(24px + env(safe-area-inset-bottom)); width: 400px; } }
 
 /* ══ 모달 ══ */
 html.md-open { overflow: hidden; }
