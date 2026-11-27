@@ -136,7 +136,7 @@ function siteFooterHtml() {
     ${col('강한 이야기', [['후기', 'stories.html?type=review'], ['선배 아티클', 'stories.html?type=mentor'], ['원장 칼럼', 'stories.html?type=director'], ['전체 보기', 'stories.html']])}
     ${col('모집 · 문의', [['2027 윈터스쿨', 'recruit.html'], ['무료 입회 상담', SITE.apply, 1], ['전화 상담', 'tel:' + SITE.tel], ['카카오톡 채널', SITE.kakao, 1], ['네이버 블로그', SITE.blog, 1], ['YouTube', SITE.youtube, 1]])}
   </div>
-  <div class="gft-bottom"><span>© 2026 KHSB · 대표 강한지 · 사업자등록번호 678-93-01968</span><span class="gft-legal"><a href="privacy.html">개인정보처리방침</a><a href="terms.html">이용약관</a><a href="support.html">앱 고객지원</a></span></div>
+  <div class="gft-bottom"><span>© 2026 KHSB · 대표 강한지 · 사업자등록번호 678-93-01968</span><span class="gft-legal"><a href="privacy.html">개인정보처리방침</a><a href="terms.html">이용약관</a><a href="support.html">앱 고객지원</a>${SITE.ga ? '<button type="button" data-ga-settings>방문 통계 설정</button>' : ''}</span></div>
   <p class="gft-giant" aria-hidden="true">강한선배</p>
 </footer>`;
 }
