@@ -12,7 +12,6 @@ import {
   Loader2, Image as ImageIcon, AlertCircle, XCircle, Send, CalendarClock, RotateCcw, Users, FileText, X,
 } from "lucide-react";
 import { EmptyState, FilterChip, SearchField, StatusBadge } from "@/components/backoffice/ui";
-import { aiNoticeText } from "@/lib/ai-disclosure";
 import { useConfirmDialog } from "@/components/exams/use-confirm-dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -153,7 +152,7 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
     }
   }
 
-  // AI 종합의견 예약 큐 등록 (매일 새벽 크론이 Groq 로 생성 → /reports/ai-queue 에서 확인)
+  // AI 종합의견 예약 큐 등록 (야간 Claude 루틴이 생성)
   async function handleEnqueueAiSummaries() {
     if (selectedIds.size === 0) {
       toast.error("학생을 선택하세요");
@@ -161,7 +160,7 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
     }
     const ok = await confirm({
       title: `${selectedIds.size}명의 AI 종합의견을 예약할까요?`,
-      description: `${year}년 ${month}월 'AI 종합의견'을 예약 큐에 등록해요.\n리포트가 없으면 먼저 생성되고, 매일 새벽에 종합의견을 만들어요.\n\n${aiNoticeText("예약 대기열에서 확인하고 반영해야 학부모 리포트에 들어가요.")}`,
+      description: `${year}년 ${month}월 'AI 종합의견'을 예약 큐에 등록해요.\n리포트가 없으면 먼저 생성되고, 야간 Claude 루틴이 종합의견을 만들어요.`,
       confirmLabel: "예약 등록",
     });
     if (!ok) return;

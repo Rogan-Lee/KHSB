@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { batchEnqueueReports } from "@/actions/online/parent-reports";
 import { useConfirm } from "@/components/online/use-confirm";
 
-/** 전체 온라인 학생의 월간 보고서를 예약 큐에 등록 (매일 새벽 크론이 Groq 로 생성). */
+/** 전체 온라인 학생의 월간 보고서를 예약 큐에 등록 (야간 루틴이 생성). */
 export function MonthlyEnqueueButton({ yearMonth }: { yearMonth: string }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -19,7 +19,7 @@ export function MonthlyEnqueueButton({ yearMonth }: { yearMonth: string }) {
       !(await confirm({
         title: `${yearMonth} 월간 보고서를 예약 등록할까요?`,
         description:
-          "온라인 관리 학생 전체를 예약 대기열에 올려요.\n매일 새벽에 순서대로 초안을 만들어요.",
+          "온라인 관리 학생 전체를 예약 대기열에 올려요.\n야간 Claude 루틴이 순서대로 초안을 만들어요.",
         confirmLabel: "예약 등록",
       }))
     ) {

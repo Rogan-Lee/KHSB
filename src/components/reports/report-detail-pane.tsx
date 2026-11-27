@@ -23,7 +23,6 @@ import {
   TrendingUp, TrendingDown, Minus, AlertCircle, MousePointerClick,
 } from "lucide-react";
 import { Avatar, EmptyState, Notice, Skeleton, StatusBadge } from "@/components/backoffice/ui";
-import { AiDraftBadge, AiNotice } from "@/components/ai/ai-disclosure";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { PhotoPickerDialog } from "./photo-picker-dialog";
@@ -86,8 +85,6 @@ export function ReportDetailPane({
   const [, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
   const [summary, setSummary] = useState(report?.mentoringSummary ?? "");
-  // AI 요약으로 채운 리포트 id — 저장 전까지 "AI 초안" 표시
-  const [aiDraftFor, setAiDraftFor] = useState<string | null>(null);
   const [comment, setComment] = useState(report?.overallComment ?? "");
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
   const [supp, setSupp] = useState<ReportSupplementaryData | null>(null);
@@ -199,7 +196,6 @@ export function ReportDetailPane({
     try {
       const digest = await extractMonthlyMentoringDigest(student.id, year, month);
       setSummary(digest);
-      setAiDraftFor(null);
       toast.success("멘토링 기록 자동 추출 — 검토 후 저장");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "추출 실패");
@@ -214,7 +210,6 @@ export function ReportDetailPane({
     try {
       const generated = await generateMonthlyMentoringSummary(student.id, year, month);
       setSummary(generated);
-      setAiDraftFor(report?.id ?? null);
       toast.success("AI 초안 생성 — 검토 후 저장");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "AI 실패");
@@ -551,8 +546,7 @@ export function ReportDetailPane({
           <PaneSection
             title="멘토링 종합 의견"
             trailing={
-              <div className="flex items-center gap-x1_5">
-                {aiDraftFor != null && aiDraftFor === report?.id && summaryDirty && <AiDraftBadge />}
+              <div className="flex gap-x1_5">
                 <Button variant="outline" size="xs" onClick={handleAutoExtract} disabled={busy === "extract"}>
                   {busy === "extract" && <Loader2 className="animate-spin" />}
                   자동 추출
@@ -564,7 +558,6 @@ export function ReportDetailPane({
               </div>
             }
           >
-            <AiNotice tail="저장해야 학부모에게 보여요." className="mb-x3" />
             <MarkdownEditor value={summary} onChange={setSummary} placeholder="월간 종합 의견 — 자동 추출/AI 요약으로 초안 생성 가능" />
             <SaveRow dirty={summaryDirty}>
               <Button size="sm" onClick={handleSaveSummary} disabled={busy === "summary" || !summaryDirty}>

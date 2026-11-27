@@ -4,8 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { ReportHero, ReportShell } from "@/components/parent-report/report-shell";
 import { Prose } from "@/components/portal/prose";
 import { EmptyState, Section } from "@/components/portal/ui";
-import { AiReviewedNote } from "@/components/ai/ai-disclosure";
-import { isAiOnlineReport } from "@/lib/ai-disclosure";
 import { ParentFeedbackForm } from "@/components/online/parent-feedback-form";
 import { ReportViewBeacon } from "@/components/online/report-view-beacon";
 import { hasGatePass } from "@/lib/token-auth";
@@ -79,10 +77,7 @@ export default async function OnlineParentReportPublicPage({
 
       <Section>
         {markdown.trim() ? (
-          <>
-            {isAiOnlineReport(report.content) && <AiReviewedNote className="mb-x4" />}
-            <Prose source={markdown} />
-          </>
+          <Prose source={markdown} />
         ) : (
           <EmptyState icon={FileText} title="아직 작성된 내용이 없어요" className="py-x8" />
         )}

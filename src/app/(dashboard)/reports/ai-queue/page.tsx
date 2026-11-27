@@ -6,7 +6,6 @@ import { getAiJobQueueOverview, getAiJobsToReview } from "@/lib/report-ai-queue"
 import { AiReviewList } from "@/components/reports/ai-review-list";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState, PageHeader, Section, StatCard, StatCards, StatusBadge, TableCard } from "@/components/backoffice/ui";
-import { AiNotice } from "@/components/ai/ai-disclosure";
 
 // AI 텍스트 생성 예약 — 확인 대기(REVIEW)와 생성 대기(QUEUED).
 // 밤에 크론(/api/cron/report-ai-queue)이 오래 대기한 것부터 만들고, 운영진이 확인해야 리포트에 들어간다.
@@ -30,7 +29,6 @@ export default async function ReportAiQueuePage() {
       />
 
       <div className="flex flex-col gap-x6">
-        <AiNotice tail="확인하고 반영해야 학부모 리포트에 들어가요." />
         <StatCards cols={4}>
           <StatCard label="확인 대기" value={reviews.length} unit="건" tone={reviews.length > 0 ? "warn" : "gray"} />
           <StatCard label="생성 대기" value={rows.length} unit="건" />

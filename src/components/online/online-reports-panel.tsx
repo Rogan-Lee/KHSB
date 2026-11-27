@@ -13,7 +13,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { EmptyState, FilterChip } from "@/components/backoffice/ui";
-import { AiDraftBadge, AiNotice } from "@/components/ai/ai-disclosure";
 import {
   Loader2, CheckCircle2, Send,
   ExternalLink, Copy, Check, MessageCircle, Sparkles,
@@ -471,8 +470,6 @@ export function OnlineReportsPanel({
         </div>
       </div>
 
-      <AiNotice tail="승인하고 보내야 학부모에게 보여요." />
-
       {/* 학생 필터 (학생/학년/학교) */}
       <StudentFilterBar
         value={filter}
@@ -679,7 +676,7 @@ export function OnlineReportsPanel({
                   <>
                     {/* 편집 */}
                     <PaneSection
-                      title={<>학부모에게 전달할 내용{canApprove && <AiDraftBadge />}</>}
+                      title="학부모에게 전달할 내용"
                       description="마크다운으로 쓰면 학부모 공유 페이지에 그대로 보여요."
                       actions={
                         <Button

@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { FileX, Sparkles, type LucideIcon } from 'lucide-react-native';
+import { FileX, type LucideIcon } from 'lucide-react-native';
 import { Fragment, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
@@ -113,18 +113,6 @@ export function CardTitle({ icon, tone, children }: { icon: LucideIcon; tone: To
       <IconTile icon={icon} tone={tone} size={32} round />
       <Text variant="t6-bold" style={{ flexShrink: 1 }}>
         {children}
-      </Text>
-    </View>
-  );
-}
-
-/** AI 가 만든 내용 표시 (인공지능기본법 제31조) — API 가 aiGenerated 를 줄 때만. 웹 src/lib/ai-disclosure.ts 와 같은 문구 */
-export function AiMadeNote() {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x1 }}>
-      <Sparkles size={14} color={color.fg.neutralSubtle} strokeWidth={2.2} />
-      <Text variant="t3-regular" color="neutralSubtle">
-        AI가 초안을 만들고 운영진이 확인했어요
       </Text>
     </View>
   );

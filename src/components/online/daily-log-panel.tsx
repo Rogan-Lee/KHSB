@@ -19,7 +19,6 @@ import {
   StatCards,
   StatusBadge,
 } from "@/components/backoffice/ui";
-import { AiNotice } from "@/components/ai/ai-disclosure";
 import {
   upsertDailyKakaoLog,
   summarizeKakaoRaw,
@@ -52,8 +51,6 @@ export type DailyLogRow = {
     summary: string;
     tags: string[];
     isParentVisible: boolean;
-    /** AI 요약(카톡 요약·화상 세션 요약)으로 저장된 기록 */
-    aiSummarized: boolean;
     authorName: string;
   } | null;
 };
@@ -94,7 +91,7 @@ export function DailyLogPanel({
   );
   const [saving, setSaving] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
-  const [aiSummarized, setAiSummarized] = useState(activeRow?.log?.aiSummarized ?? false);
+  const [aiSummarized, setAiSummarized] = useState(false);
 
   // 활성 학생 변경 감지
   const activeKey = `${activeRow?.studentId ?? ""}/${activeRow?.log?.id ?? ""}`;
@@ -103,7 +100,7 @@ export function DailyLogPanel({
     setSummary(activeRow?.log?.summary ?? "");
     setTags(activeRow?.log?.tags ?? []);
     setRawContent("");
-    setAiSummarized(activeRow?.log?.aiSummarized ?? false);
+    setAiSummarized(false);
     setMode("summary");
     setIsParentVisible(activeRow?.log?.isParentVisible ?? true);
     setLastKey(activeKey);
@@ -151,6 +148,7 @@ export function DailyLogPanel({
         });
         toast.success("저장되었습니다");
         setRawContent("");
+        setAiSummarized(false);
         setMode("summary");
         router.refresh();
       } catch (err) {
@@ -351,7 +349,6 @@ export function DailyLogPanel({
                         <p className="t3-regular text-fg-neutral-subtle">
                           원문은 저장되지만 학부모 공개 페이지에는 보이지 않아요. 요약만 보여요.
                         </p>
-                        <AiNotice tail="요약은 검토하고 저장해야 남아요." />
                       </div>
                     )}
 

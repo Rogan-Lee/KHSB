@@ -13,7 +13,6 @@ import {
 } from "@/actions/ai-enhance";
 import { Link2, Copy, Check, Send, Loader2, Sparkles, ArrowRight, ExternalLink, X } from "lucide-react";
 import { FormActions, FormField, IconTile, Notice } from "@/components/backoffice/ui";
-import { AiNotice } from "@/components/ai/ai-disclosure";
 
 interface Props {
   mentoringId: string;
@@ -197,8 +196,6 @@ export function ParentReportInlinePanel({
                 <p className="mt-x0_5 t3-regular text-fg-neutral-muted">작성된 멘토링 기록을 그대로 써요.</p>
               </div>
             </button>
-
-            <AiNotice tail="검토하고 리포트를 만들어야 학부모에게 보여요." className="md:col-span-2" />
           </div>
         )}
 
@@ -216,7 +213,7 @@ export function ParentReportInlinePanel({
         {/* ── 3. 검토 & 편집 ── */}
         {step === "review" && (
           <div className="flex flex-col gap-x4">
-            <Notice tone="info" icon={Sparkles} title="AI 초안">검토하고 고친 뒤 리포트를 만드세요.</Notice>
+            <Notice tone="info" icon={Sparkles}>AI가 내용을 다듬었어요. 검토하고 고친 뒤 리포트를 만드세요.</Notice>
 
             <div className="flex max-h-[500px] flex-col gap-x4 overflow-y-auto">
               {FIELD_LABELS.filter(({ key }) => edited[key]).map(({ key, label, rows }) => (

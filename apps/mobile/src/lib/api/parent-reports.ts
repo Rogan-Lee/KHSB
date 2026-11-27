@@ -130,8 +130,6 @@ export type ParentOnlineReport = {
   sentAt: string | null;
   markdown: string;
   feedbackEnabled: boolean;
-  /** AI 초안이면 "AI가 초안을 만들고…" 표시 (구버전 서버는 없음) */
-  aiGenerated?: boolean;
 };
 
 export type ParentStudyPlanReport = {
@@ -150,7 +148,6 @@ export type ParentConsultationReport = {
   recipientName: string | null;
   consultedAt: string | null;
   content: string;
-  aiGenerated?: boolean;
 };
 
 export type ParentReportDetail =

@@ -6,13 +6,12 @@ import {
   PenLine,
   UserRound,
 } from 'lucide-react-native';
-import { View } from 'react-native';
 
 import { EmptyState, Markdown, Section, showImages, space, Stack } from '@/design';
 import type { ParentConsultationReport, ParentStudyPlanReport } from '@/lib/api/parent-reports';
 
 import { formatReportDateLong, monthDayOfIso } from './report-format';
-import { AiMadeNote, CardTitle, InfoCard, PhotoList, ReportHero } from './report-parts';
+import { CardTitle, InfoCard, PhotoList, ReportHero } from './report-parts';
 
 // 공부 계획(웹 /sp/[token]) · 상담 안내(웹 /cr/[token]) — 웹은 옛 디자인이라 같은 정보를 SEED 리포트 문법으로 그린다.
 
@@ -82,14 +81,11 @@ export function ConsultationReportBody({ data }: { data: ParentConsultationRepor
           </CardTitle>
         }>
         {data.content ? (
-          <View style={{ gap: space.x3 }}>
-            {data.aiGenerated && <AiMadeNote />}
-            <Markdown
-              source={data.content}
-              onImagePress={(src) => showImages([src])}
-              style={{ paddingTop: space.x1 }}
-            />
-          </View>
+          <Markdown
+            source={data.content}
+            onImagePress={(src) => showImages([src])}
+            style={{ paddingTop: space.x1 }}
+          />
         ) : (
           <EmptyState icon={MessagesSquare} title="아직 작성된 내용이 없어요" style={{ paddingVertical: space.x8 }} />
         )}

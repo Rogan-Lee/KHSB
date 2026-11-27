@@ -1,7 +1,6 @@
 import crypto from "crypto";
 import { z } from "zod";
 
-import { isAiOnlineReport } from "@/lib/ai-disclosure";
 import { computeStudentAnalytics } from "@/lib/student-analytics";
 import { getAppUrl } from "@/lib/app-url";
 import { MobileApiError } from "@/lib/mobile-auth";
@@ -793,8 +792,6 @@ export type ParentOnlineReportDetail = {
   markdown: string;
   /** 원장님께 의견 남기기 (POST …/feedback) */
   feedbackEnabled: boolean;
-  /** AI 가 만든 초안이면 "AI가 초안을 만들고 운영진이 확인했어요" 표시 (인공지능기본법 제31조) */
-  aiGenerated: boolean;
 };
 
 export type ParentStudyPlanReportDetail = {
@@ -814,8 +811,6 @@ export type ParentConsultationReportDetail = {
   /** 상담한 날 ISO (없으면 null) */
   consultedAt: string | null;
   content: string;
-  /** 상담 안내는 AI 팔로업 메시지로만 만든다 — 늘 true */
-  aiGenerated: boolean;
 };
 
 export type ParentReportDetail =
@@ -1102,7 +1097,6 @@ async function onlineDetail(id: string): Promise<ParentOnlineReportDetail> {
     sentAt: r.sentAt?.toISOString() ?? null,
     markdown: typeof content.markdown === "string" ? content.markdown : "",
     feedbackEnabled: true,
-    aiGenerated: isAiOnlineReport(r.content),
   };
 }
 
@@ -1160,6 +1154,5 @@ async function consultationDetail(id: string): Promise<ParentConsultationReportD
     recipientName: r.recipientName?.trim() || null,
     consultedAt: held?.toISOString() ?? null,
     content: r.content.trim(),
-    aiGenerated: true,
   };
 }

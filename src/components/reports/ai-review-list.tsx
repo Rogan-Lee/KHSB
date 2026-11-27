@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { approveAiJob, rejectAiJob } from "@/actions/report-ai-queue";
 import { ConfirmDialog } from "@/components/backoffice/confirm-dialog";
 import { EmptyState, SearchField, StatusBadge, Toolbar } from "@/components/backoffice/ui";
-import { AiDraftBadge } from "@/components/ai/ai-disclosure";
 import { Button } from "@/components/ui/button";
 import { useStickyState } from "@/hooks/use-sticky-state";
 import { matchesSearch } from "@/lib/utils";
@@ -52,7 +51,6 @@ export function AiReviewList({ rows }: { rows: AiReviewRow[] }) {
           <li key={row.jobId} className="flex flex-col gap-x3 px-x4 py-x4">
             <div className="flex flex-wrap items-center gap-x2">
               <span className="t5-bold text-fg-neutral">{row.studentName}</span>
-              <AiDraftBadge />
               <StatusBadge tone="gray">{row.typeLabel}</StatusBadge>
               {row.periodLabel && <span className="t3-regular text-fg-neutral-subtle">{row.periodLabel}</span>}
             </div>

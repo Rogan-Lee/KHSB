@@ -32,7 +32,6 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState, FilterChip, SearchField, StatusBadge, TableCard } from "@/components/backoffice/ui";
-import { AiDraftBadge, AiNotice } from "@/components/ai/ai-disclosure";
 import { updateConsultation } from "@/actions/consultations";
 import { generateFollowUpMessage } from "@/actions/ai-followup";
 import { createConsultationReport } from "@/actions/consultation-reports";
@@ -177,20 +176,16 @@ function ConsultationPreview({
             <div className="flex items-center gap-x2">
               <Sparkles className="size-4 text-palette-purple-600" aria-hidden />
               <h3 className="t4-bold text-fg-neutral">AI 팔로업 메시지</h3>
-              {ai.generated && !ai.reportUrl && <AiDraftBadge />}
             </div>
 
             {!ai.generated && !ai.reportUrl ? (
-              <>
-                <div className="flex flex-col gap-x3 sm:flex-row sm:items-center">
-                  <p className="flex-1 t3-regular text-fg-neutral-subtle">상담 내용을 바탕으로 팔로업 리포트를 만들어요</p>
-                  <Button size="sm" onClick={handleGenerate} disabled={isGenerating}>
-                    {isGenerating ? <RefreshCw className="animate-spin" aria-hidden /> : <Sparkles aria-hidden />}
-                    {isGenerating ? "생성 중…" : "생성"}
-                  </Button>
-                </div>
-                <AiNotice tail="고쳐서 리포트를 만들어야 학부모에게 보여요." />
-              </>
+              <div className="flex flex-col gap-x3 sm:flex-row sm:items-center">
+                <p className="flex-1 t3-regular text-fg-neutral-subtle">상담 내용을 바탕으로 팔로업 리포트를 만들어요</p>
+                <Button size="sm" onClick={handleGenerate} disabled={isGenerating}>
+                  {isGenerating ? <RefreshCw className="animate-spin" aria-hidden /> : <Sparkles aria-hidden />}
+                  {isGenerating ? "생성 중…" : "생성"}
+                </Button>
+              </div>
             ) : ai.reportUrl ? (
               /* 리포트 링크 생성 완료 */
               <div className="flex flex-col gap-x3">

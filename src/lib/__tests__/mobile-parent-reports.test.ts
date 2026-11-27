@@ -566,7 +566,6 @@ describe("getParentReportDetail", () => {
       periodEnd: "2026-09-20",
       markdown: "## 이번 주\n잘했어요",
       feedbackEnabled: true,
-      aiGenerated: false, // generatedAt 없음
     });
     expect(JSON.stringify(d)).not.toContain("otok");
 
@@ -614,7 +613,6 @@ describe("getParentReportDetail", () => {
       recipientName: "김학생 어머님",
       consultedAt: "2026-09-22T05:00:00.000Z",
       content: "상담 내용",
-      aiGenerated: true,
     });
   });
 });
