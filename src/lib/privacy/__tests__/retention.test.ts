@@ -126,6 +126,15 @@ describe("보유 기간", () => {
 });
 
 describe("collectBlobUrls", () => {
+  it("비공개 저장소 내부 경로(/api/files/...)도 칸·본문에서 모은다", () => {
+    const urls = collectBlobUrls({
+      url: "/api/files/family-chat/s1/a.png",
+      notes: "사진 ![](/api/files/mentoring/m1/b.jpg) 끝",
+      link: "/api/other/x",
+    });
+    expect([...urls].sort()).toEqual(["/api/files/family-chat/s1/a.png", "/api/files/mentoring/m1/b.jpg"]);
+  });
+
   it("주소 칸·첨부 JSON·본문에 넣은 이미지를 모으고 바깥 주소는 뺀다", () => {
     const urls = collectBlobUrls({
       imageUrl: `${BLOB}/students/a%20(1).jpg`,

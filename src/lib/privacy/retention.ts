@@ -1,7 +1,6 @@
-import { del } from "@vercel/blob";
-
 import type { Prisma } from "@/generated/prisma";
 import { bumpAccessRev } from "@/lib/access-control/store";
+import { deleteBlobFiles, isDeletableBlobUrl } from "@/lib/blob-store";
 import { prisma } from "@/lib/prisma";
 import { lockTuitionStudent, TUITION_TX } from "@/lib/tuition/lock";
 
@@ -100,12 +99,17 @@ export function isBlobUrl(raw: string): boolean {
 }
 
 const BLOB_URL_IN_TEXT = /https:\/\/[a-z0-9-]+\.(?:public|private)\.blob\.vercel-storage\.com\/[^\s"'<>)\\]+/gi;
+/** 비공개 저장소 파일은 DB 에 `/api/files/<경로>` 로 저장된다 (blob-store) */
+const STORED_FILE_IN_TEXT = /\/api\/files\/[^\s"'<>)\\?#]+/g;
 
 /** 레코드 전체를 훑어 Blob 주소를 모은다 — 주소 칸은 그대로, 글(상담·리포트 본문에 넣은 이미지)에서는 찾아서 */
 export function collectBlobUrls(value: unknown, out = new Set<string>()): Set<string> {
   if (typeof value === "string") {
-    if (!/\s/.test(value) && isBlobUrl(value)) out.add(value);
-    else for (const m of value.matchAll(BLOB_URL_IN_TEXT)) out.add(m[0]);
+    if (!/\s/.test(value) && (isBlobUrl(value) || isDeletableBlobUrl(value))) out.add(value);
+    else {
+      for (const m of value.matchAll(BLOB_URL_IN_TEXT)) out.add(m[0]);
+      for (const m of value.matchAll(STORED_FILE_IN_TEXT)) out.add(m[0]);
+    }
   } else if (Array.isArray(value)) {
     for (const v of value) collectBlobUrls(v, out);
   } else if (value && typeof value === "object" && !(value instanceof Date)) {
@@ -146,7 +150,7 @@ async function purgeStudent(id: string, cutoff: Date): Promise<boolean> {
   // 파일 먼저 — 실패하면 기록을 지우지 않고 다음 실행에 다시 (기록부터 지우면 파일 주소를 다시 찾을 수 없다)
   const urls = [...collectBlobUrls(s)];
   for (let i = 0; i < urls.length; i += 100) {
-    await del(urls.slice(i, i + 100), { token: process.env.BLOB_READ_WRITE_TOKEN });
+    await deleteBlobFiles(urls.slice(i, i + 100)); // 공개 URL 은 공개 토큰, /api/files 는 비공개 토큰으로
   }
   const reportIds = [...s.monthlyReports, ...s.parentReports].map((r) => r.id);
 
