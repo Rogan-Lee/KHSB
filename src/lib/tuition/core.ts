@@ -68,6 +68,7 @@ export {
   ONSITE_DAILY_LIMIT,
 } from "@/lib/tuition/limits";
 export {
+  getRefundFacility,
   getTuitionSetting,
   isOnlinePaymentAvailable,
   TUITION_SETTING_DEFAULTS,

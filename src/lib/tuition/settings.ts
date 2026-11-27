@@ -1,6 +1,7 @@
 // 수강료 설정 조회 — 단일 행("default"). 행이 없으면 기본값.
 import type { TuitionRefundPolicy, TuitionTaxType } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
+import type { RefundFacility } from "@/lib/tuition/calc";
 import { DEFAULT_TUITION_PRICING, readPricing, type TuitionPricing } from "@/lib/tuition/pricing";
 import { getTuitionProvider } from "@/lib/tuition/provider-registry";
 
@@ -62,4 +63,24 @@ export async function getTuitionSetting(): Promise<TuitionSettingValues> {
 export async function isOnlinePaymentAvailable(): Promise<boolean> {
   if (!getTuitionProvider()) return false;
   return (await getTuitionSetting()).onlinePaymentEnabled;
+}
+
+/** 시설 종류 · 게시한 1일 교습비 — 스키마를 바꾸지 않고 AppSetting 에 둔다 (법정 반환액 계산용) */
+export const REFUND_FACILITY_KEYS = {
+  facilityKind: "tuition.facilityKind",
+  postedDailyFee: "tuition.postedDailyFee",
+} as const;
+
+/** 저장한 적이 없으면 독서실 · 게시 1일 교습비 없음 (1호 고객이 교육청에 독서실로 등록돼 있다) */
+export async function getRefundFacility(): Promise<RefundFacility> {
+  const rows = await prisma.appSetting.findMany({
+    where: { key: { in: [REFUND_FACILITY_KEYS.facilityKind, REFUND_FACILITY_KEYS.postedDailyFee] } },
+    select: { key: true, value: true },
+  });
+  const value = (key: string) => rows.find((row) => row.key === key)?.value;
+  const fee = Number(value(REFUND_FACILITY_KEYS.postedDailyFee));
+  return {
+    facilityKind: value(REFUND_FACILITY_KEYS.facilityKind) === "ACADEMY" ? "ACADEMY" : "STUDY_ROOM",
+    postedDailyFee: Number.isInteger(fee) && fee > 0 ? fee : null,
+  };
 }

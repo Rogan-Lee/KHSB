@@ -23,6 +23,7 @@ import {
   normalizeExtraItems,
   parseDateKey,
   parseReminderDays,
+  type FacilityKind,
   type ProratedCharge,
 } from "@/lib/tuition/calc";
 import {
@@ -51,6 +52,7 @@ import {
 import { devRequestOrigin } from "@/lib/tuition/dev-origin";
 import { ProviderError } from "@/lib/tuition/provider";
 import { runTuition } from "@/lib/tuition/run";
+import { REFUND_FACILITY_KEYS } from "@/lib/tuition/settings";
 import {
   TuitionError,
   type OnsiteConfirmMethod,
@@ -76,6 +78,7 @@ const MIN_MONTHLY_FEE = 1_000;
 const ONSITE_CONFIRM_METHODS: readonly OnsiteConfirmMethod[] = ["LOCAL_CURRENCY", "ONSITE_CARD", "CASH", "TRANSFER"];
 const REFUND_POLICIES: readonly TuitionSettingValues["refundPolicy"][] = ["DAILY", "ACADEMY_LAW", "MANUAL"];
 const TAX_TYPES: readonly TuitionSettingValues["taxType"][] = ["EXEMPT", "TAXABLE"];
+const FACILITY_KINDS: readonly FacilityKind[] = ["STUDY_ROOM", "ACADEMY"];
 const CASH_METHODS: readonly OnsiteConfirmMethod[] = ["CASH", "TRANSFER"];
 
 export type TuitionCashReceiptInput = { purpose: "INCOME" | "EXPENSE"; identifier: string };
@@ -111,6 +114,10 @@ export type TuitionSettingInput = {
   autoIssueLeadDays: number;
   guideText: string | null;
   onsiteGuideText: string | null;
+  /** 시설 종류 — 법정 반환액 계산 기준 (AppSetting) */
+  facilityKind: FacilityKind;
+  /** 게시한 1일 교습비. null 이면 실제 납부액 ÷ 약정 일수 */
+  postedDailyFee: number | null;
 };
 
 export type TuitionProfileInput = {
@@ -291,6 +298,7 @@ function parseRefundInput(raw: unknown): RequestRefundInput {
     calcBasis: parseOptionalText(input.calcBasis, "계산 근거", CALC_BASIS_MAX),
     manualConfirmed: input.manualConfirmed === true,
   };
+  if (input.belowLegalConfirmed === true) parsed.belowLegalConfirmed = true;
   if (input.paymentId !== undefined && input.paymentId !== null) parsed.paymentId = parseId(input.paymentId, "결제");
   // 생략(이용 기간 유지)과 null(이용 전 환불)은 뜻이 다르다 — 그대로 구분해 넘긴다
   if (input.lastUsedDate === null) parsed.lastUsedDate = null;
@@ -627,6 +635,11 @@ export async function updateTuitionSetting(values: TuitionSettingInput): Promise
     if (typeof values.onlinePaymentEnabled !== "boolean") invalid("온라인 결제 사용 여부를 확인해 주세요");
     if (!TAX_TYPES.includes(values.taxType)) invalid("과세 유형을 선택해 주세요");
     if (typeof values.autoIssueEnabled !== "boolean") invalid("자동 청구 사용 여부를 확인해 주세요");
+    if (!FACILITY_KINDS.includes(values.facilityKind)) invalid("시설 종류를 선택해 주세요");
+    const postedDailyFee =
+      values.postedDailyFee === null || values.postedDailyFee === undefined
+        ? null
+        : parseInteger(values.postedDailyFee, 1, MAX_INVOICE_AMOUNT, "게시한 1일 교습비를 확인해 주세요");
     const data = {
       defaultMonthlyFee: parseMonthlyFeeOrNull(values.defaultMonthlyFee, "기본 월 수강료"),
       dueDays: parseInteger(values.dueDays, 0, SETTING_DAYS_MAX, `납부 기한 일수는 0~${SETTING_DAYS_MAX} 사이여야 합니다`),
@@ -651,11 +664,19 @@ export async function updateTuitionSetting(values: TuitionSettingInput): Promise
       onsiteGuideText: parseOptionalText(values.onsiteGuideText, "현장 결제 안내문", GUIDE_TEXT_MAX),
       updatedById: actor.id,
     };
-    await prisma.tuitionSetting.upsert({
-      where: { id: "default" },
-      create: { id: "default", ...data },
-      update: data,
-    });
+    const appSetting = (key: string, value: string) =>
+      prisma.appSetting.upsert({ where: { key }, create: { key, value }, update: { value } });
+    await prisma.$transaction([
+      prisma.tuitionSetting.upsert({
+        where: { id: "default" },
+        create: { id: "default", ...data },
+        update: data,
+      }),
+      appSetting(REFUND_FACILITY_KEYS.facilityKind, values.facilityKind),
+      postedDailyFee === null
+        ? prisma.appSetting.deleteMany({ where: { key: REFUND_FACILITY_KEYS.postedDailyFee } })
+        : appSetting(REFUND_FACILITY_KEYS.postedDailyFee, String(postedDailyFee)),
+    ]);
   });
   revalidatePath("/tuition");
   return result;

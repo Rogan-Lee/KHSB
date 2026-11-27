@@ -10,6 +10,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("@/lib/tuition/core", () => ({
+  getRefundFacility: vi.fn(async () => ({ facilityKind: "STUDY_ROOM", postedDailyFee: null })),
   getTuitionSetting: vi.fn(),
   isOnlinePaymentAvailable: vi.fn(),
   buildNoticeShareText: vi.fn(

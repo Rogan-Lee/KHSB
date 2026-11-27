@@ -267,6 +267,41 @@ export type RefundSuggestion = {
   lines: RefundLine[];
   /** 계산 합계가 환불 가능 금액보다 커서 깎였으면 깎기 전 합계 */
   cappedFrom: number | null;
+  /** 계산한 금액이 법정 반환액보다 적어 법정 반환액으로 올렸으면 올리기 전 금액 */
+  raisedFrom: number | null;
+  /** 법정 반환액 — 시설 설정을 주지 않았거나 계산할 수 없으면 null */
+  legal: LegalRefund | null;
+};
+
+/** 시설 종류 (교육청 등록 기준) — 법정 반환액 계산식이 다르다 */
+export type FacilityKind = "STUDY_ROOM" | "ACADEMY";
+
+/** 법정 반환액 계산에 쓰는 시설 설정 */
+export type RefundFacility = {
+  facilityKind: FacilityKind;
+  /** 게시한 1일 교습비. null 이면 실제 납부액 ÷ 약정 일수로 본다 */
+  postedDailyFee: number | null;
+};
+
+/** 법정 반환액 (환불 하한) — 학원법 시행령 별표 4 */
+export type LegalRefund = {
+  /** 이번 환불에서 돌려줘야 하는 최소 금액 — 앞선 환불을 빼고, 환불 가능 금액을 넘지 않는다 */
+  amount: number;
+  /** 앞선 환불을 빼기 전 법정 반환액 */
+  total: number;
+  basis: string;
+};
+
+type RefundPeriodInput = {
+  paidAmount: number;
+  refundable: number;
+  periodStart: Date;
+  periodEnd: Date;
+  months: number;
+  /** 청구서의 월 수강료 — 일할 첫 달이 있는 청구서에서 달마다 몫을 나눌 때 쓴다 */
+  monthlyFee?: number;
+  /** 마지막 이용일. null 이거나 이용 시작 전이면 이용하지 않은 것 */
+  lastUsedDate: Date | null;
 };
 
 /** 1원 미만은 올린다 — 끝자리를 버리면 법정 반환액보다 적게 제안할 수 있다 (학원법 시행령 제18조·별표 4) */
@@ -286,18 +321,11 @@ function academyRule(usedDays: number, totalDays: number): "TWO_THIRDS" | "HALF"
 /**
  * 환불 제안 금액. 운영진이 확인·수정한 뒤 확정하므로 여기 값은 참고용이다.
  * lastUsedDate = 마지막 이용일. null 이거나 이용 시작 전이면 전액.
+ * facility 를 주면 법정 반환액을 같이 계산하고, 자동 계산(일할·구간식) 제안이 그보다 적으면 법정 반환액으로 올린다.
  */
-export function suggestRefund(input: {
-  policy: TuitionRefundPolicyValue;
-  paidAmount: number;
-  refundable: number;
-  periodStart: Date;
-  periodEnd: Date;
-  months: number;
-  /** 청구서의 월 수강료 — 일할 첫 달이 있는 청구서에서 달마다 몫을 나눌 때 쓴다 */
-  monthlyFee?: number;
-  lastUsedDate: Date | null;
-}): RefundSuggestion {
+export function suggestRefund(
+  input: RefundPeriodInput & { policy: TuitionRefundPolicyValue; facility?: RefundFacility },
+): RefundSuggestion {
   const { policy, paidAmount, periodStart, periodEnd } = input;
   const refundable = Math.max(0, input.refundable);
   const totalDays = Math.max(1, daysInclusive(periodStart, periodEnd));
@@ -306,17 +334,23 @@ export function suggestRefund(input: {
       ? 0
       : Math.min(totalDays, Math.max(0, daysInclusive(periodStart, input.lastUsedDate)));
   const remainingDays = totalDays - usedDays;
+  const legal = input.facility ? legalRefund({ ...input, ...input.facility }) : null;
 
   const finish = (lines: RefundLine[], basis: string): RefundSuggestion => {
     const total = lines.reduce((sum, line) => sum + line.amount, 0);
+    const capped = Math.min(total, refundable);
+    // 직접 입력 방식은 올리지 않는다 — 화면이 법정 반환액보다 적은 금액을 경고하고 서버가 확인을 받는다
+    const raise = legal !== null && policy !== "MANUAL" && capped < legal.amount;
     return {
-      amount: Math.min(total, refundable),
+      amount: raise ? legal.amount : capped,
       totalDays,
       usedDays,
       remainingDays,
-      basis,
+      basis: raise ? `${basis} · 법정 반환액으로 올림 ${wonText(legal.amount)}` : basis,
       lines,
       cappedFrom: total > refundable ? total : null,
+      raisedFrom: raise ? capped : null,
+      legal,
     };
   };
   const whole = (rule: RefundLine["rule"], raw: number, amount: number): RefundLine => ({
@@ -342,54 +376,138 @@ export function suggestRefund(input: {
     );
   }
 
-  // ACADEMY_LAW — 월 단위로 나눠, 이용 중인 달은 1/3 경과 전 2/3 · 1/2 경과 전 1/2 · 이후 없음,
-  // 아직 시작하지 않은 달은 전액.
-  //  · 일할 첫 달이 있는 청구서(달 중간 시작 + 말일 끝): 첫 구간은 시작일~그달 말일, 나머지 달 몫은 월 수강료,
-  //    첫 달 몫은 그 나머지(할인·추가 항목도 여기에 붙는다).
-  //  · 그 밖에는 시작일부터 한 달씩 같은 몫으로 나누고, 나누어 떨어지지 않는 원 단위는 마지막 달 몫에 붙인다.
+  const academy = academyLawLines(input, input.lastUsedDate as Date);
+  return finish(academy.lines, academy.basis);
+}
+
+/** 월 단위 구간마다 이용한 일수 · 그 구간 몫의 납부액 */
+type MonthSegment = { label: string | null; start: Date; end: Date; totalDays: number; usedDays: number; share: number };
+
+/**
+ * 이용 기간을 월 단위로 나눠 구간마다 몫을 정한다 (학원법 별표 4 비고 — 1개월 넘는 교습기간은 반환 사유가 생긴 달만
+ * 기준대로, 나머지 달은 전액).
+ *  · 일할 첫 달이 있는 청구서(달 중간 시작 + 말일 끝): 첫 구간은 시작일~그달 말일, 나머지 달 몫은 월 수강료,
+ *    첫 달 몫은 그 나머지(할인·추가 항목도 여기에 붙는다).
+ *  · 그 밖에는 시작일부터 한 달씩 같은 몫으로 나누고, 나누어 떨어지지 않는 원 단위는 마지막 달 몫에 붙인다.
+ */
+function monthSegmentsWithShare(input: RefundPeriodInput, lastUsed: Date): MonthSegment[] {
+  const { paidAmount, periodStart, periodEnd } = input;
   const calendar = isCalendarProrated(periodStart, periodEnd, input.months) && input.monthlyFee !== undefined;
   const segments = calendar ? calendarSegments(periodStart, periodEnd) : monthSegments(periodStart, periodEnd, input.months);
   const share = Math.floor(paidAmount / segments.length);
   // 일할 첫 달 청구서의 나머지 달 몫 = 월 수강료 (낸 돈이 모자라면 그만큼만)
   const fullShare =
     segments.length > 1 ? Math.min(input.monthlyFee ?? 0, Math.floor(paidAmount / (segments.length - 1))) : 0;
-  const lastUsed = input.lastUsedDate as Date;
-  const lines = segments.map((seg, index): RefundLine => {
-    const segShare = calendar
-      ? index === 0
-        ? paidAmount - fullShare * (segments.length - 1)
-        : fullShare
-      : index === segments.length - 1
-        ? paidAmount - share * (segments.length - 1)
-        : share;
-    const segDays = daysInclusive(seg.start, seg.end);
-    const used = Math.min(segDays, Math.max(0, daysInclusive(seg.start, lastUsed)));
-    const base = {
+  return segments.map((seg, index) => {
+    const totalDays = daysInclusive(seg.start, seg.end);
+    return {
       label: segments.length > 1 ? `${index + 1}개월차` : null,
       start: seg.start,
       end: seg.end,
-      totalDays: segDays,
-      usedDays: used,
-      share: segShare,
+      totalDays,
+      usedDays: Math.min(totalDays, Math.max(0, daysInclusive(seg.start, lastUsed))),
+      share: calendar
+        ? index === 0
+          ? paidAmount - fullShare * (segments.length - 1)
+          : fullShare
+        : index === segments.length - 1
+          ? paidAmount - share * (segments.length - 1)
+          : share,
     };
-    if (used === 0) return { ...base, rule: "FULL", raw: segShare, amount: segShare };
-    const rule = used >= segDays ? "NONE" : academyRule(used, segDays);
-    const raw = rule === "TWO_THIRDS" ? (segShare * 2) / 3 : rule === "HALF" ? segShare / 2 : 0;
-    return { ...base, rule, raw, amount: ceilWon(raw) };
+  });
+}
+
+/** 시작 전 달들 — "시작 전 N개월 전액 X원" */
+function untouchedText(segments: { usedDays: number; share: number }[]): string {
+  const untouched = segments.filter((seg) => seg.usedDays === 0);
+  if (untouched.length === 0) return "";
+  return `시작 전 ${untouched.length}개월 전액 ${wonText(untouched.reduce((sum, seg) => sum + seg.share, 0))}`;
+}
+
+/**
+ * 학원법 구간식 — 이용 중인 달은 1/3 경과 전 2/3 · 1/2 경과 전 1/2 · 이후 없음, 아직 시작하지 않은 달은 전액.
+ * 학원의 법정 반환 기준이기도 하다 (별표 4 제3호 가목 1).
+ */
+function academyLawLines(input: RefundPeriodInput, lastUsed: Date): { lines: RefundLine[]; basis: string } {
+  const lines = monthSegmentsWithShare(input, lastUsed).map((seg): RefundLine => {
+    if (seg.usedDays === 0) return { ...seg, rule: "FULL", raw: seg.share, amount: seg.share };
+    const rule = seg.usedDays >= seg.totalDays ? "NONE" : academyRule(seg.usedDays, seg.totalDays);
+    const raw = rule === "TWO_THIRDS" ? (seg.share * 2) / 3 : rule === "HALF" ? seg.share / 2 : 0;
+    return { ...seg, rule, raw, amount: ceilWon(raw) };
   });
 
   const RULE_TEXT = { TWO_THIRDS: "1/3 경과 전 2/3", HALF: "1/2 경과 전 1/2", NONE: "1/2 경과 환불 없음" } as const;
   const current = lines.find((line) => line.usedDays > 0 && line.usedDays < line.totalDays);
-  const untouched = lines.filter((line) => line.rule === "FULL");
   const parts = [
     current && current.rule !== "FULL" && current.rule !== "DAILY"
       ? `${current.label ? `${current.label} ` : ""}${current.totalDays}일 중 ${current.usedDays}일 이용(${RULE_TEXT[current.rule]}) ${wonText(current.amount)}`
       : "",
-    untouched.length > 0
-      ? `시작 전 ${untouched.length}개월 전액 ${wonText(untouched.reduce((sum, line) => sum + line.amount, 0))}`
-      : "",
+    untouchedText(lines),
   ].filter(Boolean);
-  return finish(lines, `학원법 구간식 — ${parts.join(" · ") || "환불 대상 기간 없음"}`);
+  return { lines, basis: `학원법 구간식 — ${parts.join(" · ") || "환불 대상 기간 없음"}` };
+}
+
+/**
+ * 독서실 법정 반환액 (별표 4 제3호 가목 2) — 납부액 − 1일 교습비 × 이용 일수(사용 시작일 ~ 그만둔 날 전날).
+ * 반환 사유가 생긴 달만 이 식으로, 시작 전인 달은 전액, 다 이용한 달은 0.
+ * 1일 교습비를 게시하지 않았으면 그 달 몫 ÷ 그 달 일수 (실제 납부액 기준 — 할인 전 정가를 쓰지 않는다).
+ */
+function studyRoomLegal(input: RefundPeriodInput, lastUsed: Date, postedDailyFee: number | null) {
+  const segments = monthSegmentsWithShare(input, lastUsed);
+  let total = 0;
+  const parts: string[] = [];
+  for (const seg of segments) {
+    if (seg.usedDays === 0) total += seg.share;
+    if (seg.usedDays === 0 || seg.usedDays >= seg.totalDays) continue;
+    const left = seg.totalDays - seg.usedDays;
+    const raw =
+      postedDailyFee !== null ? seg.share - postedDailyFee * seg.usedDays : (seg.share * left) / seg.totalDays;
+    const amount = Math.max(0, ceilWon(raw));
+    total += amount;
+    const label = seg.label ? `${seg.label} ` : "";
+    parts.push(
+      postedDailyFee !== null
+        ? `${label}${wonText(seg.share)} − 게시 1일 ${wonText(postedDailyFee)} × ${seg.usedDays}일 = ${wonText(amount)}`
+        : `${label}${seg.totalDays}일 중 ${seg.usedDays}일 이용, ${wonText(seg.share)} × 남은 ${left}일 ÷ ${seg.totalDays}일 = ${wonText(amount)}`,
+    );
+  }
+  parts.push(untouchedText(segments));
+  return { total, basis: `독서실 기준 — ${parts.filter(Boolean).join(" · ") || "반환 대상 기간 없음"}` };
+}
+
+/**
+ * 법정 반환액 (환불 하한, 학원법 시행령 제18조 · 별표 4). 어느 환불 방식을 쓰든 이보다 적게 돌려주면 안 된다.
+ *  · 독서실: 납부액 − 1일 교습비 × 이용 일수 (studyRoomLegal)
+ *  · 학원: 학원법 구간식 (1/3 전 2/3 · 1/2 전 1/2 · 이후 없음)
+ *  · 1개월을 넘으면 반환 사유가 생긴 달만 위 기준, 나머지 달은 전액. 1원 미만은 올린다.
+ * lastUsedDate 를 모르면(undefined — 이용 기간 유지) 반환 사유 발생일을 알 수 없어 null.
+ */
+export function legalRefund(
+  input: Omit<RefundPeriodInput, "lastUsedDate"> & RefundFacility & { lastUsedDate: Date | null | undefined },
+): LegalRefund | null {
+  const { lastUsedDate, paidAmount, periodStart } = input;
+  if (lastUsedDate === undefined || input.periodEnd.getTime() < periodStart.getTime()) return null;
+  const refundable = Math.max(0, input.refundable);
+  const period = { ...input, lastUsedDate };
+  let total = paidAmount;
+  let basis = "이용 시작 전 — 전액";
+  if (lastUsedDate !== null && lastUsedDate.getTime() >= periodStart.getTime()) {
+    if (input.facilityKind === "ACADEMY") {
+      const academy = academyLawLines(period, lastUsedDate);
+      total = academy.lines.reduce((sum, line) => sum + line.amount, 0);
+      basis = academy.basis;
+    } else {
+      ({ total, basis } = studyRoomLegal(period, lastUsedDate, input.postedDailyFee));
+    }
+  }
+  // 앞서 돌려준(처리 중 포함) 금액은 이미 반환한 것으로 본다
+  const alreadyReturned = paidAmount - refundable;
+  return { amount: Math.min(refundable, Math.max(0, total - alreadyReturned)), total, basis };
+}
+
+/** 반환 기한 — 반환 사유가 생긴 날(그만둔 날 = 마지막 이용 다음 날, 이용 전이면 오늘)부터 5일 이내 (시행령 제18조 제3항) */
+export function refundDueDate(lastUsedDate: Date | null, today: Date): Date {
+  return addDays(lastUsedDate ? addDays(lastUsedDate, 1) : today, 5);
 }
 
 /** 일할 첫 달이 있는 청구서인지 — 달 중간에 시작해 달력 말일에 끝난다 (예전 방식의 "시작일부터 한 달" 청구서와 구별) */

@@ -45,6 +45,7 @@ import {
   readExtraItems,
   refundableAmount,
   splitTax,
+  type RefundFacility,
   type TuitionDisplayStatus,
   type TuitionExtraItem,
   type TuitionInvoiceStatusValue,
@@ -53,6 +54,7 @@ import {
 import {
   billUrl,
   buildNoticeShareText,
+  getRefundFacility,
   getTuitionProviderInfo,
   getTuitionSetting,
   isOnlinePaymentAvailable,
@@ -395,6 +397,8 @@ export type TuitionAdminData = {
   /** 원장급만. 직원이면 빈 배열 */
   students: AdminTuitionStudent[];
   setting: TuitionSettingValues;
+  /** 시설 종류 · 게시한 1일 교습비 — 환불 화면이 법정 반환액을 계산할 때 쓴다 */
+  refundFacility: RefundFacility;
   onlinePaymentAvailable: boolean;
   /** 연동된 결제사와 그 결제사가 할 수 있는 일. 연동이 없으면 null */
   provider: TuitionProviderInfo | null;
@@ -926,8 +930,9 @@ export async function getTuitionAdminData(input: {
   const monthStartAt = kstStartOfDay(monthStart);
   const nextMonthStartAt = kstStartOfDay(nextMonthStart);
 
-  const [setting, onlinePaymentAvailable, records, onsiteRecords, refundRecords, cashRecords] = await Promise.all([
+  const [setting, refundFacility, onlinePaymentAvailable, records, onsiteRecords, refundRecords, cashRecords] = await Promise.all([
     getTuitionSetting(),
+    getRefundFacility(),
     isOnlinePaymentAvailable(),
     prisma.tuitionInvoice.findMany({
       where: {
@@ -1142,6 +1147,7 @@ export async function getTuitionAdminData(input: {
       cashReceiptTodo: cashReceipts.filter((row) => row.todo).length,
     },
     setting,
+    refundFacility,
     onlinePaymentAvailable,
     provider: getTuitionProviderInfo(),
   };

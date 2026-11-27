@@ -25,7 +25,9 @@ import {
   addDays,
   dateKey,
   parseDateKey,
+  refundDueDate,
   suggestRefund,
+  type RefundFacility,
   type TuitionRefundPolicyValue,
 } from "@/lib/tuition/calc";
 import type { RefundOutcome, RequestRefundInput } from "@/lib/tuition/core";
@@ -46,6 +48,7 @@ export function RefundDialog({
   detail,
   payment,
   refundPolicy,
+  refundFacility,
   onClose,
   onDone,
 }: {
@@ -53,6 +56,8 @@ export function RefundDialog({
   /** 환불할 결제 — 납부로 확정된 결제, 또는 아직 돈을 돌려주지 못한 중복 결제 */
   payment: AdminPaymentDetail;
   refundPolicy: TuitionRefundPolicyValue;
+  /** 법정 반환액 계산 기준 (시설 종류 · 게시한 1일 교습비) */
+  refundFacility: RefundFacility;
   onClose: () => void;
   /** 환불 요청이 들어가 상세·목록을 다시 불러와야 할 때 */
   onDone: () => void;
@@ -93,6 +98,7 @@ export function RefundDialog({
   const [accountNumber, setAccountNumber] = useState("");
   const [holderName, setHolderName] = useState("");
   const [manualConfirmed, setManualConfirmed] = useState(false);
+  const [belowLegalConfirmed, setBelowLegalConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<(RefundOutcome & { amount: number }) | null>(null);
 
@@ -114,12 +120,12 @@ export function RefundDialog({
           months: invoice.months,
           monthlyFee: invoice.monthlyFee,
           lastUsedDate: mode === "BEFORE_USE" ? null : lastUsedDate,
+          facility: refundFacility,
         });
-  // 학원법 규정: 반환 사유 발생일(마지막 이용 다음 날, 이용 전이면 오늘)로부터 5일 이내 반환
-  const returnBy =
-    refundPolicy !== "ACADEMY_LAW" || !suggestion
-      ? null
-      : addDays(mode === "LAST_USED" && lastUsedDate ? addDays(lastUsedDate, 1) : today, 5);
+  // 법정 반환액(하한) — 이용 기간 유지·중복 결제는 반환 사유 발생일을 몰라 계산하지 않는다 (서버도 같은 기준)
+  const legal = duplicate ? null : (suggestion?.legal ?? null);
+  // 학원법 규정: 반환 사유 발생일(마지막 이용 다음 날, 이용 전이면 오늘)로부터 5일 이내 반환 — 어느 방식이든
+  const returnBy = suggestion ? refundDueDate(mode === "LAST_USED" ? lastUsedDate : null, today) : null;
   // 제안이 0원이면(직접 입력 방식·환불 대상 기간 없음) 칸을 비워 운영진이 직접 넣게 한다
   const suggestedDigits = duplicate ? String(refundable) : suggestion && suggestion.amount > 0 ? String(suggestion.amount) : "";
   const amountDigits = amountInput ?? suggestedDigits;
@@ -141,6 +147,7 @@ export function RefundDialog({
         : amount > refundable
           ? `환불 가능 금액(${won(refundable)})을 넘었어요`
           : null;
+  const belowLegal = legal !== null && amount !== null && amountError === null && amount < legal.amount;
   const accountReady = !needsAccount || (bank.trim() !== "" && accountNumber.trim() !== "" && holderName.trim() !== "");
   const canSubmit =
     !pending &&
@@ -150,7 +157,8 @@ export function RefundDialog({
     reason.trim() !== "" &&
     (mode !== "LAST_USED" || lastUsedValid) &&
     accountReady &&
-    (!manual || manualConfirmed);
+    (!manual || manualConfirmed) &&
+    (!belowLegal || belowLegalConfirmed);
 
   function submit() {
     if (!canSubmit || amount === null) return;
@@ -178,6 +186,7 @@ export function RefundDialog({
       };
     }
     if (manual) input.manualConfirmed = true;
+    if (belowLegal) input.belowLegalConfirmed = true;
 
     setError(null);
     startTransition(async () => {
@@ -328,6 +337,11 @@ export function RefundDialog({
           {!duplicate && suggestion && (
             <RefundBreakdown suggestion={suggestion} policy={refundPolicy} returnBy={returnBy} />
           )}
+          {!duplicate && !legal && canAdjustPeriod && !(mode === "LAST_USED" && !lastUsedValid) && (
+            <Notice tone="info">
+              법정 반환액을 계산할 수 없어요(이용 기간 확인 필요). 그만둬서 돌려주는 환불이면 마지막 이용일을 지정해 주세요.
+            </Notice>
+          )}
 
           <FormField
             label="환불 금액"
@@ -365,7 +379,29 @@ export function RefundDialog({
             </div>
           </FormField>
 
-          <FormField label="환불 사유" htmlFor="tuition-refund-reason" required hint="환불 기록에 남아요.">
+          {belowLegal && legal && (
+            <>
+              <Notice tone="warn" title={`법정 반환액(${won(legal.amount)})보다 적어요`}>
+                학원법상 법정 반환액 이상 돌려줘야 해요. 그래도 적게 돌려준다면 그 이유를 환불 사유에 적고 아래를 체크해 주세요.
+              </Notice>
+              <label className="flex cursor-pointer items-start gap-x2 rounded-r3 bg-bg-layer-fill px-x4 py-x3">
+                <Checkbox
+                  checked={belowLegalConfirmed}
+                  disabled={pending}
+                  onCheckedChange={(checked) => setBelowLegalConfirmed(checked === true)}
+                  className="mt-x0_5"
+                />
+                <span className="t4-medium text-fg-neutral">이유를 사유에 적었고, 법정 반환액보다 적게 환불해요</span>
+              </label>
+            </>
+          )}
+
+          <FormField
+            label="환불 사유"
+            htmlFor="tuition-refund-reason"
+            required
+            hint={belowLegal ? "법정 반환액보다 적게 돌려주는 이유를 적어 주세요. 환불 기록에 남아요." : "환불 기록에 남아요."}
+          >
             <Input
               id="tuition-refund-reason"
               value={reason}

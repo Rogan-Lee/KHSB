@@ -31,7 +31,7 @@ import {
   sendTuitionReminders,
 } from "@/actions/tuition";
 import type { AdminInvoiceDetail, AdminPaymentDetail, AdminRefundDetail } from "@/lib/tuition/admin-data";
-import type { TuitionRefundPolicyValue } from "@/lib/tuition/calc";
+import type { RefundFacility, TuitionRefundPolicyValue } from "@/lib/tuition/calc";
 import type { TuitionProviderInfo } from "@/lib/tuition/provider-info";
 import {
   CASH_RECEIPT_PURPOSE_LABEL,
@@ -107,12 +107,14 @@ export function InvoiceDetailDialog({
   invoiceId,
   fullAccess,
   refundPolicy,
+  refundFacility,
   provider,
   onClose,
 }: {
   invoiceId: string;
   fullAccess: boolean;
   refundPolicy: TuitionRefundPolicyValue;
+  refundFacility: RefundFacility;
   /** 연결된 결제사 — 알림톡 청구서 버튼을 보일지 정한다 */
   provider: TuitionProviderInfo | null;
   onClose: () => void;
@@ -401,6 +403,7 @@ export function InvoiceDetailDialog({
           detail={refunding.detail}
           payment={refunding.payment}
           refundPolicy={refundPolicy}
+          refundFacility={refundFacility}
           onClose={() => setRefunding(null)}
           onDone={reload}
         />

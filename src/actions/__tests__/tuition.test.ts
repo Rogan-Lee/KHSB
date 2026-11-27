@@ -10,6 +10,7 @@ vi.mock("@/lib/prisma", () => ({
     tuitionProfile: { upsert: vi.fn() },
     tuitionSetting: { upsert: vi.fn() },
     personalDataAccessLog: { createMany: vi.fn() },
+    appSetting: { upsert: vi.fn(), deleteMany: vi.fn() },
     $transaction: vi.fn(async (ops: unknown[]) => ops),
   },
 }));
@@ -108,6 +109,8 @@ const settingInput: TuitionSettingInput = {
   autoIssueLeadDays: 3,
   guideText: null,
   onsiteGuideText: null,
+  facilityKind: "STUDY_ROOM",
+  postedDailyFee: null,
 };
 
 /** 직원 전체가 쓸 수 있는 액션 */
@@ -518,12 +521,26 @@ describe("updateTuitionSetting", () => {
     ["자동 청구 사용이 문자열", { autoIssueEnabled: "true" as never }],
     ["자동 청구 시점 31일 전", { autoIssueLeadDays: 31 }],
     ["안내문 5,001자", { guideText: "가".repeat(5001) }],
+    ["없는 시설 종류", { facilityKind: "CAFE" as never }],
+    ["게시 1일 교습비 소수", { postedDailyFee: 23_000.5 }],
   ])("%s 은(는) 저장하지 않는다", async (_label, patch) => {
     await expect(updateTuitionSetting({ ...settingInput, ...patch })).resolves.toMatchObject({
       ok: false,
       code: "INVALID_INPUT",
     });
     expect(prisma.tuitionSetting.upsert).not.toHaveBeenCalled();
+  });
+
+  it("시설 종류·게시 1일 교습비는 AppSetting 에 — 비우면 지운다", async () => {
+    await updateTuitionSetting({ ...settingInput, facilityKind: "ACADEMY", postedDailyFee: 23_000 });
+    expect(prisma.appSetting.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { key: "tuition.facilityKind" }, update: { value: "ACADEMY" } }),
+    );
+    expect(prisma.appSetting.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { key: "tuition.postedDailyFee" }, update: { value: "23000" } }),
+    );
+    await updateTuitionSetting(settingInput);
+    expect(prisma.appSetting.deleteMany).toHaveBeenCalledWith({ where: { key: "tuition.postedDailyFee" } });
   });
 
   it("기본 수강료와 재결제 안내는 비울 수 있다", async () => {
