@@ -110,20 +110,39 @@ export default async function PrivacyRecordsPage({
           )}
         </Section>
 
-        <Section title="보유 기간이 지난 정보" description="매일 새벽 보유 기간이 지난 신청·본인 확인·기록을 지우고 건수를 보여 줘요. 학생 기록은 아직 자동으로 지우지 않아요.">
+        <Section
+          title="보유 기간이 지난 정보"
+          description={`매일 새벽 보유 기간이 지난 신청·본인 확인·기록과 오래 안 보인 와이파이 기기를 지우고 건수를 보여 줘요. ${
+            retention?.studentPurgeEnabled
+              ? "퇴원·졸업생은 파일까지 지우고, 수납 기록이 있으면 수납 기록만 이름 없이 남겨요."
+              : "퇴원·졸업생은 아직 자동으로 지우지 않아요."
+          }`}
+        >
           {retention ? (
             <div className="flex flex-col gap-x3">
-              <StatCards cols={4}>
+              <StatCards cols={5}>
                 <StatCard label="대기 신청·문의" value={retention.waitlist} unit="건" sub="취소·응대 끝난 뒤 1년" />
                 <StatCard label="휴대폰 본인 확인" value={retention.phoneVerification} unit="건" sub={`${RETENTION.phoneVerificationDays}일 지남`} />
                 <StatCard
                   label="퇴원·졸업생"
                   value={retention.students}
                   unit="명"
-                  sub={`${RETENTION.studentYears}년 지남 · 수납 기록 보존 ${retention.studentsHeldByPayment}명`}
+                  sub={`${RETENTION.studentYears}년 지남 · 자동 파기 ${retention.studentPurgeEnabled ? "켜짐" : "꺼짐"}`}
                 />
                 <StatCard label="접속·전송 기록" value={retention.logs} unit="건" sub={`${RETENTION.logYears}년 지남`} />
+                <StatCard
+                  label="와이파이 기기"
+                  value={retention.devicesToUnassign + retention.devicesStale}
+                  unit="대"
+                  sub={`퇴원생 연결 해제 ${retention.devicesToUnassign} · ${RETENTION.unassignedDeviceDays}일 안 보인 미배정 ${retention.devicesStale}`}
+                />
               </StatCards>
+              {(retention.studentsHeldByPayment > 0 || retention.studentsAnonymized > 0) && (
+                <p className="t3-regular text-fg-neutral-subtle">
+                  수납 기록은 세법상 5년 보관해요. 대상 중 수납 기록이 있는 학생 {retention.studentsHeldByPayment}명 · 이름 없이 남긴 학생{" "}
+                  {retention.studentsAnonymized}명
+                </p>
+              )}
               {retention.studentsWithoutEndDate > 0 && (
                 <Notice tone="warn">
                   퇴원·졸업했는데 종료일이 비어 있는 학생이 {retention.studentsWithoutEndDate}명이에요. 종료일을 적어야 보유 기간을 셀 수 있어요.
