@@ -120,7 +120,7 @@ export default async function PrivacyRecordsPage({
         >
           {retention ? (
             <div className="flex flex-col gap-x3">
-              <StatCards cols={5}>
+              <StatCards cols={4}>
                 <StatCard label="대기 신청·문의" value={retention.waitlist} unit="건" sub="취소·응대 끝난 뒤 1년" />
                 <StatCard label="휴대폰 본인 확인" value={retention.phoneVerification} unit="건" sub={`${RETENTION.phoneVerificationDays}일 지남`} />
                 <StatCard
@@ -129,18 +129,7 @@ export default async function PrivacyRecordsPage({
                   unit="명"
                   sub={`${RETENTION.studentYears}년 지남 · 자동 파기 ${retention.studentPurgeEnabled ? "켜짐" : "꺼짐"}`}
                 />
-                <StatCard
-                  label="접속·전송·발송 기록"
-                  value={retention.logs + (retention.messages ?? 0)}
-                  unit="건"
-                  sub={`접속·AI ${RETENTION.logYears}년 · 발송 ${RETENTION.messageLogYears}년 지남`}
-                />
-                <StatCard
-                  label="와이파이 기기"
-                  value={retention.devicesToUnassign + retention.devicesStale}
-                  unit="대"
-                  sub={`퇴원생 연결 해제 ${retention.devicesToUnassign} · ${RETENTION.unassignedDeviceDays}일 안 보인 미배정 ${retention.devicesStale}`}
-                />
+                <StatCard label="접속·전송 기록" value={retention.logs} unit="건" sub={`${RETENTION.logYears}년 지남`} />
               </StatCards>
               {(retention.studentsHeldByPayment > 0 || retention.studentsAnonymized > 0) && (
                 <p className="t3-regular text-fg-neutral-subtle">

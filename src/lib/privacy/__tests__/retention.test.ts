@@ -98,7 +98,6 @@ describe("보유 기간", () => {
     expect(cut.waitlist.toISOString().slice(0, 10)).toBe("2025-11-22");
     expect(cut.student.toISOString().slice(0, 10)).toBe("2023-11-22");
     expect(cut.log.toISOString().slice(0, 10)).toBe("2024-11-22");
-    expect(cut.unassignedDevice.toISOString().slice(0, 10)).toBe("2026-10-23");
   });
 
   it("응대 전 신청·등록된 학생의 신청·종료일 없는 학생은 대상이 아니다", () => {
@@ -171,9 +170,12 @@ describe("runRetention", () => {
   it("기본은 지우되 학생은 RETENTION_PURGE_STUDENTS 없이는 건드리지 않는다", async () => {
     db.student.count.mockResolvedValue(3);
     const r = await runRetention(now);
-    expect(r.purged).toMatchObject({ waitlist: 2, phoneVerification: 2, logs: 4, messages: 2, students: 0 });
-    // 발송 기록은 1년 — 보낸 시각(sentAt) 기준
-    expect(db.messageLog.deleteMany).toHaveBeenCalledWith({ where: { sentAt: { lt: new Date("2025-11-22T00:00:00.000Z") } } });
+    expect(r.purged).toMatchObject({ waitlist: 2, phoneVerification: 2, logs: 4, students: 0 });
+    // 발송 기록·와이파이 기기는 원장 확인 전까지 자동으로 지우지 않는다
+    expect(db.messageLog.deleteMany).not.toHaveBeenCalled();
+    expect(db.accessDevice.deleteMany).not.toHaveBeenCalled();
+    expect(db.accessDevice.updateMany).not.toHaveBeenCalled();
+    expect(access.bumpAccessRev).not.toHaveBeenCalled();
     expect(r.students).toBe(3);
     expect(r.studentPurgeEnabled).toBe(false);
     expect(db.student.findMany).not.toHaveBeenCalled();
@@ -273,28 +275,6 @@ describe("runRetention", () => {
         db.student.deleteMany.mock.invocationCallOrder[0],
       );
       expect(db.student.deleteMany.mock.calls[0][0].where.id).toBe("s1");
-    });
-  });
-
-  describe("와이파이 기기", () => {
-    it("퇴원생 기기는 연결을 풀고 30일 안 보인 미배정 기기는 지운다 (EXEMPT 제외)", async () => {
-      db.accessDevice.updateMany.mockResolvedValue({ count: 1 });
-      db.accessDevice.deleteMany.mockResolvedValue({ count: 2 });
-      const r = await runRetention(now);
-      const unassign = db.accessDevice.updateMany.mock.calls[0][0];
-      expect(unassign.where.status).toBe("ASSIGNED");
-      expect(unassign.data).toEqual({ studentId: null, status: "UNASSIGNED", label: null });
-      expect(db.accessDevice.deleteMany).toHaveBeenCalledWith({
-        where: { status: "UNASSIGNED", lastSeenAt: { lt: retentionCutoffs(now).unassignedDevice } },
-      });
-      expect(JSON.stringify([unassign, db.accessDevice.deleteMany.mock.calls[0][0]])).not.toContain("EXEMPT");
-      expect(r.purged).toMatchObject({ devicesUnassigned: 1, devicesDeleted: 2 });
-      expect(access.bumpAccessRev).toHaveBeenCalledOnce();
-    });
-
-    it("바뀐 게 없으면 장비 정책 번호를 올리지 않는다", async () => {
-      await runRetention(now);
-      expect(access.bumpAccessRev).not.toHaveBeenCalled();
     });
   });
 });

@@ -17,10 +17,6 @@ export const RETENTION = {
   studentYears: 3,
   /** 직원 접속 기록·AI 전송 이력 (상담 기록에 건강 정보가 섞일 수 있어 2년 — 안전성 확보조치 기준 제8조) */
   logYears: 2,
-  /** 학생·학부모에게 보낸 앱 알림·문자 발송 기록 (MessageLog) */
-  messageLogYears: 1,
-  /** 와이파이에 붙었다가 주인을 정하지 않은 기기: 마지막으로 보인 날부터 */
-  unassignedDeviceDays: 30,
 } as const;
 
 /** 한 번 실행에 파기하는 학생 수 — 크론 60초 안에 끝나게 */
@@ -43,8 +39,6 @@ export function retentionCutoffs(now = new Date()) {
     phoneVerification: daysAgo(RETENTION.phoneVerificationDays),
     student: yearsAgo(RETENTION.studentYears),
     log: yearsAgo(RETENTION.logYears),
-    messageLog: yearsAgo(RETENTION.messageLogYears),
-    unassignedDevice: daysAgo(RETENTION.unassignedDeviceDays),
   };
 }
 
@@ -75,16 +69,8 @@ export function isExpiredStudent(s: { status: string; endDate: Date | null; name
   );
 }
 
-/** 퇴원·졸업생에게 연결된 기기 (학생 행이 지워져 주인이 빈 채 남은 기기 포함). 통제 제외(EXEMPT)는 대상이 아니다 */
-const LEFT_STUDENT_DEVICE_WHERE: Prisma.AccessDeviceWhereInput = {
-  status: "ASSIGNED",
-  OR: [{ studentId: null }, { student: { status: { in: [...LEFT_STATUSES] } } }],
-};
+/** 파기한 학생의 와이파이 기기는 연결만 푼다 */
 const UNASSIGN_DEVICE = { studentId: null, status: "UNASSIGNED", label: null } as const;
-
-export function staleDeviceWhere(cutoff: Date): Prisma.AccessDeviceWhereInput {
-  return { status: "UNASSIGNED", lastSeenAt: { lt: cutoff } };
-}
 
 // ─── 학생 파일 ───────────────────────────────────────────────────────
 
@@ -183,8 +169,6 @@ export type RetentionPreview = {
   waitlist: number;
   phoneVerification: number;
   logs: number;
-  /** 발송 기록(1년) */
-  messages: number;
   /** 지울 때가 된 학생 — 그중 수납 기록(5년 보존)이 있으면 수납 기록만 이름 없이 남긴다 */
   students: number;
   studentsHeldByPayment: number;
@@ -194,16 +178,10 @@ export type RetentionPreview = {
   studentPurgeEnabled: boolean;
   /** 파기했지만 수납 기록 때문에 남긴 익명 학생 행 */
   studentsAnonymized: number;
-  /** 와이파이 기기 — 퇴원·졸업생에게 연결된 기기 / 오래 안 보인 미배정 기기 */
-  devicesToUnassign: number;
-  devicesStale: number;
   purged: {
     waitlist: number;
     phoneVerification: number;
     logs: number;
-    messages: number;
-    devicesUnassigned: number;
-    devicesDeleted: number;
     students: number;
   } | null;
 };
@@ -218,38 +196,28 @@ export async function runRetention(now = new Date()): Promise<RetentionPreview> 
     phoneVerification,
     accessLogs,
     aiLogs,
-    messages,
     students,
     studentsHeldByPayment,
     studentsWithoutEndDate,
     studentsAnonymized,
-    devicesToUnassign,
-    devicesStale,
   ] = await Promise.all([
     prisma.waitlist.count({ where: expiredWaitlistWhere(cut.waitlist) }),
     prisma.phoneVerification.count({ where: { createdAt: { lt: cut.phoneVerification } } }),
     prisma.personalDataAccessLog.count({ where: { createdAt: { lt: cut.log } } }),
     prisma.aiTransferLog.count({ where: { createdAt: { lt: cut.log } } }),
-    prisma.messageLog.count({ where: { sentAt: { lt: cut.messageLog } } }),
     prisma.student.count({ where: studentWhere }),
     prisma.student.count({ where: { ...studentWhere, tuitionInvoices: { some: {} } } }),
     prisma.student.count({ where: { status: { in: [...LEFT_STATUSES] }, endDate: null } }),
     prisma.student.count({ where: { name: PURGED_STUDENT_NAME } }),
-    prisma.accessDevice.count({ where: LEFT_STUDENT_DEVICE_WHERE }),
-    prisma.accessDevice.count({ where: staleDeviceWhere(cut.unassignedDevice) }),
   ]);
 
   let purged: RetentionPreview["purged"] = null;
   if (purgeOn) {
-    const [w, p, a, t, m, du, dd] = await prisma.$transaction([
+    const [w, p, a, t] = await prisma.$transaction([
       prisma.waitlist.deleteMany({ where: expiredWaitlistWhere(cut.waitlist) }),
       prisma.phoneVerification.deleteMany({ where: { createdAt: { lt: cut.phoneVerification } } }),
       prisma.personalDataAccessLog.deleteMany({ where: { createdAt: { lt: cut.log } } }),
       prisma.aiTransferLog.deleteMany({ where: { createdAt: { lt: cut.log } } }),
-      prisma.messageLog.deleteMany({ where: { sentAt: { lt: cut.messageLog } } }),
-      // 와이파이 기기: 퇴원생 기기는 연결을 풀고, 그 뒤 오래 안 보인 미배정 기기를 지운다 (직원·공용 EXEMPT 는 그대로)
-      prisma.accessDevice.updateMany({ where: LEFT_STUDENT_DEVICE_WHERE, data: UNASSIGN_DEVICE }),
-      prisma.accessDevice.deleteMany({ where: staleDeviceWhere(cut.unassignedDevice) }),
     ]);
 
     let purgedStudents = 0;
@@ -268,15 +236,12 @@ export async function runRetention(now = new Date()): Promise<RetentionPreview> 
         }
       }
     }
-    // 기기 연결·학생별 통제 규칙이 바뀌었으면 장비가 정책을 다시 받게
-    if (du.count + dd.count + purgedStudents > 0) await bumpAccessRev();
+    // 파기한 학생의 기기 연결·통제 규칙이 바뀌었으면 장비가 정책을 다시 받게
+    if (purgedStudents > 0) await bumpAccessRev();
     purged = {
       waitlist: w.count,
       phoneVerification: p.count,
       logs: a.count + t.count,
-      messages: m.count,
-      devicesUnassigned: du.count,
-      devicesDeleted: dd.count,
       students: purgedStudents,
     };
   }
@@ -286,14 +251,11 @@ export async function runRetention(now = new Date()): Promise<RetentionPreview> 
     waitlist,
     phoneVerification,
     logs: accessLogs + aiLogs,
-    messages,
     students,
     studentsHeldByPayment,
     studentsWithoutEndDate,
     studentPurgeEnabled,
     studentsAnonymized,
-    devicesToUnassign,
-    devicesStale,
     purged,
   };
   const value = JSON.stringify(preview);
