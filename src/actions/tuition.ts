@@ -11,6 +11,7 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logDownload } from "@/lib/privacy/access-log";
 import { isFullAccess, requireFullAccess, requireStaff } from "@/lib/roles";
 import { getTuitionInvoiceDetail, type AdminInvoiceDetail } from "@/lib/tuition/admin-data";
 import { validatePricing, type TuitionPricing } from "@/lib/tuition/pricing";
@@ -607,11 +608,13 @@ export async function cancelTuitionCashReceipt(cashReceiptId: string, reason: st
 export async function exportTuitionCsv(
   ym: string,
 ): Promise<TuitionResult<{ filename: string; csv: string; count: number }>> {
-  await requireFullAccessActor();
-  return runTuition(() => {
+  const actor = await requireFullAccessActor();
+  const result = await runTuition(() => {
     if (typeof ym !== "string" || !/^20\d{2}-(0[1-9]|1[0-2])$/.test(ym)) invalid("조회할 달을 확인해 주세요");
     return getTuitionExport({ ym });
   });
+  if (result.ok) await logDownload({ id: actor.id, name: actor.name ?? actor.id }, `/tuition/export/${ym}`);
+  return result;
 }
 
 // ─── 설정 (원장급) ─────────────────────────────────────────────────────

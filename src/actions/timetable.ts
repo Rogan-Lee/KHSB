@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { parseSchool } from "@/lib/utils";
 import { requireAnyStaff } from "@/lib/roles";
+import { logDownload } from "@/lib/privacy/access-log";
 
 // 보안: "use server" export 는 공개 POST 엔드포인트 — 조회 함수도 직원 세션을 검증한다.
 // 호출처는 모두 대시보드(시간표·멘토링 상세·면담 상세)이며 전 직원 공용 화면이다.
@@ -193,4 +194,11 @@ export async function getAttendanceAutoBlocks(studentId: string) {
       label: o.reason ?? "외출",
     })),
   ];
+}
+
+/** 시간표 PDF 는 브라우저에서 만든다 — 저장한 뒤 내려받기 기록만 남긴다 */
+export async function logTimetablePdfDownload(studentId: string) {
+  const user = await requireStaffSession();
+  if (typeof studentId !== "string" || !/^[a-z0-9]{20,40}$/.test(studentId)) throw new Error("학생을 찾을 수 없습니다");
+  await logDownload(user, `/students/${studentId}/timetable.pdf`);
 }

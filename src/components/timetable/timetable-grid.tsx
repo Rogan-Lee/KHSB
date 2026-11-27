@@ -5,6 +5,7 @@ import {
   createTimetableEntry,
   updateTimetableEntry,
   deleteTimetableEntry,
+  logTimetablePdfDownload,
 } from "@/actions/timetable";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -325,6 +326,7 @@ export function TimetableGrid({
       pdf.addImage(dataUrl, "PNG", 0, 0, imgW, imgH);
       pdf.save(`${studentName}_시간표.pdf`);
       toast.success("PDF 저장 완료");
+      logTimetablePdfDownload(studentId).catch(() => undefined); // 개인정보 내려받기 기록 — 실패해도 저장엔 영향 없음
     } catch (e) {
       console.error(e);
       toast.error("PDF 내보내기 실패");

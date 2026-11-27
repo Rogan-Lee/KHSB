@@ -12,6 +12,9 @@ vi.mock("@/lib/prisma", () => ({
       updateMany: vi.fn(),
       upsert: vi.fn(),
     },
+    messageLog: {
+      createMany: vi.fn(),
+    },
     parentLink: {
       findMany: vi.fn(),
     },
@@ -43,8 +46,10 @@ import { prisma } from "@/lib/prisma";
 import {
   notifyAssignedStaffOfQuestion,
   notifyParentsOfStudent,
+  notifyStudentOfAnswer,
   processPendingPushReceipts,
   queueParentAttendancePush,
+  queueParentDemeritPush,
   queueStaffAlert,
   registerMobilePushToken,
   sendMobilePush,
@@ -134,6 +139,8 @@ describe("sendMobilePush", () => {
       ],
       skipDuplicates: true,
     });
+    // 운영진 알림 같은 log 없는 발송은 학생별 발송 이력에 남지 않는다
+    expect(prisma.messageLog.createMany).not.toHaveBeenCalled();
   });
 
   it("disables a token rejected as DeviceNotRegistered", async () => {
@@ -420,5 +427,151 @@ describe("processPendingPushReceipts", () => {
       where: { id: "device-1" },
       data: { enabled: false },
     });
+  });
+});
+
+describe("학생별 발송 이력 (MessageLog)", () => {
+  const expoTickets = (tickets: unknown[]) =>
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: tickets }), { status: 200 })));
+  const loggedRows = () => vi.mocked(prisma.messageLog.createMany).mock.calls.flatMap(([arg]) => (arg as { data: unknown[] }).data);
+  const twoParents = () => {
+    vi.mocked(prisma.parentLink.findMany).mockResolvedValue([{ authUserId: "parent-1" }, { authUserId: "parent-2" }] as never);
+    vi.mocked(prisma.devicePushToken.findMany).mockResolvedValue([
+      { authUserId: "parent-1", id: "device-1", projectId: "project-1", token },
+      { authUserId: "parent-2", id: "device-2", projectId: "project-1", token },
+      { authUserId: "parent-2", id: "device-3", projectId: "project-1", token },
+    ] as never);
+    vi.mocked(prisma.authUser.findMany).mockResolvedValue([
+      { id: "parent-1", name: "학부모일", studentId: null },
+      { id: "parent-2", name: " ", studentId: null },
+    ] as never);
+  };
+  const message = { title: "입실 알림", body: "학생이 18:02에 입실했어요.", data: { url: "/(parent)/(tabs)" }, logType: "ATTENDANCE" as const };
+
+  it("받은 계정마다 한 줄 — 기기 하나라도 접수되면 SENT, 모두 거절이면 FAILED", async () => {
+    twoParents();
+    expoTickets([
+      { id: "r-1", status: "ok" },
+      { status: "error", details: { error: "DeviceNotRegistered" } },
+      { status: "error", message: "rate limited" },
+    ]);
+
+    await expect(notifyParentsOfStudent("student-1", message)).resolves.toEqual({ sent: 1 });
+
+    expect(loggedRows()).toEqual([
+      {
+        studentId: "student-1",
+        type: "ATTENDANCE",
+        recipient: "앱 알림 · 학부모 학부모일",
+        recipientName: "학부모일",
+        content: "입실 알림\n학생이 18:02에 입실했어요.",
+        status: "SENT",
+        errorMsg: null,
+      },
+      {
+        studentId: "student-1",
+        type: "ATTENDANCE",
+        recipient: "앱 알림 · 학부모 parent-2", // 이름이 비면 계정 id
+        recipientName: null,
+        content: "입실 알림\n학생이 18:02에 입실했어요.",
+        status: "FAILED",
+        errorMsg: "rate limited",
+      },
+    ]);
+  });
+
+  it("기본 종류는 CUSTOM, 같은 계정의 다른 기기가 성공하면 SENT", async () => {
+    twoParents();
+    expoTickets([
+      { status: "error", details: { error: "DeviceNotRegistered" } },
+      { status: "error", details: { error: "MessageRateExceeded" } },
+      { id: "r-3", status: "ok" },
+    ]);
+    await notifyParentsOfStudent("student-1", { ...message, logType: undefined });
+
+    expect(loggedRows()).toEqual([
+      expect.objectContaining({ type: "CUSTOM", status: "FAILED", errorMsg: "DeviceNotRegistered" }),
+      expect.objectContaining({ type: "CUSTOM", status: "SENT", errorMsg: null }),
+    ]);
+  });
+
+  it("Expo 요청이 실패하면 FAILED 로 남기고, 학부모 알림은 여전히 던지지 않는다", async () => {
+    twoParents();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("bad", { status: 400 })));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(notifyParentsOfStudent("student-1", message)).resolves.toEqual({ sent: 0 });
+
+    expect(loggedRows()).toEqual([
+      expect.objectContaining({ recipient: "앱 알림 · 학부모 학부모일", status: "FAILED", errorMsg: "Expo 푸시 요청 실패: 400" }),
+      expect.objectContaining({ recipient: "앱 알림 · 학부모 parent-2", status: "FAILED", errorMsg: "Expo 푸시 요청 실패: 400" }),
+    ]);
+    spy.mockRestore();
+  });
+
+  it("기록이 실패해도 발송 결과는 그대로다", async () => {
+    twoParents();
+    expoTickets([{ id: "r-1", status: "ok" }, { id: "r-2", status: "ok" }, { id: "r-3", status: "ok" }]);
+    vi.mocked(prisma.messageLog.createMany).mockRejectedValueOnce(new Error("db down"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    await expect(notifyParentsOfStudent("student-1", message)).resolves.toEqual({ sent: 3 });
+
+    expect(prisma.pushNotificationReceipt.createMany).toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledWith("[mobile-push:log]", expect.any(Error));
+    spy.mockRestore();
+  });
+
+  it("기기가 없으면 보낸 게 없으니 남기지 않는다", async () => {
+    vi.mocked(prisma.parentLink.findMany).mockResolvedValue([{ authUserId: "parent-1" }] as never);
+    vi.mocked(prisma.devicePushToken.findMany).mockResolvedValue([]);
+
+    await notifyParentsOfStudent("student-1", message);
+
+    expect(prisma.messageLog.createMany).not.toHaveBeenCalled();
+  });
+
+  it("학생 본인에게 간 알림은 '학생'으로 남는다 (질문 답변)", async () => {
+    vi.mocked(prisma.studentQuestion.findUnique).mockResolvedValue({ studentId: "student-1", title: "수학" } as never);
+    vi.mocked(prisma.authUser.findUnique).mockResolvedValue({ id: "auth-student-1" } as never);
+    vi.mocked(prisma.devicePushToken.findMany).mockResolvedValue([
+      { authUserId: "auth-student-1", id: "device-1", projectId: "project-1", token },
+    ] as never);
+    vi.mocked(prisma.authUser.findMany).mockResolvedValue([
+      { id: "auth-student-1", name: "김학생", studentId: "student-1" },
+    ] as never);
+    expoTickets([{ id: "r-1", status: "ok" }]);
+
+    await notifyStudentOfAnswer({ questionId: "question-1" });
+
+    expect(loggedRows()).toEqual([
+      expect.objectContaining({ studentId: "student-1", type: "CUSTOM", recipient: "앱 알림 · 학생 김학생", status: "SENT" }),
+    ]);
+  });
+
+  it("벌점 알림은 MERIT_DEMERIT, 운영진 알림은 남기지 않는다", async () => {
+    vi.mocked(prisma.student.findUnique).mockResolvedValue({ name: "김학생" } as never);
+    vi.mocked(prisma.parentLink.findMany).mockResolvedValue([{ authUserId: "parent-1" }] as never);
+    vi.mocked(prisma.devicePushToken.findMany).mockResolvedValue([
+      { authUserId: "parent-1", id: "device-1", projectId: "project-1", token },
+    ] as never);
+    vi.mocked(prisma.authUser.findMany).mockResolvedValue([{ id: "parent-1", name: "학부모일", studentId: null }] as never);
+    expoTickets([{ id: "r-1", status: "ok" }]);
+
+    queueParentDemeritPush({ studentId: "student-1", type: "DEMERIT", points: 2, reason: "지각" });
+    await vi.waitFor(() => expect(prisma.messageLog.createMany).toHaveBeenCalled());
+    expect(loggedRows()).toEqual([expect.objectContaining({ type: "MERIT_DEMERIT", status: "SENT" })]);
+
+    vi.clearAllMocks();
+    vi.mocked(prisma.user.findMany).mockResolvedValue([{ id: "director-1" }] as never);
+    vi.mocked(prisma.authUser.findMany).mockResolvedValue([{ id: "auth-director-1" }] as never);
+    vi.mocked(prisma.devicePushToken.findMany).mockResolvedValue([
+      { authUserId: "auth-director-1", id: "device-9", projectId: "project-1", token },
+    ] as never);
+    expoTickets([{ id: "r-9", status: "ok" }]);
+
+    queueStaffAlert({ studentId: null, title: "새 입회 문의", body: "새 문의", url: STAFF_PUSH_ROUTES.home });
+    await vi.waitFor(() => expect(prisma.pushNotificationReceipt.createMany).toHaveBeenCalled());
+    expect(prisma.messageLog.createMany).not.toHaveBeenCalled();
   });
 });
