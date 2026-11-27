@@ -106,9 +106,9 @@ export async function applyReviewedAiJob(jobId: string): Promise<{ ok: boolean; 
   if (claimed.count === 0) return { ok: false, reason: "이미 처리된 예약입니다" };
   try {
     if (job.type === "MONTHLY_SUMMARY") {
-      await prisma.monthlyReport.update({ where: { id: job.targetId }, data: { mentoringSummary: text, mentoringSummaryAi: true } });
+      await prisma.monthlyReport.update({ where: { id: job.targetId }, data: { mentoringSummary: text } });
     } else {
-      await prisma.parentReport.update({ where: { id: job.targetId }, data: { customNote: text, customNoteAi: true } });
+      await prisma.parentReport.update({ where: { id: job.targetId }, data: { customNote: text } });
     }
   } catch (error) {
     await prisma.reportAiJob.update({ where: { id: job.id }, data: { status: "REVIEW" } });

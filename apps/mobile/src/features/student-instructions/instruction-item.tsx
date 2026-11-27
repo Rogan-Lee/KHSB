@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button, color, space, Text, toast } from '@/design';
-import { AiMadeNote } from '@/features/parent/report-parts';
 import { formatBubbleTime } from '@/features/student-comm/format';
 import { ackInstruction, type StudentInstruction } from '@/lib/api/instructions';
 
@@ -44,7 +43,6 @@ export function InstructionItem({ item, onAcked }: { item: StudentInstruction; o
       <Text variant="t3-regular" color="neutralSubtle" tabular>
         {senderLabel(item)}
       </Text>
-      {item.aiGenerated && <AiMadeNote label="AI가 초안을 만들고 선생님이 확인했어요" />}
       {ackedAt ? (
         <View style={s.acked}>
           <CircleCheck color={color.fg.positive} size={16} strokeWidth={2.2} />

@@ -41,7 +41,6 @@ import { SHARE_WORDING_KEYS, renderShareWording } from "@/lib/share-wording";
 import { EmptyState, FilterChip, FormActions, SearchField, Section, StatusBadge } from "@/components/backoffice/ui";
 import { ConfirmDialog } from "./confirm-dialog";
 import { AiDraftBadge, AiNotice } from "@/components/ai/ai-disclosure";
-import { aiSourceFlag } from "@/lib/ai-disclosure";
 
 interface Props {
   rows: StudentReportRow[];
@@ -96,8 +95,6 @@ export function MentoringReportTab({ rows }: Props) {
   // customNote(장문)는 목록(rows)에 없다 — 선택한 원생 리포트 것만 불러와 reportId 별로 기억한다(egress 절감).
   const activeReportId = activeRow?.parentReport?.id ?? null;
   const [savedNotes, setSavedNotes] = useState<Record<string, string | null>>({});
-  // 저장된 글이 AI 초안에서 나왔는지 (customNoteAi) — 고쳐 저장해도 AI 출처를 유지한다
-  const [savedAi, setSavedAi] = useState<Record<string, boolean>>({});
   const savedNote = activeReportId ? savedNotes[activeReportId] : undefined;
   const noteLoading = !!activeReportId && savedNote === undefined;
 
@@ -115,10 +112,9 @@ export function MentoringReportTab({ rows }: Props) {
     setNoteDraft("");
     let cancelled = false;
     getParentReportNote(activeReportId)
-      .then(({ note, ai }) => {
+      .then((note) => {
         if (cancelled) return;
         setSavedNotes((prev) => ({ ...prev, [activeReportId]: note }));
-        setSavedAi((prev) => ({ ...prev, [activeReportId]: ai }));
         setNoteDraft(note ?? "");
       })
       .catch((e) => {
@@ -225,11 +221,9 @@ export function MentoringReportTab({ rows }: Props) {
     setNoteSaving(true);
     try {
       const reportId = activeRow.parentReport.id;
-      const fromAi = aiDraftFor === reportId || savedAi[reportId] === true;
-      await updateParentReportNote(reportId, noteDraft, fromAi);
+      await updateParentReportNote(reportId, noteDraft);
       // 서버와 같은 규칙(빈 값 → null)으로 저장값 갱신
       setSavedNotes((prev) => ({ ...prev, [reportId]: noteDraft || null }));
-      setSavedAi((prev) => ({ ...prev, [reportId]: aiSourceFlag(noteDraft, fromAi) }));
       toast.success("내용 저장");
       startTransition(() => router.refresh());
     } catch (e) {

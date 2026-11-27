@@ -53,7 +53,6 @@ export default async function MonthlyReportsPage({
         patrolNoteCount: true,
         patrolAbsentCount: true,
         mentoringSummary: true,
-        mentoringSummaryAi: true,
         overallComment: true,
         shareToken: true,
         attachedPhotoIds: true,

@@ -117,7 +117,6 @@ export function ParentReportInlinePanel({
         const { token } = await createParentReport(mentoringId, {
           studyPlanImages: [],
           customNote: enhancedNote || undefined,
-          customNoteAi: true,
         });
         setReportUrl(`${window.location.origin}/r/${token}`);
         setStep("done");

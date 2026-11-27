@@ -11,7 +11,6 @@ import {
   listStudentsForReportDispatch,
 } from "@/lib/parent-report-core";
 import { queueParentMentoringReportPush, queueParentReportPush } from "@/lib/mobile-push";
-import { aiSourceFlag } from "@/lib/ai-disclosure";
 
 const CUSTOM_NOTE_MAX = 50_000; // AI 고도화 5개 항목 합본이 길 수 있어 남용 방지 수준으로만 제한
 const MAX_STUDY_PLAN_IMAGES = 20;
@@ -39,8 +38,6 @@ export async function createParentReport(
   data: {
     studyPlanImages?: string[];
     customNote?: string;
-    /** customNote 가 AI 고도화 결과면 true */
-    customNoteAi?: boolean;
   }
 ) {
   const session = await auth();
@@ -64,7 +61,6 @@ export async function createParentReport(
     createdById: session.user.id,
     studyPlanImages,
     customNote: data.customNote,
-    customNoteAi: data.customNoteAi === true,
   });
   // 학부모 앱 새 리포트 알림 (fire-and-forget)
   queueParentMentoringReportPush(report.id);
@@ -128,18 +124,18 @@ export async function getStudentsForReportDispatch(): Promise<StudentReportRow[]
   }));
 }
 
-/** 리포트 발송 탭 — 선택한 원생 리포트의 학부모 메시지(customNote)와 AI 출처만 단건 조회 */
-export async function getParentReportNote(reportId: string): Promise<{ note: string | null; ai: boolean }> {
+/** 리포트 발송 탭 — 선택한 원생 리포트의 학부모 메시지(customNote)만 단건 조회 */
+export async function getParentReportNote(reportId: string): Promise<string | null> {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
   requireStaff(session.user.role);
 
   const report = await prisma.parentReport.findUnique({
     where: { id: reportId },
-    select: { customNote: true, customNoteAi: true },
+    select: { customNote: true },
   });
   if (!report) throw new Error("리포트를 찾을 수 없습니다");
-  return { note: report.customNote, ai: report.customNoteAi };
+  return report.customNote;
 }
 
 export type BulkCreateByStudentResult = {
@@ -328,10 +324,9 @@ export async function createParentReportsBulk(mentoringIds: string[]): Promise<B
 }
 
 /**
- * ParentReport.customNote 수정 (관리자 편집용). fromAi: 이 글이 AI 고도화 초안에서 시작했는지 —
- * 직접 쓴 글이면 false 로 저장돼 학부모 화면의 AI 표시가 빠진다.
+ * ParentReport.customNote 수정 (관리자 편집용).
  */
-export async function updateParentReportNote(reportId: string, customNote: string, fromAi = false) {
+export async function updateParentReportNote(reportId: string, customNote: string) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
   requireStaff(session.user.role);
@@ -339,7 +334,7 @@ export async function updateParentReportNote(reportId: string, customNote: strin
 
   await prisma.parentReport.update({
     where: { id: reportId },
-    data: { customNote: customNote || null, customNoteAi: aiSourceFlag(customNote, fromAi) },
+    data: { customNote: customNote || null },
   });
   revalidatePath("/mentoring");
 }
@@ -411,7 +406,6 @@ export async function getParentReportDetailed(token: string) {
         studyPlanNote: null,
         studyPlanImages: [],
         customNote: null,
-        customNoteAi: false,
         lastAccessIp: null,
         lastAccessUa: null,
         student: { ...report.student, name: "", grade: "", school: null },

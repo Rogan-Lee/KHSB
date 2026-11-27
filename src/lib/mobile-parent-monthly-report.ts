@@ -84,8 +84,6 @@ export type ParentMonthlyReport = {
   };
   /** ① 월간 멘토링 종합 의견 (마크다운) */
   mentoringSummary: string | null;
-  /** 종합 의견이 AI 초안에서 나왔으면 "AI가 초안을 만들고 운영진이 확인했어요" 표시 */
-  mentoringSummaryAi: boolean;
   /** ② 원장님 한마디 (마크다운) */
   directorComment: string | null;
   /** ③ 모의고사 성적 — 성적이 하나도 없으면 null */
@@ -349,7 +347,6 @@ export async function getParentMonthlyReport(
           sentAt: true,
           mentoringCount: true,
           mentoringSummary: true,
-          mentoringSummaryAi: true,
           overallComment: true,
           patrolNoteCount: true,
           patrolAbsentCount: true,
@@ -523,7 +520,6 @@ export async function getParentMonthlyReport(
       patrolNoteCount: report.patrolNoteCount,
     },
     mentoringSummary: absolutize(report.mentoringSummary, appUrl),
-    mentoringSummaryAi: report.mentoringSummaryAi && !!report.mentoringSummary?.trim(),
     directorComment: absolutize(report.overallComment, appUrl),
     exams: buildMonthlyExams([...examScoresDesc].reverse(), year, month),
     vocab,

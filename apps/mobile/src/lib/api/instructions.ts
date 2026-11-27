@@ -20,8 +20,6 @@ export type InstructionStudent = { id: string; name: string; grade: string };
 export type StudentInstruction = {
   id: string;
   content: string;
-  /** AI 초안에서 시작한 지시 (구버전 서버는 없음) */
-  aiGenerated?: boolean;
   sentByName: string | null;
   sentAt: string | null;
   ackedAt: string | null;

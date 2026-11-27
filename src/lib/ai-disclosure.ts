@@ -8,16 +8,6 @@ export function aiNoticeText(tail: string): string {
 
 /** 학부모·학생 화면의 결과물 표시 */
 export const AI_REVIEWED_LABEL = "AI가 초안을 만들고 운영진이 확인했어요";
-/** 학생 화면 — 학부모 요청에서 나온 지시라는 걸 드러내지 않는다 */
-export const AI_REVIEWED_LABEL_STUDENT = "AI가 초안을 만들고 선생님이 확인했어요";
-
-/**
- * 저장할 글의 AI 출처 칸(customNoteAi·mentoringSummaryAi) 값. AI 초안에서 시작한 글이면 true(고쳐 저장해도),
- * 운영진이 직접 쓴 글이나 빈 글이면 false.
- */
-export function aiSourceFlag(text: string | null | undefined, fromAi: boolean | undefined): boolean {
-  return fromAi === true && !!text?.trim();
-}
 
 /**
  * 온라인 보고서 본문이 AI 로 만든 것인지. AI 생성 경로(바로 생성·예약 생성)만 content.generatedAt 을 남기고,

@@ -15,7 +15,6 @@ vi.mock("@/lib/prisma", () => ({
     },
   },
 }));
-vi.mock("@/lib/groq", () => ({ groqChat: vi.fn(async () => '{"instruction": "자습 시작할 때 영어 단어부터 외워요"}') }));
 vi.mock("@/lib/mobile-push", () => ({
   notifyAssignedStaffOfParentRequest: vi.fn(),
   sendMobilePush: vi.fn(),
@@ -35,7 +34,6 @@ const sentRow = {
   id: "i-1",
   content: "오늘부터 수학 문제집을 하루 1시간 더 풀어 봐요.",
   sentByName: "김조교",
-  aiDrafted: false,
   sentAt: new Date("2026-11-16T10:00:00Z"),
   ackedAt: null,
   createdAt: new Date("2026-11-16T09:00:00Z"),
@@ -76,7 +74,7 @@ describe("학생에게는 학부모 요청을 숨긴다", () => {
     const query = vi.mocked(prisma.studentInstruction.findMany).mock.calls[0][0]!;
     expect(query.select).not.toHaveProperty("communication");
     expect(query.where).toMatchObject({ studentId: "s-1", sentAt: { not: null } });
-    expect(Object.keys(result.items[0]).sort()).toEqual(["ackedAt", "aiGenerated", "content", "id", "sentAt", "sentByName"]);
+    expect(Object.keys(result.items[0]).sort()).toEqual(["ackedAt", "content", "id", "sentAt", "sentByName"]);
     expect(JSON.stringify(result)).not.toContain("수학 더 시켜");
     expect(result.unacked).toBe(1);
   });
@@ -116,20 +114,6 @@ describe("지시 보내기", () => {
     });
   });
 
-  it("새로 쓴 지시는 AI 표시 없이, AI 초안을 고쳐 보내면 AI 출처를 그대로 둔다", async () => {
-    await sendInstruction({ id: "u-1", name: "김조교" }, { studentId: "s-1", content: "수학 1시간 더 해요" });
-    expect(vi.mocked(prisma.studentInstruction.create).mock.calls[0][0].data).not.toHaveProperty("aiDrafted");
-
-    vi.mocked(prisma.studentInstruction.findFirst).mockResolvedValue({ communicationId: null } as never);
-    vi.mocked(prisma.studentInstruction.update).mockResolvedValue({ ...sentRow, aiDrafted: true } as never);
-    const { item } = await sendInstruction(
-      { id: "u-1", name: "김조교" },
-      { studentId: "s-1", content: "고친 지시예요", draftId: "d-1" },
-    );
-    expect(vi.mocked(prisma.studentInstruction.update).mock.calls[0][0].data).not.toHaveProperty("aiDrafted");
-    expect(item.aiGenerated).toBe(true);
-  });
-
   it("이미 보낸 초안은 다시 보낼 수 없다", async () => {
     vi.mocked(prisma.studentInstruction.findFirst).mockResolvedValue(null);
     await expect(
@@ -146,23 +130,6 @@ describe("학생 확인", () => {
     expect(vi.mocked(prisma.studentInstruction.updateMany).mock.calls[0][0]).toMatchObject({
       where: { id: "i-1", studentId: "s-2", ackedAt: null },
     });
-  });
-});
-
-describe("AI 초안 만들기", () => {
-  it("AI 가 만든 초안은 aiDrafted 로 저장한다", async () => {
-    vi.stubEnv("GROQ_API_KEY", "test");
-    vi.mocked(prisma.communication.findFirst).mockResolvedValue({
-      id: "c-1",
-      content: "[학습] 영어 단어를 안 외워요",
-      studentId: "s-1",
-      student: { grade: "고2", name: "학생" },
-      instructions: [],
-    } as never);
-    vi.mocked(prisma.studentInstruction.create).mockResolvedValue({ id: "d-1", content: "단어부터 외워요" } as never);
-    await draftInstructionFromRequest("c-1");
-    vi.unstubAllEnvs();
-    expect(vi.mocked(prisma.studentInstruction.create).mock.calls[0][0].data).toMatchObject({ aiDrafted: true });
   });
 });
 

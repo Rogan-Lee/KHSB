@@ -18,7 +18,6 @@ import {
   hasMentoringNote,
 } from "@/components/parent-report/mentoring-note-sections";
 import { Badge, EmptyState, InfoRow, Section, StatGrid } from "@/components/portal/ui";
-import { AiReviewedNote } from "@/components/ai/ai-disclosure";
 import { Prose } from "@/components/portal/prose";
 
 export default async function ParentReportPage({
@@ -39,7 +38,7 @@ export default async function ParentReportPage({
     return <ParentGate model="parent-report" token={token} />;
   }
 
-  const { student, mentoring, studyPlanNote, studyPlanImages, customNote, customNoteAi } = report;
+  const { student, mentoring, studyPlanNote, studyPlanImages, customNote } = report;
 
   const analytics = await computeStudentAnalytics(student.id);
 
@@ -150,9 +149,6 @@ export default async function ParentReportPage({
           )}
         </div>
       </ReportHero>
-
-      {/* 학부모 메시지(customNote)가 AI 고도화 초안에서 나왔으면 표시 (인공지능기본법 제31조) */}
-      {customNoteAi && customNote?.trim() && <AiReviewedNote className="px-x1" />}
 
       {/* 멘토링 내용 */}
       {aiNote ? (

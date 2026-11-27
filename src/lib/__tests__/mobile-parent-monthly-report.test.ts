@@ -36,7 +36,6 @@ const baseReport = {
   sentAt: new Date("2026-10-01T01:00:00.000Z"),
   mentoringCount: 4,
   mentoringSummary: "[이번 달 학습]\n수학 오답 정리를 꾸준히 했어요.",
-  mentoringSummaryAi: true,
   overallComment: "  ",
   patrolNoteCount: 2,
   patrolAbsentCount: 1,
@@ -171,7 +170,6 @@ describe("getParentMonthlyReport — 공개 범위와 내용", () => {
     // 공백뿐인 원장님 한마디는 숨긴다
     expect(r.directorComment).toBeNull();
     expect(r.mentoringSummary).toContain("수학 오답 정리");
-    expect(r.mentoringSummaryAi).toBe(true);
     expect(r.exams).toBeNull();
     expect(r.vocab).toBeNull();
   });

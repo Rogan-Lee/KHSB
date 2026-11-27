@@ -44,7 +44,7 @@ import {
   monthDayOfKey,
   shortDayKey,
 } from './report-format';
-import { AiMadeNote, CardTitle, InfoCard, PhotoList, ReportHero, SubHeading } from './report-parts';
+import { CardTitle, InfoCard, PhotoList, ReportHero, SubHeading } from './report-parts';
 
 // 학부모 멘토링 리포트 — 웹 /r/[token] (SEED) 과 같은 항목·순서·문구.
 //  머리글(날짜 · 완료 · 학생 · 세션 정보) → 멘토 안내사항 → 멘토링 항목별 카드 → 영단어 → 원생 기록 · 상벌점
@@ -84,13 +84,6 @@ export function MentoringReportBody({ data, wide = false }: { data: ParentMentor
 
   // 멘토링 본문 — 안내사항 + 항목별 카드 (빈 항목은 서버가 이미 뺐다)
   const content: ReactNode[] = [];
-  if (data.aiGenerated && hasText) {
-    content.push(
-      <View key="ai" style={{ paddingHorizontal: space.x1 }}>
-        <AiMadeNote />
-      </View>
-    );
-  }
   if (data.message) {
     content.push(
       <Section
