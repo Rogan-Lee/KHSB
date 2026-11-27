@@ -4,6 +4,7 @@ import type { Prisma, Role, TaskFeedbackStatus } from "@/generated/prisma";
 import { latestIdsPerGroup } from "@/lib/db/latest-per-group";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { staffCapabilities } from "@/lib/mobile-capabilities";
+import { incomingAttachmentUrl, storedAttachmentUrl } from "@/lib/portal-attachments";
 import { prisma } from "@/lib/prisma";
 import { isFullAccess } from "@/lib/roles";
 import { isResponsibleFor } from "@/lib/student-access";
@@ -41,25 +42,17 @@ function assertCanViewStudentTasks(
   if (!isResponsibleFor(student, user.id)) throw new MobileApiError(message, 403);
 }
 
-// 저장된 파일 표시용 — http(s) 외 스킴(javascript:, data: 등)은 내려보내지 않는다
+// 저장된 파일 표시용 — http(s)·비공개 저장소 내부 경로 외 스킴(javascript:, data: 등)은 내려보내지 않는다
 const fileSchema = z.object({
   mimeType: z.string().trim().min(1).max(160),
   name: z.string().trim().min(1).max(200),
   sizeBytes: z.number().int().min(0).max(50 * 1024 * 1024),
-  url: z
-    .string()
-    .url()
-    .max(2000)
-    .refine((url) => /^https?:\/\//i.test(url), "첨부 파일 주소가 올바르지 않아요"),
+  url: storedAttachmentUrl,
 });
 
 // 새로 받는 첨부 — 업로드 저장소 주소(https)만 허용
 const uploadFileSchema = fileSchema.extend({
-  url: z
-    .string()
-    .url()
-    .max(2000)
-    .refine((url) => url.startsWith("https://"), "첨부 파일 주소가 올바르지 않아요"),
+  url: incomingAttachmentUrl,
 });
 
 const submissionSchema = z.object({

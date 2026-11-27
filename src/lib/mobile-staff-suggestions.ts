@@ -135,6 +135,7 @@ export async function sendSuggestionPush(push: { studentId: string; title: strin
       category: "SYSTEM",
       data: { type: "suggestion" },
       title: push.title,
+      log: { studentId: push.studentId, type: "CUSTOM" },
     });
   } catch (error) {
     console.error("[suggestion push]", error);

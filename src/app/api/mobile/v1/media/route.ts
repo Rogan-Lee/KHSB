@@ -1,8 +1,8 @@
-import { put } from "@vercel/blob";
 import type { NextRequest } from "next/server";
 import { revalidatePath } from "next/cache";
 
 import { getAuthIdentity } from "@/lib/auth";
+import { putStudentFile, signFileUrl } from "@/lib/blob-store";
 import { prisma } from "@/lib/prisma";
 import {
   ALLOWED_DOCUMENT_EXTENSIONS,
@@ -97,17 +97,16 @@ export async function POST(request: NextRequest) {
     : file.type;
 
   try {
-    const blob = await put(blobKey, file, {
-      access: "public",
+    const url = await putStudentFile(blobKey, file, {
       addRandomSuffix: false,
       contentType,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
     });
     const attachment = {
       mimeType: contentType,
       name: file.name,
       sizeBytes: file.size,
-      url: blob.url,
+      // 비공개 저장소면 앱이 바로 보이고 다시 보낼 수 있게 서명된 절대 주소 (저장할 때 서명을 뗀다)
+      url: signFileUrl(url, request.nextUrl.origin),
     };
 
     if (context === "mentoring" && authz.mentoring && appUser) {
@@ -122,7 +121,7 @@ export async function POST(request: NextRequest) {
           studentId: authz.mentoring.studentId,
           uploadedById: appUser.id,
           uploadedByName: appUser.name || "알 수 없음",
-          url: blob.url,
+          url,
         },
         select: { id: true },
       });

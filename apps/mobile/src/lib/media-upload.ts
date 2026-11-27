@@ -78,11 +78,20 @@ export async function uploadLargeFileDirect(
         submissionId: params.submissionId,
         chatId: params.chatId,
         studentId: params.studentId,
+        // 서버가 비공개 저장소를 쓰면 access·url 을 함께 준다 (이 필드가 없는 이전 빌드는 계속 공개 저장소)
+        acceptsPrivate: true,
       }),
     },
   );
   const tokenBody = (await tokenResponse.json().catch(() => null)) as
-    | { clientToken?: string; contentType?: string; pathname?: string; error?: string }
+    | {
+        clientToken?: string;
+        contentType?: string;
+        pathname?: string;
+        access?: 'public' | 'private';
+        url?: string;
+        error?: string;
+      }
     | null;
   if (!tokenResponse.ok || !tokenBody?.clientToken || !tokenBody.pathname) {
     throw new Error(tokenBody?.error ?? '업로드 준비에 실패했습니다.');
@@ -94,7 +103,7 @@ export async function uploadLargeFileDirect(
   const headers = {
     authorization: `Bearer ${tokenBody.clientToken}`,
     'x-api-version': BLOB_API_VERSION,
-    'x-vercel-blob-access': 'public',
+    'x-vercel-blob-access': tokenBody.access ?? 'public',
     'x-content-type': contentType,
   };
 
@@ -134,6 +143,7 @@ export async function uploadLargeFileDirect(
     mimeType: input.mimeType,
     name: input.name,
     sizeBytes,
-    url: result.url,
+    // 비공개 저장소면 저장소 원본 주소는 인증 없이 안 열린다 — 서버가 준 서명 주소를 쓴다
+    url: tokenBody.url ?? result.url,
   };
 }

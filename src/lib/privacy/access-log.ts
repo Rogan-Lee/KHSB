@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { after } from "next/server";
 
 import { prisma } from "@/lib/prisma";
@@ -7,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 
 const BUCKET_MS = 10 * 60 * 1000;
 
-export type AccessAction = "LOGIN" | "VIEW" | "ACTION";
+export type AccessAction = "LOGIN" | "VIEW" | "ACTION" | "DOWNLOAD";
 
 /** 화면 주소에서 학생을 알 수 있으면 그 id */
 export function studentIdFromPath(path: string): string | null {
@@ -53,5 +54,24 @@ export function queueAccessLog(entry: Entry) {
     after(run);
   } catch {
     // 요청 밖(스크립트·테스트)에서는 after 를 쓸 수 없다 — 접속이 아니므로 남기지 않는다
+  }
+}
+
+/**
+ * 개인정보를 파일로 내려받은 기록 (제8조 ②: 내려받기는 사유를 확인할 수 있게 따로 남긴다).
+ * path 는 무엇을 받았는지 알 수 있게(예: /tuition/export/2026-11), 학생 한 명이면 /students/<id>/… 로 둔다.
+ * 기다렸다가 남기되 실패해도 내려받기는 막지 않는다. 같은 10분 · 같은 path 는 한 줄로 합쳐진다.
+ */
+export async function logDownload(actor: { id: string; name: string }, path: string) {
+  let ip: string | null = null;
+  try {
+    ip = clientIp(await headers());
+  } catch {
+    // 요청 밖(스크립트·테스트) — 접속지 없이 남긴다
+  }
+  try {
+    await writeAccessLog({ actor, action: "DOWNLOAD", path, ip });
+  } catch (error) {
+    console.error("[access-log] download", error);
   }
 }

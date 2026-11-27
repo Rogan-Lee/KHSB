@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
 
+import { getAppUrl } from "@/lib/app-url";
 import { getAuthIdentity } from "@/lib/auth";
+import { signFileUrls } from "@/lib/blob-store";
 import { clientIp, queueAccessLog } from "@/lib/privacy/access-log";
 import { prisma } from "@/lib/prisma";
 import { isOnlineStaff, isStaff } from "@/lib/roles";
@@ -162,8 +164,10 @@ export function mobileApiErrorResponse(error: unknown) {
   );
 }
 
+// 비공개 저장소 첨부(/api/files/…)는 앱이 쿠키 없이 이미지·문서를 열 수 있게 서명된 절대 주소로 바꿔 보낸다
+// (이전 앱 빌드도 그대로 보인다). 비공개 저장소가 꺼져 있으면 data 그대로.
 export function mobileJson(data: unknown) {
-  return Response.json(data, {
+  return Response.json(signFileUrls(data, getAppUrl().replace(/\/+$/, "")), {
     headers: { "Cache-Control": "no-store, max-age=0" },
   });
 }

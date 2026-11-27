@@ -10,6 +10,7 @@ import { z } from "zod";
 import type { QuestionMessageSenderType } from "@/generated/prisma/enums";
 import { latestIdsPerGroup } from "@/lib/db/latest-per-group";
 import { MobileApiError } from "@/lib/mobile-auth";
+import { incomingAttachmentUrl } from "@/lib/portal-attachments";
 import { prisma } from "@/lib/prisma";
 import { getBlockedKeys } from "@/lib/safety";
 
@@ -26,11 +27,7 @@ export type QuestionAttachmentView = {
 };
 
 const attachmentSchema = z.object({
-  url: z
-    .string()
-    .trim()
-    .max(2000)
-    .refine((url) => url.startsWith("https://"), "첨부 파일 주소가 올바르지 않아요"),
+  url: incomingAttachmentUrl,
   name: z.string().trim().min(1).max(200),
   sizeBytes: z.number().int().min(0),
   mimeType: z.string().trim().min(1).max(120),

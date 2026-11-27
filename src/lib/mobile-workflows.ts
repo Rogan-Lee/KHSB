@@ -8,6 +8,7 @@ import {
 } from "@/lib/mobile-data";
 import { prisma } from "@/lib/prisma";
 import { queueParentAttendancePush } from "@/lib/mobile-push";
+import { incomingAttachmentUrl } from "@/lib/portal-attachments";
 import { assertCanMessage, getBlockedKeys } from "@/lib/safety";
 
 const attachmentSchema = z.object({
@@ -15,11 +16,7 @@ const attachmentSchema = z.object({
   name: z.string().trim().min(1).max(200),
   sizeBytes: z.number().int().min(0).max(10 * 1024 * 1024),
   // 업로드 저장소 주소(https)만 — javascript:/data: 등 스킴 차단
-  url: z
-    .string()
-    .url()
-    .max(2000)
-    .refine((url) => url.startsWith("https://"), "첨부 파일 주소가 올바르지 않아요"),
+  url: incomingAttachmentUrl,
 });
 
 const questionSchema = z.object({

@@ -152,7 +152,7 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
     }
   }
 
-  // AI 종합의견 예약 큐 등록 (야간 Claude 루틴이 생성)
+  // AI 종합의견 예약 큐 등록 (매일 새벽 크론이 Groq 로 생성 → /reports/ai-queue 에서 확인)
   async function handleEnqueueAiSummaries() {
     if (selectedIds.size === 0) {
       toast.error("학생을 선택하세요");
@@ -160,7 +160,7 @@ export function MonthlyReportPanel({ year, month, students, reports }: Props) {
     }
     const ok = await confirm({
       title: `${selectedIds.size}명의 AI 종합의견을 예약할까요?`,
-      description: `${year}년 ${month}월 'AI 종합의견'을 예약 큐에 등록해요.\n리포트가 없으면 먼저 생성되고, 야간 Claude 루틴이 종합의견을 만들어요.`,
+      description: `${year}년 ${month}월 'AI 종합의견'을 예약 큐에 등록해요.\n리포트가 없으면 먼저 생성되고, 매일 새벽에 종합의견을 만들어요.`,
       confirmLabel: "예약 등록",
     });
     if (!ok) return;

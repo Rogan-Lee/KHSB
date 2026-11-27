@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { del } from "@vercel/blob";
+import { deleteBlobFiles, uploadedFileUrlUnder } from "@/lib/blob-store";
 import { z } from "zod";
 import { MentoringStatus } from "@/generated/prisma";
 import type { MentoringPhotoTag } from "@/generated/prisma";
@@ -553,20 +553,6 @@ const MENTORING_PHOTO_MIME_TYPES = new Set<string>([
   "image/gif",
 ]);
 
-/** Vercel Blob 공개 URL 이면서 mentoring/{mentoringId}/ 경로인지 */
-function isMentoringBlobUrl(raw: unknown, mentoringId: string): boolean {
-  if (typeof raw !== "string" || raw.length > 1000) return false;
-  try {
-    const u = new URL(raw);
-    return (
-      u.protocol === "https:" &&
-      u.hostname.endsWith(".public.blob.vercel-storage.com") &&
-      u.pathname.startsWith(`/mentoring/${mentoringId}/`)
-    );
-  } catch {
-    return false;
-  }
-}
 
 export async function attachMentoringPhoto(
   mentoringId: string,
@@ -594,10 +580,12 @@ export async function attachMentoringPhoto(
   // 보안: url 은 /api/upload/mentoring 이 이 멘토링 경로로 올린 Blob 만 허용.
   // (임의 URL 을 기록한 뒤 deleteMentoringPhoto/deletePhoto 로 다른 Blob 을 지우거나
   //  외부 URL 을 사진관리·리포트에 노출하는 것을 차단)
-  if (!isMentoringBlobUrl(data.url, mentoringId)) {
-    throw new Error("업로드된 파일 주소가 올바르지 않습니다");
-  }
-  if (data.thumbnailUrl && !isMentoringBlobUrl(data.thumbnailUrl, mentoringId)) {
+  // (공개 blob URL 또는 서명된 /api/files 경로 — mentoring/{mentoringId}/ 아래만)
+  const url = uploadedFileUrlUnder(data.url, `mentoring/${mentoringId}/`);
+  const thumbnailUrl = data.thumbnailUrl
+    ? uploadedFileUrlUnder(data.thumbnailUrl, `mentoring/${mentoringId}/`)
+    : null;
+  if (!url || (data.thumbnailUrl && !thumbnailUrl)) {
     throw new Error("업로드된 파일 주소가 올바르지 않습니다");
   }
   if (!MENTORING_PHOTO_MIME_TYPES.has(data.mimeType)) {
@@ -620,8 +608,8 @@ export async function attachMentoringPhoto(
     data: {
       folderId,
       fileName: data.fileName?.trim().slice(0, 200) || `mentoring-${Date.now()}`,
-      url: data.url,
-      thumbnailUrl: data.thumbnailUrl ?? null,
+      url,
+      thumbnailUrl,
       mimeType: data.mimeType,
       sizeBytes,
       studentId: target.studentId,
@@ -648,7 +636,7 @@ export async function deleteMentoringPhoto(photoId: string) {
   try {
     const urls = [photo.url, photo.thumbnailUrl].filter(Boolean) as string[];
     if (urls.length > 0) {
-      await del(urls, { token: process.env.BLOB_READ_WRITE_TOKEN });
+      await deleteBlobFiles(urls);
     }
   } catch {
     // Blob 삭제 실패는 silent — DB 정리 우선

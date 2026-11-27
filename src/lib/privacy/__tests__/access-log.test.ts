@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createMany = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/prisma", () => ({ prisma: { personalDataAccessLog: { createMany } } }));
 
-import { isPrefetch, loggablePath, studentIdFromPath, writeAccessLog } from "../access-log";
+import { isPrefetch, loggablePath, logDownload, studentIdFromPath, writeAccessLog } from "../access-log";
 
 beforeEach(() => createMany.mockReset());
 
@@ -32,5 +32,22 @@ describe("접속 기록", () => {
     const buckets = createMany.mock.calls.map(([a]) => a.data.bucket.toISOString());
     expect(buckets).toEqual(["2026-11-22T01:00:00.000Z", "2026-11-22T01:00:00.000Z", "2026-11-22T01:10:00.000Z"]);
     expect(createMany.mock.calls[0][0].skipDuplicates).toBe(true);
+  });
+
+  it("내려받기는 DOWNLOAD 로, 학생 한 명이면 학생 id 와 함께 남긴다", async () => {
+    await logDownload({ id: "u1", name: "직원" }, "/students/cmabcdefghijklmnopqrstuv/timetable.pdf");
+    await logDownload({ id: "u1", name: "직원" }, "/tuition/export/2026-11");
+    const rows = createMany.mock.calls.map(([a]) => a.data);
+    expect(rows).toEqual([
+      expect.objectContaining({ actorId: "u1", action: "DOWNLOAD", path: "/students/cmabcdefghijklmnopqrstuv/timetable.pdf", studentId: "cmabcdefghijklmnopqrstuv", ip: null }),
+      expect.objectContaining({ action: "DOWNLOAD", path: "/tuition/export/2026-11", studentId: null }),
+    ]);
+  });
+
+  it("내려받기 기록이 실패해도 던지지 않는다", async () => {
+    createMany.mockRejectedValueOnce(new Error("db down"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await expect(logDownload({ id: "u1", name: "직원" }, "/tuition/export/2026-11")).resolves.toBeUndefined();
+    spy.mockRestore();
   });
 });

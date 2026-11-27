@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
+import { isStoredFileUrl, normalizeIncomingFileUrl } from "@/lib/blob-store";
 import { prisma } from "@/lib/prisma";
 import { requireAnyStaff, requireFullAccess } from "@/lib/roles";
 import { assertCanManageStudent } from "@/lib/student-access";
@@ -9,25 +10,27 @@ import type { UploadedFile } from "@/actions/online/task-submissions";
 
 /**
  * 클라가 보낸 finalFiles 를 UploadedFile 형태로만 추려 저장 (임의 JSON·javascript: URL 차단).
- * href 로 렌더되는 필드이므로 https URL 만 허용.
+ * href 로 렌더되는 필드이므로 https URL 과 비공개 저장소 내부 경로만 허용.
+ * (직원 전용 액션 — 직원은 내부 파일을 모두 볼 수 있어 화면에 받은 서명 없는 저장값도 그대로 받는다)
  */
 function sanitizeFinalFiles(input: unknown): UploadedFile[] {
   if (!Array.isArray(input)) throw new Error("첨부 파일 형식이 올바르지 않습니다");
   if (input.length > 20) throw new Error("첨부 파일은 20개까지 가능합니다");
   return input.map((f) => {
     const file = f as Partial<UploadedFile> | null;
-    let ok = false;
+    const url = typeof file?.url === "string" ? normalizeIncomingFileUrl(file.url) ?? file.url : "";
+    let ok = isStoredFileUrl(url);
     try {
-      ok = typeof file?.url === "string" && new URL(file.url).protocol === "https:";
+      ok ||= new URL(url).protocol === "https:";
     } catch {
-      ok = false;
+      // ok 그대로
     }
     if (!ok || typeof file?.name !== "string" || typeof file?.mimeType !== "string") {
       throw new Error("첨부 파일 형식이 올바르지 않습니다");
     }
     const sizeBytes = Number(file.sizeBytes);
     return {
-      url: file.url as string,
+      url,
       name: file.name.slice(0, 200),
       sizeBytes: Number.isFinite(sizeBytes) && sizeBytes >= 0 ? sizeBytes : 0,
       mimeType: file.mimeType.slice(0, 100),

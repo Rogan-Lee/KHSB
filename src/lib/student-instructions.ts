@@ -290,6 +290,7 @@ export async function sendInstructionPushes(push: InstructionPush) {
           body,
           category: "SYSTEM",
           data: { url: "/(student)/instructions" },
+          log: { studentId: push.studentId, type: "CUSTOM" },
         }),
       parentLink &&
         sendMobilePush({
@@ -298,6 +299,7 @@ export async function sendInstructionPushes(push: InstructionPush) {
           body,
           category: "SYSTEM",
           data: { url: "/(parent)/inquiries", audience: "parent", studentId: push.studentId },
+          log: { studentId: push.studentId, type: "CUSTOM" },
         }),
     ]);
   } catch (error) {

@@ -7,7 +7,7 @@ import { requireAnyStaff } from "@/lib/roles";
 import { assertCanManageStudent } from "@/lib/student-access";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifyAssignedStaffOfTaskSubmission, runAfterResponse } from "@/lib/mobile-push";
-import { sanitizePortalAttachments } from "@/lib/portal-attachments";
+import { sanitizeIncomingAttachments } from "@/lib/portal-attachments";
 import type { TaskFeedbackStatus } from "@/generated/prisma";
 
 const MAX_FILES = 10;
@@ -52,7 +52,7 @@ export async function createOrUpdateSubmission(params: {
     throw new Error(`파일은 ${MAX_FILES}개까지 첨부할 수 있습니다`);
   }
   // 클라이언트가 보낸 파일 메타를 그대로 저장하지 않는다 — https URL·필드 길이 정규화
-  const files = sanitizePortalAttachments(params.files, MAX_FILES);
+  const files = sanitizeIncomingAttachments(params.files, MAX_FILES);
   if (files.length === 0) {
     throw new Error("최소 1개 이상의 파일을 첨부하세요");
   }
@@ -138,7 +138,7 @@ export async function createFeedback(params: {
   if (Array.isArray(params.files) && params.files.length > MAX_FILES) {
     throw new Error(`파일은 ${MAX_FILES}개까지 첨부할 수 있습니다`);
   }
-  const feedbackFiles = sanitizePortalAttachments(params.files, MAX_FILES);
+  const feedbackFiles = sanitizeIncomingAttachments(params.files, MAX_FILES);
 
   const submission = await prisma.taskSubmission.findUnique({
     where: { id: params.submissionId },

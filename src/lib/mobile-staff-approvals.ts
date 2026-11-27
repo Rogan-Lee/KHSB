@@ -372,6 +372,7 @@ export async function sendApprovalPush(push: ApprovalPush) {
       category: "SYSTEM",
       data: push.data,
       title: push.title,
+      log: { studentId: push.studentId, type: "CUSTOM" },
     });
   } catch (error) {
     console.error("[approval push]", error);

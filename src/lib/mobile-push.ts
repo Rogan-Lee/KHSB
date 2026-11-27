@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type {
   DevicePlatform,
+  MessageType,
   PushNotificationCategory,
 } from "@/generated/prisma";
 import { MobileApiError } from "@/lib/mobile-auth";
@@ -44,6 +45,9 @@ const deactivateSchema = z.object({
 });
 
 type PushData = Record<string, boolean | number | string | null>;
+
+/** 학생에 관한 알림을 학생·학부모에게 보낼 때 — 학생별 발송 이력(MessageLog)에 남긴다 */
+type PushLog = { studentId: string; type: MessageType };
 
 type ExpoTicket =
   | { id: string; status: "ok" }
@@ -182,6 +186,7 @@ export async function sendMobilePush(input: {
   category: PushNotificationCategory;
   data: PushData;
   title: string;
+  log?: PushLog;
 }) {
   const authUserIds = [...new Set(input.authUserIds.filter(Boolean))];
   if (authUserIds.length === 0) return { sent: 0 };
@@ -192,7 +197,7 @@ export async function sendMobilePush(input: {
       enabled: true,
       ...categoryFilter(input.category),
     },
-    select: { id: true, projectId: true, token: true },
+    select: { authUserId: true, id: true, projectId: true, token: true },
   });
   if (tokens.length === 0) return { sent: 0 };
 
@@ -204,70 +209,132 @@ export async function sendMobilePush(input: {
   }
 
   let sent = 0;
-  for (const projectTokens of byProject.values()) {
-    for (const batch of chunks(projectTokens, EXPO_BATCH_SIZE)) {
-      const response = await expoRequest(
-        EXPO_PUSH_URL,
-        batch.map((token) => ({
-          body: input.body,
-          channelId: "reminders",
-          data: input.data,
-          priority: "high",
-          sound: "default",
-          title: input.title,
-          to: token.token,
-        })),
-      );
-      if (!response.ok) {
-        throw new Error(`Expo 푸시 요청 실패: ${response.status}`);
-      }
-      const payload = (await response.json()) as {
-        data?: ExpoTicket[] | ExpoTicket;
-      };
-      const tickets = Array.isArray(payload.data)
-        ? payload.data
-        : payload.data
-          ? [payload.data]
-          : [];
-      const receipts: {
-        category: PushNotificationCategory;
-        devicePushTokenId: string;
-        expoReceiptId: string;
-      }[] = [];
-      const invalidTokenIds: string[] = [];
-
-      tickets.forEach((ticket, index) => {
-        const token = batch[index];
-        if (!token) return;
-        if (ticket.status === "ok") {
-          receipts.push({
-            category: input.category,
-            devicePushTokenId: token.id,
-            expoReceiptId: ticket.id,
-          });
-          sent += 1;
-        } else if (ticket.details?.error === "DeviceNotRegistered") {
-          invalidTokenIds.push(token.id);
+  // 계정별 결과: null = 기기 하나라도 접수됨, 문자열 = 실패 사유 (발송 이력용)
+  const outcomes = new Map<string, string | null>();
+  let failure = "Expo 응답 없음";
+  try {
+    for (const projectTokens of byProject.values()) {
+      for (const batch of chunks(projectTokens, EXPO_BATCH_SIZE)) {
+        const response = await expoRequest(
+          EXPO_PUSH_URL,
+          batch.map((token) => ({
+            body: input.body,
+            channelId: "reminders",
+            data: input.data,
+            priority: "high",
+            sound: "default",
+            title: input.title,
+            to: token.token,
+          })),
+        );
+        if (!response.ok) {
+          throw new Error(`Expo 푸시 요청 실패: ${response.status}`);
         }
-      });
+        const payload = (await response.json()) as {
+          data?: ExpoTicket[] | ExpoTicket;
+        };
+        const tickets = Array.isArray(payload.data)
+          ? payload.data
+          : payload.data
+            ? [payload.data]
+            : [];
+        const receipts: {
+          category: PushNotificationCategory;
+          devicePushTokenId: string;
+          expoReceiptId: string;
+        }[] = [];
+        const invalidTokenIds: string[] = [];
 
-      await Promise.all([
-        receipts.length > 0
-          ? prisma.pushNotificationReceipt.createMany({
-              data: receipts,
-              skipDuplicates: true,
-            })
-          : Promise.resolve(),
-        invalidTokenIds.length > 0
-          ? prisma.devicePushToken.updateMany({
-              where: { id: { in: invalidTokenIds } },
-              data: { enabled: false },
-            })
-          : Promise.resolve(),
-      ]);
+        tickets.forEach((ticket, index) => {
+          const token = batch[index];
+          if (!token) return;
+          if (ticket.status === "ok") {
+            receipts.push({
+              category: input.category,
+              devicePushTokenId: token.id,
+              expoReceiptId: ticket.id,
+            });
+            sent += 1;
+            outcomes.set(token.authUserId, null);
+            return;
+          }
+          if (outcomes.get(token.authUserId) !== null) {
+            outcomes.set(token.authUserId, ticket.details?.error ?? ticket.message ?? "발송 실패");
+          }
+          if (ticket.details?.error === "DeviceNotRegistered") {
+            invalidTokenIds.push(token.id);
+          }
+        });
+
+        await Promise.all([
+          receipts.length > 0
+            ? prisma.pushNotificationReceipt.createMany({
+                data: receipts,
+                skipDuplicates: true,
+              })
+            : Promise.resolve(),
+          invalidTokenIds.length > 0
+            ? prisma.devicePushToken.updateMany({
+                where: { id: { in: invalidTokenIds } },
+                data: { enabled: false },
+              })
+            : Promise.resolve(),
+        ]);
+      }
+    }
+  } catch (error) {
+    failure = error instanceof Error ? error.message : String(error);
+    throw error;
+  } finally {
+    if (input.log) {
+      const accounts = [...new Set(tokens.map((token) => token.authUserId))];
+      await recordPushLogs(
+        input.log,
+        input,
+        accounts.map((id) => {
+          const outcome = outcomes.get(id);
+          return [id, outcome === undefined ? failure : outcome];
+        }),
+      );
     }
   }
   return { sent };
+}
+
+/**
+ * 학생별 발송 이력 — 알림을 받은(보내려 한) 계정마다 한 줄. 기기를 켠 계정만 대상이다(보낸 게 없으면 남기지 않음).
+ * SENT = Expo 가 기기 하나 이상에 접수, FAILED = 모두 거절·요청 실패. 기록이 실패해도 발송은 막지 않는다.
+ */
+async function recordPushLogs(
+  log: PushLog,
+  message: { title: string; body: string },
+  results: [authUserId: string, error: string | null][],
+) {
+  try {
+    if (results.length === 0) return;
+    const users = await prisma.authUser.findMany({
+      where: { id: { in: results.map(([id]) => id) } },
+      select: { id: true, name: true, studentId: true },
+    });
+    const byId = new Map(users.map((user) => [user.id, user]));
+    await prisma.messageLog.createMany({
+      data: results.map(([authUserId, error]) => {
+        const user = byId.get(authUserId);
+        const name = user?.name.trim() || null;
+        return {
+          studentId: log.studentId,
+          type: log.type,
+          recipient: `앱 알림 · ${user?.studentId ? "학생" : "학부모"} ${name ?? authUserId}`,
+          recipientName: name,
+          content: `${message.title}\n${message.body}`,
+          status: error === null ? ("SENT" as const) : ("FAILED" as const),
+          errorMsg: error?.slice(0, 500) ?? null,
+        };
+      }),
+    });
+  } catch (error) {
+    console.error("[mobile-push:log]", error);
+  }
 }
 
 export async function authUserIdsForAppUsers(appUserIds: (string | null)[]) {
@@ -309,6 +376,11 @@ async function assignedStaffAuthUserIds(studentId: string) {
   const assignedAuthUserIds = await authUserIdsForAppUsers(assignedIds);
   if (assignedAuthUserIds.length > 0) return assignedAuthUserIds;
   return supervisorAuthUserIds();
+}
+
+/** 운영 알림(예전 Slack 알림) → 원장급 앱 푸시 */
+export async function notifySupervisors(title: string, body: string) {
+  return sendToStaff(await supervisorAuthUserIds(), { title, body: body.slice(0, 150), category: "SYSTEM", data: {} });
 }
 
 /** 원장급(시스템 관리자·원장·총괄 멘토) */
@@ -450,6 +522,7 @@ export async function notifyStudentOfAnswer(input: {
       url: "/(student)/qna",
     },
     title: "질문 답변 도착",
+    log: { studentId: question.studentId, type: "CUSTOM" },
   });
 }
 
@@ -503,6 +576,7 @@ export async function notifyStudentOfTaskFeedback(input: {
     category: "TASK",
     data: { taskId: submission.task.id, url: "/student-tasks" },
     title: "수행평가 피드백",
+    log: { studentId: submission.task.studentId, type: "CUSTOM" },
   });
 }
 
@@ -524,6 +598,8 @@ type ParentPushMessage = {
   title: string;
   body: string;
   data: PushData & { url: string };
+  /** 학생별 발송 이력의 종류 (기본 CUSTOM) */
+  logType?: MessageType;
 };
 
 /**
@@ -547,6 +623,7 @@ export async function notifyParentsOfStudent(
       category: "SYSTEM",
       data: { ...message.data, audience: "parent", studentId },
       title: message.title,
+      log: { studentId, type: message.logType ?? "CUSTOM" },
     });
   } catch (error) {
     console.error("[mobile-push:parent]", error);
@@ -624,6 +701,7 @@ export function queueParentAttendancePush(
       title: copy.title,
       body,
       data: { url: PARENT_PUSH_ROUTES.home, kind: "attendance", event },
+      logType: "ATTENDANCE",
     });
     await postToFamilyChat(studentId, body);
   });
@@ -663,6 +741,7 @@ export function queueParentDemeritPush(record: {
       title: "벌점 안내",
       body: `${name} 학생에게 벌점 ${record.points}점이 기록됐어요.${shortReason ? ` 사유: ${shortReason}` : ""}`,
       data: { url: PARENT_PUSH_ROUTES.home, kind: "demerit" },
+      logType: "MERIT_DEMERIT",
     });
   });
 }
@@ -689,6 +768,8 @@ async function sendParentReportPush(studentId: string, kind: ParentReportKind) {
     title: "새 리포트가 도착했어요",
     body: `${name} 학생의 ${REPORT_LABEL[kind]}가 도착했어요. 지금 확인해 보세요.`,
     data: { url: PARENT_PUSH_ROUTES.reports, kind: "report", reportKind: kind },
+    // ponytail: MessageType 에 주간이 없어 멘토링 외 리포트는 MONTHLY_REPORT — 본문에 종류가 남는다
+    logType: kind === "MENTORING" ? "MENTORING" : "MONTHLY_REPORT",
   });
   await postToFamilyChat(studentId, `${REPORT_LABEL[kind]}가 도착했어요. 학부모 앱 리포트 탭에서 볼 수 있어요.`);
 }

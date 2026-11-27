@@ -1,7 +1,7 @@
-import { put } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
 import { auth } from "@/lib/auth";
+import { putStudentFile } from "@/lib/blob-store";
 import { prisma } from "@/lib/prisma";
 import { isStaff } from "@/lib/roles";
 import {
@@ -104,11 +104,7 @@ export async function POST(request: NextRequest) {
   const blobBase = `photos/${autoKey}/${Date.now()}-${crypto.randomUUID()}`;
 
   try {
-    const originalBlob = await put(`${blobBase}.${ext}`, buffer, {
-      access: "public",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-      contentType,
-    });
+    const originalUrl = await putStudentFile(`${blobBase}.${ext}`, buffer, { contentType });
 
     // 썸네일 생성 (sharp — HEIC는 입력 지원 환경마다 다름. 실패 시 원본을 썸네일로)
     let thumbnailUrl: string | null = null;
@@ -118,12 +114,9 @@ export async function POST(request: NextRequest) {
         .resize(480, 480, { fit: "inside", withoutEnlargement: true })
         .webp({ quality: 80 })
         .toBuffer();
-      const thumbBlob = await put(`${blobBase}.thumb.webp`, thumbBuf, {
-        access: "public",
-        token: process.env.BLOB_READ_WRITE_TOKEN,
+      thumbnailUrl = await putStudentFile(`${blobBase}.thumb.webp`, thumbBuf, {
         contentType: "image/webp",
       });
-      thumbnailUrl = thumbBlob.url;
     } catch {
       thumbnailUrl = null; // 생성 실패 → 원본으로 대체 (클라이언트에서 fallback)
     }
@@ -132,7 +125,7 @@ export async function POST(request: NextRequest) {
       data: {
         folderId: folder.id,
         fileName: finalFileName,
-        url: originalBlob.url,
+        url: originalUrl,
         thumbnailUrl,
         mimeType: contentType,
         sizeBytes: file.size,

@@ -9,6 +9,7 @@ vi.mock("@/lib/prisma", () => ({
     tuitionInvoice: { findMany: vi.fn() },
     tuitionProfile: { upsert: vi.fn() },
     tuitionSetting: { upsert: vi.fn() },
+    personalDataAccessLog: { createMany: vi.fn() },
     $transaction: vi.fn(async (ops: unknown[]) => ops),
   },
 }));
@@ -797,6 +798,11 @@ describe("청구서 링크 · 내보내기", () => {
     await expect(exportTuitionCsv("2026-13")).resolves.toMatchObject({ ok: false, code: "INVALID_INPUT" });
     await expect(exportTuitionCsv(["2026-10"] as never)).resolves.toMatchObject({ ok: false, code: "INVALID_INPUT" });
     expect(getTuitionExport).toHaveBeenCalledTimes(1);
+    // 개인정보 내려받기 기록 — 성공한 1번만
+    expect(prisma.personalDataAccessLog.createMany).toHaveBeenCalledOnce();
+    expect(prisma.personalDataAccessLog.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: "DOWNLOAD", path: "/tuition/export/2026-10" }) }),
+    );
   });
 });
 

@@ -2,6 +2,7 @@ import { generateClientTokenFromReadWriteToken } from "@vercel/blob/client";
 import type { NextRequest } from "next/server";
 
 import { getAuthIdentity } from "@/lib/auth";
+import { directUploadStore, fileUrlForPathname, signFileUrl } from "@/lib/blob-store";
 import {
   ALLOWED_DOCUMENT_EXTENSIONS,
   ALLOWED_DOCUMENT_MIME_TYPES,
@@ -39,6 +40,8 @@ type TokenRequestBody = {
   submissionId?: unknown;
   chatId?: unknown;
   studentId?: unknown;
+  /** 비공개 저장소를 아는 앱(응답의 access·url 을 쓰는 빌드)만 true — 이전 앱은 계속 공개 저장소 */
+  acceptsPrivate?: unknown;
 };
 
 function asOptionalString(value: unknown) {
@@ -116,10 +119,12 @@ export async function POST(request: NextRequest) {
   // pathname 은 서버가 결정 — 토큰이 정확히 이 경로에만 유효하다.
   const pathname = buildBlobKey(authz.prefix, filename);
 
+  const store = directUploadStore(body.acceptsPrivate === true);
+
   try {
     const clientToken = await generateClientTokenFromReadWriteToken({
       pathname,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
+      token: store.token,
       allowedContentTypes: [contentType],
       maximumSizeInBytes: maxSizeBytes,
       addRandomSuffix: false,
@@ -129,6 +134,11 @@ export async function POST(request: NextRequest) {
       contentType,
       maxSizeBytes,
       pathname,
+      access: store.access,
+      // 비공개면 업로드 뒤 앱이 표시·전송에 쓸 주소 (저장소 원본 주소는 인증 없이는 안 열린다)
+      ...(store.access === "private"
+        ? { url: signFileUrl(fileUrlForPathname(pathname), request.nextUrl.origin) }
+        : {}),
     });
   } catch (error) {
     console.error("[mobile-media client-token]", error);
