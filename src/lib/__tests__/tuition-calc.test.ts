@@ -8,7 +8,6 @@ import {
   invoiceDisplayStatus,
   isBillingDue,
   kstDateOf,
-  legalRefund,
   nextPeriodStart,
   monthEndOf,
   calendarPeriodEnd,
@@ -19,7 +18,6 @@ import {
   periodEndFor,
   periodsOverlap,
   refundableAmount,
-  refundDueDate,
   refundState,
   splitTax,
   renewalReminderDay,
@@ -112,7 +110,7 @@ describe("suggestRefund", () => {
     months: 1,
   };
 
-  it("일할 — 남은 일수 비율, 1원 미만 올림", () => {
+  it("일할 — 남은 일수 비율, 10원 미만 절사", () => {
     const s = suggestRefund({ ...base, policy: "DAILY", lastUsedDate: d("2026-11-10") });
     expect(s.usedDays).toBe(10);
     expect(s.remainingDays).toBe(20);
@@ -121,10 +119,6 @@ describe("suggestRefund", () => {
     const odd = suggestRefund({ ...base, policy: "DAILY", lastUsedDate: d("2026-11-07") });
     // 690000 × 23/30 = 529000
     expect(odd.amount).toBe(529_000);
-
-    // 31일 중 9일 이용 → 550000 × 22/31 = 390322.58… → 390323 (버리면 법정액보다 적다)
-    const dec = suggestRefund({ ...base, paidAmount: 550_000, refundable: 550_000, periodStart: d("2026-12-01"), periodEnd: d("2026-12-31"), policy: "DAILY", lastUsedDate: d("2026-12-09") });
-    expect(dec.amount).toBe(390_323);
   });
 
   it("이용 전이면 전액, 종료일 이후면 0", () => {
@@ -162,7 +156,7 @@ describe("suggestRefund", () => {
     expect(suggestRefund({ ...three, lastUsedDate: d("2026-12-03") }).amount).toBe(1_150_000);
   });
 
-  it("학원법 구간식 — 교습기간 30일 · 정규반 550,000원, 1원 미만 올림", () => {
+  it("강한선배 환불 규정 예시 그대로 (교습기간 30일 · 정규반 550,000원, 천 원 미만 절사)", () => {
     const regular = {
       policy: "ACADEMY_LAW" as const,
       paidAmount: 550_000,
@@ -172,13 +166,13 @@ describe("suggestRefund", () => {
       months: 1,
     };
     expect(suggestRefund({ ...regular, lastUsedDate: null }).amount).toBe(550_000);
-    // 9일 수강 → 1/3 경과 전 2/3: 366,666.67 → 366,667 (천 원 미만을 버리면 법정액보다 적다)
+    // 9일 수강 → 1/3 경과 전 2/3: 366,666 → 366,000
     const nine = suggestRefund({ ...regular, lastUsedDate: d("2026-11-09") });
-    expect(nine.amount).toBe(366_667);
+    expect(nine.amount).toBe(366_000);
     expect(nine.lines).toEqual([
-      expect.objectContaining({ label: null, totalDays: 30, usedDays: 9, rule: "TWO_THIRDS", amount: 366_667 }),
+      expect.objectContaining({ label: null, totalDays: 30, usedDays: 9, rule: "TWO_THIRDS", amount: 366_000 }),
     ]);
-    expect(nine.basis).toBe("학원법 구간식 — 30일 중 9일 이용(1/3 경과 전 2/3) 366,667원");
+    expect(nine.basis).toBe("학원법 구간식 — 30일 중 9일 이용(1/3 경과 전 2/3) 366,000원 (천 원 미만 절사)");
     // 딱 1/3(10일)이 지나면 1/2 구간
     expect(suggestRefund({ ...regular, lastUsedDate: d("2026-11-10") }).lines[0].rule).toBe("HALF");
     expect(suggestRefund({ ...regular, lastUsedDate: d("2026-11-14") }).amount).toBe(275_000);
@@ -227,99 +221,6 @@ describe("suggestRefund", () => {
   it("환불 가능 금액을 넘으면 깎고, 깎기 전 합계를 남긴다", () => {
     const s = suggestRefund({ ...base, refundable: 100_000, policy: "ACADEMY_LAW", lastUsedDate: d("2026-11-05") });
     expect(s).toMatchObject({ amount: 100_000, cappedFrom: 460_000 });
-  });
-});
-
-describe("법정 반환액 (학원법 시행령 별표 4)", () => {
-  const studyRoom = { facilityKind: "STUDY_ROOM" as const, postedDailyFee: null };
-  // 1~2월 2개월(59일) 1,380,000원(월 690,000원)
-  const twoMonths = {
-    paidAmount: 1_380_000,
-    refundable: 1_380_000,
-    periodStart: d("2027-01-01"),
-    periodEnd: d("2027-02-28"),
-    months: 2,
-    monthlyFee: 690_000,
-  };
-  const november = {
-    paidAmount: 690_000,
-    refundable: 690_000,
-    periodStart: d("2026-11-01"),
-    periodEnd: d("2026-11-30"),
-    months: 1,
-  };
-
-  it("독서실 2개월 — 31일 쓰고 2월 1일에 그만두면 1월은 0, 2월분 전액. 단순 일할은 법정 반환액으로 올린다", () => {
-    const lastUsedDate = d("2027-01-31");
-    expect(legalRefund({ ...twoMonths, ...studyRoom, lastUsedDate })).toMatchObject({
-      amount: 690_000,
-      total: 690_000,
-      basis: "독서실 기준 — 시작 전 1개월 전액 690,000원",
-    });
-    // 전체 기간 비율: 1,380,000 × 28/59 = 654,915.25… → 654,916
-    expect(suggestRefund({ ...twoMonths, policy: "DAILY", lastUsedDate }).amount).toBe(654_916);
-    const raised = suggestRefund({ ...twoMonths, policy: "DAILY", lastUsedDate, facility: studyRoom });
-    expect(raised).toMatchObject({ amount: 690_000, raisedFrom: 654_916 });
-    expect(raised.basis).toContain("법정 반환액으로 올림 690,000원");
-  });
-
-  it("독서실 1개월 이내 — 납부액 × 남은 일수 ÷ 약정 일수, 1원 미만 올림", () => {
-    expect(legalRefund({ ...november, ...studyRoom, lastUsedDate: d("2026-11-10") })).toMatchObject({
-      amount: 460_000,
-      basis: "독서실 기준 — 30일 중 10일 이용, 690,000원 × 남은 20일 ÷ 30일 = 460,000원",
-    });
-    // 550,000 × 22/31 = 390,322.58… → 390,323
-    const dec = { ...november, paidAmount: 550_000, refundable: 550_000, periodStart: d("2026-12-01"), periodEnd: d("2026-12-31") };
-    expect(legalRefund({ ...dec, ...studyRoom, lastUsedDate: d("2026-12-09") })?.amount).toBe(390_323);
-    // 이용 전이면 전액
-    expect(legalRefund({ ...november, ...studyRoom, lastUsedDate: null })?.amount).toBe(690_000);
-  });
-
-  it("게시한 1일 교습비가 있으면 그 금액으로 뺀다, 0 아래면 0", () => {
-    const posted = { facilityKind: "STUDY_ROOM" as const, postedDailyFee: 30_000 };
-    expect(legalRefund({ ...november, ...posted, lastUsedDate: d("2026-11-10") })).toMatchObject({
-      amount: 390_000,
-      basis: "독서실 기준 — 690,000원 − 게시 1일 30,000원 × 10일 = 390,000원",
-    });
-    // 690,000 − 30,000 × 25 = −60,000 → 0
-    expect(legalRefund({ ...november, ...posted, lastUsedDate: d("2026-11-25") })?.amount).toBe(0);
-  });
-
-  it("학원 — 학원법 구간식이 법정 기준 (해당 월만 구간, 나머지 월 전액)", () => {
-    const academy = { facilityKind: "ACADEMY" as const, postedDailyFee: null };
-    const three = { ...november, paidAmount: 2_070_000, refundable: 2_070_000, periodEnd: d("2027-01-31"), months: 3 };
-    // 11월 30일 중 12일 이용(1/2 전) 345,000 + 12·1월 1,380,000
-    const legal = legalRefund({ ...three, ...academy, lastUsedDate: d("2026-11-12") });
-    expect(legal?.amount).toBe(1_725_000);
-    expect(legal?.basis).toContain("학원법 구간식");
-    // 구간식 제안은 학원 법정 반환액과 같아 올리지 않는다
-    expect(suggestRefund({ ...three, policy: "ACADEMY_LAW", lastUsedDate: d("2026-11-12"), facility: academy })).toMatchObject({
-      amount: 1_725_000,
-      raisedFrom: null,
-    });
-  });
-
-  it("독서실에서 구간식 제안이 법정 반환액보다 적으면 올리고, 직접 입력은 올리지 않는다", () => {
-    // 30일 중 20일 이용 — 구간식 0, 독서실 690,000 × 10/30 = 230,000
-    const s = suggestRefund({ ...november, policy: "ACADEMY_LAW", lastUsedDate: d("2026-11-20"), facility: studyRoom });
-    expect(s).toMatchObject({ amount: 230_000, raisedFrom: 0 });
-    const manual = suggestRefund({ ...november, policy: "MANUAL", lastUsedDate: d("2026-11-20"), facility: studyRoom });
-    expect(manual).toMatchObject({ amount: 0, raisedFrom: null, legal: { amount: 230_000 } });
-  });
-
-  it("앞서 환불한 금액은 빼고, 환불 가능 금액을 넘지 않는다", () => {
-    const legal = legalRefund({ ...november, refundable: 590_000, ...studyRoom, lastUsedDate: d("2026-11-10") });
-    expect(legal).toMatchObject({ total: 460_000, amount: 360_000 });
-  });
-
-  it("이용 기간을 모르거나 기간이 잘못됐으면 계산하지 않는다(null)", () => {
-    expect(legalRefund({ ...november, ...studyRoom, lastUsedDate: undefined })).toBeNull();
-    expect(legalRefund({ ...november, periodEnd: d("2026-10-31"), ...studyRoom, lastUsedDate: null })).toBeNull();
-  });
-
-  it("반환 기한 — 그만둔 날(마지막 이용 다음 날, 이용 전이면 오늘)부터 5일", () => {
-    expect(dateKey(refundDueDate(d("2027-01-31"), d("2027-02-03")))).toBe("2027-02-06");
-    expect(dateKey(refundDueDate(null, d("2026-11-27")))).toBe("2026-12-02");
   });
 });
 

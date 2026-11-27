@@ -68,11 +68,6 @@ export const REFUND_POLICY_LABEL = {
   MANUAL: "직접 입력",
 } as const;
 
-export const FACILITY_KIND_LABEL = {
-  STUDY_ROOM: "독서실",
-  ACADEMY: "학원",
-} as const;
-
 export const NOTICE_KIND_LABEL = {
   REQUEST: "청구 안내",
   REMIND: "미납 안내",

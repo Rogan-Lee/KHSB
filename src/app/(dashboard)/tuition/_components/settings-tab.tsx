@@ -26,16 +26,10 @@ import {
   type TuitionProfileBulkInput,
 } from "@/actions/tuition";
 import type { AdminTuitionStudent } from "@/lib/tuition/admin-data";
-import {
-  parseReminderDays,
-  type FacilityKind,
-  type RefundFacility,
-  type TuitionRefundPolicyValue,
-  type TuitionTaxTypeValue,
-} from "@/lib/tuition/calc";
+import { parseReminderDays, type TuitionRefundPolicyValue, type TuitionTaxTypeValue } from "@/lib/tuition/calc";
 import type { TuitionProviderInfo } from "@/lib/tuition/provider-info";
 import type { TuitionSettingValues } from "@/lib/tuition/core";
-import { dotDate, FACILITY_KIND_LABEL, REFUND_POLICY_LABEL, TAX_TYPE_LABEL, won } from "@/lib/tuition/format";
+import { dotDate, REFUND_POLICY_LABEL, TAX_TYPE_LABEL, won } from "@/lib/tuition/format";
 import { dailyRateOf, DEFAULT_TUITION_PRICING, validatePricing, type TuitionPricing } from "@/lib/tuition/pricing";
 import { callTuition, digitsOnly, MoneyInput, StudentCell, toAmount } from "./shared";
 
@@ -43,24 +37,20 @@ const REFUND_POLICIES: TuitionRefundPolicyValue[] = ["DAILY", "ACADEMY_LAW", "MA
 
 const TAX_TYPES: TuitionTaxTypeValue[] = ["EXEMPT", "TAXABLE"];
 
-const FACILITY_KINDS: FacilityKind[] = ["STUDY_ROOM", "ACADEMY"];
-
 const REFUND_POLICY_HINT: Record<TuitionRefundPolicyValue, string> = {
-  DAILY: "남은 일수만큼 일할 계산한 금액을 제안해요. 1원 미만은 올려요.",
+  DAILY: "남은 일수만큼 일할 계산한 금액을 제안해요.",
   ACADEMY_LAW:
-    "강한선배 환불 규정(학원법)이에요. 이용 중인 달은 1/3 경과 전 2/3, 1/2 경과 전 1/2, 이후 없음, 시작 전인 달은 전액으로 제안해요. 법정 반환액보다 적어지지 않게 1원 미만은 올려요.",
+    "강한선배 환불 규정(학원법)이에요. 이용 중인 달은 1/3 경과 전 2/3, 1/2 경과 전 1/2, 이후 없음, 시작 전인 달은 전액으로 제안해요. 천 원 미만은 절사해요.",
   MANUAL: "제안 없이 환불할 때마다 금액을 직접 입력해요.",
 };
 
 export function SettingsTab({
   setting,
-  refundFacility,
   onlinePaymentAvailable,
   students,
   provider,
 }: {
   setting: TuitionSettingValues;
-  refundFacility: RefundFacility;
   onlinePaymentAvailable: boolean;
   students: AdminTuitionStudent[];
   /** 연결된 결제사 — null 이면 온라인 결제 없음 */
@@ -69,12 +59,7 @@ export function SettingsTab({
   return (
     <div className="flex flex-col gap-x6">
       <PricingSection pricing={setting.pricing} />
-      <SettingForm
-        setting={setting}
-        refundFacility={refundFacility}
-        onlinePaymentAvailable={onlinePaymentAvailable}
-        provider={provider}
-      />
+      <SettingForm setting={setting} onlinePaymentAvailable={onlinePaymentAvailable} provider={provider} />
       <StudentFees students={students} />
     </div>
   );
@@ -377,12 +362,10 @@ function BalanceRow() {
 
 function SettingForm({
   setting,
-  refundFacility,
   onlinePaymentAvailable,
   provider,
 }: {
   setting: TuitionSettingValues;
-  refundFacility: RefundFacility;
   onlinePaymentAvailable: boolean;
   provider: TuitionProviderInfo | null;
 }) {
@@ -394,10 +377,6 @@ function SettingForm({
   const [leadDays, setLeadDays] = useState(String(setting.leadDays));
   const [reminderDays, setReminderDays] = useState(setting.reminderDays);
   const [refundPolicy, setRefundPolicy] = useState<TuitionRefundPolicyValue>(setting.refundPolicy);
-  const [facilityKind, setFacilityKind] = useState<FacilityKind>(refundFacility.facilityKind);
-  const [postedDailyFee, setPostedDailyFee] = useState(
-    refundFacility.postedDailyFee === null ? "" : String(refundFacility.postedDailyFee),
-  );
   const [onlineEnabled, setOnlineEnabled] = useState(setting.onlinePaymentEnabled);
   const [taxType, setTaxType] = useState<TuitionTaxTypeValue>(setting.taxType);
   const [autoIssueEnabled, setAutoIssueEnabled] = useState(setting.autoIssueEnabled);
@@ -428,8 +407,6 @@ function SettingForm({
           autoIssueLeadDays: Number(autoIssueLeadDays),
           guideText: guideText.trim() || null,
           onsiteGuideText: onsiteGuideText.trim() || null,
-          facilityKind,
-          postedDailyFee: toAmount(postedDailyFee) || null,
         }),
       );
       if (res.ok) {
@@ -511,43 +488,6 @@ function SettingForm({
                 ))}
               </SelectContent>
             </Select>
-          </FormField>
-        </div>
-
-        <div className="grid grid-cols-1 gap-x4 sm:grid-cols-2">
-          <FormField
-            label="시설 종류"
-            hint="교육청에 등록한 종류예요. 환불할 때 이 기준으로 법정 반환액을 같이 보여 주고, 자동 제안이 그보다 적으면 법정 반환액으로 올려요."
-          >
-            <Select value={facilityKind} onValueChange={(value) => setFacilityKind(value as FacilityKind)} disabled={pending}>
-              <SelectTrigger aria-label="시설 종류">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {FACILITY_KINDS.map((kind) => (
-                  <SelectItem key={kind} value={kind}>
-                    {FACILITY_KIND_LABEL[kind]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
-          <FormField
-            label="게시한 1일 교습비"
-            htmlFor="tuition-setting-daily-fee"
-            hint="독서실 법정 반환액에 써요. 비우면 실제 납부액 ÷ 약정 일수로 계산해요."
-          >
-            <div className="flex items-center gap-x2">
-              <MoneyInput
-                id="tuition-setting-daily-fee"
-                value={postedDailyFee}
-                onValueChange={setPostedDailyFee}
-                disabled={pending}
-                placeholder="게시하지 않음"
-                className="w-40"
-              />
-              <span className="t4-regular text-fg-neutral-subtle">원</span>
-            </div>
           </FormField>
         </div>
 

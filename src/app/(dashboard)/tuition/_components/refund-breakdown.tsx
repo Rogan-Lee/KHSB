@@ -1,7 +1,6 @@
 "use client";
 
 // 환불 계산 과정 — suggestRefund 가 낸 줄(구간)마다 며칠 이용했는지, 어느 구간인지, 어떤 식으로 계산했는지 보여 준다.
-// 어느 방식이든 법정 반환액(하한)과 반환 기한을 함께 보여 준다 (직접 입력 방식은 계산 줄 없이 이 둘만).
 // 환불 다이얼로그(와 이후 퇴원 정산)가 같이 쓴다. 금액은 화면 계산이고, 확정·한도 검증은 서버가 다시 한다.
 
 import type { RefundLine, RefundSuggestion, TuitionRefundPolicyValue } from "@/lib/tuition/calc";
@@ -63,11 +62,13 @@ function BracketBar({ line }: { line: RefundLine }) {
   );
 }
 
-function LineDetail({ line }: { line: RefundLine }) {
+function LineDetail({ line, roundUnit }: { line: RefundLine; roundUnit: number }) {
+  const rounded = Math.floor(line.raw) !== line.amount;
+  const roundText = roundUnit >= 1000 ? "천 원 미만 절사" : `${roundUnit}원 미만 절사`;
   const formula = (expr: string) => (
     <p className="mt-x1 t3-regular tabular-nums text-fg-neutral-muted">
-      {expr} = {won(line.amount)}
-      {line.raw !== line.amount && " (1원 미만 올림)"}
+      {expr} = {won(Math.floor(line.raw))}
+      {rounded && ` → ${roundText} ${won(line.amount)}`}
     </p>
   );
 
@@ -110,9 +111,7 @@ export function RefundBreakdown({
   /** 규정상 돌려줘야 하는 날 (반환 사유 발생일 + 5일). 없으면 안 보여 준다 */
   returnBy: Date | null;
 }) {
-  const { legal, raisedFrom } = suggestion;
-  const hasLines = suggestion.lines.length > 0;
-  if (!hasLines && !legal && !returnBy) return null;
+  if (suggestion.lines.length === 0) return null;
   return (
     <section
       aria-label="환불 계산 과정"
@@ -123,63 +122,33 @@ export function RefundBreakdown({
         <span className="t3-regular text-fg-neutral-subtle">{REFUND_POLICY_LABEL[policy]}</span>
       </div>
 
-      {hasLines && (
-        <>
-          <ol className="mt-x3 flex flex-col divide-y divide-stroke-neutral-muted">
-            {suggestion.lines.map((line) => (
-              <li key={dateKey(line.start)} className="py-x3 first:pt-0 last:pb-0">
-                <div className="flex items-baseline justify-between gap-x3">
-                  <p className="t4-medium text-fg-neutral">
-                    {line.label && <span className="mr-x1_5">{line.label}</span>}
-                    <span className="t3-regular tabular-nums text-fg-neutral-subtle">
-                      {shortPeriod(dateKey(line.start), dateKey(line.end))} · {line.totalDays}일
-                    </span>
-                  </p>
-                  <span className="whitespace-nowrap t4-bold tabular-nums text-fg-neutral">{won(line.amount)}</span>
-                </div>
-                <LineDetail line={line} />
-              </li>
-            ))}
-            {raisedFrom !== null && (
-              <li className="py-x3 last:pb-0">
-                <div className="flex items-baseline justify-between gap-x3">
-                  <p className="t4-medium text-fg-neutral">법정 반환액으로 올림</p>
-                  <span className="whitespace-nowrap t4-bold tabular-nums text-fg-neutral">
-                    +{won(suggestion.amount - raisedFrom)}
-                  </span>
-                </div>
-                <p className="mt-x1 t3-regular text-fg-neutral-muted">
-                  계산한 금액이 법정 반환액보다 적어 법정 반환액만큼 제안해요.
-                </p>
-              </li>
-            )}
-          </ol>
+      <ol className="mt-x3 flex flex-col divide-y divide-stroke-neutral-muted">
+        {suggestion.lines.map((line) => (
+          <li key={dateKey(line.start)} className="py-x3 first:pt-0 last:pb-0">
+            <div className="flex items-baseline justify-between gap-x3">
+              <p className="t4-medium text-fg-neutral">
+                {line.label && <span className="mr-x1_5">{line.label}</span>}
+                <span className="t3-regular tabular-nums text-fg-neutral-subtle">
+                  {shortPeriod(dateKey(line.start), dateKey(line.end))} · {line.totalDays}일
+                </span>
+              </p>
+              <span className="whitespace-nowrap t4-bold tabular-nums text-fg-neutral">{won(line.amount)}</span>
+            </div>
+            <LineDetail line={line} roundUnit={suggestion.roundUnit} />
+          </li>
+        ))}
+      </ol>
 
-          <div className="mt-x3 flex items-baseline justify-between border-t border-stroke-neutral-muted pt-x3">
-            <span className="t4-medium text-fg-neutral">제안 금액</span>
-            <span className="t5-bold tabular-nums text-fg-neutral">{won(suggestion.amount)}</span>
-          </div>
-        </>
-      )}
+      <div className="mt-x3 flex items-baseline justify-between border-t border-stroke-neutral-muted pt-x3">
+        <span className="t4-medium text-fg-neutral">제안 금액</span>
+        <span className="t5-bold tabular-nums text-fg-neutral">{won(suggestion.amount)}</span>
+      </div>
       {suggestion.cappedFrom !== null && (
         <p className="mt-x1 t3-regular text-fg-neutral-subtle">
           계산 합계 {won(suggestion.cappedFrom)} 중 환불 가능 금액까지만 제안해요.
         </p>
       )}
-      {legal && (
-        <div className="mt-x3 border-t border-stroke-neutral-muted pt-x3">
-          <div className="flex items-baseline justify-between gap-x2">
-            <span className="t4-medium text-fg-neutral">법정 반환액</span>
-            <span className="t4-bold tabular-nums text-fg-neutral">{won(legal.amount)}</span>
-          </div>
-          <p className="mt-x1 t3-regular text-fg-neutral-muted">{legal.basis}</p>
-          <p className="mt-x1 t3-regular text-fg-neutral-subtle">
-            {legal.total !== legal.amount && `${won(legal.total)}에서 이미 환불한 금액을 빼고 환불 가능 금액에 맞췄어요. `}
-            이보다 적게 돌려주면 안 돼요.
-          </p>
-        </div>
-      )}
-      {returnBy && (
+      {returnBy && suggestion.amount > 0 && (
         <p className="mt-x1 t3-regular text-fg-neutral-subtle">
           규정상 반환 사유 발생일로부터 5일 이내, {dotDate(dateKey(returnBy))}까지 돌려드려야 해요.
         </p>
