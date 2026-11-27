@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { EmptyState, FormActions, FormField, StatusBadge, type Tone } from "@/components/backoffice/ui";
 import { ConfirmDialog } from "@/components/online/online-confirm-dialog";
+import { AiNotice } from "@/components/ai/ai-disclosure";
 import {
   createMentoringSession,
   updateSessionNotes,
@@ -450,7 +451,9 @@ function SessionCard({
         confirmLabel="종료하고 요약"
         pending={isPending || summarizing}
         onConfirm={handleComplete}
-      />
+      >
+        <AiNotice tail="요약은 일일 보고에만 들어가요." />
+      </ConfirmDialog>
       <ConfirmDialog
         open={confirm === "cancel"}
         onOpenChange={(o) => !o && setConfirm(null)}

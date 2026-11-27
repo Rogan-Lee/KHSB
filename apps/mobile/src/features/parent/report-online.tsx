@@ -16,7 +16,7 @@ import {
 import { submitOnlineReportFeedback, type ParentOnlineReport } from '@/lib/api/parent-reports';
 
 import { monthDayOfIso, monthDayOfKey } from './report-format';
-import { ReportHero } from './report-parts';
+import { AiMadeNote, ReportHero } from './report-parts';
 
 // 온라인 관리 보고서 — 웹 /r/online/[token] (SEED) 과 같은 구성: 머리글 → 본문(마크다운) → 원장님께 의견 남기기.
 
@@ -37,7 +37,10 @@ export function OnlineReportBody({ data }: { data: ParentOnlineReport }) {
 
       <Section>
         {data.markdown.trim() ? (
-          <Markdown source={data.markdown} onImagePress={(src) => showImages([src])} />
+          <View style={{ gap: space.x4 }}>
+            {data.aiGenerated && <AiMadeNote />}
+            <Markdown source={data.markdown} onImagePress={(src) => showImages([src])} />
+          </View>
         ) : (
           <EmptyState icon={FileText} title="아직 작성된 내용이 없어요" style={{ paddingVertical: space.x8 }} />
         )}

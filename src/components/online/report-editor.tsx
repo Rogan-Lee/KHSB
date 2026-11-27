@@ -16,6 +16,7 @@ import { MarkdownViewer } from "@/components/ui/markdown-viewer";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Notice, Section } from "@/components/backoffice/ui";
+import { AiDraftBadge, AiNotice } from "@/components/ai/ai-disclosure";
 import { SentLockBar } from "@/components/online/report-status";
 import { useConfirm } from "@/components/online/use-confirm";
 
@@ -170,7 +171,7 @@ export function ReportEditor({
       )}
 
       <Section
-        title="보고서 내용"
+        title={<>보고서 내용{canApprove && <AiDraftBadge />}</>}
         description="마크다운으로 쓰면 학부모 공개 페이지에 그대로 보여요."
         actions={
           <Button
@@ -185,6 +186,7 @@ export function ReportEditor({
           </Button>
         }
       >
+        <AiNotice tail="승인하고 보내야 학부모에게 보여요." className="mb-x3" />
         {isSent && (
           <SentLockBar
             className="mb-x3"

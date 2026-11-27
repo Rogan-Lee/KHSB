@@ -30,6 +30,7 @@ import {
   Segmented,
   StatusBadge,
 } from "@/components/backoffice/ui";
+import { AiDraftBadge, AiNotice } from "@/components/ai/ai-disclosure";
 import { cn } from "@/lib/utils";
 import {
   generateCardNewsSlides,
@@ -350,13 +351,14 @@ export function CardNewsClient() {
                 </>
               )}
             </Button>
+            <AiNotice tail="참고 이미지는 그대로 보내요. 올리기 전에 꼭 확인해 주세요." />
           </div>
         </Section>
 
         {/* 슬라이드 텍스트 편집 */}
         {slide && (
           <Section
-            title="텍스트 수정"
+            title={<>텍스트 수정<AiDraftBadge /></>}
             actions={
               <StatusBadge tone="gray">
                 {SLIDE_LABELS[slide.type]} {currentSlide + 1}/{slides.length}

@@ -40,6 +40,7 @@ import { getShareWording, setAppSetting } from "@/actions/app-settings";
 import { SHARE_WORDING_KEYS, renderShareWording } from "@/lib/share-wording";
 import { EmptyState, FilterChip, FormActions, SearchField, Section, StatusBadge } from "@/components/backoffice/ui";
 import { ConfirmDialog } from "./confirm-dialog";
+import { AiDraftBadge, AiNotice } from "@/components/ai/ai-disclosure";
 
 interface Props {
   rows: StudentReportRow[];
@@ -62,6 +63,8 @@ export function MentoringReportTab({ rows }: Props) {
   const [noteDraft, setNoteDraft] = useState<string>("");
   const [noteSaving, setNoteSaving] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  // AI 고도화로 채운 리포트 id — 저장 전까지 "AI 초안" 표시
+  const [aiDraftFor, setAiDraftFor] = useState<string | null>(null);
   // 공유 문구 커스텀 (AppSetting)
   const [wordingOpen, setWordingOpen] = useState(false);
   const [wordingDraft, setWordingDraft] = useState<string | null>(null);
@@ -188,7 +191,7 @@ export function MentoringReportTab({ rows }: Props) {
     }
   }
 
-  // AI 코멘트 예약 큐 등록 (야간 Claude 루틴이 생성)
+  // AI 코멘트 예약 큐 등록 (매일 새벽 크론이 Groq 로 생성 → /reports/ai-queue 에서 확인)
   async function handleEnqueueAiComments() {
     if (selectedIds.size === 0) {
       toast.error("학생을 선택하세요");
@@ -243,6 +246,7 @@ export function MentoringReportTab({ rows }: Props) {
         data.notes && `[기타 메모]\n${data.notes}`,
       ].filter(Boolean).join("\n\n");
       setNoteDraft(text);
+      setAiDraftFor(activeRow.parentReport?.id ?? null);
       toast.success("AI 초안 생성 — 검토 후 저장");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "AI 실패");
@@ -540,7 +544,10 @@ export function MentoringReportTab({ rows }: Props) {
                   <div className="flex flex-col gap-x2">
                     <div className="flex flex-wrap items-center justify-between gap-x2">
                       <div>
-                        <h4 className="t5-bold text-fg-neutral">학부모에게 전할 내용</h4>
+                        <h4 className="flex items-center gap-x1_5 t5-bold text-fg-neutral">
+                          학부모에게 전할 내용
+                          {aiDraftFor === activeReportId && noteDraft !== (savedNote ?? "") && <AiDraftBadge />}
+                        </h4>
                         <p className="t3-regular text-fg-neutral-subtle">공유 페이지에 그대로 보여요</p>
                       </div>
                       <Button variant="outline" size="xs" onClick={handleAiEnhance} disabled={aiBusy || noteLoading}>
@@ -548,6 +555,7 @@ export function MentoringReportTab({ rows }: Props) {
                         {aiBusy ? "다듬는 중…" : "AI 고도화"}
                       </Button>
                     </div>
+                    <AiNotice tail="저장해야 학부모에게 보여요." />
                     <Textarea
                       value={noteDraft}
                       onChange={(e) => setNoteDraft(e.target.value)}
@@ -610,13 +618,15 @@ export function MentoringReportTab({ rows }: Props) {
         open={enqueueConfirmOpen}
         onOpenChange={setEnqueueConfirmOpen}
         title="AI 코멘트 예약"
-        description={`선택한 ${selectedIds.size}명의 'AI 코멘트'를 예약 큐에 등록할까요?\n리포트가 없으면 먼저 생성되고, 야간 Claude 루틴이 코멘트를 생성해요.`}
+        description={`선택한 ${selectedIds.size}명의 'AI 코멘트'를 예약 큐에 등록할까요?\n리포트가 없으면 먼저 생성되고, 매일 새벽에 코멘트를 만들어요.`}
         destructive={false}
         confirmLabel="예약 등록"
         pendingLabel="등록 중…"
         pending={enqueuing}
         onConfirm={confirmEnqueueAiComments}
-      />
+      >
+        <AiNotice tail="예약 대기열에서 확인하고 반영해야 학부모 리포트에 들어가요." />
+      </ConfirmDialog>
     </div>
   );
 }

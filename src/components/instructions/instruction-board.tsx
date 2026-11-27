@@ -16,6 +16,7 @@ import { useStickyState } from "@/hooks/use-sticky-state";
 import { matchesSearch } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { EmptyState, SearchField, Section, StatusBadge, Toolbar } from "@/components/backoffice/ui";
+import { AiNotice } from "@/components/ai/ai-disclosure";
 import {
   DirectInstructionForm,
   fmt,
@@ -58,6 +59,7 @@ export function InstructionBoard({
         count={shownPendingCount}
         description="AI 초안을 고쳐 학생에게 보내요. 학생에게 시킬 일이 없으면 확인만 눌러요."
       >
+        <AiNotice tail="고쳐서 보내야 학생에게 전달돼요." className="mb-x3" />
         {inbox.pending.length === 0 ? (
           <div className="rounded-r4 border border-stroke-neutral-muted bg-bg-layer-default">
             <EmptyState

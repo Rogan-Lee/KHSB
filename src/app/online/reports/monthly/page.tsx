@@ -21,6 +21,7 @@ import {
   StatCards,
   TableCard,
 } from "@/components/backoffice/ui";
+import { AiNotice } from "@/components/ai/ai-disclosure";
 import { Button } from "@/components/ui/button";
 import { matchesSearch } from "@/lib/utils";
 import {
@@ -105,6 +106,7 @@ export default async function MonthlyReportsPage({
       <ReportsTypeNav current="MONTHLY" />
 
       <div className="flex flex-col gap-x5">
+        <AiNotice tail="승인하고 보내야 학부모에게 보여요." />
         {/* 월 이동 */}
         <div className="flex flex-wrap items-center gap-x3">
           <div className="inline-flex items-center gap-x0_5 rounded-full bg-bg-neutral-weak p-x0_5">

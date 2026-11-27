@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Sparkles, Copy, RefreshCw, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmptyState, IconTile, Section } from "@/components/backoffice/ui";
+import { AiDraftBadge, AiNotice } from "@/components/ai/ai-disclosure";
 
 interface Props {
   consultationId: string;
@@ -73,7 +74,7 @@ export function FollowUpMessagePanel({ consultationId, recipientName, prospectPh
 
   return (
     <Section
-      title="AI 팔로업 메시지"
+      title={<>AI 팔로업 메시지{generated && <AiDraftBadge />}</>}
       description={`받는 사람 · ${recipientName}`}
       actions={
         <Button
@@ -85,6 +86,7 @@ export function FollowUpMessagePanel({ consultationId, recipientName, prospectPh
         </Button>
       }
     >
+      <AiNotice tail="보내기 전에 꼭 읽고 고쳐 주세요." className="mb-x4" />
       {/* 메시지 영역 */}
       {!generated ? (
         <EmptyState
