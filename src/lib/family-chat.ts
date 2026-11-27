@@ -8,14 +8,14 @@
 //  · 운영진 미확인은 학생·학부모 글(familyMessageAt)만 본다 — 입퇴실 자동 알림 때문에 배지가 켜지지 않게.
 //  · 차단(src/lib/safety.ts): 단체방이라 전송은 막지 않고, 내가 차단한 사람의 글만 내 화면에서 뺀다.
 
-import { del } from "@vercel/blob";
+import { deleteBlobFiles, isDeletableBlobUrl } from "@/lib/blob-store";
 import { z } from "zod";
 
 import type { FamilyChatSender } from "@/generated/prisma/enums";
 import { latestIdsPerGroup } from "@/lib/db/latest-per-group";
 import { MobileApiError } from "@/lib/mobile-auth";
 import { authUserIdsForAppUsers, sendMobilePush, sendToStaff } from "@/lib/mobile-push";
-import { sanitizePortalAttachments, type PortalAttachment } from "@/lib/portal-attachments";
+import { sanitizeIncomingAttachments, sanitizePortalAttachments, type PortalAttachment } from "@/lib/portal-attachments";
 import { prisma } from "@/lib/prisma";
 import { ROLE_DISPLAY } from "@/lib/roles";
 import { getBlockedKeys } from "@/lib/safety";
@@ -237,7 +237,7 @@ export async function sendFamilyMessage(
     throw new MobileApiError(parsed.error.issues[0]?.message ?? "입력값을 확인해 주세요", 400);
   }
   const content = parsed.data.content.trim();
-  const attachments = sanitizePortalAttachments(parsed.data.attachments, MAX_ATTACHMENTS);
+  const attachments = sanitizeIncomingAttachments(parsed.data.attachments, MAX_ATTACHMENTS);
   if (!content && attachments.length === 0) {
     throw new MobileApiError("메시지나 첨부 파일을 넣어 주세요", 400);
   }
@@ -497,13 +497,13 @@ export async function purgeExpiredFamilyChats(now = new Date()) {
   const urls = withFiles.flatMap((m) =>
     sanitizePortalAttachments(m.attachments, MAX_ATTACHMENTS)
       .map((a) => a.url)
-      .filter((url) => url.includes(".blob.vercel-storage.com/")),
+      .filter(isDeletableBlobUrl),
   );
   let deletedFiles = 0;
   for (let i = 0; i < urls.length; i += 100) {
     const batch = urls.slice(i, i + 100);
     try {
-      await del(batch);
+      await deleteBlobFiles(batch);
       deletedFiles += batch.length;
     } catch (error) {
       // 파일 삭제가 실패해도 대화는 지운다 (다음 실행에서 다시 찾을 방법이 없으니 로그로 남긴다)

@@ -11,6 +11,7 @@ import type { ChatAttachment } from "@/actions/online/portal-chat";
 import type { PortalChatSenderType } from "@/generated/prisma/enums";
 import { lastMessagesByChat } from "@/lib/portal-chat-core";
 import { MobileApiError } from "@/lib/mobile-auth";
+import { incomingAttachmentUrl } from "@/lib/portal-attachments";
 import { prisma } from "@/lib/prisma";
 import { ROLE_DISPLAY } from "@/lib/roles";
 import { assertCanMessage, getBlockState, getBlockedKeys } from "@/lib/safety";
@@ -51,11 +52,7 @@ function toAttachments(value: unknown): ChatAttachment[] {
 }
 
 const attachmentSchema = z.object({
-  url: z
-    .string()
-    .trim()
-    .max(2000)
-    .refine((url) => url.startsWith("https://"), "첨부 파일 주소가 올바르지 않아요"),
+  url: incomingAttachmentUrl,
   name: z.string().trim().min(1).max(200),
   sizeBytes: z.number().int().min(0),
   mimeType: z.string().trim().min(1).max(120),

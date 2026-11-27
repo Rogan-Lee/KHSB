@@ -1,6 +1,7 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { NextRequest, NextResponse } from "next/server";
 import { applyHostRedirect } from "@/lib/apply-domain";
+import { PORTAL_FILE_COOKIE } from "@/lib/file-access";
 
 const PUBLIC_ROUTE_ROOTS = [
   "/sign-in",
@@ -27,12 +28,30 @@ const PUBLIC_ROUTE_ROOTS = [
   // 시설 장비(사용 통제 동기화) — 세션 쿠키 없이 장비 토큰으로 자체 인증
   "/api/access-agent",
   "/api/public", // 외부 정적 랜딩이 비로그인으로 fetch 하는 공개 콘텐츠 피드
+  // 비공개 첨부 — 서명·세션·매직링크 쿠키로 라우트가 직접 권한을 본다 (확장자 없는 파일도 로그인 화면으로 보내지 않게)
+  "/api/files",
 ];
 
 export function isPublicPath(pathname: string) {
   return PUBLIC_ROUTE_ROOTS.some(
     (root) => pathname === root || pathname.startsWith(`${root}/`),
   );
+}
+
+// 학생 포털(/s/<token>)은 세션 쿠키가 없다 — 비공개 첨부(/api/files)를 열 때 쓰도록 매직링크를 쿠키로 남긴다.
+// 비공개 저장소를 켰을 때만. 값 검증은 /api/files 가 validateMagicLink 로 한다.
+function rememberPortalToken(request: NextRequest, response: NextResponse) {
+  if (!process.env.BLOB_PRIVATE_READ_WRITE_TOKEN) return;
+  const [, root, token] = request.nextUrl.pathname.split("/");
+  if (root !== "s" || !token || token.length < 20 || token.length > 128) return;
+  if (request.cookies.get(PORTAL_FILE_COOKIE)?.value === token) return;
+  response.cookies.set(PORTAL_FILE_COOKIE, token, {
+    path: "/api/files",
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 30,
+  });
 }
 
 export function proxy(request: NextRequest) {
@@ -51,7 +70,9 @@ export function proxy(request: NextRequest) {
   requestHeaders.set("x-pathname", request.nextUrl.pathname);
 
   if (isPublicPath(request.nextUrl.pathname)) {
-    return NextResponse.next({ request: { headers: requestHeaders } });
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    rememberPortalToken(request, response);
+    return response;
   }
 
   const sessionCookie = getSessionCookie(request, {

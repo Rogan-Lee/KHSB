@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { requireAnyStaff, requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
-import { del } from "@vercel/blob";
+import { deleteBlobFiles, uploadedFileUrlUnder } from "@/lib/blob-store";
 
 const ASSIGNMENT_FILE_ALLOWED_MIMES = [
   "application/pdf",
@@ -19,23 +19,9 @@ const ASSIGNMENT_FILE_ALLOWED_MIMES = [
 
 const ASSIGNMENT_FILE_MAX_BYTES = 20 * 1024 * 1024; // 20MB
 
-/**
- * /api/upload/assignment 가 발급한 Vercel Blob URL 인지 검증.
- * 저장된 url 은 첨부 링크(href)로 렌더되고 삭제 시 del(url) 로 Blob 삭제에 쓰이므로,
- * 임의 URL(javascript:, 외부 도메인, 다른 경로의 Blob)을 받지 않는다.
- */
-function isAssignmentBlobUrl(raw: string, assignmentId?: string): boolean {
-  let u: URL;
-  try {
-    u = new URL(raw);
-  } catch {
-    return false;
-  }
-  if (u.protocol !== "https:") return false;
-  if (!u.hostname.endsWith(".public.blob.vercel-storage.com")) return false;
-  const prefix = assignmentId ? `/assignments/${assignmentId}/` : "/assignments/";
-  return u.pathname.startsWith(prefix);
-}
+// /api/upload/assignment 가 돌려준 주소만 받는다 (uploadedFileUrlUnder — 공개 blob URL 또는 서명된 /api/files 경로).
+// 저장된 url 은 첨부 링크(href)로 렌더되고 삭제 시 Blob 삭제에 쓰이므로,
+// 임의 URL(javascript:, 외부 도메인, 다른 경로의 Blob)을 받지 않는다.
 
 export async function getAssignments(studentId: string) {
   const session = await auth();
@@ -163,13 +149,14 @@ export async function attachFileToAssignment(
   requireStaff(session?.user?.role);
   if (!session?.user) throw new Error("Unauthorized");
 
-  const url = fileMeta.url?.trim();
+  const rawUrl = fileMeta.url?.trim();
   const fileName = fileMeta.fileName?.trim();
   const mimeType = fileMeta.mimeType?.trim();
   const sizeBytes = Number(fileMeta.sizeBytes);
 
-  if (!url) throw new Error("파일 URL이 없습니다");
-  if (!isAssignmentBlobUrl(url, assignmentId)) throw new Error("파일 URL이 올바르지 않습니다");
+  if (!rawUrl) throw new Error("파일 URL이 없습니다");
+  const url = uploadedFileUrlUnder(rawUrl, `assignments/${assignmentId}/`);
+  if (!url) throw new Error("파일 URL이 올바르지 않습니다");
   if (!fileName) throw new Error("파일명이 없습니다");
   if (!mimeType) throw new Error("MIME 타입이 없습니다");
   if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
@@ -216,9 +203,9 @@ export async function deleteAssignmentFile(id: string) {
   if (!file) throw new Error("파일을 찾을 수 없습니다");
 
   // Blob 삭제 시도 (실패해도 DB 행은 제거). 과제 업로드 경로의 Blob 만 삭제한다.
-  if (isAssignmentBlobUrl(file.url, file.assignmentId)) {
+  if (uploadedFileUrlUnder(file.url, `assignments/${file.assignmentId}/`, { stored: true })) {
     try {
-      await del(file.url, { token: process.env.BLOB_READ_WRITE_TOKEN });
+      await deleteBlobFiles([file.url]);
     } catch (err) {
       console.warn("[deleteAssignmentFile] Blob 삭제 실패, 계속 진행:", err);
     }

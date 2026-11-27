@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/roles";
 import { revalidatePath } from "next/cache";
-import { del, put } from "@vercel/blob";
+import { deleteBlobFiles, putStudentFile } from "@/lib/blob-store";
 import sharp from "sharp";
 import {
   extractDriveId,
@@ -154,7 +154,7 @@ export async function deletePhoto(id: string) {
   // Blob 삭제 시도 (실패해도 DB는 삭제)
   try {
     const urls = [photo.url, photo.thumbnailUrl].filter(Boolean) as string[];
-    await del(urls, { token: process.env.BLOB_READ_WRITE_TOKEN });
+    await deleteBlobFiles(urls);
   } catch {
     // Blob 삭제 실패 로깅만
   }
@@ -256,9 +256,7 @@ export async function importPhotosFromDrive(driveUrl: string) {
       // Blob 업로드
       const ext = (f.name.match(/\.([a-z0-9]+)$/i)?.[1] ?? "jpg").toLowerCase();
       const blobBase = `photos/${autoKey}/${Date.now()}-${crypto.randomUUID()}`;
-      const originalBlob = await put(`${blobBase}.${ext}`, buffer, {
-        access: "public",
-        token: process.env.BLOB_READ_WRITE_TOKEN,
+      const originalUrl = await putStudentFile(`${blobBase}.${ext}`, buffer, {
         contentType: f.mimeType || undefined,
       });
 
@@ -270,12 +268,9 @@ export async function importPhotosFromDrive(driveUrl: string) {
           .resize(480, 480, { fit: "inside", withoutEnlargement: true })
           .webp({ quality: 80 })
           .toBuffer();
-        const thumbBlob = await put(`${blobBase}.thumb.webp`, thumbBuf, {
-          access: "public",
-          token: process.env.BLOB_READ_WRITE_TOKEN,
+        thumbnailUrl = await putStudentFile(`${blobBase}.thumb.webp`, thumbBuf, {
           contentType: "image/webp",
         });
-        thumbnailUrl = thumbBlob.url;
       } catch {
         thumbnailUrl = null;
       }
@@ -284,7 +279,7 @@ export async function importPhotosFromDrive(driveUrl: string) {
         data: {
           folderId: folder.id,
           fileName: finalFileName,
-          url: originalBlob.url,
+          url: originalUrl,
           thumbnailUrl,
           mimeType: f.mimeType || `image/${ext}`,
           sizeBytes: f.sizeBytes || buffer.byteLength,

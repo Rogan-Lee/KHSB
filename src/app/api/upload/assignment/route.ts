@@ -1,5 +1,5 @@
-import { put } from "@vercel/blob";
 import { auth } from "@/lib/auth";
+import { putStudentFile, signFileUrl } from "@/lib/blob-store";
 import { requireStaff } from "@/lib/roles";
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
@@ -81,14 +81,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const blob = await put(key, buffer, {
-      access: "public",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-      contentType,
-    });
+    const url = await putStudentFile(key, buffer, { contentType });
 
     return NextResponse.json({
-      url: blob.url,
+      url: signFileUrl(url),
       fileName: safeName,
       mimeType: contentType,
       sizeBytes: file.size,

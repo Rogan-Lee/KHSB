@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
 import sharp from "sharp";
 import { randomUUID } from "node:crypto";
 import { auth } from "@/lib/auth";
+import { putStudentFile, signFileUrl } from "@/lib/blob-store";
 import { isAnyStaff, isOnlineStaff, isStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 import { assertCanManageStudent } from "@/lib/student-access";
@@ -239,17 +239,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // 공개 blob URL 이 곧 접근 권한 — 추측 불가능한 난수 사용
+  // 공개 blob URL 이 곧 접근 권한 — 추측 불가능한 난수 사용 (비공개 저장소면 /api/files 가 권한을 본다)
   const random = randomUUID();
   const blobPath = `${blobPathPrefix}/${Date.now()}-${random}-${safeName(outName)}`;
 
   try {
-    const blob = await put(blobPath, body, {
-      access: "public",
-      addRandomSuffix: false,
-    });
+    const url = await putStudentFile(blobPath, body, { addRandomSuffix: false });
     return NextResponse.json({
-      url: blob.url,
+      url: signFileUrl(url),
       name: outName,
       sizeBytes: body.size,
       mimeType: outMime,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { upload } from "@vercel/blob/client";
+import { put } from "@vercel/blob/client";
 import { toast } from "sonner";
 import { ImagePlus, X, Loader2, FileText, Play } from "lucide-react";
 import { ProgressCircle } from "seed-design/ui/progress-circle";
@@ -50,8 +50,28 @@ function safeName(filename: string): string {
 }
 
 /**
+ * 업로드 토큰 발급 — @vercel/blob/client upload() 와 같은 요청(handleUpload 프로토콜)이지만,
+ * 응답의 access(공개/비공개 저장소)와 url(비공개일 때 쓸 서명된 앱 경로)도 받는다.
+ */
+async function requestUploadToken(pathname: string, clientPayload: string, multipart: boolean) {
+  const res = await fetch("/api/online/upload/client", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      type: "blob.generate-client-token",
+      payload: { pathname, clientPayload, multipart },
+    }),
+  });
+  const body = (await res.json().catch(() => null)) as
+    | { clientToken?: string; access?: "public" | "private"; url?: string; error?: string }
+    | null;
+  if (!res.ok || !body?.clientToken) throw new Error(body?.error ?? "업로드 준비에 실패했어요");
+  return { clientToken: body.clientToken, access: body.access ?? "public", url: body.url };
+}
+
+/**
  * 질문/답변용 사진·영상(+PDF) 첨부 업로더. 컨트롤드 컴포넌트.
- * @vercel/blob client upload (/api/online/upload/client 토큰 발급) 로 blob 에 직접 업로드 —
+ * @vercel/blob client put (/api/online/upload/client 토큰 발급) 로 blob 에 직접 업로드 —
  * Vercel 함수 body 한도(4.5MB)를 우회한다.
  * 학생 측이면 studentToken 전달, 직원 측이면 생략(세션 인증).
  * variant="portal" 은 학생 포털용 SEED 토큰 썸네일 줄 (업로드 로직은 동일).
@@ -112,22 +132,23 @@ export function PhotoUploader({
           );
         }
         const random = Math.random().toString(36).slice(2, 10);
-        const blob = await upload(
-          `student-questions/incoming/${Date.now()}-${random}-${safeName(body.name)}`,
-          body,
-          {
-            access: "public",
-            handleUploadUrl: "/api/online/upload/client",
-            clientPayload: JSON.stringify({ context: "question", studentToken }),
-            contentType: body.type || undefined,
-            multipart: isVideo, // 대용량 영상은 분할 업로드 + 실패 파트 재시도
-            onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
-          }
+        const pathname = `student-questions/incoming/${Date.now()}-${random}-${safeName(body.name)}`;
+        const token = await requestUploadToken(
+          pathname,
+          JSON.stringify({ context: "question", studentToken }),
+          isVideo
         );
+        const blob = await put(pathname, body, {
+          access: token.access,
+          token: token.clientToken,
+          contentType: body.type || undefined,
+          multipart: isVideo, // 대용량 영상은 분할 업로드 + 실패 파트 재시도
+          onUploadProgress: ({ percentage }) => setProgress(Math.round(percentage)),
+        });
         onChange([
           ...attachments,
           {
-            url: blob.url,
+            url: token.url ?? blob.url,
             name: body.name,
             sizeBytes: body.size,
             mimeType: body.type || blob.contentType || "application/octet-stream",

@@ -8,7 +8,7 @@ import { requireStaff } from "@/lib/roles";
 import { assertCanMessage } from "@/lib/safety";
 import { validateMagicLink } from "@/lib/student-auth";
 import { notifyAssignedStaffOfQuestion, runAfterResponse } from "@/lib/mobile-push";
-import { sanitizePortalAttachments } from "@/lib/portal-attachments";
+import { sanitizeIncomingAttachments } from "@/lib/portal-attachments";
 import {
   claimStudentQuestionFor,
   releaseStudentQuestionClaim,
@@ -30,7 +30,7 @@ const MAX_ATTACHMENTS = 6;
 
 // https:// 또는 같은 출처 상대 경로만 허용 — 프로토콜 상대("//host") 링크 차단 (@/lib/portal-attachments)
 function sanitizeAttachments(input: unknown): QuestionAttachment[] {
-  return sanitizePortalAttachments(input, MAX_ATTACHMENTS);
+  return sanitizeIncomingAttachments(input, MAX_ATTACHMENTS);
 }
 
 // ─────────────────────────── 학생 측 (매직링크 토큰 인증) ───────────────────────────

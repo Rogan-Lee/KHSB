@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { groqChat } from "@/lib/groq";
-import { del } from "@vercel/blob";
+import { deleteBlobFiles, uploadedFileUrlUnder } from "@/lib/blob-store";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireOnlineStaff } from "@/lib/roles";
@@ -42,22 +42,8 @@ function formatSessionTitle(opts: {
 // ─────────────────── 헬퍼: 세션 사진 blob URL 검증 ───────────────────
 // /api/upload/mentoring-session 은 `mentoring-sessions/{sessionId}/...` 경로의 Vercel Blob 에만 올린다.
 // 클라가 넘긴 임의 URL 을 저장하면 deleteSessionPhoto 의 del() 로 다른 blob(제출물·리포트 등)을
-// 지울 수 있으므로, 해당 세션 prefix 의 Vercel Blob URL 만 허용한다.
+// 지울 수 있으므로, 해당 세션 prefix 의 Vercel Blob URL(또는 서명된 /api/files 경로)만 허용한다.
 const SESSION_PHOTO_MIME = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]);
-
-function isSessionPhotoBlobUrl(raw: unknown, sessionId?: string): raw is string {
-  if (typeof raw !== "string") return false;
-  let u: URL;
-  try {
-    u = new URL(raw);
-  } catch {
-    return false;
-  }
-  if (u.protocol !== "https:") return false;
-  if (!u.hostname.endsWith(".public.blob.vercel-storage.com")) return false;
-  const prefix = sessionId ? `/mentoring-sessions/${sessionId}/` : "/mentoring-sessions/";
-  return u.pathname.startsWith(prefix);
-}
 
 // ─────────────────── 1) 세션 예약 ───────────────────
 export async function createMentoringSession(params: {
@@ -410,10 +396,10 @@ export async function attachSessionPhoto(
   });
   if (!target) throw new Error("세션을 찾을 수 없습니다");
 
-  if (!isSessionPhotoBlobUrl(data.url, sessionId)) {
-    throw new Error("업로드된 사진 주소가 올바르지 않습니다");
-  }
-  if (data.thumbnailUrl != null && !isSessionPhotoBlobUrl(data.thumbnailUrl, sessionId)) {
+  const url = uploadedFileUrlUnder(data.url, `mentoring-sessions/${sessionId}/`);
+  const thumbnailUrl =
+    data.thumbnailUrl != null ? uploadedFileUrlUnder(data.thumbnailUrl, `mentoring-sessions/${sessionId}/`) : null;
+  if (!url || (data.thumbnailUrl != null && !thumbnailUrl)) {
     throw new Error("업로드된 사진 주소가 올바르지 않습니다");
   }
   if (!SESSION_PHOTO_MIME.has(data.mimeType)) {
@@ -427,8 +413,8 @@ export async function attachSessionPhoto(
   const created = await prisma.mentoringSessionPhoto.create({
     data: {
       sessionId,
-      url: data.url,
-      thumbnailUrl: data.thumbnailUrl ?? null,
+      url,
+      thumbnailUrl,
       mimeType: data.mimeType,
       tag: data.tag,
       caption,
@@ -454,11 +440,11 @@ export async function deleteSessionPhoto(id: string) {
   // Blob 삭제 시도 (실패해도 DB 는 삭제). 세션 사진 prefix 의 blob 만 지운다 —
   // 과거에 검증 없이 저장된 임의 URL 로 다른 blob 이 지워지는 것을 막는다.
   try {
-    const urls = [photo.url, photo.thumbnailUrl].filter((u): u is string =>
-      isSessionPhotoBlobUrl(u, photo.sessionId)
+    const urls = [photo.url, photo.thumbnailUrl].filter(
+      (u): u is string => !!uploadedFileUrlUnder(u, `mentoring-sessions/${photo.sessionId}/`, { stored: true })
     );
     if (urls.length > 0) {
-      await del(urls, { token: process.env.BLOB_READ_WRITE_TOKEN });
+      await deleteBlobFiles(urls);
     }
   } catch {
     // Blob 삭제 실패는 silent — DB 정리 우선

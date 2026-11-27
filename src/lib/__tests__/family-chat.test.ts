@@ -14,7 +14,7 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/mobile-push", () => ({ sendMobilePush: vi.fn() }));
 vi.mock("@/lib/safety", () => ({ getBlockedKeys: vi.fn() }));
 vi.mock("@/lib/slack", () => ({ notifySlack: vi.fn() }));
-vi.mock("@vercel/blob", () => ({ del: vi.fn() }));
+vi.mock("@vercel/blob", () => ({ del: vi.fn(), get: vi.fn(), put: vi.fn() }));
 
 import { prisma } from "@/lib/prisma";
 import { getBlockedKeys } from "@/lib/safety";

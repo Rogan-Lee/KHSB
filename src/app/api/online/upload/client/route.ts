@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { auth } from "@/lib/auth";
+import { directUploadStore, fileUrlForPathname, signFileUrl } from "@/lib/blob-store";
 import { isStaff } from "@/lib/roles";
 import { validateMagicLink } from "@/lib/student-auth";
 
@@ -47,8 +48,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "잘못된 요청 형식" }, { status: 400 });
   }
 
+  const store = directUploadStore();
+
   try {
     const jsonResponse = await handleUpload({
+      token: store.token,
       body,
       request,
       onBeforeGenerateToken: async (pathname, clientPayload) => {
@@ -96,6 +100,16 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // 비공개 저장소면 클라(photo-uploader)가 access 로 올리고, 표시·저장엔 url(서명된 /api/files 경로)을 쓴다
+    if (jsonResponse.type === "blob.generate-client-token" && body.type === "blob.generate-client-token") {
+      return NextResponse.json({
+        ...jsonResponse,
+        access: store.access,
+        ...(store.access === "private"
+          ? { url: signFileUrl(fileUrlForPathname(body.payload.pathname)) }
+          : {}),
+      });
+    }
     return NextResponse.json(jsonResponse);
   } catch (err) {
     console.error("[online upload client] token issue failed", err);
