@@ -327,6 +327,7 @@ describe("getParentReportDetail", () => {
       id: "r1",
       createdAt: new Date("2026-09-24T12:00:00Z"),
       customNote: null,
+      customNoteAi: false,
       studyPlanNote: null,
       studyPlanImages: [],
       student: { id: "student-1", name: "김학생", grade: "고2", school: "반송고" },
@@ -417,6 +418,7 @@ describe("getParentReportDetail", () => {
     vi.mocked(prisma.parentReport.findUniqueOrThrow).mockResolvedValue(
       mentoringRow({
         customNote: "안내드려요.\n[오늘 멘토링 내용]\nAI 내용\n[개선된 점]\n집중력",
+        customNoteAi: true,
         studyPlanNote: " 주간 계획 ",
         studyPlanImages: ["https://img/1.png", ""],
       }) as never,
@@ -430,6 +432,7 @@ describe("getParentReportDetail", () => {
       { key: "improvements", title: "개선된 점", body: "집중력" },
     ]);
     expect(d.studyPlan).toEqual({ note: "주간 계획", images: ["https://img/1.png"] });
+    expect(d.aiGenerated).toBe(true);
   });
 
   it("uses a free-form note as the mentor message next to the mentoring record", async () => {
@@ -442,6 +445,17 @@ describe("getParentReportDetail", () => {
     const d = (await getParentReportDetail(parent, "mentoring", "r1")) as ParentMentoringReportDetail;
     expect(d.message).toBe("이번 주도 수고했어요.");
     expect(d.sections.map((s) => s.key)).toEqual(["content", "nextGoals"]);
+    expect(d.aiGenerated).toBe(false); // 직접 쓴 메시지
+  });
+
+  it("does not mark an empty note as AI even if the flag is on", async () => {
+    vi.mocked(prisma.parentReport.findUnique).mockResolvedValue({ ...owned, expiresAt: future } as never);
+    vi.mocked(prisma.parentReport.findUniqueOrThrow).mockResolvedValue(
+      mentoringRow({ customNote: " ", customNoteAi: true }) as never,
+    );
+    emptyExtras();
+    const d = (await getParentReportDetail(parent, "mentoring", "r1")) as ParentMentoringReportDetail;
+    expect(d.aiGenerated).toBe(false);
   });
 
   it("shows only report-visible notes and merits of the mentoring month (KST)", async () => {

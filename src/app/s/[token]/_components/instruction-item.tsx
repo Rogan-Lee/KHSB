@@ -8,6 +8,8 @@ import { ackMyInstruction } from "@/actions/student-instructions";
 import type { StudentInstructionView } from "@/lib/student-instructions";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/portal/ui";
+import { AiReviewedNote } from "@/components/ai/ai-disclosure";
+import { AI_REVIEWED_LABEL_STUDENT } from "@/lib/ai-disclosure";
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleString("ko-KR", {
@@ -56,6 +58,7 @@ export function InstructionItem({
         {item.sentByName ?? "담당"} 선생님
         {item.sentAt && ` · ${fmtDate(item.sentAt)}`}
       </p>
+      {item.aiGenerated && <AiReviewedNote label={AI_REVIEWED_LABEL_STUDENT} className="mt-x1" />}
       {acked ? (
         <p className="mt-x3 flex items-center gap-x1 t4-medium text-fg-positive tabular-nums">
           <CircleCheck className="size-x4" strokeWidth={2.2} />

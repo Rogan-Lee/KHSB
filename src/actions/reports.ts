@@ -9,6 +9,7 @@ import { requireAnyStaff, requireStaff, requireFullAccess } from "@/lib/roles";
 import crypto from "crypto";
 import { calcStudyMinutes, diffMinutes } from "@/lib/study-time";
 import { queueParentReportPush } from "@/lib/mobile-push";
+import { aiSourceFlag } from "@/lib/ai-disclosure";
 
 // ─── 순공 시간 계산 헬퍼 — src/lib/study-time.ts (모바일 API 와 공용) ───────────
 
@@ -549,14 +550,18 @@ export async function updateReportComment(id: string, overallComment: string) {
   revalidatePath("/reports");
 }
 
-export async function updateReportMentoringSummary(id: string, mentoringSummary: string) {
+/** fromAi: 이 글이 AI 요약 초안에서 시작했는지 — 직접 쓴 글이면 false 로 저장돼 학부모 화면의 AI 표시가 빠진다 */
+export async function updateReportMentoringSummary(id: string, mentoringSummary: string, fromAi = false) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
   requireStaff(session.user.role);
   if (typeof mentoringSummary !== "string" || mentoringSummary.length > REPORT_TEXT_MAX) {
     throw new Error(`종합의견은 ${REPORT_TEXT_MAX}자 이하로 입력하세요`);
   }
-  await prisma.monthlyReport.update({ where: { id }, data: { mentoringSummary } });
+  await prisma.monthlyReport.update({
+    where: { id },
+    data: { mentoringSummary, mentoringSummaryAi: aiSourceFlag(mentoringSummary, fromAi) },
+  });
   revalidatePath("/reports");
 }
 

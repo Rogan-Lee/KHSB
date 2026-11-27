@@ -57,6 +57,8 @@ export type ReportLite = {
   patrolAbsentCount: number;
   patrolNotes?: { date: string; note: string }[];
   mentoringSummary: string | null;
+  /** 저장된 종합의견이 AI 초안에서 나왔는지 */
+  mentoringSummaryAi: boolean;
   overallComment: string | null;
   shareToken: string | null;
   attachedPhotoIds: string[];
@@ -86,8 +88,8 @@ export function ReportDetailPane({
   const [, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
   const [summary, setSummary] = useState(report?.mentoringSummary ?? "");
-  // AI 요약으로 채운 리포트 id — 저장 전까지 "AI 초안" 표시
-  const [aiDraftFor, setAiDraftFor] = useState<string | null>(null);
+  // 편집칸을 마지막으로 채운 출처(AI 요약 / 자동 추출) — 없으면 저장된 mentoringSummaryAi 를 따른다
+  const [filledBy, setFilledBy] = useState<{ reportId: string; ai: boolean } | null>(null);
   const [comment, setComment] = useState(report?.overallComment ?? "");
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
   const [supp, setSupp] = useState<ReportSupplementaryData | null>(null);
@@ -199,7 +201,7 @@ export function ReportDetailPane({
     try {
       const digest = await extractMonthlyMentoringDigest(student.id, year, month);
       setSummary(digest);
-      setAiDraftFor(null);
+      if (report) setFilledBy({ reportId: report.id, ai: false });
       toast.success("멘토링 기록 자동 추출 — 검토 후 저장");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "추출 실패");
@@ -214,7 +216,7 @@ export function ReportDetailPane({
     try {
       const generated = await generateMonthlyMentoringSummary(student.id, year, month);
       setSummary(generated);
-      setAiDraftFor(report?.id ?? null);
+      if (report) setFilledBy({ reportId: report.id, ai: true });
       toast.success("AI 초안 생성 — 검토 후 저장");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "AI 실패");
@@ -227,7 +229,9 @@ export function ReportDetailPane({
     if (!report) return;
     setBusy("summary");
     try {
-      await updateReportMentoringSummary(report.id, summary);
+      // AI 초안에서 시작한 글이면 고쳐 저장해도 AI 출처 유지 (자동 추출로 바꾸거나 직접 쓴 글은 false)
+      const fromAi = filledBy?.reportId === report.id ? filledBy.ai : report.mentoringSummaryAi;
+      await updateReportMentoringSummary(report.id, summary, fromAi);
       toast.success("멘토링 의견 저장");
       startTransition(() => router.refresh());
     } catch {
@@ -552,7 +556,7 @@ export function ReportDetailPane({
             title="멘토링 종합 의견"
             trailing={
               <div className="flex items-center gap-x1_5">
-                {aiDraftFor != null && aiDraftFor === report?.id && summaryDirty && <AiDraftBadge />}
+                {filledBy?.ai && filledBy.reportId === report?.id && summaryDirty && <AiDraftBadge />}
                 <Button variant="outline" size="xs" onClick={handleAutoExtract} disabled={busy === "extract"}>
                   {busy === "extract" && <Loader2 className="animate-spin" />}
                   자동 추출

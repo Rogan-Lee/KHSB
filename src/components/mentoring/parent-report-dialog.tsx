@@ -113,6 +113,7 @@ export function ParentReportDialog({ mentoringId, studentName, mentoringDate, op
         const { token } = await createParentReport(mentoringId, {
           studyPlanImages: [],
           customNote: enhancedNote || undefined,
+          customNoteAi: true,
         });
         setReportUrl(`${window.location.origin}/r/${token}`);
         setStep("done");

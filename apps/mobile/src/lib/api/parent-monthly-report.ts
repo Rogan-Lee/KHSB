@@ -58,6 +58,8 @@ export type ParentMonthlyReport = {
     patrolNoteCount: number;
   };
   mentoringSummary: string | null;
+  /** 종합 의견이 AI 초안이면 표시 (구버전 서버는 없음) */
+  mentoringSummaryAi?: boolean;
   directorComment: string | null;
   exams: { recent: MonthlyRecentExam[]; trend: MonthlyExamTrend } | null;
   vocab: {

@@ -3,14 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     student: { findMany: vi.fn() },
-    mentoring: { findMany: vi.fn() },
-    parentReport: { findMany: vi.fn() },
+    mentoring: { findMany: vi.fn(), findUnique: vi.fn() },
+    parentReport: { findMany: vi.fn(), create: vi.fn() },
   },
 }));
 vi.mock("@/lib/db/latest-per-group", () => ({ latestIdsPerGroup: vi.fn() }));
 
 import { latestIdsPerGroup } from "@/lib/db/latest-per-group";
-import { listStudentsForReportDispatch } from "@/lib/parent-report-core";
+import { createParentReportRecord, listStudentsForReportDispatch } from "@/lib/parent-report-core";
 import { prisma } from "@/lib/prisma";
 
 const d = (s: string) => new Date(s);
@@ -98,5 +98,23 @@ describe("listStudentsForReportDispatch", () => {
     ]);
     expect(prisma.mentoring.findMany).not.toHaveBeenCalled();
     expect(prisma.parentReport.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("createParentReportRecord — AI 출처 칸", () => {
+  beforeEach(() => {
+    vi.mocked(prisma.mentoring.findUnique).mockResolvedValue({ studentId: "s1", notes: "멘토 메모" } as never);
+    vi.mocked(prisma.parentReport.create).mockResolvedValue({ id: "r1", token: "t" } as never);
+  });
+  const data = () => vi.mocked(prisma.parentReport.create).mock.calls[0][0].data;
+
+  it("AI 고도화 글로 만들면 true", async () => {
+    await createParentReportRecord({ mentoringId: "m1", createdById: "u1", customNote: "AI 글", customNoteAi: true });
+    expect(data()).toMatchObject({ customNote: "AI 글", customNoteAi: true });
+  });
+
+  it("멘토 메모로 채우면(직접 쓴 글) false", async () => {
+    await createParentReportRecord({ mentoringId: "m1", createdById: "u1", customNoteAi: true });
+    expect(data()).toMatchObject({ customNote: "멘토 메모", customNoteAi: false });
   });
 });
