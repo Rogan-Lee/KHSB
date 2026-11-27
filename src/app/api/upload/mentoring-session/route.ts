@@ -1,6 +1,6 @@
-import { put } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { putStudentFile, signFileUrl } from "@/lib/blob-store";
 import { isOnlineStaff } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import crypto from "node:crypto";
@@ -91,14 +91,12 @@ export async function POST(request: NextRequest) {
   const blobKey = `mentoring-sessions/${sessionId}/${crypto.randomUUID()}-${safeName(file.name)}`;
 
   try {
-    const blob = await put(blobKey, file, {
-      access: "public",
+    const url = await putStudentFile(blobKey, file, {
       addRandomSuffix: false,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
       contentType: file.type,
     });
     return NextResponse.json({
-      url: blob.url,
+      url: signFileUrl(url),
       mimeType: file.type,
       fileName: file.name,
     });

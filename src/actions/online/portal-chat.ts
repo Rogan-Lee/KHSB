@@ -7,7 +7,7 @@ import { isAnyStaff } from "@/lib/roles";
 import { assertCanMessage } from "@/lib/safety";
 import { validateMagicLink } from "@/lib/student-auth";
 import { queueStaffAlert, STAFF_PUSH_ROUTES } from "@/lib/mobile-push";
-import { sanitizePortalAttachments } from "@/lib/portal-attachments";
+import { sanitizeIncomingAttachments } from "@/lib/portal-attachments";
 import { ensureStudentPortalChats, lastMessagesByChat } from "@/lib/portal-chat-core";
 import type { PortalChatSenderType } from "@/generated/prisma/enums";
 
@@ -319,7 +319,7 @@ export async function sendChatMessage(params: {
     throw new Error(`첨부는 ${MAX_ATTACHMENTS}개 이하만 가능합니다`);
   }
   // 클라이언트가 보낸 첨부 객체를 그대로 저장하지 않는다 — https URL·필드 길이 정규화
-  const attachments = sanitizePortalAttachments(params.attachments, MAX_ATTACHMENTS);
+  const attachments = sanitizeIncomingAttachments(params.attachments, MAX_ATTACHMENTS);
   const trimmed = (typeof content === "string" ? content : "").trim();
   if (!trimmed && attachments.length === 0) {
     throw new Error("내용 또는 첨부가 필요합니다");

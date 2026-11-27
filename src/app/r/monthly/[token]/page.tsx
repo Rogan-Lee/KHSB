@@ -1,3 +1,4 @@
+import { signFileUrl } from "@/lib/blob-store";
 import { prisma } from "@/lib/prisma";
 import { hasGatePass } from "@/lib/token-auth";
 import { ParentGate } from "@/components/magic-link-gate/parent-gate";
@@ -174,9 +175,11 @@ export default async function MonthlyParentReportPage({
         select: { id: true, url: true, thumbnailUrl: true, parsedDate: true, fileName: true },
       })
     : [];
+  // 로그인 없이 여는 링크라 비공개 저장소 사진은 서명된 주소로 (공개 URL 은 그대로)
   const orderedPhotos = report.attachedPhotoIds
     .map((pid) => attachedPhotos.find((p) => p.id === pid))
-    .filter((p): p is (typeof attachedPhotos)[number] => !!p);
+    .filter((p): p is (typeof attachedPhotos)[number] => !!p)
+    .map((p) => ({ ...p, url: signFileUrl(p.url), thumbnailUrl: p.thumbnailUrl && signFileUrl(p.thumbnailUrl) }));
 
   // 첫 화면 요약용 — 리포트에 보이는 상벌점 합계
   const meritSum = merits.filter((m) => m.type === "MERIT").reduce((sum, m) => sum + m.points, 0);

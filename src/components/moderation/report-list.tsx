@@ -53,13 +53,13 @@ function elapsedLabel(ms: number) {
 
 const ATTACHMENT_PREFIX = "첨부: ";
 
-/** 신고 당시 글 — `첨부: https://…` 줄만 새 탭 링크로 바꾸고 나머지는 그대로 둔다 */
+/** 신고 당시 글 — `첨부: https://…`·`첨부: /api/files/…`(비공개 저장소) 줄만 새 탭 링크로 바꾸고 나머지는 그대로 둔다 */
 function Snapshot({ text }: { text: string }) {
   const lines: string[] = [];
   const files: string[] = [];
   for (const line of text.split("\n")) {
     const url = line.startsWith(ATTACHMENT_PREFIX) ? line.slice(ATTACHMENT_PREFIX.length).trim() : "";
-    if (/^https:\/\/\S+$/.test(url)) files.push(url);
+    if (/^(https:\/\/|\/api\/files\/)\S+$/.test(url)) files.push(url);
     else lines.push(line);
   }
   const body = lines.join("\n").trim();
