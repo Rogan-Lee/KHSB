@@ -35,7 +35,7 @@ type ReportContent = {
 /**
  * QUEUED 상태 content 에 봉인되는 페이로드.
  * lib/online/report-queue.ts 의 QueuedContent 와 반드시 동형이어야 한다 —
- * 야간 루틴이 이 프롬프트를 그대로 꺼내 생성한다.
+ * 매일 새벽 크론이 이 프롬프트를 그대로 꺼내 생성한다.
  */
 type QueuedContent = {
   queued: true;

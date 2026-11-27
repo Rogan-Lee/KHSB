@@ -188,7 +188,7 @@ export function MentoringReportTab({ rows }: Props) {
     }
   }
 
-  // AI 코멘트 예약 큐 등록 (야간 Claude 루틴이 생성)
+  // AI 코멘트 예약 큐 등록 (매일 새벽 크론이 Groq 로 생성 → /reports/ai-queue 에서 확인)
   async function handleEnqueueAiComments() {
     if (selectedIds.size === 0) {
       toast.error("학생을 선택하세요");
@@ -610,7 +610,7 @@ export function MentoringReportTab({ rows }: Props) {
         open={enqueueConfirmOpen}
         onOpenChange={setEnqueueConfirmOpen}
         title="AI 코멘트 예약"
-        description={`선택한 ${selectedIds.size}명의 'AI 코멘트'를 예약 큐에 등록할까요?\n리포트가 없으면 먼저 생성되고, 야간 Claude 루틴이 코멘트를 생성해요.`}
+        description={`선택한 ${selectedIds.size}명의 'AI 코멘트'를 예약 큐에 등록할까요?\n리포트가 없으면 먼저 생성되고, 매일 새벽에 코멘트를 만들어요.`}
         destructive={false}
         confirmLabel="예약 등록"
         pendingLabel="등록 중…"
