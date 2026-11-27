@@ -214,6 +214,7 @@ export function TuitionAdmin({ data, fullAccess }: { data: TuitionAdminData; ful
         {tab === "settings" && fullAccess && (
           <SettingsTab
             setting={data.setting}
+            refundFacility={data.refundFacility}
             onlinePaymentAvailable={data.onlinePaymentAvailable}
             students={data.students}
             provider={data.provider}
@@ -238,6 +239,7 @@ export function TuitionAdmin({ data, fullAccess }: { data: TuitionAdminData; ful
           invoiceId={detailId}
           fullAccess={fullAccess}
           refundPolicy={data.setting.refundPolicy}
+          refundFacility={data.refundFacility}
           provider={data.provider}
           onClose={() => setDetailId(null)}
         />

@@ -11,13 +11,14 @@ import { randomUUID } from "node:crypto";
 
 import { prisma } from "@/lib/prisma";
 import { notifySlack } from "@/lib/slack";
-import { addDays, parseDateKey } from "@/lib/tuition/calc";
+import { addDays, legalRefund, parseDateKey } from "@/lib/tuition/calc";
 import { dispatchTuitionEffects, type TuitionEffect } from "@/lib/tuition/effects";
 import { recordTuitionEvent } from "@/lib/tuition/events";
 import { won } from "@/lib/tuition/format";
 import { lockTuitionStudent, TUITION_TX } from "@/lib/tuition/lock";
 import { ProviderError } from "@/lib/tuition/provider";
 import { getTuitionProvider } from "@/lib/tuition/provider-registry";
+import { getRefundFacility } from "@/lib/tuition/settings";
 import { applyProviderOrderNow, recomputeRefundTotals } from "@/lib/tuition/settle";
 import { TuitionError, type TuitionActor, type TuitionRefundAccount } from "@/lib/tuition/types";
 
@@ -35,6 +36,8 @@ export type RequestRefundInput = {
   refundAccount?: TuitionRefundAccount;
   /** 현장 결제 환불 — 단말기·계좌로 환불을 끝냈음을 운영진이 확인 */
   manualConfirmed?: boolean;
+  /** 법정 반환액보다 적게 돌려준다는 것을 운영진이 확인 (이유는 reason 에 적는다) */
+  belowLegalConfirmed?: boolean;
 };
 
 export type RefundOutcome = { status: "PENDING" | "DONE" | "FAILED"; failMessage: string | null };
@@ -96,13 +99,16 @@ export async function requestRefund(
     select: { studentId: true },
   });
   if (!found) throw new TuitionError("NOT_FOUND", "청구서를 찾을 수 없습니다", 404);
+  // 법정 반환액은 이용 기간을 정한 환불만 계산할 수 있다 (이용 기간 유지면 반환 사유 발생일을 모른다).
+  // 트랜잭션 안에서는 전역 prisma 를 쓰지 않으므로 먼저 읽어 둔다
+  const facility = lastUsed === undefined ? null : await getRefundFacility();
 
   const created = await prisma.$transaction(async (tx) => {
     await lockTuitionStudent(tx, found.studentId);
 
     const invoice = await tx.tuitionInvoice.findUnique({
       where: { id: input.invoiceId },
-      select: { paidPaymentId: true, periodStart: true, periodEnd: true },
+      select: { paidPaymentId: true, periodStart: true, periodEnd: true, months: true, monthlyFee: true },
     });
     if (!invoice) throw new TuitionError("NOT_FOUND", "청구서를 찾을 수 없습니다", 404);
 
@@ -143,6 +149,31 @@ export async function requestRefund(
       throw new TuitionError("REFUND_EXCEEDS", `환불 가능 금액(${won(refundable)})을 넘었습니다`, 409);
     }
 
+    // 법정 반환액보다 적게 돌려주려면 운영진이 사유를 적고 따로 확인해야 한다 — 환불 기록에도 표시를 남긴다
+    let calcBasis = input.calcBasis?.trim() || null;
+    const legal =
+      isPaidPayment && facility
+        ? legalRefund({
+            ...facility,
+            paidAmount: payment.paidAmount,
+            refundable,
+            periodStart: invoice.periodStart,
+            periodEnd: invoice.periodEnd,
+            months: invoice.months,
+            monthlyFee: invoice.monthlyFee,
+            lastUsedDate: lastUsed,
+          })
+        : null;
+    if (legal && input.amount < legal.amount) {
+      if (!input.belowLegalConfirmed) {
+        throw new TuitionError(
+          "INVALID_INPUT",
+          `법정 반환액(${won(legal.amount)})보다 적게 환불하려면 환불 사유를 적고 확인란을 체크해 주세요`,
+        );
+      }
+      calcBasis = [`법정 반환액 ${won(legal.amount)} 미만 환불(운영진 확인)`, calcBasis].filter(Boolean).join(" · ");
+    }
+
     const method = refundMethodFor(payment, input.amount);
     if (method === "PROVIDER" && isVirtualAccount(payment.providerMethod) && !refundAccount) {
       throw new TuitionError("REFUND_NEEDS_ACCOUNT", "가상계좌 결제는 환불받을 계좌(은행·계좌번호·예금주)가 필요합니다");
@@ -175,7 +206,7 @@ export async function requestRefund(
         paymentId: payment.id,
         amount: input.amount,
         reason,
-        calcBasis: input.calcBasis?.trim().slice(0, 300) || null,
+        calcBasis: calcBasis?.slice(0, 300) || null,
         effectiveDate,
         method,
         source: "STAFF",

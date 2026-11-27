@@ -10,6 +10,7 @@ vi.mock("@/lib/prisma", () => ({
     tuitionPayment: { findUnique: vi.fn(), findFirst: vi.fn() },
     tuitionSetting: { findUnique: vi.fn() },
     tuitionEvent: { create: vi.fn() },
+    appSetting: { findMany: vi.fn() },
   },
 }));
 vi.mock("@/lib/tuition/provider-registry", () => ({
@@ -145,6 +146,67 @@ describe("requestRefund — 입력 검증", () => {
       requestRefund({ invoiceId: "inv-1", amount: 10_000, reason: "퇴원", ...patch }, actor),
     ).rejects.toMatchObject({ code: "INVALID_INPUT", message: expect.stringContaining(message) });
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("requestRefund — 법정 반환액(하한)", () => {
+  // 독서실 1~2월 1,380,000원, 1월을 다 쓰고 2월 1일에 그만둠 → 법정 반환액 690,000원 (2월분 전액)
+  function setup() {
+    const invoice = {
+      paidPaymentId: "pay-1",
+      periodStart: new Date("2027-01-01T00:00:00.000Z"),
+      periodEnd: new Date("2027-02-28T00:00:00.000Z"),
+      months: 2,
+      monthlyFee: 690_000,
+    };
+    const tx = {
+      $queryRaw: vi.fn(),
+      tuitionInvoice: { findUnique: vi.fn().mockResolvedValue(invoice) },
+      tuitionPayment: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "pay-1",
+          invoiceId: "inv-1",
+          method: "LINK",
+          status: "DONE",
+          paidAmount: 1_380_000,
+          refundedAmount: 0,
+          isDuplicate: false,
+          providerMethod: "카드",
+        }),
+      },
+      tuitionRefund: { count: vi.fn().mockResolvedValue(0), create: vi.fn().mockRejectedValue(new Error("stop")) },
+    };
+    vi.mocked(getTuitionProvider).mockReturnValue(fakeProvider());
+    vi.mocked(prisma.tuitionInvoice.findUnique).mockResolvedValue({ studentId: "s1" } as never);
+    vi.mocked(prisma.appSetting.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.$transaction).mockImplementation((async (fn: (client: typeof tx) => unknown) => fn(tx)) as never);
+    return tx;
+  }
+  const input = { invoiceId: "inv-1", amount: 654_916, reason: "학부모와 합의", lastUsedDate: "2027-01-31" };
+
+  it("법정 반환액보다 적으면 운영진 확인 없이는 기록하지 않는다", async () => {
+    const tx = setup();
+    await expect(requestRefund(input, actor)).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      message: expect.stringContaining("법정 반환액(690,000원)보다 적게"),
+    });
+    expect(tx.tuitionRefund.create).not.toHaveBeenCalled();
+  });
+
+  it("확인하면 기록하되 계산 근거에 법정 반환액 미만임을 남긴다", async () => {
+    const tx = setup();
+    await expect(requestRefund({ ...input, calcBasis: "직접 입력", belowLegalConfirmed: true }, actor)).rejects.toThrow("stop");
+    expect(tx.tuitionRefund.create.mock.calls[0][0].data.calcBasis).toBe(
+      "법정 반환액 690,000원 미만 환불(운영진 확인) · 직접 입력",
+    );
+  });
+
+  it("법정 반환액 이상이거나 이용 기간을 정하지 않은 환불은 확인 없이 진행한다", async () => {
+    const tx = setup();
+    await expect(requestRefund({ ...input, amount: 690_000 }, actor)).rejects.toThrow("stop");
+    // 이용 기간 유지(lastUsedDate 생략)
+    await expect(requestRefund({ invoiceId: "inv-1", amount: 100_000, reason: "금액 조정" }, actor)).rejects.toThrow("stop");
+    expect(tx.tuitionRefund.create).toHaveBeenCalledTimes(2);
   });
 });
 
