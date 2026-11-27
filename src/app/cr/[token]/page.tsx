@@ -3,6 +3,7 @@ import { hasGatePass } from "@/lib/token-auth";
 import { BookOpen, Calendar, User } from "lucide-react";
 import { ParentGate } from "@/components/magic-link-gate/parent-gate";
 import { TokenNotice, reasonToNotice } from "@/components/magic-link-gate/token-notice";
+import { AiReviewedNote } from "@/components/ai/ai-disclosure";
 
 export default async function ConsultationReportPage({
   params,
@@ -75,6 +76,8 @@ export default async function ConsultationReportPage({
 
         {/* 본문 */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          {/* ponytail: 상담 안내는 AI 팔로업 메시지로만 만든다(consultations-table) — 직접 쓰는 길이 생기면 출처 필드로 가른다 */}
+          <AiReviewedNote className="mb-x3" />
           <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap">
             {content}
           </div>

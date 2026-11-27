@@ -17,6 +17,7 @@ import {
   Toolbar,
   type Tone,
 } from "@/components/backoffice/ui";
+import { AiNotice } from "@/components/ai/ai-disclosure";
 import { matchesSearch } from "@/lib/utils";
 import {
   Table,
@@ -28,7 +29,7 @@ import {
 } from "@/components/ui/table";
 
 // 예약 생성 대기열 — QUEUED 상태 보고서 목록.
-// 야간 Claude 루틴(5시간 간격, 회당 30건)이 오래 대기한 것부터 생성한다.
+// 매일 새벽 크론(/api/cron/online-report-queue)이 오래 대기한 것부터 Groq 로 생성한다.
 export const dynamic = "force-dynamic";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -62,11 +63,12 @@ export default async function ReportQueuePage({
     <div>
       <PageHeader
         title="학부모 보고서"
-        description="야간 Claude 루틴이 5시간마다 최대 30건씩, 오래 기다린 것부터 초안을 만들어요. 만들어지면 ‘초안’ 상태가 되어 검토·승인·발송할 수 있어요."
+        description="매일 새벽에 오래 기다린 것부터 초안을 만들어요. 만들어지면 ‘초안’ 상태가 되어 검토·승인·발송할 수 있어요."
       />
       <ReportsTypeNav current="QUEUE" />
 
       <div className="flex flex-col gap-x5">
+        <AiNotice tail="승인하고 보내야 학부모에게 보여요." />
         <StatCards cols={3}>
           <StatCard label="대기 중" value={rows.length} unit="건" tone={rows.length > 0 ? "brand" : "gray"} />
           <StatCard label="주간" value={weekly} unit="건" />

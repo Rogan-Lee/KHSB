@@ -48,6 +48,7 @@ export default async function DailyLogBoardPage({
           summary: true,
           tags: true,
           isParentVisible: true,
+          aiSummarized: true,
           author: { select: { name: true } },
         },
       },
@@ -67,6 +68,7 @@ export default async function DailyLogBoardPage({
             summary: log.summary,
             tags: log.tags,
             isParentVisible: log.isParentVisible,
+            aiSummarized: log.aiSummarized,
             authorName: log.author.name,
           }
         : null,
