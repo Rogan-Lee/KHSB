@@ -734,6 +734,8 @@ export type ParentMentoringReportDetail = {
   message: string | null;
   /** 오늘 멘토링 내용 · 개선된 점 · 보완할 점 · 다음 멘토링 목표 · 기타 메모 (빈 항목 제외) */
   sections: { key: MentoringSectionKey; title: string; body: string }[];
+  /** 학부모 메시지(customNote)가 AI 초안에서 나왔으면 "AI가 초안을 만들고 운영진이 확인했어요" 표시 */
+  aiGenerated: boolean;
   /** 영단어·원생 기록·상벌점을 모은 달 (멘토링이 있었던 달, KST) */
   period: { year: number; month: number };
   vocab: {
@@ -876,6 +878,7 @@ async function mentoringDetail(id: string): Promise<ParentMentoringReportDetail>
       id: true,
       createdAt: true,
       customNote: true,
+      customNoteAi: true,
       studyPlanNote: true,
       studyPlanImages: true,
       student: { select: { id: true, name: true, grade: true, school: true } },
@@ -1006,6 +1009,7 @@ async function mentoringDetail(id: string): Promise<ParentMentoringReportDetail>
     },
     message,
     sections,
+    aiGenerated: r.customNoteAi && !!r.customNote?.trim(),
     period: { year, month },
     vocab: vocabPoints.length
       ? {

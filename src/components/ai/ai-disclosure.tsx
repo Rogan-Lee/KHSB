@@ -21,12 +21,12 @@ export function AiDraftBadge() {
   return <StatusBadge tone="violet">AI 초안</StatusBadge>;
 }
 
-/** 학부모·학생 화면 — AI 로 만든 내용일 때만 붙인다 */
-export function AiReviewedNote({ className }: { className?: string }) {
+/** 학부모·학생 화면 — AI 로 만든 내용일 때만 붙인다. 학생 화면은 label={AI_REVIEWED_LABEL_STUDENT} */
+export function AiReviewedNote({ label = AI_REVIEWED_LABEL, className }: { label?: string; className?: string }) {
   return (
     <p className={cn("flex items-center gap-x1 t3-regular text-fg-neutral-subtle", className)}>
       <Sparkles className="size-3.5 shrink-0" aria-hidden />
-      {AI_REVIEWED_LABEL}
+      {label}
     </p>
   );
 }

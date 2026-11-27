@@ -5,6 +5,7 @@ import { Badge, color, Press, radius, space, Text } from '@/design';
 import type { ParentInquiry } from '@/lib/api/parent-services';
 
 import { kstDateTimeLabel, kstRelativeLabel } from './notice-format';
+import { AiMadeNote } from './report-parts';
 
 /** 보낸 문의 한 건 — 종류 · 확인 상태 · 내용(길면 눌러서 펼치기) · 보낸 시각 · 학생에게 전달한 지시 */
 export function InquiryItem({ item }: { item: ParentInquiry }) {
@@ -51,6 +52,7 @@ export function InquiryItem({ item }: { item: ParentInquiry }) {
           {sent.map((it, i) => (
             <View key={i} style={{ gap: space.x0_5 }}>
               <Text variant="t4-regular">{it.content}</Text>
+              {it.aiGenerated && <AiMadeNote />}
               <Text variant="t3-regular" color={it.ackedAt ? 'neutralSubtle' : 'warning'} tabular>
                 {kstRelativeLabel(it.sentAt)} 전달 ·{' '}
                 {it.ackedAt ? `학생 확인 ${kstDateTimeLabel(it.ackedAt)}` : '학생 확인 전'}

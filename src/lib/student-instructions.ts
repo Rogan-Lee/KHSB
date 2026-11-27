@@ -38,6 +38,7 @@ export function parseAiInstruction(raw: string | null | undefined): string | nul
 const studentSelect = {
   id: true,
   content: true,
+  aiDrafted: true,
   sentByName: true,
   sentAt: true,
   ackedAt: true,
@@ -46,6 +47,7 @@ const studentSelect = {
 type StudentRow = {
   id: string;
   content: string;
+  aiDrafted: boolean;
   sentByName: string | null;
   sentAt: Date | null;
   ackedAt: Date | null;
@@ -55,6 +57,8 @@ export function toStudentView(r: StudentRow) {
   return {
     id: r.id,
     content: r.content,
+    /** AI 초안에서 시작한 지시 — 학생 화면에 "AI가 초안을 만들고 선생님이 확인했어요" (학부모 요청이라는 말은 없음) */
+    aiGenerated: r.aiDrafted,
     sentByName: r.sentByName,
     sentAt: r.sentAt?.toISOString() ?? null,
     ackedAt: r.ackedAt?.toISOString() ?? null,
@@ -235,6 +239,7 @@ export async function sendInstruction(staff: { id: string; name?: string | null 
 
   const now = new Date();
   const sentByName = staff.name?.trim() || "운영진";
+  // aiDrafted 는 넣지 않는다 — 초안을 고쳐 보내면(update) AI 출처가 남고, 새로 쓴 지시(create)는 기본값 false
   const data = {
     content: body.content,
     communicationId: requestId,
@@ -402,7 +407,7 @@ export async function draftInstructionFromRequest(requestId: string, opts: { for
   const [, draft] = await prisma.$transaction([
     prisma.studentInstruction.deleteMany({ where: { communicationId: request.id, sentAt: null } }),
     prisma.studentInstruction.create({
-      data: { studentId: request.studentId, communicationId: request.id, content },
+      data: { studentId: request.studentId, communicationId: request.id, content, aiDrafted: true },
       select: { id: true, content: true },
     }),
   ]);

@@ -74,7 +74,7 @@ export async function listParentInquiries(authUserId: string, child: ParentChild
       instructions: {
         where: { sentAt: { not: null } },
         orderBy: { sentAt: "asc" },
-        select: { content: true, sentAt: true, ackedAt: true },
+        select: { content: true, aiDrafted: true, sentAt: true, ackedAt: true },
       },
     },
   });
@@ -92,6 +92,7 @@ export async function listParentInquiries(authUserId: string, child: ParentChild
         checkedAt: r.checkedAt?.toISOString() ?? null,
         instructions: r.instructions.map((i) => ({
           content: i.content,
+          aiGenerated: i.aiDrafted,
           sentAt: i.sentAt!.toISOString(),
           ackedAt: i.ackedAt?.toISOString() ?? null,
         })),

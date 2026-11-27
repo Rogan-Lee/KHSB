@@ -16,6 +16,7 @@ import {
 } from "@/components/parent-report/monthly-sections";
 import { GroupLabel, Section } from "@/components/portal/ui";
 import { Prose } from "@/components/portal/prose";
+import { AiReviewedNote } from "@/components/ai/ai-disclosure";
 
 export default async function MonthlyParentReportPage({
   params,
@@ -218,6 +219,7 @@ export default async function MonthlyParentReportPage({
           title="월간 멘토링 종합 의견"
           description={report.mentoringCount > 0 ? `이번 달 멘토링 총 ${report.mentoringCount}회 진행했어요` : undefined}
         >
+          {report.mentoringSummaryAi && <AiReviewedNote className="mb-x4" />}
           <Prose source={report.mentoringSummary} />
         </Section>
       )}

@@ -23,6 +23,7 @@ import {
 import type { ParentMonthlyReport } from '@/lib/api/parent-monthly-report';
 
 import { GrowthLineChart } from './growth-line-chart';
+import { AiMadeNote } from './report-parts';
 import { monthDay, num, slashDay } from './report-monthly-format';
 import { FixedGrid } from './report-monthly-grid';
 
@@ -97,7 +98,10 @@ export function MentoringSummarySection({ report, onImage }: { report: Report; o
   const n = report.summary.mentoringCount;
   return (
     <Section title="월간 멘토링 종합 의견" description={n > 0 ? `이번 달 멘토링 총 ${n}회 진행했어요` : undefined}>
-      <Markdown source={report.mentoringSummary} onImagePress={onImage} />
+      <View style={{ gap: space.x3 }}>
+        {report.mentoringSummaryAi && <AiMadeNote />}
+        <Markdown source={report.mentoringSummary} onImagePress={onImage} />
+      </View>
     </Section>
   );
 }

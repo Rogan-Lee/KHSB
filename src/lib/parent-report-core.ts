@@ -3,6 +3,7 @@
 
 import { Prisma } from "@/generated/prisma/client";
 import { createOpaqueToken } from "@/lib/auth-tokens";
+import { aiSourceFlag } from "@/lib/ai-disclosure";
 import { latestIdsPerGroup } from "@/lib/db/latest-per-group";
 import { prisma } from "@/lib/prisma";
 import { reportExpiresAt } from "@/lib/token-auth";
@@ -15,6 +16,8 @@ export async function createParentReportRecord(params: {
   createdById: string;
   studyPlanImages?: string[];
   customNote?: string | null;
+  /** customNote 가 AI 고도화 결과면 true — 멘토링 메모로 채우는 경우는 늘 false */
+  customNoteAi?: boolean;
 }) {
   const mentoring = await prisma.mentoring.findUnique({
     where: { id: params.mentoringId },
@@ -30,6 +33,7 @@ export async function createParentReportRecord(params: {
       mentoringId: params.mentoringId,
       studyPlanImages: params.studyPlanImages ?? [],
       customNote: params.customNote || mentoring.notes || null,
+      customNoteAi: aiSourceFlag(params.customNote, params.customNoteAi),
       createdById: params.createdById,
       expiresAt: reportExpiresAt(),
     },

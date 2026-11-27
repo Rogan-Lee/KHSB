@@ -74,6 +74,24 @@ describe("리포트 AI 예약", () => {
     expect(db.monthlyReport.update).not.toHaveBeenCalled();
   });
 
+  it("반영하면 학부모 화면 AI 표시 칸을 켠다", async () => {
+    db.reportAiJob.findUnique.mockResolvedValue({ id: "j1", type: "MONTHLY_SUMMARY", targetId: "m1", status: "REVIEW", resultText: "글" });
+    expect((await applyReviewedAiJob("j1")).ok).toBe(true);
+    expect(db.monthlyReport.update.mock.calls[0][0].data).toEqual({ mentoringSummary: "글", mentoringSummaryAi: true });
+
+    db.reportAiJob.findUnique.mockResolvedValue({
+      id: "j2",
+      type: "MENTORING_COMMENT",
+      targetId: "p1",
+      status: "REVIEW",
+      resultText: JSON.stringify({ content: "오늘 집중했어요" }),
+    });
+    db.parentReport.findUnique.mockResolvedValue({ mentoring: null });
+    expect((await applyReviewedAiJob("j2")).ok).toBe(true);
+    expect(db.parentReport.update.mock.calls[0][0].data).toMatchObject({ customNoteAi: true });
+    expect(db.parentReport.update.mock.calls[0][0].data.customNote).toContain("오늘 집중했어요");
+  });
+
   it("두 사람이 동시에 눌러도 한 번만 반영한다", async () => {
     db.reportAiJob.findUnique.mockResolvedValue({ id: "j1", type: "MONTHLY_SUMMARY", targetId: "m1", status: "REVIEW", resultText: "글" });
     db.reportAiJob.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
