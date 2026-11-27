@@ -81,7 +81,7 @@ export type ParentMentoringReport = {
   message: string | null;
   /** 오늘 멘토링 내용 · 개선된 점 · 보완할 점 · 다음 멘토링 목표 · 기타 메모 (빈 항목 제외, 순서 고정) */
   sections: { key: MentoringSectionKey; title: string; body: string }[];
-  /** 학부모 메시지가 AI 초안이면 "AI가 초안을 만들고…" 표시 (구버전 서버는 없음) */
+  /** 학부모 메시지가 AI 초안이면 "AI의 도움을 받아 선생님이…검토했어요" 표시 (구버전 서버는 없음) */
   aiGenerated?: boolean;
   /** 영단어·원생 기록·상벌점을 모은 달 */
   period: { year: number; month: number };
@@ -132,7 +132,7 @@ export type ParentOnlineReport = {
   sentAt: string | null;
   markdown: string;
   feedbackEnabled: boolean;
-  /** AI 초안이면 "AI가 초안을 만들고…" 표시 (구버전 서버는 없음) */
+  /** AI 초안이면 "AI의 도움을 받아 선생님이…검토했어요" 표시 (구버전 서버는 없음) */
   aiGenerated?: boolean;
 };
 

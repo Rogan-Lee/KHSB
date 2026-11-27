@@ -6,10 +6,11 @@ export function aiNoticeText(tail: string): string {
   return `AI(Groq)로 초안을 만들어요. 이름은 가명으로 바꾸고 연락처는 빼고 보내요. ${tail}`;
 }
 
-/** 학부모·학생 화면의 결과물 표시 */
-export const AI_REVIEWED_LABEL = "AI가 초안을 만들고 운영진이 확인했어요";
-/** 학생 화면 — 학부모 요청에서 나온 지시라는 걸 드러내지 않는다 */
-export const AI_REVIEWED_LABEL_STUDENT = "AI가 초안을 만들고 선생님이 확인했어요";
+/** 운영진 화면 사전 고지 — 눈에 덜 띄게 한 줄만 보이고, 전체 문장(aiNoticeText)은 마우스를 올리면 보인다 */
+export const AI_NOTICE_SHORT = "AI 초안 · 이름은 가명으로 보내요";
+
+/** 학부모·학생 화면의 결과물 표시 — 글 아래에 작게. AI 가 도왔다는 사실과 사람이 다 검토했다는 걸 함께 (학생 화면도 같은 문장, 학부모 요청이라는 말은 없음) */
+export const AI_REVIEWED_LABEL = "AI의 도움을 받아 선생님이 한 글자 한 글자 모두 검토했어요";
 
 /**
  * 저장할 글의 AI 출처 칸(customNoteAi·mentoringSummaryAi) 값. AI 초안에서 시작한 글이면 true(고쳐 저장해도),

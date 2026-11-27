@@ -734,7 +734,7 @@ export type ParentMentoringReportDetail = {
   message: string | null;
   /** 오늘 멘토링 내용 · 개선된 점 · 보완할 점 · 다음 멘토링 목표 · 기타 메모 (빈 항목 제외) */
   sections: { key: MentoringSectionKey; title: string; body: string }[];
-  /** 학부모 메시지(customNote)가 AI 초안에서 나왔으면 "AI가 초안을 만들고 운영진이 확인했어요" 표시 */
+  /** 학부모 메시지(customNote)가 AI 초안에서 나왔으면 "AI의 도움을 받아 선생님이…검토했어요" 표시 */
   aiGenerated: boolean;
   /** 영단어·원생 기록·상벌점을 모은 달 (멘토링이 있었던 달, KST) */
   period: { year: number; month: number };
@@ -795,7 +795,7 @@ export type ParentOnlineReportDetail = {
   markdown: string;
   /** 원장님께 의견 남기기 (POST …/feedback) */
   feedbackEnabled: boolean;
-  /** AI 가 만든 초안이면 "AI가 초안을 만들고 운영진이 확인했어요" 표시 (인공지능기본법 제31조) */
+  /** AI 가 만든 초안이면 "AI의 도움을 받아 선생님이…검토했어요" 표시 (인공지능기본법 제31조) */
   aiGenerated: boolean;
 };
 

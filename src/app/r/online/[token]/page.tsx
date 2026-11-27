@@ -80,8 +80,8 @@ export default async function OnlineParentReportPublicPage({
       <Section>
         {markdown.trim() ? (
           <>
-            {isAiOnlineReport(report.content) && <AiReviewedNote className="mb-x4" />}
             <Prose source={markdown} />
+            {isAiOnlineReport(report.content) && <AiReviewedNote className="mt-x4 justify-end" />}
           </>
         ) : (
           <EmptyState icon={FileText} title="아직 작성된 내용이 없어요" className="py-x8" />

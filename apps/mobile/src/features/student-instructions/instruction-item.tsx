@@ -44,7 +44,7 @@ export function InstructionItem({ item, onAcked }: { item: StudentInstruction; o
       <Text variant="t3-regular" color="neutralSubtle" tabular>
         {senderLabel(item)}
       </Text>
-      {item.aiGenerated && <AiMadeNote label="AI가 초안을 만들고 선생님이 확인했어요" />}
+      {item.aiGenerated && <AiMadeNote />}
       {ackedAt ? (
         <View style={s.acked}>
           <CircleCheck color={color.fg.positive} size={16} strokeWidth={2.2} />

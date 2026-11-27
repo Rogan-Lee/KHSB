@@ -84,7 +84,7 @@ export type ParentMonthlyReport = {
   };
   /** ① 월간 멘토링 종합 의견 (마크다운) */
   mentoringSummary: string | null;
-  /** 종합 의견이 AI 초안에서 나왔으면 "AI가 초안을 만들고 운영진이 확인했어요" 표시 */
+  /** 종합 의견이 AI 초안에서 나왔으면 "AI의 도움을 받아 선생님이…검토했어요" 표시 */
   mentoringSummaryAi: boolean;
   /** ② 원장님 한마디 (마크다운) */
   directorComment: string | null;

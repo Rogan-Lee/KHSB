@@ -318,9 +318,12 @@ export function RequestDetail({
         ) : null}
       </View>
       {/* 생성형 AI 사전 고지 (인공지능기본법 제31조) — 웹 src/lib/ai-disclosure.ts 와 같은 문구 */}
-      <Notice tone="gray" icon={Sparkles}>
-        AI(Groq)로 초안을 만들어요. 이름은 가명으로 바꾸고 연락처는 빼고 보내요. 고쳐서 보내야 학생에게 전달돼요.
-      </Notice>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x0_5 }}>
+        <Sparkles size={10} color={color.fg.placeholder} strokeWidth={2} />
+        <Text variant="t1-regular" color="placeholder">
+          AI 초안 · 이름은 가명으로 보내요
+        </Text>
+      </View>
     </Stack>
   );
 

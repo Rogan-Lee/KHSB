@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { FileX, Sparkles, type LucideIcon } from 'lucide-react-native';
+import { BadgeCheck, FileX, type LucideIcon } from 'lucide-react-native';
 import { Fragment, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
@@ -122,12 +122,12 @@ export function CardTitle({ icon, tone, children }: { icon: LucideIcon; tone: To
  * AI 가 만든 내용 표시 (인공지능기본법 제31조) — API 가 aiGenerated 를 줄 때만. 웹 src/lib/ai-disclosure.ts 와 같은 문구.
  * 학생 화면은 학부모 요청이었다는 걸 드러내지 않게 "선생님" 문구를 넘긴다.
  */
-export function AiMadeNote({ label = 'AI가 초안을 만들고 운영진이 확인했어요' }: { label?: string }) {
+export function AiMadeNote() {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x1 }}>
-      <Sparkles size={14} color={color.fg.neutralSubtle} strokeWidth={2.2} />
-      <Text variant="t3-regular" color="neutralSubtle">
-        {label}
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x0_5 }}>
+      <BadgeCheck size={10} color={color.fg.placeholder} strokeWidth={2} />
+      <Text variant="t1-regular" color="placeholder" style={{ flexShrink: 1 }}>
+        AI의 도움을 받아 선생님이 한 글자 한 글자 모두 검토했어요
       </Text>
     </View>
   );

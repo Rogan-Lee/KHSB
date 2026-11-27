@@ -152,7 +152,7 @@ export default async function ParentReportPage({
       </ReportHero>
 
       {/* 학부모 메시지(customNote)가 AI 고도화 초안에서 나왔으면 표시 (인공지능기본법 제31조) */}
-      {customNoteAi && customNote?.trim() && <AiReviewedNote className="px-x1" />}
+      {customNoteAi && customNote?.trim() && <AiReviewedNote className="justify-end px-x1" />}
 
       {/* 멘토링 내용 */}
       {aiNote ? (

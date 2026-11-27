@@ -57,7 +57,7 @@ export function toStudentView(r: StudentRow) {
   return {
     id: r.id,
     content: r.content,
-    /** AI 초안에서 시작한 지시 — 학생 화면에 "AI가 초안을 만들고 선생님이 확인했어요" (학부모 요청이라는 말은 없음) */
+    /** AI 초안에서 시작한 지시 — 학생 화면에 "AI의 도움을 받아 선생님이…검토했어요" (학부모 요청이라는 말은 없음) */
     aiGenerated: r.aiDrafted,
     sentByName: r.sentByName,
     sentAt: r.sentAt?.toISOString() ?? null,
